@@ -8,3 +8,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Skill-creator eval workspaces (regenerable from skills/<name>/evals/evals.json)
+skills/*-workspace/

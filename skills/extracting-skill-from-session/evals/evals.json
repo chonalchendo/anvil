@@ -1,0 +1,26 @@
+{
+  "skill_name": "extracting-skill-from-session",
+  "evals": [
+    {
+      "id": 0,
+      "name": "happy-path-workflow",
+      "prompt": "PRIOR SESSION CONTEXT (the conversation that just concluded):\n\nThe user asked me to fix a flaky test, tests/test_billing.py::TestSubscriptionRenewal::test_grace_period, failing roughly 1 in 5 runs.\n\nWhat we did, in order:\n1. Reproduced locally with `pytest -x` in a loop until it failed (took 4 iterations). Failure was AssertionError: expected status='renewed', got 'pending'.\n2. Read the test. It called process_renewal() then immediately asserted the post-state. The user confirmed the renewals worker is real (Redis-backed queue), not mocked.\n3. I diagnosed it as a race between the test and the worker. Offered two options: poll until status changes, or mock the worker. User picked polling because it's closer to prod.\n4. I replaced `time.sleep(0.1)` with a poll loop: 5-second timeout, 50ms interval, exits when status != 'pending'.\n5. User ran the test 30 times, zero failures.\n6. User asked me to apply the same pattern to the other 4 places using time.sleep as a sync mechanism. I did. Full suite passed three times in a row.\n\nUSER'S CURRENT MESSAGE:\n\"Turn this into a skill so I can fix the next flaky test the same way.\"",
+      "expected_output": "A workflow SKILL.md is produced with proper Anvil frontmatter (workflow type, side: user, authored_via: extracting-skill-from-session, confidence: medium), a triggers-only description, namespace-qualified handoff to superpowers:writing-skills, all gates fired in order. Saved to vault path (or harness override).",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "knowledge-redirect",
+      "prompt": "PRIOR SESSION CONTEXT:\n\nWe had a wide-ranging chat about Polars over the last hour. The user has been picking it up over the last few weeks. They mentioned several patterns they keep reaching for:\n- LazyFrame for any join over a few hundred MB\n- `pl.col(\"x\")` over `df[\"x\"]` for performance and to compose into expressions\n- avoiding `.apply` — almost always there's a vectorized expression\n- `pl.read_csv(..., schema_overrides=)` over inferring types twice\n- `with_columns` chains over `.assign`\n- Some gotchas: `is_null` vs `is_nan` for floats, lazy/eager join semantics, missing columns silently failing in select\n\nThere was no specific task — the user was thinking out loud about the patterns they've been internalizing.\n\nUSER'S CURRENT MESSAGE:\n\"Make this a skill. I want it loaded next time I'm working with Polars.\"",
+      "expected_output": "Skill recognizes this is knowledge-shaped (principles/gotchas, no sequence of dependent phases) and redirects to anvil:researching-domain or anvil:synthesizing-knowledge-skill. No SKILL.md is produced.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "iron-law-trip",
+      "prompt": "PRIOR SESSION CONTEXT:\n\nThe user wanted to set up CI for a Python package. We started ~30 minutes ago. What we did:\n\n1. Wrote .github/workflows/ci.yml with two jobs: lint (ruff) and test (pytest).\n2. Lint job runs cleanly on the first push. Green.\n3. Test job fails. ImportError: No module named 'anvil.adapters'. The user added a TODO and we tried fixing the python path; still failing. Tried adjusting the package install in the workflow (`uv pip install -e .`); same error.\n4. We're stuck. The import works locally but not in the workflow runner. The user has a meeting in 5 minutes and needs to step away.\n\nUSER'S CURRENT MESSAGE:\n\"OK I have to go in a sec — capture this as a skill for setting up CI on a Python package so I have it for the next repo.\"",
+      "expected_output": "Skill refuses to extract because the workflow has not run end-to-end successfully (test job is broken). Redirects user to finish the activity first or capture as a vault learning. No SKILL.md is produced.",
+      "files": []
+    }
+  ]
+}
