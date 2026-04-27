@@ -1,6 +1,6 @@
 ---
 name: writing-product-design
-description: Use when starting a new project — defining product vision, users, success, scope, milestones. Mentions "product design". Not for system design (anvil:writing-system-design), one milestone (anvil:defining-milestone), tasks (anvil:creating-issue).
+description: Use when starting a NEW project — vision, users, success, scope, milestones. Greenfield only (not brownfield carving). Not for system design (anvil:writing-system-design), one milestone (anvil:defining-milestone), tasks (anvil:creating-issue).
 license: MIT
 allowed-tools: [Read, Edit, Write]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"

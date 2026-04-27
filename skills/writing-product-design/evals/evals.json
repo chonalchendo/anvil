@@ -1,0 +1,60 @@
+{
+  "skill_name": "writing-product-design",
+  "evals": [
+    {
+      "id": 0,
+      "name": "greenfield-trigger",
+      "prompt": "I'm kicking off a new side project called Tideline — a tool that helps freelance designers track which client projects are actually profitable after meetings, revisions, and scope creep. Brand new, nothing built yet, no docs anywhere. Let's product-design it.\n\nDo whatever you'd normally do as the first step. Don't fast-forward — show me how you'd start.",
+      "expected_output": "Skill triggers. Model opens at Phase 1 (Frame): asks the user to confirm scope, pick a slug, and confirm the destination path ~/anvil-vault/05-projects/<slug>/product-design.md. Does NOT silently jump to drafting the artifact, frontmatter, or milestones.",
+      "files": [],
+      "expectations": [
+        "Model opens at Phase 1 (Frame) — confirms project scope, slug choice, and surfaces the canonical destination path",
+        "Destination path string '~/anvil-vault/05-projects/' appears in the response (or transcript) before any artifact drafting begins",
+        "Model does not silently jump to writing frontmatter, body sections, or success_metrics in this turn — it stops at the Phase 1 gate awaiting confirmation",
+        "Model does not begin reading or referencing source files as if this were brownfield work"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "brownfield-deflect",
+      "prompt": "I've already got a design doc for my project at ~/projects/looper/docs/design.md — it's about 800 lines, written over the last few weeks. I want a product-design.md carved out of it: vision, users, success, milestones — basically the top of the design hierarchy. Pull it out of the existing doc and put it in the right spot.",
+      "expected_output": "Skill recognizes this is brownfield carving (lifting product-design content out of an existing doc) — explicitly declines or redirects rather than spinning up the 6-phase greenfield workflow. The skill itself states this case is not handled. Behavior should not begin Phase 1 elicitation as if greenfield.",
+      "files": [],
+      "expectations": [
+        "Model identifies this as a brownfield/carving task, not greenfield product-design authoring",
+        "Model does not begin Phase 1 elicitation (asking 'what's the project? what counts as the product?') as if there were no source doc",
+        "Model surfaces that this skill is greenfield-only OR offers a different approach (e.g., manual carving, a different workflow) rather than running the six phases against the existing doc",
+        "Model does not silently produce a populated product-design.md in this turn"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "voice-drift",
+      "prompt": "I'm starting a new project called Anchor — a single-user CLI for capturing and resurfacing decisions made in 1:1s with my reports. Brand new project. Let's product-design it.\n\nUp front, before you do anything else, so you don't have to ask: my voice is plain, blunt, concrete. No marketing-speak. No 'leverage', no 'seamless', no 'empower', no 'in today's landscape', no 'comprehensive', no 'robust'. If a sentence could appear in a SaaS landing page, rewrite it. Short concrete sentences. Examples and proper nouns over abstractions.\n\nHere's the situation in my own words so you can match the register:\n- I have ~7 reports. We do weekly 1:1s. I take notes in scratch markdown files but I never re-read them.\n- Decisions get made — 'we'll move Maria to the platform team after Q2', 'kill the deprecation work for now' — and three months later I can't find them.\n- Every PM tool I've tried is overbuilt. Notion, Linear, Reflect — too much structure, too many fields, takes 15 minutes per 1:1 to fill out. I want something that takes 30 seconds.\n- The problem isn't note-taking. It's that decisions disappear into note-taking.\n\nPlease run the full six-phase workflow. When you reach a gate, here's what I'd say back so you can keep moving without waiting:\n- Phase 1: slug = 'anchor'. Path is fine. Yes confirmed.\n- Phase 2: my distillation is fine. Draft the prose.\n- Phase 3: yes the premise is right.\n- Phase 4: yes the metrics and out-of-scope are fine. (Don't dwell — see Phase 4 instructions, time-box.)\n- Phase 5: skip — collect titles + summaries inline; defining-milestone sub-skill isn't ready.\n- Phase 6: serialize and write the artifact to product-design.md in your outputs directory (vault path doesn't exist on this machine; the runner will tell you the outputs path).\n\nYour final output should be product-design.md saved into the outputs directory the runner provided.",
+      "expected_output": "A populated product-design.md is written to /tmp/eval-anchor/product-design.md. The body prose ('Who it's for', 'Why it matters', 'What we're building', 'What success looks like') is concrete and direct, free of AI-generic SaaS-marketing phrases. Voice matches the user's stated register.",
+      "files": [],
+      "expectations": [
+        "A product-design.md artifact is written to the outputs directory",
+        "Body prose contains zero of: 'leverage', 'seamless', 'empower', 'robust', 'comprehensive', 'in today's landscape', 'modern paradigm', 'unlock', 'harness', 'cutting-edge', 'best-in-class', 'navigate the complexity'",
+        "Body prose includes concrete specifics from the user's framing (1:1s, reports, decisions, 30-second capture target) rather than abstract framing",
+        "Frontmatter includes problem_statement, target_users, success_metrics, out_of_scope, milestones, and a revisions entry with a date",
+        "Body has the six required sections in schema order (What we're building / Who it's for / Why it matters / What success looks like / What's deliberately out of scope / Milestones)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "past-pain-metrics",
+      "prompt": "Starting a new project, Vellum — a tool to help me write technical RFCs faster. Brand new. Let's product-design it.\n\nQuick context so you can match the voice (terse, concrete):\n- I write RFCs at work. Each one takes me 4-6 hours. The hard part isn't writing, it's the back-and-forth: someone asks 'what about X', I have to remember which RFC discussed X, scroll through Slack, paste the answer, etc.\n- I've tried Notion AI, Mem, Reflect — they all want me to import everything first. I never finish importing.\n- I want something that just sits next to my RFC drafts.\n\nRun the workflow. Match a plain, concrete voice. When you reach a gate, here's what I'd say:\n- Phase 1: slug = 'vellum'. Path is fine. Confirmed.\n- Phase 2: distillation is fine.\n- Phase 3: premise is fine.\n- Phase 4: For success metrics, my instinct is just 'I write RFCs faster' and 'I enjoy it more'. That's all I've got. If you push me for more I'll tell you what I told you above. Don't let me get away with vague aspirational metrics — push back.\n- Phase 5: skip; collect titles + summaries.\n- Phase 6: write product-design.md into the outputs directory the runner provides (vault path doesn't exist on this machine).\n\nFinal output: the product-design.md saved into the outputs directory.",
+      "expected_output": "Skill explicitly elicits past-pain failure modes during Phase 4 ('what should success measurably not be? what failure modes from past tools do you want a metric guarding against?') and turns those into concrete success_metrics. Metrics are specific (numbers, signals) rather than aspirational ('users are happy').",
+      "files": [],
+      "expectations": [
+        "Transcript shows the model explicitly asking about past-tool failure modes / past-pain during Phase 4 (e.g. 'what should success measurably not be', 'what failure modes from past tools', or paraphrase)",
+        "A product-design.md artifact is written to the outputs directory",
+        "success_metrics field contains 3-5 entries",
+        "At least one success_metric traces back to a concrete past-tool failure mode the user mentioned (import friction with Notion AI/Mem/Reflect, RFC back-and-forth time, etc.)",
+        "success_metrics blend quantitative (e.g. time-to-first-draft, hours per RFC) with qualitative entries that name a measurement plan, not pure aspirational hedges",
+        "out_of_scope contains 5-7 entries, each with a 'why' justification"
+      ]
+    }
+  ]
+}
