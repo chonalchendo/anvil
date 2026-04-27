@@ -9,9 +9,8 @@ This document captures the design rationale for Anvil. It exists so that future-
 ## Contents
 
 **Foundations**
-- [Origin](#origin) — what mantle taught us, why a successor
-- [What Anvil is for](#what-anvil-is-for) — the audience and the use case
-- [Core beliefs](#core-beliefs) — load-bearing convictions every decision checks against
+- [Vision and scope](#vision-and-scope) — pointer to `product-design.md` (vision, target users, success, milestones)
+- [Core beliefs](#core-beliefs) — load-bearing convictions about how Anvil is built
 - [Architecture](#architecture) — three layers (skills, orchestrator, vault)
 - [Storage tiers](#storage-tiers) — operational state vs knowledge vault
 - [Workflows](#workflows) — project bootstrap (greenfield + brownfield) and normal feature workflow
@@ -41,66 +40,31 @@ This document captures the design rationale for Anvil. It exists so that future-
 - [Versioning (deferred)](#versioning-deferred) — git is the version control story
 - [What gets ported from mantle](#what-gets-ported-from-mantle) — and what doesn't
 - [Implementation sequence](#implementation-sequence) — v0.1 through v0.4+
-- [What Anvil isn't](#what-anvil-isnt) — explicit non-goals
 - [Anvil-specific risks](#anvil-specific-risks) — twelve ranked risks with mitigations
 - [A note on tone](#a-note-on-tone) — skill voice as a design dimension
 - [Closing](#closing) — final shape
 
 ---
 
-## Origin
+## Vision and scope
 
-Anvil is the successor to [mantle](https://github.com/chonalchendo/mantle), an AI workflow engine with persistent context built for Claude Code. Mantle reached v0.23.0 with a sophisticated workflow (full lifecycle from idea to verified code), wave execution with fresh per-task context windows, lifecycle hooks for external trackers, brownfield codebase adoption, and per-stage telemetry infrastructure.
-
-Mantle worked. But it accumulated complexity that became its own problem:
-
-- 30+ slash commands, most rarely used.
-- Heavy compiled context injected on every command, expensive in tokens and cache invalidation.
-- Locked to Claude Code, with the lock-in deepening as features specialized.
-- CLI as thin router around prompt files — the worst of both worlds when something broke.
-- Educational gating envisioned in early designs but never built; ceremony fatigue prevented it from earning a place.
-
-The redesign wasn't a refactor — the architecture shifted enough that a clean repo was the honest move. Anvil keeps mantle's strongest pieces (wave execution, brownfield adoption, lifecycle hooks, telemetry approach) and rebuilds the rest around three references that proved more powerful than mantle's spec-driven inheritance:
-
-- **GSD** demonstrated that compressing workflow into config beats expanding it into command surface.
-- **Superpowers** demonstrated that auto-firing skills beat orchestrated commands for most engineering activities, and that the SKILL.md open standard makes multi-agent support nearly free.
-- **Matt Pocock's skills repo** demonstrated that skills are a unit of personal knowledge transfer — the lightest possible expression of cross-project expertise sharing.
-
-Anvil is the synthesis: GSD's ruthless simplicity, Superpowers' skill-as-unit-of-knowledge philosophy, and a thin Python orchestrator for the parts that genuinely benefit from being driven from outside the agent.
-
----
-
-## What Anvil is for
-
-Anvil is a methodology for AI-assisted development, packaged as auto-loading skills with a thin Python orchestrator and a personal knowledge vault.
-
-It targets solo developers and small teams who want AI to make them stronger engineers, not replace them. It is opinionated: it believes in TDD, it believes in simplicity, it believes in deliberate practice, it believes that some things are worth doing yourself even when an agent could do them for you.
-
-It is not for users who want sprint ceremonies, story points, or stakeholder syncs. BMAD or Spec Kit serve that audience better.
+For Anvil's vision, target users, success metrics, scope, and milestones, see [`product-design.md`](product-design.md).
 
 ---
 
 ## Core beliefs
 
-These are the load-bearing convictions. Every design decision should be checkable against them.
+These are the load-bearing convictions about *how* Anvil is built. Every design decision should be checkable against them. The product-side beliefs (what we're building, who it's for, what success looks like) live in [`product-design.md`](product-design.md).
 
-1. **AI should make engineers stronger, not replace them.** The educational gating workflow exists because of this belief. It's the project's soul.
+1. **Workflow lives in skills the agent navigates; the orchestrator is small.** Most engineering activities (brainstorming, planning, debugging, reviewing) are skills the agent can fire from conversational triggers. They don't need CLI commands.
 
-2. **Workflow lives in skills the agent navigates; the orchestrator is small.** Most engineering activities (brainstorming, planning, debugging, reviewing) are skills the agent can fire from conversational triggers. They don't need CLI commands.
+2. **One source of truth (markdown) compiles to many agents.** The SKILL.md open standard is the substrate. Multi-agent support falls out for free.
 
-3. **One source of truth (markdown) compiles to many agents.** The SKILL.md open standard is the substrate. Multi-agent support falls out for free.
+3. **Subprocess is the right default for the actual coding work.** It inherits agent CLI tool harnesses and respects subscription billing. Direct API access is reserved for narrow auxiliary operations (classification, summarization, cost estimation).
 
-4. **Cost discipline is a feature, not a dashboard.** Per-token telemetry exists for debugging Anvil itself. Daily users see a model profile (quality/balanced/budget) and trust the system to optimize within it.
+4. **Don't reimplement the harness.** Tools like pi-mono build their own agent loops on raw provider SDKs. The cost is high (months of work), the benefit is narrow for a workflow methodology, and you lose subscription billing entirely. Stay above the harness.
 
-5. **Skip-able defaults beat enforced gates.** The educational gate offers itself but never blocks. The user has final agency over every workflow.
-
-6. **Subprocess is the right default for the actual coding work.** It inherits agent CLI tool harnesses and respects subscription billing. Direct API access is reserved for narrow auxiliary operations (classification, summarization, cost estimation).
-
-7. **Don't reimplement the harness.** Tools like pi-mono build their own agent loops on raw provider SDKs. The cost is high (months of work), the benefit is narrow for a workflow methodology, and you lose subscription billing entirely. Stay above the harness.
-
-8. **Less surface area beats more capability.** The user touches the CLI twice a day at most. Everything else is conversation.
-
-9. **Skills are hypotheses validated by use.** A skill is a hypothesis about a recurring pattern, packaged for reuse. The packaging is uniform; the hypothesis can come from a successful session, accumulated learnings, or focused research. Skills earn confidence through real use, not through how cleverly they were authored. The methodology supports this lifecycle explicitly: meta-skills produce skills as their artifact, metadata tracks provenance and confidence, and refresh paths exist for both workflow and knowledge skills.
+5. **Skill metadata makes the lifecycle inspectable.** The packaging is uniform: meta-skills produce skills as their artifact, metadata tracks provenance and confidence, and refresh paths exist for both workflow and knowledge skills. (The product-side framing — "skills are hypotheses validated by use" — lives in `product-design.md`.)
 
 ---
 
@@ -1835,20 +1799,6 @@ v0.4+:
 - Whatever real use surfaces.
 
 The first version of each adapter does spawn-and-collect against a single task at a time. Concurrency, telemetry parity beyond the basics, and per-agent niceties come later. Don't try to ship adapter parity or parallel execution day one.
-
----
-
-## What Anvil isn't
-
-Worth being explicit about non-goals:
-
-- **Not a project manager.** Augments Linear/Jira/GitHub Issues via lifecycle hooks; doesn't replace them.
-- **Not an orchestrator framework.** Claude-Flow, Conductor, and similar do that. Anvil produces context they consume.
-- **Not a docs hallucination fix.** Use Context7 for that.
-- **Not a marketplace.** Skills come from git repos. No registry, no search, no recommendations. Find skills via GitHub search.
-- **Not a permission system.** Different teams use different skill sources. No corporate access control.
-- **Not a per-task skill filterer.** `anvil compile` copies all enabled skills to the agent's skill directory; it doesn't predict which subset a task will need. Progressive disclosure (descriptions in system prompt, bodies lazy-loaded) handles relevance at the right layer. Skill packs, aggregate budget warnings, and negative triggers address the "too many skills" concern properly. If a skill fires in the wrong context, fix its description.
-- **Not magic.** It's a disciplined way to work that happens to compile to four formats.
 
 ---
 
