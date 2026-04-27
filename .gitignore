@@ -11,3 +11,6 @@ wheels/
 
 # Skill-creator eval workspaces (regenerable from skills/<name>/evals/evals.json)
 skills/*-workspace/
+
+# Superpowers working artifacts (specs, plans, etc. — not committed)
+docs/superpowers/
