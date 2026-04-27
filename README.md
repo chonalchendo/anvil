@@ -1,0 +1,39 @@
+# Anvil
+
+A craft-first methodology for AI-assisted development, packaged as auto-loading [SKILL.md](https://agentskills.io) files with a thin Python orchestrator.
+
+> **Status:** Alpha. In active development. Not yet usable.
+
+## What it is
+
+Anvil treats the project's design as the load-bearing artifact and works backwards from it: **product-design → milestones → plans → sweeps → issues → inbox**. Every commit traces back to a milestone, every milestone traces back to the product's purpose. Stubborn on vision, flexible on implementation.
+
+The methodology lives in skills the agent navigates (auto-firing markdown files following Anthropic's open standard); the orchestrator is a small Python CLI that handles project state, vault scaffolding, and subprocess execution against agent CLIs (Claude Code first, Codex next).
+
+Two storage tiers:
+
+- **Operational state** at `~/.anvil/` — issue files, briefings, build cache, telemetry. Per-project, machine-local.
+- **Knowledge vault** at `~/anvil-vault/` — learnings, decisions, milestones, skills, MOCs. Browsed in Obsidian. Git-versioned.
+
+Project repos contain no Anvil-specific files by default. Work-friendly, no ceremony in repos that aren't yours to modify.
+
+## Why it exists
+
+Anvil is the successor to [mantle](https://github.com/chonalchendo/mantle). Mantle worked but accumulated complexity — 30+ slash commands, heavy compiled context, Claude-only lock-in, weak build step. Anvil keeps the load-bearing parts (lifecycle hooks, vault, telemetry) and trades the orchestrator-heavy approach for a skill-based one. The methodology travels with the user across projects rather than being scaffolded into each repo.
+
+## Design
+
+The full design lives in [`docs/design.md`](docs/design.md). It covers architecture, vault structure, frontmatter schemas, the build command, skill authoring conventions, and implementation sequence. Read it before contributing.
+
+The agent conventions (how to write code for Anvil) live in [`AGENTS.md`](AGENTS.md), with `CLAUDE.md` as a symlink for Claude Code compatibility.
+
+## Roadmap
+
+- **v0.1** — `anvil init`, `anvil status`, `anvil cost`, `anvil compile`, `anvil build` with Claude Code adapter (sequential execution). Core methodology skills (~11). Vault scaffolding. JSON Schema validation in CI.
+- **v0.2** — Codex adapter. Concurrent wave execution with git worktrees. Brownfield adoption (`anvil adopt`). Knowledge-skill lifecycle (`researching-domain`, `synthesizing-knowledge-skill`).
+- **v0.3** — Educational gating workflow. Workspace concept for cross-repo coordination.
+- **v0.4+** — Refinements based on real use.
+
+## License
+
+[MIT](LICENSE)
