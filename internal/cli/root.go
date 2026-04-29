@@ -1,18 +1,35 @@
-// Package cli holds the cobra root command and subcommand wiring.
-//
-// v0.0.0-dev: scaffold only. Cobra and fang land in a later spec when the
-// first user-facing command is added.
+// Package cli holds the cobra command tree.
 package cli
 
-import "fmt"
+import (
+	"context"
 
-// Run is the CLI entrypoint. v0.0.0-dev prints a scaffold banner and exits.
-//
-// fmt.Println is intentional at this stage; once cobra+fang lands, output
-// switches to cmd.Println per AGENTS.md. args is unused until the root
-// command tree is wired up.
-func Run(args []string) error {
-	_ = args
-	fmt.Println("anvil v0.0.0-dev (scaffold)")
-	return nil
+	"github.com/charmbracelet/fang"
+	"github.com/spf13/cobra"
+)
+
+// Execute is the CLI entrypoint, invoked by cmd/anvil/main.go.
+func Execute(ctx context.Context) error {
+	return fang.Execute(ctx, newRootCmd())
+}
+
+func newRootCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:           "anvil",
+		Short:         "Anvil — agentic-development methodology",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+	}
+	cmd.AddCommand(
+		newWhereCmd(),
+		newInitCmd(),
+		newInboxCmd(),
+		newCreateCmd(),
+		newShowCmd(),
+		newListCmd(),
+		newLinkCmd(),
+		newSetCmd(),
+		newProjectCmd(),
+	)
+	return cmd
 }
