@@ -1,0 +1,12 @@
+type: inbox
+title: {{ printf "%q" .Title }}
+created: {{ .Created }}
+updated: {{ .Created }}
+status: raw
+tags: [type/inbox]
+{{- if .SuggestedType }}
+suggested_type: {{ .SuggestedType }}
+{{- end }}
+{{- if .SuggestedProject }}
+suggested_project: {{ .SuggestedProject }}
+{{- end }}

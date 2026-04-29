@@ -1,0 +1,7 @@
+type: decision
+title: {{ printf "%q" .Title }}
+created: {{ .Created }}
+updated: {{ .Created }}
+status: proposed
+decision-makers: [{{ range $i, $m := .DecisionMakers }}{{ if $i }}, {{ end }}{{ printf "%q" $m }}{{ end }}]
+tags: [type/decision]
