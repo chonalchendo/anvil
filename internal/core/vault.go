@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 )
 
-// VaultDirs is the canonical 14-dir tree per system-design.md lines 160-176.
+// VaultDirs lists every directory Scaffold creates under the vault root.
 var VaultDirs = []string{
 	"00-inbox",
 	"05-projects",
