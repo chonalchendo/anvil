@@ -11,9 +11,13 @@ import (
 
 func main() {
 	if err := cli.Execute(context.Background()); err != nil {
-		if errors.Is(err, cli.ErrArtifactNotFound) {
+		switch {
+		case errors.Is(err, cli.ErrArtifactNotFound):
 			os.Exit(2)
+		case errors.Is(err, cli.ErrSchemaInvalid):
+			os.Exit(3)
+		default:
+			os.Exit(1)
 		}
-		os.Exit(1)
 	}
 }

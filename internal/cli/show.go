@@ -2,7 +2,6 @@ package cli
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,9 +10,6 @@ import (
 
 	"github.com/chonalchendo/anvil/internal/core"
 )
-
-// ErrArtifactNotFound is returned when the requested artifact file does not exist.
-var ErrArtifactNotFound = errors.New("artifact not found")
 
 func newShowCmd() *cobra.Command {
 	var flagJSON bool
