@@ -20,7 +20,7 @@ metadata:
 
 # Writing Product Design
 
-A six-phase workflow for authoring a project's product-design artifact — the top of Anvil's design-driven hierarchy (product-design → milestones → plans → sweeps → issues → inbox). Greenfield only: the user is starting a new project, not carving from existing docs.
+A workflow for authoring a project's product-design artifact (eight phases including 3.5 and 4.5) — the top of Anvil's design-driven hierarchy (product-design → milestones → plans → sweeps → issues → inbox). Greenfield only: the user is starting a new project, not carving from existing docs.
 
 ## When to use
 
@@ -38,11 +38,11 @@ A six-phase workflow for authoring a project's product-design artifact — the t
 
 ## Output path
 
-Canonical destination: `~/anvil-vault/05-projects/<project>/product-design.md`. Vault-only — never committed to the project's source repo. The schema lives in `docs/design.md` lines ~647-696 (TODO: update this pointer to `anvil/schemas/product-design.schema.json` once schemas land).
+Canonical destination: `~/anvil-vault/05-projects/<project>/product-design.md`. Vault-only — never committed to the project's source repo. The schema lives in [vault-schemas.md](../../docs/vault-schemas.md) under the product-design section. JSON Schema (`anvil/schemas/product-design.schema.json`) is deferred to a later spec — when it lands, update this pointer.
 
 Surface this path at Phase 1, not Phase 6, so the user can flag any can't-commit-anywhere constraint up front.
 
-## The six phases
+## The phases
 
 Each phase has an explicit user gate. Don't skip the gates — they're the load-bearing part. Treat each as a real iteration loop; expect 1-2 reframes per phase as the user finds the right framing.
 
@@ -80,11 +80,43 @@ Draft the "What we're building" body section:
 
 **Gate (load-bearing):** user confirms the premise. Phase 5 derives milestones from this — don't rush. If the user reframes the premise, accept the iteration; this phase often takes 2-3 passes.
 
-### Phase 4 — Success & out-of-scope (LOAD-BEARING)
+### Phase 3.5 — Approach (fat-marker sketch)
+
+Draft the "Approach" body section: a fat-marker sketch of the solution shape. The goal is to give Phase 5 (milestones) something concrete to derive from without breaching what-vs-how separation.
+
+> **Broad strokes only — no architecture, no tech choices, no APIs.** Shapes only. If a bullet names a database, framework, library, or specific API endpoint, it belongs in `system-design.md`. Strip it.
+
+Output: 3–7 bullets describing the *shape* of the solution at the level a product manager would draw on a whiteboard. Examples of right altitude:
+
+- "User runs one command per phase; everything else is automated."
+- "Skills auto-load by file presence — no registry."
+- "Telemetry is opt-in, local-only, queryable from the CLI."
+
+Examples of wrong altitude (too detailed — push to system-design):
+
+- "Use SQLite via modernc.org driver." ← tech choice
+- "Cobra command tree with three subcommands." ← architecture
+
+**Gate:** user confirms the sketch is at the right altitude — too detailed → strip; too vague → expand. Expect 1–2 reframes; the right altitude is genuinely hard to find on the first pass.
+
+### Phase 4 — Goals, success, constraints & out-of-scope (LOAD-BEARING)
 
 Both fields are net-new authoring — no source doc to lift from.
 
 **Past-pain → metrics prompt (critical).** Ask the user explicitly: *what should success measurably not be? What failure modes from past tools do you want a metric guarding against?* Old-tool failure modes are the strongest source of concrete measurable success criteria. Don't lose them to politeness.
+
+**Goals — outcome-shaped (≥1 entry).** Distinct from metrics. Examples:
+- "Users feel the tool is on their side" — goal (qualitative).
+- "≥80% of plans auto-fire on first try" — metric (measurable).
+- "First plan in ≤30 minutes" — metric (measurable).
+- "Senior engineers feel respected by the tool" — goal (qualitative).
+
+If a candidate has a number in it, it's probably a metric. If it describes a felt experience or outcome, it's a goal. Both are required; they answer different questions.
+
+**Constraints & appetite (Shape Up framing).** Constraints are usually fixed-time; scope is the variable. Appetite is the explicit time box.
+
+- `constraints`: 2–5 bullets. Mix of capacity, deadline, dependency. "v0.1 ships in 6 weeks" is a constraint. "We won't build a UI" is out_of_scope, not a constraint.
+- `appetite`: one value. `small-batch` (1–2 weeks) / `big-batch` (4–6 weeks) / explicit duration string. Pick the framing that matches how the user thinks about the time box.
 
 Author 3-5 `success_metrics`:
 - Blend quantitative ("≤30 minutes to first plan") and qualitative ("users report stronger engineers").
@@ -95,7 +127,24 @@ Author 5-7 `out_of_scope` items:
 
 Draft body sections "What success looks like" and "What's deliberately out of scope" with 1-2 sentence justifications per item.
 
-**Gate (load-bearing):** user signs off **explicitly** on both lists. **Time-box:** if metrics don't land in two iterations, write placeholders (`"TODO: validate after two weeks of real use"`) and accept that v0.1 product-design is itself a draft. Don't stall here.
+**Gate (load-bearing):** user signs off **explicitly** on goals, success metrics, constraints, appetite, and out-of-scope. **Time-box:** if any list doesn't land in two iterations, write placeholders (`"TODO: validate after two weeks of real use"`) and accept that v0.1 product-design is itself a draft.
+
+### Phase 4.5 — Risks, rabbit holes, open questions
+
+Capture the `risks` field. Brief — single gate, ≤5 minutes. Placeholders allowed if the user is uncertain; this phase exists to surface unknowns *before* milestones derive.
+
+Prompt:
+- What could derail this?
+- What's a rabbit hole you're afraid of?
+- What's still genuinely open?
+
+3–7 bullets. Mirror `milestone.risks` in shape. Examples:
+
+- "Subprocess streaming buffer overflow on long tool-result lines"
+- "Companion-pack drift if Superpowers reshapes its skills"
+- "Open: should skills be content-addressed or path-based?"
+
+**Gate:** user confirms the list. Reframes are common — naming a risk often makes the user realize it's actually a constraint or an out-of-scope item.
 
 ### Phase 5 — Initial milestones
 
@@ -114,9 +163,9 @@ If `anvil:defining-milestone` is not yet available (v0.1 may not have it), colle
 1. Populate frontmatter from body. Replace any remaining placeholders.
 2. Flip `status: draft` → `status: active`.
 3. Append a `revisions:` entry: `{ date: <today>, change: "Initial draft" }`.
-4. Hand-check against the schema in `docs/design.md` lines ~647-696. (TODO: update this pointer to `anvil/schemas/product-design.schema.json` once schemas land.) Verify:
-   - All schema-required frontmatter fields present (`type`, `title`, `project`, `created`, `updated`, `status`, `tags`, `target_users`, `problem_statement`, `success_metrics`, `out_of_scope`, `milestones`, `related`, `revisions`).
-   - Body has six sections in schema order: What we're building / Who it's for / Why it matters / What success looks like / What's deliberately out of scope / Milestones.
+4. Hand-check against the schema in [vault-schemas.md](../../docs/vault-schemas.md) under the product-design section. (TODO: update this pointer to `anvil/schemas/product-design.schema.json` once schemas land.) Verify:
+   - All schema-required frontmatter fields present (`type`, `title`, `project`, `created`, `updated`, `status`, `tags`, `target_users`, `problem_statement`, `goals`, `constraints`, `appetite`, `success_metrics`, `out_of_scope`, `risks`, `milestones`, `related`, `revisions`).
+   - Body has ten sections in schema order: What we're building / Who it's for / Why it matters / Goals / Constraints & appetite / What success looks like / Approach / What's deliberately out of scope / Risks, rabbit holes, open questions / Milestones.
    - Wikilinks in `milestones:` are well-formed `[[milestone.<project>.<slug>]]`.
    - `revisions:` has at least one entry with today's date.
 5. Write to `~/anvil-vault/05-projects/<project>/product-design.md`.
@@ -130,7 +179,9 @@ If `anvil:defining-milestone` is not yet available (v0.1 may not have it), colle
 | 1 Frame | Project scope, slug, destination path | Trivial |
 | 2 Problem & users | `problem_statement`, `target_users`, body prose | User confirms |
 | 3 What we're building | Body section | **Load-bearing** |
-| 4 Success & out-of-scope | `success_metrics`, `out_of_scope`, both bodies | **Load-bearing** |
+| 3.5 Approach | Fat-marker sketch (3–7 bullets) | User confirms altitude |
+| 4 Goals, success, constraints, out-of-scope | All four lists + bodies | **Load-bearing** |
+| 4.5 Risks & rabbit holes | `risks` list | User confirms |
 | 5 Milestones | Wikilinks + summaries | User confirms |
 | 6 Serialize & save | Frontmatter, hand-check, write | User reads cold |
 
