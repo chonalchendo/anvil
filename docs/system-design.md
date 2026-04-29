@@ -141,19 +141,47 @@ Operational state (per-machine, abbreviated; see `design.md` § Repository struc
 └── telemetry.db                # SQLite
 ```
 
-Knowledge vault (Obsidian; see `design.md` and `vault-schemas.md` for the long form):
+Knowledge vault (Obsidian) gets its own section below — see "Knowledge base".
 
-```
-~/anvil-vault/                  # knowledge vault (Obsidian)
-├── 05-projects/<project>/      # product-design.md, system-design.md
-├── 30-decisions/               # ADRs
-├── 40-skills/                  # user-authored knowledge skills
-└── 85-milestones/
-```
-
-The two trees are separate by invariant. Vault content is never committed to the project source repo; the source repo is never written into the vault.
+The three trees are separate by invariant. Vault content is never committed to the project source repo; the source repo is never written into the vault; operational state is local to the machine and never touches either.
 
 `tool.go.mod` keeps developer-tool dependencies (linter, release tooling) isolated from the runtime module graph so `go install github.com/.../anvil/cmd/anvil@latest` stays clean.
+
+## Knowledge base (Obsidian vault)
+
+**Two locations, separated by lifecycle:**
+- `~/anvil-vault/` — knowledge artifacts (Markdown, git-versioned, opened in Obsidian)
+- `~/.anvil/` — operational state that churns per-command (issue state, briefings, build cache, telemetry, per-project state keyed by git remote)
+
+**Vault structure (type-first, flat-within-type, PARA-style numeric prefixes):**
+
+```
+~/anvil-vault/
+├── AGENTS.md               # ≤5k always-on layer
+├── CLAUDE.md               # symlink to AGENTS.md
+├── 00-inbox/               # human capture only; agents never write
+├── 05-projects/<project>/  # product-design.md + system-design.md
+├── 10-sessions/{raw,distilled}/
+├── 20-learnings/           # flat, topic-prefixed (Dendron-style)
+├── 30-decisions/           # MADR-conformant ADRs
+├── 40-skills/<skill>/      # SKILL.md visible; references/scripts/assets/ hidden
+├── 50-sweeps/
+├── 60-threads/
+├── 70-issues/              # knowledge slice; ops state in ~/.anvil/
+├── 80-plans/               # canonical; worktrees read from here
+├── 85-milestones/          # bridges design and execution
+├── 90-moc/dashboards/      # static MOCs + .base files
+├── 99-archive/
+├── _meta/                  # tag-conventions, frontmatter-schema, retention
+└── schemas/                # JSON Schemas for CI validation
+```
+
+**Key conventions:**
+- Project is a frontmatter field, NOT a folder (cross-project distillation requires this).
+- Seven artifact types with typed frontmatter schemas validated by JSON Schema in CI. Schemas live in [`vault-schemas.md`](vault-schemas.md).
+- Four-facet tag taxonomy.
+- 50-note backpressure rule on `00-inbox/` and `10-sessions/raw/` to prevent write-only-vault syndrome.
+- Wikilink-based provenance: product-design → milestone → plan → sweep → issue → commit.
 
 ## The `anvil` CLI (deterministic substrate)
 
@@ -313,6 +341,18 @@ Authoring rules — body length, ALL-CAPS triggers, namespace handoff, descripti
 - Companion-pack drift if Superpowers reshapes its core skills, breaking the compose-and-then-fork posture. Signal is library-smoke-test churn after a Superpowers release.
 - Subscription auth shape change in claude-code or codex (credential file format, OAuth flow) requires coordinated adapter updates. Signal is `ErrorKind = Auth` rate spikes.
 - Skill auto-loading by file presence: a malformed SKILL.md crashes the host CLI; anvil has no fallback because the host owns skill parsing. Signal is `claude` exiting non-zero before any anvil event lands.
+
+## AI engineering & token strategy
+
+**The ≤5k always-on budget is the load-bearing constraint.** AGENTS.md/CLAUDE.md is the only per-turn cost. The vault itself is lazy-loaded.
+
+**Skills are the lazy-loading unit** — fewer, denser skills beat many small ones (especially for OpenCode, which injects the full skill catalog into the system prompt without dedup).
+
+**Subscription billing preserved** via subprocess invocation of CLIs (Claude Max, ChatGPT Plus). No SDK calls for heavy work; auxiliary text-only operations (classification, summarization, cost estimation) are the only API-direct path.
+
+**Per-task attribution** via worktree/cwd is how subscription-billed observability tools (`ccusage`, etc.) group sessions.
+
+**Fresh-session discipline + plan files on disk** is the dominant pattern for managing context rot — Anvil's wave executor commits to it (one fresh subprocess per task) and the vault's `80-plans/` keeps the canonical handoff durable.
 
 ## Companion packs framing
 
