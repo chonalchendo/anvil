@@ -1,9 +1,14 @@
 package cli
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+
 	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/schema"
 )
 
 func newInitCmd() *cobra.Command {
@@ -24,6 +29,20 @@ func newInitCmd() *cobra.Command {
 			}
 			if err := v.Scaffold(); err != nil {
 				return err
+			}
+			entries, err := schema.EmbeddedFS.ReadDir(".")
+			if err != nil {
+				return fmt.Errorf("read embedded schemas: %w", err)
+			}
+			for _, e := range entries {
+				b, err := schema.EmbeddedFS.ReadFile(e.Name())
+				if err != nil {
+					return fmt.Errorf("read %s: %w", e.Name(), err)
+				}
+				target := filepath.Join(v.SchemasDir(), e.Name())
+				if err := os.WriteFile(target, b, 0o644); err != nil {
+					return fmt.Errorf("write %s: %w", target, err)
+				}
 			}
 			cmd.Println("vault scaffolded at", v.Root)
 			return nil

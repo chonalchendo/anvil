@@ -34,3 +34,19 @@ func TestInit_PathArg(t *testing.T) {
 		t.Errorf("expected vault at %s", dir)
 	}
 }
+
+func TestInit_WritesSchemasIntoVault(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("ANVIL_VAULT", dir)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"init"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"inbox", "issue", "plan", "milestone", "decision", "product-design", "system-design"} {
+		p := filepath.Join(dir, "schemas", n+".schema.json")
+		if _, err := os.Stat(p); err != nil {
+			t.Errorf("missing %s", p)
+		}
+	}
+}
