@@ -175,7 +175,7 @@ If you write 200 lines and it could be 50, rewrite it. Ask yourself: "Would a se
 - Personal vault content (your `~/anvil-vault/`).
 - Anything from `~/.anvil/` or `~/.claude/projects/`.
 - `.env` files. Use `.env.example` as a template.
-- Output artifacts (`dist/`, `build/`, `*.egg-info`).
+- Output artifacts (`bin/`, `dist/`, `*.test`, `coverage.out`).
 
 ## Commit Messages
 

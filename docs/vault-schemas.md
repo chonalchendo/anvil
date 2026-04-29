@@ -118,6 +118,9 @@ authorized_decisions:
   - "[[decision.payments.0003-postgres-for-ledger]]"
   - "[[decision.payments.0007-idempotency-via-postgres]]"
 boundary_diagrams: ["[[assets.payments.context-diagram]]"]
+risks:
+  - "Provider rate-limit cascades during a payment-spike window"
+  - "Ledger contention under write-heavy retries"
 revisions:
   - { date: 2026-03-05, change: "Initial draft after architecture spike" }
   - { date: 2026-04-26, change: "Added idempotency design" }
@@ -132,6 +135,8 @@ revisions:
 ## Boundaries and integration points
 ...
 ## Key invariants
+...
+## Risks
 ...
 ## Why this shape
 References the decisions that led here: [[decision.payments.0001-stripe-vs-self-host]] explains the build-vs-buy choice...

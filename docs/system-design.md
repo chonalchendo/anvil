@@ -21,6 +21,11 @@ key_invariants:
   - "Vault content is never committed to project source repos; vault and source live in separate trees."
   - "Subscription billing is preserved by spawning the user's agent CLI subprocess; the orchestrator never bypasses it via direct API calls."
 authorized_decisions: []
+risks:
+  - "Agent CLI tool-result line >8 MiB → wave hangs; mitigated by the load-bearing scanner buffer."
+  - "Companion-pack drift: Superpowers reshaping core skills could break compose-and-then-fork posture."
+  - "Subscription auth shape change in claude-code/codex would require coordinated adapter updates."
+  - "Skill auto-loading by file presence: a malformed SKILL.md can crash the host CLI with no anvil-side recovery."
 revisions:
   - { date: 2026-04-29, change: "Initial Go-shaped draft; replaces design.md as live system-design reference" }
 ---
@@ -272,6 +277,13 @@ Authoring rules — body length, ALL-CAPS triggers, namespace handoff, descripti
 **CI vs. orchestrator.** Body length, ALL-CAPS, namespace-handoff, negative-trigger, and aggregate description-budget checks run in CI against `skills/`. The orchestrator assumes its inputs are valid SKILL.md files and does not re-validate at runtime — validation that fires at spawn time is too late.
 
 **Source registry.** v0.1 scans only the project's `skills/` directory. v0.2 adds the vault's `40-skills/` and external pack directories under `~/.anvil/packs/`.
+
+## Risks
+
+- Agent CLI tool-result line exceeding 8 MiB → wave hangs. Mitigated by the load-bearing scanner buffer; signal is a stalled subprocess with no event flow.
+- Companion-pack drift if Superpowers reshapes its core skills, breaking the compose-and-then-fork posture. Signal is library-smoke-test churn after a Superpowers release.
+- Subscription auth shape change in claude-code or codex (credential file format, OAuth flow) requires coordinated adapter updates. Signal is `ErrorKind = Auth` rate spikes.
+- Skill auto-loading by file presence: a malformed SKILL.md crashes the host CLI; anvil has no fallback because the host owns skill parsing. Signal is `claude` exiting non-zero before any anvil event lands.
 
 ## Companion packs framing
 
