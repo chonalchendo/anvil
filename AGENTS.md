@@ -1,6 +1,6 @@
 # Anvil — Agent Conventions
 
-Anvil is a methodology for AI-assisted development packaged as auto-loading SKILL.md files with a thin Python orchestrator. The architectural design lives in `docs/design.md`. Read it before making structural decisions.
+Anvil is a methodology for AI-assisted development packaged as auto-loading SKILL.md files with a thin Go orchestrator. The architectural design lives in `docs/system-design.md`. Read it before making structural decisions.
 
 This file captures *how to write code* for Anvil. The design doc captures *what Anvil is*.
 
@@ -28,7 +28,7 @@ Before implementing:
 - The design doc is silent or ambiguous on a structural question.
 - Implementation is taking longer than expected and you're considering shortcuts.
 
-Don't stop and ask for: trivial naming choices, where to put a clearly-bounded helper, formatting decisions covered by ruff config.
+Don't stop and ask for: trivial naming choices, where to put a clearly-bounded helper, formatting decisions covered by `golangci-lint` config.
 
 ### Surgical Changes
 
@@ -107,49 +107,66 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - **No abstraction without need.** Premature abstraction creates surface that costs more than it saves.
 - **No defensive code for unreachable states.** If a precondition is invariant, document it; don't check it at runtime.
 - **No comments explaining *what*.** Comments explain *why* the code is shaped this way, never restate what the code does.
-- **No `print()` for control flow output.** CLI output goes through Typer's echo helpers; logging goes through the `logging` module with `%s` formatting (not f-strings).
+- **No `fmt.Println` for control flow output.** CLI output goes through cobra's `cmd.Println` / `cmd.PrintErrln` (which respect output redirection); structured logging goes through `log/slog`.
 - **No new top-level dependencies without explicit user approval.**
 
 If you write 200 lines and it could be 50, rewrite it. Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
-## Python Conventions
+## Go Conventions
 
 ### Imports
 
-- **Module-alias imports** for internal code: `import anvil.adapters.base as base`, then `base.AgentAdapter(...)`.
-- Reserve `from x import Y` for single-symbol stdlib usage (e.g., `from pathlib import Path`).
-- `TYPE_CHECKING` guard for annotation-only imports.
+- Standard import grouping: stdlib first, blank line, third-party, blank line, internal (`github.com/chonalchendo/anvil/internal/...`). `goimports` (run via `golangci-lint fmt`) enforces this.
+- No dot imports (`import . "pkg"`). No blank imports outside `tools.go`-style files (and we don't have those — see `tool.go.mod`).
+- Internal packages live under `internal/`. External consumers cannot import them by language rule.
 
-### Type Annotations
+### Type & API design
 
-- Annotate all public functions (params + return).
-- Use `X | Y` union syntax, not `Optional[X]`.
-- No `from __future__ import annotations` (3.12+).
-- Avoid `Any`.
+- Exported identifiers get a doc comment starting with the identifier name. One sentence is fine for trivial cases.
+- Prefer small interfaces defined where consumed, not where implemented (Go idiom: "accept interfaces, return structs").
+- Use `context.Context` as the first parameter on any function that does I/O, spawns goroutines, or might block. Never store contexts in structs.
+- Use `time.Duration` for durations, `time.Time` for instants — never `int64` seconds.
+- No `interface{}` / `any` in public APIs unless genuinely heterogeneous (and then comment why).
 
-### Error Handling
+### Error handling
 
-- Catch specific exceptions — never bare `except Exception:` unless re-raising.
-- If catching and not re-raising, log at WARNING minimum.
-- Use `raise X from Y` to preserve chains.
+- Wrap with `%w`: `fmt.Errorf("loading config: %w", err)`. Never `fmt.Errorf("%v", err)` — destroys the chain.
+- Check with `errors.Is` / `errors.As`. Never compare `err.Error()` strings.
+- Define sentinel errors as package-level vars (`var ErrNotFound = errors.New("not found")`). Define typed errors as structs implementing `error`.
+- Use `errors.Join` for multi-error aggregation; do not invent custom multi-error types.
+- `golangci-lint`'s `errorlint` linter is enabled — it catches `err == ErrFoo` (wrong; use `errors.Is`) and unwrapped `%v` formats.
 
 ### Functions
 
-- Max 5 parameters. Beyond that, group into a config object or dataclass.
-- Keyword-only (`*`) for boolean params and optional params after the first two positional.
+- Max 5 parameters. Beyond that, group into a `Config` / `Options` struct.
+- Use functional options (`func WithTimeout(d time.Duration) Option`) only when ≥3 optional params accumulate; otherwise a struct literal is fine.
+- Boolean parameters get keyword-style call sites via struct fields, not positional booleans.
 
-### Docstrings
+### Logging & output
 
-- Google style. One-liner for trivial functions.
-- Module docstring: one sentence describing purpose.
+- Structured logging via `log/slog`. `lmittmann/tint` for terminal output; JSON handler for debug-file output. Combine via `samber/slog-multi`.
+- CLI output (user-facing) via cobra's `cmd.Println` / `cmd.PrintErrln`. Never `fmt.Println` directly in command code — it bypasses cobra's output redirection and breaks tests.
+- No `log.Println` / `log.Fatal` in non-`main` packages. The standard `log` package writes to a global; `slog` is the contract.
+
+### Concurrency
+
+- Use `errgroup.Group` for goroutine fan-out with error propagation.
+- Use `context.Context` for cancellation; never naked channels for cancel signals in new code.
+- For subprocess management: `cmd.Cancel` (Go 1.20+) + `cmd.WaitDelay` for graceful-then-forceful shutdown.
+- No `sync.Once` outside package init — if you need lazy init across goroutines, use a constructor.
+
+### Subprocess gotchas (load-bearing)
+
+- `bufio.Scanner`'s default `MaxScanTokenSize` is 64 KiB. Agent CLI tool-result lines exceed this. **Always** set `scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)` for an 8 MiB max line, or switch to `bufio.Reader.ReadBytes('\n')`. This is a documented invariant in `system-design.md`.
+- Per-spawn `CLAUDE_CONFIG_DIR` and `CODEX_HOME` isolation is mandatory. Adapters set these; never rely on inherited env.
 
 ## Test Conventions
 
-- Framework: pytest.
-- Test directory mirrors `src/anvil/` structure (e.g. `tests/core/test_manifest.py` for `src/anvil/core/manifest.py`).
-- Top-level `tests/test_package.py` and `tests/test_workflows.py` for project-wide and infrastructure tests.
-- Use `tmp_path` for isolated file operations — **never touch real `~/.claude/` or real vaults**.
-- Mock subprocess calls at the `asyncio.create_subprocess_exec` boundary; real-CLI tests live in `tests/integration/` gated behind `pytest -m integration`.
+- Framework: stdlib `testing` + `google/go-cmp` for diffs. `gotestsum` as the runner. No testify.
+- Test files live alongside source: `internal/core/manifest.go` ↔ `internal/core/manifest_test.go`.
+- Use `t.TempDir()` for isolated file operations — **never touch real `~/.claude/` or real vaults**.
+- Mock subprocess calls at the `os/exec.Cmd` boundary via a small interface in the adapter package; real-CLI tests live in `internal/adapters/integration_test.go` gated behind `// +build integration` (run via `just test-integration`).
+- `testing/synctest` (Go 1.24+) is reserved for v0.2 wave-graph executor tests; not used in v0.1.
 
 ## What Never to Commit
 
@@ -169,6 +186,29 @@ Conventional commits: `feat:`, `fix:`, `docs:`, `test:`, `chore:`, `refactor:`, 
 ### Releasing — `@docs/releasing.md`
 
 **Read when:** cutting a new version. Covers `uv version` bump, README/CHANGELOG updates, tag-and-push, and the `publish.yml` workflow.
+
+> *Stale: rewrite pending Go release pipeline spec. Current content describes `uv version` + `publish.yml`; the Go pipeline (`goreleaser` v2 + Cosign + SLSA + Syft) lands in a future spec when the first release is cut.*
+
+## Go ecosystem decisions (baked-in)
+
+These choices are decided. Don't re-litigate without an ADR.
+
+| Concern | Choice | Notes |
+|---|---|---|
+| CLI framework | `spf13/cobra` + `charmbracelet/fang` | Fang wraps the root command. Add `charmbracelet/huh` only when prompts are needed. |
+| Layout | `cmd/anvil/main.go` + `internal/...` | Embeds colocated with consuming package. No top-level `assets/`. |
+| Tests | stdlib `testing` + `google/go-cmp` + `gotestsum` | Skip testify. `testing/synctest` reserved for v0.2. |
+| JSON Schema | `santhosh-tekuri/jsonschema/v6` | Deferred until schemas land. `xeipuuv/gojsonschema` is dead. |
+| Templating | stdlib `text/template` + `//go:embed` | `go-sprout/sprout` only if Sprig-style helpers needed. Sprig itself is unmaintained. |
+| Subprocess | stdlib `os/exec` + `bufio.Scanner` (8 MiB buffer) + `errgroup` + `cmd.Cancel`/`cmd.WaitDelay` | The 8 MiB buffer is non-negotiable. |
+| SQLite | `modernc.org/sqlite` (pure Go) | Cross-compile + `go install` cleanliness; rejects cgo. |
+| Logging | `log/slog` + `lmittmann/tint` (terminal) + JSON handler (debug file) via `samber/slog-multi` | Pretty in terminal, structured on disk. |
+| Lint | `golangci-lint v2` with `linters.default: standard` + `errorlint`, `gocritic`, `revive`, `misspell`, `gosec`, `bodyclose`, `nilerr`, `contextcheck` | Use `golangci-lint fmt` instead of separate gofumpt. CI deferred. |
+| Release | `goreleaser` v2 + Cosign v3 (`--bundle`) + SLSA via `slsa-github-generator` + Syft SBOMs | `releasing.md` rewrite deferred. |
+| Errors | stdlib only — `errors.New`, `fmt.Errorf("…: %w", err)`, `errors.Is/As/Join` | No `pkg/errors`, no `cockroachdb/errors`. |
+| Tools | go.mod `tool` directive (Go 1.24+) in isolated `tool.go.mod` | Replaces `tools.go` blank-import pattern. |
+| Config | `knadh/koanf` v2 (when config code lands) | Viper rejected. |
+| Vuln | `govulncheck` as a tool dep | CI integration deferred. |
 
 ---
 
