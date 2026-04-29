@@ -1,5 +1,72 @@
 package cli
 
-import "github.com/spf13/cobra"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 
-func newShowCmd() *cobra.Command { return &cobra.Command{Use: "show"} }
+	"github.com/spf13/cobra"
+
+	"github.com/chonalchendo/anvil/internal/core"
+)
+
+// ErrArtifactNotFound is returned when the requested artifact file does not exist.
+var ErrArtifactNotFound = errors.New("artifact not found")
+
+func newShowCmd() *cobra.Command {
+	var flagJSON bool
+
+	cmd := &cobra.Command{
+		Use:   "show <type> <id>",
+		Short: "Display a vault artifact",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			t, err := core.ParseType(args[0])
+			if err != nil {
+				return err
+			}
+
+			v, err := core.ResolveVault()
+			if err != nil {
+				return fmt.Errorf("resolving vault: %w", err)
+			}
+
+			path := filepath.Join(v.Root, t.Dir(), args[1]+".md")
+
+			if flagJSON {
+				a, err := core.LoadArtifact(path)
+				if err != nil {
+					if os.IsNotExist(err) {
+						return ErrArtifactNotFound
+					}
+					return fmt.Errorf("loading artifact: %w", err)
+				}
+				out := make(map[string]any, len(a.FrontMatter)+2)
+				for k, val := range a.FrontMatter {
+					out[k] = val
+				}
+				out["body"] = a.Body
+				out["path"] = a.Path
+				b, _ := json.Marshal(out)
+				fmt.Fprintln(cmd.OutOrStdout(), string(b))
+				return nil
+			}
+
+			// Text mode: raw cat of the file preserves user formatting.
+			data, err := os.ReadFile(path)
+			if err != nil {
+				if os.IsNotExist(err) {
+					return ErrArtifactNotFound
+				}
+				return fmt.Errorf("reading artifact: %w", err)
+			}
+			fmt.Fprint(cmd.OutOrStdout(), string(data))
+			return nil
+		},
+	}
+
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
+	return cmd
+}

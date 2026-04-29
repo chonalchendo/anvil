@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 
 	"github.com/chonalchendo/anvil/internal/cli"
@@ -10,6 +11,9 @@ import (
 
 func main() {
 	if err := cli.Execute(context.Background()); err != nil {
+		if errors.Is(err, cli.ErrArtifactNotFound) {
+			os.Exit(2)
+		}
 		os.Exit(1)
 	}
 }
