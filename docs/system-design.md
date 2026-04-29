@@ -219,7 +219,7 @@ anvil project    list | switch | adopt | current
 
 `anvil session log` was cut as redundant — session transcripts are written by the agent CLIs themselves; the active plan file is the canonical handoff.
 
-**Project identity resolution** (three-step fallback): git remote URL → explicit `anvil project adopt <slug>` binding (recorded in `~/.anvil/projects/<slug>/.binding`) → refuse with clear error. No magic cwd-basename fallback.
+**Project identity resolution** (three-step fallback): explicit `anvil project adopt <slug>` binding (recorded in `~/.anvil/projects/<slug>/.binding`) → git remote URL → refuse with clear error. The adopted binding takes precedence so an explicit user override always wins over the inferred one. No magic cwd-basename fallback.
 
 **Indexing strategy:** SQLite-backed structured index of frontmatter is the next step when scale demands it; embedded vector DB is unlikely to ever be necessary for this workload — structured queries handle 95% of what naive intuition would reach for vectors for.
 
