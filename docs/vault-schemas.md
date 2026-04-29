@@ -16,6 +16,32 @@ Use Obsidian Properties-compliant types only (Text, List, Number, Checkbox, Date
 
 The schemas below are starter shapes. The CI validation is the load-bearing part — drift in any field across notes is the documented failure mode at scale, and schema-validated PRs prevent it.
 
+## Naming conventions
+
+- `snake_case` keys (not `kebab-case` or `camelCase`) — agents grep these; Obsidian doesn't care. Single exception: `allowed-tools` in skill frontmatter stays hyphenated because Anthropic's loader requires it.
+- Plural list keys (`tags:`, `skills_used:`) with each item on its own line.
+- ISO 8601 dates (`2026-04-28`) and ISO 8601 timestamps with timezone (`2026-04-28T11:02:00Z`).
+- Stable string enums for `status`, never booleans.
+- `type:` is the discriminator and controls which schema validates the file.
+
+## `inbox` — human capture (no agent writes)
+
+```yaml
+---
+type: inbox
+title: "streaming feels laggy in production"
+created: 2026-04-28
+updated: 2026-04-28
+status: raw                   # raw | triaged | promoted | dropped
+tags: [domain/streaming, type/inbox]
+suggested_type: issue         # issue | design | learning | discard
+suggested_project: webapp     # nullable until triaged
+promoted_to: webapp-142       # set when status: promoted; wikilink-friendly id
+---
+```
+
+Stored at `00-inbox/<date>-<slug>.md`. The inbox is the only artifact agents are forbidden to write — it's exclusively human-captured signal. Triage promotes to the appropriate type and (per the workflow stage table in `system-design.md`) deletes the source file; provenance lives on the promoted artifact via `promoted_from:`. The 14-day demote / 30-day archive lifecycle plus the 50-note backpressure rule prevents the inbox from becoming a write-only sink.
+
 ## `product-design` — the project's vision (one per project)
 
 ```yaml
@@ -429,3 +455,16 @@ retention_until: 2026-05-26
 ```
 
 Transcripts are the high-volume artifact. They live in `10-sessions/raw/` with `status: raw` and a 30-day `retention_until` timestamp. When the user distills insights from a session, those become `learning` or `decision` artifacts in the proper folders, and the source transcript flips to `status: distilled` and moves to `10-sessions/distilled/` for permanent provenance retention.
+
+## Tag taxonomy
+
+Four prefixed facets in YAML `tags:` lists, never body `#tags` (those split on space and corrupt). Status is a frontmatter field, not a tag.
+
+| Facet | Purpose | Starter values |
+|---|---|---|
+| `domain/` | Knowledge area | `domain/postgres`, `domain/typescript`, `domain/llm`, `domain/auth` |
+| `activity/` | Work mode that produced it | `activity/debugging`, `activity/refactor`, `activity/design`, `activity/research`, `activity/review` |
+| `pattern/` | Reusable abstraction | `pattern/error-handling`, `pattern/concurrency`, `pattern/caching`, `pattern/auth`, `pattern/migration` |
+| `type/` | Mirrors `type:` frontmatter | `type/learning`, `type/decision`, `type/skill`, `type/sweep`, `type/thread`, `type/issue`, `type/plan`, `type/milestone`, `type/moc` |
+
+**Hygiene:** lowercase, ASCII, hyphens not underscores, no spaces. Start tight (10–12 values per facet); add new values only after a real second use. Monthly Bases query lists tags with `< 3` uses for promotion, merge, or deletion. A pre-commit hook verifies `type/` tag stays in sync with the `type:` frontmatter field.

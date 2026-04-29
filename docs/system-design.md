@@ -178,10 +178,23 @@ The three trees are separate by invariant. Vault content is never committed to t
 
 **Key conventions:**
 - Project is a frontmatter field, NOT a folder (cross-project distillation requires this).
-- Seven artifact types with typed frontmatter schemas validated by JSON Schema in CI. Schemas live in [`vault-schemas.md`](vault-schemas.md).
-- Four-facet tag taxonomy.
+- Typed frontmatter schemas validated by JSON Schema in CI. Schemas + tag taxonomy live in [`vault-schemas.md`](vault-schemas.md). Validation is non-negotiable from v0.1 — frontmatter drift is the documented #2 failure mode at scale and CI is the only effective prevention.
 - 50-note backpressure rule on `00-inbox/` and `10-sessions/raw/` to prevent write-only-vault syndrome.
 - Wikilink-based provenance: product-design → milestone → plan → sweep → issue → commit.
+
+**Workflow stage → vault mapping:**
+
+| Stage | Location | Lifecycle | Trail on promotion |
+|---|---|---|---|
+| Inbox | `00-inbox/` | 14d demote, 30d archive. Backpressure at 50. | Promoted file deleted (low-signal capture isn't worth provenance). |
+| Design | `05-projects/<project>/{product,system}-design.md` | Long-lived; updated as understanding evolves. | Authorises milestones via wikilink. |
+| Milestone | `85-milestones/<project>.m<N>-<slug>.md` | Lives until shipped, then `status: done`. | Authorises plans via wikilink. |
+| Issue | `70-issues/<project>.<slug>.md` + `~/.anvil/projects/<slug>/issues/` | Knowledge slice has criteria, learnings link, status. | Authorises plan; receives learning links on review. |
+| Plan | `80-plans/<project>.<slug>.md` | **Canonical.** Worktrees read from this path. | References issue; `status: done` on review approval. |
+| Session | `10-sessions/raw/<date>.<worktree>.md` | Auto-written. 50-note backpressure. | Insights → learnings; transcript → `distilled/`. |
+| Learning | `20-learnings/<topic>.<slug>.md` | `status: verified \| stale \| retracted`. | Backlinks from issues, plans, decisions. |
+| Decision | `30-decisions/<topic>.<NNNN>-<slug>.md` | MADR. `proposed \| accepted \| deprecated \| superseded`. | Authorises plans and system designs. |
+| Sweep | `50-sweeps/<slug>.md` | Cross-cutting work. | Closes the decision → plan → sweep → commit chain. |
 
 ## The `anvil` CLI (deterministic substrate)
 
@@ -325,9 +338,30 @@ graph LR
 
 When a task fails the wave pauses. The orchestrator surfaces the failure (which task, which `ErrorKind`, last assistant text) and asks the user: retry, fall back to inline implementation, or abort the build. Subsequent waves don't start until the user resolves.
 
-## Skill management
+## Skill-based execution
 
-Authoring rules — body length, ALL-CAPS triggers, namespace handoff, description budget, `# prettier-ignore` directive — live in [`skill-authoring.md`](skill-authoring.md). This section captures only how the orchestrator consumes skills.
+Skills follow Anthropic's SKILL.md open standard — directory per skill with `SKILL.md`, optional `references/`, `scripts/`, `assets/`. Progressive disclosure: ~100-token metadata always loaded, body lazy-loaded, bundled resources on demand.
+
+**Three sides:**
+- **Meta** — skills that produce other skills (`writing-skills`, `extracting-skill-from-session`, `synthesizing-knowledge-skill`, `researching-domain`).
+- **Design** — produce structural artifacts (`writing-product-design`, `writing-system-design`, `defining-milestone`, `decision-making`).
+- **Execution** — produce operational artifacts (`creating-issue`, `creating-plan`, `implementing-a-plan`, `capturing-inbox`, `human-review`, `capturing-learnings`, `re-entry`, `pausing-work`).
+
+**Core skills slated for v0.1 dogfooding** (a separate research pass defines each):
+- `writing-skills` (meta — knowledge skill style guide)
+- `extracting-skill-from-session` (meta — already created)
+- `capturing-inbox`
+- `creating-issue`
+- `creating-plan`
+- `defining-milestone`
+- `implementing-a-plan`
+- `write-verification-skill` (meta — produces project-specific verification skills)
+
+**Design-side ordering enforced** — `writing-system-design` won't fire without a product design; `defining-milestone` won't fire without one of the design docs; `creating-plan` requires a milestone. The dependency chain is checked at the skill's first phase, not at the orchestrator level.
+
+**Mermaid embedding.** Plans, system designs, and milestone roadmaps embed mermaid diagrams inline (wave graphs, gantts, dependency graphs). Diagrams are first-class artifact content, not appendices — diffable, render natively in Obsidian and GitHub, survive plugin churn.
+
+Authoring rules — body length, ALL-CAPS triggers, namespace handoff, description budget, `# prettier-ignore` directive — live in [`skill-authoring.md`](skill-authoring.md). This section captures only how the orchestrator consumes them.
 
 **Auto-discovery.** On `anvil build`, the installer walks `skills/` and copies every SKILL.md into the spawn's state dir (`<state>/skills/<name>/SKILL.md`). The agent CLI's native skill loader picks them up by file presence. No manifest, no registry file (per invariant) — adding a SKILL.md to `skills/` is the only step needed to ship a new skill.
 
@@ -353,6 +387,20 @@ Authoring rules — body length, ALL-CAPS triggers, namespace handoff, descripti
 **Per-task attribution** via worktree/cwd is how subscription-billed observability tools (`ccusage`, etc.) group sessions.
 
 **Fresh-session discipline + plan files on disk** is the dominant pattern for managing context rot — Anvil's wave executor commits to it (one fresh subprocess per task) and the vault's `80-plans/` keeps the canonical handoff durable.
+
+**Always-on layer (`AGENTS.md`, ≤5k tokens):**
+
+| Block | Budget | Contents |
+|---|---|---|
+| Vault map | ~400 | Folder tree + one-line purpose each. |
+| Workflow primer | ~600 | Stage table, condensed. |
+| Frontmatter contract | ~500 | Universal core + `type:` dispatch. |
+| Tag taxonomy | ~300 | Four facets + "status doesn't go in tags". |
+| Tool routing | ~400 | How to find/invoke skills; pointer to `40-skills/`. |
+| Per-project context | ~1500 | Active milestone, current issue, design pointers. Generated by `anvil status`. |
+| Reserved | ~1300 | Headroom. |
+
+Per-project `AGENTS.md` lives in `~/.anvil/projects/<slug>/AGENTS.md` and concatenates with the vault-level file at session start. Vault-level is durable; project-level is generated.
 
 ## Companion packs framing
 
