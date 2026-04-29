@@ -43,13 +43,16 @@ func AdoptProject(slug string) error {
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("adopt: resolving home: %w", err)
 	}
 	dir := filepath.Join(home, ".anvil", "projects", slug)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
+		return fmt.Errorf("adopt: mkdir %s: %w", dir, err)
 	}
-	return os.WriteFile(filepath.Join(dir, ".binding"), []byte(root+"\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, ".binding"), []byte(root+"\n"), 0o644); err != nil {
+		return fmt.Errorf("adopt: write binding: %w", err)
+	}
+	return nil
 }
 
 func gitToplevel() (string, error) {

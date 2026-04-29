@@ -1,6 +1,7 @@
 package core
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -59,8 +60,8 @@ func TestProject_Adopt_WritesBinding(t *testing.T) {
 		t.Fatalf("AdoptProject: %v", err)
 	}
 	bp := filepath.Join(home, ".anvil", "projects", "custom-slug", ".binding")
-	if _, err := exec.Command("test", "-f", bp).Output(); err != nil {
-		t.Errorf("binding not written at %s", bp)
+	if _, err := os.Stat(bp); err != nil {
+		t.Errorf("binding not written at %s: %v", bp, err)
 	}
 	p, err := ResolveProject()
 	if err != nil || p.Slug != "custom-slug" {
