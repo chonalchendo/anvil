@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://anvil.dev/schemas/issue.schema.json",
+  "title": "issue",
+  "type": "object",
+  "required": ["type", "title", "created", "status"],
+  "properties": {
+    "type":          { "const": "issue" },
+    "title":         { "type": "string", "minLength": 1 },
+    "created":       { "type": "string", "format": "date" },
+    "updated":       { "type": "string", "format": "date" },
+    "status":        { "enum": ["external", "learning-only", "resolved"] },
+    "tags":          { "type": "array", "items": { "type": "string" } },
+    "aliases":       { "type": "array", "items": { "type": "string" } },
+    "project":       { "type": "string" },
+    "severity":      { "type": "string" },
+    "external_ref":  { "type": ["string", "null"] },
+    "external_url":  { "type": ["string", "null"] },
+    "discovered_in": { "type": ["string", "null"] },
+    "learnings":     { "type": "array", "items": { "type": "string" } },
+    "related":       { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}
