@@ -155,6 +155,35 @@ The two trees are separate by invariant. Vault content is never committed to the
 
 `tool.go.mod` keeps developer-tool dependencies (linter, release tooling) isolated from the runtime module graph so `go install github.com/.../anvil/cmd/anvil@latest` stays clean.
 
+## The `anvil` CLI (deterministic substrate)
+
+The CLI is the **deterministic boundary** under the skills. Skills handle judgment; the CLI handles mechanics (paths, frontmatter generation, ID allocation, cross-references). This means: skills shrink, refactoring is safe, vault layout is invisible until needed.
+
+Cold-start frequency is the load-bearing constraint — skills call the CLI dozens of times per session. Go's ~5–15ms cold start is effectively instant; Python's 80–200ms would disqualify it (10–20 seconds per session in pure overhead). Rust was considered (~3–10ms) but rejected for iteration friction. Go covers both the orchestrator and the CLI for this reason.
+
+**Design rules:** boring, no interactive prompts, JSON output behind `--json`, stdout for content, stderr for diagnostics, meaningful exit codes, files stay editable by hand.
+
+**Final v0.1 verb set** (uniform create/show/list/link/set over typed objects):
+
+```
+anvil where
+anvil inbox      add | list | show | promote
+anvil create     <type> [flags]              # type ∈ {issue, plan, milestone, decision, learning, sweep, thread}
+anvil show       <type> <id>
+anvil list       <type> [--filters]
+anvil link       <type> <id> --to <type> <id>
+anvil set        <type> <id> <field> <value>
+anvil project    list | switch | adopt | current
+```
+
+`anvil session log` was cut as redundant — session transcripts are written by the agent CLIs themselves; the active plan file is the canonical handoff.
+
+**Project identity resolution** (three-step fallback): git remote URL → explicit `anvil project adopt <slug>` binding (recorded in `~/.anvil/projects/<slug>/.binding`) → refuse with clear error. No magic cwd-basename fallback.
+
+**Indexing strategy:** SQLite-backed structured index of frontmatter is the next step when scale demands it; embedded vector DB is unlikely to ever be necessary for this workload — structured queries handle 95% of what naive intuition would reach for vectors for.
+
+The v0.0.0-dev scaffold has none of this wired (cobra+fang lands when the first verb is implemented); this section documents the planned surface, not what runs today.
+
 ## AgentAdapter contract
 
 ```go
