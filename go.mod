@@ -4,8 +4,10 @@ go 1.26.2
 
 require (
 	github.com/charmbracelet/fang v1.0.0
+	github.com/google/go-cmp v0.7.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2
 	github.com/spf13/cobra v1.10.2
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
