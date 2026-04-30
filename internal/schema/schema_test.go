@@ -78,8 +78,19 @@ func TestValidate_PlanExecutable_Valid(t *testing.T) {
 
 func TestValidate_PlanExecutable_RejectsRoadmapShape(t *testing.T) {
 	fm := map[string]any{
-		"type": "plan", "title": "x", "created": "2026-04-30",
-		"status": "draft", "horizon": "month", "target_date": "2026-05-15",
+		"type": "plan", "id": "ANV-1", "slug": "x", "title": "x",
+		"created": "2026-04-30", "updated": "2026-04-30",
+		"status": "draft", "plan_version": 1,
+		"milestone": "[[m]]", "issue": "[[i]]",
+		"tasks": []any{
+			map[string]any{
+				"id": "T1", "title": "x", "kind": "tdd",
+				"files": []any{"a.go"}, "depends_on": []any{},
+				"verify": "go test ./...",
+			},
+		},
+		"horizon":     "month",
+		"target_date": "2026-05-15",
 	}
 	if err := Validate("plan", fm); err == nil {
 		t.Fatal("expected validation error for legacy roadmap fields")
@@ -162,5 +173,16 @@ func TestValidate_AcceptsValidSystemDesign(t *testing.T) {
 	}
 	if err := Validate("system-design", fm); err != nil {
 		t.Errorf("system-design valid: %v", err)
+	}
+}
+
+func TestValidate_Milestone_AcceptsObjectives(t *testing.T) {
+	fm := map[string]any{
+		"type": "milestone", "title": "M3", "created": "2026-04-01",
+		"status": "planned", "target_date": "2026-05-15",
+		"objectives": []any{"Capture baseline", "Document SLOs"},
+	}
+	if err := Validate("milestone", fm); err != nil {
+		t.Fatalf("expected valid: %v", err)
 	}
 }

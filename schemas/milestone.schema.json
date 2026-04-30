@@ -22,6 +22,7 @@
     "plans":          { "type": "array", "items": { "type": "string" } },
     "issues":         { "type": "array", "items": { "type": "string" } },
     "acceptance":     { "type": "array", "items": { "type": "string" } },
+    "objectives":     { "type": "array", "items": { "type": "string" } },
     "risks":          { "type": "array", "items": { "type": "string" } },
     "related":        { "type": "array", "items": { "type": "string" } }
   },
