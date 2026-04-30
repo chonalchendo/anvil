@@ -1,3 +1,4 @@
+# prettier-ignore
 ---
 name: capturing-inbox
 description: Use when the user wants to dump a thought, idea, task, reminder, or half-formed observation into the inbox without acting on it. Triggers include "capture this…", "remind me to…", "thought:", "idea:", "for the inbox", "park this", or any unsolicited brain-dump that isn't a request to do work right now. Prefer this over brainstorming, planning, or build skills whenever the user is off-loading rather than asking for engagement — when in doubt between capturing and brainstorming, capture first; promotion is cheap, lost thoughts are not.
@@ -33,7 +34,7 @@ If the user pastes something that is plainly several distinct thoughts — separ
 
 ## When the user signals more than capture
 
-If a capture message also contains an invitation to engage ("capture this: refactor auth — actually, let's think about it"), do the capture first, then offer **once** to hand off to `brainstorming` on that id. Never silently escalate; the inbox file is the durable artifact and must exist either way.
+If a capture message also contains an invitation to engage ("capture this: refactor auth — actually, let's think about it"), do the capture first, then offer **once** to hand off to `anvil:brainstorming` on the captured inbox id. Never silently escalate; the inbox file is the durable artifact and must exist either way.
 
 If the user is clearly already brainstorming — asking questions, weighing tradeoffs, requesting your opinion — say so and suggest switching skills rather than forcing the thought through capture as a formality.
 
