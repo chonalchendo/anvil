@@ -18,7 +18,8 @@
     "external_url":  { "type": ["string", "null"] },
     "discovered_in": { "type": ["string", "null"] },
     "learnings":     { "type": "array", "items": { "type": "string" } },
-    "related":       { "type": "array", "items": { "type": "string" } }
+    "related":       { "type": "array", "items": { "type": "string" } },
+    "promoted_from": { "type": ["string", "null"] }
   },
   "additionalProperties": false
 }

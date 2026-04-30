@@ -40,64 +40,7 @@ func newListCmd() *cobra.Command {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 
-			dir := filepath.Join(v.Root, t.Dir())
-			entries, err := os.ReadDir(dir)
-			if err != nil {
-				return fmt.Errorf("reading %s: %w", dir, err)
-			}
-
-			var items []listItem
-			for _, e := range entries {
-				if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-					continue
-				}
-				path := filepath.Join(dir, e.Name())
-				a, err := core.LoadArtifact(path)
-				if err != nil {
-					return fmt.Errorf("loading %s: %w", e.Name(), err)
-				}
-				id := strings.TrimSuffix(e.Name(), ".md")
-
-				status, _ := a.FrontMatter["status"].(string)
-				project, _ := a.FrontMatter["project"].(string)
-				title, _ := a.FrontMatter["title"].(string)
-
-				if flagStatus != "" && status != flagStatus {
-					continue
-				}
-				if flagProject != "" && project != flagProject {
-					continue
-				}
-				if flagTag != "" && !hasTagSubstring(a.FrontMatter["tags"], flagTag) {
-					continue
-				}
-
-				items = append(items, listItem{
-					ID:     id,
-					Type:   string(t),
-					Title:  title,
-					Status: status,
-					Path:   path,
-				})
-			}
-
-			// os.ReadDir returns entries sorted by name, so items are already
-			// sorted by id (filename minus .md). Sort explicitly to be safe.
-			sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
-
-			if flagJSON {
-				if items == nil {
-					items = []listItem{}
-				}
-				b, _ := json.Marshal(items)
-				fmt.Fprintln(cmd.OutOrStdout(), string(b))
-				return nil
-			}
-
-			for _, item := range items {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\n", item.ID, item.Status, item.Title)
-			}
-			return nil
+			return runList(cmd, v, t, flagStatus, flagProject, flagTag, flagJSON)
 		},
 	}
 
@@ -106,6 +49,68 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagTag, "tag", "", "filter by tag (substring match)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	return cmd
+}
+
+// runList lists artifacts of type t in v, applying optional filters.
+func runList(cmd *cobra.Command, v *core.Vault, t core.Type, filterStatus, filterProject, filterTag string, asJSON bool) error {
+	dir := filepath.Join(v.Root, t.Dir())
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", dir, err)
+	}
+
+	var items []listItem
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		path := filepath.Join(dir, e.Name())
+		a, err := core.LoadArtifact(path)
+		if err != nil {
+			return fmt.Errorf("loading %s: %w", e.Name(), err)
+		}
+		id := strings.TrimSuffix(e.Name(), ".md")
+
+		status, _ := a.FrontMatter["status"].(string)
+		project, _ := a.FrontMatter["project"].(string)
+		title, _ := a.FrontMatter["title"].(string)
+
+		if filterStatus != "" && status != filterStatus {
+			continue
+		}
+		if filterProject != "" && project != filterProject {
+			continue
+		}
+		if filterTag != "" && !hasTagSubstring(a.FrontMatter["tags"], filterTag) {
+			continue
+		}
+
+		items = append(items, listItem{
+			ID:     id,
+			Type:   string(t),
+			Title:  title,
+			Status: status,
+			Path:   path,
+		})
+	}
+
+	// os.ReadDir returns entries sorted by name, so items are already
+	// sorted by id (filename minus .md). Sort explicitly to be safe.
+	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+
+	if asJSON {
+		if items == nil {
+			items = []listItem{}
+		}
+		b, _ := json.Marshal(items)
+		fmt.Fprintln(cmd.OutOrStdout(), string(b))
+		return nil
+	}
+
+	for _, item := range items {
+		fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\n", item.ID, item.Status, item.Title)
+	}
+	return nil
 }
 
 // hasTagSubstring reports whether any element of tags (a []any from YAML) contains sub.
