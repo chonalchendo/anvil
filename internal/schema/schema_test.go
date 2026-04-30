@@ -50,23 +50,58 @@ func TestValidate_RejectsBadIssueStatus(t *testing.T) {
 	}
 }
 
-func TestValidate_AcceptsValidPlan(t *testing.T) {
+func TestValidate_PlanExecutable_Valid(t *testing.T) {
 	fm := map[string]any{
-		"type": "plan", "title": "x", "created": "2026-04-29",
-		"status": "draft", "horizon": "quarter", "target_date": "2026-06-30",
+		"type":         "plan",
+		"id":           "ANV-142",
+		"slug":         "streaming-token-counter",
+		"title":        "Stream-aware token counter",
+		"created":      "2026-04-30",
+		"updated":      "2026-04-30",
+		"status":       "draft",
+		"plan_version": 1,
+		"milestone":    "[[milestone.telemetry.m3]]",
+		"issue":        "[[issue.ANV-142]]",
+		"tasks": []any{
+			map[string]any{
+				"id": "T1", "title": "Define type", "kind": "tdd",
+				"files": []any{"a.go", "a_test.go"},
+				"depends_on": []any{},
+				"verify": "go test ./...",
+			},
+		},
 	}
 	if err := Validate("plan", fm); err != nil {
-		t.Errorf("plan valid: %v", err)
+		t.Fatalf("expected valid, got: %v", err)
 	}
 }
 
-func TestValidate_RejectsPlanMissingHorizon(t *testing.T) {
+func TestValidate_PlanExecutable_RejectsRoadmapShape(t *testing.T) {
 	fm := map[string]any{
-		"type": "plan", "title": "x", "created": "2026-04-29",
-		"status": "draft", "target_date": "2026-06-30",
+		"type": "plan", "title": "x", "created": "2026-04-30",
+		"status": "draft", "horizon": "month", "target_date": "2026-05-15",
 	}
 	if err := Validate("plan", fm); err == nil {
-		t.Error("expected error: horizon required")
+		t.Fatal("expected validation error for legacy roadmap fields")
+	}
+}
+
+func TestValidate_PlanExecutable_RequiresVerify(t *testing.T) {
+	fm := map[string]any{
+		"type": "plan", "id": "ANV-1", "slug": "x", "title": "x",
+		"created": "2026-04-30", "updated": "2026-04-30",
+		"status": "draft", "plan_version": 1,
+		"milestone": "[[m]]", "issue": "[[i]]",
+		"tasks": []any{
+			map[string]any{
+				"id": "T1", "title": "x", "kind": "tdd",
+				"files": []any{"a.go"}, "depends_on": []any{},
+				// verify intentionally omitted
+			},
+		},
+	}
+	if err := Validate("plan", fm); err == nil {
+		t.Fatal("expected validation error for missing verify")
 	}
 }
 
