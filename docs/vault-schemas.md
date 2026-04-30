@@ -12,7 +12,7 @@ Reference catalog: every vault artifact type with concrete YAML examples and fie
 
 Every artifact carries a small set of universal fields so a single Bases query can list everything regardless of type: `id`, `type`, `title`, `created`, `updated`, `tags`, `status`, `aliases`. On top of that, each type extends with type-specific fields. JSON Schemas for each type ship at `anvil/schemas/*.schema.json` and are validated in CI via `check-jsonschema`.
 
-Use Obsidian Properties-compliant types only (Text, List, Number, Checkbox, Date, Date & time). No nested objects in top-level YAML except where unavoidable (`sweep.metrics`, document `revisions`) — Obsidian's Properties UI cannot edit nested objects and several plugins choke on them.
+Use Obsidian Properties-compliant types only (Text, List, Number, Checkbox, Date, Date & time). No nested objects in top-level YAML except where unavoidable (`sweep.metrics`, `plan.tasks`, document `revisions`) — Obsidian's Properties UI cannot edit nested objects and several plugins choke on them.
 
 The schemas below are starter shapes. The CI validation is the load-bearing part — drift in any field across notes is the documented failure mode at scale, and schema-validated PRs prevent it.
 
@@ -203,6 +203,9 @@ acceptance:
   - "Users can log in via Google and GitHub"
   - "Tokens refresh automatically when expired"
   - "OAuth provider config is per-environment"
+objectives:
+  - "Users on a federated identity provider in production"
+  - "Audit log captures every OAuth grant"
 risks:
   - "Provider rate limits during peak signups"
 related: ["[[learning.auth.token-storage-patterns]]"]
@@ -219,6 +222,8 @@ related: ["[[learning.auth.token-storage-patterns]]"]
 Stored at `~/anvil-vault/85-milestones/<project>.<slug>.md`. Milestones are first-class artifacts because they outlive the plans that execute them, accumulate learnings and decisions specific to their delivery, and form the structural backbone that connects product design to operational work.
 
 The `predecessors` / `successors` fields make the milestone graph explicit and queryable — "what's blocking M4?" is `file.predecessors` walked back; "what depends on M3?" is `file.successors` walked forward. Plans reference milestones (via wikilink), not the other way around — a milestone may span multiple plans across quarters, and the plan completes while the milestone continues.
+
+Roadmap-style fields (`objectives`, `target_date`, `horizon`, `authorized_by`) live here — there is no separate `plan` roadmap artifact in v0.1.
 
 ## `learning` — distilled facts, debugging insights, gotchas
 
@@ -402,40 +407,48 @@ related: ["[[decision.monitoring.0011-stack-choice]]"]
 
 The narrowed status enum is deliberate. Per the design's hard constraint, the vault is not the issue tracker. `external` means open in Linear/Jira/etc.; `learning-only` means we never opened a ticket; `resolved` means lessons captured, ticket closed. This is *different* from the operational issue files in `~/.anvil/projects/<n>/issues/`, which are the actual work items with full workflow state. The vault `issue` is a knowledge node for attaching learnings; the operational issue is the work backlog. Two distinct artifacts that happen to share a name.
 
-## `plan` — forward-looking roadmap
+## `plan` — executable task DAG (one per issue)
 
 ```yaml
 ---
 type: plan
-title: "Q2 logging cleanup: log4j → logback across all services"
-created: 2026-04-01
-updated: 2026-04-26
-status: active                # draft | active | paused | done | abandoned
-horizon: quarter              # week | sprint | month | quarter | year | open
-target_date: 2026-06-30
-owner: "@alice"
-stakeholders: ["@platform", "@security"]
-tags: [domain/jvm, pattern/observability, type/plan]
-authorized_by:
-  - "[[decision.logging.0009-mandate-logback]]"
-objectives:
-  - "All production services off log4j 1.x"
-  - "Centralized async appender configured per service"
-milestones:
-  - "[[milestone.logging.m1-baseline-inventory]]"
-  - "[[milestone.logging.m2-pilot-migration]]"
-  - "[[milestone.logging.m3-bulk-rollout]]"
-sweeps:
-  - "[[sweep.logging.log4j-to-logback-migration]]"
-risks:
-  - "Async appender deadlocks under heavy load (see [[learning.logback.async-appender-deadlock]])"
-children: ["[[sweep.logging.log4j-to-logback-migration]]"]
+id: ANV-142
+slug: streaming-token-counter
+title: "Stream-aware token counter for build telemetry"
+created: 2026-04-30
+updated: 2026-04-30
+status: draft                         # draft | locked | in-progress | done | abandoned
+plan_version: 1
+milestone: "[[milestone.telemetry.m3]]"
+issue: "[[issue.ANV-142]]"
+authorized_by: ["[[decision.telemetry.0004-jsonl-streaming]]"]
+tags: [domain/telemetry, activity/build, type/plan]
+
+decisions:
+  - id: D1
+    summary: "Parse JSONL with a streaming reader, not bulk-load."
+
+non_goals:
+  - "Reading Codex or OpenCode telemetry."
+
+tasks:
+  - id: T1
+    title: "Define TokenUsage type"
+    kind: tdd                         # tdd | mechanical (required)
+    files: ["internal/telemetry/usage.go", "internal/telemetry/usage_test.go"]
+    depends_on: []
+    skills_to_load: [test-driven-development]
+    verify: "go test ./internal/telemetry/ -run TestTokenUsage"
+    success_criteria: ["Frozen, typed; field set matches Anthropic usage block."]
+    budget: { max_lines_changed: 120, max_files_touched: 2 }
+
+verification:
+  pre_build:  ["git diff --quiet", "go test ./..."]
+  post_build: ["go test ./...", "golangci-lint run"]
 ---
 ```
 
-`horizon` lets a Bases query answer "what are we committed to this quarter" without scanning bodies. `authorized_by` and `milestones` together close the **product-design → milestone → plan → sweep → commit** provenance chain — every commit's sweep references the plan, every plan references the milestones it serves and the decisions that authorized it, every milestone references the product design it realizes. An agent can mechanically trace any code change back to the project's purpose.
-
-Milestones are wikilink references, not inline objects. The plan completes; the milestones it served continue to live in `85-milestones/` and accumulate further work.
+Stored at `80-plans/<id>-<slug>.md`. Body uses `## Task: T<n>` headers; the parser walks these to attach per-task body to frontmatter task entries. Validate via `anvil show plan <id> --validate` (exit 0 ok, 1 schema, 2 DAG, 3 TDD). See [build orchestrator design](superpowers/specs/2026-04-30-build-orchestrator-design.md) for the full schema.
 
 ## `transcript` and `session` — AI-generated session output
 
