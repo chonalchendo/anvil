@@ -85,12 +85,18 @@ Capture `id` and `path` from the JSON output. Then direct-edit the body sections
 
 ## Phase 4 — Link to design docs
 
-> **CLI gap:** product-design and system-design are not yet typed artifacts; `anvil link milestone <id> design <id>` does not work. Today: set the wikilink string via `anvil set milestone <id> design "[[product-design.<project>]]"`.
+> **CLI gap:** product-design and system-design are not yet typed artifacts; `anvil link` does not work. Use `anvil set` — scalar-only, one call, second call overwrites.
 
 ```bash
-anvil set milestone <id> design "[[product-design.<project>]]"
-# if a system-design also exists:
-anvil set milestone <id> design "[[system-design.<project>]]"
+anvil set milestone <id> product_design "[[product-design.<project>]]"
+```
+
+If a system-design also exists, edit the file at `path` (captured in Phase 3) and append — not a second `set` call:
+
+```markdown
+## Links
+
+- [[system-design.<project>]]
 ```
 
 ---
