@@ -19,3 +19,7 @@ vet:
 # Run the binary.
 run:
     go run ./cmd/anvil
+
+# Validate vault frontmatter against schemas.
+validate vault="":
+    @if [ -z "{{vault}}" ]; then go run ./cmd/anvil validate; else go run ./cmd/anvil validate {{vault}}; fi
