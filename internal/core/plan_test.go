@@ -38,11 +38,17 @@ Stream-aware counter.
 
 ## Task: T1
 
-Define the type. RED test first. ` + "`" + `GREEN` + "`" + ` next. Verify+commit.
+Define the TokenUsage type in a.go. Write the RED test in a_test.go first to
+assert that zero-value fields are sane and that accumulation arithmetic is
+correct. Run "go test ./..." to confirm RED, implement the type, then run again
+to confirm GREEN. Commit once verify passes.
 
 ## Task: T2
 
-Reader. RED, GREEN, verify, commit.
+Implement the streaming reader in b.go. Write the RED test in b_test.go first
+to assert that the reader correctly accumulates tokens across multiple chunks
+and returns an error on malformed input. Run "go test ./..." to confirm RED,
+implement the reader, then run again to confirm GREEN. Commit once verify passes.
 `
 
 func writePlanFile(t *testing.T, body string) string {
