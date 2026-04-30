@@ -2,15 +2,22 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"errors"
 	"os"
 
 	"github.com/chonalchendo/anvil/internal/cli"
 )
 
 func main() {
-	if err := cli.Run(os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	if err := cli.Execute(context.Background()); err != nil {
+		switch {
+		case errors.Is(err, cli.ErrArtifactNotFound):
+			os.Exit(2)
+		case errors.Is(err, cli.ErrSchemaInvalid):
+			os.Exit(3)
+		default:
+			os.Exit(1)
+		}
 	}
 }

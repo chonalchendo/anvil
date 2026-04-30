@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://anvil.dev/schemas/decision.schema.json",
+  "title": "decision",
+  "type": "object",
+  "required": ["type", "title", "created", "status", "decision-makers"],
+  "properties": {
+    "type":              { "const": "decision" },
+    "title":             { "type": "string", "minLength": 1 },
+    "created":           { "type": "string", "format": "date" },
+    "updated":           { "type": "string", "format": "date" },
+    "status":            { "enum": ["proposed", "rejected", "accepted", "deprecated", "superseded"] },
+    "tags":              { "type": "array", "items": { "type": "string" } },
+    "aliases":           { "type": "array", "items": { "type": "string" } },
+    "date":              { "type": "string", "format": "date" },
+    "topic":             { "type": "string" },
+    "decision-makers":   { "type": "array", "items": { "type": "string" } },
+    "consulted":         { "type": "array", "items": { "type": "string" } },
+    "informed":          { "type": "array", "items": { "type": "string" } },
+    "supersedes":        { "type": "array", "items": { "type": "string" } },
+    "superseded_by":     { "type": ["string", "null"] },
+    "related":           { "type": "array", "items": { "type": "string" } },
+    "evidence":          { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

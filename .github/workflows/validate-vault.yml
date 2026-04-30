@@ -1,0 +1,23 @@
+name: validate-vault
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+      - name: Build anvil
+        run: go build ./...
+      - name: Test
+        run: go test ./...
+      - name: Smoke-init a vault and validate it
+        run: |
+          mkdir -p /tmp/anvil-vault-ci
+          go run ./cmd/anvil init /tmp/anvil-vault-ci
+          go run ./cmd/anvil validate /tmp/anvil-vault-ci

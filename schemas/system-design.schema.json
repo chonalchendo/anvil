@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://anvil.dev/schemas/system-design.schema.json",
+  "title": "system-design",
+  "type": "object",
+  "required": ["type", "title", "created", "status", "project"],
+  "properties": {
+    "type":                  { "const": "system-design" },
+    "title":                 { "type": "string", "minLength": 1 },
+    "created":               { "type": "string", "format": "date" },
+    "updated":               { "type": "string", "format": "date" },
+    "status":                { "enum": ["draft", "active", "superseded", "retired"] },
+    "tags":                  { "type": "array", "items": { "type": "string" } },
+    "aliases":               { "type": "array", "items": { "type": "string" } },
+    "project":               { "type": "string" },
+    "product_design":        { "type": ["string", "null"] },
+    "tech_stack":            { "type": "object", "additionalProperties": { "type": "string" } },
+    "key_invariants":        { "type": "array", "items": { "type": "string" } },
+    "authorized_decisions":  { "type": "array", "items": { "type": "string" } },
+    "boundary_diagrams":     { "type": "array", "items": { "type": "string" } },
+    "risks":                 { "type": "array", "items": { "type": "string" } },
+    "related":               { "type": "array", "items": { "type": "string" } },
+    "revisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "date":   { "type": "string", "format": "date" },
+          "change": { "type": "string" }
+        },
+        "required": ["date", "change"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
