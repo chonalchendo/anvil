@@ -1,9 +1,20 @@
 type: plan
+id: {{ .ID }}
+slug: {{ .Slug }}
 title: {{ printf "%q" .Title }}
 created: {{ .Created }}
 updated: {{ .Created }}
 status: draft
-horizon: {{ .Horizon }}
-target_date: {{ .TargetDate }}
+plan_version: 1
+milestone: {{ printf "%q" .Milestone }}
+issue: {{ printf "%q" .Issue }}
 tags: [type/plan]
 project: {{ .Project }}
+tasks:
+  - id: T1
+    title: "Replace this with the first real task"
+    kind: tdd
+    files: []
+    depends_on: []
+    verify: "true"
+    success_criteria: []

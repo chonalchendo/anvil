@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 	"time"
 
@@ -30,6 +31,10 @@ type templateData struct {
 	SuggestedType    string
 	SuggestedProject string
 	DecisionMakers   []string
+	ID               string
+	Slug             string
+	Issue            string
+	Milestone        string
 }
 
 func newCreateCmd() *cobra.Command {
@@ -44,6 +49,8 @@ func newCreateCmd() *cobra.Command {
 		flagSuggestedType    string
 		flagSuggestedProject string
 		flagJSON             bool
+		flagIssue            string
+		flagMilestone        string
 	)
 
 	cmd := &cobra.Command{
@@ -78,11 +85,11 @@ func newCreateCmd() *cobra.Command {
 			// Per-type mandatory flag checks.
 			switch t {
 			case core.TypePlan:
-				if flagHorizon == "" {
-					return fmt.Errorf("--horizon is required for plan (week|sprint|month|quarter|year|open)")
+				if flagIssue == "" {
+					return fmt.Errorf("--issue is required for plan")
 				}
-				if flagTargetDate == "" {
-					return fmt.Errorf("--target-date is required for plan")
+				if flagMilestone == "" {
+					return fmt.Errorf("--milestone is required for plan")
 				}
 			case core.TypeMilestone:
 				if flagOrdinal <= 0 {
@@ -123,6 +130,10 @@ func newCreateCmd() *cobra.Command {
 				SuggestedType:    flagSuggestedType,
 				SuggestedProject: flagSuggestedProject,
 				DecisionMakers:   decisionMakers,
+				ID:               id,
+				Slug:             core.Slugify(flagTitle),
+				Issue:            flagIssue,
+				Milestone:        flagMilestone,
 			}
 
 			fm, err := renderFrontMatter(t, data)
@@ -139,9 +150,28 @@ func newCreateCmd() *cobra.Command {
 				return fmt.Errorf("mkdir %s: %w", dir, err)
 			}
 			path := filepath.Join(dir, id+".md")
-			a := &core.Artifact{Path: path, FrontMatter: fm, Body: ""}
+			body := ""
+			if t == core.TypePlan {
+				// Seed a ≥200-char body section for T1 so ValidatePlan passes on
+				// a freshly-created plan. The repeat produces 316 chars.
+				body = "\n## Task: T1\n\n" + strings.Repeat(
+					"Replace this with the RED test, expected failure, GREEN sketch, verify+commit. ", 4) + "\n"
+			}
+			a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("saving artifact: %w", err)
+			}
+
+			if t == core.TypePlan {
+				p, lerr := core.LoadPlan(path)
+				if lerr != nil {
+					_ = os.Remove(path)
+					return fmt.Errorf("plan validator: %w", lerr)
+				}
+				if verr := core.ValidatePlan(p); verr != nil {
+					_ = os.Remove(path)
+					return fmt.Errorf("plan validator: %w", verr)
+				}
 			}
 
 			if flagJSON {
@@ -163,6 +193,8 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagTargetDate, "target-date", "", "target date YYYY-MM-DD (required for plan/milestone)")
 	cmd.Flags().StringVar(&flagSuggestedType, "suggested-type", "", "suggested type (inbox only)")
 	cmd.Flags().StringVar(&flagSuggestedProject, "suggested-project", "", "suggested project (inbox only)")
+	cmd.Flags().StringVar(&flagIssue, "issue", "", "issue wikilink (required for plan)")
+	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "milestone wikilink (required for plan)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	_ = cmd.MarkFlagRequired("title")
 

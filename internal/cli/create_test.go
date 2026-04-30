@@ -134,3 +134,51 @@ func TestCreate_Decision_TopicScoped(t *testing.T) {
 		t.Errorf("missing %s", path)
 	}
 }
+
+func TestCreatePlan_NewSchema_Succeeds(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "plan",
+		"--title", "Streaming token counter",
+		"--issue", "[[issue.foo.streaming]]",
+		"--milestone", "[[milestone.foo.m1]]",
+	})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create: %v\n%s", err, out.String())
+	}
+	// Confirm the file exists and validates end-to-end.
+	path := filepath.Join(vault, "80-plans", "foo.streaming-token-counter.md")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected file at %s: %v", path, err)
+	}
+	p, err := core.LoadPlan(path)
+	if err != nil {
+		t.Fatalf("load plan: %v", err)
+	}
+	if err := core.ValidatePlan(p); err != nil {
+		t.Errorf("freshly-created plan should validate, got: %v", err)
+	}
+}
+
+func TestCreatePlan_RequiresIssueAndMilestone(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "plan", "--title", "x"})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Error("expected error: missing --issue and --milestone")
+	}
+}

@@ -41,8 +41,9 @@ func newSetCmd() *cobra.Command {
 
 			// Reject non-scalar existing values: lists, maps, and dates are
 			// not settable via the CLI in v0.1 — use an editor.
-			if existing, ok := a.FrontMatter[field]; ok {
-				switch existing.(type) {
+			prev, hadPrev := a.FrontMatter[field]
+			if hadPrev {
+				switch prev.(type) {
 				case []any, []string:
 					return fmt.Errorf("field %s is a list; use editor", field)
 				case map[string]any:
@@ -61,6 +62,24 @@ func newSetCmd() *cobra.Command {
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("saving artifact: %w", err)
 			}
+
+			if t == core.TypePlan && field == "status" && value == "locked" {
+				p, lerr := core.LoadPlan(a.Path)
+				if lerr != nil {
+					return fmt.Errorf("plan validator: %w", lerr)
+				}
+				if verr := core.ValidatePlan(p); verr != nil {
+					// Restore previous value and re-save so the file stays consistent.
+					if hadPrev {
+						a.FrontMatter[field] = prev
+					} else {
+						delete(a.FrontMatter, field)
+					}
+					_ = a.Save()
+					return verr
+				}
+			}
+
 			return nil
 		},
 	}
