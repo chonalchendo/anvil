@@ -12,7 +12,11 @@ import (
 )
 
 func newShowCmd() *cobra.Command {
-	var flagJSON bool
+	var (
+		flagJSON     bool
+		flagValidate bool
+		flagWaves    bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "show <type> <id>",
@@ -29,11 +33,16 @@ func newShowCmd() *cobra.Command {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 
+			if t == core.TypePlan && (flagValidate || flagWaves) {
+				return runShowPlan(cmd, v, args[1], flagValidate, flagWaves)
+			}
 			return runShow(cmd, v, t, args[1], flagJSON)
 		},
 	}
 
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
+	cmd.Flags().BoolVar(&flagValidate, "validate", false, "validate plan (plan only)")
+	cmd.Flags().BoolVar(&flagWaves, "waves", false, "render plan waves as mermaid (plan only)")
 	return cmd
 }
 
