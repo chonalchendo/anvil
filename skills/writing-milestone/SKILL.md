@@ -85,7 +85,7 @@ Capture `id` and `path` from the JSON output. Then direct-edit the body sections
 
 ## Phase 4 — Link to design docs
 
-> **CLI gap:** product-design and system-design are not yet typed artifacts; `anvil link milestone <id> design <id>` does not work. Today: set the wikilink string via `anvil set`.
+> **CLI gap:** product-design and system-design are not yet typed artifacts; `anvil link milestone <id> design <id>` does not work. Today: set the wikilink string via `anvil set milestone <id> design "[[product-design.<project>]]"`.
 
 ```bash
 anvil set milestone <id> design "[[product-design.<project>]]"
@@ -101,7 +101,7 @@ anvil set milestone <id> design "[[system-design.<project>]]"
 anvil validate "<path-from-phase-3>"
 ```
 
-> **CLI gap:** `anvil show milestone <id> --validate` parity is plan-only today. See spec gap #1. Fallback: `anvil validate <path>`.
+> **CLI gap:** `anvil show milestone <id> --validate` parity (plan-only today). See spec gap #1. Fallback: `anvil validate <path>`.
 
 Fix any schema errors reported. Re-run until clean.
 
@@ -109,4 +109,6 @@ Fix any schema errors reported. Re-run until clean.
 
 ## Hand-off
 
-**REQUIRED SUB-SKILL:** Use `anvil:writing-issue` to create the first issue under this milestone.
+**REQUIRED SUB-SKILL:** Use `anvil:writing-issue`.
+
+Next: `writing-issue` for the first issue under this milestone.
