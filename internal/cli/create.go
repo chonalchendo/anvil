@@ -28,7 +28,6 @@ type templateData struct {
 	Project          string
 	SuggestedType    string
 	SuggestedProject string
-	DecisionMakers   []string
 	ID               string
 	Slug             string
 	Issue            string
@@ -39,7 +38,6 @@ func newCreateCmd() *cobra.Command {
 		flagTitle            string
 		flagProject          string
 		flagTopic            string
-		flagDecisionMakers   []string
 		flagSuggestedType    string
 		flagSuggestedProject string
 		flagJSON             bool
@@ -87,12 +85,6 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			// Default decision-makers to [@me] when unset.
-			decisionMakers := flagDecisionMakers
-			if t == core.TypeDecision && len(decisionMakers) == 0 {
-				decisionMakers = []string{"@me"}
-			}
-
 			id, err := core.NextID(v, t, core.IDInputs{
 				Title:   flagTitle,
 				Project: project,
@@ -109,7 +101,6 @@ func newCreateCmd() *cobra.Command {
 				Project:          project,
 				SuggestedType:    flagSuggestedType,
 				SuggestedProject: flagSuggestedProject,
-				DecisionMakers:   decisionMakers,
 				ID:               id,
 				Slug:             core.Slugify(flagTitle),
 				Issue:            flagIssue,
@@ -166,7 +157,6 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagTitle, "title", "", "artifact title (required)")
 	cmd.Flags().StringVar(&flagProject, "project", "", "project slug (overrides auto-detected)")
 	cmd.Flags().StringVar(&flagTopic, "topic", "", "decision topic slug (required for decision)")
-	cmd.Flags().StringSliceVar(&flagDecisionMakers, "decision-makers", nil, "comma-separated decision makers (decision only; default [@me])")
 	cmd.Flags().StringVar(&flagSuggestedType, "suggested-type", "", "suggested type (inbox only)")
 	cmd.Flags().StringVar(&flagSuggestedProject, "suggested-project", "", "suggested project (inbox only)")
 	cmd.Flags().StringVar(&flagIssue, "issue", "", "issue wikilink (required for plan)")
