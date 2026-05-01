@@ -284,3 +284,13 @@ func TestValidate_Learning_RejectsBadEnum(t *testing.T) {
 		t.Error("expected rejection: diataxis enum")
 	}
 }
+
+func TestValidate_Thread_AcceptsMinimal(t *testing.T) {
+	fm := map[string]any{
+		"type": "thread", "title": "X", "created": "2026-04-29",
+		"status": "open", "diataxis": "explanation",
+	}
+	if err := Validate("thread", fm); err != nil {
+		t.Fatalf("expected valid: %v", err)
+	}
+}
