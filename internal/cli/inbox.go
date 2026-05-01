@@ -168,7 +168,7 @@ func newInboxPromoteCmd() *cobra.Command {
 				return nil
 
 			case "learning":
-				return fmt.Errorf("promote to learning is out of scope in v0.1")
+				return promoteToLearning(cmd, v, a, id)
 
 			case "design":
 				return fmt.Errorf("promote to design is out of scope in v0.1")
@@ -237,5 +237,45 @@ func promoteToIssue(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	}
 
 	cmd.Println("issue", issueID)
+	return nil
+}
+
+func promoteToLearning(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string) error {
+	title, _ := inbox.FrontMatter["title"].(string)
+
+	learningID, err := core.NextID(v, core.TypeLearning, core.IDInputs{Title: title})
+	if err != nil {
+		return fmt.Errorf("allocating ID: %w", err)
+	}
+
+	created := time.Now().UTC().Format("2006-01-02")
+	data := templateData{Title: title, Created: created}
+
+	fm, err := renderFrontMatter(core.TypeLearning, data)
+	if err != nil {
+		return fmt.Errorf("rendering learning template: %w", err)
+	}
+
+	if err := schema.Validate(string(core.TypeLearning), fm); err != nil {
+		return fmt.Errorf("schema validation: %w", err)
+	}
+
+	dir := filepath.Join(v.Root, core.TypeLearning.Dir())
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", dir, err)
+	}
+	learningPath := filepath.Join(dir, learningID+".md")
+	art := &core.Artifact{Path: learningPath, FrontMatter: fm, Body: ""}
+	if err := art.Save(); err != nil {
+		return fmt.Errorf("saving learning: %w", err)
+	}
+
+	// Remove inbox file only after learning is written successfully.
+	inboxPath := filepath.Join(v.Root, core.TypeInbox.Dir(), inboxID+".md")
+	if err := os.Remove(inboxPath); err != nil {
+		return fmt.Errorf("deleting inbox entry: %w", err)
+	}
+
+	cmd.Println("learning", learningID)
 	return nil
 }
