@@ -196,6 +196,40 @@ func TestCreate_Thread_WritesValidFile(t *testing.T) {
 	}
 }
 
+func TestCreate_Learning_WritesValidFile(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "learning", "--title", "Postgres FK locks block writes"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create learning: %v\nstdout: %s", err, out.String())
+	}
+
+	path := filepath.Join(vault, "20-learnings", "postgres-fk-locks-block-writes.md")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatalf("loading learning: %v", err)
+	}
+	if a.FrontMatter["type"] != "learning" {
+		t.Errorf("type = %v, want learning", a.FrontMatter["type"])
+	}
+	if a.FrontMatter["status"] != "draft" {
+		t.Errorf("status = %v, want draft", a.FrontMatter["status"])
+	}
+	if a.FrontMatter["confidence"] != "low" {
+		t.Errorf("confidence = %v, want low", a.FrontMatter["confidence"])
+	}
+	if a.FrontMatter["diataxis"] != "explanation" {
+		t.Errorf("diataxis = %v, want explanation", a.FrontMatter["diataxis"])
+	}
+	if err := schema.Validate("learning", a.FrontMatter); err != nil {
+		t.Errorf("frontmatter fails schema: %v", err)
+	}
+}
+
 func TestCreatePlan_RequiresIssue(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
