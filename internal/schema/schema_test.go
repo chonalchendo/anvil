@@ -294,3 +294,13 @@ func TestValidate_Thread_AcceptsMinimal(t *testing.T) {
 		t.Fatalf("expected valid: %v", err)
 	}
 }
+
+func TestValidate_Sweep_AcceptsMinimal(t *testing.T) {
+	fm := map[string]any{
+		"type": "sweep", "title": "X", "created": "2026-04-29",
+		"status": "planned", "breaking": false, "scope": "core",
+	}
+	if err := Validate("sweep", fm); err != nil {
+		t.Fatalf("expected valid: %v", err)
+	}
+}

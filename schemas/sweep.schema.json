@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://anvil.dev/schemas/sweep.schema.json",
+  "title": "sweep",
+  "type": "object",
+  "required": ["type", "title", "created", "status", "breaking", "scope"],
+  "properties": {
+    "type":     { "const": "sweep" },
+    "title":    { "type": "string", "minLength": 1 },
+    "created":  { "type": "string", "format": "date" },
+    "updated":  { "type": "string", "format": "date" },
+    "status":   { "enum": ["planned", "in-progress", "merged", "abandoned"] },
+    "tags":     { "type": "array", "items": { "type": "string" } },
+    "aliases":  { "type": "array", "items": { "type": "string" } },
+    "breaking": { "type": "boolean" },
+    "scope":    { "type": "string", "minLength": 1 },
+    "related":  { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}
