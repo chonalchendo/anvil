@@ -16,7 +16,6 @@ type Plan struct {
 	Title        string
 	Status       string
 	PlanVersion  int
-	Milestone    string
 	Issue        string
 	Tasks        []Task
 	Verification PlanVerification
@@ -28,6 +27,8 @@ type Task struct {
 	ID              string
 	Title           string
 	Kind            string
+	Model           string
+	Effort          string
 	Files           []string
 	DependsOn       []string
 	SkillsToLoad    []string
@@ -61,12 +62,13 @@ func LoadPlan(path string) (*Plan, error) {
 		Title       string `yaml:"title"`
 		Status      string `yaml:"status"`
 		PlanVersion int    `yaml:"plan_version"`
-		Milestone   string `yaml:"milestone"`
 		Issue       string `yaml:"issue"`
 		Tasks       []struct {
 			ID              string   `yaml:"id"`
 			Title           string   `yaml:"title"`
 			Kind            string   `yaml:"kind"`
+			Model           string   `yaml:"model"`
+			Effort          string   `yaml:"effort"`
 			Files           []string `yaml:"files"`
 			DependsOn       []string `yaml:"depends_on"`
 			SkillsToLoad    []string `yaml:"skills_to_load"`
@@ -86,7 +88,7 @@ func LoadPlan(path string) (*Plan, error) {
 		Path: path, Raw: a,
 		ID: typed.ID, Slug: typed.Slug, Title: typed.Title,
 		Status: typed.Status, PlanVersion: typed.PlanVersion,
-		Milestone: typed.Milestone, Issue: typed.Issue,
+		Issue: typed.Issue,
 		Verification: PlanVerification{
 			PreBuild:  typed.Verification.PreBuild,
 			PostBuild: typed.Verification.PostBuild,
@@ -96,6 +98,7 @@ func LoadPlan(path string) (*Plan, error) {
 	for _, t := range typed.Tasks {
 		p.Tasks = append(p.Tasks, Task{
 			ID: t.ID, Title: t.Title, Kind: t.Kind,
+			Model: t.Model, Effort: t.Effort,
 			Files: t.Files, DependsOn: t.DependsOn,
 			SkillsToLoad: t.SkillsToLoad, Verify: t.Verify,
 			SuccessCriteria: t.SuccessCriteria,

@@ -3,6 +3,7 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -15,7 +16,6 @@ created: 2026-04-30
 updated: 2026-04-30
 status: draft
 plan_version: 1
-milestone: "[[milestone.telemetry.m3]]"
 issue: "[[issue.ANV-142]]"
 tasks:
   - id: T1
@@ -83,5 +83,45 @@ func TestLoadPlan_ParsesFrontmatterAndTaskBodies(t *testing.T) {
 	}
 	if p.Tasks[0].Body == "" || p.Tasks[1].Body == "" {
 		t.Errorf("task bodies empty: %q | %q", p.Tasks[0].Body, p.Tasks[1].Body)
+	}
+}
+
+func TestLoadPlan_ParsesModelEffort(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "x.md")
+	body := `---
+type: plan
+id: anvil.x
+slug: x
+title: x
+created: 2026-04-30
+updated: 2026-04-30
+status: draft
+plan_version: 1
+issue: "[[issue.anvil.x]]"
+tasks:
+  - id: T1
+    title: x
+    kind: tdd
+    model: opus-4.7
+    effort: high
+    files: [a.go]
+    depends_on: []
+    verify: "go test ./..."
+---
+
+## Task: T1
+
+` + strings.Repeat("body. ", 60) + `
+`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := LoadPlan(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Tasks[0].Model != "opus-4.7" || p.Tasks[0].Effort != "high" {
+		t.Errorf("got Model=%q Effort=%q", p.Tasks[0].Model, p.Tasks[0].Effort)
 	}
 }
