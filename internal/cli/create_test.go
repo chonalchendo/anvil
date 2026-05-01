@@ -161,6 +161,41 @@ func TestCreatePlan_NewSchema_Succeeds(t *testing.T) {
 	}
 }
 
+func TestCreate_Thread_WritesValidFile(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir()) // not a git repo — thread needs no project
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "thread", "--title", "Research ducklake"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create thread: %v\nstdout: %s", err, out.String())
+	}
+
+	path := filepath.Join(vault, "60-threads", "research-ducklake.md")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected file at %s", path)
+	}
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.FrontMatter["type"] != "thread" {
+		t.Errorf("type = %v", a.FrontMatter["type"])
+	}
+	if a.FrontMatter["status"] != "open" {
+		t.Errorf("status = %v", a.FrontMatter["status"])
+	}
+	if a.FrontMatter["diataxis"] != "explanation" {
+		t.Errorf("diataxis = %v", a.FrontMatter["diataxis"])
+	}
+	if err := schema.Validate("thread", a.FrontMatter); err != nil {
+		t.Errorf("frontmatter fails schema: %v", err)
+	}
+}
+
 func TestCreatePlan_RequiresIssue(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
