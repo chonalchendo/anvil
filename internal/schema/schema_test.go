@@ -264,3 +264,23 @@ func TestValidate_Plan_RejectsBadModel(t *testing.T) {
 		t.Error("expected rejection: model must be Anvil-supported enum")
 	}
 }
+
+func TestValidate_Learning_AcceptsMinimal(t *testing.T) {
+	fm := map[string]any{
+		"type": "learning", "title": "X", "created": "2026-04-29",
+		"status": "draft", "diataxis": "explanation", "confidence": "medium",
+	}
+	if err := Validate("learning", fm); err != nil {
+		t.Fatalf("expected valid: %v", err)
+	}
+}
+
+func TestValidate_Learning_RejectsBadEnum(t *testing.T) {
+	fm := map[string]any{
+		"type": "learning", "title": "X", "created": "2026-04-29",
+		"status": "draft", "diataxis": "essay", "confidence": "medium",
+	}
+	if err := Validate("learning", fm); err == nil {
+		t.Error("expected rejection: diataxis enum")
+	}
+}
