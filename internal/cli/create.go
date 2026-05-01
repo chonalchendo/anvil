@@ -26,31 +26,24 @@ type templateData struct {
 	Title            string
 	Created          string
 	Project          string
-	Horizon          string
-	TargetDate       string
 	SuggestedType    string
 	SuggestedProject string
 	DecisionMakers   []string
 	ID               string
 	Slug             string
 	Issue            string
-	Milestone        string
 }
 
 func newCreateCmd() *cobra.Command {
 	var (
 		flagTitle            string
 		flagProject          string
-		flagOrdinal          int
 		flagTopic            string
 		flagDecisionMakers   []string
-		flagHorizon          string
-		flagTargetDate       string
 		flagSuggestedType    string
 		flagSuggestedProject string
 		flagJSON             bool
 		flagIssue            string
-		flagMilestone        string
 	)
 
 	cmd := &cobra.Command{
@@ -88,16 +81,6 @@ func newCreateCmd() *cobra.Command {
 				if flagIssue == "" {
 					return fmt.Errorf("--issue is required for plan")
 				}
-				if flagMilestone == "" {
-					return fmt.Errorf("--milestone is required for plan")
-				}
-			case core.TypeMilestone:
-				if flagOrdinal <= 0 {
-					return fmt.Errorf("--ordinal is required for milestone (>0)")
-				}
-				if flagTargetDate == "" {
-					return fmt.Errorf("--target-date is required for milestone")
-				}
 			case core.TypeDecision:
 				if flagTopic == "" {
 					return fmt.Errorf("--topic is required for decision")
@@ -114,7 +97,6 @@ func newCreateCmd() *cobra.Command {
 				Title:   flagTitle,
 				Project: project,
 				Topic:   flagTopic,
-				Ordinal: flagOrdinal,
 			})
 			if err != nil {
 				return fmt.Errorf("allocating ID: %w", err)
@@ -125,15 +107,12 @@ func newCreateCmd() *cobra.Command {
 				Title:            flagTitle,
 				Created:          created,
 				Project:          project,
-				Horizon:          flagHorizon,
-				TargetDate:       flagTargetDate,
 				SuggestedType:    flagSuggestedType,
 				SuggestedProject: flagSuggestedProject,
 				DecisionMakers:   decisionMakers,
 				ID:               id,
 				Slug:             core.Slugify(flagTitle),
 				Issue:            flagIssue,
-				Milestone:        flagMilestone,
 			}
 
 			fm, err := renderFrontMatter(t, data)
@@ -186,15 +165,11 @@ func newCreateCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&flagTitle, "title", "", "artifact title (required)")
 	cmd.Flags().StringVar(&flagProject, "project", "", "project slug (overrides auto-detected)")
-	cmd.Flags().IntVar(&flagOrdinal, "ordinal", 0, "milestone ordinal (required for milestone)")
 	cmd.Flags().StringVar(&flagTopic, "topic", "", "decision topic slug (required for decision)")
 	cmd.Flags().StringSliceVar(&flagDecisionMakers, "decision-makers", nil, "comma-separated decision makers (decision only; default [@me])")
-	cmd.Flags().StringVar(&flagHorizon, "horizon", "", "plan horizon: week|sprint|month|quarter|year|open (required for plan)")
-	cmd.Flags().StringVar(&flagTargetDate, "target-date", "", "target date YYYY-MM-DD (required for plan/milestone)")
 	cmd.Flags().StringVar(&flagSuggestedType, "suggested-type", "", "suggested type (inbox only)")
 	cmd.Flags().StringVar(&flagSuggestedProject, "suggested-project", "", "suggested project (inbox only)")
 	cmd.Flags().StringVar(&flagIssue, "issue", "", "issue wikilink (required for plan)")
-	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "milestone wikilink (required for plan)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	_ = cmd.MarkFlagRequired("title")
 

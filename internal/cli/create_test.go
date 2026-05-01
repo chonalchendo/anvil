@@ -53,25 +53,20 @@ func TestCreate_Issue_WritesValidFile(t *testing.T) {
 	}
 }
 
-func TestCreate_Milestone_RequiresOrdinalAndTargetDate(t *testing.T) {
-	setupVault(t)
+func TestCreateMilestone_NoOrdinal(t *testing.T) {
+	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "milestone", "--title", "first"})
-	var stderr bytes.Buffer
-	cmd.SetOut(&stderr)
-	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err == nil {
-		t.Error("expected error: missing --ordinal / --target-date")
+	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
 	}
-
-	cmd2 := newRootCmd()
-	cmd2.SetArgs([]string{"create", "milestone", "--title", "first", "--ordinal", "1", "--target-date", "2026-05-15"})
-	if err := cmd2.Execute(); err != nil {
-		t.Fatal(err)
+	want := filepath.Join(vault, "85-milestones", "foo.cli-substrate.md")
+	if _, err := os.Stat(want); err != nil {
+		t.Fatalf("expected %s: %v", want, err)
 	}
 }
 
@@ -146,7 +141,6 @@ func TestCreatePlan_NewSchema_Succeeds(t *testing.T) {
 		"create", "plan",
 		"--title", "Streaming token counter",
 		"--issue", "[[issue.foo.streaming]]",
-		"--milestone", "[[milestone.foo.m1]]",
 	})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -167,7 +161,7 @@ func TestCreatePlan_NewSchema_Succeeds(t *testing.T) {
 	}
 }
 
-func TestCreatePlan_RequiresIssueAndMilestone(t *testing.T) {
+func TestCreatePlan_RequiresIssue(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
@@ -179,6 +173,6 @@ func TestCreatePlan_RequiresIssueAndMilestone(t *testing.T) {
 	cmd.SetErr(&stderr)
 	cmd.SetOut(&stderr)
 	if err := cmd.Execute(); err == nil {
-		t.Error("expected error: missing --issue and --milestone")
+		t.Error("expected error: missing --issue")
 	}
 }
