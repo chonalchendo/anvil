@@ -21,9 +21,19 @@ type listItem struct {
 	Path   string `json:"path"`
 }
 
+type listFilters struct {
+	Status, Project, Tag string
+	TagsAllOf            []string
+	Diataxis, Confidence string
+}
+
 func newListCmd() *cobra.Command {
-	var flagStatus, flagProject, flagTag string
-	var flagJSON bool
+	var (
+		flagStatus, flagProject, flagTag string
+		flagDiataxis, flagConfidence     string
+		flagTags                         []string
+		flagJSON                         bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "list <type>",
@@ -34,25 +44,42 @@ func newListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			v, err := core.ResolveVault()
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 
-			return runList(cmd, v, t, flagStatus, flagProject, flagTag, flagJSON)
+			var tagsAllOf []string
+			for _, raw := range flagTags {
+				for _, tag := range strings.Split(raw, ",") {
+					if tag = strings.TrimSpace(tag); tag != "" {
+						tagsAllOf = append(tagsAllOf, tag)
+					}
+				}
+			}
+
+			return runList(cmd, v, t, listFilters{
+				Status:     flagStatus,
+				Project:    flagProject,
+				Tag:        flagTag,
+				TagsAllOf:  tagsAllOf,
+				Diataxis:   flagDiataxis,
+				Confidence: flagConfidence,
+			}, flagJSON)
 		},
 	}
 
 	cmd.Flags().StringVar(&flagStatus, "status", "", "filter by status (exact match)")
 	cmd.Flags().StringVar(&flagProject, "project", "", "filter by project (exact match)")
-	cmd.Flags().StringVar(&flagTag, "tag", "", "filter by tag (substring match)")
+	cmd.Flags().StringVar(&flagTag, "tag", "", "filter by tag (substring match, single)")
+	cmd.Flags().StringSliceVar(&flagTags, "tags", nil, "filter by tags (all-of, exact, comma-separated)")
+	cmd.Flags().StringVar(&flagDiataxis, "diataxis", "", "filter by diataxis (exact match)")
+	cmd.Flags().StringVar(&flagConfidence, "confidence", "", "filter by confidence (exact match)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	return cmd
 }
 
-// runList lists artifacts of type t in v, applying optional filters.
-func runList(cmd *cobra.Command, v *core.Vault, t core.Type, filterStatus, filterProject, filterTag string, asJSON bool) error {
+func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJSON bool) error {
 	dir := filepath.Join(v.Root, t.Dir())
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -74,14 +101,25 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, filterStatus, filte
 		status, _ := a.FrontMatter["status"].(string)
 		project, _ := a.FrontMatter["project"].(string)
 		title, _ := a.FrontMatter["title"].(string)
+		diataxis, _ := a.FrontMatter["diataxis"].(string)
+		confidence, _ := a.FrontMatter["confidence"].(string)
 
-		if filterStatus != "" && status != filterStatus {
+		if f.Status != "" && status != f.Status {
 			continue
 		}
-		if filterProject != "" && project != filterProject {
+		if f.Project != "" && project != f.Project {
 			continue
 		}
-		if filterTag != "" && !hasTagSubstring(a.FrontMatter["tags"], filterTag) {
+		if f.Diataxis != "" && diataxis != f.Diataxis {
+			continue
+		}
+		if f.Confidence != "" && confidence != f.Confidence {
+			continue
+		}
+		if f.Tag != "" && !hasTagSubstring(a.FrontMatter["tags"], f.Tag) {
+			continue
+		}
+		if len(f.TagsAllOf) > 0 && !hasAllTags(a.FrontMatter["tags"], f.TagsAllOf) {
 			continue
 		}
 
@@ -94,8 +132,7 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, filterStatus, filte
 		})
 	}
 
-	// os.ReadDir returns entries sorted by name, so items are already
-	// sorted by id (filename minus .md). Sort explicitly to be safe.
+	// os.ReadDir returns entries sorted by name; sort explicitly to be safe.
 	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
 
 	if asJSON {
@@ -106,7 +143,6 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, filterStatus, filte
 		fmt.Fprintln(cmd.OutOrStdout(), string(b))
 		return nil
 	}
-
 	for _, item := range items {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\n", item.ID, item.Status, item.Title)
 	}
@@ -125,4 +161,24 @@ func hasTagSubstring(tags any, sub string) bool {
 		}
 	}
 	return false
+}
+
+// hasAllTags reports whether tags contains every element of want (exact match).
+func hasAllTags(tags any, want []string) bool {
+	list, ok := tags.([]any)
+	if !ok {
+		return false
+	}
+	have := make(map[string]struct{}, len(list))
+	for _, tag := range list {
+		if s, ok := tag.(string); ok {
+			have[s] = struct{}{}
+		}
+	}
+	for _, w := range want {
+		if _, ok := have[w]; !ok {
+			return false
+		}
+	}
+	return true
 }

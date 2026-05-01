@@ -102,7 +102,7 @@ func newInboxListCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			return runList(cmd, v, core.TypeInbox, flagStatus, "", flagTag, flagJSON)
+			return runList(cmd, v, core.TypeInbox, listFilters{Status: flagStatus, Tag: flagTag}, flagJSON)
 		},
 	}
 
