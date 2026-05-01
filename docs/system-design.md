@@ -136,7 +136,7 @@ Operational state (per-machine, abbreviated; see `design.md` § Repository struc
 
 ```
 ~/.anvil/                       # operational state (per-machine)
-├── projects/<project>/         # operational issues, in-progress work
+├── projects/<project>/         # in-progress work, briefs (no issues — see vault 70-issues/)
 ├── state/                      # per-spawn CLAUDE_CONFIG_DIR / CODEX_HOME
 └── telemetry.db                # SQLite
 ```
@@ -167,7 +167,7 @@ The three trees are separate by invariant. Vault content is never committed to t
 ├── 40-skills/<skill>/      # SKILL.md visible; references/scripts/assets/ hidden
 ├── 50-sweeps/
 ├── 60-threads/
-├── 70-issues/              # knowledge slice; ops state in ~/.anvil/
+├── 70-issues/              # work items (single source of truth)
 ├── 80-plans/               # canonical; worktrees read from here
 ├── 85-milestones/          # bridges design and execution
 ├── 90-moc/dashboards/      # static MOCs + .base files
@@ -188,8 +188,8 @@ The three trees are separate by invariant. Vault content is never committed to t
 |---|---|---|---|
 | Inbox | `00-inbox/` | 14d demote, 30d archive. Backpressure at 50. | Promoted file deleted (low-signal capture isn't worth provenance). |
 | Design | `05-projects/<project>/{product,system}-design.md` | Long-lived; updated as understanding evolves. | Authorises milestones via wikilink. |
-| Milestone | `85-milestones/<project>.m<N>-<slug>.md` | Lives until shipped, then `status: done`. | Authorises plans via wikilink. |
-| Issue | `70-issues/<project>.<slug>.md` + `~/.anvil/projects/<slug>/issues/` | Knowledge slice has criteria, learnings link, status. | Authorises plan; receives learning links on review. |
+| Milestone | `85-milestones/<project>.<slug>.md` | Lives until shipped, then `status: done`. | Authorises plans via wikilink. |
+| Issue | `70-issues/<project>.<slug>.md` | Single source of truth: criteria, severity, status. | Authorises plan; receives learning links on review. |
 | Plan | `80-plans/<project>.<slug>.md` | **Canonical.** Worktrees read from this path. | References issue; `status: done` on review approval. |
 | Session | `10-sessions/raw/<date>.<worktree>.md` | Auto-written. 50-note backpressure. | Insights → learnings; transcript → `distilled/`. |
 | Learning | `20-learnings/<topic>.<slug>.md` | `status: verified \| stale \| retracted`. | Backlinks from issues, plans, decisions. |
@@ -363,7 +363,7 @@ Skills follow Anthropic's SKILL.md open standard — directory per skill with `S
 
 Authoring rules — body length, ALL-CAPS triggers, namespace handoff, description budget, `# prettier-ignore` directive — live in [`skill-authoring.md`](skill-authoring.md). This section captures only how the orchestrator consumes them.
 
-**Auto-discovery.** On `anvil build`, the installer walks `skills/` and copies every SKILL.md into the spawn's state dir (`<state>/skills/<name>/SKILL.md`). The agent CLI's native skill loader picks them up by file presence. No manifest, no registry file (per invariant) — adding a SKILL.md to `skills/` is the only step needed to ship a new skill.
+**Auto-discovery.** On `anvil build`, the installer materializes a *filtered* skill set into each spawn's state dir: every skill named in the task's `skills_to_load` plus the always-on core (a small designated subset of bundled skills loaded into every spawn — concretely the orchestration entry points and any skill the build orchestrator invokes implicitly; the list lives in orchestrator config, not in plan frontmatter). The agent CLI's native skill loader picks them up by file presence. No manifest, no registry file (per invariant); the selector decides what's *in* the state dir, the loader decides what to surface.
 
 **CI vs. orchestrator.** Body length, ALL-CAPS, namespace-handoff, negative-trigger, and aggregate description-budget checks run in CI against `skills/`. The orchestrator assumes its inputs are valid SKILL.md files and does not re-validate at runtime — validation that fires at spawn time is too late.
 
