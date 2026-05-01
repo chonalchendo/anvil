@@ -53,23 +53,26 @@ func TestValidate_PlanExecutable_RequiresVerify(t *testing.T) {
 }
 
 
-func TestValidate_AcceptsValidDecision(t *testing.T) {
+func TestValidate_Decision_NewShape(t *testing.T) {
 	fm := map[string]any{
-		"type": "decision", "title": "Use X", "created": "2026-04-29",
-		"status": "accepted", "decision-makers": []any{"@alice"},
+		"type": "decision", "title": "Use Go", "created": "2026-04-29",
+		"status": "accepted", "date": "2026-04-29",
 	}
 	if err := Validate("decision", fm); err != nil {
-		t.Errorf("decision valid: %v", err)
+		t.Fatalf("expected valid: %v", err)
 	}
 }
 
-func TestValidate_RejectsDecisionMissingDecisionMakers(t *testing.T) {
-	fm := map[string]any{
-		"type": "decision", "title": "Use X", "created": "2026-04-29",
-		"status": "accepted",
-	}
-	if err := Validate("decision", fm); err == nil {
-		t.Error("expected error: decision-makers required")
+func TestValidate_Decision_RejectsCutFields(t *testing.T) {
+	for _, field := range []string{"decision-makers", "consulted", "informed", "evidence", "topic"} {
+		fm := map[string]any{
+			"type": "decision", "title": "X", "created": "2026-04-29",
+			"status": "accepted", "date": "2026-04-29",
+			field: []any{"x"},
+		}
+		if err := Validate("decision", fm); err == nil {
+			t.Errorf("expected rejection for cut field %q", field)
+		}
 	}
 }
 
