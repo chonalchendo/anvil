@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/glossary"
 	"github.com/chonalchendo/anvil/internal/schema"
 )
 
@@ -26,6 +27,21 @@ func newValidateCmd() *cobra.Command {
 					return err
 				}
 				root = v.Root
+			}
+
+			g, err := glossary.Load(glossary.Path(root))
+			if err != nil {
+				return fmt.Errorf("loading glossary: %w", err)
+			}
+			var known map[string]struct{}
+			if tags := g.Tags(); len(tags) > 0 {
+				known = make(map[string]struct{}, len(tags))
+				for _, tag := range tags {
+					known[tag] = struct{}{}
+				}
+			}
+			if known != nil {
+				known["type/learning"] = struct{}{}
 			}
 
 			var failures []string
@@ -50,6 +66,12 @@ func newValidateCmd() *cobra.Command {
 					}
 					if err := schema.Validate(string(t), a.FrontMatter); err != nil {
 						failures = append(failures, fmt.Sprintf("%s: %s", path, err))
+						continue
+					}
+					if t == core.TypeLearning {
+						for _, vErr := range core.ValidateLearning(a, known) {
+							failures = append(failures, fmt.Sprintf("%s: %s", path, vErr))
+						}
 					}
 				}
 			}
