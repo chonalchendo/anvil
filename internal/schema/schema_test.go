@@ -116,25 +116,6 @@ func TestValidate_PlanExecutable_RequiresVerify(t *testing.T) {
 	}
 }
 
-func TestValidate_AcceptsValidMilestone(t *testing.T) {
-	fm := map[string]any{
-		"type": "milestone", "title": "M1", "created": "2026-04-29",
-		"status": "planned", "target_date": "2026-05-15",
-	}
-	if err := Validate("milestone", fm); err != nil {
-		t.Errorf("milestone valid: %v", err)
-	}
-}
-
-func TestValidate_RejectsMilestoneMissingTargetDate(t *testing.T) {
-	fm := map[string]any{
-		"type": "milestone", "title": "M1", "created": "2026-04-29",
-		"status": "planned",
-	}
-	if err := Validate("milestone", fm); err == nil {
-		t.Error("expected error: target_date required")
-	}
-}
 
 func TestValidate_AcceptsValidDecision(t *testing.T) {
 	fm := map[string]any{
@@ -176,17 +157,6 @@ func TestValidate_AcceptsValidSystemDesign(t *testing.T) {
 	}
 }
 
-func TestValidate_Milestone_AcceptsObjectives(t *testing.T) {
-	fm := map[string]any{
-		"type": "milestone", "title": "M3", "created": "2026-04-01",
-		"status": "planned", "target_date": "2026-05-15",
-		"objectives": []any{"Capture baseline", "Document SLOs"},
-	}
-	if err := Validate("milestone", fm); err != nil {
-		t.Fatalf("expected valid: %v", err)
-	}
-}
-
 func TestValidate_ProductDesign_RejectsCutFields(t *testing.T) {
 	for _, field := range []string{"goals", "milestones", "target_users", "revisions"} {
 		fm := map[string]any{
@@ -220,5 +190,32 @@ func TestValidate_SystemDesign_RejectsLegacyAuthorizedDecisions(t *testing.T) {
 	}
 	if err := Validate("system-design", fm); err == nil {
 		t.Error("expected rejection: authorized_decisions renamed to authorized_by")
+	}
+}
+
+func TestValidate_Milestone_NewShape(t *testing.T) {
+	fm := map[string]any{
+		"type": "milestone", "title": "M3", "created": "2026-04-29",
+		"status": "planned", "project": "anvil",
+		"product_design": "[[product-design.anvil]]",
+		"system_design":  "[[system-design.anvil]]",
+		"authorized_by":  []any{"[[decision.anvil.0001]]"},
+		"acceptance":     []any{"All issues resolved"},
+	}
+	if err := Validate("milestone", fm); err != nil {
+		t.Fatalf("expected valid: %v", err)
+	}
+}
+
+func TestValidate_Milestone_RejectsSchedulingFields(t *testing.T) {
+	for _, field := range []string{"target_date", "horizon", "ordinal", "predecessors", "successors", "plans", "issues", "objectives", "risks"} {
+		fm := map[string]any{
+			"type": "milestone", "title": "M3", "created": "2026-04-29",
+			"status": "planned", "project": "anvil",
+			field: "x",
+		}
+		if err := Validate("milestone", fm); err == nil {
+			t.Errorf("expected rejection for cut field %q", field)
+		}
 	}
 }
