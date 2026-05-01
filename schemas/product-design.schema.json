@@ -5,36 +5,15 @@
   "type": "object",
   "required": ["type", "title", "created", "status", "project"],
   "properties": {
-    "type":              { "const": "product-design" },
-    "title":             { "type": "string", "minLength": 1 },
-    "created":           { "type": "string", "format": "date" },
-    "updated":           { "type": "string", "format": "date" },
-    "status":            { "enum": ["draft", "active", "superseded", "retired"] },
-    "tags":              { "type": "array", "items": { "type": "string" } },
-    "aliases":           { "type": "array", "items": { "type": "string" } },
-    "project":           { "type": "string" },
-    "target_users":      { "type": "array", "items": { "type": "string" } },
-    "problem_statement": { "type": "string" },
-    "success_metrics":   { "type": "array", "items": { "type": "string" } },
-    "goals":             { "type": "array", "items": { "type": "string" } },
-    "constraints":       { "type": "array", "items": { "type": "string" } },
-    "appetite":          { "type": "string" },
-    "risks":             { "type": "array", "items": { "type": "string" } },
-    "out_of_scope":      { "type": "array", "items": { "type": "string" } },
-    "milestones":        { "type": "array", "items": { "type": "string" } },
-    "related":           { "type": "array", "items": { "type": "string" } },
-    "revisions": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "date":   { "type": "string", "format": "date" },
-          "change": { "type": "string" }
-        },
-        "required": ["date", "change"],
-        "additionalProperties": false
-      }
-    }
+    "type":     { "const": "product-design" },
+    "title":    { "type": "string", "minLength": 1 },
+    "created":  { "type": "string", "format": "date" },
+    "updated":  { "type": "string", "format": "date" },
+    "status":   { "enum": ["draft", "active", "superseded", "retired"] },
+    "tags":     { "type": "array", "items": { "type": "string" } },
+    "aliases":  { "type": "array", "items": { "type": "string" } },
+    "project":  { "type": "string", "minLength": 1 },
+    "related":  { "type": "array", "items": { "type": "string" } }
   },
   "additionalProperties": false
 }

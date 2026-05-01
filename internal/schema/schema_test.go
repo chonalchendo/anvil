@@ -186,3 +186,16 @@ func TestValidate_Milestone_AcceptsObjectives(t *testing.T) {
 		t.Fatalf("expected valid: %v", err)
 	}
 }
+
+func TestValidate_ProductDesign_RejectsCutFields(t *testing.T) {
+	for _, field := range []string{"goals", "milestones", "target_users", "revisions"} {
+		fm := map[string]any{
+			"type": "product-design", "title": "X", "created": "2026-04-29",
+			"status": "draft", "project": "anvil",
+			field: []any{"x"},
+		}
+		if err := Validate("product-design", fm); err == nil {
+			t.Errorf("expected rejection for cut field %q", field)
+		}
+	}
+}
