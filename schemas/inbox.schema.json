@@ -13,7 +13,8 @@
     "tags":             { "type": "array", "items": { "type": "string" } },
     "suggested_type":   { "enum": ["issue", "design", "learning", "discard"] },
     "suggested_project":{ "type": ["string", "null"] },
-    "promoted_to":      { "type": ["string", "null"] }
+    "promoted_to":      { "type": ["string", "null"] },
+    "related":          { "type": "array", "items": { "type": "string" } }
   },
   "additionalProperties": false
 }
