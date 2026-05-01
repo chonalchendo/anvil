@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://anvil.dev/schemas/session.schema.json",
+  "title": "session",
+  "type": "object",
+  "required": ["type", "title", "created", "source", "session_id", "status", "retention_until"],
+  "properties": {
+    "type":            { "const": "session" },
+    "title":           { "type": "string", "minLength": 1 },
+    "created":         { "type": "string", "format": "date" },
+    "updated":         { "type": "string", "format": "date" },
+    "tags":            { "type": "array", "items": { "type": "string" } },
+    "aliases":         { "type": "array", "items": { "type": "string" } },
+    "source":          { "enum": ["claude-code", "chatgpt", "claude-web", "cursor", "continue"] },
+    "session_id":      { "type": "string", "minLength": 1 },
+    "status":          { "enum": ["raw", "triaged", "distilled", "archived"] },
+    "retention_until": { "type": "string", "format": "date" },
+    "related":         { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}

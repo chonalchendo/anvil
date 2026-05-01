@@ -304,3 +304,25 @@ func TestValidate_Sweep_AcceptsMinimal(t *testing.T) {
 		t.Fatalf("expected valid: %v", err)
 	}
 }
+
+func TestValidate_Transcript_AcceptsMinimal(t *testing.T) {
+	fm := map[string]any{
+		"type": "transcript", "title": "X", "created": "2026-04-29",
+		"source": "claude-code", "session_id": "abc",
+		"status": "raw", "retention_until": "2026-05-29",
+	}
+	if err := Validate("transcript", fm); err != nil {
+		t.Fatalf("expected valid: %v", err)
+	}
+}
+
+func TestValidate_Session_AcceptsMinimal(t *testing.T) {
+	fm := map[string]any{
+		"type": "session", "title": "X", "created": "2026-04-29",
+		"source": "claude-code", "session_id": "abc",
+		"status": "distilled", "retention_until": "2026-05-29",
+	}
+	if err := Validate("session", fm); err != nil {
+		t.Fatalf("expected valid: %v", err)
+	}
+}
