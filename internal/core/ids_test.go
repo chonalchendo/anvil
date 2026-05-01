@@ -65,17 +65,14 @@ func TestNextID_PlanSameAsIssue(t *testing.T) {
 	}
 }
 
-func TestNextID_Milestone_RequiresOrdinal(t *testing.T) {
+func TestNextID_Milestone_SlugOnly(t *testing.T) {
 	v := newScaffolded(t)
-	if _, err := NextID(v, TypeMilestone, IDInputs{Title: "first", Project: "foo"}); err == nil {
-		t.Error("expected error: ordinal required")
-	}
-	id, err := NextID(v, TypeMilestone, IDInputs{Title: "first", Project: "foo", Ordinal: 1})
+	got, err := NextID(v, TypeMilestone, IDInputs{Title: "CLI substrate", Project: "anvil"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if id != "foo.m1-first" {
-		t.Errorf("got %q, want foo.m1-first", id)
+	if got != "anvil.cli-substrate" {
+		t.Errorf("got %q, want anvil.cli-substrate", got)
 	}
 }
 

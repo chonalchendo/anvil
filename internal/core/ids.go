@@ -42,7 +42,6 @@ type IDInputs struct {
 	Title   string // required — slug source
 	Project string // required for issue/plan/milestone
 	Topic   string // required for decision
-	Ordinal int    // required for milestone (>0)
 }
 
 // NextID returns the next available ID for type t under v.
@@ -66,10 +65,7 @@ func NextID(v *Vault, t Type, in IDInputs) (string, error) {
 		if in.Project == "" {
 			return "", fmt.Errorf("project required for milestone")
 		}
-		if in.Ordinal <= 0 {
-			return "", fmt.Errorf("ordinal required for milestone (>0)")
-		}
-		return uniqueID(v, t, fmt.Sprintf("%s.m%d-%s", in.Project, in.Ordinal, slug))
+		return uniqueID(v, t, fmt.Sprintf("%s.%s", in.Project, slug))
 	case TypeDecision:
 		if in.Topic == "" {
 			return "", fmt.Errorf("topic required for decision")
