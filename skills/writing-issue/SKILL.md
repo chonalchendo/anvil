@@ -55,10 +55,10 @@ Draft the following before calling the CLI. **No solution design here** — that
 
 - **Problem statement** — what is broken or missing, and why it matters.
 - **Acceptance criteria** — testable conditions for "done"; each must be checkable without ambiguity.
-- **Non-goals** — what this issue explicitly does not cover; prevents scope creep.
+- **Severity** — `low` / `medium` / `high` / `critical`. Drives triage queries.
 - **Links** — to the milestone, design docs, related issues.
 
-**Gate:** confirm problem statement and acceptance criteria with the user before creating.
+**Gate:** confirm problem statement, acceptance criteria, and severity with the user before creating.
 
 ---
 
@@ -84,15 +84,14 @@ Capture `id` and `path` from the JSON output.
 
 ---
 
-## Phase 4 — Link upward
+## Phase 4 — Link upward and set severity
 
 ```bash
-anvil link issue <issue-id> milestone <m-id>
+anvil set issue <issue-id> milestone "[[milestone.<project>.<slug>]]"
+anvil set issue <issue-id> severity <low|medium|high|critical>
 ```
 
-> **CLI gap:** `anvil inbox promote <id> --milestone <m-id>` and/or `anvil create issue --milestone <m-id>`. Today: post-create `anvil link`. See spec gap #4.
-
-Note: `anvil link` appends `[[milestone.<m-id>]]` to the issue's `related` field. The issue schema has no dedicated `milestone` field — `anvil set issue ... milestone ...` would fail schema validation.
+Both writes land in typed slots on the issue; structural edges always go through `set`, not `link`. (Use `link` only for associative pointers — those land in `related[]`.)
 
 ---
 

@@ -116,20 +116,22 @@ passes after."
 ## Phase 5 — Self-review against the spec
 
 - [ ] Spec coverage: every requirement in the design doc maps to ≥1 task.
-- [ ] Non-goals: every "not now" item is in `non_goals`.
+- [ ] Non-goals: documented as a body section (## Non-goals), not as frontmatter.
 - [ ] Type consistency: function names, type names, file paths match across tasks.
 - [ ] No placeholders: no "add validation," no "similar to T2."
 - [ ] Wave shape: ≥1 task has `depends_on: []`; longest chain ≤ 5.
 - [ ] Budget realism: sum of `max_lines_changed` fits the milestone's appetite.
 - [ ] `anvil show plan <id> --validate --waves` exits 0.
 
+## Phase 5b — Per-task model/effort (optional)
+
+Tasks default to `model: sonnet-4.6` and `effort: medium` via orchestrator config. Set per-task `model: opus-4.7` only on tasks that need deeper reasoning (architectural choices the planner deferred to the executor). Set `effort: high` on tasks expected to require extended work. Both fields are optional — omit when defaults fit.
+
 ## Phase 6 — Hand off
 
 ```bash
-anvil create plan --issue <issue-id> --milestone <m-id> --horizon <h> --target-date YYYY-MM-DD --title "<title>" --json
+anvil create plan --issue <issue-id> --title "<title>" --json
 ```
-
-> **CLI gap:** `anvil create plan --from-issue <id>` (auto-fill milestone) is not yet implemented. Today: look up `--milestone` from `anvil show issue <id>` first. See spec gap #5.
 
 ```bash
 anvil show plan <plan-id> --validate --waves

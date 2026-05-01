@@ -47,11 +47,9 @@ anvil project current
 
 The design doc lives at `05-projects/<project>/product-design.md` or `05-projects/<project>/system-design.md` inside the vault. Read the file at that path directly — designs are not yet typed artifacts in the CLI.
 
-Confirm with the user:
-- Which design doc to derive from (product or system, or both).
-- The milestone ordinal (N) and rough target date.
+Confirm with the user which design doc to derive from (product or system, or both).
 
-**Gate:** user confirms ordinal, target date, and which design doc drives scope.
+**Gate:** user confirms which design doc drives scope.
 
 ---
 
@@ -60,12 +58,9 @@ Confirm with the user:
 Draft the following before calling the CLI:
 
 - **title** — one line; verb-noun ("Ship X", "Validate Y", "Deliver Z").
-- **objectives** — bullet list of outcomes (what is true when this milestone ships).
-- **appetite** — small / medium / large + a target date. Appetite is the time box; scope is the variable.
-- **success criteria** — testable conditions for "done". Each criterion must be checkable without ambiguity.
-- **non-goals** — what this milestone explicitly does not deliver; prevents scope creep.
+- **acceptance** — testable conditions for "done"; each must be checkable without ambiguity.
 
-**Gate:** user confirms the five fields above.
+**Gate:** user confirms title and acceptance criteria.
 
 ---
 
@@ -73,31 +68,22 @@ Draft the following before calling the CLI:
 
 ```bash
 anvil create milestone \
-  --ordinal <N> \
-  --target-date YYYY-MM-DD \
   --title "<title>" \
   --json
 ```
 
-Capture `id` and `path` from the JSON output. Then direct-edit the body sections (objectives, appetite, success criteria, non-goals) into the file the CLI created at `path`.
+Capture `id` and `path` from the JSON output. Then direct-edit the body sections (objectives, success criteria, non-goals) into the file the CLI created at `path`.
 
 ---
 
 ## Phase 4 — Link to design docs
 
-> **CLI gap:** product-design and system-design are not yet typed artifacts; `anvil link` does not work. Use `anvil set` — scalar-only, one call, second call overwrites.
-
 ```bash
 anvil set milestone <id> product_design "[[product-design.<project>]]"
+anvil set milestone <id> system_design "[[system-design.<project>]]"
 ```
 
-If a system-design also exists, edit the file at `path` (captured in Phase 3) and append — not a second `set` call:
-
-```markdown
-## Links
-
-- [[system-design.<project>]]
-```
+Both calls land in dedicated typed slots. If a system-design doesn't yet exist, omit the second call.
 
 ---
 

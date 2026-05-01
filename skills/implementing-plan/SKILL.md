@@ -80,6 +80,8 @@ One revision cycle per task. Escalate to the user after a single revise-and-retr
 
 **Skill resolution in `anvil build`:** when a plan task's frontmatter declares `skill: <name>`, `anvil build` reads that skill's body via a CLI verb that resolves by name (e.g. `anvil skill show <name>`) and seeds it into the executor subprocess's state dir. Skills are addressed by name, not path — file location stays an internal detail of the CLI.
 
+The orchestrator materializes only `task.skills_to_load + always-on core` into each spawn's state dir, not all bundled skills. `task.skills_to_load` is the source of truth for what skills the executor sees; the planner is responsible for declaring it correctly per task. (The build-orchestrator spec finalizes the always-on core list.)
+
 ## Forbidden patterns
 
 - Editing files outside the plan's task scope.
