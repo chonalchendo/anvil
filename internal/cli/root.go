@@ -32,6 +32,7 @@ func newRootCmd() *cobra.Command {
 		newProjectCmd(),
 		newValidateCmd(),
 		newMigrateCmd(),
+		newThreadCmd(),
 	)
 	return cmd
 }

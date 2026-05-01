@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -137,5 +138,77 @@ func TestInbox_Promote_Discard(t *testing.T) {
 	issues, _ := os.ReadDir(filepath.Join(vault, "70-issues"))
 	if len(issues) != 0 {
 		t.Errorf("expected no issues, got %d", len(issues))
+	}
+}
+
+func TestInboxPromote_ToThread_FromSuggestedType(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	var buf bytes.Buffer
+	add := newRootCmd()
+	add.SetArgs([]string{"inbox", "add", "--title", "Look into ducklake", "--suggested-type", "thread", "--json"})
+	add.SetOut(&buf)
+	if err := add.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var result struct {
+		ID   string `json:"id"`
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	promote := newRootCmd()
+	promote.SetArgs([]string{"inbox", "promote", result.ID})
+	if err := promote.Execute(); err != nil {
+		t.Fatalf("promote: %v", err)
+	}
+
+	if _, err := os.Stat(result.Path); !os.IsNotExist(err) {
+		t.Errorf("inbox file should be deleted: %v", err)
+	}
+	threadPath := filepath.Join(vault, "60-threads", "look-into-ducklake.md")
+	if _, err := core.LoadArtifact(threadPath); err != nil {
+		t.Fatalf("expected thread at %s: %v", threadPath, err)
+	}
+}
+
+func TestInboxPromote_AsFlag_OverridesSuggestedType(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	var buf bytes.Buffer
+	add := newRootCmd()
+	add.SetArgs([]string{"inbox", "add", "--title", "Ducklake?", "--json"})
+	add.SetOut(&buf)
+	if err := add.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var result struct {
+		ID   string `json:"id"`
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	promote := newRootCmd()
+	promote.SetArgs([]string{"inbox", "promote", result.ID, "--as", "thread"})
+	if err := promote.Execute(); err != nil {
+		t.Fatalf("promote: %v", err)
+	}
+
+	if _, err := os.Stat(result.Path); !os.IsNotExist(err) {
+		t.Errorf("inbox file should be deleted: %v", err)
+	}
+	threadPath := filepath.Join(vault, "60-threads", "ducklake.md")
+	if _, err := core.LoadArtifact(threadPath); err != nil {
+		t.Fatalf("expected thread at %s: %v", threadPath, err)
 	}
 }

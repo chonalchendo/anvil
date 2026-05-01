@@ -62,7 +62,7 @@ func newCreateCmd() *cobra.Command {
 			// Resolve project slug: --project overrides auto-detection.
 			// inbox and decision may proceed without a project.
 			project := flagProject
-			if project == "" && t != core.TypeInbox && t != core.TypeDecision {
+			if project == "" && t != core.TypeInbox && t != core.TypeDecision && t != core.TypeThread {
 				p, err := core.ResolveProject()
 				if err != nil {
 					if errors.Is(err, core.ErrNoProject) {
