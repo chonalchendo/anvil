@@ -199,3 +199,26 @@ func TestValidate_ProductDesign_RejectsCutFields(t *testing.T) {
 		}
 	}
 }
+
+func TestValidate_SystemDesign_AcceptsAuthorizedBy(t *testing.T) {
+	fm := map[string]any{
+		"type": "system-design", "title": "X", "created": "2026-04-29",
+		"status": "draft", "project": "anvil",
+		"product_design": "[[product-design.anvil]]",
+		"authorized_by":  []any{"[[decision.anvil.0001-go-rewrite]]"},
+	}
+	if err := Validate("system-design", fm); err != nil {
+		t.Errorf("expected valid: %v", err)
+	}
+}
+
+func TestValidate_SystemDesign_RejectsLegacyAuthorizedDecisions(t *testing.T) {
+	fm := map[string]any{
+		"type": "system-design", "title": "X", "created": "2026-04-29",
+		"status": "draft", "project": "anvil",
+		"authorized_decisions": []any{"[[d]]"},
+	}
+	if err := Validate("system-design", fm); err == nil {
+		t.Error("expected rejection: authorized_decisions renamed to authorized_by")
+	}
+}
