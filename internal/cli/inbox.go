@@ -133,7 +133,9 @@ func newInboxShowCmd() *cobra.Command {
 }
 
 func newInboxPromoteCmd() *cobra.Command {
-	return &cobra.Command{
+	var flagAs string
+
+	cmd := &cobra.Command{
 		Use:   "promote <id>",
 		Short: "Promote an inbox entry to a typed artifact",
 		Args:  cobra.ExactArgs(1),
@@ -154,12 +156,15 @@ func newInboxPromoteCmd() *cobra.Command {
 				return fmt.Errorf("loading inbox entry: %w", err)
 			}
 
-			suggestedType, _ := a.FrontMatter["suggested_type"].(string)
-			if suggestedType == "" {
-				return fmt.Errorf("set suggested_type before promoting (issue|design|learning|discard)")
+			target := flagAs
+			if target == "" {
+				target, _ = a.FrontMatter["suggested_type"].(string)
+			}
+			if target == "" {
+				return fmt.Errorf("set suggested_type or pass --as <type> before promoting (issue|thread|design|learning|discard)")
 			}
 
-			switch suggestedType {
+			switch target {
 			case "discard":
 				if err := os.Remove(inboxPath); err != nil {
 					return fmt.Errorf("deleting inbox entry: %w", err)
@@ -176,11 +181,17 @@ func newInboxPromoteCmd() *cobra.Command {
 			case "issue":
 				return promoteToIssue(cmd, v, a, id)
 
+			case "thread":
+				return promoteToThread(cmd, v, a, id)
+
 			default:
-				return fmt.Errorf("unknown suggested_type %q (issue|design|learning|discard)", suggestedType)
+				return fmt.Errorf("unknown type %q (issue|thread|design|learning|discard)", target)
 			}
 		},
 	}
+
+	cmd.Flags().StringVar(&flagAs, "as", "", "promotion target type (overrides suggested_type)")
+	return cmd
 }
 
 func promoteToIssue(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string) error {
@@ -237,5 +248,48 @@ func promoteToIssue(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	}
 
 	cmd.Println("issue", issueID)
+	return nil
+}
+
+func promoteToThread(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string) error {
+	title, _ := inbox.FrontMatter["title"].(string)
+
+	threadID, err := core.NextID(v, core.TypeThread, core.IDInputs{Title: title})
+	if err != nil {
+		return fmt.Errorf("allocating ID: %w", err)
+	}
+
+	created := time.Now().UTC().Format("2006-01-02")
+	data := templateData{
+		Title:   title,
+		Created: created,
+	}
+
+	fm, err := renderFrontMatter(core.TypeThread, data)
+	if err != nil {
+		return fmt.Errorf("rendering thread template: %w", err)
+	}
+
+	if err := schema.Validate(string(core.TypeThread), fm); err != nil {
+		return fmt.Errorf("schema validation: %w", err)
+	}
+
+	dir := filepath.Join(v.Root, core.TypeThread.Dir())
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", dir, err)
+	}
+	threadPath := filepath.Join(dir, threadID+".md")
+	art := &core.Artifact{Path: threadPath, FrontMatter: fm, Body: ""}
+	if err := art.Save(); err != nil {
+		return fmt.Errorf("saving thread: %w", err)
+	}
+
+	// Remove inbox file only after thread is written successfully.
+	inboxPath := filepath.Join(v.Root, core.TypeInbox.Dir(), inboxID+".md")
+	if err := os.Remove(inboxPath); err != nil {
+		return fmt.Errorf("deleting inbox entry: %w", err)
+	}
+
+	cmd.Println("thread", threadID)
 	return nil
 }
