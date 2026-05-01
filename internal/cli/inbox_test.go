@@ -73,12 +73,8 @@ func TestInbox_Promote_Issue(t *testing.T) {
 		t.Errorf("inbox file should be deleted: %v", err)
 	}
 	issuePath := filepath.Join(vault, "70-issues", "foo.broken-thing.md")
-	a, err := core.LoadArtifact(issuePath)
-	if err != nil {
+	if _, err := core.LoadArtifact(issuePath); err != nil {
 		t.Fatalf("expected issue at %s: %v", issuePath, err)
-	}
-	if a.FrontMatter["promoted_from"] != inboxID {
-		t.Errorf("promoted_from = %v, want %s", a.FrontMatter["promoted_from"], inboxID)
 	}
 }
 

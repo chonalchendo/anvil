@@ -7,7 +7,6 @@ created: "2026-04-30"
 updated: "2026-04-30"
 status: draft
 plan_version: 1
-milestone: "[[milestone.telemetry.m3]]"
 issue: "[[issue.ANV-142]]"
 tasks:
   - id: T1

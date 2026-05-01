@@ -18,7 +18,7 @@ func writeFixtureIssue(t *testing.T, vault, project, slug, title string) string 
 		Path: path,
 		FrontMatter: map[string]any{
 			"type": "issue", "title": title, "created": "2026-04-29",
-			"updated": "2026-04-29", "status": "external", "project": project,
+			"updated": "2026-04-29", "status": "open", "project": project, "severity": "medium",
 		},
 		Body: "## Context\n\nfixture body.\n",
 	}

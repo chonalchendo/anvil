@@ -66,7 +66,7 @@ func TestSet_ListField_Rejected(t *testing.T) {
 func TestSet_MissingArtifact_NotFound(t *testing.T) {
 	setupVault(t)
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "ghost", "status", "external"})
+	cmd.SetArgs([]string{"set", "issue", "ghost", "status", "open"})
 	var stderr bytes.Buffer
 	cmd.SetErr(&stderr)
 	cmd.SetOut(&stderr)
@@ -76,6 +76,48 @@ func TestSet_MissingArtifact_NotFound(t *testing.T) {
 	}
 	if !errors.Is(err, ErrArtifactNotFound) {
 		t.Errorf("err = %v, want ErrArtifactNotFound", err)
+	}
+}
+
+func TestSet_IssueMilestone_RoundTrip(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "anvil", "x", "X")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "anvil.x", "milestone", "[[milestone.anvil.cli-substrate]]"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "anvil.x.md"))
+	if got, _ := a.FrontMatter["milestone"].(string); got != "[[milestone.anvil.cli-substrate]]" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestSet_MilestoneSystemDesign_RoundTrip(t *testing.T) {
+	vault := setupVault(t)
+	// Write a minimal valid milestone fixture matching the new schema.
+	mPath := filepath.Join(vault, "85-milestones", "anvil.cli-substrate.md")
+	if err := os.MkdirAll(filepath.Dir(mPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	a := &core.Artifact{
+		Path: mPath,
+		FrontMatter: map[string]any{
+			"type": "milestone", "title": "CLI substrate", "created": "2026-04-29",
+			"updated": "2026-04-29", "status": "planned", "project": "anvil",
+		},
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "milestone", "anvil.cli-substrate", "system_design", "[[system-design.anvil]]"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	got, _ := core.LoadArtifact(mPath)
+	if v, _ := got.FrontMatter["system_design"].(string); v != "[[system-design.anvil]]" {
+		t.Errorf("system_design = %q", v)
 	}
 }
 

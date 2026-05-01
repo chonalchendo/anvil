@@ -216,9 +216,6 @@ func promoteToIssue(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		return fmt.Errorf("rendering issue template: %w", err)
 	}
 
-	// Inject promoted_from before schema validation — the schema declares it.
-	fm["promoted_from"] = inboxID
-
 	if err := schema.Validate(string(core.TypeIssue), fm); err != nil {
 		return fmt.Errorf("schema validation: %w", err)
 	}

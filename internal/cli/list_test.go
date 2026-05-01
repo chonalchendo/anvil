@@ -22,7 +22,7 @@ func TestList_FiltersByStatus(t *testing.T) {
 	}
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"list", "issue", "--status", "external"})
+	cmd.SetArgs([]string{"list", "issue", "--status", "open"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
