@@ -32,23 +32,6 @@ func TestValidate_RejectsMissingTitle(t *testing.T) {
 	}
 }
 
-func TestValidate_AcceptsValidIssue(t *testing.T) {
-	fm := map[string]any{
-		"type": "issue", "title": "x", "created": "2026-04-29", "status": "external",
-	}
-	if err := Validate("issue", fm); err != nil {
-		t.Errorf("issue valid: %v", err)
-	}
-}
-
-func TestValidate_RejectsBadIssueStatus(t *testing.T) {
-	fm := map[string]any{
-		"type": "issue", "title": "x", "created": "2026-04-29", "status": "open",
-	}
-	if err := Validate("issue", fm); err == nil {
-		t.Error("expected error")
-	}
-}
 
 func TestValidate_PlanExecutable_Valid(t *testing.T) {
 	fm := map[string]any{
@@ -215,6 +198,51 @@ func TestValidate_Milestone_RejectsSchedulingFields(t *testing.T) {
 			field: "x",
 		}
 		if err := Validate("milestone", fm); err == nil {
+			t.Errorf("expected rejection for cut field %q", field)
+		}
+	}
+}
+
+func TestValidate_Issue_NewShape(t *testing.T) {
+	fm := map[string]any{
+		"type": "issue", "title": "Fix inbox", "created": "2026-04-29",
+		"status": "open", "project": "anvil", "severity": "medium",
+		"milestone":  "[[milestone.anvil.cli-substrate]]",
+		"acceptance": []any{"Bug reproduces no longer"},
+	}
+	if err := Validate("issue", fm); err != nil {
+		t.Fatalf("expected valid: %v", err)
+	}
+}
+
+func TestValidate_Issue_RejectsLegacyStatus(t *testing.T) {
+	fm := map[string]any{
+		"type": "issue", "title": "x", "created": "2026-04-29",
+		"status": "external", "project": "anvil", "severity": "low",
+	}
+	if err := Validate("issue", fm); err == nil {
+		t.Error("expected rejection: legacy status 'external' no longer valid")
+	}
+}
+
+func TestValidate_Issue_RejectsBadSeverity(t *testing.T) {
+	fm := map[string]any{
+		"type": "issue", "title": "x", "created": "2026-04-29",
+		"status": "open", "project": "anvil", "severity": "critical-but-not",
+	}
+	if err := Validate("issue", fm); err == nil {
+		t.Error("expected rejection: severity must be enum")
+	}
+}
+
+func TestValidate_Issue_RejectsCutFields(t *testing.T) {
+	for _, field := range []string{"learnings", "discovered_in", "promoted_from"} {
+		fm := map[string]any{
+			"type": "issue", "title": "x", "created": "2026-04-29",
+			"status": "open", "project": "anvil", "severity": "low",
+			field: []any{"x"},
+		}
+		if err := Validate("issue", fm); err == nil {
 			t.Errorf("expected rejection for cut field %q", field)
 		}
 	}
