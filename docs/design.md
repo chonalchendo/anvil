@@ -1,4 +1,32 @@
-# Anvil: Design
+---
+type: system-design
+title: "Anvil: system design"
+project: anvil
+created: 2026-04-27
+updated: 2026-04-27
+status: active
+tags: [domain/dev-methodology, type/system-design]
+product_design: "[[product-design.anvil]]"
+tech_stack:
+  language: python
+  cli_framework: cyclopts
+  telemetry: sqlite + opentelemetry-genai
+  agent_subprocesses: [claude-code, codex]
+  vault: obsidian
+  tests: pytest
+key_invariants:
+  - "Skills auto-fire from descriptions; the user never types a command to invoke one"
+  - "Subprocess to the configured agent CLI is the only invocation path; this preserves subscription billing and means Anvil holds no API keys"
+  - "Per-spawn state isolation is non-negotiable; CLAUDE_CONFIG_DIR / CODEX_HOME per spawn from v0.1, even under sequential execution"
+  - "Operational state (~/.anvil/) and knowledge vault (~/anvil-vault/) never mix; operational churns per-command, the vault accumulates slowly"
+  - "Every operational artifact references upward to a milestone; the design-driven hierarchy holds via wikilinks, not conventions"
+authorized_decisions: []
+boundary_diagrams: []
+revisions:
+  - { date: 2026-04-27, change: "Renamed and reshaped from docs/design.md" }
+---
+
+# Anvil: System Design
 
 A craft-first methodology for AI-assisted development, packaged as auto-loading skills with a thin Python orchestrator.
 
@@ -11,16 +39,18 @@ This document captures the design rationale for Anvil. It exists so that future-
 **Foundations**
 - [Vision and scope](#vision-and-scope) — pointer to `product-design.md` (vision, target users, success, milestones)
 - [Core beliefs](#core-beliefs) — load-bearing convictions about how Anvil is built
-- [Architecture](#architecture) — three layers (skills, orchestrator, vault)
+- [Components and responsibilities](#components-and-responsibilities) — three layers (skills, orchestrator, vault) with a component diagram
 - [Storage tiers](#storage-tiers) — operational state vs knowledge vault
 - [Workflows](#workflows) — project bootstrap (greenfield + brownfield) and normal feature workflow
+- [Data flow](#data-flow) — `anvil build` wave execution sequence
+- [Boundaries and integration points](#boundaries-and-integration-points) — seams to agent CLIs, hooks, Obsidian, external skill packs
 
 **Repository and design hierarchy**
 - [Repository structure](#repository-structure) — the Anvil package, operational state, knowledge vault, compiled outputs, project repos
 - [The design-driven hierarchy](#the-design-driven-hierarchy) — product-design → milestones → plans → sweeps → issues → inbox
 
 **Vault details**
-- [Vault frontmatter schemas](#vault-frontmatter-schemas) — every artifact type with concrete YAML
+- [Vault frontmatter schemas](#vault-frontmatter-schemas) — pointer to `vault-schemas.md`; the two architectural rules stay here
 - [Tag taxonomy](#tag-taxonomy) — four-facet classification, status not in tags
 - [Maps of Content (MOCs) and dashboards](#maps-of-content-mocs-and-dashboards) — hybrid pattern, Bases over Dataview
 - [Retention and compaction](#retention-and-compaction) — three-layer model, 50-note backpressure
@@ -34,9 +64,10 @@ This document captures the design rationale for Anvil. It exists so that future-
 **Multi-agent and skills**
 - [Multi-agent](#multi-agent) — Claude Code first, Codex second, others on demand
 - [Skill management](#skill-management) — sources, packs, recommended companions
-- [Skill authoring conventions](#skill-authoring-conventions) — trigger contract framing, two-school descriptions, body rules, lifecycle, CI
+- [Skill authoring conventions](#skill-authoring-conventions) — workflow vs knowledge split; full rules in [`skill-authoring.md`](skill-authoring.md)
 
 **Project planning and meta**
+- [Why this shape](#why-this-shape) — the rationale threaded across the choices above
 - [Versioning (deferred)](#versioning-deferred) — git is the version control story
 - [What gets ported from mantle](#what-gets-ported-from-mantle) — and what doesn't
 - [Implementation sequence](#implementation-sequence) — v0.1 through v0.4+
@@ -60,7 +91,7 @@ These are the load-bearing convictions about *how* Anvil is built. Every design 
 
 2. **One source of truth (markdown) compiles to many agents.** The SKILL.md open standard is the substrate. Multi-agent support falls out for free.
 
-3. **Subprocess is the right default for the actual coding work.** It inherits agent CLI tool harnesses and respects subscription billing. Direct API access is reserved for narrow auxiliary operations (classification, summarization, cost estimation).
+3. **Subprocess to the configured agent CLI is the only invocation path.** It inherits agent CLI tool harnesses and respects subscription billing — Anvil holds no API keys. If a need for direct provider access surfaces later, it's a deliberate scope expansion, not a free pickup.
 
 4. **Don't reimplement the harness.** Tools like pi-mono build their own agent loops on raw provider SDKs. The cost is high (months of work), the benefit is narrow for a workflow methodology, and you lose subscription billing entirely. Stay above the harness.
 
@@ -68,9 +99,42 @@ These are the load-bearing convictions about *how* Anvil is built. Every design 
 
 ---
 
-## Architecture
+## Components and responsibilities
 
-Three layers, each doing one thing well.
+Three layers, each doing one thing well: skills carry the methodology, the orchestrator does only what skills can't, and the vault accumulates personal expertise that travels across projects.
+
+```mermaid
+graph TB
+    subgraph Skills["Skills (auto-firing SKILL.md)"]
+        Meta[meta-skills<br/>using-anvil, writing-skills,<br/>extracting-skill-from-session]
+        Design[design-side<br/>writing-product-design,<br/>writing-system-design,<br/>defining-milestone]
+        Exec[execution<br/>planning, human-review,<br/>capturing-learnings, ...]
+    end
+
+    subgraph Orchestrator["Orchestrator (Python CLI)"]
+        Init[anvil init]
+        Build[anvil build]
+        Status[anvil status]
+        Cost[anvil cost]
+        SkillCmd[anvil skill]
+        Adopt[anvil adopt]
+    end
+
+    subgraph Vault["Vault (~/anvil-vault/)"]
+        Projects[05-projects/<br/>product-design + system-design]
+        Learnings[20-learnings/]
+        Decisions[30-decisions/]
+        UserSkills[40-skills/]
+        Milestones[85-milestones/]
+    end
+
+    Build -.subprocess.-> ClaudeCode[Claude Code]
+    Build -.subprocess.-> Codex[Codex]
+    SkillCmd --> Skills
+    UserSkills -.compiled.-> Skills
+    Init --> Vault
+    Adopt --> Vault
+```
 
 ### 1. Skills (the methodology)
 
@@ -212,6 +276,83 @@ Approximately 15 skills cover essentially every recurring engineering activity. 
 
 ---
 
+## Data flow
+
+The orchestrator's only critical path is `anvil build <issue>` — wave execution via subprocess to the configured agent CLI. The sequence below captures the canonical run shape; the [Build command](#build-command) section below covers the mechanics in full.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant CLI as anvil CLI
+    participant Plan as plan parser
+    participant Adapter as AgentAdapter
+    participant State as ~/.anvil/build-runs/
+    participant Subproc as Claude Code subprocess
+    participant Git as git
+    participant DB as cost.db
+
+    User->>CLI: anvil build <issue>
+    CLI->>Plan: parse plan, build wave graph
+    loop each task in topological order
+        CLI->>State: allocate per-spawn state_dir
+        CLI->>State: seed credentials (symlink Claude / copy Codex)
+        CLI->>Adapter: spawn TaskSpec
+        Adapter->>Subproc: claude -p (CLAUDE_CONFIG_DIR=state_dir)
+        Subproc-->>Adapter: stream-json events
+        Adapter-->>CLI: NormalizedEvent stream
+        CLI->>Git: atomic commit per task
+        CLI->>DB: record Telemetry
+        CLI->>State: cleanup state_dir
+    end
+    CLI-->>User: wave complete + cost summary
+```
+
+Per-spawn state isolation is visible at every step: each task gets its own `state_dir` under `~/.anvil/build-runs/<run-id>/<task-id>/`, with credentials seeded once and the directory torn down after the task commits. This is the same pattern that scales to concurrent waves in v0.2; v0.1 just runs the loop sequentially.
+
+---
+
+## Boundaries and integration points
+
+Anvil sits between the user and the agent CLIs, with several explicit seams to systems it doesn't own. The context diagram below shows what's inside the boundary and what isn't.
+
+```mermaid
+graph LR
+    User((User))
+
+    subgraph Anvil["Anvil"]
+        CLI[anvil CLI]
+        Methodology[bundled methodology skills]
+        Adapters[AgentAdapters<br/>claude-code, codex]
+        OpState["~/.anvil/<br/>operational state"]
+        Vault["~/anvil-vault/<br/>knowledge vault"]
+    end
+
+    User -->|conversation| ClaudeCode[Claude Code / Codex]
+    User -->|~2×/day| CLI
+
+    CLI --> Adapters
+    Adapters -.subprocess.-> ClaudeCode
+    CLI -.lifecycle hooks.-> External[Linear / Jira / Slack]
+
+    Methodology -.compiled.-> ClaudeCode
+    ExtPacks[External skill packs<br/>Superpowers, work-team, ...] -.compiled.-> ClaudeCode
+    Vault -.compiled skills.-> ClaudeCode
+
+    Vault --> Obsidian[Obsidian]
+```
+
+The seams worth naming explicitly:
+
+- **Operational state vs knowledge vault.** `~/.anvil/` (per-command churn, machine-local) and `~/anvil-vault/` (slow accumulation, git-versioned, browsed in Obsidian) never mix. See [Storage tiers](#storage-tiers) for the split.
+- **Agent CLI boundary.** Anvil subprocesses to Claude Code or Codex for all coding work — this is the only invocation path. Per-spawn state isolation lives at this seam (`CLAUDE_CONFIG_DIR` / `CODEX_HOME`). The agent CLIs themselves are not Anvil; Anvil never reimplements their tool harness, prompt-injection defenses, or permission UX, and never reaches around them to provider APIs directly. See [Build command](#build-command).
+- **Skill source boundary.** Three skill source classes (bundled methodology, external packs, vault skills) all compile into the agent CLI's home directory (`~/.claude/skills/`, `~/.codex/skills/`). Conflict resolution and pack toggling live in the orchestrator; the agent CLI just reads its skills directory. See [Skill management](#skill-management).
+- **Lifecycle hook boundary.** Anvil never imports tracker libraries or holds credentials. Lifecycle events fire user-supplied scripts under `~/.anvil/projects/<n>/hooks/` with positional arguments and `hooks_env` passthrough; the script itself talks to Linear / Jira / Slack / whatever. See [Hooks](#hooks).
+- **Vault → Obsidian boundary.** The vault is a folder of markdown with frontmatter. Obsidian is one consumer (the human-facing one); the agent CLI is another (it reads compiled SKILL.md files). The vault survives plugin churn and tooling changes because it's plain text with a small schema set. See [Vault frontmatter schemas](#vault-frontmatter-schemas).
+
+The pattern across every seam: Anvil owns the *normalization* (the adapter, the manifest, the schema, the hook contract) and never owns the *external surface* (the agent CLI's harness, the tracker's API, Obsidian's plugins). Adapters absorb the divergence; the orchestrator stays small.
+
+---
+
 ## Repository structure
 
 Three distinct concerns, each in its own location. They exist independently and can be developed at different speeds.
@@ -307,9 +448,6 @@ anvil/
 │   │   ├── base.py                  AgentAdapter ABC, NormalizedEvent, Telemetry, TaskSpec, TaskResult
 │   │   ├── claude_code.py           v0.1
 │   │   └── codex.py                 v0.2
-│   ├── llm/
-│   │   ├── __init__.py
-│   │   └── client.py                auxiliary SDK wrapper for classification, etc.
 │   ├── telemetry/
 │   │   ├── __init__.py
 │   │   ├── db.py                    SQLite schema and access
@@ -602,398 +740,12 @@ The seventeen methodology skills divide cleanly into design-side (writing-produc
 
 ## Vault frontmatter schemas
 
-Every artifact carries a small set of universal fields so a single Bases query can list everything regardless of type: `id`, `type`, `title`, `created`, `updated`, `tags`, `status`, `aliases`. On top of that, each type extends with type-specific fields. JSON Schemas for each type ship at `anvil/schemas/*.schema.json` and are validated in CI via `check-jsonschema`.
+Every vault artifact type has a concrete frontmatter schema. The full catalog — `product-design`, `system-design`, `milestone`, `learning`, `decision`, `skill`, `sweep`, `thread`, `issue`, `plan`, `transcript` / `session` — with example YAML and field rationale lives in [`vault-schemas.md`](vault-schemas.md). JSON Schemas for each type ship at `anvil/schemas/*.schema.json` and are validated in CI via `check-jsonschema`.
 
-Use Obsidian Properties-compliant types only (Text, List, Number, Checkbox, Date, Date & time). No nested objects in top-level YAML except where unavoidable (`sweep.metrics`, document `revisions`) — Obsidian's Properties UI cannot edit nested objects and several plugins choke on them.
+The two structural rules that govern every schema are architectural, so they're stated here:
 
-The schemas below are starter shapes. The CI validation is the load-bearing part — drift in any field across notes is the documented failure mode at scale, and schema-validated PRs prevent it.
-
-### `product-design` — the project's vision (one per project)
-
-```yaml
----
-type: product-design
-title: "Payment Service: product design"
-project: payment-service
-created: 2026-03-01
-updated: 2026-04-26
-status: active                # draft | active | superseded | retired
-tags: [domain/payments, type/product-design]
-target_users:
-  - "Internal services needing payment capture"
-  - "External merchants integrating via API"
-problem_statement: "Centralize payment processing across all customer-facing surfaces"
-success_metrics:
-  - "99.9% payment success rate"
-  - "<200ms p99 latency for capture endpoint"
-  - "Idempotent retries handled correctly under load"
-out_of_scope:
-  - "Subscription billing (separate service)"
-  - "Refund automation (manual for v1)"
-milestones:
-  - "[[milestone.payments.m1-capture-baseline]]"
-  - "[[milestone.payments.m2-idempotency]]"
-  - "[[milestone.payments.m3-multi-currency]]"
-related:
-  - "[[system-design.payments]]"
-  - "[[decision.payments.0001-stripe-vs-self-host]]"
-revisions:
-  - { date: 2026-03-01, change: "Initial draft" }
-  - { date: 2026-03-15, change: "Added multi-currency goal" }
-  - { date: 2026-04-26, change: "Removed automated refunds from v1 scope" }
----
-
-## What we're building
-...
-## Who it's for
-...
-## Why it matters
-...
-## What success looks like
-...
-## What's deliberately out of scope
-...
-## Milestones
-This product is delivered through these structural milestones:
-- [[milestone.payments.m1-capture-baseline]] — basic capture flow
-- ...
-```
-
-Stored at `~/anvil-vault/05-projects/<project>/product-design.md`. One per project. The `out_of_scope` field is critical and almost always missing in real-world docs — it's the explicit negative space that prevents invisible scope creep. The `revisions` array is one of the few places inline objects are justified; product designs evolve, and capturing the *narrative reason* alongside the dated change is more useful than relying on git diff alone. Status enum is narrower than the issue/plan enums because product designs don't pause or abandon; they're either the current vision, a draft of one, superseded by a newer version, or the project is retired.
-
-### `system-design` — the architectural shape (one per project)
-
-```yaml
----
-type: system-design
-title: "Payment Service: system design"
-project: payment-service
-created: 2026-03-05
-updated: 2026-04-26
-status: active                # draft | active | superseded | retired
-tags: [domain/payments, type/system-design]
-product_design: "[[product-design.payments]]"
-tech_stack:
-  language: python
-  framework: fastapi
-  database: postgres
-  message_bus: redpanda
-  deployment: kubernetes
-key_invariants:
-  - "Every payment attempt produces exactly one ledger entry"
-  - "Idempotency keys expire after 24h"
-  - "All amounts stored as integer cents in base currency"
-authorized_decisions:
-  - "[[decision.payments.0001-stripe-vs-self-host]]"
-  - "[[decision.payments.0003-postgres-for-ledger]]"
-  - "[[decision.payments.0007-idempotency-via-postgres]]"
-boundary_diagrams: ["[[assets.payments.context-diagram]]"]
-revisions:
-  - { date: 2026-03-05, change: "Initial draft after architecture spike" }
-  - { date: 2026-04-26, change: "Added idempotency design" }
----
-
-## Architectural overview
-...
-## Components and responsibilities
-...
-## Data flow
-...
-## Boundaries and integration points
-...
-## Key invariants
-...
-## Why this shape
-References the decisions that led here: [[decision.payments.0001-stripe-vs-self-host]] explains the build-vs-buy choice...
-```
-
-Stored at `~/anvil-vault/05-projects/<project>/system-design.md`. References the product design it implements. `key_invariants` is the load-bearing field — these are the things that must always be true about the system, listed explicitly so the agent can verify against them during planning and review. `authorized_decisions` closes the provenance chain at the system level: every meaningful architectural choice traces to a decision artifact, so the system design is justified rather than asserted.
-
-The body contains mermaid diagrams as core content — context, component, and data flow diagrams are first-class parts of the document, not appendices. The `writing-system-design` skill produces these inline. Mermaid renders in Obsidian and GitHub natively; the diagram source is plain text, diffable, and survives plugin churn.
-
-When the system design changes meaningfully (e.g., migrating from Postgres to CockroachDB), the change is captured both as a revision entry *and* as a new decision. The revision is the changelog; the decision is the reasoning. Both have value.
-
-### `milestone` — structural component of the product
-
-```yaml
----
-type: milestone
-title: "M3: OAuth provider integration"
-project: payment-service
-created: 2026-04-01
-updated: 2026-04-26
-status: in-progress           # planned | in-progress | done | abandoned
-target_date: 2026-05-15
-horizon: month
-tags: [domain/auth, type/milestone]
-product_design: "[[product-design.payments]]"
-authorized_by:
-  - "[[decision.auth.0007-use-jwt]]"
-predecessors:
-  - "[[milestone.auth.m2-session-management]]"
-successors:
-  - "[[milestone.auth.m4-mfa]]"
-plans:
-  - "[[plan.auth.q2-rollout]]"
-issues:
-  - "[[issue.auth.add-oauth-provider]]"
-  - "[[issue.auth.token-refresh-flow]]"
-acceptance:
-  - "Users can log in via Google and GitHub"
-  - "Tokens refresh automatically when expired"
-  - "OAuth provider config is per-environment"
-risks:
-  - "Provider rate limits during peak signups"
-related: ["[[learning.auth.token-storage-patterns]]"]
----
-
-## What this milestone delivers
-...
-## What it depends on
-...
-## How we'll know it's done
-...
-```
-
-Stored at `~/anvil-vault/85-milestones/<project>.<slug>.md`. Milestones are first-class artifacts because they outlive the plans that execute them, accumulate learnings and decisions specific to their delivery, and form the structural backbone that connects product design to operational work.
-
-The `predecessors` / `successors` fields make the milestone graph explicit and queryable — "what's blocking M4?" is `file.predecessors` walked back; "what depends on M3?" is `file.successors` walked forward. Plans reference milestones (via wikilink), not the other way around — a milestone may span multiple plans across quarters, and the plan completes while the milestone continues.
-
-### `learning` — distilled facts, debugging insights, gotchas
-
-```yaml
----
-type: learning
-title: "CREATE INDEX CONCURRENTLY hangs while autovacuum runs"
-created: 2026-04-26
-updated: 2026-04-26
-status: verified              # draft | verified | stale | retracted
-diataxis: explanation         # tutorial | how-to | reference | explanation
-confidence: high              # low | medium | high (mandatory; agents must distinguish hypothesis from fact)
-tags: [domain/postgres, activity/debugging, pattern/concurrency, type/learning]
-aliases: ["CIC autovacuum lock"]
-sources:
-  - "https://www.postgresql.org/docs/16/sql-createindex.html"
-  - "[[thread.indexing.cic-hang-investigation]]"
-related: ["[[learning.postgres.snapshot-too-old]]"]
-parents: ["[[plan.indexing.q2-rollout]]"]
----
-```
-
-`diataxis` (Diátaxis framework) lets agents retrieve the right shape for the task: "show me a how-to for X" vs "show me an explanation of Y." `confidence` is mandatory — without it, agents treat hypothesis and verified fact identically.
-
-### `decision` — MADR v4 conformant ADR
-
-```yaml
----
-type: decision
-title: "Use JWT (RS256) for service-to-service auth"
-status: accepted              # MADR enum: proposed | rejected | accepted | deprecated | superseded
-date: 2026-04-26              # MADR: date last updated
-created: 2026-03-12
-updated: 2026-04-26
-decision-makers: ["@alice", "@bob"]
-consulted: ["@security-team"]
-informed: ["@platform-eng"]
-tags: [domain/auth, pattern/auth, type/decision]
-supersedes: []
-superseded_by: null
-related: ["[[decision.auth.0003-mtls-internal]]"]
-evidence: ["[[thread.auth.spike-2026-03]]"]
----
-
-## Context and Problem Statement
-...
-## Decision Drivers
-...
-## Considered Options
-...
-## Decision Outcome
-Chosen option: "JWT (RS256)", because ...
-### Consequences
-...
-### Confirmation
-...
-```
-
-Hyphenated MADR keys (`decision-makers`, `superseded_by`) are kept verbatim for ecosystem compatibility (ADR-Manager, structured-madr validators). MADR v4 moved superseded-by linkage out of the status string into a structured field — the schema follows that. Filenames use the MADR `nnnn-` prefix: `30-decisions/auth.0007-use-jwt.md`.
-
-### `skill` — Anthropic SKILL.md (allow-list strict)
-
-```yaml
-# prettier-ignore
----
-name: sqlmesh-best-practices
-description: Use when working with sqlmesh, dbt models, incremental data pipelines, or asks about model dependencies, audits, or virtual environments. Do NOT use for general SQL questions or non-sqlmesh data tools.
-license: MIT
-allowed-tools: [Read, Edit, Bash, Grep]
-compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
-metadata:
-  vault_id: sqlmesh-best-practices
-  vault_type: skill
-  skill_type: knowledge          # workflow | knowledge
-  side: user                     # meta | design | execution | user
-  created: 2026-04-26
-  updated: 2026-09-15
-  tags: [domain/sqlmesh, pattern/data-pipelines, type/skill]
-  diataxis: how-to
-  authored_via: researching-domain        # which meta-skill produced it
-  refreshed_via: synthesizing-knowledge-skill   # how it was last updated
-  confidence: high                # low | medium | high
-  status: experience-validated    # from-research-only | in-use | experience-validated | deprecated
-  source_learnings:
-    - "[[learning.sqlmesh.macro-rendering-order]]"
-    - "[[learning.sqlmesh.audit-pre-vs-post]]"
-    - "[[learning.sqlmesh.virtual-environment-gotcha]]"
-  related: ["[[decision.data.0011-sqlmesh-vs-dbt]]"]
----
-```
-
-**Critical rules**: top-level keys are strictly `name | description | license | allowed-tools | metadata | compatibility` per Anthropic's importer. Anything else fails validation. All Anvil-specific metadata nests under `metadata:`. The `# prettier-ignore` directive above the frontmatter delimiter is mandatory — Prettier reformatting single-line descriptions to multi-line YAML breaks Claude Code registration silently.
-
-**Validator constraints**: `description` ≤ 1024 chars (validator hard limit) but ≤ 250 chars practical (Claude Code listing truncation, issue #881). `name` ≤ 64 chars matching `^[a-z0-9-]+$` with no consecutive/leading/trailing hyphens; never contains the reserved words `claude` or `anthropic`. No XML angle brackets anywhere. Skills are folders (`40-skills/<n>/SKILL.md`) per the spec — non-negotiable. CI runs `check-jsonschema`, Anthropic's `quick_validate.py`, plus Anvil's body-length, ALL-CAPS proliferation, and namespace-handoff checks on every PR.
-
-**Provenance fields** make the skill's lifecycle legible:
-- `authored_via` records the meta-skill that produced the first draft (`extracting-skill-from-session`, `researching-domain`, or hand-authored).
-- `refreshed_via` records the meta-skill used for the most recent update.
-- `confidence` is mandatory: `low` (research-only, untested), `medium` (some real use), `high` (experience-validated). Agents weight skill content by confidence when synthesizing.
-- `status` tracks lifecycle stage: `from-research-only` (just researched, not yet used), `in-use` (being applied, accumulating learnings), `experience-validated` (refined by real use, learnings incorporated), `deprecated` (superseded or wrong; left for provenance).
-- `source_learnings` links to the vault learnings that the skill body distills. The skill body references rather than repeats — `[[learning.sqlmesh.macro-rendering-order]]` rather than the full content. When learnings update, the skill is a candidate for refresh.
-
-### `sweep` — coordinated batch of changes across the codebase
-
-```yaml
----
-type: sweep
-title: "Migrate all services from log4j 1.x to logback"
-created: 2026-04-10
-updated: 2026-04-26
-status: in-progress           # planned | in-progress | merged | abandoned
-breaking: false
-scope: backend                # matches Conventional Commits scope
-tags: [domain/jvm, activity/refactor, pattern/observability, type/sweep]
-driver: "[[decision.logging.0009-mandate-logback]]"
-plan: "[[plan.logging.q2-cleanup]]"
-target_repos: [api-server, worker, gateway]
-prs: ["org/api-server#1442", "org/worker#883"]
-metrics:
-  files_touched: 217
-  lines_added: 1804
-  lines_removed: 2913
-  services_migrated: 7
-  services_remaining: 2
-related: ["[[learning.logback.async-appender-deadlock]]"]
-parents: ["[[plan.logging.q2-cleanup]]"]
----
-```
-
-`scope` matches the commit-message scope, keeping git history and vault aligned. `metrics` is one of the few places a nested object is justified — Bases queries it via `formula.metrics.files_touched`; you'll edit metrics rarely enough that source-mode editing is acceptable.
-
-### `thread` — investigation/exploration unit
-
-```yaml
----
-type: thread
-title: "Why does CREATE INDEX CONCURRENTLY hang on a busy table?"
-created: 2026-04-22
-updated: 2026-04-23
-status: closed                # open | paused | closed | abandoned
-opened: 2026-04-22
-closed: 2026-04-23
-tags: [domain/postgres, activity/debugging, type/thread]
-diataxis: explanation
-question: "Why does CIC hang when an autovacuum is running?"
-hypothesis:
-  - "Autovacuum holds a conflicting ShareUpdateExclusiveLock"
-  - "Long-running transaction blocks the snapshot wait phase"
-resolution: "Hypothesis 2 confirmed; documented in [[learning.postgres.cic-snapshot-wait]]"
-participants: ["@alice", "claude-sonnet-4.5"]
-outcome:
-  - "[[learning.postgres.cic-snapshot-wait]]"
-  - "[[issue.platform.cic-monitoring-gap]]"
-related: ["[[thread.indexing.cic-rollout-strategy]]"]
-parents: ["[[sweep.indexing.cic-rollout]]"]
----
-```
-
-The `question / hypothesis / resolution` triple makes threads re-entrant across days — an agent picking up the thread tomorrow has the framing already stated. `participants` lists humans and AI agents because attribution matters for trust. `outcome` links to the durable artifacts the thread produced; the thread itself is ephemeral.
-
-### `issue` — knowledge slice of a tracked problem
-
-```yaml
----
-type: issue
-title: "CIC monitoring missing: no alert when index build hangs"
-created: 2026-04-23
-updated: 2026-04-26
-status: external              # external | learning-only | resolved
-severity: medium
-external_ref: "JIRA-PLAT-4421"
-external_url: "https://company.atlassian.net/browse/PLAT-4421"
-tags: [domain/observability, pattern/observability, type/issue]
-discovered_in: "[[thread.indexing.cic-hang-investigation]]"
-learnings:
-  - "[[learning.postgres.cic-snapshot-wait]]"
-  - "[[learning.monitoring.lock-wait-alert-gap]]"
-related: ["[[decision.monitoring.0011-stack-choice]]"]
----
-```
-
-The narrowed status enum is deliberate. Per the design's hard constraint, the vault is not the issue tracker. `external` means open in Linear/Jira/etc.; `learning-only` means we never opened a ticket; `resolved` means lessons captured, ticket closed. This is *different* from the operational issue files in `~/.anvil/projects/<n>/issues/`, which are the actual work items with full workflow state. The vault `issue` is a knowledge node for attaching learnings; the operational issue is the work backlog. Two distinct artifacts that happen to share a name.
-
-### `plan` — forward-looking roadmap
-
-```yaml
----
-type: plan
-title: "Q2 logging cleanup: log4j → logback across all services"
-created: 2026-04-01
-updated: 2026-04-26
-status: active                # draft | active | paused | done | abandoned
-horizon: quarter              # week | sprint | month | quarter | year | open
-target_date: 2026-06-30
-owner: "@alice"
-stakeholders: ["@platform", "@security"]
-tags: [domain/jvm, pattern/observability, type/plan]
-authorized_by:
-  - "[[decision.logging.0009-mandate-logback]]"
-objectives:
-  - "All production services off log4j 1.x"
-  - "Centralized async appender configured per service"
-milestones:
-  - "[[milestone.logging.m1-baseline-inventory]]"
-  - "[[milestone.logging.m2-pilot-migration]]"
-  - "[[milestone.logging.m3-bulk-rollout]]"
-sweeps:
-  - "[[sweep.logging.log4j-to-logback-migration]]"
-risks:
-  - "Async appender deadlocks under heavy load (see [[learning.logback.async-appender-deadlock]])"
-children: ["[[sweep.logging.log4j-to-logback-migration]]"]
----
-```
-
-`horizon` lets a Bases query answer "what are we committed to this quarter" without scanning bodies. `authorized_by` and `milestones` together close the **product-design → milestone → plan → sweep → commit** provenance chain — every commit's sweep references the plan, every plan references the milestones it serves and the decisions that authorized it, every milestone references the product design it realizes. An agent can mechanically trace any code change back to the project's purpose.
-
-Milestones are wikilink references, not inline objects. The plan completes; the milestones it served continue to live in `85-milestones/` and accumulate further work.
-
-### `transcript` and `session` — AI-generated session output
-
-```yaml
----
-type: transcript              # or: session (for human-distilled summaries)
-title: "Postgres advisory locks debugging session"
-source: claude-code           # claude-code | chatgpt | claude-web | cursor | continue
-session_id: abc-123-def
-created: 2026-04-26T14:32:00
-status: raw                   # raw → triaged → distilled → archived
-project: "[[plan.indexing.q2-rollout]]"
-tags: [domain/postgres, activity/debugging, type/transcript]
-distilled_to: []              # populated when promoted; links to learnings/decisions
-retention_until: 2026-05-26
----
-```
-
-Transcripts are the high-volume artifact. They live in `10-sessions/raw/` with `status: raw` and a 30-day `retention_until` timestamp. When the user distills insights from a session, those become `learning` or `decision` artifacts in the proper folders, and the source transcript flips to `status: distilled` and moves to `10-sessions/distilled/` for permanent provenance retention.
+1. **Obsidian Properties-compliant types only** (Text, List, Number, Checkbox, Date, Date & time). No nested objects in top-level YAML except where unavoidable (`sweep.metrics`, document `revisions`) — Obsidian's Properties UI cannot edit nested objects and several plugins choke on them.
+2. **Schemas are starter shapes; CI validation is the load-bearing part.** Drift in any field across notes is the documented failure mode at scale, and schema-validated PRs prevent it. The catalog is where a new field originates; the schema files in `anvil/schemas/` are the enforcement surface.
 
 ---
 
@@ -1147,19 +899,7 @@ Three reasons:
 
 3. **Future-proof.** When Anthropic ships prompt caching v2 or new model capabilities, CLI users get them automatically. SDK reimplementations become moving targets.
 
-The exception: auxiliary operations (classification, summarization, cost estimation, pre-flight token counting) use SDK direct via a separate `auxiliary` auth context. These are pure text-in/text-out, don't need the harness, and benefit from direct billing transparency. Configured separately:
-
-```toml
-[orchestrator]
-default_agent = "claude-code"
-
-[auxiliary]
-provider = "anthropic"
-model = "haiku"
-api_key_env = "ANTHROPIC_API_KEY"
-```
-
-Subprocess for the heavy work, SDK for the light work. Telemetry merges both with a `source` column.
+Anvil never reaches around the agent CLI to a provider SDK directly. If a need for direct provider access surfaces later (auxiliary classification, pre-flight token counting, batch jobs), it's a deliberate scope expansion — invariant 2 says so explicitly.
 
 ### Adapter pattern
 
@@ -1482,7 +1222,7 @@ Cost discipline is structural, not a dashboard.
 
 ```
 request_id, command_id, session_id, issue_id, git_sha,
-model, model_snapshot, source (subprocess|sdk),
+model, model_snapshot,
 input_tokens, cache_read_tokens, cache_write_5m_tokens,
 cache_write_1h_tokens, output_tokens, reasoning_tokens,
 cost_usd, price_table_version, tier (api|subscription|batch|local),
@@ -1586,146 +1326,39 @@ Claude Code defaults to a 15,000-character `SLASH_COMMAND_TOOL_CHAR_BUDGET` acro
 
 ## Skill authoring conventions
 
-A SKILL.md is not a prompt that auto-loads. It is a **trigger contract** (the description) plus a **deferred reference** (the body), and the two halves have different design constraints, different failure modes, and different test methodologies. The description's job is *discrimination* — fire on the right contexts, not on adjacent ones. The body's job is *workflow execution that survives the agent reading it once*.
+A SKILL.md is a **trigger contract** (description) + **deferred reference** (body). Skills divide into **workflow** (multi-phase process body, triggers-only description) and **knowledge** (principles + patterns body, exhaustive triggers). Anvil's methodology is workflow-dominant; user vault skills accrue knowledge.
 
-This section captures the authoring rules for Anvil's methodology skills and any user-authored skills in the vault. CI validation enforces the mechanical rules; the conventions below are the design guidance behind them.
+CI is the load-bearing validation surface. Authoring rules — descriptions, bodies, frontmatter, the three meta-skill paths, diagrams, CI checks — live in [`skill-authoring.md`](skill-authoring.md).
 
-### Two skill types, two authoring paths
+---
 
-Skills divide cleanly into two types based on what their body encodes:
+## Why this shape
 
-| Type | Body encodes | Failure mode | Description style |
-|---|---|---|---|
-| **Workflow skill** | A multi-phase process the agent must read in full | Agent shortcuts past the workflow | **Triggers-only** — describe *when to use*, never summarize *what it does* |
-| **Knowledge skill** | Principles, patterns, and gotchas the agent applies | Under-triggers — agent doesn't load when it should | **Pushy** — exhaustive positive triggers, explicit negative triggers, file types or domain markers if relevant |
+The sections above document what was chosen. This section threads the rationale across them. Several choices compound; pulling on any one of them unravels the others.
 
-The two-school split comes from a documented behavioral observation: descriptions that summarize a workflow cause Claude to follow the description and skip the body, missing important steps. Descriptions for knowledge skills under-trigger by default, so they need to be expansive about *when* the knowledge applies.
+### Why subprocess to the agent CLI
 
-Mapped to Anvil's methodology:
+Three reasons in tension force the same answer: subscription billing, harness inheritance, and future-proofing. Direct provider SDKs would cost the user real money where their subscription would have covered the work, force Anvil to reimplement the agent CLI's file editing, sandbox, prompt-injection defenses, and permission UX (months of work for narrow benefit), and put Anvil on the wrong side of every prompt-caching, model-capability, and tool-protocol upgrade. Subprocess sidesteps all three. The cost is a less direct invocation surface and the per-spawn state isolation work below — both worth paying for.
 
-| Skill | Side | Type |
-|---|---|---|
-| `using-anvil` | meta | knowledge |
-| `writing-skills` | meta | knowledge |
-| `extracting-skill-from-session` | meta | workflow |
-| `synthesizing-knowledge-skill` | meta | workflow |
-| `researching-domain` | meta | workflow |
-| `writing-product-design` | design | workflow |
-| `writing-system-design` | design | workflow |
-| `defining-milestone` | design | workflow |
-| `capturing-inbox` | execution | workflow |
-| `creating-issue` | execution | workflow |
-| `planning` | execution | workflow |
-| `human-review` | execution | workflow |
-| `systematic-debugging` | execution | workflow |
-| `learning-shaping` | execution | workflow |
-| `capturing-learnings` | execution | workflow |
-| `re-entry` | execution | workflow |
-| `pausing-work` | execution | workflow |
-| `refactoring` | execution | workflow |
-| `exploration` | execution | workflow |
-| `decision-making` | execution | workflow |
-| `sweep` | execution | workflow |
-| `upgrades` | execution | workflow |
+### Why per-spawn state isolation is non-negotiable from v0.1
 
-Anvil's methodology is heavily workflow-dominant. User-authored skills in the vault will be heavily knowledge-dominant — accumulated expertise about libraries, tools, and domains.
+Both Claude Code and Codex corrupt under shared state across runs (Claude #24864, #17531; Codex #11435, #1991). The fix is the same shape across both: each spawn gets its own state directory via env var, with credentials seeded once. This is invariant 3 because shared state corrupts even under sequential execution — it's not a v0.2-with-concurrency problem we can defer. Per-spawn state from day one means v0.2's concurrent waves are an extension, not a re-architecture.
 
-### Description rules
+### Why operational state and knowledge vault never mix
 
-- **≤250 characters** practical ceiling. Claude Code truncates listings at ~250 chars (issue #881); the 1024-char hard limit exists but is a trap. Front-load the must-show-up content; if the tail gets truncated, the skill still fires correctly.
-- **No XML angle brackets** (`<` or `>`). Hard validator rule.
-- **Third person**, never first person. "Use when..." or verb-first phrases ("Extract text and tables from PDF files..."). Inconsistent point-of-view causes discovery problems.
-- **Workflow skills: triggers-only.** Describe *when* to use, never summarize *what* the skill does. A description like "Use when executing plans - dispatches subagent per task with code review between tasks" causes the agent to do one review when the body specifies two. The fix is to strip workflow detail: "Use when executing implementation plans with independent tasks."
-- **Knowledge skills: pushy and exhaustive.** Include explicit positive triggers (file types, library names, conversational phrases) and explicit negative triggers ("Do NOT trigger when..."). Anthropic's `xlsx` skill is the canonical example; its negative-trigger list enumerates adjacent formats explicitly.
-- **At least one literal trigger phrase** (`or mentions "X"`) for explicit-invocation paths. Pocock's tail-pattern. Cheap, adds explicit-invocation surface without inflating semantic-trigger noise.
-- **Negative triggers for sibling skills.** Every skill with plausibly-overlapping siblings names them in negative triggers. `creating-issue` mentions `capturing-inbox`. `planning` mentions `writing-product-design` (different abstraction level). `refactoring` mentions `systematic-debugging`. Mechanical and high-leverage.
+Operational state churns per-command (issue files, briefings, build cache, telemetry, skill source clones). The vault accumulates slowly (learnings, decisions, sweeps, threads, milestones, MOCs). One is regenerable machine state; the other is your accumulated expertise. They have different consumers (the orchestrator vs. Obsidian and you), different lifecycle (short-lived vs. compounding), and different backup needs (none vs. private remote). Mixing them either pollutes the vault with command-output noise or buries operational state under Obsidian's surface area. The split is in the path, not just convention.
 
-### Body rules
+### Why the design-driven hierarchy holds
 
-- **≤200 lines target, ≤500 lines hard cap.** Verified with `wc -l SKILL.md` in CI. Beyond 200 lines is a strong signal to extract `references/` files. Beyond 500 the skill should be split into two.
-- **One Iron Law per skill, never more.** Workflow skills get a single ALL-CAPS anchor rule stating the non-negotiable principle (`NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST`). Use prose with rationale for everything else. Anthropic's explicit yellow-flag warning is correct — ALL-CAPS proliferation produces brittle compliance. Knowledge skills typically have no Iron Law; they're principles, not procedures.
-- **Workflow skills follow imperative-checklist structure.** Numbered steps the agent executes in order. Validation gates between steps. Rollback instructions for failures. Anchors the agent's TodoWrite list.
-- **Knowledge skills follow reference-with-principles structure.** Open with the philosophy or core principles. Then patterns. Then gotchas and antipatterns. Heavy material moves to `references/`.
-- **Encode user gates as their own paragraph.** Verbatim quote-template + "Wait for the user's response" terminator. Make the gate visually distinct from instructional prose so the agent doesn't blow past it.
-- **Encode skill-to-skill handoffs as `**REQUIRED SUB-SKILL:** Use anvil:skill-name`.** Always namespace-qualify. Never use `@filename` for cross-skill links — `@` force-loads and burns context. Plain-language references resolve to the wrong skill name intermittently (issue #1002).
-- **Wrap path/command examples in code fences.** Literal-text recipes in skill markdown have caused Claude Code to inject malformed Write tool calls (issue #1042). Code fences with explicit "the agent will..." framing prevent this.
+product-design → milestones → plans → sweeps → issues → inbox is a chain that reads in two directions. Top-down it's how a project evolves; bottom-up it's provenance — every issue traces to a milestone, traces to the product design, traces to the project's purpose. The chain holds because every operational artifact's frontmatter wikilinks upward. Most issue trackers don't have this chain, which is why "why are we doing this?" is an expensive question to answer in them. Design-side skills enforce the ordering: `writing-system-design` refuses to fire without a `product-design.md` already present.
 
-### Frontmatter rules
+### Why skills (not commands) are the methodology unit
 
-- **Allow-listed keys only**: `name`, `description`, `license`, `allowed-tools`, `metadata`, `compatibility`. Anything else fails import.
-- **`name`** is kebab-case, `^[a-z0-9-]+$`, ≤64 chars, no consecutive/leading/trailing hyphens. Never contains `claude` or `anthropic` (reserved words).
-- **`description`** ≤1024 chars (validator) but ≤250 chars (practical) per the rules above. No XML angle brackets.
-- **`compatibility`** notes which agent CLIs the skill targets. For Anvil's methodology: `Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard.` This documents the explicit compatibility surface.
-- **`metadata`** holds Anvil-specific fields (described in vault schemas section): `vault_type`, `authored_via`, `confidence`, `status`, `source_learnings`.
-- **`# prettier-ignore`** above the frontmatter delimiter. Prettier reformatting a single-line description into multi-line YAML breaks Claude Code registration silently. CI lint catches missing markers.
+Auto-firing SKILL.md is an open standard. Multi-agent support falls out for free — the same skill files compile into Claude Code, Codex, and any other agent CLI that reads SKILL.md. Skills load lazily (only the description sits in the prompt; bodies enter context only when triggered), which keeps cost discipline structural rather than dashboard-driven. CLI commands would have been simpler to ship but would have locked Anvil to one agent and one invocation surface. Anvil never holds business logic in commands that could be skills; the orchestrator's existence is justified only by what *requires* a CLI.
 
-### Skills are hypotheses, validated by use
+### What we ported from mantle, what we dropped
 
-A skill is *a hypothesis about a recurring pattern, packaged for reuse*. The hypothesis can come from anywhere — a successful session, accumulated learnings, focused research, a colleague's experience. The packaging is the same; the lifecycle is what produces value.
-
-**Three authoring paths** map to three meta-skills, each producing skills as their artifact:
-
-1. **`extracting-skill-from-session`** — crystallize a working in-context workflow into a reusable skill. You did the activity for real, iterated until it worked, and now want to capture what worked. Best path for workflow skills, especially Anvil's own methodology. Strips session-specific noise; identifies the load-bearing pattern; produces the SKILL.md with `writing-skills` as the formatter.
-
-2. **`researching-domain`** — produce a first-draft knowledge skill from focused research. You don't yet have expertise on a topic but want a skill that surfaces best practices. Runs structured research against authoritative sources, synthesizes findings, drafts the skill body, captures supporting learnings to the vault. Best path for bootstrapping knowledge skills on new domains.
-
-3. **`synthesizing-knowledge-skill`** — refresh a knowledge skill incorporating accumulated vault learnings. You've used the topic for a while, captured learnings to `~/anvil-vault/20-learnings/`, and want the skill to reflect what you've actually learned. Diffs new learnings against the existing skill; proposes updates.
-
-The three meta-skills compose: each invokes `writing-skills` as a sub-skill for the formatting work. Each captures provenance differently, which is reflected in the skill's metadata.
-
-**The honest distinction**: research-derived skills are *less reliable* than experience-derived ones. Sources can be wrong, stale, or contextually off. The lifecycle that respects this:
-
-1. `researching-domain` produces a first-draft knowledge skill marked `confidence: medium`, `status: from-research-only`.
-2. The skill auto-fires on real work; helps where it can, fails where it has gaps.
-3. Each gap becomes a learning in the vault.
-4. Periodically `synthesizing-knowledge-skill` refreshes the skill, incorporating the new learnings.
-5. Eventually the skill is `confidence: high`, `status: experience-validated`. Research bootstrapped it; experience refined it.
-
-The vault's `40-skills/` folder is where this accumulation lives. Anvil's methodology skills are stable and small; user-authored knowledge skills grow and grow. Over six months of using Anvil with sqlmesh, your `sqlmesh-best-practices` skill is qualitatively better than anyone else's — synthesized from *your* hard-won learnings, on *your* problems, with *your* fixes documented inline.
-
-### Authoring workflow
-
-The expected pattern for new skills, per the "iterate on a single task before expanding" guidance from Anthropic's skill-building guide:
-
-1. **Identify a real recurring activity.** Not "I think someone might want this" but "I do this every week and it's worth automating."
-2. **Do the activity for real with Claude Code.** Iterate until it works well enough.
-3. **Run the appropriate meta-skill** (`extracting-skill-from-session` for workflows; `researching-domain` for knowledge bootstraps; `synthesizing-knowledge-skill` for refreshes).
-4. **The meta-skill produces the SKILL.md** via `writing-skills`.
-5. **Test before shipping.** At minimum: 10-20 trigger-eval queries (mix of should-fire and should-NOT-fire), three runs each. Calculate trigger rate; aim for ≥90% on relevant queries, ≤10% on unrelated ones. Anvil's CI runs this against new skills.
-6. **Iterate on real use.** Skills are living documents. Capture each gap as a learning; periodically refresh.
-
-### Diagrams as deliverable content
-
-When a skill's output benefits from visual structure (architectural diagrams, dependency graphs, sequence diagrams, milestone roadmaps), use mermaid blocks in the produced markdown. The diagram is *content*, not decoration; it lives in the artifact, not as a separate file.
-
-Mermaid is the right substrate: text-based (commits cleanly, diffable in PRs), renders inline in Obsidian and GitHub, requires no external tooling. The skill body walks the user through producing the diagram with the agent generating mermaid source the user can review and refine.
-
-Specific places diagrams belong:
-
-- **`writing-system-design`** produces context diagrams (system boundaries), component diagrams (internal pieces and relationships), and data flow diagrams for critical paths. These are core deliverables, not afterthoughts. The system design is incomplete without them.
-- **`writing-product-design`** uses gantt-style diagrams for the milestone roadmap when timing matters.
-- **`defining-milestone`** uses graph diagrams when the predecessor/successor web is non-trivial.
-- **`planning`** renders the wave structure (task dependencies) as a mermaid graph in the plan body — much more readable than YAML.
-
-Where diagrams don't fit: conversational execution skills (`human-review`, `capturing-learnings`, `re-entry`) work in prose. Don't force a diagram where the activity is dialogue.
-
-The pattern is borrowed from Superpowers' `brainstorming` skill, which uses mermaid to visualize the decision tree during ideation. There the diagram is a navigation aid for thinking; in Anvil's design-side skills the diagram is part of the deliverable. Same tool, different purpose.
-
-### CI validation
-
-Anvil's CI runs against every PR that touches a skill:
-
-- `quick_validate.py` from Anthropic's repo: frontmatter shape, name regex, description length, no XML brackets.
-- `check-jsonschema` against the skill metadata schema: Anvil-specific fields under `metadata`.
-- Description length warning at 250 chars; failure at 1024 chars.
-- Body length warning at 200 lines; failure at 500 lines.
-- ALL-CAPS proliferation check: warn if more than one ALL-CAPS imperative per body.
-- Namespace-qualified handoff check: warn if body mentions another skill without `anvil:` (or other namespace) prefix.
-- Negative trigger presence check: skills in defined sibling-groups must mention each other in negative triggers.
-- `# prettier-ignore` presence check above frontmatter.
-- Library smoke test: load all enabled methodology skills together against a diverse prompt set; verify no skill conflicts or context-budget overruns.
-
-The smoke test is the load-bearing whole-library check. Individual skills can validate cleanly but interact badly when co-loaded. v0.1 ships with this baked in.
+The pattern: keep the engineering, rewrite the surface. Wave execution machinery, brownfield analysis, the lifecycle hook convention, and the v0.23 telemetry approach all carry over (all genuine v1 inventions with sound engineering). The 30 slash commands, v1's compiled-context architecture, v1's CLI surface, and v1's state model don't — each was a v1 answer to a question Anvil now answers differently. See [What gets ported from mantle](#what-gets-ported-from-mantle) for the inventory.
 
 ---
 
@@ -1806,7 +1439,7 @@ The first version of each adapter does spawn-and-collect against a single task a
 
 Distinct from the vault pitfalls above (which are generic to long-running AI-augmented vaults), these are risks specific to Anvil's design choices, ranked by likelihood:
 
-1. **Skill triggering reliability.** Auto-firing depends on the agent matching descriptions to user intent. When it misfires, recovery needs to be one phrase ("use skill X") — adopt Superpowers' explicit override pattern. The skill authoring conventions section mitigates this at the source: triggers-only descriptions for workflow skills, pushy descriptions for knowledge skills, negative triggers for sibling skills.
+1. **Skill triggering reliability.** Auto-firing depends on agent-matching descriptions to user intent. Misfire recovery needs one phrase ("use skill X") — adopt Superpowers' explicit override pattern. Authoring rules mitigate at the source (see [`skill-authoring.md`](skill-authoring.md)): triggers-only descriptions for workflow skills, pushy for knowledge, negative triggers for siblings.
 
 2. **Silent description budget exceeded.** Claude Code's default `SLASH_COMMAND_TOOL_CHAR_BUDGET=15000` silently drops skills whose aggregate descriptions exceed the limit (issues #43928, #15178). Skills exist on disk but the agent never sees them. Mitigation: Anvil tracks aggregate description chars and warns at 12,000; per-skill descriptions target ≤250 chars to stay well under both individual and aggregate ceilings.
 
@@ -1847,8 +1480,7 @@ The shape Anvil settled on:
 - Small Python CLI you touch twice a day at most.
 - Skills do the work of every recurring engineering activity, auto-firing from prose.
 - Personal vault accumulates expertise that compounds across projects.
-- Subprocess for coding work (preserves subscription billing, inherits agent harnesses).
-- Direct SDK only for narrow auxiliary operations.
+- Subprocess to the configured agent CLI is the only invocation path (preserves subscription billing, inherits agent harnesses, no API keys).
 - Multi-agent support falls out of the SKILL.md open standard.
 - Educational gating exists as opt-in defaults, never enforced.
 - Cost discipline is structural (lazy loading, cache breakpoints, model profiles), not a dashboard.

@@ -37,7 +37,7 @@ revisions:
 
 ## What we're building
 
-Anvil is a methodology for AI-assisted development packaged as auto-loading SKILL.md files with a thin Python orchestrator and a personal knowledge vault.
+Anvil is a harness for AI-assisted development — a methodology packaged as auto-loading SKILL.md files with a thin Python orchestrator and a personal knowledge vault. The model is the horse; everything else (skills, conventions, artifact hierarchy, telemetry, gates) is the harness that steers it.
 
 Three layers, each doing one thing. Skills are the methodology — auto-firing markdown the agent loads from conversational triggers, not commands the user has to type. The orchestrator is a small Python CLI for what genuinely needs a process: subprocess management, persistent state across sessions, telemetry. The vault is curated knowledge — learnings, decisions, skills — that travels with the user across projects.
 
@@ -59,6 +59,8 @@ Two failure modes dominate AI dev tooling. Sprint frameworks like BMAD and Spec 
 
 Anvil's bet: be stubborn about the design and vision, flexible about the implementation. A design-driven artifact hierarchy — product-design → milestones → plans → sweeps → issues → inbox — keeps every low-level task traceable to a higher-level intent. Skills handle the flexible part: reusable workflows that auto-fire on conversational triggers, not commands the user has to remember. The shape stays disciplined; the work itself stays adaptive.
 
+Anvil commits to a fixed topology — one adapter contract, one artifact hierarchy, one skill-pack shape — on purpose. Narrowing the agent's variety is what makes a harness tractable; an open-ended target produces a harness that can't be reasoned about as it grows.
+
 Educational gating is the other half. AI should make the user a stronger engineer, not just a faster shipper. Mantle, the predecessor, reached v0.23.0 with a sophisticated workflow but accumulated 30+ slash commands; the gate was always in the design but never landed under the ceremony fatigue. Anvil starts smaller so the gate has room to fit without becoming one more demand.
 
 ## What success looks like
@@ -72,6 +74,8 @@ Educational gating is the other half. AI should make the user a stronger enginee
 **Skills auto-fire correctly on intent ≥80% of the time.** Measured by counting explicit `Use skill X` overrides in real sessions. Below 80% means descriptions need work; auto-firing is the unit of UX leverage.
 
 **Token cost per active session stays bounded.** Mantle ate tokens via compiled-context injection on every command — the workflow itself became expensive. Anvil compiles once, lazy-loads skill bodies, and respects cache breakpoints. Bundled skill count can grow without daily-driver cost growing in lockstep.
+
+**Skills retire gracefully as models improve.** A harness should be rippable — when a model substrate makes a skill redundant, the skill comes out without leaving load-bearing scars. Skills that accrete permanent dependencies on themselves are over-engineered; skills measured against this property stay honest about their lifespan.
 
 **Anvil itself is buildable using Anvil.** The methodology bootstraps its own development — including this product-design and the `writing-product-design` skill that came out of the same session. If we have to step outside Anvil to ship Anvil, it's not yet the right shape.
 

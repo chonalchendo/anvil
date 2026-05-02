@@ -103,6 +103,8 @@ All three invoke `writing-skills` as sub-skill for formatting. Provenance differ
 
 `~/anvil-vault/40-skills/` accumulates these. Anvil methodology skills are stable and small; user knowledge skills grow. Six months of sqlmesh + Anvil → your `sqlmesh-best-practices` is better than anyone else's: *your* learnings, *your* problems, *your* fixes.
 
+**Rippable by design.** Every skill should die well. When a model substrate, a host CLI feature, or a better skill makes one redundant, removing it should leave no scars: no other skill should depend on its specific shape, no artifact should encode its quirks, no workflow should assume it stays. Authoring against this constraint keeps the skill set honest about lifespan — skills earn their place per session, not per author-effort. The retirement signal is the same as the auto-fire signal inverted: a skill the agent stops needing is a skill that has done its job.
+
 ## Authoring workflow
 
 Per Anthropic's skill-building guide ("iterate on a single task before expanding"):
