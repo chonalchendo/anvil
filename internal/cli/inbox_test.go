@@ -97,24 +97,6 @@ func TestInbox_Promote_MissingSuggestedType(t *testing.T) {
 	}
 }
 
-func TestInbox_Promote_LearningOutOfScope(t *testing.T) {
-	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
-	t.Chdir(t.TempDir())
-
-	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "x", "--suggested-type", "learning"})
-	add.Execute()
-	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
-	id := strings.TrimSuffix(entries[0].Name(), ".md")
-
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"inbox", "promote", id})
-	err := cmd.Execute()
-	if err == nil || !strings.Contains(err.Error(), "out of scope") {
-		t.Errorf("expected out-of-scope error, got %v", err)
-	}
-}
 
 func TestInbox_Promote_Discard(t *testing.T) {
 	vault := setupVault(t)
@@ -210,5 +192,46 @@ func TestInboxPromote_AsFlag_OverridesSuggestedType(t *testing.T) {
 	threadPath := filepath.Join(vault, "60-threads", "ducklake.md")
 	if _, err := core.LoadArtifact(threadPath); err != nil {
 		t.Fatalf("expected thread at %s: %v", threadPath, err)
+	}
+}
+
+func TestInboxPromote_ToLearning(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"inbox", "add", "--title", "FK locks block writes",
+		"--suggested-type", "learning", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("inbox add: %v", err)
+	}
+	var added struct{ ID, Path string }
+	if err := json.Unmarshal(out.Bytes(), &added); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd = newRootCmd()
+	cmd.SetArgs([]string{"inbox", "promote", added.ID})
+	out.Reset()
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("promote: %v", err)
+	}
+
+	if _, err := os.Stat(added.Path); !os.IsNotExist(err) {
+		t.Errorf("inbox file should be removed, got err=%v", err)
+	}
+	learningPath := filepath.Join(vault, "20-learnings", "fk-locks-block-writes.md")
+	a, err := core.LoadArtifact(learningPath)
+	if err != nil {
+		t.Fatalf("expected learning at %s: %v", learningPath, err)
+	}
+	if a.FrontMatter["status"] != "draft" {
+		t.Errorf("status = %v, want draft", a.FrontMatter["status"])
+	}
+	if a.FrontMatter["confidence"] != "low" {
+		t.Errorf("confidence = %v, want low", a.FrontMatter["confidence"])
 	}
 }

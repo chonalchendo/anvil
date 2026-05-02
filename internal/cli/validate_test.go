@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/chonalchendo/anvil/internal/core"
@@ -64,4 +65,39 @@ func TestValidate_DefaultsToAnvilVault(t *testing.T) {
 		t.Fatalf("validate empty vault failed: %v", err)
 	}
 	_ = os.Remove // silence unused if not needed
+}
+
+func TestValidate_Learning_BodyShape(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "learning", "--title", "X"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(vault, "20-learnings", "x.md")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Body = "\n## TL;DR\nclaim\n\n## Caveats\nlimit\n"
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd = newRootCmd()
+	cmd.SetArgs([]string{"validate", vault})
+	out.Reset()
+	var errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected validate to fail")
+	}
+	if !strings.Contains(errOut.String(), "Evidence") {
+		t.Errorf("expected Evidence in stderr, got %q", errOut.String())
+	}
 }

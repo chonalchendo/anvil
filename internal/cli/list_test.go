@@ -114,3 +114,105 @@ func TestList_TagSubstring(t *testing.T) {
 		t.Errorf("expected foo.a in output:\n%s", out.String())
 	}
 }
+
+func TestList_Learning_MultiTagAllOf(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	mustCreateLearning := func(title string, tags []string, diataxis, confidence string) {
+		t.Helper()
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"create", "learning", "--title", title})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("create %q: %v", title, err)
+		}
+		path := filepath.Join(vault, "20-learnings", core.Slugify(title)+".md")
+		a, err := core.LoadArtifact(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		anyTags := make([]any, 0, len(tags))
+		for _, tag := range tags {
+			anyTags = append(anyTags, tag)
+		}
+		a.FrontMatter["tags"] = anyTags
+		a.FrontMatter["diataxis"] = diataxis
+		a.FrontMatter["confidence"] = confidence
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	mustCreateLearning("alpha",
+		[]string{"type/learning", "domain/postgres", "activity/debugging"}, "reference", "high")
+	mustCreateLearning("beta",
+		[]string{"type/learning", "domain/postgres"}, "explanation", "low")
+	mustCreateLearning("gamma",
+		[]string{"type/learning", "domain/typescript", "activity/debugging"}, "reference", "high")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"list", "learning",
+		"--tags", "domain/postgres,activity/debugging",
+		"--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	var items []map[string]any
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0]["id"] != "alpha" {
+		t.Errorf("--tags all-of: got %v, want [alpha]", items)
+	}
+}
+
+func TestList_Learning_DiataxisAndConfidence(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	_ = vault
+
+	mustCreateLearning := func(title, diataxis, confidence string) {
+		t.Helper()
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"create", "learning", "--title", title})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("create %q: %v", title, err)
+		}
+		path := filepath.Join(vault, "20-learnings", core.Slugify(title)+".md")
+		a, err := core.LoadArtifact(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a.FrontMatter["diataxis"] = diataxis
+		a.FrontMatter["confidence"] = confidence
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	mustCreateLearning("ref-high", "reference", "high")
+	mustCreateLearning("ref-low", "reference", "low")
+	mustCreateLearning("exp-high", "explanation", "high")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"list", "learning",
+		"--diataxis", "reference", "--confidence", "high", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var items []map[string]any
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0]["id"] != "ref-high" {
+		t.Errorf("got %v, want [ref-high]", items)
+	}
+}
