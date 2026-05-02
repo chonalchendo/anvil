@@ -1,4 +1,3 @@
-# prettier-ignore
 ---
 name: writing-system-design
 description: Use when authoring system design — architecture, components, data flow, invariants. Requires existing product-design. Not for product vision (anvil:writing-product-design), milestones (anvil:defining-milestone), tasks (anvil:creating-issue).
