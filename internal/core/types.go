@@ -14,12 +14,11 @@ const (
 	TypeLearning  Type = "learning"
 	TypeThread    Type = "thread"
 	TypeSweep     Type = "sweep"
-	TypeTranscript Type = "transcript"
 	TypeSession   Type = "session"
 )
 
 // AllTypes lists every Type accepted by the v0.1 CLI.
-var AllTypes = []Type{TypeInbox, TypeIssue, TypePlan, TypeMilestone, TypeDecision, TypeLearning, TypeThread, TypeSweep, TypeTranscript, TypeSession}
+var AllTypes = []Type{TypeInbox, TypeIssue, TypePlan, TypeMilestone, TypeDecision, TypeLearning, TypeThread, TypeSweep, TypeSession}
 
 // Dir returns the vault subdirectory that holds artifacts of type t.
 // Panics on an unknown Type — callers must validate via ParseType first.
@@ -41,10 +40,8 @@ func (t Type) Dir() string {
 		return "60-threads"
 	case TypeSweep:
 		return "50-sweeps"
-	case TypeTranscript:
-		return "10-sessions/raw"
 	case TypeSession:
-		return "10-sessions/distilled"
+		return "10-sessions"
 	}
 	panic(fmt.Sprintf("unknown type %q", t))
 }

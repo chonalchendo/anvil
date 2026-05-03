@@ -46,7 +46,7 @@ func TestType_Dir_PanicsOnUnknown(t *testing.T) {
 }
 
 func TestParseType_AcceptsNewTypes(t *testing.T) {
-	for _, name := range []string{"learning", "thread", "sweep", "transcript", "session"} {
+	for _, name := range []string{"learning", "thread", "sweep", "session"} {
 		got, err := ParseType(name)
 		if err != nil {
 			t.Errorf("ParseType(%q): %v", name, err)
@@ -57,13 +57,18 @@ func TestParseType_AcceptsNewTypes(t *testing.T) {
 	}
 }
 
+func TestParseType_RejectsTranscript(t *testing.T) {
+	if _, err := ParseType("transcript"); err == nil {
+		t.Error("expected error for retired type \"transcript\"")
+	}
+}
+
 func TestType_Dir_NewTypes(t *testing.T) {
 	cases := map[Type]string{
-		TypeLearning:   "20-learnings",
-		TypeThread:     "60-threads",
-		TypeSweep:      "50-sweeps",
-		TypeTranscript: "10-sessions/raw",
-		TypeSession:    "10-sessions/distilled",
+		TypeLearning: "20-learnings",
+		TypeThread:   "60-threads",
+		TypeSweep:    "50-sweeps",
+		TypeSession:  "10-sessions",
 	}
 	for tt, want := range cases {
 		if got := tt.Dir(); got != want {
