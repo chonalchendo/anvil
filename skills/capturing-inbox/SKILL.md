@@ -1,7 +1,7 @@
 # prettier-ignore
 ---
 name: capturing-inbox
-description: Use when the user wants to dump a thought, idea, task, reminder, or half-formed observation into the inbox without acting on it. Triggers include "capture this…", "remind me to…", "thought:", "idea:", "for the inbox", "park this", or any unsolicited brain-dump that isn't a request to do work right now. Prefer this over brainstorming, planning, or build skills whenever the user is off-loading rather than asking for engagement — when in doubt between capturing and brainstorming, capture first; promotion is cheap, lost thoughts are not.
+description: Use when the user wants to dump a thought, idea, task, reminder, or half-formed observation into the inbox without acting on it. Triggers include "capture this…", "remind me to…", "thought:", "idea:", "for the inbox", "park this", or any unsolicited brain-dump that isn't a request to do work right now. Prefer this over brainstorming, planning, or build skills whenever the user is off-loading rather than asking for engagement — when in doubt between capturing and writing an issue, capture first; promotion is cheap, lost thoughts are not.
 ---
 
 # Capturing Inbox
@@ -10,7 +10,7 @@ Capture is the load-bearing habit of the whole methodology. If capture has frict
 
 ## Iron Law
 
-**NO VALIDATION DURING CAPTURE.** Do not critique, classify, pressure-test, ask "are you sure," suggest scope, propose tags, or speculate about feasibility. `brainstorming` exists for all of that. From the user's side, capture is write-only.
+**NO VALIDATION DURING CAPTURE.** Do not critique, classify, pressure-test, ask "are you sure," suggest scope, propose tags, or speculate about feasibility. `writing-issue` exists for all of that. From the user's side, capture is write-only.
 
 ## Phase 1 — Write the inbox entry
 
@@ -34,7 +34,7 @@ If the user pastes something that is plainly several distinct thoughts — separ
 
 ## When the user signals more than capture
 
-If a capture message also contains an invitation to engage ("capture this: refactor auth — actually, let's think about it"), do the capture first, then offer **once** to hand off to `anvil:brainstorming` on the captured inbox id. Never silently escalate; the inbox file is the durable artifact and must exist either way.
+If a capture message also contains an invitation to engage ("capture this: refactor auth — actually, let's think about it"), do the capture first, then offer **once** to hand off to `anvil:writing-issue` on the captured inbox id. Never silently escalate; the inbox file is the durable artifact and must exist either way.
 
 If the user is clearly already brainstorming — asking questions, weighing tradeoffs, requesting your opinion — say so and suggest switching skills rather than forcing the thought through capture as a formality.
 
