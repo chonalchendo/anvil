@@ -31,3 +31,5 @@ anvil project    list | switch | adopt | current
 **Indexing strategy:** SQLite-backed structured index of frontmatter is the next step when scale demands it; embedded vector DB is unlikely to ever be necessary for this workload — structured queries handle 95% of what naive intuition would reach for vectors for.
 
 The v0.0.0-dev scaffold has none of this wired (cobra+fang lands when the first verb is implemented); this section documents the planned surface, not what runs today.
+
+The `session emit` verb is the orchestrator-side of the thread→session→learning loop: a Claude Code `SessionStart` hook (installed via `anvil install hooks`) writes a session artifact under `10-sessions/`, stamping `related: [[thread.<active>]]` if a thread is active. `distilling-learning` then walks that link to attach learnings back to the thread. See `docs/superpowers/specs/2026-05-02-session-emitter-design.md` for the full design.

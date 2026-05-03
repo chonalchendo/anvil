@@ -34,6 +34,14 @@ The agent conventions (how to write code for Anvil) live in [`AGENTS.md`](AGENTS
 - **v0.3** — Educational gating workflow. Workspace concept for cross-repo coordination.
 - **v0.4+** — Refinements based on real use.
 
+## Setup
+
+After installing the binary, wire Anvil into Claude Code so each new session emits an artifact bound to the active thread:
+
+    anvil install hooks
+
+To remove: `anvil install hooks --uninstall`.
+
 ## License
 
 [MIT](LICENSE)
