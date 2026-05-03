@@ -8,4 +8,5 @@ retention_until: {{ .RetentionUntil }}
 related:
 {{- if .ActiveThread }}
   - "[[thread.{{ .ActiveThread }}]]"
+{{- else }} []
 {{- end }}
