@@ -1,5 +1,5 @@
-// Package installer manages skill and template installation into the user's
-// ~/.anvil/ tree and ~/.claude/ projects.
-//
-// v0.0.0-dev: placeholder. Implementation lands in a later spec.
+// Package installer manages user-local installation of the Anvil hooks
+// subsystem. v0.1: Claude Code SessionStart hook merge/remove against a
+// settings.json path. Future: skill installation, init orchestration,
+// per-version manifest tracking.
 package installer
