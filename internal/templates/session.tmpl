@@ -1,0 +1,11 @@
+type: session
+title: "Session {{ .Created }} {{ .ShortID }}"
+created: {{ .Created }}
+source: {{ .Source }}
+session_id: {{ .SessionID }}
+status: raw
+retention_until: {{ .RetentionUntil }}
+related:
+{{- if .ActiveThread }}
+  - "[[thread.{{ .ActiveThread }}]]"
+{{- end }}

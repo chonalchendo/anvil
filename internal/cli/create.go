@@ -31,6 +31,11 @@ type templateData struct {
 	ID               string
 	Slug             string
 	Issue            string
+	ShortID          string
+	Source           string
+	SessionID        string
+	RetentionUntil   string
+	ActiveThread     string
 }
 
 func newCreateCmd() *cobra.Command {
