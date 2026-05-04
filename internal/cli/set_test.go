@@ -49,17 +49,18 @@ func TestSet_InvalidEnum_ReturnsSchemaInvalid(t *testing.T) {
 	}
 }
 
-func TestSet_ListField_Rejected(t *testing.T) {
+func TestSet_ArraySingleArg_Replaces(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
-
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "foo.a", "tags", "anything"})
-	var stderr bytes.Buffer
-	cmd.SetErr(&stderr)
-	cmd.SetOut(&stderr)
-	if err := cmd.Execute(); err == nil {
-		t.Error("expected error")
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "tags", "alpha"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	got, _ := a.FrontMatter["tags"].([]any)
+	if len(got) != 1 || got[0] != "alpha" {
+		t.Errorf("tags = %v", got)
 	}
 }
 
@@ -143,5 +144,129 @@ func TestSetPlan_StatusLocked_ValidatesFirst(t *testing.T) {
 	err = cmd.Execute()
 	if !errors.Is(err, core.ErrPlanDAG) {
 		t.Errorf("err = %v, want ErrPlanDAG", err)
+	}
+}
+
+func TestSet_ArrayReplace_Multiple(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "criterion 1", "criterion 2"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	got, _ := a.FrontMatter["acceptance"].([]any)
+	if len(got) != 2 || got[0] != "criterion 1" || got[1] != "criterion 2" {
+		t.Errorf("acceptance = %v", got)
+	}
+}
+
+func TestSet_ArrayAdd_Appends(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	c1 := newRootCmd()
+	c1.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "x", "y"})
+	if err := c1.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	c2 := newRootCmd()
+	c2.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "z"})
+	if err := c2.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	got, _ := a.FrontMatter["acceptance"].([]any)
+	if len(got) != 3 || got[2] != "z" {
+		t.Errorf("acceptance = %v", got)
+	}
+}
+
+func TestSet_ArrayRemove_Index(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	c1 := newRootCmd()
+	c1.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "x", "y", "z"})
+	if err := c1.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	c2 := newRootCmd()
+	c2.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--remove", "0"})
+	if err := c2.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	got, _ := a.FrontMatter["acceptance"].([]any)
+	if len(got) != 2 || got[0] != "y" || got[1] != "z" {
+		t.Errorf("acceptance = %v", got)
+	}
+}
+
+func TestSet_ArrayRemove_OOB_Errors(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	c1 := newRootCmd()
+	c1.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "x"})
+	_ = c1.Execute()
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--remove", "5"})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Error("expected OOB error")
+	}
+}
+
+func TestSet_AddAndRemove_Together_Errors(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "x", "--remove", "0"})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Error("expected mutual-exclusion error")
+	}
+}
+
+func TestSet_AddOnScalar_Errors(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "--add", "open"})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Error("expected error: --add on scalar field")
+	}
+}
+
+func TestSet_ScalarMultipleArgs_Errors(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "open", "extra"})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Error("expected error: scalar with multiple positional values")
+	}
+}
+
+func TestSet_UnknownField_ScalarPath(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "ad_hoc_field", "value"})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	err := cmd.Execute()
+	if err != nil && !errors.Is(err, ErrSchemaInvalid) {
+		t.Errorf("expected ErrSchemaInvalid (or success), got %v", err)
 	}
 }
