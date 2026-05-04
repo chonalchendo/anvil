@@ -47,6 +47,7 @@ func newCreateCmd() *cobra.Command {
 		flagSuggestedProject string
 		flagJSON             bool
 		flagIssue            string
+		flagBody             string
 	)
 
 	cmd := &cobra.Command{
@@ -99,6 +100,11 @@ func newCreateCmd() *cobra.Command {
 				return fmt.Errorf("allocating ID: %w", err)
 			}
 
+			body, err := readBody(cmd, flagBody)
+			if err != nil {
+				return err
+			}
+
 			created := time.Now().UTC().Format("2006-01-02")
 			data := templateData{
 				Title:            flagTitle,
@@ -125,8 +131,7 @@ func newCreateCmd() *cobra.Command {
 				return fmt.Errorf("mkdir %s: %w", dir, err)
 			}
 			path := filepath.Join(dir, id+".md")
-			body := ""
-			if t == core.TypePlan {
+			if t == core.TypePlan && body == "" {
 				// Seed a ≥200-char body section for T1 so ValidatePlan passes on
 				// a freshly-created plan. The repeat produces 316 chars.
 				body = "\n## Task: T1\n\n" + strings.Repeat(
@@ -165,6 +170,7 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagSuggestedType, "suggested-type", "", "suggested type (inbox only)")
 	cmd.Flags().StringVar(&flagSuggestedProject, "suggested-project", "", "suggested project (inbox only)")
 	cmd.Flags().StringVar(&flagIssue, "issue", "", "issue wikilink (required for plan)")
+	cmd.Flags().StringVar(&flagBody, "body", "", "artifact body content (or pipe via stdin)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	_ = cmd.MarkFlagRequired("title")
 

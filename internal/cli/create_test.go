@@ -230,6 +230,91 @@ func TestCreate_Learning_WritesValidFile(t *testing.T) {
 	}
 }
 
+func TestCreate_Issue_WithBody_FlagRoundTrips(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--body", "## Context\n\nFrom flag."})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.x.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(a.Body, "From flag.") {
+		t.Errorf("body = %q", a.Body)
+	}
+}
+
+func TestCreate_Issue_EmptyBody_Unchanged(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue", "--title", "x"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.x.md"))
+	if strings.TrimSpace(a.Body) != "" {
+		t.Errorf("expected empty body, got %q", a.Body)
+	}
+}
+
+func TestCreatePlan_BodyReplacesT1Seed_ValidWhenWellFormed(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	body := "\n## Task: T1\n\n" + strings.Repeat("Author-supplied T1 description that exceeds the 200-char body floor. ", 4) + "\n"
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "plan",
+		"--title", "Author body",
+		"--issue", "[[issue.foo.streaming]]",
+		"--body", body,
+	})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create plan: %v\n%s", err, stderr.String())
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.author-body.md"))
+	if !strings.Contains(a.Body, "Author-supplied T1") {
+		t.Errorf("body did not replace T1 seed: %q", a.Body)
+	}
+}
+
+func TestCreatePlan_BodyTooShort_FailsValidation(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "plan",
+		"--title", "Short",
+		"--issue", "[[issue.foo.x]]",
+		"--body", "## Task: T1\n\ntoo short.\n",
+	})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Error("expected ValidatePlan to reject truncated body")
+	}
+}
+
 func TestCreatePlan_RequiresIssue(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
