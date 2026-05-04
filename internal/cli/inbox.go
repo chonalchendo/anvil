@@ -29,7 +29,7 @@ func newInboxCmd() *cobra.Command {
 }
 
 func newInboxAddCmd() *cobra.Command {
-	var flagTitle, flagSuggestedType, flagSuggestedProject string
+	var flagTitle, flagSuggestedType, flagSuggestedProject, flagBody string
 	var flagJSON bool
 
 	cmd := &cobra.Command{
@@ -62,12 +62,17 @@ func newInboxAddCmd() *cobra.Command {
 				return fmt.Errorf("schema validation: %w", err)
 			}
 
+			body, err := readBody(cmd, flagBody)
+			if err != nil {
+				return err
+			}
+
 			dir := filepath.Join(v.Root, core.TypeInbox.Dir())
 			if err := os.MkdirAll(dir, 0o755); err != nil {
 				return fmt.Errorf("mkdir %s: %w", dir, err)
 			}
 			path := filepath.Join(dir, id+".md")
-			a := &core.Artifact{Path: path, FrontMatter: fm, Body: ""}
+			a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("saving artifact: %w", err)
 			}
@@ -85,6 +90,7 @@ func newInboxAddCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagTitle, "title", "", "inbox entry title (required)")
 	cmd.Flags().StringVar(&flagSuggestedType, "suggested-type", "", "suggested artifact type (issue|design|learning|discard)")
 	cmd.Flags().StringVar(&flagSuggestedProject, "suggested-project", "", "suggested project slug")
+	cmd.Flags().StringVar(&flagBody, "body", "", "inbox body content (or pipe via stdin)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	_ = cmd.MarkFlagRequired("title")
 	return cmd

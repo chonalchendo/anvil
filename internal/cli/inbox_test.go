@@ -235,3 +235,23 @@ func TestInboxPromote_ToLearning(t *testing.T) {
 		t.Errorf("confidence = %v, want low", a.FrontMatter["confidence"])
 	}
 }
+
+func TestInboxAdd_WithBody(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"inbox", "add", "--title", "x", "--body", "stub body"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 inbox file")
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "00-inbox", entries[0].Name()))
+	if !strings.Contains(a.Body, "stub body") {
+		t.Errorf("body = %q", a.Body)
+	}
+}
