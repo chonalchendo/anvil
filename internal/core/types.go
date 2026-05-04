@@ -13,12 +13,14 @@ const (
 	TypeDecision  Type = "decision"
 	TypeLearning  Type = "learning"
 	TypeThread    Type = "thread"
-	TypeSweep     Type = "sweep"
-	TypeSession   Type = "session"
+	TypeSweep         Type = "sweep"
+	TypeSession       Type = "session"
+	TypeProductDesign Type = "product-design"
+	TypeSystemDesign  Type = "system-design"
 )
 
 // AllTypes lists every Type accepted by the v0.1 CLI.
-var AllTypes = []Type{TypeInbox, TypeIssue, TypePlan, TypeMilestone, TypeDecision, TypeLearning, TypeThread, TypeSweep, TypeSession}
+var AllTypes = []Type{TypeInbox, TypeIssue, TypePlan, TypeMilestone, TypeDecision, TypeLearning, TypeThread, TypeSweep, TypeSession, TypeProductDesign, TypeSystemDesign}
 
 // Dir returns the vault subdirectory that holds artifacts of type t.
 // Panics on an unknown Type — callers must validate via ParseType first.
@@ -42,6 +44,8 @@ func (t Type) Dir() string {
 		return "50-sweeps"
 	case TypeSession:
 		return "10-sessions"
+	case TypeProductDesign, TypeSystemDesign:
+		return "05-projects"
 	}
 	panic(fmt.Sprintf("unknown type %q", t))
 }

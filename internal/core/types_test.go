@@ -76,3 +76,23 @@ func TestType_Dir_NewTypes(t *testing.T) {
 		}
 	}
 }
+
+func TestParseType_AcceptsDesignTypes(t *testing.T) {
+	for _, name := range []string{"product-design", "system-design"} {
+		got, err := ParseType(name)
+		if err != nil {
+			t.Errorf("ParseType(%q): %v", name, err)
+		}
+		if string(got) != name {
+			t.Errorf("ParseType(%q) = %q", name, got)
+		}
+	}
+}
+
+func TestType_Dir_DesignTypes(t *testing.T) {
+	for _, tp := range []Type{TypeProductDesign, TypeSystemDesign} {
+		if got := tp.Dir(); got != "05-projects" {
+			t.Errorf("%s.Dir() = %q, want %q", tp, got, "05-projects")
+		}
+	}
+}
