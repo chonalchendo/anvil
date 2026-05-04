@@ -21,6 +21,8 @@ func main() {
 			os.Exit(2)
 		case errors.Is(err, cli.ErrSchemaInvalid):
 			os.Exit(1)
+		case errors.Is(err, cli.ErrUnresolvedLinks):
+			os.Exit(1)
 		default:
 			os.Exit(1)
 		}

@@ -36,12 +36,15 @@ func newShowCmd() *cobra.Command {
 			if t == core.TypePlan && (flagValidate || flagWaves) {
 				return runShowPlan(cmd, v, args[1], flagValidate, flagWaves)
 			}
+			if flagValidate && (t == core.TypeIssue || t == core.TypeMilestone) {
+				return runShowValidate(cmd, v, t, args[1], flagJSON)
+			}
 			return runShow(cmd, v, t, args[1], flagJSON)
 		},
 	}
 
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
-	cmd.Flags().BoolVar(&flagValidate, "validate", false, "validate plan (plan only)")
+	cmd.Flags().BoolVar(&flagValidate, "validate", false, "validate artifact (plan: full DAG; issue/milestone: schema + wikilinks)")
 	cmd.Flags().BoolVar(&flagWaves, "waves", false, "render plan waves as mermaid (plan only)")
 	return cmd
 }

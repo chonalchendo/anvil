@@ -101,3 +101,137 @@ func TestShow_UnknownType_Errors(t *testing.T) {
 		t.Error("expected error for unknown type")
 	}
 }
+
+func TestShowValidate_Issue_Clean(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "ok", "OK")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"show", "issue", "foo.ok", "--validate"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected clean validate, got %v\n%s", err, out.String())
+	}
+}
+
+func TestShowValidate_Issue_DanglingMilestone(t *testing.T) {
+	vault := setupVault(t)
+	p := filepath.Join(vault, "70-issues", "foo.bad.md")
+	a := &core.Artifact{
+		Path: p,
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "x", "created": "2026-04-29",
+			"status": "open", "project": "foo", "severity": "low",
+			"milestone": "[[milestone.foo.ghost]]",
+		},
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"show", "issue", "foo.bad", "--validate"})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for dangling link")
+	}
+	if !errors.Is(err, ErrUnresolvedLinks) {
+		t.Errorf("err = %v, want ErrUnresolvedLinks", err)
+	}
+	if !bytes.Contains(stderr.Bytes(), []byte("milestone.foo.ghost")) {
+		t.Errorf("output missing target name:\n%s", stderr.String())
+	}
+}
+
+func TestShowValidate_Milestone_DanglingArrayEntry(t *testing.T) {
+	vault := setupVault(t)
+	p := filepath.Join(vault, "85-milestones", "foo.m.md")
+	a := &core.Artifact{
+		Path: p,
+		FrontMatter: map[string]any{
+			"type": "milestone", "title": "M", "created": "2026-04-29",
+			"status": "planned", "project": "foo",
+			"related": []any{"[[issue.foo.ghost]]"},
+		},
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"show", "milestone", "foo.m", "--validate"})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	err := cmd.Execute()
+	if !errors.Is(err, ErrUnresolvedLinks) {
+		t.Errorf("err = %v, want ErrUnresolvedLinks", err)
+	}
+	if !bytes.Contains(stderr.Bytes(), []byte("related[0]")) {
+		t.Errorf("output missing field index:\n%s", stderr.String())
+	}
+}
+
+func TestShowValidate_Issue_BadSchema(t *testing.T) {
+	vault := setupVault(t)
+	p := filepath.Join(vault, "70-issues", "foo.bad.md")
+	a := &core.Artifact{
+		Path: p,
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "x", "created": "2026-04-29",
+			"status": "open", "project": "foo",
+		},
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"show", "issue", "foo.bad", "--validate"})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	err := cmd.Execute()
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Errorf("err = %v, want ErrSchemaInvalid", err)
+	}
+}
+
+func TestShowValidate_JSON(t *testing.T) {
+	vault := setupVault(t)
+	p := filepath.Join(vault, "70-issues", "foo.bad.md")
+	a := &core.Artifact{
+		Path: p,
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "x", "created": "2026-04-29",
+			"status": "open", "project": "foo", "severity": "low",
+			"milestone": "[[milestone.foo.ghost]]",
+		},
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"show", "issue", "foo.bad", "--validate", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	_ = cmd.Execute()
+
+	var got struct {
+		SchemaOK        bool `json:"schema_ok"`
+		UnresolvedLinks []struct {
+			Field, Target string
+		} `json:"unresolved_links"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
+	}
+	if !got.SchemaOK {
+		t.Errorf("schema_ok = false, want true")
+	}
+	if len(got.UnresolvedLinks) != 1 || got.UnresolvedLinks[0].Target != "milestone.foo.ghost" {
+		t.Errorf("unresolved_links = %v", got.UnresolvedLinks)
+	}
+}
