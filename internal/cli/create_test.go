@@ -330,3 +330,30 @@ func TestCreatePlan_RequiresIssue(t *testing.T) {
 		t.Error("expected error: missing --issue")
 	}
 }
+
+func TestCreateMilestone_SeedsAcceptanceSlot(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", "foo.cli-substrate.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	acc, ok := a.FrontMatter["acceptance"].([]any)
+	if !ok {
+		t.Fatalf("acceptance field missing or wrong type: %#v", a.FrontMatter["acceptance"])
+	}
+	if len(acc) != 0 {
+		t.Errorf("acceptance = %v, want empty slice", acc)
+	}
+	if err := schema.Validate("milestone", a.FrontMatter); err != nil {
+		t.Errorf("frontmatter fails milestone schema: %v", err)
+	}
+}
