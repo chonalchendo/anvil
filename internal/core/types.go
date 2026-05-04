@@ -1,6 +1,9 @@
 package core
 
-import "fmt"
+import (
+	"fmt"
+	"path/filepath"
+)
 
 // Type names a vault artifact type. The set is closed in v0.1.
 type Type string
@@ -59,6 +62,16 @@ func (t Type) AllocatesID() bool {
 		return false
 	}
 	return true
+}
+
+// Path returns the absolute artifact path under vaultRoot. Singletons
+// (product-design, system-design) ignore id and use a fixed per-project
+// filename; other types compose <Dir>/<id>.md.
+func (t Type) Path(vaultRoot, project, id string) string {
+	if !t.AllocatesID() {
+		return filepath.Join(vaultRoot, t.Dir(), project, string(t)+".md")
+	}
+	return filepath.Join(vaultRoot, t.Dir(), id+".md")
 }
 
 // ParseType returns the Type matching s, or an error if s is not a known type.

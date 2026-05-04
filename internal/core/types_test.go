@@ -117,3 +117,24 @@ func TestType_AllocatesID(t *testing.T) {
 		}
 	}
 }
+
+func TestType_Path(t *testing.T) {
+	root := "/v"
+	cases := []struct {
+		tp      Type
+		project string
+		id      string
+		want    string
+	}{
+		{TypeProductDesign, "anvil", "ignored", "/v/05-projects/anvil/product-design.md"},
+		{TypeSystemDesign, "anvil", "ignored", "/v/05-projects/anvil/system-design.md"},
+		{TypeIssue, "anvil", "anvil.foo", "/v/70-issues/anvil.foo.md"},
+		{TypeSweep, "", "0001-cli", "/v/50-sweeps/0001-cli.md"},
+		{TypeInbox, "", "2026-05-04T12-00-00-x", "/v/00-inbox/2026-05-04T12-00-00-x.md"},
+	}
+	for _, c := range cases {
+		if got := c.tp.Path(root, c.project, c.id); got != c.want {
+			t.Errorf("%s.Path(%q,%q,%q) = %q, want %q", c.tp, root, c.project, c.id, got, c.want)
+		}
+	}
+}
