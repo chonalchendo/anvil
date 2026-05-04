@@ -435,3 +435,30 @@ func TestCreate_ProductDesign_RequiresProject(t *testing.T) {
 		t.Error("expected error: requires project")
 	}
 }
+
+func TestCreate_SystemDesign_WritesValidFile(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "system-design", "--title", "Anvil system design"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	path := filepath.Join(vault, "05-projects", "foo", "system-design.md")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatalf("expected file at %s: %v", path, err)
+	}
+	if a.FrontMatter["type"] != "system-design" {
+		t.Errorf("type = %v", a.FrontMatter["type"])
+	}
+	if _, present := a.FrontMatter["product_design"]; present {
+		t.Errorf("product_design should not be seeded; got %v", a.FrontMatter["product_design"])
+	}
+	if err := schema.Validate("system-design", a.FrontMatter); err != nil {
+		t.Errorf("frontmatter fails schema: %v", err)
+	}
+}
