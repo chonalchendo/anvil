@@ -219,10 +219,21 @@ func TestShowValidate_JSON(t *testing.T) {
 	cmd.SetErr(&out)
 	_ = cmd.Execute()
 
+	// Assert wire-format keys are snake_case end-to-end: a struct with explicit
+	// `json:"field"`/`json:"target"` tags would still accept CamelCase via
+	// json.Unmarshal's case-insensitive matching, so we check the raw bytes.
+	if !bytes.Contains(out.Bytes(), []byte(`"field":"milestone"`)) {
+		t.Errorf("expected lowercase JSON key \"field\", got:\n%s", out.String())
+	}
+	if !bytes.Contains(out.Bytes(), []byte(`"target":"milestone.foo.ghost"`)) {
+		t.Errorf("expected lowercase JSON key \"target\", got:\n%s", out.String())
+	}
+
 	var got struct {
 		SchemaOK        bool `json:"schema_ok"`
 		UnresolvedLinks []struct {
-			Field, Target string
+			Field  string `json:"field"`
+			Target string `json:"target"`
 		} `json:"unresolved_links"`
 	}
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {

@@ -12,8 +12,8 @@ import (
 // UnresolvedLink names a frontmatter field whose wikilink target cannot be
 // found in the vault. Field uses `name` for scalars and `name[i]` for arrays.
 type UnresolvedLink struct {
-	Field  string
-	Target string
+	Field  string `json:"field"`
+	Target string `json:"target"`
 }
 
 var wikilinkRe = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
