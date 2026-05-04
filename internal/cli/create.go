@@ -91,13 +91,19 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			id, err := core.NextID(v, t, core.IDInputs{
-				Title:   flagTitle,
-				Project: project,
-				Topic:   flagTopic,
-			})
-			if err != nil {
-				return fmt.Errorf("allocating ID: %w", err)
+			var id string
+			if t.AllocatesID() {
+				allocated, err := core.NextID(v, t, core.IDInputs{
+					Title:   flagTitle,
+					Project: project,
+					Topic:   flagTopic,
+				})
+				if err != nil {
+					return fmt.Errorf("allocating ID: %w", err)
+				}
+				id = allocated
+			} else {
+				id = string(t)
 			}
 
 			body, err := readBody(cmd, flagBody)
@@ -126,11 +132,10 @@ func newCreateCmd() *cobra.Command {
 				return fmt.Errorf("schema validation: %w", err)
 			}
 
-			dir := filepath.Join(v.Root, t.Dir())
-			if err := os.MkdirAll(dir, 0o755); err != nil {
-				return fmt.Errorf("mkdir %s: %w", dir, err)
+			path := t.Path(v.Root, project, id)
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 			}
-			path := filepath.Join(dir, id+".md")
 			if t == core.TypePlan && body == "" {
 				// Seed a ≥200-char body section for T1 so ValidatePlan passes on
 				// a freshly-created plan. The repeat produces 316 chars.
