@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -135,6 +136,13 @@ func newCreateCmd() *cobra.Command {
 			path := t.Path(v.Root, project, id)
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
+			}
+			if !t.AllocatesID() {
+				if _, err := os.Stat(path); err == nil {
+					return fmt.Errorf("%s for project %q already exists at %s", t, project, path)
+				} else if !errors.Is(err, fs.ErrNotExist) {
+					return fmt.Errorf("checking %s: %w", path, err)
+				}
 			}
 			if t == core.TypePlan && body == "" {
 				// Seed a ≥200-char body section for T1 so ValidatePlan passes on

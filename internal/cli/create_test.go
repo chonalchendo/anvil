@@ -357,3 +357,81 @@ func TestCreateMilestone_SeedsAcceptanceSlot(t *testing.T) {
 		t.Errorf("frontmatter fails milestone schema: %v", err)
 	}
 }
+
+func TestCreate_ProductDesign_WritesValidFile(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "product-design", "--title", "Anvil product design"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create: %v\n%s", err, out.String())
+	}
+
+	path := filepath.Join(vault, "05-projects", "foo", "product-design.md")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatalf("expected file at %s: %v", path, err)
+	}
+	if a.FrontMatter["type"] != "product-design" {
+		t.Errorf("type = %v", a.FrontMatter["type"])
+	}
+	if a.FrontMatter["project"] != "foo" {
+		t.Errorf("project = %v", a.FrontMatter["project"])
+	}
+	if strings.TrimSpace(a.Body) != "" {
+		t.Errorf("expected empty body, got %q", a.Body)
+	}
+	if err := schema.Validate("product-design", a.FrontMatter); err != nil {
+		t.Errorf("frontmatter fails schema: %v", err)
+	}
+}
+
+func TestCreate_ProductDesign_RefusesOverwrite(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "product-design", "--title", "First"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("first create: %v", err)
+	}
+	path := filepath.Join(vault, "05-projects", "foo", "product-design.md")
+	first, _ := os.ReadFile(path)
+
+	cmd2 := newRootCmd()
+	cmd2.SetArgs([]string{"create", "product-design", "--title", "Second"})
+	var stderr bytes.Buffer
+	cmd2.SetErr(&stderr)
+	cmd2.SetOut(&stderr)
+	if err := cmd2.Execute(); err == nil {
+		t.Error("expected error on duplicate product-design")
+	} else if !strings.Contains(err.Error(), "already exists") {
+		t.Errorf("error = %v, want mention of existing", err)
+	}
+	after, _ := os.ReadFile(path)
+	if string(first) != string(after) {
+		t.Error("first file mutated after second create attempt")
+	}
+}
+
+func TestCreate_ProductDesign_RequiresProject(t *testing.T) {
+	setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir()) // not a git repo
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "product-design", "--title", "X"})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Error("expected error: requires project")
+	}
+}
