@@ -37,6 +37,8 @@ type templateData struct {
 	SessionID        string
 	RetentionUntil   string
 	ActiveThread     string
+	Breaking         bool
+	Scope            string
 }
 
 func newCreateCmd() *cobra.Command {
@@ -49,6 +51,8 @@ func newCreateCmd() *cobra.Command {
 		flagJSON             bool
 		flagIssue            string
 		flagBody             string
+		flagBreaking         bool
+		flagScope            string
 	)
 
 	cmd := &cobra.Command{
@@ -69,7 +73,7 @@ func newCreateCmd() *cobra.Command {
 			// Resolve project slug: --project overrides auto-detection.
 			// inbox and decision may proceed without a project.
 			project := flagProject
-			if project == "" && t != core.TypeInbox && t != core.TypeDecision && t != core.TypeThread && t != core.TypeLearning {
+			if project == "" && t != core.TypeInbox && t != core.TypeDecision && t != core.TypeThread && t != core.TypeLearning && t != core.TypeSweep {
 				p, err := core.ResolveProject()
 				if err != nil {
 					if errors.Is(err, core.ErrNoProject) {
@@ -89,6 +93,13 @@ func newCreateCmd() *cobra.Command {
 			case core.TypeDecision:
 				if flagTopic == "" {
 					return fmt.Errorf("--topic is required for decision")
+				}
+			case core.TypeSweep:
+				if flagScope == "" {
+					return fmt.Errorf("--scope is required for sweep")
+				}
+				if !cmd.Flags().Changed("breaking") {
+					return fmt.Errorf("--breaking must be set explicitly for sweep (true or false)")
 				}
 			}
 
@@ -122,6 +133,8 @@ func newCreateCmd() *cobra.Command {
 				ID:               id,
 				Slug:             core.Slugify(flagTitle),
 				Issue:            flagIssue,
+				Breaking:         flagBreaking,
+				Scope:            flagScope,
 			}
 
 			fm, err := renderFrontMatter(t, data)
@@ -185,6 +198,8 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagIssue, "issue", "", "issue wikilink (required for plan)")
 	cmd.Flags().StringVar(&flagBody, "body", "", "artifact body content (or pipe via stdin)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
+	cmd.Flags().BoolVar(&flagBreaking, "breaking", false, "sweep is breaking (required for sweep, must be explicit)")
+	cmd.Flags().StringVar(&flagScope, "scope", "", "sweep scope (required for sweep)")
 	_ = cmd.MarkFlagRequired("title")
 
 	return cmd

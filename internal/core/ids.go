@@ -66,7 +66,7 @@ func NextID(v *Vault, t Type, in IDInputs) (string, error) {
 			return "", fmt.Errorf("project required for milestone")
 		}
 		return uniqueID(v, t, fmt.Sprintf("%s.%s", in.Project, slug))
-	case TypeThread, TypeLearning:
+	case TypeThread, TypeLearning, TypeSweep:
 		return uniqueID(v, t, slug)
 	case TypeDecision:
 		if in.Topic == "" {

@@ -436,6 +436,94 @@ func TestCreate_ProductDesign_RequiresProject(t *testing.T) {
 	}
 }
 
+func TestCreate_Sweep_BreakingTrue(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir()) // not a git repo — sweep is exempt
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "sweep", "--title", "CLI rename", "--scope", "cli", "--breaking"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create sweep: %v\n%s", err, out.String())
+	}
+	entries, _ := os.ReadDir(filepath.Join(vault, "50-sweeps"))
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 file in 50-sweeps, got %d", len(entries))
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "50-sweeps", entries[0].Name()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.FrontMatter["breaking"] != true {
+		t.Errorf("breaking = %v, want true", a.FrontMatter["breaking"])
+	}
+	if a.FrontMatter["scope"] != "cli" {
+		t.Errorf("scope = %v", a.FrontMatter["scope"])
+	}
+	if err := schema.Validate("sweep", a.FrontMatter); err != nil {
+		t.Errorf("frontmatter fails schema: %v", err)
+	}
+}
+
+func TestCreate_Sweep_BreakingFalseExplicit(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "sweep", "--title", "Docs polish", "--scope", "docs", "--breaking=false"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create sweep: %v", err)
+	}
+	entries, _ := os.ReadDir(filepath.Join(vault, "50-sweeps"))
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 file, got %d", len(entries))
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "50-sweeps", entries[0].Name()))
+	if a.FrontMatter["breaking"] != false {
+		t.Errorf("breaking = %v, want false", a.FrontMatter["breaking"])
+	}
+	if err := schema.Validate("sweep", a.FrontMatter); err != nil {
+		t.Errorf("frontmatter fails schema: %v", err)
+	}
+}
+
+func TestCreate_Sweep_MissingScope(t *testing.T) {
+	setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "sweep", "--title", "X", "--breaking"})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Error("expected error: missing --scope")
+	} else if !strings.Contains(err.Error(), "scope") {
+		t.Errorf("error = %v, want mention of scope", err)
+	}
+}
+
+func TestCreate_Sweep_MissingBreaking(t *testing.T) {
+	setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "sweep", "--title", "X", "--scope", "cli"})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Error("expected error: --breaking must be set explicitly")
+	} else if !strings.Contains(err.Error(), "breaking") {
+		t.Errorf("error = %v, want mention of breaking", err)
+	}
+}
+
 func TestCreate_SystemDesign_WritesValidFile(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
