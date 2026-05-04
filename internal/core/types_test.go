@@ -96,3 +96,24 @@ func TestType_Dir_DesignTypes(t *testing.T) {
 		}
 	}
 }
+
+func TestType_AllocatesID(t *testing.T) {
+	cases := map[Type]bool{
+		TypeInbox:         true,
+		TypeIssue:         true,
+		TypePlan:          true,
+		TypeMilestone:     true,
+		TypeDecision:      true,
+		TypeLearning:      true,
+		TypeThread:        true,
+		TypeSweep:         true,
+		TypeSession:       true,
+		TypeProductDesign: false,
+		TypeSystemDesign:  false,
+	}
+	for tp, want := range cases {
+		if got := tp.AllocatesID(); got != want {
+			t.Errorf("%s.AllocatesID() = %v, want %v", tp, got, want)
+		}
+	}
+}

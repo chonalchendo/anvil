@@ -50,6 +50,17 @@ func (t Type) Dir() string {
 	panic(fmt.Sprintf("unknown type %q", t))
 }
 
+// AllocatesID reports whether create should call NextID for this type.
+// Singletons (product-design, system-design) write to a fixed per-project
+// filename and return false; every other type returns true.
+func (t Type) AllocatesID() bool {
+	switch t {
+	case TypeProductDesign, TypeSystemDesign:
+		return false
+	}
+	return true
+}
+
 // ParseType returns the Type matching s, or an error if s is not a known type.
 func ParseType(s string) (Type, error) {
 	for _, t := range AllTypes {
