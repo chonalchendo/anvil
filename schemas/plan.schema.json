@@ -4,7 +4,7 @@
   "title": "plan",
   "type": "object",
   "required": [
-    "type", "id", "slug", "title", "created", "updated",
+    "type", "id", "slug", "title", "description", "created", "updated",
     "status", "plan_version", "issue", "tasks"
   ],
   "properties": {
@@ -12,6 +12,7 @@
     "id":           { "type": "string", "minLength": 1 },
     "slug":         { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
     "title":        { "type": "string", "minLength": 1 },
+    "description":  { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[^\\n]+$" },
     "created":      { "type": "string", "format": "date" },
     "updated":      { "type": "string", "format": "date" },
     "status":       { "enum": ["draft", "locked", "in-progress", "done", "abandoned"] },

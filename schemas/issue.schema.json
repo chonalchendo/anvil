@@ -3,10 +3,11 @@
   "$id": "https://anvil.dev/schemas/issue.schema.json",
   "title": "issue",
   "type": "object",
-  "required": ["type", "title", "created", "status", "project", "severity"],
+  "required": ["type", "title", "description", "created", "status", "project", "severity"],
   "properties": {
     "type":         { "const": "issue" },
     "title":        { "type": "string", "minLength": 1 },
+    "description":  { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[^\\n]+$" },
     "created":      { "type": "string", "format": "date" },
     "updated":      { "type": "string", "format": "date" },
     "status":       { "enum": ["open", "in-progress", "resolved", "abandoned"] },

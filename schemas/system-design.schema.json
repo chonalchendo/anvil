@@ -3,10 +3,11 @@
   "$id": "https://anvil.dev/schemas/system-design.schema.json",
   "title": "system-design",
   "type": "object",
-  "required": ["type", "title", "created", "status", "project"],
+  "required": ["type", "title", "description", "created", "status", "project"],
   "properties": {
     "type":           { "const": "system-design" },
     "title":          { "type": "string", "minLength": 1 },
+    "description":    { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[^\\n]+$" },
     "created":        { "type": "string", "format": "date" },
     "updated":        { "type": "string", "format": "date" },
     "status":         { "enum": ["draft", "active", "superseded", "retired"] },

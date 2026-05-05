@@ -3,10 +3,11 @@
   "$id": "https://anvil.dev/schemas/sweep.schema.json",
   "title": "sweep",
   "type": "object",
-  "required": ["type", "title", "created", "status", "breaking", "scope"],
+  "required": ["type", "title", "description", "created", "status", "breaking", "scope"],
   "properties": {
     "type":     { "const": "sweep" },
     "title":    { "type": "string", "minLength": 1 },
+    "description": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[^\\n]+$" },
     "created":  { "type": "string", "format": "date" },
     "updated":  { "type": "string", "format": "date" },
     "status":   { "enum": ["planned", "in-progress", "merged", "abandoned"] },
