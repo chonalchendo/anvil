@@ -1,4 +1,3 @@
-# prettier-ignore
 ---
 name: writing-plan
 description: |

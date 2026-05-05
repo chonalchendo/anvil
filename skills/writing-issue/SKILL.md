@@ -1,4 +1,3 @@
-# prettier-ignore
 ---
 name: writing-issue
 description: "Use when a problem worth tracking surfaces — from an inbox thought, a raw idea, or a fully-formed request. Triggers: \"open an issue for X\", \"track this as an issue\", \"issue under M1\", \"should we build X\", \"I've been thinking about Y\", \"is this worth doing\", \"promote inbox item to issue\". Not for raw capture (anvil:capturing-inbox), milestone creation (anvil:writing-milestone), or solution design (anvil:writing-plan)."

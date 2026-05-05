@@ -1,6 +1,6 @@
 ---
 name: extracting-skill-from-session
-description: Use when a workflow just ran end-to-end and the user wants it captured as a reusable skill, or says "extract a skill" or "turn this into a skill". Do NOT use for knowledge or refresh — try anvil:researching-domain or anvil:synthesizing-knowledge-skill.
+description: Use when a workflow just ran end-to-end and the user wants it as a reusable skill, or says "extract a skill" or "turn this into a skill". Do NOT use for knowledge or refresh — try anvil:researching-domain or anvil:synthesizing-knowledge-skill.
 license: MIT
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
 metadata:
@@ -151,14 +151,13 @@ Write the SKILL.md to that path. If the user is contributing the skill back to A
 
 Walk this checklist against the file just written. Each item cites `docs/skill-authoring.md` as the rule source — do not restate rules here. Report each as `ok`, `warn`, or `fail`.
 
-1. **`# prettier-ignore` line present** as the first line of the file, immediately above the opening `---` of frontmatter. (`docs/skill-authoring.md` → Frontmatter rules.)
-2. **Frontmatter parses as YAML** and uses only allow-listed top-level keys: `name`, `description`, `license`, `allowed-tools`, `metadata`, `compatibility`. (`docs/skill-authoring.md` → Frontmatter rules.)
-3. **`name`** matches `^[a-z0-9-]+$`, ≤64 characters, no consecutive/leading/trailing hyphens, not `claude` or `anthropic`. (`docs/skill-authoring.md` → Frontmatter rules.)
-4. **`description`** ≤250 characters and contains no `<` or `>`. For workflow skills, reads as triggers-only (no summary of what the skill does). (`docs/skill-authoring.md` → Description rules.)
-5. **Body line count.** Count from the line *after* the closing `---` of frontmatter to EOF (`wc -l` on that range). Warn at >200; refuse to ship at >500. (`docs/skill-authoring.md` → Body rules.)
-6. **One Iron Law maximum.** At most one ALL-CAPS imperative paragraph in the body. (`docs/skill-authoring.md` → Body rules.)
-7. **Namespace-qualified handoffs.** Every `**REQUIRED SUB-SKILL:**` line names its skill with a namespace prefix (`anvil:`, `superpowers:`, etc.). (`docs/skill-authoring.md` → Body rules.)
-8. **Sibling negative triggers.** The description names plausibly-overlapping sibling skills as negative triggers. Judgment call — list the siblings you considered. (`docs/skill-authoring.md` → Description rules.)
+1. **Frontmatter parses as YAML** and uses only allow-listed top-level keys: `name`, `description`, `license`, `allowed-tools`, `metadata`, `compatibility`. (`docs/skill-authoring.md` → Frontmatter rules.)
+2. **`name`** matches `^[a-z0-9-]+$`, ≤64 characters, no consecutive/leading/trailing hyphens, not `claude` or `anthropic`. (`docs/skill-authoring.md` → Frontmatter rules.)
+3. **`description`** ≤250 characters and contains no `<` or `>`. For workflow skills, reads as triggers-only (no summary of what the skill does). (`docs/skill-authoring.md` → Description rules.)
+4. **Body line count.** Count from the line *after* the closing `---` of frontmatter to EOF (`wc -l` on that range). Warn at >200; refuse to ship at >500. (`docs/skill-authoring.md` → Body rules.)
+5. **One Iron Law maximum.** At most one ALL-CAPS imperative paragraph in the body. (`docs/skill-authoring.md` → Body rules.)
+6. **Namespace-qualified handoffs.** Every `**REQUIRED SUB-SKILL:**` line names its skill with a namespace prefix (`anvil:`, `superpowers:`, etc.). (`docs/skill-authoring.md` → Body rules.)
+7. **Sibling negative triggers.** The description names plausibly-overlapping sibling skills as negative triggers. Judgment call — list the siblings you considered. (`docs/skill-authoring.md` → Description rules.)
 
 Surface the per-check results to the user:
 

@@ -1,4 +1,3 @@
-# prettier-ignore
 ---
 name: capturing-inbox
 description: Use when the user wants to dump a thought, idea, task, reminder, or half-formed observation into the inbox without acting on it. Triggers include "capture this…", "remind me to…", "thought:", "idea:", "for the inbox", "park this", or any unsolicited brain-dump that isn't a request to do work right now. Prefer this over brainstorming, planning, or build skills whenever the user is off-loading rather than asking for engagement — when in doubt between capturing and writing an issue, capture first; promotion is cheap, lost thoughts are not.

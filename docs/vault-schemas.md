@@ -219,7 +219,6 @@ Anthropic SKILL.md spec only. Bundled skills are validated by the agent CLI's lo
 ### `skill (vault)` — `~/anvil-vault/40-skills/<skill>/SKILL.md`
 
 ```yaml
-# prettier-ignore
 ---
 name: <skill-name>
 description: ...
@@ -238,7 +237,7 @@ metadata:
 ---
 ```
 
-User-authored. Anthropic spec at top level + Anvil `metadata:` block. The `# prettier-ignore` directive is mandatory. Out of CLI surface for v0.1.
+User-authored. Anthropic spec at top level + Anvil `metadata:` block. Out of CLI surface for v0.1.
 
 ## IDs and naming
 

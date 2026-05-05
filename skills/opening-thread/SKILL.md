@@ -1,4 +1,3 @@
-# prettier-ignore
 ---
 name: opening-thread
 description: "Use when the user explicitly commits to research now — \"let's research X\", \"open a thread on X\", \"promote inbox <id> to a thread\". Triggers a thread artifact + active-session binding so subsequent sessions auto-link. Not for passive captures (use anvil:capturing-inbox); not for project-tied research where an issue already exists."

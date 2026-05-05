@@ -26,7 +26,7 @@ Skills follow Anthropic's SKILL.md open standard — directory per skill with `S
 
 **Mermaid embedding.** Plans, system designs, and milestone roadmaps embed mermaid diagrams inline (wave graphs, gantts, dependency graphs). Diagrams are first-class artifact content, not appendices — diffable, render natively in Obsidian and GitHub, survive plugin churn.
 
-Authoring rules — body length, ALL-CAPS triggers, namespace handoff, description budget, `# prettier-ignore` directive — live in [`skill-authoring.md`](../skill-authoring.md). This section captures only how the orchestrator consumes them.
+Authoring rules — body length, ALL-CAPS triggers, namespace handoff, description budget — live in [`skill-authoring.md`](../skill-authoring.md). This section captures only how the orchestrator consumes them.
 
 **Auto-discovery.** On `anvil build`, the installer materializes a *filtered* skill set into each spawn's state dir: every skill named in the task's `skills_to_load` plus the always-on core (a small designated subset of bundled skills loaded into every spawn — concretely the orchestration entry points and any skill the build orchestrator invokes implicitly; the list lives in orchestrator config, not in plan frontmatter). The agent CLI's native skill loader picks them up by file presence. No manifest, no registry file (per invariant); the selector decides what's *in* the state dir, the loader decides what to surface.
 

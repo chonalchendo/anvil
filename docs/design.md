@@ -1403,7 +1403,7 @@ v0.1 (the smallest shippable thing):
 - `anvil init` prompts to install Superpowers as a recommended companion pack. User can decline; recommendation persists in `anvil skill list --recommended`.
 - **11 v0.1 bundled skills**: the meta-skills (`using-anvil`, `writing-skills`, `extracting-skill-from-session`), the design-side skills (`writing-product-design`, `writing-system-design`, `defining-milestone`), and core Anvil-lifecycle execution skills (`planning`, `human-review`, `capturing-learnings`, `re-entry`, `pausing-work`). The meta-skills are v0.1 because they enable everything else; the design-side skills produce the structural backbone; the execution subset is the minimum Anvil-shaped lifecycle for daily use. Generic skills (debugging, brainstorming, TDD, refactoring) come from Superpowers.
 - JSON Schemas for vault artifact types — including `product-design`, `system-design`, `milestone` — shipped at `anvil/schemas/`.
-- CI validation: `check-jsonschema` against schemas; `quick_validate.py` for skills; Anvil's body-length, ALL-CAPS, namespace-handoff, negative-trigger, and `# prettier-ignore` checks; library smoke test loading all enabled methodology skills together. **Non-negotiable for v0.1** — frontmatter drift is the documented #2 failure mode at scale and CI validation is the only effective prevention.
+- CI validation: `check-jsonschema` against schemas; `quick_validate.py` for skills; Anvil's body-length, ALL-CAPS, namespace-handoff, and negative-trigger checks; library smoke test loading all enabled methodology skills together. **Non-negotiable for v0.1** — frontmatter drift is the documented #2 failure mode at scale and CI validation is the only effective prevention.
 - Aggregate description budget tracking with warning at 12,000 chars.
 - Lifecycle hook convention from mantle.
 - CLAUDE.md / AGENTS.md template.
@@ -1443,17 +1443,15 @@ Distinct from the vault pitfalls above (which are generic to long-running AI-aug
 
 2. **Silent description budget exceeded.** Claude Code's default `SLASH_COMMAND_TOOL_CHAR_BUDGET=15000` silently drops skills whose aggregate descriptions exceed the limit (issues #43928, #15178). Skills exist on disk but the agent never sees them. Mitigation: Anvil tracks aggregate description chars and warns at 12,000; per-skill descriptions target ≤250 chars to stay well under both individual and aggregate ceilings.
 
-3. **Prettier YAML reformatting breaks skill registration.** Single-line description reformatted into multi-line YAML causes Claude Code to silently fail to register the skill (Scott Spence postmortem). Mitigation: `# prettier-ignore` directive above frontmatter is mandatory; CI lint catches missing markers; `.prettierignore` covers `**/SKILL.md` defensively.
+3. **Adapter divergence.** Wave execution may not be equally smooth across all three agents. Document caveats per adapter; don't over-promise multi-agent parity.
 
-4. **Adapter divergence.** Wave execution may not be equally smooth across all three agents. Document caveats per adapter; don't over-promise multi-agent parity.
+4. **Build failure handling.** Most likely place users hit pain. Failed task in a wave needs clear options — retry, fall back to inline, abort. Get the UX right.
 
-5. **Build failure handling.** Most likely place users hit pain. Failed task in a wave needs clear options — retry, fall back to inline, abort. Get the UX right.
+5. **Onboarding visibility.** New user runs `anvil init` and gets a dozen skills installed. They're invisible unless they happen to fire. The `using-anvil` meta-skill exists to introduce the system; make sure it actually runs on first session.
 
-6. **Onboarding visibility.** New user runs `anvil init` and gets a dozen skills installed. They're invisible unless they happen to fire. The `using-anvil` meta-skill exists to introduce the system; make sure it actually runs on first session.
+6. **Cache invalidation from volatile bytes.** Never inject timestamps, UUIDs, or absolute paths above cache breakpoints. CI lint that fails on `datetime.now()` upstream of prompt builders is worth it.
 
-7. **Cache invalidation from volatile bytes.** Never inject timestamps, UUIDs, or absolute paths above cache breakpoints. CI lint that fails on `datetime.now()` upstream of prompt builders is worth it.
-
-8. **CLAUDE.md / AGENTS.md drift.** When the file says "we use snake_case" but half the codebase is camelCase, the agent gets confused. Eventually add `anvil audit-conventions` to detect drift.
+7. **CLAUDE.md / AGENTS.md drift.** When the file says "we use snake_case" but half the codebase is camelCase, the agent gets confused. Eventually add `anvil audit-conventions` to detect drift.
 
 9. **Subscription billing opacity.** For Max users, costs are estimated, not measured. Be honest in the UI; don't pretend otherwise.
 

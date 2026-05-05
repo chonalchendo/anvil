@@ -1,4 +1,3 @@
-# prettier-ignore
 ---
 name: implementing-plan
 description: |

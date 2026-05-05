@@ -1,4 +1,3 @@
-# prettier-ignore
 ---
 name: writing-milestone
 description: "Use when a product- or system-design exists and a discrete shippable bundle of work needs scoping into a milestone. Triggers: \"scope a milestone\", \"what's the next milestone\", \"M1\", \"M2\", \"define M3\". Not for system design (anvil:writing-system-design) or individual issues (anvil:writing-issue)."

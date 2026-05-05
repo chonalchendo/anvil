@@ -77,7 +77,6 @@ Anvil's methodology is workflow-dominant. User vault skills are knowledge-domina
 - **`description`**: ≤1024 chars (validator), ≤250 (practical, see above). No XML brackets.
 - **`compatibility`**: agent-CLI targets. Anvil's methodology: `Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard.`
 - **`metadata`**: Anvil-specific fields (`vault_type`, `authored_via`, `confidence`, `status`, `source_learnings`). See [`vault-schemas.md`](vault-schemas.md).
-- **`# prettier-ignore`** above frontmatter. Prettier multi-lining a single-line description silently breaks Claude Code registration. CI lint catches missing markers.
 
 ## Skills are hypotheses, validated by use
 
@@ -144,7 +143,6 @@ Runs against every PR that touches a skill:
 - ALL-CAPS: warn if >1 imperative per body.
 - Handoff namespace: warn on bare references (no `anvil:`/other prefix).
 - Negative triggers: skills in defined sibling-groups must name each other.
-- `# prettier-ignore` present above frontmatter.
 - Library smoke test: load all enabled methodology skills against a diverse prompt set; check for conflicts and context-budget overruns.
 
 Smoke test is load-bearing in principle: individual skills can validate cleanly but interact badly when co-loaded. Deferred to v0.2+; v0.1 relies on hand-vetted bundling of the methodology skills.
