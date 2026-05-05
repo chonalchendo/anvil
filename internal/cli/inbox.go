@@ -172,168 +172,93 @@ func newInboxPromoteCmd() *cobra.Command {
 
 			switch target {
 			case "discard":
-				if err := os.Remove(inboxPath); err != nil {
-					return fmt.Errorf("deleting inbox entry: %w", err)
-				}
-				cmd.Println("discarded", id)
-				return nil
-
-			case "learning":
-				return promoteToLearning(cmd, v, a, id)
-
+				return discardInbox(cmd, a, id)
 			case "design":
 				return fmt.Errorf("promote to design is out of scope in v0.1")
-
-			case "issue":
-				return promoteToIssue(cmd, v, a, id)
-
-			case "thread":
-				return promoteToThread(cmd, v, a, id)
-
+			case "issue", "thread", "learning":
+				return promoteToTyped(cmd, v, a, id, core.Type(target))
 			default:
 				return fmt.Errorf("unknown type %q (issue|thread|design|learning|discard)", target)
 			}
 		},
 	}
 
-	cmd.Flags().StringVar(&flagAs, "as", "", "promotion target type (overrides suggested_type)")
+	cmd.Flags().StringVar(&flagAs, "as", "", "promotion target type (issue|thread|design|learning|discard)")
 	return cmd
 }
 
-func promoteToIssue(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string) error {
-	// Determine project: suggested_project wins; fall back to auto-detected.
-	project, _ := inbox.FrontMatter["suggested_project"].(string)
-	if project == "" {
-		p, err := core.ResolveProject()
-		if err != nil {
-			if errors.Is(err, core.ErrNoProject) {
-				return fmt.Errorf("set suggested_project or run from a git repo with a remote")
-			}
-			return fmt.Errorf("resolving project: %w", err)
-		}
-		project = p.Slug
-	}
-
+// promoteToTyped writes the target artifact, then flips the inbox row to
+// status: promoted with provenance fields. Issue is the only target that
+// resolves a project; the others ignore the project field.
+func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type) error {
 	title, _ := inbox.FrontMatter["title"].(string)
-
-	issueID, err := core.NextID(v, core.TypeIssue, core.IDInputs{Title: title, Project: project})
-	if err != nil {
-		return fmt.Errorf("allocating ID: %w", err)
-	}
-
-	created := time.Now().UTC().Format("2006-01-02")
-	data := templateData{
-		Title:   title,
-		Created: created,
-		Project: project,
-	}
-
-	fm, err := renderFrontMatter(core.TypeIssue, data)
-	if err != nil {
-		return fmt.Errorf("rendering issue template: %w", err)
-	}
-
-	if err := schema.Validate(string(core.TypeIssue), fm); err != nil {
-		return fmt.Errorf("schema validation: %w", err)
-	}
-
-	dir := filepath.Join(v.Root, core.TypeIssue.Dir())
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("mkdir %s: %w", dir, err)
-	}
-	issuePath := filepath.Join(dir, issueID+".md")
-	art := &core.Artifact{Path: issuePath, FrontMatter: fm, Body: ""}
-	if err := art.Save(); err != nil {
-		return fmt.Errorf("saving issue: %w", err)
-	}
-
-	// Remove inbox file only after issue is written successfully.
-	inboxPath := filepath.Join(v.Root, core.TypeInbox.Dir(), inboxID+".md")
-	if err := os.Remove(inboxPath); err != nil {
-		return fmt.Errorf("deleting inbox entry: %w", err)
-	}
-
-	cmd.Println("issue", issueID)
-	return nil
-}
-
-func promoteToThread(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string) error {
-	title, _ := inbox.FrontMatter["title"].(string)
-
-	threadID, err := core.NextID(v, core.TypeThread, core.IDInputs{Title: title})
-	if err != nil {
-		return fmt.Errorf("allocating ID: %w", err)
-	}
-
-	created := time.Now().UTC().Format("2006-01-02")
-	data := templateData{
-		Title:   title,
-		Created: created,
-	}
-
-	fm, err := renderFrontMatter(core.TypeThread, data)
-	if err != nil {
-		return fmt.Errorf("rendering thread template: %w", err)
-	}
-
-	if err := schema.Validate(string(core.TypeThread), fm); err != nil {
-		return fmt.Errorf("schema validation: %w", err)
-	}
-
-	dir := filepath.Join(v.Root, core.TypeThread.Dir())
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("mkdir %s: %w", dir, err)
-	}
-	threadPath := filepath.Join(dir, threadID+".md")
-	art := &core.Artifact{Path: threadPath, FrontMatter: fm, Body: ""}
-	if err := art.Save(); err != nil {
-		return fmt.Errorf("saving thread: %w", err)
-	}
-
-	inboxPath := filepath.Join(v.Root, core.TypeInbox.Dir(), inboxID+".md")
-	if err := os.Remove(inboxPath); err != nil {
-		return fmt.Errorf("deleting inbox entry: %w", err)
-	}
-
-	cmd.Println("thread", threadID)
-	return nil
-}
-
-func promoteToLearning(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string) error {
-	title, _ := inbox.FrontMatter["title"].(string)
-
-	learningID, err := core.NextID(v, core.TypeLearning, core.IDInputs{Title: title})
-	if err != nil {
-		return fmt.Errorf("allocating ID: %w", err)
-	}
-
 	created := time.Now().UTC().Format("2006-01-02")
 	data := templateData{Title: title, Created: created}
+	idInputs := core.IDInputs{Title: title}
 
-	fm, err := renderFrontMatter(core.TypeLearning, data)
-	if err != nil {
-		return fmt.Errorf("rendering learning template: %w", err)
+	if target == core.TypeIssue {
+		project, _ := inbox.FrontMatter["suggested_project"].(string)
+		if project == "" {
+			p, err := core.ResolveProject()
+			if err != nil {
+				if errors.Is(err, core.ErrNoProject) {
+					return fmt.Errorf("set suggested_project or run from a git repo with a remote")
+				}
+				return fmt.Errorf("resolving project: %w", err)
+			}
+			project = p.Slug
+		}
+		data.Project = project
+		idInputs.Project = project
 	}
 
-	if err := schema.Validate(string(core.TypeLearning), fm); err != nil {
+	targetID, err := core.NextID(v, target, idInputs)
+	if err != nil {
+		return fmt.Errorf("allocating ID: %w", err)
+	}
+
+	fm, err := renderFrontMatter(target, data)
+	if err != nil {
+		return fmt.Errorf("rendering %s template: %w", target, err)
+	}
+	if err := schema.Validate(string(target), fm); err != nil {
 		return fmt.Errorf("schema validation: %w", err)
 	}
 
-	dir := filepath.Join(v.Root, core.TypeLearning.Dir())
+	dir := filepath.Join(v.Root, target.Dir())
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
-	learningPath := filepath.Join(dir, learningID+".md")
-	art := &core.Artifact{Path: learningPath, FrontMatter: fm, Body: ""}
-	if err := art.Save(); err != nil {
-		return fmt.Errorf("saving learning: %w", err)
+	targetPath := filepath.Join(dir, targetID+".md")
+	if err := (&core.Artifact{Path: targetPath, FrontMatter: fm, Body: ""}).Save(); err != nil {
+		return fmt.Errorf("saving %s: %w", target, err)
 	}
 
-	inboxPath := filepath.Join(v.Root, core.TypeInbox.Dir(), inboxID+".md")
-	if err := os.Remove(inboxPath); err != nil {
-		return fmt.Errorf("deleting inbox entry: %w", err)
+	inbox.FrontMatter["status"] = "promoted"
+	inbox.FrontMatter["promoted_to"] = targetID
+	inbox.FrontMatter["promoted_type"] = string(target)
+	inbox.FrontMatter["updated"] = created
+	if err := schema.Validate(string(core.TypeInbox), inbox.FrontMatter); err != nil {
+		return fmt.Errorf("inbox schema validation: %w", err)
+	}
+	if err := inbox.Save(); err != nil {
+		return fmt.Errorf("saving inbox: %w", err)
 	}
 
-	cmd.Println("learning", learningID)
+	cmd.Println("promoted", inboxID, "->", string(target), targetID)
+	return nil
+}
+
+func discardInbox(cmd *cobra.Command, inbox *core.Artifact, inboxID string) error {
+	updated := time.Now().UTC().Format("2006-01-02")
+	inbox.FrontMatter["status"] = "dropped"
+	inbox.FrontMatter["updated"] = updated
+	if err := schema.Validate(string(core.TypeInbox), inbox.FrontMatter); err != nil {
+		return fmt.Errorf("inbox schema validation: %w", err)
+	}
+	if err := inbox.Save(); err != nil {
+		return fmt.Errorf("saving inbox: %w", err)
+	}
+	cmd.Println("discarded", inboxID)
 	return nil
 }

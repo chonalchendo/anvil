@@ -55,7 +55,7 @@ func TestInbox_Promote_Issue(t *testing.T) {
 	t.Chdir(repo)
 
 	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "broken thing", "--suggested-type", "issue", "--suggested-project", "foo"})
+	add.SetArgs([]string{"inbox", "add", "--title", "broken thing", "--suggested-project", "foo"})
 	if err := add.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -66,20 +66,36 @@ func TestInbox_Promote_Issue(t *testing.T) {
 	inboxID := strings.TrimSuffix(entries[0].Name(), ".md")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"inbox", "promote", inboxID})
+	cmd.SetArgs([]string{"inbox", "promote", inboxID, "--as", "issue"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("promote: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(vault, "00-inbox", inboxID+".md")); !os.IsNotExist(err) {
-		t.Errorf("inbox file should be deleted: %v", err)
+
+	inboxPath := filepath.Join(vault, "00-inbox", inboxID+".md")
+	a, err := core.LoadArtifact(inboxPath)
+	if err != nil {
+		t.Fatalf("inbox file should persist: %v", err)
 	}
+	if got := a.FrontMatter["status"]; got != "promoted" {
+		t.Errorf("status = %v, want promoted", got)
+	}
+	if got := a.FrontMatter["promoted_type"]; got != "issue" {
+		t.Errorf("promoted_type = %v, want issue", got)
+	}
+	if got, _ := a.FrontMatter["promoted_to"].(string); got == "" {
+		t.Error("promoted_to should be set")
+	}
+	if _, ok := a.FrontMatter["updated"]; !ok {
+		t.Error("updated should be set")
+	}
+
 	issuePath := filepath.Join(vault, "70-issues", "foo.broken-thing.md")
 	if _, err := core.LoadArtifact(issuePath); err != nil {
 		t.Fatalf("expected issue at %s: %v", issuePath, err)
 	}
 }
 
-func TestInbox_Promote_MissingSuggestedType(t *testing.T) {
+func TestInbox_Promote_Discard(t *testing.T) {
 	vault := setupVault(t)
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
@@ -91,31 +107,23 @@ func TestInbox_Promote_MissingSuggestedType(t *testing.T) {
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"inbox", "promote", id})
-	if err := cmd.Execute(); err == nil {
-		t.Error("expected error: missing suggested_type")
-	}
-}
-
-
-func TestInbox_Promote_Discard(t *testing.T) {
-	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
-	t.Chdir(t.TempDir())
-
-	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "x", "--suggested-type", "discard"})
-	add.Execute()
-	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
-	id := strings.TrimSuffix(entries[0].Name(), ".md")
-
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"inbox", "promote", id})
+	cmd.SetArgs([]string{"inbox", "promote", id, "--as", "discard"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("discard: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(vault, "00-inbox", id+".md")); !os.IsNotExist(err) {
-		t.Error("inbox file should be deleted")
+
+	a, err := core.LoadArtifact(filepath.Join(vault, "00-inbox", id+".md"))
+	if err != nil {
+		t.Fatalf("inbox file should persist: %v", err)
+	}
+	if got := a.FrontMatter["status"]; got != "dropped" {
+		t.Errorf("status = %v, want dropped", got)
+	}
+	if _, ok := a.FrontMatter["promoted_to"]; ok {
+		t.Error("promoted_to should be absent on discard")
+	}
+	if _, ok := a.FrontMatter["promoted_type"]; ok {
+		t.Error("promoted_type should be absent on discard")
 	}
 	issues, _ := os.ReadDir(filepath.Join(vault, "70-issues"))
 	if len(issues) != 0 {
@@ -123,43 +131,7 @@ func TestInbox_Promote_Discard(t *testing.T) {
 	}
 }
 
-func TestInboxPromote_ToThread_FromSuggestedType(t *testing.T) {
-	vault := setupVault(t)
-	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
-	t.Chdir(repo)
-
-	var buf bytes.Buffer
-	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "Look into ducklake", "--suggested-type", "thread", "--json"})
-	add.SetOut(&buf)
-	if err := add.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	var result struct {
-		ID   string `json:"id"`
-		Path string `json:"path"`
-	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &result); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-
-	promote := newRootCmd()
-	promote.SetArgs([]string{"inbox", "promote", result.ID})
-	if err := promote.Execute(); err != nil {
-		t.Fatalf("promote: %v", err)
-	}
-
-	if _, err := os.Stat(result.Path); !os.IsNotExist(err) {
-		t.Errorf("inbox file should be deleted: %v", err)
-	}
-	threadPath := filepath.Join(vault, "60-threads", "look-into-ducklake.md")
-	if _, err := core.LoadArtifact(threadPath); err != nil {
-		t.Fatalf("expected thread at %s: %v", threadPath, err)
-	}
-}
-
-func TestInboxPromote_AsFlag_OverridesSuggestedType(t *testing.T) {
+func TestInboxPromote_AsThread(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
@@ -172,10 +144,7 @@ func TestInboxPromote_AsFlag_OverridesSuggestedType(t *testing.T) {
 	if err := add.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	var result struct {
-		ID   string `json:"id"`
-		Path string `json:"path"`
-	}
+	var result struct{ ID, Path string }
 	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &result); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
@@ -186,8 +155,15 @@ func TestInboxPromote_AsFlag_OverridesSuggestedType(t *testing.T) {
 		t.Fatalf("promote: %v", err)
 	}
 
-	if _, err := os.Stat(result.Path); !os.IsNotExist(err) {
-		t.Errorf("inbox file should be deleted: %v", err)
+	a, err := core.LoadArtifact(result.Path)
+	if err != nil {
+		t.Fatalf("inbox file should persist: %v", err)
+	}
+	if got := a.FrontMatter["status"]; got != "promoted" {
+		t.Errorf("status = %v, want promoted", got)
+	}
+	if got := a.FrontMatter["promoted_type"]; got != "thread" {
+		t.Errorf("promoted_type = %v, want thread", got)
 	}
 	threadPath := filepath.Join(vault, "60-threads", "ducklake.md")
 	if _, err := core.LoadArtifact(threadPath); err != nil {
@@ -200,8 +176,7 @@ func TestInboxPromote_ToLearning(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"inbox", "add", "--title", "FK locks block writes",
-		"--suggested-type", "learning", "--json"})
+	cmd.SetArgs([]string{"inbox", "add", "--title", "FK locks block writes", "--json"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -213,26 +188,25 @@ func TestInboxPromote_ToLearning(t *testing.T) {
 	}
 
 	cmd = newRootCmd()
-	cmd.SetArgs([]string{"inbox", "promote", added.ID})
-	out.Reset()
-	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"inbox", "promote", added.ID, "--as", "learning"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("promote: %v", err)
 	}
 
-	if _, err := os.Stat(added.Path); !os.IsNotExist(err) {
-		t.Errorf("inbox file should be removed, got err=%v", err)
+	a, err := core.LoadArtifact(added.Path)
+	if err != nil {
+		t.Fatalf("inbox file should persist: %v", err)
+	}
+	if got := a.FrontMatter["status"]; got != "promoted" {
+		t.Errorf("status = %v, want promoted", got)
 	}
 	learningPath := filepath.Join(vault, "20-learnings", "fk-locks-block-writes.md")
-	a, err := core.LoadArtifact(learningPath)
+	la, err := core.LoadArtifact(learningPath)
 	if err != nil {
 		t.Fatalf("expected learning at %s: %v", learningPath, err)
 	}
-	if a.FrontMatter["status"] != "draft" {
-		t.Errorf("status = %v, want draft", a.FrontMatter["status"])
-	}
-	if a.FrontMatter["confidence"] != "low" {
-		t.Errorf("confidence = %v, want low", a.FrontMatter["confidence"])
+	if la.FrontMatter["status"] != "draft" {
+		t.Errorf("learning status = %v, want draft", la.FrontMatter["status"])
 	}
 }
 
