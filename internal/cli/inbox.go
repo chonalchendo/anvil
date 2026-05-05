@@ -214,14 +214,21 @@ func newInboxPromoteCmd() *cobra.Command {
 // status: promoted with provenance fields. Issue is the only target that
 // resolves a project; the others ignore the project field.
 func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type) error {
-	if status, _ := inbox.FrontMatter["status"].(string); status == "promoted" {
+	status, _ := inbox.FrontMatter["status"].(string)
+	switch status {
+	case "promoted":
 		recordedType, _ := inbox.FrontMatter["promoted_type"].(string)
 		recordedTo, _ := inbox.FrontMatter["promoted_to"].(string)
 		if recordedType == string(target) {
 			cmd.Println("already promoted", inboxID, "->", recordedType, recordedTo)
 			return nil
 		}
-		// Mismatch handled in Task 5.
+		return formatEnumError(
+			"--as", string(target), []string{recordedType},
+			fmt.Sprintf("anvil inbox promote %s --as %s", inboxID, recordedType),
+		)
+	case "dropped":
+		return fmt.Errorf("cannot promote a dropped entry %s: status is dropped, manual cleanup required", inboxID)
 	}
 
 	title, _ := inbox.FrontMatter["title"].(string)
@@ -283,9 +290,15 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 }
 
 func discardInbox(cmd *cobra.Command, inbox *core.Artifact, inboxID string) error {
-	if status, _ := inbox.FrontMatter["status"].(string); status == "dropped" {
+	status, _ := inbox.FrontMatter["status"].(string)
+	switch status {
+	case "dropped":
 		cmd.Println("already discarded", inboxID)
 		return nil
+	case "promoted":
+		recordedType, _ := inbox.FrontMatter["promoted_type"].(string)
+		recordedTo, _ := inbox.FrontMatter["promoted_to"].(string)
+		return fmt.Errorf("cannot discard %s: already promoted to %s %s", inboxID, recordedType, recordedTo)
 	}
 
 	updated := time.Now().UTC().Format("2006-01-02")

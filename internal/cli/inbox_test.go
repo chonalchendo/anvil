@@ -329,6 +329,96 @@ func TestInboxDiscard_Idempotent(t *testing.T) {
 	}
 }
 
+func TestInboxPromote_MismatchedAs(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	add := newRootCmd()
+	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.Execute()
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	first := newRootCmd()
+	first.SetArgs([]string{"inbox", "promote", id, "--as", "thread"})
+	if err := first.Execute(); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"inbox", "promote", id, "--as", "learning"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected mismatch error")
+	}
+	msg := err.Error()
+	for _, want := range []string{
+		`invalid value "learning" for --as`,
+		"valid values: thread",
+		"corrected:    anvil inbox promote " + id + " --as thread",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error missing %q\nfull:\n%s", want, msg)
+		}
+	}
+}
+
+func TestInboxPromote_OnDropped(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	add := newRootCmd()
+	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.Execute()
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	first := newRootCmd()
+	first.SetArgs([]string{"inbox", "promote", id, "--as", "discard"})
+	first.Execute()
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"inbox", "promote", id, "--as", "issue"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "cannot promote a dropped entry") {
+		t.Errorf("error = %q", err.Error())
+	}
+	if strings.Contains(err.Error(), "corrected:") {
+		t.Errorf("dropped→promote error must not include 'corrected:' line:\n%s", err.Error())
+	}
+}
+
+func TestInboxDiscard_OnPromoted(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	add := newRootCmd()
+	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.Execute()
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	first := newRootCmd()
+	first.SetArgs([]string{"inbox", "promote", id, "--as", "thread"})
+	first.Execute()
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"inbox", "promote", id, "--as", "discard"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "already promoted to thread") {
+		t.Errorf("error = %q", err.Error())
+	}
+}
+
 func TestInboxAdd_WithBody(t *testing.T) {
 	vault := setupVault(t)
 	t.Setenv("HOME", t.TempDir())
