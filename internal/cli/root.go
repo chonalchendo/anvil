@@ -49,6 +49,7 @@ func newRootCmd() *cobra.Command {
 		newSessionCmd(),
 		newInstallCmd(),
 		newGlossaryCmd(),
+		newTagsCmd(),
 	)
 	return cmd
 }

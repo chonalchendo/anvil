@@ -12,7 +12,7 @@ Items are grouped by concern, not by execution order. Spec order is at the botto
 ## Workflow / skill design
 
 1. **Merge `brainstorming` into `writing-issue`** — generative-mode primary, validation preserved. Brainstorm output is the issue body; no separate `brainstorm` artifact, no separate skill. Removes the issue-in-the-middle hop.
-2. **New `researching` skill** — Claude-desktop-style research session. Open question: does it produce a vault artifact (new type + schema + template) or stay in-session and feed into brainstorm/issue/plan as cited prose?
+2. ~~**New `researching` skill**~~ — **done** (2026-05-05, spec `2026-05-05-researching-skill-design`). Workflow skill at `skills/researching/` with three mode references (light / adversarial / heavy). No new vault type — synthesis returns to caller (sub-skill mode) or persists as 0+ learnings (standalone mode).
 3. **New `using-anvil` skill** — agent-facing entry point that teaches the CLI surface for vault interaction (create/set/promote/show, type-by-type field cheatsheet, when to use CLI vs. direct file edit). Today every other skill re-explains anvil verbs inline; this centralises it.
 4. **Rewrite `extract-skill-from-session` phases 5–6** — currently calls `quick_validate.py` and an `anvil skill` verb that don't exist. Either add `anvil create skill` + `skill.schema.json` + a real validator, or downgrade phase 6 to mechanical agent-side checks. Cheap fix preferred — skill-authoring should not block v0.1.
 
@@ -25,6 +25,7 @@ Items are grouped by concern, not by execution order. Spec order is at the botto
 9. ~~**`product-design` and `system-design` as CLI types**~~ — **done** (2026-05-04, spec `2026-05-04-type-template-completeness`). Added `TypeProductDesign`/`TypeSystemDesign`, `Type.AllocatesID()` + `Type.Path()` for per-project singletons at `05-projects/<project>/<type>.md`, templates, and existence-check on duplicate create.
 10. ~~**`sweep.tmpl`**~~ — **done** (2026-05-04, same spec). Template ships; `anvil create sweep` requires `--scope` and an explicit `--breaking` (project-exempt). `TypeSweep` wired through `NextID`'s slug branch.
 11. ~~**`milestone.tmpl` slots**~~ — **partial** (2026-05-04, same spec). `acceptance: []` now seeded; `product_design` / `system_design` wikilinks deliberately left to `set` calls.
+11b. ~~**`anvil tags list`**~~ — **done** (2026-05-05, spec `2026-05-05-researching-skill-design`). Walks the vault, aggregates `tags` frontmatter into deduped (tag, count) list; `--type`, `--prefix`, `--json` filters. Used by artifact-creating skills to discover existing taxonomy before proposing new tags.
 
 ## Orchestrator
 
