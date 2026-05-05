@@ -21,10 +21,13 @@ anvil show       <type> <id>
 anvil list       <type> [--filters]
 anvil link       <type> <id> --to <type> <id>
 anvil set        <type> <id> <field> <value>
+anvil tags       list [--type <type>] [--prefix <prefix>] [--json]
 anvil project    list | switch | adopt | current
 ```
 
 `anvil session log` was cut as redundant — session transcripts are written by the agent CLIs themselves; the active plan file is the canonical handoff.
+
+`tags list` walks the vault and aggregates `tags` frontmatter into a deduped (tag, count) list. Used by artifact-creating skills to discover existing taxonomy before proposing new tags — minimizing tag drift.
 
 **Project identity resolution** (three-step fallback): explicit `anvil project adopt <slug>` binding (recorded in `~/.anvil/projects/<slug>/.binding`) → git remote URL → refuse with clear error. The adopted binding takes precedence so an explicit user override always wins over the inferred one. No magic cwd-basename fallback.
 
