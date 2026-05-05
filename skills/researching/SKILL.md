@@ -36,7 +36,7 @@ For standalone runs, persist zero-or-more `learning` artifacts. Count is agent j
 
 1. Discover existing tags so new captures reuse the established taxonomy:
 
-   ```
+   ```bash
    anvil tags list --type learning --json
    ```
 
@@ -50,7 +50,7 @@ For standalone runs, persist zero-or-more `learning` artifacts. Count is agent j
 
 4. For each accepted candidate, create the artifact and attach tags / related links:
 
-   ```
+   ```bash
    anvil create learning --title "<title>" --body "<body>"
    anvil set learning <id> tags --add <tag> [--add <tag> ...]
    anvil set learning <id> related --add <wikilink> [--add <wikilink> ...]
