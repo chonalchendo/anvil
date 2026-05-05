@@ -39,10 +39,11 @@ func runShowValidate(cmd *cobra.Command, v *core.Vault, t core.Type, id string, 
 		b, _ := json.Marshal(out)
 		fmt.Fprintln(cmd.OutOrStdout(), string(b))
 	} else {
+		emitFrontMatterText(cmd, a.FrontMatter)
 		if schemaErr != nil {
 			cmd.PrintErrln("schema:", schemaErr)
 		} else {
-			cmd.Println("schema: ok")
+			cmd.PrintErrln("schema: ok")
 		}
 		if len(links) > 0 {
 			cmd.PrintErrln("links:")
@@ -50,7 +51,7 @@ func runShowValidate(cmd *cobra.Command, v *core.Vault, t core.Type, id string, 
 				cmd.PrintErrf("  - %s [[%s]]: not found\n", l.Field, l.Target)
 			}
 		} else {
-			cmd.Println("links: ok")
+			cmd.PrintErrln("links: ok")
 		}
 	}
 

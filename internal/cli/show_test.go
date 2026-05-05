@@ -280,6 +280,41 @@ func TestShowValidate_Issue_BadSchema(t *testing.T) {
 	}
 }
 
+func TestShowValidate_StdoutVsStderr(t *testing.T) {
+	vault := setupVault(t)
+	p := filepath.Join(vault, "70-issues", "foo.bad.md")
+	a := &core.Artifact{
+		Path: p,
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "x", "description": "d", "created": "2026-04-29",
+			"status": "open", "project": "foo", "severity": "low",
+			"milestone": "[[milestone.foo.ghost]]",
+		},
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"show", "issue", "foo.bad", "--validate"})
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	_ = cmd.Execute() // err expected, ignore
+
+	// Stdout should contain artifact view (frontmatter-only default).
+	if !strings.Contains(out.String(), "title") {
+		t.Errorf("stdout should contain artifact frontmatter (title), got:\n%s", out.String())
+	}
+	// Diagnostics should be on stderr, not stdout.
+	if strings.Contains(out.String(), "schema:") || strings.Contains(out.String(), "links:") {
+		t.Errorf("diagnostics leaked to stdout:\n%s", out.String())
+	}
+	if !strings.Contains(errOut.String(), "links:") || !strings.Contains(errOut.String(), "milestone.foo.ghost") {
+		t.Errorf("expected links diagnostic on stderr, got:\n%s", errOut.String())
+	}
+}
+
 func TestShowValidate_JSON(t *testing.T) {
 	vault := setupVault(t)
 	p := filepath.Join(vault, "70-issues", "foo.bad.md")
