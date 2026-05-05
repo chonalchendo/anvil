@@ -210,6 +210,62 @@ func TestInboxPromote_ToLearning(t *testing.T) {
 	}
 }
 
+func TestInboxPromote_RequiresAsFlag(t *testing.T) {
+	vault := setupVault(t)
+	_ = vault
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	add := newRootCmd()
+	add.SetArgs([]string{"inbox", "add", "--title", "x", "--suggested-type", "issue"})
+	add.Execute()
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"inbox", "promote", id})
+	var errBuf bytes.Buffer
+	cmd.SetErr(&errBuf)
+	cmd.SilenceUsage = true
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error: --as is required")
+	}
+	if !strings.Contains(err.Error(), `required flag(s) "as" not set`) {
+		t.Errorf("error = %q, want cobra required-flag message", err.Error())
+	}
+}
+
+func TestInboxPromote_InvalidAsValue(t *testing.T) {
+	vault := setupVault(t)
+	_ = vault
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	add := newRootCmd()
+	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.Execute()
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"inbox", "promote", id, "--as", "isue"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	msg := err.Error()
+	for _, want := range []string{
+		`invalid value "isue" for --as`,
+		"valid values: issue, thread, design, learning, discard",
+		"corrected:    anvil inbox promote " + id + " --as issue",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error missing %q\nfull error:\n%s", want, msg)
+		}
+	}
+}
+
 func TestInboxAdd_WithBody(t *testing.T) {
 	vault := setupVault(t)
 	t.Setenv("HOME", t.TempDir())

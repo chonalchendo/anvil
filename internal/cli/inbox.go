@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -138,6 +139,22 @@ func newInboxShowCmd() *cobra.Command {
 	return cmd
 }
 
+// formatEnumError builds a principle-4 actionable error: offending value,
+// valid values, copy-pasteable corrected invocation. Pass exampleCmd="" to
+// omit the corrected line (used for state-conflict errors with no valid
+// retry).
+func formatEnumError(field, got string, valid []string, exampleCmd string) error {
+	var b strings.Builder
+	fmt.Fprintf(&b, "invalid value %q for %s", got, field)
+	if len(valid) > 0 {
+		fmt.Fprintf(&b, "\n  valid values: %s", strings.Join(valid, ", "))
+	}
+	if exampleCmd != "" {
+		fmt.Fprintf(&b, "\n  corrected:    %s", exampleCmd)
+	}
+	return errors.New(b.String())
+}
+
 func newInboxPromoteCmd() *cobra.Command {
 	var flagAs string
 
@@ -147,6 +164,21 @@ func newInboxPromoteCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := args[0]
+
+			validAs := []string{"issue", "thread", "design", "learning", "discard"}
+			valid := false
+			for _, v := range validAs {
+				if flagAs == v {
+					valid = true
+					break
+				}
+			}
+			if !valid {
+				return formatEnumError(
+					"--as", flagAs, validAs,
+					fmt.Sprintf("anvil inbox promote %s --as issue", id),
+				)
+			}
 
 			v, err := core.ResolveVault()
 			if err != nil {
@@ -162,28 +194,19 @@ func newInboxPromoteCmd() *cobra.Command {
 				return fmt.Errorf("loading inbox entry: %w", err)
 			}
 
-			target := flagAs
-			if target == "" {
-				target, _ = a.FrontMatter["suggested_type"].(string)
-			}
-			if target == "" {
-				return fmt.Errorf("set suggested_type or pass --as <type> before promoting (issue|thread|design|learning|discard)")
-			}
-
-			switch target {
+			switch flagAs {
 			case "discard":
 				return discardInbox(cmd, a, id)
 			case "design":
 				return fmt.Errorf("promote to design is out of scope in v0.1")
-			case "issue", "thread", "learning":
-				return promoteToTyped(cmd, v, a, id, core.Type(target))
 			default:
-				return fmt.Errorf("unknown type %q (issue|thread|design|learning|discard)", target)
+				return promoteToTyped(cmd, v, a, id, core.Type(flagAs))
 			}
 		},
 	}
 
 	cmd.Flags().StringVar(&flagAs, "as", "", "promotion target type (issue|thread|design|learning|discard)")
+	_ = cmd.MarkFlagRequired("as")
 	return cmd
 }
 
