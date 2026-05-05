@@ -20,9 +20,17 @@ type Project struct {
 // adopted binding.
 var ErrNoProject = errors.New("no project: not a git repo and no anvil binding")
 
-// ResolveProject resolves the current project via four-step fallback:
-// adopted binding → git remote → current-project pointer → error.
+// ResolveProject resolves the current project. Precedence:
+// $ANVIL_PROJECT (if it names an adopted binding) → adopted binding for
+// cwd's git tree → git remote → current-project pointer → error.
 func ResolveProject() (*Project, error) {
+	if slug := os.Getenv("ANVIL_PROJECT"); slug != "" {
+		if p, err := projectFromSlug(slug); err == nil {
+			return p, nil
+		}
+		// Env names an unknown slug: fall through to other resolution paths
+		// rather than erroring, matching the kind-default precedence model.
+	}
 	root, err := gitToplevel()
 	if err == nil {
 		if p, err := readAdoptedBinding(root); err == nil {
@@ -150,6 +158,20 @@ var slugRe = regexp.MustCompile(`[^/]+?(?:\.git)?$`)
 func slugFromRemote(remote string) string {
 	m := slugRe.FindString(remote)
 	return strings.TrimSuffix(m, ".git")
+}
+
+// projectFromSlug returns the Project for an adopted slug, or an error if no
+// binding exists.
+func projectFromSlug(slug string) (*Project, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	b, err := os.ReadFile(filepath.Join(home, ".anvil", "projects", slug, ".binding"))
+	if err != nil {
+		return nil, err
+	}
+	return &Project{Slug: slug, Root: strings.TrimSpace(string(b))}, nil
 }
 
 func readAdoptedBinding(root string) (*Project, error) {

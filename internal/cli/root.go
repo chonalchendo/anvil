@@ -3,6 +3,7 @@ package cli
 
 import (
 	"context"
+	"os"
 
 	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
@@ -14,12 +15,24 @@ func Execute(ctx context.Context) error {
 }
 
 func newRootCmd() *cobra.Command {
+	var flagVault, flagProject string
 	cmd := &cobra.Command{
 		Use:           "anvil",
 		Short:         "Anvil — agentic-development methodology",
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if flagVault != "" {
+				_ = os.Setenv("ANVIL_VAULT", flagVault)
+			}
+			if flagProject != "" {
+				_ = os.Setenv("ANVIL_PROJECT", flagProject)
+			}
+			return nil
+		},
 	}
+	cmd.PersistentFlags().StringVar(&flagVault, "vault", "", "override vault root (precedence: flag > $ANVIL_VAULT > cwd resolution)")
+	cmd.PersistentFlags().StringVar(&flagProject, "project", "", "override current project slug (precedence: flag > $ANVIL_PROJECT > cwd resolution)")
 	cmd.AddCommand(
 		newWhereCmd(),
 		newInitCmd(),
