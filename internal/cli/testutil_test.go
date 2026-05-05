@@ -76,6 +76,61 @@ func newTestVaultWithDatedIssues(t *testing.T, dates []string) string {
 	return vault
 }
 
+// newTestVaultWithDatedInbox seeds one raw inbox artifact per supplied date.
+func newTestVaultWithDatedInbox(t *testing.T, dates []string) string {
+	t.Helper()
+	vault := setupVault(t)
+	for i, d := range dates {
+		id := fmt.Sprintf("%s-foo-%d", d, i)
+		path := filepath.Join(vault, "00-inbox", id+".md")
+		a := &core.Artifact{
+			Path: path,
+			FrontMatter: map[string]any{
+				"type": "inbox", "title": fmt.Sprintf("Inbox %d", i),
+				"created": d, "status": "raw",
+			},
+			Body: "fixture body.\n",
+		}
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return vault
+}
+
+// newTestVaultWithMixedInbox seeds three inbox artifacts across statuses:
+// one raw, one promoted, one dropped.
+func newTestVaultWithMixedInbox(t *testing.T) string {
+	t.Helper()
+	vault := setupVault(t)
+	entries := []struct {
+		id     string
+		fields map[string]any
+	}{
+		{"2026-05-01-raw-0", map[string]any{
+			"type": "inbox", "title": "raw entry",
+			"created": "2026-05-01", "status": "raw",
+		}},
+		{"2026-05-02-promoted-1", map[string]any{
+			"type": "inbox", "title": "promoted entry",
+			"created": "2026-05-02", "status": "promoted",
+			"promoted_to": "foo.x", "promoted_type": "issue",
+		}},
+		{"2026-05-03-dropped-2", map[string]any{
+			"type": "inbox", "title": "dropped entry",
+			"created": "2026-05-03", "status": "dropped",
+		}},
+	}
+	for _, e := range entries {
+		path := filepath.Join(vault, "00-inbox", e.id+".md")
+		a := &core.Artifact{Path: path, FrontMatter: e.fields, Body: "fixture body.\n"}
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return vault
+}
+
 func writeFixtureIssueDated(t *testing.T, vault, project, slug, title, created string) string {
 	t.Helper()
 	id := project + "." + slug

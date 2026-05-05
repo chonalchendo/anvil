@@ -98,12 +98,14 @@ func newInboxAddCmd() *cobra.Command {
 }
 
 func newInboxListCmd() *cobra.Command {
-	var flagStatus, flagTag string
+	var flagStatus, flagTag, flagSince, flagUntil string
 	var flagJSON, flagAll bool
+	var flagLimit int
 
 	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List inbox entries",
+		Use:     "list",
+		Short:   "List inbox entries (default: 10 most recent raw)",
+		Example: "  anvil inbox list\n  anvil inbox list --all --since 2026-05-01\n  anvil inbox list --json",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
 			if err != nil {
@@ -113,14 +115,19 @@ func newInboxListCmd() *cobra.Command {
 			if status == "" && !flagAll {
 				status = "raw"
 			}
-			return runList(cmd, v, core.TypeInbox, listFilters{Status: status, Tag: flagTag}, flagJSON, defaultListLimit)
+			return runList(cmd, v, core.TypeInbox, listFilters{
+				Status: status, Tag: flagTag, Since: flagSince, Until: flagUntil,
+			}, flagJSON, flagLimit)
 		},
 	}
 
 	cmd.Flags().StringVar(&flagStatus, "status", "", "filter by status (exact match)")
 	cmd.Flags().StringVar(&flagTag, "tag", "", "filter by tag (substring match)")
+	cmd.Flags().StringVar(&flagSince, "since", "", "include only entries created on or after YYYY-MM-DD")
+	cmd.Flags().StringVar(&flagUntil, "until", "", "include only entries created on or before YYYY-MM-DD")
+	cmd.Flags().IntVar(&flagLimit, "limit", defaultListLimit, "maximum results to return (default 10)")
 	cmd.Flags().BoolVar(&flagAll, "all", false, "include promoted and dropped entries (default: only raw)")
-	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
 	return cmd
 }
 

@@ -593,6 +593,26 @@ func TestInboxList_DefaultsToRaw(t *testing.T) {
 	}
 }
 
+func TestInboxList_LimitAndSince(t *testing.T) {
+	newTestVaultWithDatedInbox(t, []string{"2026-04-30", "2026-05-02", "2026-05-04"})
+	cmd := newRootCmd()
+	out, _, _ := runCmd(t, cmd, "inbox", "list", "--since", "2026-05-01", "--all", "--json")
+	env := unmarshalListEnvelope(t, out)
+	if env.Total != 2 {
+		t.Errorf("total=%d want 2", env.Total)
+	}
+}
+
+func TestInboxList_DefaultStatusRawStillApplies(t *testing.T) {
+	newTestVaultWithMixedInbox(t)
+	cmd := newRootCmd()
+	out, _, _ := runCmd(t, cmd, "inbox", "list", "--json")
+	env := unmarshalListEnvelope(t, out)
+	if env.Total != 1 {
+		t.Errorf("default should filter to status:raw; got total=%d", env.Total)
+	}
+}
+
 func TestInboxAdd_WithBody(t *testing.T) {
 	vault := setupVault(t)
 	t.Setenv("HOME", t.TempDir())
