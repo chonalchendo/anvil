@@ -266,6 +266,69 @@ func TestInboxPromote_InvalidAsValue(t *testing.T) {
 	}
 }
 
+func TestInboxPromote_Idempotent(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	add := newRootCmd()
+	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.Execute()
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	first := newRootCmd()
+	first.SetArgs([]string{"inbox", "promote", id, "--as", "thread"})
+	if err := first.Execute(); err != nil {
+		t.Fatalf("first promote: %v", err)
+	}
+
+	second := newRootCmd()
+	second.SetArgs([]string{"inbox", "promote", id, "--as", "thread"})
+	var out bytes.Buffer
+	second.SetOut(&out)
+	if err := second.Execute(); err != nil {
+		t.Fatalf("second promote: %v", err)
+	}
+	if !strings.HasPrefix(out.String(), "already promoted ") {
+		t.Errorf("output = %q, want 'already promoted ...'", out.String())
+	}
+
+	threads, _ := os.ReadDir(filepath.Join(vault, "60-threads"))
+	if len(threads) != 1 {
+		t.Errorf("expected exactly 1 thread file, got %d", len(threads))
+	}
+}
+
+func TestInboxDiscard_Idempotent(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	add := newRootCmd()
+	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.Execute()
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	first := newRootCmd()
+	first.SetArgs([]string{"inbox", "promote", id, "--as", "discard"})
+	if err := first.Execute(); err != nil {
+		t.Fatalf("first discard: %v", err)
+	}
+
+	second := newRootCmd()
+	second.SetArgs([]string{"inbox", "promote", id, "--as", "discard"})
+	var out bytes.Buffer
+	second.SetOut(&out)
+	if err := second.Execute(); err != nil {
+		t.Fatalf("second discard: %v", err)
+	}
+	if !strings.HasPrefix(out.String(), "already discarded ") {
+		t.Errorf("output = %q, want 'already discarded ...'", out.String())
+	}
+}
+
 func TestInboxAdd_WithBody(t *testing.T) {
 	vault := setupVault(t)
 	t.Setenv("HOME", t.TempDir())

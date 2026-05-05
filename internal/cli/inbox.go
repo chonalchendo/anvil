@@ -214,6 +214,16 @@ func newInboxPromoteCmd() *cobra.Command {
 // status: promoted with provenance fields. Issue is the only target that
 // resolves a project; the others ignore the project field.
 func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type) error {
+	if status, _ := inbox.FrontMatter["status"].(string); status == "promoted" {
+		recordedType, _ := inbox.FrontMatter["promoted_type"].(string)
+		recordedTo, _ := inbox.FrontMatter["promoted_to"].(string)
+		if recordedType == string(target) {
+			cmd.Println("already promoted", inboxID, "->", recordedType, recordedTo)
+			return nil
+		}
+		// Mismatch handled in Task 5.
+	}
+
 	title, _ := inbox.FrontMatter["title"].(string)
 	created := time.Now().UTC().Format("2006-01-02")
 	data := templateData{Title: title, Created: created}
@@ -273,6 +283,11 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 }
 
 func discardInbox(cmd *cobra.Command, inbox *core.Artifact, inboxID string) error {
+	if status, _ := inbox.FrontMatter["status"].(string); status == "dropped" {
+		cmd.Println("already discarded", inboxID)
+		return nil
+	}
+
 	updated := time.Now().UTC().Format("2006-01-02")
 	inbox.FrontMatter["status"] = "dropped"
 	inbox.FrontMatter["updated"] = updated
