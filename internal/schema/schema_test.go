@@ -316,3 +316,32 @@ func TestValidate_Session_AcceptsMinimal(t *testing.T) {
 		t.Fatalf("expected valid: %v", err)
 	}
 }
+
+func TestValidate_Inbox_AcceptsPromotedType(t *testing.T) {
+	fm := map[string]any{
+		"type": "inbox", "title": "x", "created": "2026-05-04",
+		"status": "promoted", "promoted_to": "anvil-42", "promoted_type": "issue",
+	}
+	if err := Validate("inbox", fm); err != nil {
+		t.Errorf("expected valid, got %v", err)
+	}
+}
+
+func TestValidate_Inbox_RejectsPromotedTypeDiscard(t *testing.T) {
+	fm := map[string]any{
+		"type": "inbox", "title": "x", "created": "2026-05-04",
+		"status": "promoted", "promoted_type": "discard",
+	}
+	if err := Validate("inbox", fm); err == nil {
+		t.Error("expected error for promoted_type=discard, got nil")
+	}
+}
+
+func TestValidate_Inbox_AcceptsAbsentPromotedType(t *testing.T) {
+	fm := map[string]any{
+		"type": "inbox", "title": "x", "created": "2026-05-04", "status": "raw",
+	}
+	if err := Validate("inbox", fm); err != nil {
+		t.Errorf("expected valid, got %v", err)
+	}
+}
