@@ -2,8 +2,8 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/chonalchendo/anvil/internal/core"
@@ -43,27 +43,25 @@ func TestList_JSON(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "b", "B issue")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"list", "issue", "--json"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	if err := cmd.Execute(); err != nil {
+	out, _, err := runCmd(t, cmd, "list", "issue", "--json")
+	if err != nil {
 		t.Fatal(err)
 	}
-	var got []map[string]any
-	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
-		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
+	env := unmarshalListEnvelope(t, out)
+	if env.Total != 2 || env.Returned != 2 {
+		t.Errorf("total=%d returned=%d, want 2/2", env.Total, env.Returned)
 	}
-	if len(got) != 2 {
-		t.Errorf("len = %d, want 2", len(got))
+	if env.Truncated {
+		t.Error("expected truncated=false")
 	}
-	if got[0]["id"] != "foo.a" || got[1]["id"] != "foo.b" {
-		t.Errorf("ids = %v, %v", got[0]["id"], got[1]["id"])
+	ids := []string{env.Items[0].ID, env.Items[1].ID}
+	// Ties on created -> ID asc; both fixtures share the same created date.
+	if ids[0] != "foo.a" || ids[1] != "foo.b" {
+		t.Errorf("ids = %v, want [foo.a foo.b]", ids)
 	}
-	for _, item := range got {
-		for _, k := range []string{"id", "type", "title", "status", "path"} {
-			if _, ok := item[k]; !ok {
-				t.Errorf("missing key %q in %v", k, item)
-			}
+	for _, item := range env.Items {
+		if item.ID == "" || item.Type == "" || item.Title == "" || item.Status == "" || item.Path == "" {
+			t.Errorf("missing required field in %+v", item)
 		}
 	}
 }
@@ -71,25 +69,25 @@ func TestList_JSON(t *testing.T) {
 func TestList_Empty(t *testing.T) {
 	setupVault(t)
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"list", "issue"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	if err := cmd.Execute(); err != nil {
+	out, errOut, err := runCmd(t, cmd, "list", "issue")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Len() != 0 {
-		t.Errorf("expected empty output, got %q", out.String())
+	if out != "" {
+		t.Errorf("expected empty stdout, got %q", out)
+	}
+	if errOut != "" {
+		t.Errorf("expected empty stderr, got %q", errOut)
 	}
 
 	cmd2 := newRootCmd()
-	cmd2.SetArgs([]string{"list", "issue", "--json"})
-	var out2 bytes.Buffer
-	cmd2.SetOut(&out2)
-	if err := cmd2.Execute(); err != nil {
+	out2, _, err := runCmd(t, cmd2, "list", "issue", "--json")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if s := bytes.TrimSpace(out2.Bytes()); string(s) != "[]" {
-		t.Errorf("expected [], got %q", s)
+	env := unmarshalListEnvelope(t, out2)
+	if len(env.Items) != 0 || env.Total != 0 || env.Returned != 0 || env.Truncated {
+		t.Errorf("expected empty envelope, got %+v", env)
 	}
 }
 
@@ -153,20 +151,14 @@ func TestList_Learning_MultiTagAllOf(t *testing.T) {
 		[]string{"type/learning", "domain/typescript", "activity/debugging"}, "reference", "high")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"list", "learning",
-		"--tags", "domain/postgres,activity/debugging",
-		"--json"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	var items []map[string]any
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+	out, _, err := runCmd(t, cmd, "list", "learning",
+		"--tags", "domain/postgres,activity/debugging", "--json")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if len(items) != 1 || items[0]["id"] != "alpha" {
-		t.Errorf("--tags all-of: got %v, want [alpha]", items)
+	env := unmarshalListEnvelope(t, out)
+	if len(env.Items) != 1 || env.Items[0].ID != "alpha" {
+		t.Errorf("--tags all-of: got %+v, want [alpha]", env.Items)
 	}
 }
 
@@ -201,18 +193,105 @@ func TestList_Learning_DiataxisAndConfidence(t *testing.T) {
 	mustCreateLearning("exp-high", "explanation", "high")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"list", "learning",
-		"--diataxis", "reference", "--confidence", "high", "--json"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	if err := cmd.Execute(); err != nil {
+	out, _, err := runCmd(t, cmd, "list", "learning",
+		"--diataxis", "reference", "--confidence", "high", "--json")
+	if err != nil {
 		t.Fatal(err)
 	}
-	var items []map[string]any
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+	env := unmarshalListEnvelope(t, out)
+	if len(env.Items) != 1 || env.Items[0].ID != "ref-high" {
+		t.Errorf("got %+v, want [ref-high]", env.Items)
+	}
+}
+
+func TestList_LimitDefault10(t *testing.T) {
+	newTestVaultWithIssues(t, 15)
+	cmd := newRootCmd()
+	out, _, err := runCmd(t, cmd, "list", "issue", "--json")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if len(items) != 1 || items[0]["id"] != "ref-high" {
-		t.Errorf("got %v, want [ref-high]", items)
+	env := unmarshalListEnvelope(t, out)
+	if env.Returned != 10 {
+		t.Errorf("returned=%d want 10", env.Returned)
+	}
+	if env.Total != 15 {
+		t.Errorf("total=%d want 15", env.Total)
+	}
+	if !env.Truncated {
+		t.Error("expected truncated=true")
+	}
+}
+
+func TestList_RecencySort(t *testing.T) {
+	newTestVaultWithDatedIssues(t, []string{"2026-05-01", "2026-05-03", "2026-05-02"})
+	cmd := newRootCmd()
+	out, _, err := runCmd(t, cmd, "list", "issue", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := unmarshalListEnvelope(t, out)
+	if env.Items[0].Created != "2026-05-03" {
+		t.Errorf("expected most recent first, got %s", env.Items[0].Created)
+	}
+}
+
+func TestList_SinceFilter(t *testing.T) {
+	newTestVaultWithDatedIssues(t, []string{"2026-04-30", "2026-05-02", "2026-05-04"})
+	cmd := newRootCmd()
+	out, _, err := runCmd(t, cmd, "list", "issue", "--since", "2026-05-01", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := unmarshalListEnvelope(t, out)
+	if env.Total != 2 {
+		t.Errorf("total=%d want 2", env.Total)
+	}
+}
+
+func TestList_TruncationHintOnStderr(t *testing.T) {
+	newTestVaultWithIssues(t, 15)
+	cmd := newRootCmd()
+	_, errOut, err := runCmd(t, cmd, "list", "issue", "--limit", "5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errOut, "showing 5 of 15") {
+		t.Errorf("expected truncation hint, got %q", errOut)
+	}
+}
+
+func TestList_NoHintWhenComplete(t *testing.T) {
+	newTestVaultWithIssues(t, 3)
+	cmd := newRootCmd()
+	_, errOut, err := runCmd(t, cmd, "list", "issue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if errOut != "" {
+		t.Errorf("expected empty stderr, got %q", errOut)
+	}
+}
+
+func TestList_JSONItemFields(t *testing.T) {
+	newTestVaultWithIssues(t, 1)
+	cmd := newRootCmd()
+	out, _, err := runCmd(t, cmd, "list", "issue", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := unmarshalListEnvelope(t, out)
+	if len(env.Items) != 1 {
+		t.Fatalf("got %d items, want 1", len(env.Items))
+	}
+	item := env.Items[0]
+	if item.Description == "" {
+		t.Error("description missing")
+	}
+	if item.Created == "" {
+		t.Error("created missing")
+	}
+	if item.Project == "" {
+		t.Error("project missing")
 	}
 }

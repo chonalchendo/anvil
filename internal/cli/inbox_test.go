@@ -573,11 +573,13 @@ func TestInboxList_DefaultsToRaw(t *testing.T) {
 		if err := cmd.Execute(); err != nil {
 			t.Fatalf("list %v: %v", args, err)
 		}
-		var items []map[string]any
-		if err := json.Unmarshal([]byte(strings.TrimSpace(out.String())), &items); err != nil {
+		var env struct {
+			Items []map[string]any `json:"items"`
+		}
+		if err := json.Unmarshal([]byte(strings.TrimSpace(out.String())), &env); err != nil {
 			t.Fatalf("unmarshal %q: %v", out.String(), err)
 		}
-		return items
+		return env.Items
 	}
 
 	if got := listJSON(t, "--json"); len(got) != 1 || got[0]["status"] != "raw" {

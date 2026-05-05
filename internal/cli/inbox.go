@@ -113,7 +113,7 @@ func newInboxListCmd() *cobra.Command {
 			if status == "" && !flagAll {
 				status = "raw"
 			}
-			return runList(cmd, v, core.TypeInbox, listFilters{Status: status, Tag: flagTag}, flagJSON)
+			return runList(cmd, v, core.TypeInbox, listFilters{Status: status, Tag: flagTag}, flagJSON, defaultListLimit)
 		},
 	}
 
