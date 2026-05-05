@@ -419,6 +419,118 @@ func TestInboxDiscard_OnPromoted(t *testing.T) {
 	}
 }
 
+type promoteResult struct {
+	ID         string  `json:"id"`
+	TargetID   *string `json:"target_id"`
+	TargetType *string `json:"target_type"`
+	Status     string  `json:"status"`
+	Path       *string `json:"path"`
+}
+
+func runPromoteJSON(t *testing.T, args ...string) promoteResult {
+	t.Helper()
+	cmd := newRootCmd()
+	cmd.SetArgs(append([]string{"inbox", "promote"}, args...))
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("promote %v: %v", args, err)
+	}
+	var r promoteResult
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out.String())), &r); err != nil {
+		t.Fatalf("unmarshal %q: %v", out.String(), err)
+	}
+	return r
+}
+
+func TestInboxPromote_JSON_Promoted(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	add := newRootCmd()
+	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.Execute()
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	r := runPromoteJSON(t, id, "--as", "thread", "--json")
+	if r.Status != "promoted" {
+		t.Errorf("status = %q, want promoted", r.Status)
+	}
+	if r.TargetType == nil || *r.TargetType != "thread" {
+		t.Errorf("target_type = %v, want thread", r.TargetType)
+	}
+	if r.TargetID == nil || *r.TargetID == "" {
+		t.Error("target_id should be non-empty")
+	}
+	if r.Path == nil || !filepath.IsAbs(*r.Path) {
+		t.Errorf("path = %v, want absolute", r.Path)
+	}
+}
+
+func TestInboxPromote_JSON_AlreadyPromoted(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	add := newRootCmd()
+	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.Execute()
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	runPromoteJSON(t, id, "--as", "thread", "--json")
+	r := runPromoteJSON(t, id, "--as", "thread", "--json")
+	if r.Status != "already_promoted" {
+		t.Errorf("status = %q, want already_promoted", r.Status)
+	}
+	if r.TargetType == nil || *r.TargetType != "thread" {
+		t.Errorf("target_type = %v, want thread", r.TargetType)
+	}
+}
+
+func TestInboxPromote_JSON_Discarded(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	add := newRootCmd()
+	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.Execute()
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	r := runPromoteJSON(t, id, "--as", "discard", "--json")
+	if r.Status != "discarded" {
+		t.Errorf("status = %q, want discarded", r.Status)
+	}
+	if r.TargetID != nil || r.TargetType != nil || r.Path != nil {
+		t.Errorf("discard result must have null target_id/target_type/path: %+v", r)
+	}
+}
+
+func TestInboxPromote_JSON_AlreadyDiscarded(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	add := newRootCmd()
+	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.Execute()
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	runPromoteJSON(t, id, "--as", "discard", "--json")
+	r := runPromoteJSON(t, id, "--as", "discard", "--json")
+	if r.Status != "already_discarded" {
+		t.Errorf("status = %q, want already_discarded", r.Status)
+	}
+	if r.TargetID != nil || r.TargetType != nil || r.Path != nil {
+		t.Errorf("already-discarded result must have null target fields: %+v", r)
+	}
+}
+
 func TestInboxAdd_WithBody(t *testing.T) {
 	vault := setupVault(t)
 	t.Setenv("HOME", t.TempDir())

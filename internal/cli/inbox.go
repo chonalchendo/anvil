@@ -139,6 +139,34 @@ func newInboxShowCmd() *cobra.Command {
 	return cmd
 }
 
+// promoteOutput is the stable JSON shape for `inbox promote --json`.
+// Discard variants leave TargetID, TargetType, Path nil so the JSON
+// emits explicit nulls.
+type promoteOutput struct {
+	ID         string  `json:"id"`
+	TargetID   *string `json:"target_id"`
+	TargetType *string `json:"target_type"`
+	Status     string  `json:"status"`
+	Path       *string `json:"path"`
+}
+
+func emitPromoteOutput(cmd *cobra.Command, asJSON bool, o promoteOutput, textLine string) error {
+	if asJSON {
+		b, _ := json.Marshal(o)
+		cmd.Println(string(b))
+		return nil
+	}
+	cmd.Println(textLine)
+	return nil
+}
+
+func ptrIfNonEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
 // formatEnumError builds a principle-4 actionable error: offending value,
 // valid values, copy-pasteable corrected invocation. Pass exampleCmd="" to
 // omit the corrected line (used for state-conflict errors with no valid
@@ -157,6 +185,7 @@ func formatEnumError(field, got string, valid []string, exampleCmd string) error
 
 func newInboxPromoteCmd() *cobra.Command {
 	var flagAs string
+	var flagJSON bool
 
 	cmd := &cobra.Command{
 		Use:   "promote <id>",
@@ -196,16 +225,17 @@ func newInboxPromoteCmd() *cobra.Command {
 
 			switch flagAs {
 			case "discard":
-				return discardInbox(cmd, a, id)
+				return discardInbox(cmd, a, id, flagJSON)
 			case "design":
 				return fmt.Errorf("promote to design is out of scope in v0.1")
 			default:
-				return promoteToTyped(cmd, v, a, id, core.Type(flagAs))
+				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON)
 			}
 		},
 	}
 
 	cmd.Flags().StringVar(&flagAs, "as", "", "promotion target type (issue|thread|design|learning|discard)")
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	_ = cmd.MarkFlagRequired("as")
 	return cmd
 }
@@ -213,15 +243,22 @@ func newInboxPromoteCmd() *cobra.Command {
 // promoteToTyped writes the target artifact, then flips the inbox row to
 // status: promoted with provenance fields. Issue is the only target that
 // resolves a project; the others ignore the project field.
-func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type) error {
+func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type, asJSON bool) error {
 	status, _ := inbox.FrontMatter["status"].(string)
 	switch status {
 	case "promoted":
 		recordedType, _ := inbox.FrontMatter["promoted_type"].(string)
 		recordedTo, _ := inbox.FrontMatter["promoted_to"].(string)
 		if recordedType == string(target) {
-			cmd.Println("already promoted", inboxID, "->", recordedType, recordedTo)
-			return nil
+			tt, ti := recordedType, recordedTo
+			return emitPromoteOutput(cmd, asJSON,
+				promoteOutput{
+					ID: inboxID, TargetID: &ti, TargetType: &tt,
+					Status: "already_promoted",
+					Path:   ptrIfNonEmpty(filepath.Join(v.Root, target.Dir(), recordedTo+".md")),
+				},
+				fmt.Sprintf("already promoted %s -> %s %s", inboxID, recordedType, recordedTo),
+			)
 		}
 		return formatEnumError(
 			"--as", string(target), []string{recordedType},
@@ -285,16 +322,26 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		return fmt.Errorf("saving inbox: %w", err)
 	}
 
-	cmd.Println("promoted", inboxID, "->", string(target), targetID)
-	return nil
+	tt := string(target)
+	ti := targetID
+	return emitPromoteOutput(cmd, asJSON,
+		promoteOutput{
+			ID: inboxID, TargetID: &ti, TargetType: &tt,
+			Status: "promoted",
+			Path:   &targetPath,
+		},
+		fmt.Sprintf("promoted %s -> %s %s", inboxID, target, targetID),
+	)
 }
 
-func discardInbox(cmd *cobra.Command, inbox *core.Artifact, inboxID string) error {
+func discardInbox(cmd *cobra.Command, inbox *core.Artifact, inboxID string, asJSON bool) error {
 	status, _ := inbox.FrontMatter["status"].(string)
 	switch status {
 	case "dropped":
-		cmd.Println("already discarded", inboxID)
-		return nil
+		return emitPromoteOutput(cmd, asJSON,
+			promoteOutput{ID: inboxID, Status: "already_discarded"},
+			fmt.Sprintf("already discarded %s", inboxID),
+		)
 	case "promoted":
 		recordedType, _ := inbox.FrontMatter["promoted_type"].(string)
 		recordedTo, _ := inbox.FrontMatter["promoted_to"].(string)
@@ -310,6 +357,8 @@ func discardInbox(cmd *cobra.Command, inbox *core.Artifact, inboxID string) erro
 	if err := inbox.Save(); err != nil {
 		return fmt.Errorf("saving inbox: %w", err)
 	}
-	cmd.Println("discarded", inboxID)
-	return nil
+	return emitPromoteOutput(cmd, asJSON,
+		promoteOutput{ID: inboxID, Status: "discarded"},
+		fmt.Sprintf("discarded %s", inboxID),
+	)
 }
