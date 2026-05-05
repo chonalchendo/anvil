@@ -3,6 +3,7 @@ type: plan
 id: ANV-142
 slug: streaming-token-counter
 title: "Stream-aware token counter"
+description: "Stream-aware token counter for billing/observability."
 created: "2026-04-30"
 updated: "2026-04-30"
 status: draft

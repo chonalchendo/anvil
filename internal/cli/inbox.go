@@ -275,7 +275,9 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 
 	title, _ := inbox.FrontMatter["title"].(string)
 	created := time.Now().UTC().Format("2006-01-02")
-	data := templateData{Title: title, Created: created}
+	// Spine targets require a non-empty description; reuse the inbox title as
+	// the one-liner so promote stays a single-step operation.
+	data := templateData{Title: title, Description: title, Created: created}
 	idInputs := core.IDInputs{Title: title}
 
 	if target == core.TypeIssue {

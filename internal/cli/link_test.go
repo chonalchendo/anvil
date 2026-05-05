@@ -14,7 +14,8 @@ func writeFixturePlan(t *testing.T, vault, project, slug, title string) string {
 		Path: path,
 		FrontMatter: map[string]any{
 			"type": "plan", "id": project + "-" + slug, "slug": slug, "title": title,
-			"created": "2026-04-29", "updated": "2026-04-29", "status": "draft",
+			"description": "fixture description",
+			"created":     "2026-04-29", "updated": "2026-04-29", "status": "draft",
 			"plan_version": 1, "project": project,
 			"issue": "[[issue." + project + "." + slug + "]]",
 			"tasks": []any{map[string]any{

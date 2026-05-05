@@ -104,7 +104,7 @@ func TestSet_MilestoneSystemDesign_RoundTrip(t *testing.T) {
 	a := &core.Artifact{
 		Path: mPath,
 		FrontMatter: map[string]any{
-			"type": "milestone", "title": "CLI substrate", "created": "2026-04-29",
+			"type": "milestone", "title": "CLI substrate", "description": "fixture description", "created": "2026-04-29",
 			"updated": "2026-04-29", "status": "planned", "project": "anvil",
 		},
 	}

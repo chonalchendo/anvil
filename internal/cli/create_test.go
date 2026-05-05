@@ -30,7 +30,7 @@ func TestCreate_Issue_WritesValidFile(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "Fix login bug"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "Fix login bug", "--description", "test description"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -60,7 +60,7 @@ func TestCreateMilestone_NoOrdinal(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate"})
+	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate", "--description", "test description"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestCreate_JSON_ReturnsIDAndPath(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--json"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description", "--json"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -120,7 +120,7 @@ func TestCreate_Decision_TopicScoped(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "decision", "--title", "use jwt", "--topic", "auth"})
+	cmd.SetArgs([]string{"create", "decision", "--title", "use jwt", "--topic", "auth", "--description", "test description"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -140,6 +140,7 @@ func TestCreatePlan_NewSchema_Succeeds(t *testing.T) {
 	cmd.SetArgs([]string{
 		"create", "plan",
 		"--title", "Streaming token counter",
+		"--description", "test description",
 		"--issue", "[[issue.foo.streaming]]",
 	})
 	var out bytes.Buffer
@@ -237,7 +238,7 @@ func TestCreate_Issue_WithBody_FlagRoundTrips(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--body", "## Context\n\nFrom flag."})
+	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description", "--body", "## Context\n\nFrom flag."})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -257,7 +258,7 @@ func TestCreate_Issue_EmptyBody_Unchanged(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "x"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -279,6 +280,7 @@ func TestCreatePlan_BodyReplacesT1Seed_ValidWhenWellFormed(t *testing.T) {
 	cmd.SetArgs([]string{
 		"create", "plan",
 		"--title", "Author body",
+		"--description", "test description",
 		"--issue", "[[issue.foo.streaming]]",
 		"--body", body,
 	})
@@ -338,7 +340,7 @@ func TestCreateMilestone_SeedsAcceptanceSlot(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate"})
+	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate", "--description", "test description"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -365,7 +367,7 @@ func TestCreate_ProductDesign_WritesValidFile(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "product-design", "--title", "Anvil product design"})
+	cmd.SetArgs([]string{"create", "product-design", "--title", "Anvil product design", "--description", "test description"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -398,7 +400,7 @@ func TestCreate_ProductDesign_RefusesOverwrite(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "product-design", "--title", "First"})
+	cmd.SetArgs([]string{"create", "product-design", "--title", "First", "--description", "test description"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("first create: %v", err)
 	}
@@ -406,7 +408,7 @@ func TestCreate_ProductDesign_RefusesOverwrite(t *testing.T) {
 	first, _ := os.ReadFile(path)
 
 	cmd2 := newRootCmd()
-	cmd2.SetArgs([]string{"create", "product-design", "--title", "Second"})
+	cmd2.SetArgs([]string{"create", "product-design", "--title", "Second", "--description", "test description"})
 	var stderr bytes.Buffer
 	cmd2.SetErr(&stderr)
 	cmd2.SetOut(&stderr)
@@ -442,7 +444,7 @@ func TestCreate_Sweep_BreakingTrue(t *testing.T) {
 	t.Chdir(t.TempDir()) // not a git repo — sweep is exempt
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "sweep", "--title", "CLI rename", "--scope", "cli", "--breaking"})
+	cmd.SetArgs([]string{"create", "sweep", "--title", "CLI rename", "--description", "test description", "--scope", "cli", "--breaking"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -473,7 +475,7 @@ func TestCreate_Sweep_BreakingFalseExplicit(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "sweep", "--title", "Docs polish", "--scope", "docs", "--breaking=false"})
+	cmd.SetArgs([]string{"create", "sweep", "--title", "Docs polish", "--description", "test description", "--scope", "docs", "--breaking=false"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create sweep: %v", err)
 	}
@@ -531,7 +533,7 @@ func TestCreate_SystemDesign_WritesValidFile(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "system-design", "--title", "Anvil system design"})
+	cmd.SetArgs([]string{"create", "system-design", "--title", "Anvil system design", "--description", "test description"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v", err)
 	}

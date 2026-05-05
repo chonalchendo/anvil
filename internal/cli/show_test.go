@@ -17,7 +17,7 @@ func writeFixtureIssue(t *testing.T, vault, project, slug, title string) string 
 	a := &core.Artifact{
 		Path: path,
 		FrontMatter: map[string]any{
-			"type": "issue", "title": title, "created": "2026-04-29",
+			"type": "issue", "title": title, "description": "fixture description", "created": "2026-04-29",
 			"updated": "2026-04-29", "status": "open", "project": project, "severity": "medium",
 		},
 		Body: "## Context\n\nfixture body.\n",
@@ -121,7 +121,7 @@ func TestShowValidate_Issue_DanglingMilestone(t *testing.T) {
 	a := &core.Artifact{
 		Path: p,
 		FrontMatter: map[string]any{
-			"type": "issue", "title": "x", "created": "2026-04-29",
+			"type": "issue", "title": "x", "description": "fixture description", "created": "2026-04-29",
 			"status": "open", "project": "foo", "severity": "low",
 			"milestone": "[[milestone.foo.ghost]]",
 		},
@@ -152,7 +152,7 @@ func TestShowValidate_Milestone_DanglingArrayEntry(t *testing.T) {
 	a := &core.Artifact{
 		Path: p,
 		FrontMatter: map[string]any{
-			"type": "milestone", "title": "M", "created": "2026-04-29",
+			"type": "milestone", "title": "M", "description": "fixture description", "created": "2026-04-29",
 			"status": "planned", "project": "foo",
 			"related": []any{"[[issue.foo.ghost]]"},
 		},
@@ -180,7 +180,7 @@ func TestShowValidate_Issue_BadSchema(t *testing.T) {
 	a := &core.Artifact{
 		Path: p,
 		FrontMatter: map[string]any{
-			"type": "issue", "title": "x", "created": "2026-04-29",
+			"type": "issue", "title": "x", "description": "fixture description", "created": "2026-04-29",
 			"status": "open", "project": "foo",
 		},
 	}
@@ -204,7 +204,7 @@ func TestShowValidate_JSON(t *testing.T) {
 	a := &core.Artifact{
 		Path: p,
 		FrontMatter: map[string]any{
-			"type": "issue", "title": "x", "created": "2026-04-29",
+			"type": "issue", "title": "x", "description": "fixture description", "created": "2026-04-29",
 			"status": "open", "project": "foo", "severity": "low",
 			"milestone": "[[milestone.foo.ghost]]",
 		},

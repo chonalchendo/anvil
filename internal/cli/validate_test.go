@@ -18,7 +18,7 @@ func TestValidate_GoodVault(t *testing.T) {
 
 	// Add one valid issue.
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "good"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "good", "--description", "test description"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}

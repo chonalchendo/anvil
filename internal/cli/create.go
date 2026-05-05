@@ -26,6 +26,7 @@ import (
 type templateData struct {
 	Title            string
 	Created          string
+	Description      string
 	Project          string
 	SuggestedType    string
 	SuggestedProject string
@@ -44,6 +45,7 @@ type templateData struct {
 func newCreateCmd() *cobra.Command {
 	var (
 		flagTitle            string
+		flagDescription      string
 		flagProject          string
 		flagTopic            string
 		flagSuggestedType    string
@@ -127,6 +129,7 @@ func newCreateCmd() *cobra.Command {
 			data := templateData{
 				Title:            flagTitle,
 				Created:          created,
+				Description:      flagDescription,
 				Project:          project,
 				SuggestedType:    flagSuggestedType,
 				SuggestedProject: flagSuggestedProject,
@@ -191,6 +194,7 @@ func newCreateCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&flagTitle, "title", "", "artifact title (required)")
+	cmd.Flags().StringVar(&flagDescription, "description", "", "one-line summary (1-120 chars, required for spine types)")
 	cmd.Flags().StringVar(&flagProject, "project", "", "project slug (overrides auto-detected)")
 	cmd.Flags().StringVar(&flagTopic, "topic", "", "decision topic slug (required for decision)")
 	cmd.Flags().StringVar(&flagSuggestedType, "suggested-type", "", "suggested type (inbox only)")
