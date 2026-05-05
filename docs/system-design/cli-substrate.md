@@ -27,6 +27,10 @@ anvil project    list | switch | adopt | current
 
 `anvil session log` was cut as redundant — session transcripts are written by the agent CLIs themselves; the active plan file is the canonical handoff.
 
+**Reads split by shape.** Known-path content uses `Read`/`grep` directly — nothing to validate, and a wrapper just adds latency and a failure surface. Structured queries across typed frontmatter use `list <type> --filters`, where the SQLite index does joins `grep` can't. No `anvil read`.
+
+**Edits split the same way.** `set` is for typed fields (validated like `create`); body prose stays raw markdown, edited in place.
+
 `tags list` walks the vault and aggregates `tags` frontmatter into a deduped (tag, count) list. Used by artifact-creating skills to discover existing taxonomy before proposing new tags — minimizing tag drift.
 
 **Project identity resolution** (three-step fallback): explicit `anvil project adopt <slug>` binding (recorded in `~/.anvil/projects/<slug>/.binding`) → git remote URL → refuse with clear error. The adopted binding takes precedence so an explicit user override always wins over the inferred one. No magic cwd-basename fallback.

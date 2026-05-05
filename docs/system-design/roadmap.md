@@ -59,17 +59,12 @@ Gaps from the 2026-05-04 audit of every implemented verb against
 → Optimization. Severity is a prioritisation tag only.
 
 - [ ] `create`: re-running with same `--title` (slug) allocates a new ID (`slug-2`, `slug-3`) instead of returning the existing ID.
-  Detect existing artifact by slug+project; return existing ID and exit 0; require `--update` for content drift. (Blocker)
-- [ ] `list`: no `--limit`; defaults to unbounded output, busting agent context budget on large vaults.
-  Add `--limit` (default 50); print narrowing hint to stderr citing available filters when truncated. (Blocker)
-- [ ] `inbox list`: same unbounded result-set as `list` (delegates to `runList` without `--limit`).
-  Thread `--limit` (default 50) through `runList`; emit narrowing hint on truncation. (Blocker)
-- [ ] `show`: no `--full`/summary mode; full body dumped on every call regardless of size.
-  Default to header + first N lines summary; require `--full` for entire body; bound JSON `body` field too. (Blocker)
-- [ ] `project list`: no `--json` — read-shape verb without machine output (rule 2 mandates `--json` on read verbs).
-  Add `--json` emitting `[{slug, root}, …]`; document shape in `--help`. (Blocker)
-- [ ] `validate`: errors are flat strings — no offending field, no schema-derived valid values, no copy-pasteable correction.
-  Structure failures as `{path, field, got, valid_values, fix}` (with `--json`); humanise prose mode the same way. (Blocker)
+  Detect existing artifact by slug+project; return existing ID and exit 0; require `--update` for content drift. (Blocker — carved out of Bundle E into a follow-up spec.)
+- [x] ~~`list`: no `--limit`; defaults to unbounded output, busting agent context budget on large vaults.~~ **done** (2026-05-05, spec `2026-05-05-bounded-structured-reads-design`) — `--limit` (default 10), recency-desc sort, `--since`/`--until`, JSON envelope `{items,total,returned,truncated}`, stderr truncation hint when truncated.
+- [x] ~~`inbox list`: same unbounded result-set as `list` (delegates to `runList` without `--limit`).~~ **done** (2026-05-05, same spec) — same flag set threaded through `runList`; status:raw default preserved.
+- [x] ~~`show`: no `--full`/summary mode; full body dumped on every call regardless of size.~~ **done** (2026-05-05, same spec) — frontmatter-only default (the curated `description` IS the summary); `--full` populates body up to 500 lines with stderr clip hint; JSON nests frontmatter under `"frontmatter"` key with `body`/`body_truncated`/`body_lines_total`.
+- [x] ~~`project list`: no `--json` — read-shape verb without machine output (rule 2 mandates `--json` on read verbs).~~ **done** (2026-05-05, same spec) — flat array `[{slug, root}, …]`.
+- [x] ~~`validate`: errors are flat strings — no offending field, no schema-derived valid values, no copy-pasteable correction.~~ **done** (2026-05-05, same spec) — structured `{code, path, field, got, expected?, fix?}` shape via `internal/cli/errfmt`; codes `enum_violation`/`missing_required`/`type_mismatch`/`constraint_violation`/`unresolved_link`; text mode renders blank-line-separated blocks.
 
 - [ ] `create`: enum validation errors surface raw schema messages — no "valid values: …" / "corrected: …" pattern from principle 4.
   Wrap schema errors via a helper that pulls enum from schema and reformats with corrected invocation. (Friction)
@@ -87,32 +82,27 @@ Gaps from the 2026-05-04 audit of every implemented verb against
   Emit on stdout in text mode; always include `"project": null` in JSON. (Friction)
 - [ ] `where`: uses `fmt.Fprintln` instead of `cmd.Println` — bypasses cobra output redirection (rule 6).
   Switch all output to `cmd.Println` / `cmd.PrintErrln`. (Friction)
-- [ ] `create`: `--json` branch uses `fmt.Fprintln(cmd.OutOrStdout(), …)` instead of `cmd.Println` — minor consistency violation of rule 6.
-  Use `cmd.Println`; same pattern in `inbox add` and `runList`/`runShow` JSON branches. (Friction)
-- [ ] `inbox add`: same `fmt.Fprintln`-on-JSON pattern as `create`.
-  Switch JSON emit to `cmd.Println`. (Friction)
+- [ ] `create`: `--json` branch uses `fmt.Fprintln(cmd.OutOrStdout(), …)` — leftover from before we discovered cobra's `cmd.Print`/`Println`/`Printf` actually default to **stderr** (`OutOrStderr`, command.go:1436); test buffers masked it. The codebase-wide convention is now `fmt.Fprintln(cmd.OutOrStdout(), …)` for stdout. `show`/`list`/`project list`/`validate` migrated 2026-05-05; `create` and `inbox add` still pending. (Friction)
+- [ ] `inbox add`: same `fmt.Fprintln(cmd.OutOrStdout(), …)` pattern — keep as-is, but verify other code paths in `inbox.go` (e.g. `cmd.Println(textLine)`) route to stdout via `fmt.Fprintln(cmd.OutOrStdout(), …)`. (Friction)
 - [ ] `list`: text mode produces tab-separated triples with no header and no count footer — agent can't tell if result was empty vs truncated.
-  Print `(N items)` footer to stderr; consider header line in text mode behind `--header`. (Friction)
-- [ ] `list`: JSON returns flat array; no metadata envelope (count, truncated flag) so agent can't detect truncation programmatically.
-  When `--limit` truncates, emit `{items, total, truncated: true}` or set narrowing hint on stderr regardless. (Friction)
+  Print `(N items)` footer to stderr; consider header line in text mode behind `--header`. **partial 2026-05-05** (same spec) — truncation hint emitted to stderr when `returned < total`; no count footer when complete. (Friction)
+- [x] ~~`list`: JSON returns flat array; no metadata envelope (count, truncated flag) so agent can't detect truncation programmatically.~~ **done** (2026-05-05, same spec) — envelope is `{items, total, returned, truncated}`.
 - [ ] `project current`: error wrapping (`no current project: …`) doesn't include actionable next step.
   Enrich error with `run \`anvil project adopt <slug>\` or \`anvil project switch <slug>\``. (Friction)
 - [ ] `project switch`: success prints nothing; agent can't confirm pointer moved.
   Print `switched to <slug>`; add `--json` for `{slug, root}`. (Friction)
 - [ ] `project adopt`: success prints nothing; idempotence on re-adopt unclear from output.
   Print `adopted <slug> at <root>` or `already adopted`; add `--json` mirror. (Friction)
-- [ ] `inbox promote`: error path lists choices but no copy-pasteable corrected command.
-  Include `anvil inbox promote <id> --as issue` example in error body. (Friction)
-- [ ] `inbox promote`: not idempotent — re-running after success errors with `ArtifactNotFound` (inbox file removed) instead of returning existing target.
-  Check whether equivalent target already exists; if so, exit 0 with target id. (Friction)
-- [ ] `show --validate`: text mode mixes `schema: ok` on stdout with link errors on stderr — interleaving makes parsing fragile.
-  Route diagnostic summary entirely to stderr; reserve stdout for canonical artifact view. (Friction)
+- [x] ~~`inbox promote`: error path lists choices but no copy-pasteable corrected command.~~ **done** (2026-05-05, spec `2026-05-04-inbox-promote-idempotent-design`) — `formatEnumError` helper emits `corrected:` line.
+- [x] ~~`inbox promote`: not idempotent — re-running after success errors with `ArtifactNotFound` (inbox file removed) instead of returning existing target.~~ **done** (2026-05-05, same spec) — status flip on inbox; re-runs return `already_promoted` / `already_discarded`.
+- [ ] **fang renderer squashes multi-line errors** — `formatEnumError` (and any future `\n`-separated error body) is collapsed onto one line, capitalised, and period-suffixed by fang's terminal pretty-printer. Defeats principle 4's separable shape (offending value / valid values / corrected line) for human-and-agent grep-ability. Affects every cobra error in the CLI, not just `inbox promote`.
+  Decide between (a) bypassing fang for structured errors, (b) configuring fang to preserve newlines, or (c) emitting these as `cmd.PrintErrln` before returning a sentinel error. Bundle F candidate. (Friction)
+- [x] ~~`show --validate`: text mode mixes `schema: ok` on stdout with link errors on stderr — interleaving makes parsing fragile.~~ **done** (2026-05-05, same spec) — text mode emits the artifact view to stdout via `emitFrontMatterText`, all `schema:`/`links:` diagnostics route through `cmd.PrintErrln`.
 - [ ] `init`: writes embedded schemas with `os.WriteFile` (overwrites) every run — destructive on second run if user customised schemas.
   Skip write when target exists and content matches; `--force` to overwrite; warn on drift. (Friction)
 - [ ] `install hooks`: `--uninstall` is a flag on the same verb; an explicit `install hooks remove` (or symmetric `uninstall`) is more discoverable.
   Keep `--uninstall` but add help example; consider sibling `uninstall hooks` later. (Friction)
-- [ ] `root flags`: no global `--vault` / `--project` override flags — agent stuck with cwd resolution; no global `--json` default.
-  Add persistent `--vault`, `--project` flags on root; document precedence in `anvil --help`. (Friction)
+- [x] ~~`root flags`: no global `--vault` / `--project` override flags — agent stuck with cwd resolution; no global `--json` default.~~ **done** (2026-05-05, same spec) — persistent `--vault`/`--project` on root; precedence flag > env (`ANVIL_VAULT`/`ANVIL_PROJECT`) > cwd resolution; help text documents precedence. Global `--json` deferred.
 
 - [ ] `where`: `--help` shows flags only; no example, no link to deeper docs (principle 3).
   Add cobra `Example` block (`anvil where --json`); pointer to system-design doc. (Optimization)
@@ -122,10 +112,8 @@ Gaps from the 2026-05-04 audit of every implemented verb against
   Add at least one `Example` per verb with realistic flag values. (Optimization)
 - [ ] `list`: `--tag` (substring) and `--tags` (all-of) coexist — naming is confusable.
   Deprecate `--tag`, recommend `--tags`; document precedence in `--help`. (Optimization)
-- [ ] `show`: `--json` shape mixes frontmatter keys flat with `body`/`path` — collisions possible if a frontmatter field is literally `body` or `path`.
-  Nest frontmatter under `"frontmatter"` key; document stable shape. (Optimization)
-- [ ] `list`: JSON list omits per-item `created`/`project`/`tags` fields useful for agent filtering downstream.
-  Document stable JSON shape; consider adding common spine fields (`project`, `created`). (Optimization)
+- [x] ~~`show`: `--json` shape mixes frontmatter keys flat with `body`/`path` — collisions possible if a frontmatter field is literally `body` or `path`.~~ **done** (2026-05-05, same spec) — frontmatter nested under `"frontmatter"` key; envelope keys are `id`/`path`/`frontmatter`/`body`/`body_truncated`/`body_lines_total`.
+- [x] ~~`list`: JSON list omits per-item `created`/`project`/`tags` fields useful for agent filtering downstream.~~ **done** (2026-05-05, same spec) — items now include `id`/`type`/`title`/`description`/`status`/`created`/`project`/`tags`/`path`.
 - [ ] `validate`: re-running after fix produces same scan cost; `--since` or `--paths` could narrow.
   Add `--paths` / `--type` filter to scope re-validation. (Optimization)
 - [ ] `migrate`: no `--dry-run`; re-running after success is silent (`migration complete`) with no indication that 0 files changed.
@@ -148,13 +136,16 @@ Gaps from the 2026-05-04 audit of every implemented verb against
 ## Spec order
 
 **Phase A — unblock the workflow:**
-~~#1 brainstorm-merge → #5 body authoring~~ → #7 → ~~#8, #6, #9, #10, #11~~ → #4 extract-skill fix.
+~~#1 brainstorm-merge → #5 body authoring~~ → #7 (+ inbox-promote agent-cli fixes) → ~~#8, #6, #9, #10, #11~~ → #4 extract-skill fix.
+
+**Phase A.5 — agent-CLI Blockers (gate Phase B):**
+~~Bundle E.~~ **done 2026-05-05** (spec `2026-05-05-bounded-structured-reads-design`) except the `create` slug-collision Blocker, carved out into a follow-up spec. `list`/`show`/`validate` are now bounded and machine-readable; Phase B can drive them.
 
 **Phase B — orchestrator:**
 #12a adapters → #12b build telemetry → #12c `anvil build`.
 
 **Phase C — ship:**
-#13, #14, #15, #16, #17, #18–21.
+#13, #14, #15, #16, #17, #18–21 (+ Bundle F friction sweep alongside).
 
 #2 (research skill) and #3 (using-anvil skill) are independent and can land anywhere in Phase A.
 
@@ -162,9 +153,13 @@ Gaps from the 2026-05-04 audit of every implemented verb against
 
 Items that ship together as a single spec/PR:
 
-- **A — CLI-surface fills:** #7 + #4 (cheap-fix path). Both small CLI verbs; if #4 takes the "add `skill` as Type" route it reuses the product-design/system-design/sweep shape end-to-end.
+- **A — CLI-surface fills:** ~~#7 + the two `inbox promote` agent-cli items (non-idempotent re-run; error path missing corrected command)~~ **done 2026-05-05** + #4 (cheap-fix path). #4 reuses the product-design/system-design/sweep shape if it takes the "add `skill` as Type" route.
 - **B — Doc cleanup:** #19 + #20 + #21. File moves + index fixes, no code.
 - **C — Release pipeline:** #14 + #15 (+ #16 v0.1 entry). Config and the docs that describe it must not drift.
 - **D — Public-facing docs:** #13 + #18. README rewrite has to resolve the `anvil compile` contradiction anyway.
+- **E — Agent-CLI Blockers:** ~~`list --limit`, `inbox list --limit`, `show --full`, `project list --json`, structured `validate` errors~~ **done 2026-05-05** (spec `2026-05-05-bounded-structured-reads-design`); also pulled in adjacent Friction (root `--vault`/`--project`, `show --validate` stream split, `list --json` envelope + per-item fields, `show --json` nested frontmatter, `cmd.Println` → `fmt.Fprintln(cmd.OutOrStdout())` migration for show/list/project/validate). `create` slug collision deferred to a follow-up spec.
+- **F — Agent-CLI Friction sweep:** remaining Friction items — `set`/`link`/`where`/`project *` output + idempotence; `cmd.Println` consistency on `create` and `inbox add` JSON branches; `init` overwrite guard; fang multi-line-error squashing. Mechanical; lands alongside Phase C doc cleanup.
+
+**Deferred to v0.2 unless cheap:** the Optimization-tagged items (cobra `Example` blocks, `--json` shape stability, `--paths` filters, `--dry-run` on `migrate`).
 
 **Don't bundle:** #3 waits on #7/#4 so it documents the final surface; #2 needs a brainstorm pass; #12a/b/c is its own sequenced bundle and is the v0.1 main event.

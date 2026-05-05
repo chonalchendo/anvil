@@ -41,6 +41,7 @@ This is the live system-design reference. Long-form rationale and history live i
 - **[Agent adapters](system-design/adapters.md)** — agent-adapter work: implementing or modifying claude-code / codex integrations. Covers the AgentAdapter contract, subprocess streaming gotchas, and failure handling.
 - **[Telemetry](system-design/telemetry.md)** — telemetry, cost capture, SQLite event store.
 - **[Skill-based execution](system-design/skill-execution.md)** — skill registry, auto-discovery, CI-vs-orchestrator split.
+- **[v0.1 roadmap](system-design/roadmap.md)** — punch list of what must ship before v0.1, ordered into Phase A/B/C.
 
 ## Architectural overview
 
