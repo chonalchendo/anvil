@@ -149,6 +149,21 @@ Write the SKILL.md to that path. If the user is contributing the skill back to A
 
 ### 6. Validate before declaring done
 
-Run Anvil's CI checks against the new skill (`quick_validate.py`, body-length, namespace-handoff, ALL-CAPS proliferation, `# prettier-ignore` presence, negative-trigger presence). Surface every warning to the user. Validation failures must be fixed before the skill is considered shipped — silent registration breakage from frontmatter drift is the documented #2 failure mode at scale.
+Walk this checklist against the file just written. Each item cites `docs/skill-authoring.md` as the rule source — do not restate rules here. Report each as `ok`, `warn`, or `fail`.
+
+1. **`# prettier-ignore` line present** as the first line of the file, immediately above the opening `---` of frontmatter. (`docs/skill-authoring.md` → Frontmatter rules.)
+2. **Frontmatter parses as YAML** and uses only allow-listed top-level keys: `name`, `description`, `license`, `allowed-tools`, `metadata`, `compatibility`. (`docs/skill-authoring.md` → Frontmatter rules.)
+3. **`name`** matches `^[a-z0-9-]+$`, ≤64 characters, no consecutive/leading/trailing hyphens, not `claude` or `anthropic`. (`docs/skill-authoring.md` → Frontmatter rules.)
+4. **`description`** ≤250 characters and contains no `<` or `>`. For workflow skills, reads as triggers-only (no summary of what the skill does). (`docs/skill-authoring.md` → Description rules.)
+5. **Body line count.** Count from the line *after* the closing `---` of frontmatter to EOF (`wc -l` on that range). Warn at >200; refuse to ship at >500. (`docs/skill-authoring.md` → Body rules.)
+6. **One Iron Law maximum.** At most one ALL-CAPS imperative paragraph in the body. (`docs/skill-authoring.md` → Body rules.)
+7. **Namespace-qualified handoffs.** Every `**REQUIRED SUB-SKILL:**` line names its skill with a namespace prefix (`anvil:`, `superpowers:`, etc.). (`docs/skill-authoring.md` → Body rules.)
+8. **Sibling negative triggers.** The description names plausibly-overlapping sibling skills as negative triggers. Judgment call — list the siblings you considered. (`docs/skill-authoring.md` → Description rules.)
+
+Surface the per-check results to the user:
+
+> Validation results: <list ok / warn / fail per item>. Failures must be fixed before the skill ships. Warnings — accept as-is, or iterate?
+>
+> Wait for the user's response.
 
 The skill is provisional from this point. The confidence-progression criteria above are the gate for bumping it; reuse is the only thing that earns the bump.

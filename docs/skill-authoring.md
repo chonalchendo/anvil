@@ -113,7 +113,7 @@ Per Anthropic's skill-building guide ("iterate on a single task before expanding
 2. **Do it for real with Claude Code.** Iterate until it works.
 3. **Run the meta-skill** (`extracting-skill-from-session` for workflows, `researching-domain` for knowledge bootstraps, `synthesizing-knowledge-skill` for refreshes).
 4. **Meta-skill produces SKILL.md** via `writing-skills`.
-5. **Test before shipping.** 10-20 trigger-eval queries (mix of should-fire / should-NOT-fire), 3 runs each. Aim ≥90% on relevant, ≤10% on unrelated. CI runs this on new skills.
+5. **Test before shipping.** 10-20 trigger-eval queries (mix of should-fire / should-NOT-fire), 3 runs each. Aim ≥90% on relevant, ≤10% on unrelated. Trigger-eval harness deferred to v0.2+; in v0.1 the authoring agent self-checks the trigger contract during phase 6 of `extracting-skill-from-session`.
 6. **Iterate on real use.** Skills are living. Each gap → learning; refresh periodically.
 
 ## Diagrams as deliverable content
@@ -147,4 +147,4 @@ Runs against every PR that touches a skill:
 - `# prettier-ignore` present above frontmatter.
 - Library smoke test: load all enabled methodology skills against a diverse prompt set; check for conflicts and context-budget overruns.
 
-Smoke test is load-bearing. Individual skills can validate cleanly but interact badly when co-loaded. v0.1 ships with it.
+Smoke test is load-bearing in principle: individual skills can validate cleanly but interact badly when co-loaded. Deferred to v0.2+; v0.1 relies on hand-vetted bundling of the methodology skills.
