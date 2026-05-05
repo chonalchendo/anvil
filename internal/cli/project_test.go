@@ -70,6 +70,40 @@ func TestProject_AdoptAndList(t *testing.T) {
 	}
 }
 
+func TestProjectList_JSON(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	dir := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(dir)
+	if err := core.AdoptProject("foo"); err != nil {
+		t.Fatal(err)
+	}
+	dir2 := setupGitRepo(t, "git@github.com:acme/bar.git")
+	t.Chdir(dir2)
+	if err := core.AdoptProject("bar"); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"project", "list", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var got []map[string]string
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
+	}
+	if len(got) != 2 {
+		t.Errorf("len=%d want 2", len(got))
+	}
+	for _, p := range got {
+		if p["slug"] == "" || p["root"] == "" {
+			t.Errorf("slug/root missing in %v", p)
+		}
+	}
+}
+
 func TestProject_Switch(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

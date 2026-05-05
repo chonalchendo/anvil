@@ -48,20 +48,33 @@ func newProjectCurrentCmd() *cobra.Command {
 }
 
 func newProjectListCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "list",
-		Short: "List adopted projects",
+	var asJSON bool
+	cmd := &cobra.Command{
+		Use:     "list",
+		Short:   "List adopted projects",
+		Example: "  anvil project list\n  anvil project list --json",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			projects, err := core.ListProjects()
 			if err != nil {
 				return err
 			}
+			if asJSON {
+				out := make([]map[string]string, 0, len(projects))
+				for _, p := range projects {
+					out = append(out, map[string]string{"slug": p.Slug, "root": p.Root})
+				}
+				b, _ := json.Marshal(out)
+				cmd.Println(string(b))
+				return nil
+			}
 			for _, p := range projects {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\n", p.Slug, p.Root)
+				cmd.Printf("%s\t%s\n", p.Slug, p.Root)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON")
+	return cmd
 }
 
 func newProjectAdoptCmd() *cobra.Command {
