@@ -97,23 +97,25 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, 
 		out.Body = &shown
 	}
 
+	w := cmd.OutOrStdout()
 	if asJSON {
 		b, _ := json.Marshal(out)
-		cmd.Println(string(b))
+		fmt.Fprintln(w, string(b))
 		return nil
 	}
 
 	emitFrontMatterText(cmd, a.FrontMatter)
 	if full && out.Body != nil {
-		cmd.Println("---")
-		cmd.Print(*out.Body)
+		fmt.Fprintln(w, "---")
+		fmt.Fprint(w, *out.Body)
 	}
 	return nil
 }
 
 func emitFrontMatterText(cmd *cobra.Command, fm map[string]any) {
-	cmd.Println("---")
+	w := cmd.OutOrStdout()
+	fmt.Fprintln(w, "---")
 	enc, _ := json.MarshalIndent(fm, "", "  ")
-	cmd.Println(string(enc))
-	cmd.Println("---")
+	fmt.Fprintln(w, string(enc))
+	fmt.Fprintln(w, "---")
 }

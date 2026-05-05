@@ -89,7 +89,7 @@ func newValidateCmd() *cobra.Command {
 					failures = []*errfmt.ValidationError{}
 				}
 				b, _ := json.Marshal(failures)
-				cmd.Println(string(b))
+				fmt.Fprintln(cmd.OutOrStdout(), string(b))
 			} else {
 				for i, f := range failures {
 					if i > 0 {

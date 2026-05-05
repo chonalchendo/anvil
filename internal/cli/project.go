@@ -58,17 +58,18 @@ func newProjectListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			w := cmd.OutOrStdout()
 			if asJSON {
 				out := make([]map[string]string, 0, len(projects))
 				for _, p := range projects {
 					out = append(out, map[string]string{"slug": p.Slug, "root": p.Root})
 				}
 				b, _ := json.Marshal(out)
-				cmd.Println(string(b))
+				fmt.Fprintln(w, string(b))
 				return nil
 			}
 			for _, p := range projects {
-				cmd.Printf("%s\t%s\n", p.Slug, p.Root)
+				fmt.Fprintf(w, "%s\t%s\n", p.Slug, p.Root)
 			}
 			return nil
 		},

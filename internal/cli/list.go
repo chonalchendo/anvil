@@ -180,8 +180,9 @@ func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool) erro
 	if asJSON {
 		return output.WriteListJSON(cmd.OutOrStdout(), items, total, returned)
 	}
+	w := cmd.OutOrStdout()
 	for _, item := range items {
-		cmd.Printf("%s\t%s\t%s\n", item.ID, item.Status, firstNonEmpty(item.Description, item.Title))
+		fmt.Fprintf(w, "%s\t%s\t%s\n", item.ID, item.Status, firstNonEmpty(item.Description, item.Title))
 	}
 	if hint := output.TruncationHint("most recent", returned, total,
 		[]string{"--since/--until", "--status", "--type", "--tag", "--project"}); hint != "" {
