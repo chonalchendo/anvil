@@ -531,6 +531,66 @@ func TestInboxPromote_JSON_AlreadyDiscarded(t *testing.T) {
 	}
 }
 
+func TestInboxList_DefaultsToRaw(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	// Seed: one raw, one promoted, one dropped.
+	for _, title := range []string{"raw-one", "to-promote", "to-drop"} {
+		add := newRootCmd()
+		add.SetArgs([]string{"inbox", "add", "--title", title})
+		if err := add.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	if len(entries) != 3 {
+		t.Fatalf("expected 3 inbox files, got %d", len(entries))
+	}
+	ids := make([]string, 0, 3)
+	for _, e := range entries {
+		ids = append(ids, strings.TrimSuffix(e.Name(), ".md"))
+	}
+	// ids are sorted by filename; titles encode position.
+	promoteCmd := newRootCmd()
+	promoteCmd.SetArgs([]string{"inbox", "promote", ids[1], "--as", "thread"})
+	if err := promoteCmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	discardCmd := newRootCmd()
+	discardCmd.SetArgs([]string{"inbox", "promote", ids[2], "--as", "discard"})
+	if err := discardCmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	listJSON := func(t *testing.T, args ...string) []map[string]any {
+		t.Helper()
+		cmd := newRootCmd()
+		cmd.SetArgs(append([]string{"inbox", "list"}, args...))
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("list %v: %v", args, err)
+		}
+		var items []map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimSpace(out.String())), &items); err != nil {
+			t.Fatalf("unmarshal %q: %v", out.String(), err)
+		}
+		return items
+	}
+
+	if got := listJSON(t, "--json"); len(got) != 1 || got[0]["status"] != "raw" {
+		t.Errorf("default list = %+v, want one raw entry", got)
+	}
+	if got := listJSON(t, "--all", "--json"); len(got) != 3 {
+		t.Errorf("--all list len = %d, want 3", len(got))
+	}
+	if got := listJSON(t, "--status", "promoted", "--json"); len(got) != 1 || got[0]["status"] != "promoted" {
+		t.Errorf("--status promoted = %+v", got)
+	}
+}
+
 func TestInboxAdd_WithBody(t *testing.T) {
 	vault := setupVault(t)
 	t.Setenv("HOME", t.TempDir())

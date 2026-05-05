@@ -99,7 +99,7 @@ func newInboxAddCmd() *cobra.Command {
 
 func newInboxListCmd() *cobra.Command {
 	var flagStatus, flagTag string
-	var flagJSON bool
+	var flagJSON, flagAll bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -109,12 +109,17 @@ func newInboxListCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			return runList(cmd, v, core.TypeInbox, listFilters{Status: flagStatus, Tag: flagTag}, flagJSON)
+			status := flagStatus
+			if status == "" && !flagAll {
+				status = "raw"
+			}
+			return runList(cmd, v, core.TypeInbox, listFilters{Status: status, Tag: flagTag}, flagJSON)
 		},
 	}
 
 	cmd.Flags().StringVar(&flagStatus, "status", "", "filter by status (exact match)")
 	cmd.Flags().StringVar(&flagTag, "tag", "", "filter by tag (substring match)")
+	cmd.Flags().BoolVar(&flagAll, "all", false, "include promoted and dropped entries (default: only raw)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	return cmd
 }
