@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/chonalchendo/anvil/internal/core"
@@ -33,14 +34,14 @@ func TestShow_Text(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "bar", "Bar issue")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"show", "issue", "foo.bar"})
+	cmd.SetArgs([]string{"show", "issue", "foo.bar", "--full"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
 	got := out.String()
-	if !bytes.Contains(out.Bytes(), []byte("title: \"Bar issue\"")) && !bytes.Contains(out.Bytes(), []byte("title: Bar issue")) {
+	if !bytes.Contains(out.Bytes(), []byte("Bar issue")) {
 		t.Errorf("title missing from output:\n%s", got)
 	}
 	if !bytes.Contains(out.Bytes(), []byte("fixture body")) {
@@ -53,7 +54,7 @@ func TestShow_JSON(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "bar", "Bar issue")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"show", "issue", "foo.bar", "--json"})
+	cmd.SetArgs([]string{"show", "issue", "foo.bar", "--full", "--json"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -63,14 +64,95 @@ func TestShow_JSON(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
 	}
-	if got["title"] != "Bar issue" {
-		t.Errorf("title = %v", got["title"])
+	fm, ok := got["frontmatter"].(map[string]any)
+	if !ok {
+		t.Fatalf("frontmatter not nested object: %v", got["frontmatter"])
+	}
+	if fm["title"] != "Bar issue" {
+		t.Errorf("title = %v", fm["title"])
 	}
 	if _, ok := got["body"].(string); !ok {
 		t.Errorf("body missing or not string: %v", got["body"])
 	}
 	if _, ok := got["path"].(string); !ok {
 		t.Errorf("path missing or not string: %v", got["path"])
+	}
+}
+
+func TestShow_DefaultIsFrontmatterOnly(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "bar", "Bar issue")
+	cmd := newRootCmd()
+	out, _, _ := runCmd(t, cmd, "show", "issue", "foo.bar", "--json")
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if got["body"] != nil {
+		t.Errorf("body=%v, want nil in default mode", got["body"])
+	}
+	if got["body_truncated"] != false {
+		t.Error("body_truncated should be false in default mode")
+	}
+	if _, ok := got["frontmatter"].(map[string]any); !ok {
+		t.Error("frontmatter should be nested object")
+	}
+}
+
+func TestShow_FullPopulatesBody(t *testing.T) {
+	vault := setupVault(t)
+	p := filepath.Join(vault, "70-issues", "foo.bar.md")
+	a := &core.Artifact{
+		Path: p,
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "x", "description": "d", "created": "2026-04-29",
+			"status": "open", "project": "foo", "severity": "low",
+		},
+		Body: "body content",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newRootCmd()
+	out, _, _ := runCmd(t, cmd, "show", "issue", "foo.bar", "--full", "--json")
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["body"] != "body content" {
+		t.Errorf("body=%v, want \"body content\"", got["body"])
+	}
+}
+
+func TestShow_FullClipAt500Lines(t *testing.T) {
+	vault := setupVault(t)
+	body := strings.Repeat("line\n", 600)
+	p := filepath.Join(vault, "70-issues", "foo.bar.md")
+	a := &core.Artifact{
+		Path: p,
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "x", "description": "d", "created": "2026-04-29",
+			"status": "open", "project": "foo", "severity": "low",
+		},
+		Body: body,
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newRootCmd()
+	out, errOut, _ := runCmd(t, cmd, "show", "issue", "foo.bar", "--full", "--json")
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["body_truncated"] != true {
+		t.Error("body_truncated should be true")
+	}
+	if got["body_lines_total"].(float64) < 600 {
+		t.Errorf("body_lines_total=%v want >=600", got["body_lines_total"])
+	}
+	if !strings.Contains(errOut, "500 of") {
+		t.Errorf("expected clip hint on stderr, got %q", errOut)
 	}
 }
 

@@ -132,7 +132,7 @@ func newInboxListCmd() *cobra.Command {
 }
 
 func newInboxShowCmd() *cobra.Command {
-	var flagJSON bool
+	var flagJSON, flagFull bool
 
 	cmd := &cobra.Command{
 		Use:   "show <id>",
@@ -143,11 +143,12 @@ func newInboxShowCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			return runShow(cmd, v, core.TypeInbox, args[0], flagJSON)
+			return runShow(cmd, v, core.TypeInbox, args[0], flagJSON, flagFull)
 		},
 	}
 
-	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
+	cmd.Flags().BoolVar(&flagFull, "full", false, "include body (capped at 500 lines)")
 	return cmd
 }
 
