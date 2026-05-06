@@ -6,18 +6,24 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/facets"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/schema"
 )
 
 func newPromoteCmd() *cobra.Command {
-	var flagAs string
-	var flagJSON bool
+	var (
+		flagAs            string
+		flagJSON          bool
+		flagTags          []string
+		flagAllowNewFacet []string
+	)
 
 	cmd := &cobra.Command{
 		Use:   "promote <id>",
@@ -60,13 +66,15 @@ func newPromoteCmd() *cobra.Command {
 			case "discard":
 				return discardInbox(cmd, a, id, flagJSON)
 			default:
-				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON)
+				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON, flagTags, flagAllowNewFacet)
 			}
 		},
 	}
 
 	cmd.Flags().StringVar(&flagAs, "as", "", "promotion target type (issue|thread|learning|discard)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
+	cmd.Flags().StringSliceVar(&flagTags, "tags", nil, "tags to seed on promoted artifact")
+	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet(s) to suppress novelty gate for")
 	_ = cmd.MarkFlagRequired("as")
 	return cmd
 }
@@ -119,7 +127,7 @@ func formatEnumError(field, got string, valid []string, exampleCmd string) error
 // promoteToTyped writes the target artifact, then flips the inbox row to
 // status: promoted with provenance fields. Issue is the only target that
 // resolves a project; the others ignore the project field.
-func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type, asJSON bool) error {
+func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type, asJSON bool, flagTags, flagAllowNewFacet []string) error {
 	status, _ := inbox.FrontMatter["status"].(string)
 	switch status {
 	case "promoted":
@@ -148,7 +156,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	created := time.Now().UTC().Format("2006-01-02")
 	// Spine targets require a non-empty description; reuse the inbox title as
 	// the one-liner so promote stays a single-step operation.
-	data := templateData{Title: title, Description: title, Created: created}
+	data := templateData{Title: title, Description: title, Created: created, Tags: flagTags}
 	idInputs := core.IDInputs{Title: title}
 
 	if target == core.TypeIssue {
@@ -176,8 +184,12 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	if err != nil {
 		return fmt.Errorf("rendering %s template: %w", target, err)
 	}
-	if err := schema.Validate(string(target), fm); err != nil {
-		return fmt.Errorf("schema validation: %w", err)
+	if len(flagTags) > 0 {
+		anyTags := make([]any, 0, len(flagTags))
+		for _, s := range flagTags {
+			anyTags = append(anyTags, s)
+		}
+		fm["tags"] = anyTags
 	}
 
 	dir := filepath.Join(v.Root, target.Dir())
@@ -185,6 +197,37 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
 	targetPath := filepath.Join(dir, targetID+".md")
+	if err := schema.Validate(string(target), fm); err != nil {
+		return renderSchemaErr(cmd, targetPath, err)
+	}
+
+	for _, f := range flagAllowNewFacet {
+		if !slices.Contains(facets.Facets, f) {
+			return formatEnumError("--allow-new-facet", f, facets.Facets, "")
+		}
+	}
+	allowed := map[string]bool{}
+	for _, f := range flagAllowNewFacet {
+		allowed[f] = true
+	}
+	values, gErr := facets.CollectValues(v.Root)
+	if gErr != nil {
+		return fmt.Errorf("walking vault for facet values: %w", gErr)
+	}
+	tagsRaw, _ := fm["tags"].([]any)
+	tagsStr := make([]string, 0, len(tagsRaw))
+	for _, raw := range tagsRaw {
+		if s, ok := raw.(string); ok {
+			tagsStr = append(tagsStr, s)
+		}
+	}
+	if errs := facets.Check(values, tagsStr, allowed); len(errs) > 0 {
+		for _, e := range errs {
+			e.Path = targetPath
+		}
+		printValidationErrors(cmd, errs)
+		return ErrSchemaInvalid
+	}
 	if err := (&core.Artifact{Path: targetPath, FrontMatter: fm, Body: ""}).Save(); err != nil {
 		return fmt.Errorf("saving %s: %w", target, err)
 	}

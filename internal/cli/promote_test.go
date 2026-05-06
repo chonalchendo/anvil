@@ -29,7 +29,7 @@ func TestPromote_TopLevel_Issue(t *testing.T) {
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"promote", id, "--as", "issue"})
+	cmd.SetArgs([]string{"promote", id, "--as", "issue", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("promote: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestPromote_TopLevel_Idempotent(t *testing.T) {
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
 	first := newRootCmd()
-	first.SetArgs([]string{"promote", id, "--as", "thread"})
+	first.SetArgs([]string{"promote", id, "--as", "thread", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
 	if err := first.Execute(); err != nil {
 		t.Fatalf("first: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestPromote_TopLevel_JSON(t *testing.T) {
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"promote", id, "--as", "thread", "--json"})
+	cmd.SetArgs([]string{"promote", id, "--as", "thread", "--json", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -147,7 +147,7 @@ func TestPromote_AsThread(t *testing.T) {
 	}
 
 	promote := newRootCmd()
-	promote.SetArgs([]string{"promote", result.ID, "--as", "thread"})
+	promote.SetArgs([]string{"promote", result.ID, "--as", "thread", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
 	if err := promote.Execute(); err != nil {
 		t.Fatalf("promote: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestPromote_ToLearning(t *testing.T) {
 	}
 
 	cmd = newRootCmd()
-	cmd.SetArgs([]string{"promote", added.ID, "--as", "learning"})
+	cmd.SetArgs([]string{"promote", added.ID, "--as", "learning", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("promote: %v", err)
 	}
@@ -340,7 +340,7 @@ func TestPromote_MismatchedAs(t *testing.T) {
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
 	first := newRootCmd()
-	first.SetArgs([]string{"promote", id, "--as", "thread"})
+	first.SetArgs([]string{"promote", id, "--as", "thread", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
 	if err := first.Execute(); err != nil {
 		t.Fatalf("first: %v", err)
 	}
@@ -404,7 +404,7 @@ func TestPromote_DiscardOnPromoted(t *testing.T) {
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
 	first := newRootCmd()
-	first.SetArgs([]string{"promote", id, "--as", "thread"})
+	first.SetArgs([]string{"promote", id, "--as", "thread", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
 	first.Execute()
 
 	cmd := newRootCmd()
@@ -453,7 +453,7 @@ func TestPromote_JSON_AlreadyPromoted(t *testing.T) {
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
-	runPromoteJSON(t, id, "--as", "thread", "--json")
+	runPromoteJSON(t, id, "--as", "thread", "--json", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity")
 	r := runPromoteJSON(t, id, "--as", "thread", "--json")
 	if r.Status != "already_promoted" {
 		t.Errorf("status = %q, want already_promoted", r.Status)
