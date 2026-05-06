@@ -393,8 +393,6 @@ const (
 	statusUpdated       createStatus = "updated"
 )
 
-// emitCreateResult writes either the path (text mode) or a JSON object with
-// id/path/status to cmd's stdout.
 func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status createStatus) error {
 	if asJSON {
 		out, _ := json.Marshal(map[string]string{
@@ -416,10 +414,10 @@ func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status c
 	return nil
 }
 
-// createDrift compares the rendered fm + body against an existing artifact
-// and returns the name of the first diverging field, or "" if no drift.
-// Only fields create accepts as flags are compared (description changes via
-// `anvil set` are not drift on retry).
+// createDrift returns the name of the first field that differs between
+// fm/body and an existing artifact. Only flag-settable fields are
+// compared; fields mutated via 'anvil set' (e.g. status) are ignored
+// so retrying create after a status edit isn't drift.
 func createDrift(t core.Type, fm, existing map[string]any, body, existingBody string) string {
 	scalarFields := []string{"title", "description", "project"}
 	switch t {
@@ -450,10 +448,7 @@ func createDrift(t core.Type, fm, existing map[string]any, body, existingBody st
 }
 
 func scalarsEqual(a, b any) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b)
+	return a == b
 }
 
 func tagsEqual(a, b any) bool {
@@ -476,14 +471,6 @@ func tagSet(v any) map[string]bool {
 	for _, e := range arr {
 		if s, ok := e.(string); ok {
 			out[s] = true
-		}
-	}
-	if arr == nil {
-		// fall back to []string in case caller passed it raw.
-		if ss, ok := v.([]string); ok {
-			for _, s := range ss {
-				out[s] = true
-			}
 		}
 	}
 	return out

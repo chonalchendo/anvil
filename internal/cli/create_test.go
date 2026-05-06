@@ -1111,6 +1111,18 @@ func TestCreate_Issue_UpdateWithoutDrift_NoRewrite(t *testing.T) {
 	}
 }
 
+func TestScalarsEqual_TypePreserving(t *testing.T) {
+	if scalarsEqual(true, "true") {
+		t.Error("bool true and string \"true\" should not compare equal")
+	}
+	if !scalarsEqual(true, true) {
+		t.Error("identical bools should compare equal")
+	}
+	if scalarsEqual(nil, "") {
+		t.Error("nil and empty string should not compare equal")
+	}
+}
+
 func TestCreate_Plan_UpdateRevalidates(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
