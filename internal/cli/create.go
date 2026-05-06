@@ -189,7 +189,7 @@ func newCreateCmd() *cobra.Command {
 				fm["tags"] = anyTags
 			}
 
-			if t.AllocatesID() && t != core.TypeDecision {
+			if t != core.TypeDecision {
 				if existing, err := core.LoadArtifact(path); err == nil {
 					drift := createDrift(t, fm, existing.FrontMatter, body, existing.Body)
 					if drift == "" && !flagUpdate {
@@ -238,13 +238,7 @@ func newCreateCmd() *cobra.Command {
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 			}
-			if !t.AllocatesID() {
-				if _, err := os.Stat(path); err == nil {
-					return fmt.Errorf("%s for project %q already exists at %s", t, project, path)
-				} else if !errors.Is(err, fs.ErrNotExist) {
-					return fmt.Errorf("checking %s: %w", path, err)
-				}
-			}
+
 			if t == core.TypePlan && body == "" {
 				// Seed a ≥200-char body section for T1 so ValidatePlan passes on
 				// a freshly-created plan. The repeat produces 316 chars.
