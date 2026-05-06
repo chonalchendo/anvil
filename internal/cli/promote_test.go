@@ -503,3 +503,33 @@ func TestPromote_JSON_AlreadyDiscarded(t *testing.T) {
 		t.Errorf("already-discarded result must have null target fields: %+v", r)
 	}
 }
+
+func TestPromote_Issue_RequiresTags(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "inbox", "--title", "thought", "--suggested-project", "anvil"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	cmd2 := newRootCmd()
+	cmd2.SetArgs([]string{"promote", id, "--as", "issue"})
+	var errOut bytes.Buffer
+	cmd2.SetErr(&errOut)
+	cmd2.SetOut(&errOut)
+	if err := cmd2.Execute(); err == nil {
+		t.Fatal("expected schema rejection for promote without --tags")
+	}
+
+	cmd3 := newRootCmd()
+	cmd3.SetArgs([]string{"promote", id, "--as", "issue",
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain"})
+	if err := cmd3.Execute(); err != nil {
+		t.Fatalf("expected success: %v", err)
+	}
+}
