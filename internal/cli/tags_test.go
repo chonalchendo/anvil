@@ -355,6 +355,30 @@ func TestTagsDefine_KnownAndMissing(t *testing.T) {
 	}
 }
 
+func TestTagsParent_UnknownSubcommandErrors(t *testing.T) {
+	setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	bad := newRootCmd()
+	bad.SetArgs([]string{"tags", "show"})
+	var buf bytes.Buffer
+	bad.SetOut(&buf)
+	bad.SetErr(&buf)
+	err := bad.Execute()
+	if err == nil {
+		t.Fatal("expected error for `tags show`")
+	}
+	if !strings.Contains(err.Error(), "unknown command") {
+		t.Errorf("error must mention 'unknown command': %q", err.Error())
+	}
+
+	ok := newRootCmd()
+	ok.SetArgs([]string{"tags", "add", "domain/foo", "--desc", "x"})
+	if err := ok.Execute(); err != nil {
+		t.Fatalf("valid subcommand regressed: %v", err)
+	}
+}
+
 // TestTagsList_DataGoesToStdout pins the cobra footgun: cmd.Println /
 // cmd.Printf default to OutOrStderr() unless SetOut is called, which silently
 // breaks `anvil tags list --json | jq ...` for agent pipelines. Other tests

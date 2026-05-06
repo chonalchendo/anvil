@@ -18,8 +18,16 @@ import (
 
 func newTagsCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "tags",
-		Short: "Inspect and curate vault tags",
+		Use:          "tags",
+		Short:        "Inspect and curate vault tags",
+		Args:         cobra.ArbitraryArgs,
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
+			return fmt.Errorf("unknown command %q for %q", args[0], cmd.CommandPath())
+		},
 	}
 	cmd.AddCommand(newTagsListCmd(), newTagsAddCmd(), newTagsDefineCmd())
 	return cmd
