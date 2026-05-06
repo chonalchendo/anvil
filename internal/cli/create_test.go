@@ -1251,3 +1251,86 @@ func TestCreate_DriftError_FormatsBodyTruncated(t *testing.T) {
 		t.Errorf("expected truncation ellipsis: %s", msg)
 	}
 }
+
+func TestCreate_Decision_StaysAppendOnly(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	args := []string{"create", "decision",
+		"--topic", "db",
+		"--title", "Pick Postgres",
+		"--description", "d",
+		"--tags", "domain/infra,activity/research",
+		"--allow-new-facet=domain", "--allow-new-facet=activity",
+	}
+	for i := 1; i <= 2; i++ {
+		c := newRootCmd()
+		c.SetArgs(args)
+		if err := c.Execute(); err != nil {
+			t.Fatalf("call %d: %v", i, err)
+		}
+	}
+	dir := filepath.Join(vault, "30-decisions")
+	entries, _ := os.ReadDir(dir)
+	count := 0
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "db.") {
+			count++
+		}
+	}
+	if count != 2 {
+		t.Errorf("decision should be append-only: have %d files, want 2", count)
+	}
+}
+
+func TestCreate_AllSlugTypes_Idempotent(t *testing.T) {
+	type tc struct {
+		name string
+		args []string
+	}
+	cases := []tc{
+		{"thread", []string{"create", "thread", "--title", "auth retries", "--description", "d",
+			"--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"}},
+		{"learning", []string{"create", "learning", "--title", "slogger gotcha", "--description", "d",
+			"--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"}},
+		{"sweep", []string{"create", "sweep", "--title", "drop python2", "--description", "d",
+			"--scope", "py", "--breaking=false",
+			"--tags", "domain/dev-tools", "--allow-new-facet=domain"}},
+		{"inbox", []string{"create", "inbox", "--title", "random thought", "--description", "d",
+			"--tags", "domain/dev-tools", "--allow-new-facet=domain"}},
+	}
+	for _, tcase := range cases {
+		t.Run(tcase.name, func(t *testing.T) {
+			setupVault(t)
+			repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+			t.Setenv("HOME", t.TempDir())
+			t.Chdir(repo)
+
+			args := append([]string{}, tcase.args...)
+			args = append(args, "--json")
+			c1 := newRootCmd()
+			c1.SetArgs(args)
+			var b1 bytes.Buffer
+			c1.SetOut(&b1)
+			if err := c1.Execute(); err != nil {
+				t.Fatal(err)
+			}
+			c2 := newRootCmd()
+			c2.SetArgs(args)
+			var b2 bytes.Buffer
+			c2.SetOut(&b2)
+			if err := c2.Execute(); err != nil {
+				t.Fatal(err)
+			}
+			var resp map[string]string
+			if err := json.Unmarshal(b2.Bytes(), &resp); err != nil {
+				t.Fatal(err)
+			}
+			if resp["status"] != "already_exists" {
+				t.Errorf("%s: status = %q, want already_exists", tcase.name, resp["status"])
+			}
+		})
+	}
+}
