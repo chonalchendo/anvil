@@ -3,7 +3,7 @@
   "$id": "https://anvil.dev/schemas/issue.schema.json",
   "title": "issue",
   "type": "object",
-  "required": ["type", "title", "description", "created", "status", "project", "severity"],
+  "required": ["type", "title", "description", "created", "status", "project", "severity", "tags"],
   "properties": {
     "type":         { "const": "issue" },
     "title":        { "type": "string", "minLength": 1 },
@@ -11,7 +11,13 @@
     "created":      { "type": "string", "format": "date" },
     "updated":      { "type": "string", "format": "date" },
     "status":       { "enum": ["open", "in-progress", "resolved", "abandoned"] },
-    "tags":         { "type": "array", "items": { "type": "string" } },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "allOf": [
+        { "contains": { "type": "string", "pattern": "^domain/[a-z0-9-]+$" }, "minContains": 1 }
+      ]
+    },
     "aliases":      { "type": "array", "items": { "type": "string" } },
     "project":      { "type": "string", "minLength": 1 },
     "severity":     { "enum": ["low", "medium", "high", "critical"] },
