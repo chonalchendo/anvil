@@ -66,7 +66,7 @@ Draft before calling the CLI:
 **A. From inbox (promotion):**
 
 ```bash
-anvil inbox promote <inbox-id> --as thread
+anvil promote <inbox-id> --as thread
 # output: "thread <new-thread-id>"
 ```
 

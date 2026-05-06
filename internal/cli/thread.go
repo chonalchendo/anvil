@@ -73,11 +73,12 @@ func newThreadCurrentCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			out := cmd.OutOrStdout()
 			if id == "" {
-				cmd.Println("(none)")
+				fmt.Fprintln(out, "(none)")
 				return nil
 			}
-			cmd.Println(id)
+			fmt.Fprintln(out, id)
 			return nil
 		},
 	}

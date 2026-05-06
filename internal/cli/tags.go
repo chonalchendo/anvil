@@ -5,43 +5,57 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/glossary"
 )
 
 func newTagsCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "tags",
-		Short: "Inspect tag usage across the vault",
+		Use:          "tags",
+		Short:        "Inspect and curate vault tags",
+		Args:         cobra.ArbitraryArgs,
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return cmd.Help()
+			}
+			return fmt.Errorf("unknown command %q for %q", args[0], cmd.CommandPath())
+		},
 	}
-	cmd.AddCommand(newTagsListCmd())
+	cmd.AddCommand(newTagsListCmd(), newTagsAddCmd(), newTagsDefineCmd())
 	return cmd
 }
 
-type tagCount struct {
-	Tag   string `json:"tag"`
-	Count int    `json:"count"`
+type tagRow struct {
+	Tag     string `json:"tag"`
+	Count   int    `json:"count"`
+	Defined bool   `json:"defined"`
 }
 
 func newTagsListCmd() *cobra.Command {
 	var (
 		flagType   string
 		flagPrefix string
+		flagSource string
+		flagLimit  int
 		flagJSON   bool
 	)
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List tags used across vault artifacts with usage counts",
-		Long: `Walks the vault, collects tags from every artifact's frontmatter,
-deduplicates, and returns counts. Filter by artifact type with --type and
-by tag prefix (e.g. domain/) with --prefix. Use --json for machine output.`,
+		Short: "List vault tags (used, defined, or both)",
+		Long: `--source used (default): tag counts observed in artifact frontmatter.
+--source defined: vocabulary entries from _meta/glossary.md (no counts).
+--source all: union with {tag, count, defined}; count is 0 if defined-only.`,
 		Example: `  anvil tags list
-  anvil tags list --type learning --json
-  anvil tags list --prefix domain/`,
+  anvil tags list --source defined --json
+  anvil tags list --source all --prefix domain/ --json`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
@@ -49,64 +63,179 @@ by tag prefix (e.g. domain/) with --prefix. Use --json for machine output.`,
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 
-			var typeFilter *core.Type
-			if flagType != "" {
-				t, err := core.ParseType(flagType)
-				if err != nil {
-					return err
-				}
-				typeFilter = &t
+			if flagLimit < 1 || flagLimit > 50 {
+				return fmt.Errorf("invalid value %d for --limit\n  valid values: 1..50", flagLimit)
 			}
 
-			counts := map[string]int{}
-			types := core.AllTypes
-			if typeFilter != nil {
-				types = []core.Type{*typeFilter}
+			validSources := []string{"used", "defined", "all"}
+			ok := false
+			for _, s := range validSources {
+				if flagSource == s {
+					ok = true
+					break
+				}
 			}
-			seenDirs := map[string]struct{}{}
-			for _, t := range types {
-				dir := filepath.Join(v.Root, t.Dir())
-				if _, dup := seenDirs[dir]; dup {
-					continue // product-design + system-design share 05-projects
-				}
-				seenDirs[dir] = struct{}{}
-				if err := walkTags(dir, typeFilter, counts); err != nil {
-					return err
-				}
+			if !ok {
+				return fmt.Errorf("invalid value %q for --source\n  valid values: %s",
+					flagSource, strings.Join(validSources, ", "))
 			}
 
-			out := make([]tagCount, 0, len(counts))
-			for tag, n := range counts {
-				if flagPrefix != "" && !strings.HasPrefix(tag, flagPrefix) {
-					continue
-				}
-				out = append(out, tagCount{Tag: tag, Count: n})
+			rows, err := buildTagRows(v, flagSource, flagType, flagPrefix)
+			if err != nil {
+				return err
 			}
-			sort.Slice(out, func(i, j int) bool {
-				if out[i].Count != out[j].Count {
-					return out[i].Count > out[j].Count
-				}
-				return out[i].Tag < out[j].Tag
-			})
 
+			total := len(rows)
+			if len(rows) > flagLimit {
+				rows = rows[:flagLimit]
+			}
+
+			// Data output goes to stdout via OutOrStdout(); cmd.Println /
+			// cmd.Printf default to stderr unless SetOut was called, which
+			// breaks `anvil tags list --json | jq ...` for agent pipelines.
+			out := cmd.OutOrStdout()
 			if flagJSON {
-				b, err := json.Marshal(out)
+				b, err := json.Marshal(projectRows(rows, flagSource))
 				if err != nil {
 					return err
 				}
-				cmd.Println(string(b))
-				return nil
+				fmt.Fprintln(out, string(b))
+			} else {
+				for _, r := range rows {
+					if flagSource == "defined" {
+						fmt.Fprintln(out, r.Tag)
+					} else {
+						fmt.Fprintf(out, "%d\t%s\n", r.Count, r.Tag)
+					}
+				}
 			}
-			for _, tc := range out {
-				cmd.Printf("%d\t%s\n", tc.Count, tc.Tag)
+			if hint := output.TruncationHint("by count", len(rows), total,
+				[]string{"--prefix", "--type", "--source", "--limit N"}); hint != "" {
+				cmd.PrintErrln(hint)
 			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&flagType, "type", "", "filter to one artifact type (e.g. learning)")
 	cmd.Flags().StringVar(&flagPrefix, "prefix", "", "filter tags by prefix (e.g. domain/)")
-	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON [{tag, count}, ...]")
+	cmd.Flags().StringVar(&flagSource, "source", "used", "tag source: used | defined | all")
+	cmd.Flags().IntVar(&flagLimit, "limit", 50, "maximum results to return (default 50)")
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON")
 	return cmd
+}
+
+func projectRows(rows []tagRow, source string) any {
+	switch source {
+	case "used":
+		out := make([]struct {
+			Tag   string `json:"tag"`
+			Count int    `json:"count"`
+		}, len(rows))
+		for i, r := range rows {
+			out[i].Tag = r.Tag
+			out[i].Count = r.Count
+		}
+		return out
+	case "defined":
+		out := make([]struct {
+			Tag     string `json:"tag"`
+			Defined bool   `json:"defined"`
+		}, len(rows))
+		for i, r := range rows {
+			out[i].Tag = r.Tag
+			out[i].Defined = true
+		}
+		return out
+	default:
+		return rows
+	}
+}
+
+func buildTagRows(v *core.Vault, source, typeFlag, prefix string) ([]tagRow, error) {
+	used := map[string]int{}
+	if source == "used" || source == "all" {
+		var typeFilter *core.Type
+		if typeFlag != "" {
+			t, err := core.ParseType(typeFlag)
+			if err != nil {
+				return nil, err
+			}
+			typeFilter = &t
+		}
+		types := core.AllTypes
+		if typeFilter != nil {
+			types = []core.Type{*typeFilter}
+		}
+		seenDirs := map[string]struct{}{}
+		for _, t := range types {
+			dir := filepath.Join(v.Root, t.Dir())
+			if _, dup := seenDirs[dir]; dup {
+				continue
+			}
+			seenDirs[dir] = struct{}{}
+			if err := walkTags(dir, typeFilter, used); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	defined := map[string]bool{}
+	if source == "defined" || source == "all" {
+		g, err := glossary.Load(glossary.Path(v.Root))
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range g.Tags() {
+			defined[t] = true
+		}
+	}
+
+	keys := map[string]struct{}{}
+	switch source {
+	case "used":
+		for k := range used {
+			keys[k] = struct{}{}
+		}
+	case "defined":
+		for k := range defined {
+			keys[k] = struct{}{}
+		}
+	case "all":
+		for k := range used {
+			keys[k] = struct{}{}
+		}
+		for k := range defined {
+			keys[k] = struct{}{}
+		}
+	}
+
+	rows := make([]tagRow, 0, len(keys))
+	for k := range keys {
+		if prefix != "" && !strings.HasPrefix(k, prefix) {
+			continue
+		}
+		r := tagRow{Tag: k}
+		if source != "defined" {
+			r.Count = used[k] // zero for defined-only tags under source=all
+		}
+		if source == "all" {
+			r.Defined = defined[k]
+		}
+		if source == "defined" {
+			r.Defined = true
+		}
+		rows = append(rows, r)
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if source == "defined" {
+			return rows[i].Tag < rows[j].Tag
+		}
+		if rows[i].Count != rows[j].Count {
+			return rows[i].Count > rows[j].Count
+		}
+		return rows[i].Tag < rows[j].Tag
+	})
+	return rows, nil
 }
 
 // walkTags accumulates tag counts under dir. If typeFilter is set, only
@@ -146,4 +275,85 @@ func walkTags(dir string, typeFilter *core.Type, counts map[string]int) error {
 		}
 		return nil
 	})
+}
+
+func newTagsAddCmd() *cobra.Command {
+	var (
+		flagDesc   string
+		flagUpdate bool
+	)
+	cmd := &cobra.Command{
+		Use:   "add <facet>/<name> --desc \"...\"",
+		Short: "Add a tag to the vault glossary (idempotent)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			tag := args[0]
+			if flagDesc == "" {
+				return fmt.Errorf("--desc is required")
+			}
+			facet, _, ok := glossary.SplitTag(tag)
+			if !ok || !slices.Contains(glossary.Facets, facet) {
+				return fmt.Errorf("invalid value %q for <facet>/<name>\n  valid values: %s\n  corrected:    anvil tags add %s/<name> --desc %q",
+					tag, strings.Join(glossary.Facets, ", "), glossary.Facets[0], flagDesc)
+			}
+			v, err := core.ResolveVault()
+			if err != nil {
+				return fmt.Errorf("resolving vault: %w", err)
+			}
+			path := glossary.Path(v.Root)
+			g, err := glossary.Load(path)
+			if err != nil {
+				return err
+			}
+			existing, hadIt := g.FindTagDesc(tag)
+			if hadIt && existing == flagDesc {
+				fmt.Fprintln(cmd.OutOrStdout(), path)
+				return nil
+			}
+			if hadIt && !flagUpdate {
+				return fmt.Errorf("tag %q already defined with a different description\n  existing: %s\n  new:      %s\n  corrected: anvil tags add %s --desc %q --update",
+					tag, existing, flagDesc, tag, flagDesc)
+			}
+			if hadIt && flagUpdate {
+				// hadIt was just verified above and there are no concurrent writers.
+				_ = g.UpdateTagDesc(tag, flagDesc)
+			} else {
+				if err := g.AddTag(tag, flagDesc); err != nil {
+					return err
+				}
+			}
+			if err := g.Save(path); err != nil {
+				return fmt.Errorf("saving glossary: %w", err)
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), path)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&flagDesc, "desc", "", "one-line description (required)")
+	cmd.Flags().BoolVar(&flagUpdate, "update", false, "rewrite existing tag's description")
+	return cmd
+}
+
+func newTagsDefineCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "define <term>",
+		Short: "Print the definition for <term> from _meta/glossary.md",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			v, err := core.ResolveVault()
+			if err != nil {
+				return fmt.Errorf("resolving vault: %w", err)
+			}
+			g, err := glossary.Load(glossary.Path(v.Root))
+			if err != nil {
+				return err
+			}
+			def, ok := g.Definition(args[0])
+			if !ok {
+				return fmt.Errorf("term %q not in glossary", args[0])
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), def)
+			return nil
+		},
+	}
 }

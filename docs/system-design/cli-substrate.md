@@ -15,13 +15,13 @@ Cold-start frequency is the load-bearing constraint — skills call the CLI doze
 
 ```
 anvil where
-anvil inbox      add | list | show | promote
-anvil create     <type> [flags]              # type ∈ {issue, plan, milestone, decision, learning, sweep, thread}
+anvil promote    <id> [flags]                # promote an inbox entry to a typed artifact
+anvil create     <type> [flags]              # type ∈ {inbox, issue, plan, milestone, decision, learning, sweep, thread, session}
 anvil show       <type> <id>
 anvil list       <type> [--filters]
 anvil link       <type> <id> --to <type> <id>
 anvil set        <type> <id> <field> <value>
-anvil tags       list [--type <type>] [--prefix <prefix>] [--json]
+anvil tags       add | list | define
 anvil project    list | switch | adopt | current
 ```
 
@@ -39,4 +39,4 @@ anvil project    list | switch | adopt | current
 
 The v0.0.0-dev scaffold has none of this wired (cobra+fang lands when the first verb is implemented); this section documents the planned surface, not what runs today.
 
-The `session emit` verb is the orchestrator-side of the thread→session→learning loop: a Claude Code `SessionStart` hook (installed via `anvil install hooks`) writes a session artifact under `10-sessions/`, stamping `related: [[thread.<active>]]` if a thread is active. `distilling-learning` then walks that link to attach learnings back to the thread. See `docs/superpowers/specs/2026-05-02-session-emitter-design.md` for the full design.
+The session-emission path is the orchestrator-side of the thread→session→learning loop: a Claude Code `SessionStart` hook (installed via `anvil install hooks`) invokes the hidden `anvil install fire-session-start` wrapper, which writes a session artifact under `10-sessions/`, stamping `related: [[thread.<active>]]` if a thread is active. `distilling-learning` then walks that link to attach learnings back to the thread. See `docs/superpowers/specs/2026-05-02-session-emitter-design.md` for the full design.

@@ -295,3 +295,39 @@ func TestList_JSONItemFields(t *testing.T) {
 		t.Error("project missing")
 	}
 }
+
+func TestListInbox_NonEmpty(t *testing.T) {
+	setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	add := newRootCmd()
+	add.SetArgs([]string{"create", "inbox", "--title", "x"})
+	if err := add.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"list", "inbox"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if out.Len() == 0 {
+		t.Error("expected non-empty output")
+	}
+}
+
+func TestListInbox_LimitAndSince(t *testing.T) {
+	newTestVaultWithDatedInbox(t, []string{"2026-04-30", "2026-05-02", "2026-05-04"})
+	cmd := newRootCmd()
+	out, _, err := runCmd(t, cmd, "list", "inbox", "--since", "2026-05-01", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := unmarshalListEnvelope(t, out)
+	if env.Total != 2 {
+		t.Errorf("total=%d want 2", env.Total)
+	}
+}

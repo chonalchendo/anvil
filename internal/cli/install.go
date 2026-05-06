@@ -10,14 +10,14 @@ import (
 	"github.com/chonalchendo/anvil/internal/installer"
 )
 
-const sessionStartHookCommand = `anvil session emit --from-stdin`
+const sessionStartHookCommand = `anvil install fire-session-start`
 
 func newInstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "install",
 		Short: "Install Anvil components into the user environment",
 	}
-	cmd.AddCommand(newInstallHooksCmd())
+	cmd.AddCommand(newInstallHooksCmd(), newInstallFireSessionStartCmd())
 	return cmd
 }
 

@@ -36,7 +36,7 @@ func runShowPlan(cmd *cobra.Command, v *core.Vault, id string, validate, waves b
 			cmd.PrintErrln(err)
 			return err
 		}
-		cmd.Println("ok")
+		fmt.Fprintln(cmd.OutOrStdout(), "ok")
 		return nil
 	}
 
@@ -70,7 +70,7 @@ func renderWaves(cmd *cobra.Command, p *core.Plan, waves [][]int) {
 		}
 	}
 	b.WriteString("```\n")
-	cmd.Print(b.String())
+	fmt.Fprint(cmd.OutOrStdout(), b.String())
 }
 
 func escapeMermaid(s string) string {

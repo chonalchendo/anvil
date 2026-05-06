@@ -552,3 +552,220 @@ func TestCreate_SystemDesign_WritesValidFile(t *testing.T) {
 		t.Errorf("frontmatter fails schema: %v", err)
 	}
 }
+
+const fakeSessionUUID = "01234567-89ab-cdef-0123-456789abcdef"
+
+func TestCreateSession_WritesValidFile(t *testing.T) {
+	vault := setupVault(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create session: %v\n%s", err, out.String())
+	}
+	path := filepath.Join(vault, "10-sessions", fakeSessionUUID+".md")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.FrontMatter["session_id"] != fakeSessionUUID {
+		t.Errorf("session_id = %v", a.FrontMatter["session_id"])
+	}
+	if a.FrontMatter["source"] != "claude-code" {
+		t.Errorf("source = %v", a.FrontMatter["source"])
+	}
+	if err := schema.Validate("session", a.FrontMatter); err != nil {
+		t.Errorf("schema: %v", err)
+	}
+}
+
+func TestCreateSession_StampsActiveThreadFromFlag(t *testing.T) {
+	vault := setupVault(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID, "--active-thread", "research-ducklake"})
+	cmd.SetOut(&bytes.Buffer{})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "10-sessions", fakeSessionUUID+".md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	related, _ := a.FrontMatter["related"].([]any)
+	if len(related) != 1 || related[0] != "[[thread.research-ducklake]]" {
+		t.Errorf("related = %v", related)
+	}
+}
+
+func TestCreateSession_IdempotentOnReRun(t *testing.T) {
+	vault := setupVault(t)
+
+	first := newRootCmd()
+	first.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID,
+		"--started-at", "2026-05-06T12:00:00Z"})
+	first.SetOut(&bytes.Buffer{})
+	if err := first.Execute(); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	path := filepath.Join(vault, "10-sessions", fakeSessionUUID+".md")
+	c1, _ := os.ReadFile(path)
+
+	second := newRootCmd()
+	second.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID,
+		"--started-at", "2026-05-06T12:00:00Z"})
+	second.SetOut(&bytes.Buffer{})
+	if err := second.Execute(); err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	c2, _ := os.ReadFile(path)
+	if string(c1) != string(c2) {
+		t.Errorf("file rewritten on idempotent re-run")
+	}
+}
+
+func TestCreateSession_DriftErrorsWithoutUpdate(t *testing.T) {
+	setupVault(t)
+
+	first := newRootCmd()
+	first.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID,
+		"--started-at", "2026-05-06T12:00:00Z"})
+	first.SetOut(&bytes.Buffer{})
+	if err := first.Execute(); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+
+	second := newRootCmd()
+	second.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID,
+		"--started-at", "2026-05-06T13:00:00Z"})
+	second.SetErr(&bytes.Buffer{})
+	err := second.Execute()
+	if err == nil {
+		t.Fatal("expected drift error")
+	}
+	if !strings.Contains(err.Error(), "--update") {
+		t.Errorf("error should suggest --update: %q", err.Error())
+	}
+}
+
+func TestCreateSession_UpdateRewritesOnDrift(t *testing.T) {
+	vault := setupVault(t)
+
+	first := newRootCmd()
+	first.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID,
+		"--started-at", "2026-05-06T12:00:00Z"})
+	first.SetOut(&bytes.Buffer{})
+	if err := first.Execute(); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+
+	upd := newRootCmd()
+	upd.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID,
+		"--started-at", "2026-05-06T13:00:00Z", "--update"})
+	upd.SetOut(&bytes.Buffer{})
+	if err := upd.Execute(); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "10-sessions", fakeSessionUUID+".md"))
+	if a.FrontMatter["started_at"] != "2026-05-06T13:00:00Z" {
+		t.Errorf("started_at not updated: %v", a.FrontMatter["started_at"])
+	}
+}
+
+func TestCreateSession_RejectsUnknownSource(t *testing.T) {
+	setupVault(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID, "--source", "vscode"})
+	cmd.SetErr(&bytes.Buffer{})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestCreateSession_JSON(t *testing.T) {
+	vault := setupVault(t)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID,
+		"--active-thread", "research-ducklake", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("emit: %v", err)
+	}
+	var got struct {
+		ID, Path string
+		Related  []string
+	}
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("parse: %v\n%s", err, out.String())
+	}
+	if got.ID != fakeSessionUUID {
+		t.Errorf("id = %q", got.ID)
+	}
+	if got.Path != filepath.Join(vault, "10-sessions", fakeSessionUUID+".md") {
+		t.Errorf("path = %q", got.Path)
+	}
+	if len(got.Related) != 1 || got.Related[0] != "[[thread.research-ducklake]]" {
+		t.Errorf("related = %v", got.Related)
+	}
+}
+
+func TestInstallFireSessionStart_WritesSession(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("ANVIL_STATE_DIR", t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"install", "fire-session-start"})
+	cmd.SetIn(strings.NewReader(`{"session_id":"` + fakeSessionUUID + `","source":"startup","cwd":"/tmp","hook_event_name":"SessionStart"}`))
+	cmd.SetOut(&bytes.Buffer{})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("hook: %v", err)
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "10-sessions", fakeSessionUUID+".md"))
+	if err != nil {
+		t.Fatalf("missing session: %v", err)
+	}
+	if a.FrontMatter["source"] != "claude-code" {
+		t.Errorf("source = %v, want claude-code", a.FrontMatter["source"])
+	}
+}
+
+func TestCreateInbox_WritesFile(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "inbox", "--title", "streaming feels laggy"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	if len(entries) != 1 {
+		t.Errorf("expected 1 inbox file, got %d", len(entries))
+	}
+}
+
+func TestCreateInbox_WithBody(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "inbox", "--title", "x", "--body", "stub body"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 inbox file")
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "00-inbox", entries[0].Name()))
+	if !strings.Contains(a.Body, "stub body") {
+		t.Errorf("body = %q", a.Body)
+	}
+}

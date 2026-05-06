@@ -11,16 +11,16 @@ Items are grouped by concern, not by execution order. Spec order is at the botto
 
 ## Workflow / skill design
 
-1. **Merge `brainstorming` into `writing-issue`** — generative-mode primary, validation preserved. Brainstorm output is the issue body; no separate `brainstorm` artifact, no separate skill. Removes the issue-in-the-middle hop.
+1. ~~**Merge `brainstorming` into `writing-issue`**~~ — **done** (spec `2026-05-03-writing-issue-merge-design`). Generative-mode primary, validation preserved. No separate `brainstorming` skill; output is the issue body.
 2. ~~**New `researching` skill**~~ — **done** (2026-05-05, spec `2026-05-05-researching-skill-design`). Workflow skill at `skills/researching/` with three mode references (light / adversarial / heavy). No new vault type — synthesis returns to caller (sub-skill mode) or persists as 0+ learnings (standalone mode).
 3. **New `using-anvil` skill** — agent-facing entry point that teaches the CLI surface for vault interaction (create/set/promote/show, type-by-type field cheatsheet, when to use CLI vs. direct file edit). Today every other skill re-explains anvil verbs inline; this centralises it.
-4. **Rewrite `extract-skill-from-session` phases 5–6** — currently calls `quick_validate.py` and an `anvil skill` verb that don't exist. Either add `anvil create skill` + `skill.schema.json` + a real validator, or downgrade phase 6 to mechanical agent-side checks. Cheap fix preferred — skill-authoring should not block v0.1.
+4. ~~**Rewrite `extract-skill-from-session` phases 5–6**~~ — **done** (spec `2026-05-05-extract-skill-phase-6-rewrite-design`). Phase 6 downgraded to mechanical agent-side checks; no `anvil skill` verb introduced.
 
 ## CLI surface (write/update only; reads stay agent-side)
 
 5. ~~**Body authoring on create**~~ — **done** (2026-05-04, spec `2026-05-03-cli-write-surface-gaps`). `--body` / stdin on `create` (all types) and `inbox add`; non-empty plan body replaces the T1 seed.
 6. ~~**`anvil set` array-field support**~~ — **done** (2026-05-04, same spec). Schema-driven dispatch via `schema.FieldKind`; `--add` / `--remove` for arrays, scalar/array/unknown handled per spec matrix.
-7. **`anvil inbox promote <id> --as <type>`** — single-step promotion instead of the current two-step `set suggested_type` + `promote`.
+7. ~~**`anvil inbox promote <id> --as <type>`**~~ — **done** (spec `2026-05-04-inbox-promote-idempotent-design`). Single-step promotion via `--as` flag with enum-error helper; idempotent re-runs covered by the same spec.
 8. ~~**`anvil show <type> --validate` parity**~~ — **done** (2026-05-04, same spec). Issue and milestone now run schema re-validation + `core.ResolveLinks` for dangling wikilinks; new `ErrUnresolvedLinks` sentinel.
 9. ~~**`product-design` and `system-design` as CLI types**~~ — **done** (2026-05-04, spec `2026-05-04-type-template-completeness`). Added `TypeProductDesign`/`TypeSystemDesign`, `Type.AllocatesID()` + `Type.Path()` for per-project singletons at `05-projects/<project>/<type>.md`, templates, and existence-check on duplicate create.
 10. ~~**`sweep.tmpl`**~~ — **done** (2026-05-04, same spec). Template ships; `anvil create sweep` requires `--scope` and an explicit `--breaking` (project-exempt). `TypeSweep` wired through `NextID`'s slug branch.
@@ -82,8 +82,7 @@ Gaps from the 2026-05-04 audit of every implemented verb against
   Emit on stdout in text mode; always include `"project": null` in JSON. (Friction)
 - [ ] `where`: uses `fmt.Fprintln` instead of `cmd.Println` — bypasses cobra output redirection (rule 6).
   Switch all output to `cmd.Println` / `cmd.PrintErrln`. (Friction)
-- [ ] `create`: `--json` branch uses `fmt.Fprintln(cmd.OutOrStdout(), …)` — leftover from before we discovered cobra's `cmd.Print`/`Println`/`Printf` actually default to **stderr** (`OutOrStderr`, command.go:1436); test buffers masked it. The codebase-wide convention is now `fmt.Fprintln(cmd.OutOrStdout(), …)` for stdout. `show`/`list`/`project list`/`validate` migrated 2026-05-05; `create` and `inbox add` still pending. (Friction)
-- [ ] `inbox add`: same `fmt.Fprintln(cmd.OutOrStdout(), …)` pattern — keep as-is, but verify other code paths in `inbox.go` (e.g. `cmd.Println(textLine)`) route to stdout via `fmt.Fprintln(cmd.OutOrStdout(), …)`. (Friction)
+- [ ] `create`: `--json` branch (used by every artifact type, including `create session`) uses `fmt.Fprintln(cmd.OutOrStdout(), …)` — leftover from before we discovered cobra's `cmd.Print`/`Println`/`Printf` actually default to **stderr** (`OutOrStderr`, command.go:1436); test buffers masked it. The codebase-wide convention is now `fmt.Fprintln(cmd.OutOrStdout(), …)` for stdout. `show`/`list`/`project list`/`validate` migrated 2026-05-05; `create` still pending. (Friction)
 - [ ] `list`: text mode produces tab-separated triples with no header and no count footer — agent can't tell if result was empty vs truncated.
   Print `(N items)` footer to stderr; consider header line in text mode behind `--header`. **partial 2026-05-05** (same spec) — truncation hint emitted to stderr when `returned < total`; no count footer when complete. (Friction)
 - [x] ~~`list`: JSON returns flat array; no metadata envelope (count, truncated flag) so agent can't detect truncation programmatically.~~ **done** (2026-05-05, same spec) — envelope is `{items, total, returned, truncated}`.
@@ -108,7 +107,7 @@ Gaps from the 2026-05-04 audit of every implemented verb against
   Add cobra `Example` block (`anvil where --json`); pointer to system-design doc. (Optimization)
 - [ ] `create`: `--help` lacks per-type required-flag table and example invocations.
   Add `Example` block per common type (issue, plan, decision, sweep); reference `docs/vault-schemas.md`. (Optimization)
-- [ ] `show`, `list`, `link`, `set`, `inbox *`, `project *`: none of these include cobra `Example` blocks in `--help` (principle 3).
+- [ ] `show`, `list`, `link`, `set`, `promote`, `project *`: none of these include cobra `Example` blocks in `--help` (principle 3).
   Add at least one `Example` per verb with realistic flag values. (Optimization)
 - [ ] `list`: `--tag` (substring) and `--tags` (all-of) coexist — naming is confusable.
   Deprecate `--tag`, recommend `--tags`; document precedence in `--help`. (Optimization)
@@ -135,8 +134,7 @@ Gaps from the 2026-05-04 audit of every implemented verb against
 
 ## Spec order
 
-**Phase A — unblock the workflow:**
-~~#1 brainstorm-merge → #5 body authoring~~ → #7 (+ inbox-promote agent-cli fixes) → ~~#8, #6, #9, #10, #11~~ → #4 extract-skill fix.
+**Phase A — unblock the workflow:** ~~#1, #5, #7, #8, #6, #9, #10, #11, #4~~ — **done.**
 
 **Phase A.5 — agent-CLI Blockers (gate Phase B):**
 ~~Bundle E.~~ **done 2026-05-05** (spec `2026-05-05-bounded-structured-reads-design`) except the `create` slug-collision Blocker, carved out into a follow-up spec. `list`/`show`/`validate` are now bounded and machine-readable; Phase B can drive them.
@@ -147,19 +145,23 @@ Gaps from the 2026-05-04 audit of every implemented verb against
 **Phase C — ship:**
 #13, #14, #15, #16, #17, #18–21 (+ Bundle F friction sweep alongside).
 
-#2 (research skill) and #3 (using-anvil skill) are independent and can land anywhere in Phase A.
+Item #3 (`using-anvil` skill) is the only Phase A item still open and can land anywhere; #2 (researching skill) shipped 2026-05-05.
 
 ## Bundles
 
 Items that ship together as a single spec/PR:
 
-- **A — CLI-surface fills:** ~~#7 + the two `inbox promote` agent-cli items (non-idempotent re-run; error path missing corrected command)~~ **done 2026-05-05** + #4 (cheap-fix path). #4 reuses the product-design/system-design/sweep shape if it takes the "add `skill` as Type" route.
+- **A — CLI-surface fills:** ~~#7 + inbox-promote agent-cli items + #4~~ **done 2026-05-05.**
 - **B — Doc cleanup:** #19 + #20 + #21. File moves + index fixes, no code.
 - **C — Release pipeline:** #14 + #15 (+ #16 v0.1 entry). Config and the docs that describe it must not drift.
 - **D — Public-facing docs:** #13 + #18. README rewrite has to resolve the `anvil compile` contradiction anyway.
 - **E — Agent-CLI Blockers:** ~~`list --limit`, `inbox list --limit`, `show --full`, `project list --json`, structured `validate` errors~~ **done 2026-05-05** (spec `2026-05-05-bounded-structured-reads-design`); also pulled in adjacent Friction (root `--vault`/`--project`, `show --validate` stream split, `list --json` envelope + per-item fields, `show --json` nested frontmatter, `cmd.Println` → `fmt.Fprintln(cmd.OutOrStdout())` migration for show/list/project/validate). `create` slug collision deferred to a follow-up spec.
-- **F — Agent-CLI Friction sweep:** remaining Friction items — `set`/`link`/`where`/`project *` output + idempotence; `cmd.Println` consistency on `create` and `inbox add` JSON branches; `init` overwrite guard; fang multi-line-error squashing. Mechanical; lands alongside Phase C doc cleanup.
+- **F — Agent-CLI Friction sweep:** remaining Friction items — `set`/`link`/`where`/`project *` output + idempotence; `cmd.Println` consistency on `create` and `create inbox` JSON branches; `init` overwrite guard; fang multi-line-error squashing. Mechanical; lands alongside Phase C doc cleanup.
 
 **Deferred to v0.2 unless cheap:** the Optimization-tagged items (cobra `Example` blocks, `--json` shape stability, `--paths` filters, `--dry-run` on `migrate`).
 
 **Don't bundle:** #3 waits on #7/#4 so it documents the final surface; #2 needs a brainstorm pass; #12a/b/c is its own sequenced bundle and is the v0.1 main event.
+
+## Done
+
+- **CLI consolidation pass 1** — done 2026-05-06 (spec `2026-05-06-cli-consolidation-design`). 16 → 14 top-level verbs; `glossary`/`inbox`/`session` subtrees folded into `tags`, generics, `promote`, and `create session`.

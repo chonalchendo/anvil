@@ -5,6 +5,9 @@ source: {{ .Source }}
 session_id: {{ .SessionID }}
 status: raw
 retention_until: {{ .RetentionUntil }}
+{{- if .StartedAt }}
+started_at: "{{ .StartedAt }}"
+{{- end }}
 related:
 {{- if .ActiveThread }}
   - "[[thread.{{ .ActiveThread }}]]"
