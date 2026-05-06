@@ -60,6 +60,7 @@ func TestValidate_Decision_NewShape(t *testing.T) {
 	fm := map[string]any{
 		"type": "decision", "title": "Use Go", "description": "x", "created": "2026-04-29",
 		"status": "accepted", "date": "2026-04-29",
+		"tags": []any{"domain/dev-tools", "activity/research"},
 	}
 	if err := Validate("decision", fm); err != nil {
 		t.Fatalf("expected valid: %v", err)
@@ -271,6 +272,34 @@ func TestValidate_Plan_RejectsBadModel(t *testing.T) {
 	if err := Validate("plan", fm); err == nil {
 		t.Error("expected rejection: model must be Anvil-supported enum")
 	}
+}
+
+func TestValidate_Decision_RequiresDomainAndActivityTag(t *testing.T) {
+	base := map[string]any{
+		"type": "decision", "title": "x", "description": "x",
+		"created": "2026-05-06", "status": "accepted", "date": "2026-05-06",
+	}
+	t.Run("rejects domain only", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["tags"] = []any{"domain/dbt"}
+		if err := Validate("decision", fm); err == nil {
+			t.Error("expected rejection — missing activity/")
+		}
+	})
+	t.Run("rejects activity only", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["tags"] = []any{"activity/research"}
+		if err := Validate("decision", fm); err == nil {
+			t.Error("expected rejection — missing domain/")
+		}
+	})
+	t.Run("accepts both", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["tags"] = []any{"domain/dbt", "activity/research"}
+		if err := Validate("decision", fm); err != nil {
+			t.Errorf("expected accept: %v", err)
+		}
+	})
 }
 
 func TestValidate_Plan_RequiresDomainTag(t *testing.T) {
