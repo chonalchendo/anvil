@@ -378,10 +378,32 @@ func TestValidate_Thread_AcceptsMinimal(t *testing.T) {
 	fm := map[string]any{
 		"type": "thread", "title": "X", "created": "2026-04-29",
 		"status": "open", "diataxis": "explanation",
+		"tags": []any{"domain/dev-tools", "activity/research"},
 	}
 	if err := Validate("thread", fm); err != nil {
 		t.Fatalf("expected valid: %v", err)
 	}
+}
+
+func TestValidate_Thread_RequiresDomainAndActivityTag(t *testing.T) {
+	base := map[string]any{
+		"type": "thread", "title": "x",
+		"created": "2026-05-06", "status": "open", "diataxis": "explanation",
+	}
+	t.Run("rejects no facets", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["tags"] = []any{}
+		if err := Validate("thread", fm); err == nil {
+			t.Error("expected rejection")
+		}
+	})
+	t.Run("accepts both", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["tags"] = []any{"domain/dbt", "activity/research"}
+		if err := Validate("thread", fm); err != nil {
+			t.Errorf("accept: %v", err)
+		}
+	})
 }
 
 func TestValidate_Sweep_AcceptsMinimal(t *testing.T) {
