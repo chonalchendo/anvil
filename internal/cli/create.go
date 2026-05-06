@@ -439,8 +439,8 @@ func createDrift(t core.Type, fm, existing map[string]any, body, existingBody st
 		scalarFields = append(scalarFields, "suggested_type", "suggested_project")
 	}
 	for _, f := range scalarFields {
-		want, _ := fm[f]
-		got, _ := existing[f]
+		want := fm[f]
+		got := existing[f]
 		if want == nil && got == nil {
 			continue
 		}
