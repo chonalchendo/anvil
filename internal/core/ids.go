@@ -44,10 +44,10 @@ type IDInputs struct {
 	Topic   string // required for decision
 }
 
-// NextID returns the next available ID for type t under v.
-// It enforces the per-type format from D1 and disambiguates collisions by
-// scanning existing .md filenames in the type's directory.
-func NextID(v *Vault, t Type, in IDInputs) (string, error) {
+// DeterministicID returns the slug-keyed ID a given type would receive
+// before any collision-suffix is applied. Returns an error for decisions
+// (which require a vault scan to allocate an ordinal).
+func DeterministicID(t Type, in IDInputs) (string, error) {
 	slug := Slugify(in.Title)
 	if slug == "" {
 		return "", fmt.Errorf("title required (produced empty slug)")
@@ -55,22 +55,32 @@ func NextID(v *Vault, t Type, in IDInputs) (string, error) {
 	switch t {
 	case TypeInbox:
 		date := time.Now().UTC().Format("2006-01-02")
-		return uniqueID(v, t, fmt.Sprintf("%s-%s", date, slug))
-	case TypeIssue, TypePlan:
+		return fmt.Sprintf("%s-%s", date, slug), nil
+	case TypeIssue, TypePlan, TypeMilestone:
 		if in.Project == "" {
 			return "", fmt.Errorf("project required for %s", t)
 		}
-		return uniqueID(v, t, fmt.Sprintf("%s.%s", in.Project, slug))
-	case TypeMilestone:
-		if in.Project == "" {
-			return "", fmt.Errorf("project required for milestone")
-		}
-		return uniqueID(v, t, fmt.Sprintf("%s.%s", in.Project, slug))
+		return fmt.Sprintf("%s.%s", in.Project, slug), nil
 	case TypeThread, TypeLearning, TypeSweep:
-		return uniqueID(v, t, slug)
+		return slug, nil
 	case TypeDecision:
+		return "", fmt.Errorf("decision IDs are not deterministic (ordinal-scoped)")
+	}
+	return "", fmt.Errorf("unknown type %q", t)
+}
+
+// NextID returns the next available ID for type t under v. For idempotent
+// types it returns DeterministicID(...) when no collision exists, otherwise
+// it falls through to uniqueID's suffix loop. Decisions allocate via
+// nextDecisionOrdinal.
+func NextID(v *Vault, t Type, in IDInputs) (string, error) {
+	if t == TypeDecision {
 		if in.Topic == "" {
 			return "", fmt.Errorf("topic required for decision")
+		}
+		slug := Slugify(in.Title)
+		if slug == "" {
+			return "", fmt.Errorf("title required (produced empty slug)")
 		}
 		n, err := nextDecisionOrdinal(v, in.Topic)
 		if err != nil {
@@ -78,7 +88,11 @@ func NextID(v *Vault, t Type, in IDInputs) (string, error) {
 		}
 		return fmt.Sprintf("%s.%04d-%s", in.Topic, n, slug), nil
 	}
-	return "", fmt.Errorf("unknown type %q", t)
+	base, err := DeterministicID(t, in)
+	if err != nil {
+		return "", err
+	}
+	return uniqueID(v, t, base)
 }
 
 // uniqueID returns base, or base-2, base-3, ... whichever does not yet exist as <dir>/<id>.md.
