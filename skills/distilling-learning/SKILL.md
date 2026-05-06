@@ -83,7 +83,7 @@ For each learning, propose tags drawn from existing values first. Only invent a 
 
 - Be lowercase ASCII, hyphens only (no spaces, no underscores, no caps).
 - Have shape `<facet>/<name>` where facet is one of `domain | activity | pattern`. (`status/` is forbidden — status is a frontmatter field.)
-- Pass `--allow-new-facet=<facet>` to the `create` call to introduce the value, OR seed the glossary first via `anvil tags add <facet>/<name> --desc "..."`.
+- Be introduced by passing `--allow-new-facet=<facet>` on the `create` call. (Glossary seeding via `anvil tags add <facet>/<name> --desc "..."` is a Phase 5 follow-up; it does not bypass the novelty gate on its own.)
 
 Never include a `status/*` tag.
 

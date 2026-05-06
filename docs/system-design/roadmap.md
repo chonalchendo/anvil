@@ -135,7 +135,7 @@ Gaps from the 2026-05-04 audit of every implemented verb against
 - Read-side CLI gaps (`show`, `list` parity) → AI reads files directly.
 - Codex adapter installer → only Claude Code hooks installer ships in v0.1.
 - Session-wide telemetry, dashboards, skill-execution events → only the build slice ships.
-- **`anvil index` verb** → surfaces facet co-occurrence patterns across operational + knowledge artifacts (issue, plan, decision, learning, thread) to feed `extract-skill-from-session`. Read-only, mechanical, no LLM. Spec: `docs/superpowers/specs/2026-05-06-vault-synthesis-design.md`. Faceted-tag enforcement prerequisite has landed in v0.1 (see "Vault schemas" group below).
+- **`anvil index` verb** → surfaces facet co-occurrence patterns across operational + knowledge artifacts (issue, plan, decision, learning, thread) to feed `extract-skill-from-session`. Read-only, mechanical, no LLM. Spec: `docs/superpowers/specs/2026-05-06-vault-synthesis-design.md`. Faceted-tag enforcement prerequisite has landed in v0.1 (see "Vault schemas" group above).
 - **Sweep type review** → `sweep` may be cut entirely from the vault; thin schema, unclear use case. Brainstorm pending.
 
 ## Spec order
