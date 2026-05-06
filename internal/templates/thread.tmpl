@@ -4,4 +4,5 @@ created: {{ .Created }}
 updated: {{ .Created }}
 status: open
 diataxis: explanation
-tags: [type/thread, domain/unknown, activity/unknown]
+# tags: required domain/<x> + activity/<x>; pattern/<x> optional
+tags: [{{- range $i, $t := .Tags }}{{ if $i }}, {{ end }}{{ $t }}{{- end }}]

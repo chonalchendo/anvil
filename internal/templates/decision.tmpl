@@ -5,4 +5,5 @@ created: {{ .Created }}
 updated: {{ .Created }}
 date: {{ .Created }}
 status: proposed
-tags: [type/decision, domain/unknown, activity/unknown]
+# tags: required domain/<x> + activity/<x>; pattern/<x> optional
+tags: [{{- range $i, $t := .Tags }}{{ if $i }}, {{ end }}{{ $t }}{{- end }}]

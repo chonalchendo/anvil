@@ -30,7 +30,7 @@ func TestCreate_Issue_WritesValidFile(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "Fix login bug", "--description", "test description"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "Fix login bug", "--description", "test description", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -96,7 +96,7 @@ func TestCreate_JSON_ReturnsIDAndPath(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description", "--json"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description", "--json", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -120,7 +120,7 @@ func TestCreate_Decision_TopicScoped(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "decision", "--title", "use jwt", "--topic", "auth", "--description", "test description"})
+	cmd.SetArgs([]string{"create", "decision", "--title", "use jwt", "--topic", "auth", "--description", "test description", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -142,6 +142,8 @@ func TestCreatePlan_NewSchema_Succeeds(t *testing.T) {
 		"--title", "Streaming token counter",
 		"--description", "test description",
 		"--issue", "[[issue.foo.streaming]]",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
 	})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -168,7 +170,7 @@ func TestCreate_Thread_WritesValidFile(t *testing.T) {
 	t.Chdir(t.TempDir()) // not a git repo — thread needs no project
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "thread", "--title", "Research ducklake"})
+	cmd.SetArgs([]string{"create", "thread", "--title", "Research ducklake", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -202,7 +204,7 @@ func TestCreate_Learning_WritesValidFile(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "learning", "--title", "Postgres FK locks block writes"})
+	cmd.SetArgs([]string{"create", "learning", "--title", "Postgres FK locks block writes", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -238,7 +240,7 @@ func TestCreate_Issue_WithBody_FlagRoundTrips(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description", "--body", "## Context\n\nFrom flag."})
+	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description", "--body", "## Context\n\nFrom flag.", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -258,7 +260,7 @@ func TestCreate_Issue_EmptyBody_Unchanged(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -283,6 +285,8 @@ func TestCreatePlan_BodyReplacesT1Seed_ValidWhenWellFormed(t *testing.T) {
 		"--description", "test description",
 		"--issue", "[[issue.foo.streaming]]",
 		"--body", body,
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
 	})
 	var stderr bytes.Buffer
 	cmd.SetErr(&stderr)
@@ -767,5 +771,76 @@ func TestCreateInbox_WithBody(t *testing.T) {
 	a, _ := core.LoadArtifact(filepath.Join(vault, "00-inbox", entries[0].Name()))
 	if !strings.Contains(a.Body, "stub body") {
 		t.Errorf("body = %q", a.Body)
+	}
+}
+
+func TestCreate_Issue_RejectsUnknownDomain(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue",
+		"--title", "Fix X",
+		"--description", "y",
+		"--tags", "domain/quantum-physics"})
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected failure for unknown domain")
+	}
+	if !strings.Contains(errOut.String(), "unknown_facet_value") {
+		t.Errorf("missing code in stderr: %q", errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "--allow-new-facet=domain") {
+		t.Errorf("missing fix line: %q", errOut.String())
+	}
+}
+
+func TestCreate_Issue_AllowNewFacetSucceeds(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue",
+		"--title", "Fix X",
+		"--description", "y",
+		"--tags", "domain/quantum-physics",
+		"--allow-new-facet=domain"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected success: %v", err)
+	}
+}
+
+func TestCreate_Issue_SuggestsContainmentMatch(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue", "--title", "seed",
+		"--description", "y", "--tags", "domain/dbt", "--allow-new-facet=domain"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd2 := newRootCmd()
+	cmd2.SetArgs([]string{"create", "issue", "--title", "Other",
+		"--description", "y", "--tags", "domain/dbt-testing"})
+	var errOut bytes.Buffer
+	cmd2.SetErr(&errOut)
+	if err := cmd2.Execute(); err == nil {
+		t.Fatal("expected rejection")
+	}
+	if !strings.Contains(errOut.String(), "suggest: domain/dbt") {
+		t.Errorf("missing suggest line: %q", errOut.String())
 	}
 }
