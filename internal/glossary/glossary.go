@@ -67,7 +67,7 @@ func (g *Glossary) Tags() []string {
 
 // HasTag reports whether tag (full "<facet>/<name>") is present.
 func (g *Glossary) HasTag(tag string) bool {
-	facet, name, ok := splitTag(tag)
+	facet, name, ok := SplitTag(tag)
 	if !ok {
 		return false
 	}
@@ -81,7 +81,7 @@ func (g *Glossary) HasTag(tag string) bool {
 
 // AddTag appends a tag entry under the inferred facet. No-op if the tag exists.
 func (g *Glossary) AddTag(tag, desc string) error {
-	facet, name, ok := splitTag(tag)
+	facet, name, ok := SplitTag(tag)
 	if !ok {
 		return fmt.Errorf("tag %q must have shape <facet>/<name> with facet in %v", tag, Facets)
 	}
@@ -99,7 +99,7 @@ func (g *Glossary) AddTag(tag, desc string) error {
 
 // FindTagDesc returns the description for tag (full <facet>/<name>) or "", false.
 func (g *Glossary) FindTagDesc(tag string) (string, bool) {
-	facet, name, ok := splitTag(tag)
+	facet, name, ok := SplitTag(tag)
 	if !ok {
 		return "", false
 	}
@@ -114,7 +114,7 @@ func (g *Glossary) FindTagDesc(tag string) (string, bool) {
 // UpdateTagDesc rewrites tag's description in place.
 // Returns false if the tag is absent.
 func (g *Glossary) UpdateTagDesc(tag, desc string) bool {
-	facet, name, ok := splitTag(tag)
+	facet, name, ok := SplitTag(tag)
 	if !ok {
 		return false
 	}
@@ -158,7 +158,9 @@ func (g *Glossary) Save(path string) error {
 	return os.WriteFile(path, b.Bytes(), 0o644)
 }
 
-func splitTag(tag string) (facet, name string, ok bool) {
+// SplitTag splits a "<facet>/<name>" tag. Returns ok=false if the shape is wrong
+// (no slash, leading slash, or trailing slash). Does not validate that facet ∈ Facets.
+func SplitTag(tag string) (facet, name string, ok bool) {
 	i := strings.IndexByte(tag, '/')
 	if i <= 0 || i == len(tag)-1 {
 		return "", "", false

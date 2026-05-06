@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -274,8 +275,8 @@ func newTagsAddCmd() *cobra.Command {
 			if flagDesc == "" {
 				return fmt.Errorf("--desc is required")
 			}
-			facet, _, ok := splitFacet(tag)
-			if !ok || !knownFacet(facet) {
+			facet, _, ok := glossary.SplitTag(tag)
+			if !ok || !slices.Contains(glossary.Facets, facet) {
 				return fmt.Errorf("invalid value %q for <facet>/<name>\n  valid values: %s\n  corrected:    anvil tags add %s/<name> --desc %q",
 					tag, strings.Join(glossary.Facets, ", "), glossary.Facets[0], flagDesc)
 			}
@@ -288,7 +289,7 @@ func newTagsAddCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			existing, hadIt := findTagDesc(g, tag)
+			existing, hadIt := g.FindTagDesc(tag)
 			if hadIt && existing == flagDesc {
 				cmd.Println(path)
 				return nil
@@ -298,9 +299,8 @@ func newTagsAddCmd() *cobra.Command {
 					tag, existing, flagDesc, tag, flagDesc)
 			}
 			if hadIt && flagUpdate {
-				if err := updateTagDesc(g, tag, flagDesc); err != nil {
-					return err
-				}
+				// hadIt was just verified above and there are no concurrent writers.
+				_ = g.UpdateTagDesc(tag, flagDesc)
 			} else {
 				if err := g.AddTag(tag, flagDesc); err != nil {
 					return err
@@ -340,32 +340,4 @@ func newTagsDefineCmd() *cobra.Command {
 			return nil
 		},
 	}
-}
-
-func splitFacet(tag string) (facet, name string, ok bool) {
-	i := strings.IndexByte(tag, '/')
-	if i <= 0 || i == len(tag)-1 {
-		return "", "", false
-	}
-	return tag[:i], tag[i+1:], true
-}
-
-func knownFacet(f string) bool {
-	for _, k := range glossary.Facets {
-		if k == f {
-			return true
-		}
-	}
-	return false
-}
-
-func findTagDesc(g *glossary.Glossary, tag string) (string, bool) {
-	return g.FindTagDesc(tag)
-}
-
-func updateTagDesc(g *glossary.Glossary, tag, desc string) error {
-	if !g.UpdateTagDesc(tag, desc) {
-		return fmt.Errorf("tag %q vanished during update", tag)
-	}
-	return nil
 }
