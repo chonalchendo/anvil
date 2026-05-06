@@ -128,3 +128,74 @@ func newScaffolded(t *testing.T) *Vault {
 	}
 	return v
 }
+
+func TestDeterministicID(t *testing.T) {
+	cases := []struct {
+		name string
+		typ  Type
+		in   IDInputs
+		want string
+	}{
+		{"issue", TypeIssue, IDInputs{Title: "Fix Login Bug", Project: "foo"}, "foo.fix-login-bug"},
+		{"plan", TypePlan, IDInputs{Title: "Add OAuth", Project: "foo"}, "foo.add-oauth"},
+		{"milestone", TypeMilestone, IDInputs{Title: "v0.1 GA", Project: "foo"}, "foo.v0-1-ga"},
+		{"thread", TypeThread, IDInputs{Title: "auth retries"}, "auth-retries"},
+		{"learning", TypeLearning, IDInputs{Title: "Slogger gotcha"}, "slogger-gotcha"},
+		{"sweep", TypeSweep, IDInputs{Title: "Drop python2"}, "drop-python2"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := DeterministicID(tc.typ, tc.in)
+			if err != nil {
+				t.Fatalf("DeterministicID: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("got %q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestDeterministicID_Inbox_DateScoped(t *testing.T) {
+	got, err := DeterministicID(TypeInbox, IDInputs{Title: "random thought"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) < len("2026-01-01-random-thought") || got[len(got)-len("random-thought"):] != "random-thought" {
+		t.Errorf("got %q, want suffix random-thought", got)
+	}
+}
+
+func TestDeterministicID_Decision_Errors(t *testing.T) {
+	if _, err := DeterministicID(TypeDecision, IDInputs{Title: "pick db", Topic: "db"}); err == nil {
+		t.Errorf("expected error for decision (non-deterministic)")
+	}
+}
+
+func TestDeterministicID_EmptyTitle(t *testing.T) {
+	if _, err := DeterministicID(TypeIssue, IDInputs{Project: "foo"}); err == nil {
+		t.Errorf("expected error for empty title")
+	}
+}
+
+func TestNextID_FallsBackToSuffixOnCollision(t *testing.T) {
+	v := &Vault{Root: t.TempDir()}
+	if err := v.Scaffold(); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(v.Root, TypeThread.Dir())
+	if err := writeStub(filepath.Join(dir, "auth-retries.md")); err != nil {
+		t.Fatal(err)
+	}
+	got, err := NextID(v, TypeThread, IDInputs{Title: "auth retries"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "auth-retries-2" {
+		t.Errorf("got %q, want auth-retries-2", got)
+	}
+}
+
+func writeStub(path string) error {
+	return os.WriteFile(path, []byte("---\ntitle: x\n---\n"), 0o644)
+}
