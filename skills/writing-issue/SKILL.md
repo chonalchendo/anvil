@@ -103,8 +103,18 @@ If a frame surfaces an unknown that needs evidence (a dependency, a competitor b
 
 Before calling the CLI, confirm `severity` (`low | medium | high | critical`) with the user. Severity is required by the schema and gates triage queries.
 
+List the existing `domain/` taxonomy so you reuse a value the user has already introduced rather than coining a near-duplicate:
+
 ```bash
-anvil create issue --title "<title>" --json
+anvil tags list --source used --prefix domain/ --json
+```
+
+Pick the closest existing value if one fits; only invent a new one if no existing value matches. The CLI will reject an unrecognised value unless you pass `--allow-new-facet=domain` — verbosity is intentional friction.
+
+When promoting an inbox item, pass `--tags` on the `anvil promote <id> --as issue` call after consulting the same list.
+
+```bash
+anvil create issue --title "<title>" --tags domain/<x> --json
 ```
 
 Capture `id` and `path` from the JSON output. The file lands at `~/anvil-vault/70-issues/<project>.<slug>.md`.

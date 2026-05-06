@@ -124,6 +124,10 @@ Gaps from the 2026-05-04 audit of every implemented verb against
 - [ ] `install`: only `hooks` subcommand today; `install --help` doesn't note future surface.
   Add note in long help; harmless until expansion lands. (Optimization)
 
+## Vault schemas
+
+22. ~~**Faceted-tag enforcement on issue, plan, decision, learning, thread**~~ — **done** (2026-05-06, spec `2026-05-06-faceted-tag-enforcement-design`, plan `2026-05-06-faceted-tag-enforcement.md`). Per-type schema rules require `domain/<x>` (operational) or `domain/<x>` + `activity/<x>` (knowledge). CLI gate on `anvil create` / `anvil set tags` / `anvil promote` rejects values novel to the vault unless `--allow-new-facet=<facet>` is passed; suggestions via Levenshtein + containment. `type/<x>` tag convention dropped (covered by the `type` discriminator field). Unblocks the v0.2 `anvil index` spec listed under "Out of scope".
+
 ## Out of scope (deferred to v0.2+)
 
 - `inline-fix` skill, `inbox → plan` shortcut → discovered organically via `extract-skill-from-session` once #4 works.
@@ -131,6 +135,8 @@ Gaps from the 2026-05-04 audit of every implemented verb against
 - Read-side CLI gaps (`show`, `list` parity) → AI reads files directly.
 - Codex adapter installer → only Claude Code hooks installer ships in v0.1.
 - Session-wide telemetry, dashboards, skill-execution events → only the build slice ships.
+- **`anvil index` verb** → surfaces facet co-occurrence patterns across operational + knowledge artifacts (issue, plan, decision, learning, thread) to feed `extract-skill-from-session`. Read-only, mechanical, no LLM. Spec: `docs/superpowers/specs/2026-05-06-vault-synthesis-design.md`. Faceted-tag enforcement prerequisite has landed in v0.1 (see "Vault schemas" group below).
+- **Sweep type review** → `sweep` may be cut entirely from the vault; thin schema, unclear use case. Brainstorm pending.
 
 ## Spec order
 
