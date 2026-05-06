@@ -9,7 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-const testCmd = `anvil session emit --from-stdin`
+const testCmd = `anvil install fire-session-start`
 
 func writeJSON(t *testing.T, path string, v any) {
 	t.Helper()

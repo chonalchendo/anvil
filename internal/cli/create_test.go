@@ -713,3 +713,23 @@ func TestCreateSession_JSON(t *testing.T) {
 		t.Errorf("related = %v", got.Related)
 	}
 }
+
+func TestInstallFireSessionStart_WritesSession(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("ANVIL_STATE_DIR", t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"install", "fire-session-start"})
+	cmd.SetIn(strings.NewReader(`{"session_id":"` + fakeSessionUUID + `","source":"startup","cwd":"/tmp","hook_event_name":"SessionStart"}`))
+	cmd.SetOut(&bytes.Buffer{})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("hook: %v", err)
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "10-sessions", fakeSessionUUID+".md"))
+	if err != nil {
+		t.Fatalf("missing session: %v", err)
+	}
+	if a.FrontMatter["source"] != "claude-code" {
+		t.Errorf("source = %v, want claude-code", a.FrontMatter["source"])
+	}
+}
