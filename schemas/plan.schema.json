@@ -5,7 +5,7 @@
   "type": "object",
   "required": [
     "type", "id", "slug", "title", "description", "created", "updated",
-    "status", "plan_version", "issue", "tasks"
+    "status", "plan_version", "issue", "tasks", "tags"
   ],
   "properties": {
     "type":         { "const": "plan" },
@@ -19,7 +19,13 @@
     "plan_version": { "type": "integer", "minimum": 1 },
     "issue":        { "type": "string", "minLength": 1 },
     "authorized_by":{ "type": "array", "items": { "type": "string" } },
-    "tags":         { "type": "array", "items": { "type": "string" } },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "allOf": [
+        { "contains": { "type": "string", "pattern": "^domain/[a-z0-9-]+$" }, "minContains": 1 }
+      ]
+    },
     "aliases":      { "type": "array", "items": { "type": "string" } },
     "project":      { "type": "string" },
     "tasks": {
