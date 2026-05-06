@@ -116,6 +116,6 @@ Three sequenced sub-projects:
 - Read-side CLI gaps beyond Bundle E — AI reads files directly.
 - Codex adapter installer — only Claude Code hooks installer ships in v0.1.
 - Session-wide telemetry, dashboards, skill-execution events — only the build slice ships.
-- **`anvil index` verb** — surfaces facet co-occurrence across issue/plan/decision/learning/thread to feed `extract-skill-from-session`. Read-only, no LLM. Spec: `docs/superpowers/specs/2026-05-06-vault-synthesis-design.md`. Faceted-tag prerequisite landed.
+- **`anvil index` verb** — surfaces facet co-occurrence across issue/plan/decision/learning/thread to feed `extract-skill-from-session`. Read-only, no LLM. Spec: `docs/superpowers/specs/2026-05-06-vault-synthesis-design.md`. Faceted-tag prerequisite landed. Natural home for cross-project link discoverability ("show everything that links to X" / reverse-link queries) — wikilinks already resolve across projects (vault-global, since project is in the ID), but there's no verb to surface the wiring.
 - **Sweep type review** — `sweep` may be cut entirely; thin schema, unclear use case. Brainstorm pending.
 - Optimization-tagged agent-CLI items above (cobra `Example` blocks, `--paths` filters, `--dry-run` on `migrate`).
