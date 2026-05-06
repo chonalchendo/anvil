@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"text/template"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/chonalchendo/anvil/internal/cli/facets"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/schema"
 	"github.com/chonalchendo/anvil/internal/templates"
@@ -43,6 +45,7 @@ type templateData struct {
 	StartedAt        string
 	Breaking         bool
 	Scope            string
+	Tags             []string
 }
 
 func newCreateCmd() *cobra.Command {
@@ -63,6 +66,8 @@ func newCreateCmd() *cobra.Command {
 		flagStartedAt        string
 		flagActiveThread     string
 		flagUpdate           bool
+		flagTags             []string
+		flagAllowNewFacet    []string
 	)
 
 	cmd := &cobra.Command{
@@ -154,18 +159,53 @@ func newCreateCmd() *cobra.Command {
 				Issue:            flagIssue,
 				Breaking:         flagBreaking,
 				Scope:            flagScope,
+				Tags:             flagTags,
 			}
 
 			fm, err := renderFrontMatter(t, data)
 			if err != nil {
 				return fmt.Errorf("rendering template: %w", err)
 			}
-
-			if err := schema.Validate(string(t), fm); err != nil {
-				return fmt.Errorf("schema validation: %w", err)
+			if len(flagTags) > 0 {
+				anyTags := make([]any, 0, len(flagTags))
+				for _, s := range flagTags {
+					anyTags = append(anyTags, s)
+				}
+				fm["tags"] = anyTags
 			}
 
 			path := t.Path(v.Root, project, id)
+			if err := schema.Validate(string(t), fm); err != nil {
+				return renderSchemaErr(cmd, path, err)
+			}
+
+			for _, f := range flagAllowNewFacet {
+				if !slices.Contains(facets.Facets, f) {
+					return formatEnumError("--allow-new-facet", f, facets.Facets, "")
+				}
+			}
+			allowed := map[string]bool{}
+			for _, f := range flagAllowNewFacet {
+				allowed[f] = true
+			}
+			values, gErr := facets.CollectValues(v.Root)
+			if gErr != nil {
+				return fmt.Errorf("walking vault for facet values: %w", gErr)
+			}
+			tagsRaw, _ := fm["tags"].([]any)
+			tagsStr := make([]string, 0, len(tagsRaw))
+			for _, raw := range tagsRaw {
+				if s, ok := raw.(string); ok {
+					tagsStr = append(tagsStr, s)
+				}
+			}
+			if errs := facets.Check(values, tagsStr, allowed); len(errs) > 0 {
+				for _, e := range errs {
+					e.Path = path
+				}
+				printValidationErrors(cmd, errs)
+				return ErrSchemaInvalid
+			}
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 			}
@@ -225,6 +265,8 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagStartedAt, "started-at", "", "RFC3339 session start time (defaults to now)")
 	cmd.Flags().StringVar(&flagActiveThread, "active-thread", "", "active thread slug to record in related[]")
 	cmd.Flags().BoolVar(&flagUpdate, "update", false, "rewrite existing session artifact on drift")
+	cmd.Flags().StringSliceVar(&flagTags, "tags", nil, "comma-separated tag list (e.g. domain/dbt,activity/testing)")
+	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet to suppress novelty gate for (repeatable: domain|activity|pattern)")
 
 	return cmd
 }

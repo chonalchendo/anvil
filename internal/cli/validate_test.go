@@ -19,7 +19,7 @@ func TestValidate_GoodVault(t *testing.T) {
 
 	// Add one valid issue.
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "good", "--description", "test description"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "good", "--description", "test description", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestValidate_Learning_BodyShape(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "learning", "--title", "X"})
+	cmd.SetArgs([]string{"create", "learning", "--title", "X", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {

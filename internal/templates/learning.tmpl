@@ -5,4 +5,5 @@ updated: {{ .Created }}
 status: draft
 diataxis: explanation
 confidence: low
-tags: [type/learning, domain/unknown, activity/unknown]
+# tags: required domain/<x> + activity/<x>; pattern/<x> optional
+tags: [{{- range $i, $t := .Tags }}{{ if $i }}, {{ end }}{{ $t }}{{- end }}]

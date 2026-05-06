@@ -8,7 +8,8 @@ updated: {{ .Created }}
 status: draft
 plan_version: 1
 issue: {{ printf "%q" .Issue }}
-tags: [type/plan, domain/unknown]
+# tags: required domain/<x>; activity/, pattern/ optional
+tags: [{{- range $i, $t := .Tags }}{{ if $i }}, {{ end }}{{ $t }}{{- end }}]
 project: {{ .Project }}
 tasks:
   - id: T1

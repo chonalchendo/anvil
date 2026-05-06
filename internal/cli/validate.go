@@ -89,24 +89,7 @@ func newValidateCmd() *cobra.Command {
 				b, _ := json.Marshal(failures)
 				fmt.Fprintln(cmd.OutOrStdout(), string(b))
 			} else {
-				for i, f := range failures {
-					if i > 0 {
-						cmd.PrintErrln("")
-					}
-					cmd.PrintErrln(fmt.Sprintf("[%s] %s", f.Code, f.Path))
-					if f.Field != "" {
-						cmd.PrintErrln(fmt.Sprintf("  field: %s", f.Field))
-					}
-					if f.Got != "" {
-						cmd.PrintErrln(fmt.Sprintf("  got: %s", f.Got))
-					}
-					if f.Expected != nil {
-						cmd.PrintErrln(fmt.Sprintf("  expected: %v", f.Expected))
-					}
-					if f.Fix != "" {
-						cmd.PrintErrln(fmt.Sprintf("  fix: %s", f.Fix))
-					}
-				}
+				printValidationErrors(cmd, failures)
 			}
 
 			if len(failures) > 0 {
