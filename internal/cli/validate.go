@@ -48,9 +48,7 @@ func newValidateCmd() *cobra.Command {
 					known[tag] = struct{}{}
 				}
 			}
-			if known != nil {
-				known["type/learning"] = struct{}{}
-			}
+
 
 			var failures []*errfmt.ValidationError
 			for _, t := range core.AllTypes {
@@ -69,7 +67,7 @@ func newValidateCmd() *cobra.Command {
 					path := filepath.Join(dir, e.Name())
 					a, err := core.LoadArtifact(path)
 					if err != nil {
-						failures = append(failures, errfmt.NewValidationError("parse_error", path, "", err.Error()))
+						failures = append(failures, errfmt.NewValidationError(errfmt.CodeParseError, path, "", err.Error()))
 						continue
 					}
 					if err := schema.Validate(string(t), a.FrontMatter); err != nil {
@@ -78,7 +76,7 @@ func newValidateCmd() *cobra.Command {
 					}
 					if t == core.TypeLearning {
 						for _, vErr := range core.ValidateLearning(a, known) {
-							failures = append(failures, errfmt.NewValidationError("constraint_violation", path, "", vErr.Error()))
+							failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 						}
 					}
 				}
@@ -127,7 +125,7 @@ func schemaErrToValidationErrors(path string, err error) []*errfmt.ValidationErr
 	var ve *jsonschema.ValidationError
 	if !errors.As(err, &ve) {
 		return []*errfmt.ValidationError{
-			errfmt.NewValidationError("constraint_violation", path, "", err.Error()),
+			errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", err.Error()),
 		}
 	}
 	var out []*errfmt.ValidationError
@@ -136,6 +134,25 @@ func schemaErrToValidationErrors(path string, err error) []*errfmt.ValidationErr
 }
 
 func walkSchemaErr(path string, ve *jsonschema.ValidationError, out *[]*errfmt.ValidationError) {
+	// MinContains/Contains have causes (the failing pattern leaves), but we
+	// want to emit one structured error at this level, not recurse into the
+	// raw pattern failures — intercept before the generic cause-recurse.
+	if _, ok := ve.ErrorKind.(*kind.MinContains); ok {
+		field := strings.Join(ve.InstanceLocation, ".")
+		if field == "tags" {
+			pattern := "^domain/[a-z0-9-]+$" // fallback
+			for _, c := range ve.Causes {
+				if p, ok := c.ErrorKind.(*kind.Pattern); ok {
+					pattern = p.Want
+					break
+				}
+			}
+			*out = append(*out, errfmt.NewValidationError(errfmt.CodeMissingRequiredFacet, path, "tags", "").
+				WithExpected([]string{pattern}).
+				WithFix("add a tag matching the listed pattern (e.g. domain/<x>)"))
+			return
+		}
+	}
 	if len(ve.Causes) > 0 {
 		for _, c := range ve.Causes {
 			walkSchemaErr(path, c, out)
@@ -146,10 +163,10 @@ func walkSchemaErr(path string, ve *jsonschema.ValidationError, out *[]*errfmt.V
 	switch k := ve.ErrorKind.(type) {
 	case *kind.Required:
 		for _, name := range k.Missing {
-			*out = append(*out, errfmt.NewValidationError("missing_required", path, name, ""))
+			*out = append(*out, errfmt.NewValidationError(errfmt.CodeMissingRequired, path, name, ""))
 		}
 	case *kind.Enum:
-		e := errfmt.NewValidationError("enum_violation", path, field, fmt.Sprint(k.Got))
+		e := errfmt.NewValidationError(errfmt.CodeEnumViolation, path, field, fmt.Sprint(k.Got))
 		wantStrs := make([]string, 0, len(k.Want))
 		for _, w := range k.Want {
 			wantStrs = append(wantStrs, fmt.Sprint(w))
@@ -157,29 +174,46 @@ func walkSchemaErr(path string, ve *jsonschema.ValidationError, out *[]*errfmt.V
 		e.WithExpected(wantStrs)
 		*out = append(*out, e)
 	case *kind.Const:
-		*out = append(*out, errfmt.NewValidationError("enum_violation", path, field, fmt.Sprint(k.Got)).
+		*out = append(*out, errfmt.NewValidationError(errfmt.CodeEnumViolation, path, field, fmt.Sprint(k.Got)).
 			WithExpected([]string{fmt.Sprint(k.Want)}))
 	case *kind.Type:
-		*out = append(*out, errfmt.NewValidationError("type_mismatch", path, field, k.Got).
+		*out = append(*out, errfmt.NewValidationError(errfmt.CodeTypeMismatch, path, field, k.Got).
 			WithExpected(k.Want))
 	case *kind.MinLength:
-		*out = append(*out, errfmt.NewValidationError("constraint_violation", path, field, fmt.Sprintf("%d chars", k.Got)).
+		*out = append(*out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, field, fmt.Sprintf("%d chars", k.Got)).
 			WithExpected(fmt.Sprintf("min %d chars", k.Want)))
 	case *kind.MaxLength:
-		*out = append(*out, errfmt.NewValidationError("constraint_violation", path, field, fmt.Sprintf("%d chars", k.Got)).
+		*out = append(*out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, field, fmt.Sprintf("%d chars", k.Got)).
 			WithExpected(fmt.Sprintf("max %d chars", k.Want)))
 	case *kind.Pattern:
-		*out = append(*out, errfmt.NewValidationError("constraint_violation", path, field, k.Got).
+		*out = append(*out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, field, k.Got).
 			WithExpected(fmt.Sprintf("matches pattern %s", k.Want)))
 	case *kind.Format:
-		*out = append(*out, errfmt.NewValidationError("constraint_violation", path, field, fmt.Sprint(k.Got)).
+		*out = append(*out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, field, fmt.Sprint(k.Got)).
 			WithExpected(fmt.Sprintf("format %s", k.Want)))
 	case *kind.AdditionalProperties:
 		for _, prop := range k.Properties {
-			*out = append(*out, errfmt.NewValidationError("constraint_violation", path, prop, "unexpected").
+			*out = append(*out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, prop, "unexpected").
 				WithExpected("not present"))
 		}
+	case *kind.MinContains, *kind.Contains:
+		// A failing contains/minContains on tags means a required facet is absent.
+		// The cause is a *kind.Pattern whose Want field holds the required regex.
+		if field == "tags" {
+			pattern := "^domain/[a-z0-9-]+$" // fallback
+			for _, c := range ve.Causes {
+				if p, ok := c.ErrorKind.(*kind.Pattern); ok {
+					pattern = p.Want
+					break
+				}
+			}
+			*out = append(*out, errfmt.NewValidationError(errfmt.CodeMissingRequiredFacet, path, "tags", "").
+				WithExpected([]string{pattern}).
+				WithFix("add a tag matching the listed pattern (e.g. domain/<x>)"))
+			return
+		}
+		*out = append(*out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, field, fmt.Sprintf("%v", ve.ErrorKind)))
 	default:
-		*out = append(*out, errfmt.NewValidationError("constraint_violation", path, field, fmt.Sprintf("%v", ve.ErrorKind)))
+		*out = append(*out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, field, fmt.Sprintf("%v", ve.ErrorKind)))
 	}
 }

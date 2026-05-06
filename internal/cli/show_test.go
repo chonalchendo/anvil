@@ -20,6 +20,7 @@ func writeFixtureIssue(t *testing.T, vault, project, slug, title string) string 
 		FrontMatter: map[string]any{
 			"type": "issue", "title": title, "description": "fixture description", "created": "2026-04-29",
 			"updated": "2026-04-29", "status": "open", "project": project, "severity": "medium",
+			"tags": []any{"domain/dev-tools"},
 		},
 		Body: "## Context\n\nfixture body.\n",
 	}
@@ -205,6 +206,7 @@ func TestShowValidate_Issue_DanglingMilestone(t *testing.T) {
 		FrontMatter: map[string]any{
 			"type": "issue", "title": "x", "description": "fixture description", "created": "2026-04-29",
 			"status": "open", "project": "foo", "severity": "low",
+			"tags": []any{"domain/dev-tools"},
 			"milestone": "[[milestone.foo.ghost]]",
 		},
 	}
@@ -288,6 +290,7 @@ func TestShowValidate_StdoutVsStderr(t *testing.T) {
 		FrontMatter: map[string]any{
 			"type": "issue", "title": "x", "description": "d", "created": "2026-04-29",
 			"status": "open", "project": "foo", "severity": "low",
+			"tags": []any{"domain/dev-tools"},
 			"milestone": "[[milestone.foo.ghost]]",
 		},
 	}
@@ -323,6 +326,7 @@ func TestShowValidate_JSON(t *testing.T) {
 		FrontMatter: map[string]any{
 			"type": "issue", "title": "x", "description": "fixture description", "created": "2026-04-29",
 			"status": "open", "project": "foo", "severity": "low",
+			"tags": []any{"domain/dev-tools"},
 			"milestone": "[[milestone.foo.ghost]]",
 		},
 	}

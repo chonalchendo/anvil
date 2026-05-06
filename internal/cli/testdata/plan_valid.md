@@ -9,6 +9,7 @@ updated: "2026-04-30"
 status: draft
 plan_version: 1
 issue: "[[issue.ANV-142]]"
+tags: [type/plan, domain/dev-tools]
 tasks:
   - id: T1
     title: "Define TokenUsage type"

@@ -141,6 +141,7 @@ func writeFixtureIssueDated(t *testing.T, vault, project, slug, title, created s
 			"type": "issue", "title": title, "description": "fixture description",
 			"created": created, "updated": created,
 			"status": "open", "project": project, "severity": "medium",
+			"tags": []any{"domain/dev-tools"},
 		},
 		Body: "## Context\n\nfixture body.\n",
 	}

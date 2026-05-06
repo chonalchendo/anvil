@@ -53,13 +53,13 @@ func TestSet_ArraySingleArg_Replaces(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "foo.a", "tags", "alpha"})
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "tags", "domain/dev-tools"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
 	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
 	got, _ := a.FrontMatter["tags"].([]any)
-	if len(got) != 1 || got[0] != "alpha" {
+	if len(got) != 1 || got[0] != "domain/dev-tools" {
 		t.Errorf("tags = %v", got)
 	}
 }

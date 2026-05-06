@@ -10,6 +10,7 @@ status: draft
 plan_version: 1
 milestone: "[[milestone.telemetry.m3]]"
 issue: "[[issue.ANV-142]]"
+tags: [type/plan, domain/dev-tools]
 tasks:
   - id: T1
     title: "Define TokenUsage type"
