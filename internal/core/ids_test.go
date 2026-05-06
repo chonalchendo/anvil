@@ -3,7 +3,9 @@ package core
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestSlugify_BasicCases(t *testing.T) {
@@ -161,13 +163,16 @@ func TestDeterministicID_Inbox_DateScoped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) < len("2026-01-01-random-thought") || got[len(got)-len("random-thought"):] != "random-thought" {
-		t.Errorf("got %q, want suffix random-thought", got)
+	if !strings.HasSuffix(got, "-random-thought") {
+		t.Errorf("got %q, want suffix -random-thought", got)
+	}
+	if !strings.HasPrefix(got, time.Now().UTC().Format("2006-01-02")) {
+		t.Errorf("got %q, want today's UTC date prefix", got)
 	}
 }
 
 func TestDeterministicID_Decision_Errors(t *testing.T) {
-	if _, err := DeterministicID(TypeDecision, IDInputs{Title: "pick db", Topic: "db"}); err == nil {
+	if _, err := DeterministicID(TypeDecision, IDInputs{Title: "pick db"}); err == nil {
 		t.Errorf("expected error for decision (non-deterministic)")
 	}
 }
@@ -179,10 +184,7 @@ func TestDeterministicID_EmptyTitle(t *testing.T) {
 }
 
 func TestNextID_FallsBackToSuffixOnCollision(t *testing.T) {
-	v := &Vault{Root: t.TempDir()}
-	if err := v.Scaffold(); err != nil {
-		t.Fatal(err)
-	}
+	v := newScaffolded(t)
 	dir := filepath.Join(v.Root, TypeThread.Dir())
 	if err := writeStub(filepath.Join(dir, "auth-retries.md")); err != nil {
 		t.Fatal(err)
