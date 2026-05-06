@@ -166,6 +166,7 @@ func TestValidate_Issue_NewShape(t *testing.T) {
 	fm := map[string]any{
 		"type": "issue", "title": "Fix inbox", "description": "x", "created": "2026-04-29",
 		"status": "open", "project": "anvil", "severity": "medium",
+		"tags":       []any{"domain/dev-tools"},
 		"milestone":  "[[milestone.anvil.cli-substrate]]",
 		"acceptance": []any{"Bug reproduces no longer"},
 	}
@@ -178,6 +179,7 @@ func TestValidate_Issue_RejectsLegacyStatus(t *testing.T) {
 	fm := map[string]any{
 		"type": "issue", "title": "x", "description": "x", "created": "2026-04-29",
 		"status": "external", "project": "anvil", "severity": "low",
+		"tags": []any{"domain/dev-tools"},
 	}
 	if err := Validate("issue", fm); err == nil {
 		t.Error("expected rejection: legacy status 'external' no longer valid")
@@ -188,6 +190,7 @@ func TestValidate_Issue_RejectsBadSeverity(t *testing.T) {
 	fm := map[string]any{
 		"type": "issue", "title": "x", "description": "x", "created": "2026-04-29",
 		"status": "open", "project": "anvil", "severity": "critical-but-not",
+		"tags": []any{"domain/dev-tools"},
 	}
 	if err := Validate("issue", fm); err == nil {
 		t.Error("expected rejection: severity must be enum")
@@ -199,7 +202,8 @@ func TestValidate_Issue_RejectsCutFields(t *testing.T) {
 		fm := map[string]any{
 			"type": "issue", "title": "x", "description": "x", "created": "2026-04-29",
 			"status": "open", "project": "anvil", "severity": "low",
-			field: []any{"x"},
+			"tags": []any{"domain/dev-tools"},
+			field:  []any{"x"},
 		}
 		if err := Validate("issue", fm); err == nil {
 			t.Errorf("expected rejection for cut field %q", field)
@@ -404,6 +408,7 @@ func TestValidate_Description_Bounds(t *testing.T) {
 	base := map[string]any{
 		"type": "issue", "title": "x", "created": "2026-05-05",
 		"status": "open", "project": "p", "severity": "low",
+		"tags": []any{"domain/dev-tools"},
 	}
 	cases := []struct {
 		name    string
@@ -426,4 +431,47 @@ func TestValidate_Description_Bounds(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidate_Issue_RequiresDomainTag(t *testing.T) {
+	base := map[string]any{
+		"type": "issue", "title": "x", "description": "x",
+		"created": "2026-05-06", "status": "open",
+		"project": "anvil", "severity": "low",
+	}
+
+	t.Run("rejects empty tags", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["tags"] = []any{}
+		if err := Validate("issue", fm); err == nil {
+			t.Error("expected rejection for empty tags")
+		}
+	})
+	t.Run("rejects no domain tag", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["tags"] = []any{"pattern/idempotency"}
+		if err := Validate("issue", fm); err == nil {
+			t.Error("expected rejection for missing domain/")
+		}
+	})
+	t.Run("accepts domain tag", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["tags"] = []any{"domain/dbt"}
+		if err := Validate("issue", fm); err != nil {
+			t.Errorf("expected accept: %v", err)
+		}
+	})
+	t.Run("rejects uppercase value", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["tags"] = []any{"domain/DBT"}
+		if err := Validate("issue", fm); err == nil {
+			t.Error("expected rejection for uppercase domain value")
+		}
+	})
+	t.Run("rejects missing tags entirely", func(t *testing.T) {
+		fm := maps.Clone(base)
+		if err := Validate("issue", fm); err == nil {
+			t.Error("expected rejection for missing tags field")
+		}
+	})
 }
