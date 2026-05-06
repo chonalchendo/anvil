@@ -75,6 +75,17 @@ func TestValidateLearning_StatusAsTag(t *testing.T) {
 	}
 }
 
+func TestValidateLearning_BareStatusTag(t *testing.T) {
+	a := &Artifact{
+		FrontMatter: mustFM([]string{"domain/postgres", "activity/research", "status"}, nil),
+		Body:        goodBody,
+	}
+	errs := ValidateLearning(a, nil)
+	if len(errs) == 0 {
+		t.Fatal("expected error for bare status tag")
+	}
+}
+
 func TestValidateLearning_NoTypeTagRequired(t *testing.T) {
 	a := &Artifact{
 		FrontMatter: mustFM([]string{"domain/postgres", "activity/research"}, nil),
