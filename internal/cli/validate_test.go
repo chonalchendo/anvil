@@ -191,6 +191,42 @@ func TestValidate_JSON_MissingRequired(t *testing.T) {
 	}
 }
 
+func TestValidate_MissingRequiredFacet_Issue(t *testing.T) {
+	vault := setupVault(t)
+	bad := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", "foo.x.md"),
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "x", "description": "y",
+			"created": "2026-05-06", "status": "open",
+			"project": "anvil", "severity": "low",
+			"tags": []any{"pattern/idempotency"},
+		},
+	}
+	if err := bad.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"validate", "--json", vault})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	_ = cmd.Execute()
+
+	var failures []map[string]any
+	if err := json.Unmarshal(out.Bytes(), &failures); err != nil {
+		t.Fatalf("parse json: %v\n%s", err, out.String())
+	}
+	found := false
+	for _, f := range failures {
+		if f["code"] == "missing_required_facet" && f["field"] == "tags" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected missing_required_facet on tags, got %+v", failures)
+	}
+}
+
 func TestValidate_TextMode_BlocksSeparated(t *testing.T) {
 	vault := setupVault(t)
 	bad1 := &core.Artifact{
