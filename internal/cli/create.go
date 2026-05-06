@@ -125,8 +125,12 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			var id string
-			if t.AllocatesID() {
+			var (
+				id   string
+				path string
+			)
+			switch {
+			case t == core.TypeDecision:
 				allocated, err := core.NextID(v, t, core.IDInputs{
 					Title:   flagTitle,
 					Project: project,
@@ -136,9 +140,19 @@ func newCreateCmd() *cobra.Command {
 					return fmt.Errorf("allocating ID: %w", err)
 				}
 				id = allocated
-			} else {
+			case t.AllocatesID():
+				base, err := core.DeterministicID(t, core.IDInputs{
+					Title:   flagTitle,
+					Project: project,
+				})
+				if err != nil {
+					return fmt.Errorf("computing id: %w", err)
+				}
+				id = base
+			default:
 				id = string(t)
 			}
+			path = t.Path(v.Root, project, id)
 
 			body, err := readBody(cmd, flagBody)
 			if err != nil {
@@ -173,7 +187,21 @@ func newCreateCmd() *cobra.Command {
 				fm["tags"] = anyTags
 			}
 
-			path := t.Path(v.Root, project, id)
+			if t.AllocatesID() && t != core.TypeDecision {
+				if existing, err := core.LoadArtifact(path); err == nil {
+					drift := createDrift(t, fm, existing.FrontMatter, body, existing.Body)
+					if drift == "" && !flagUpdate {
+						return emitCreateResult(cmd, flagJSON, id, path, statusAlreadyExists)
+					}
+					if !flagUpdate {
+						return fmt.Errorf("%w: %s already exists with different %s; retry with --update to overwrite, or use 'anvil set' to edit a single field", ErrCreateDrift, id, drift)
+					}
+					// --update path lands in Task 5; fall through for now.
+				} else if !errors.Is(err, fs.ErrNotExist) {
+					return fmt.Errorf("checking %s: %w", path, err)
+				}
+			}
+
 			if err := schema.Validate(string(t), fm); err != nil {
 				return renderSchemaErr(cmd, path, err)
 			}
@@ -238,13 +266,7 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			if flagJSON {
-				out, _ := json.Marshal(map[string]string{"id": id, "path": path})
-				fmt.Fprintln(cmd.OutOrStdout(), string(out))
-			} else {
-				fmt.Fprintln(cmd.OutOrStdout(), path)
-			}
-			return nil
+			return emitCreateResult(cmd, flagJSON, id, path, statusCreated)
 		},
 	}
 
@@ -364,6 +386,47 @@ func sessionDrift(fm map[string]any, source, startedAt, activeThread string) str
 	if got != want {
 		return "active-thread"
 	}
+	return ""
+}
+
+type createStatus string
+
+const (
+	statusCreated       createStatus = "created"
+	statusAlreadyExists createStatus = "already_exists"
+	statusUpdated       createStatus = "updated"
+)
+
+// emitCreateResult writes either the path (text mode) or a JSON object with
+// id/path/status to cmd's stdout.
+func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status createStatus) error {
+	if asJSON {
+		out, err := json.Marshal(map[string]string{
+			"id":     id,
+			"path":   path,
+			"status": string(status),
+		})
+		if err != nil {
+			return fmt.Errorf("marshalling json: %w", err)
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), string(out))
+		return nil
+	}
+	switch status {
+	case statusCreated:
+		fmt.Fprintln(cmd.OutOrStdout(), "created: "+path)
+	case statusAlreadyExists:
+		fmt.Fprintln(cmd.OutOrStdout(), "already_exists: "+path)
+	case statusUpdated:
+		fmt.Fprintln(cmd.OutOrStdout(), "updated: "+path)
+	}
+	return nil
+}
+
+// createDrift compares fm/body against an existing artifact and returns
+// the name of the first diverging field, or "" if no drift. Body is
+// filled in by Task 5.
+func createDrift(t core.Type, fm, existing map[string]any, body, existingBody string) string {
 	return ""
 }
 

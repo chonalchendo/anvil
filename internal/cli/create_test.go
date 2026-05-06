@@ -844,3 +844,70 @@ func TestCreate_Issue_SuggestsContainmentMatch(t *testing.T) {
 		t.Errorf("missing suggest line: %q", errOut.String())
 	}
 }
+
+func TestCreate_Issue_Idempotent_ReturnsAlreadyExists(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	args := []string{"create", "issue",
+		"--title", "Fix login bug",
+		"--description", "test description",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+		"--json",
+	}
+
+	cmd1 := newRootCmd()
+	cmd1.SetArgs(args)
+	var out1 bytes.Buffer
+	cmd1.SetOut(&out1)
+	if err := cmd1.Execute(); err != nil {
+		t.Fatalf("first create: %v", err)
+	}
+	var first map[string]string
+	if err := json.Unmarshal(out1.Bytes(), &first); err != nil {
+		t.Fatal(err)
+	}
+	if first["status"] != "created" {
+		t.Errorf("first status = %q want created", first["status"])
+	}
+
+	path := filepath.Join(vault, "70-issues", "foo.fix-login-bug.md")
+	statBefore, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cmd2 := newRootCmd()
+	cmd2.SetArgs(args)
+	var out2 bytes.Buffer
+	cmd2.SetOut(&out2)
+	if err := cmd2.Execute(); err != nil {
+		t.Fatalf("second create: %v", err)
+	}
+	var second map[string]string
+	if err := json.Unmarshal(out2.Bytes(), &second); err != nil {
+		t.Fatal(err)
+	}
+	if second["status"] != "already_exists" {
+		t.Errorf("second status = %q want already_exists", second["status"])
+	}
+	if second["path"] != first["path"] {
+		t.Errorf("path drifted: %q vs %q", second["path"], first["path"])
+	}
+
+	// no -2 sibling
+	if _, err := os.Stat(filepath.Join(vault, "70-issues", "foo.fix-login-bug-2.md")); !os.IsNotExist(err) {
+		t.Errorf("unexpected -2 sibling: err=%v", err)
+	}
+
+	statAfter, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !statBefore.ModTime().Equal(statAfter.ModTime()) {
+		t.Errorf("mtime changed on idempotent re-run")
+	}
+}
