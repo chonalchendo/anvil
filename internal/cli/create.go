@@ -476,8 +476,53 @@ func tagSet(v any) map[string]bool {
 	return out
 }
 
-func formatDriftError(_ *cobra.Command, _ core.Type, id, field string, _, _ map[string]any, _, _ string) error {
-	return fmt.Errorf("%w: %s already exists with different %s; retry with --update to overwrite, or use 'anvil set' to edit a single field", ErrCreateDrift, id, field)
+func formatDriftError(_ *cobra.Command, _ core.Type, id, field string, fm, existing map[string]any, body, existingBody string) error {
+	var existingStr, newStr string
+	switch field {
+	case "tags":
+		existingStr = renderTagArray(existing["tags"])
+		newStr = renderTagArray(fm["tags"])
+	case "body":
+		existingStr = truncateBody(existingBody)
+		newStr = truncateBody(body)
+	default:
+		existingStr = renderScalar(existing[field])
+		newStr = renderScalar(fm[field])
+	}
+	return fmt.Errorf(
+		"%w: %s already exists with different %s\n  existing: %s\n  new:      %s\n  retry with --update to overwrite, or use 'anvil set' to edit a single field",
+		ErrCreateDrift, id, field, existingStr, newStr,
+	)
+}
+
+func renderScalar(v any) string {
+	if v == nil {
+		return `""`
+	}
+	return fmt.Sprintf("%q", fmt.Sprintf("%v", v))
+}
+
+func renderTagArray(v any) string {
+	if arr, ok := v.([]any); ok {
+		ordered := make([]string, 0, len(arr))
+		seen := map[string]bool{}
+		for _, e := range arr {
+			if s, ok := e.(string); ok && !seen[s] {
+				ordered = append(ordered, s)
+				seen[s] = true
+			}
+		}
+		return "[" + strings.Join(ordered, ", ") + "]"
+	}
+	return "[]"
+}
+
+func truncateBody(s string) string {
+	s = strings.TrimRight(s, "\n\t ")
+	if len(s) <= 80 {
+		return fmt.Sprintf("%q", s)
+	}
+	return fmt.Sprintf("%q…", s[:80])
 }
 
 func runFacetCheck(cmd *cobra.Command, v *core.Vault, path string, fm map[string]any, allowNewFacet []string) error {

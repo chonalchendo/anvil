@@ -1155,3 +1155,99 @@ func TestCreate_Plan_UpdateRevalidates(t *testing.T) {
 		t.Errorf("expected plan-validate failure on update")
 	}
 }
+
+func TestCreate_DriftError_FormatsScalar(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	mk := func(desc string) *cobra.Command {
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"create", "issue",
+			"--title", "Fix login bug",
+			"--description", desc,
+			"--tags", "domain/dev-tools",
+			"--allow-new-facet=domain",
+		})
+		return cmd
+	}
+	_ = mk("first description").Execute()
+
+	cmd := mk("second description")
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected drift error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "already exists with different description") {
+		t.Errorf("missing field name in: %s", msg)
+	}
+	if !strings.Contains(msg, `existing: "first description"`) {
+		t.Errorf("missing existing scalar in: %s", msg)
+	}
+	if !strings.Contains(msg, `new:      "second description"`) {
+		t.Errorf("missing new scalar in: %s", msg)
+	}
+	if !strings.Contains(msg, "retry with --update") {
+		t.Errorf("missing remediation hint in: %s", msg)
+	}
+}
+
+func TestCreate_DriftError_FormatsTagsArray(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	mk := func(tags string) *cobra.Command {
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"create", "issue",
+			"--title", "Fix login bug",
+			"--description", "d",
+			"--tags", tags,
+			"--allow-new-facet=domain",
+		})
+		return cmd
+	}
+	_ = mk("domain/dev-tools").Execute()
+	err := mk("domain/dev-tools,domain/cli").Execute()
+	if err == nil || !strings.Contains(err.Error(), "[domain/dev-tools, domain/cli]") {
+		t.Errorf("array drift not rendered as [a, b]: %v", err)
+	}
+}
+
+func TestCreate_DriftError_FormatsBodyTruncated(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	long := strings.Repeat("a", 200)
+	mk := func(body string) *cobra.Command {
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"create", "issue",
+			"--title", "Fix login bug",
+			"--description", "d",
+			"--body", body,
+			"--tags", "domain/dev-tools",
+			"--allow-new-facet=domain",
+		})
+		return cmd
+	}
+	_ = mk(long).Execute()
+	err := mk(strings.Repeat("b", 200)).Execute()
+	if err == nil {
+		t.Fatal("expected drift error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "different body") {
+		t.Errorf("missing 'body' field name: %s", msg)
+	}
+	if !strings.Contains(msg, "…") {
+		t.Errorf("expected truncation ellipsis: %s", msg)
+	}
+}
