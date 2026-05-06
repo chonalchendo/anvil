@@ -258,7 +258,7 @@ func TestInboxPromote_InvalidAsValue(t *testing.T) {
 	for _, want := range []string{
 		`invalid value "isue" for --as`,
 		"valid values: issue, thread, design, learning, discard",
-		"corrected:    anvil inbox promote " + id + " --as issue",
+		"corrected:    anvil promote " + id + " --as issue",
 	} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("error missing %q\nfull error:\n%s", want, msg)
@@ -356,7 +356,7 @@ func TestInboxPromote_MismatchedAs(t *testing.T) {
 	for _, want := range []string{
 		`invalid value "learning" for --as`,
 		"valid values: thread",
-		"corrected:    anvil inbox promote " + id + " --as thread",
+		"corrected:    anvil promote " + id + " --as thread",
 	} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("error missing %q\nfull:\n%s", want, msg)
