@@ -4,19 +4,22 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/facets"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/schema"
 )
 
 func newSetCmd() *cobra.Command {
 	var (
-		flagAdd    string
-		flagRemove int
-		flagAddSet bool
-		flagRemSet bool
+		flagAdd           string
+		flagRemove        int
+		flagAddSet        bool
+		flagRemSet        bool
+		flagAllowNewFacet []string
 	)
 
 	cmd := &cobra.Command{
@@ -103,6 +106,36 @@ func newSetCmd() *cobra.Command {
 				a.FrontMatter[field] = values[0]
 			}
 
+			if field == "tags" {
+				for _, f := range flagAllowNewFacet {
+					if !slices.Contains(facets.Facets, f) {
+						return formatEnumError("--allow-new-facet", f, facets.Facets, "")
+					}
+				}
+				allowed := map[string]bool{}
+				for _, f := range flagAllowNewFacet {
+					allowed[f] = true
+				}
+				vaultValues, vErr := facets.CollectValues(v.Root)
+				if vErr != nil {
+					return fmt.Errorf("walking vault: %w", vErr)
+				}
+				tagsRaw, _ := a.FrontMatter[field].([]any)
+				tagsStr := make([]string, 0, len(tagsRaw))
+				for _, raw := range tagsRaw {
+					if s, ok := raw.(string); ok {
+						tagsStr = append(tagsStr, s)
+					}
+				}
+				if errs := facets.Check(vaultValues, tagsStr, allowed); len(errs) > 0 {
+					for _, e := range errs {
+						e.Path = path
+					}
+					printValidationErrors(cmd, errs)
+					return ErrSchemaInvalid
+				}
+			}
+
 			if err := schema.Validate(string(t), a.FrontMatter); err != nil {
 				return fmt.Errorf("%w: %w", ErrSchemaInvalid, err)
 			}
@@ -131,6 +164,7 @@ func newSetCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&flagAdd, "add", "", "append a value to an array field")
 	cmd.Flags().IntVar(&flagRemove, "remove", 0, "remove the value at the given 0-based index from an array field")
+	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet(s) to suppress novelty gate for (tags only)")
 	cmd.PreRunE = func(c *cobra.Command, _ []string) error {
 		flagAddSet = c.Flags().Changed("add")
 		flagRemSet = c.Flags().Changed("remove")
