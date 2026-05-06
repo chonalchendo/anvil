@@ -272,6 +272,21 @@ func TestSet_UnknownField_ScalarPath(t *testing.T) {
 	}
 }
 
+func TestSet_Tags_CommaSeparatedValueSplits(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "tags", "domain/dev-tools,activity/cleanup", "--allow-new-facet=activity"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	got, _ := a.FrontMatter["tags"].([]any)
+	if len(got) != 2 || got[0] != "domain/dev-tools" || got[1] != "activity/cleanup" {
+		t.Errorf("tags = %v, want [domain/dev-tools activity/cleanup]", got)
+	}
+}
+
 func TestSet_Tags_RejectsUnknownFacetValue(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
