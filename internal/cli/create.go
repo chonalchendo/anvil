@@ -192,13 +192,37 @@ func newCreateCmd() *cobra.Command {
 			if t != core.TypeDecision {
 				if existing, err := core.LoadArtifact(path); err == nil {
 					drift := createDrift(t, fm, existing.FrontMatter, body, existing.Body)
-					if drift == "" && !flagUpdate {
+					if drift == "" {
 						return emitCreateResult(cmd, flagJSON, id, path, statusAlreadyExists)
 					}
 					if !flagUpdate {
-						return fmt.Errorf("%w: %s already exists with different %s; retry with --update to overwrite, or use 'anvil set' to edit a single field", ErrCreateDrift, id, drift)
+						return formatDriftError(cmd, t, id, drift, fm, existing.FrontMatter, body, existing.Body)
 					}
-					// --update path lands in Task 5; fall through for now.
+					// --update path: preserve `created`, then re-run schema + facet
+					// checks against the new fm, and re-run plan-validate after save.
+					if c, ok := existing.FrontMatter["created"]; ok {
+						fm["created"] = c
+					}
+					if err := schema.Validate(string(t), fm); err != nil {
+						return renderSchemaErr(cmd, path, err)
+					}
+					if err := runFacetCheck(cmd, v, path, fm, flagAllowNewFacet); err != nil {
+						return err
+					}
+					a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
+					if err := a.Save(); err != nil {
+						return fmt.Errorf("saving artifact: %w", err)
+					}
+					if t == core.TypePlan {
+						p, lerr := core.LoadPlan(path)
+						if lerr != nil {
+							return fmt.Errorf("plan validator: %w", lerr)
+						}
+						if verr := core.ValidatePlan(p); verr != nil {
+							return fmt.Errorf("plan validator: %w", verr)
+						}
+					}
+					return emitCreateResult(cmd, flagJSON, id, path, statusUpdated)
 				} else if !errors.Is(err, fs.ErrNotExist) {
 					return fmt.Errorf("checking %s: %w", path, err)
 				}
@@ -208,32 +232,8 @@ func newCreateCmd() *cobra.Command {
 				return renderSchemaErr(cmd, path, err)
 			}
 
-			for _, f := range flagAllowNewFacet {
-				if !facets.Has(f) {
-					return formatEnumError("--allow-new-facet", f, facets.Names(), "")
-				}
-			}
-			allowed := map[string]bool{}
-			for _, f := range flagAllowNewFacet {
-				allowed[f] = true
-			}
-			values, gErr := facets.CollectValues(v.Root)
-			if gErr != nil {
-				return fmt.Errorf("walking vault for facet values: %w", gErr)
-			}
-			tagsRaw, _ := fm["tags"].([]any)
-			tagsStr := make([]string, 0, len(tagsRaw))
-			for _, raw := range tagsRaw {
-				if s, ok := raw.(string); ok {
-					tagsStr = append(tagsStr, s)
-				}
-			}
-			if errs := facets.Check(values, tagsStr, allowed); len(errs) > 0 {
-				for _, e := range errs {
-					e.Path = path
-				}
-				printValidationErrors(cmd, errs)
-				return ErrSchemaInvalid
+			if err := runFacetCheck(cmd, v, path, fm, flagAllowNewFacet); err != nil {
+				return err
 			}
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
@@ -416,11 +416,112 @@ func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status c
 	return nil
 }
 
-// createDrift compares fm/body against an existing artifact and returns
-// the name of the first diverging field, or "" if no drift. Stubbed to
-// "" until Task 5 lands the full frontmatter+body comparator.
+// createDrift compares the rendered fm + body against an existing artifact
+// and returns the name of the first diverging field, or "" if no drift.
+// Only fields create accepts as flags are compared (description changes via
+// `anvil set` are not drift on retry).
 func createDrift(t core.Type, fm, existing map[string]any, body, existingBody string) string {
+	scalarFields := []string{"title", "description", "project"}
+	switch t {
+	case core.TypePlan:
+		scalarFields = append(scalarFields, "issue")
+	case core.TypeSweep:
+		scalarFields = append(scalarFields, "scope", "breaking")
+	case core.TypeInbox:
+		scalarFields = append(scalarFields, "suggested_type", "suggested_project")
+	}
+	for _, f := range scalarFields {
+		want, _ := fm[f]
+		got, _ := existing[f]
+		if want == nil && got == nil {
+			continue
+		}
+		if !scalarsEqual(want, got) {
+			return f
+		}
+	}
+	if !tagsEqual(fm["tags"], existing["tags"]) {
+		return "tags"
+	}
+	if strings.TrimRight(body, "\n\t ") != strings.TrimRight(existingBody, "\n\t ") {
+		return "body"
+	}
 	return ""
+}
+
+func scalarsEqual(a, b any) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return fmt.Sprintf("%v", a) == fmt.Sprintf("%v", b)
+}
+
+func tagsEqual(a, b any) bool {
+	as := tagSet(a)
+	bs := tagSet(b)
+	if len(as) != len(bs) {
+		return false
+	}
+	for k := range as {
+		if !bs[k] {
+			return false
+		}
+	}
+	return true
+}
+
+func tagSet(v any) map[string]bool {
+	out := map[string]bool{}
+	arr, _ := v.([]any)
+	for _, e := range arr {
+		if s, ok := e.(string); ok {
+			out[s] = true
+		}
+	}
+	if arr == nil {
+		// fall back to []string in case caller passed it raw.
+		if ss, ok := v.([]string); ok {
+			for _, s := range ss {
+				out[s] = true
+			}
+		}
+	}
+	return out
+}
+
+func formatDriftError(_ *cobra.Command, _ core.Type, id, field string, _, _ map[string]any, _, _ string) error {
+	return fmt.Errorf("%w: %s already exists with different %s; retry with --update to overwrite, or use 'anvil set' to edit a single field", ErrCreateDrift, id, field)
+}
+
+func runFacetCheck(cmd *cobra.Command, v *core.Vault, path string, fm map[string]any, allowNewFacet []string) error {
+	for _, f := range allowNewFacet {
+		if !facets.Has(f) {
+			return formatEnumError("--allow-new-facet", f, facets.Names(), "")
+		}
+	}
+	allowed := map[string]bool{}
+	for _, f := range allowNewFacet {
+		allowed[f] = true
+	}
+	values, gErr := facets.CollectValues(v.Root)
+	if gErr != nil {
+		return fmt.Errorf("walking vault for facet values: %w", gErr)
+	}
+	tagsRaw, _ := fm["tags"].([]any)
+	tagsStr := make([]string, 0, len(tagsRaw))
+	for _, raw := range tagsRaw {
+		if s, ok := raw.(string); ok {
+			tagsStr = append(tagsStr, s)
+		}
+	}
+	if errs := facets.Check(values, tagsStr, allowed); len(errs) > 0 {
+		for _, e := range errs {
+			e.Path = path
+		}
+		printValidationErrors(cmd, errs)
+		return ErrSchemaInvalid
+	}
+	return nil
 }
 
 func emitSessionJSON(cmd *cobra.Command, id, path, activeThread string) error {
