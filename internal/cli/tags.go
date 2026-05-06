@@ -86,9 +86,9 @@ func newTagsListCmd() *cobra.Command {
 			} else {
 				for _, r := range rows {
 					if flagSource == "defined" {
-						fmt.Fprintln(cmd.OutOrStdout(), r.Tag)
+						cmd.Println(r.Tag)
 					} else {
-						fmt.Fprintf(cmd.OutOrStdout(), "%d\t%s\n", r.Count, r.Tag)
+						cmd.Printf("%d\t%s\n", r.Count, r.Tag)
 					}
 				}
 			}
@@ -199,7 +199,7 @@ func buildTagRows(v *core.Vault, source, typeFlag, prefix string) ([]tagRow, err
 		}
 		r := tagRow{Tag: k}
 		if source != "defined" {
-			r.Count = used[k]
+			r.Count = used[k] // zero for defined-only tags under source=all
 		}
 		if source == "all" {
 			r.Defined = defined[k]
@@ -228,7 +228,7 @@ func walkTags(dir string, typeFilter *core.Type, counts map[string]int) error {
 	return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			if os.IsNotExist(err) {
-				return nil
+				return nil // missing type dir is fine in fresh vaults
 			}
 			return err
 		}
