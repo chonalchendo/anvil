@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -10,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/chonalchendo/anvil/internal/glossary"
 )
 
 // writeArtifact drops a frontmatter-only markdown file into the vault for the test.
@@ -137,5 +140,96 @@ func TestTagsList_TextOutput(t *testing.T) {
 	if got != want && got != "2\tfoo\n1\tfoo-extra\n" {
 		t.Errorf("text output unexpected:\nwant one of:\n%q\n%q\ngot:\n%q",
 			want, "2\tfoo\n1\tfoo-extra\n", got)
+	}
+}
+
+func TestTagsList_SourceDefined_FromGlossary(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("ANVIL_VAULT", root)
+
+	g := glossary.New()
+	_ = g.AddTag("domain/postgres", "rdbms")
+	_ = g.AddTag("activity/research", "investigative work")
+	if err := g.Save(glossary.Path(root)); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"tags", "list", "--source", "defined", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	var got []map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len = %d, want 2: %v", len(got), got)
+	}
+	for _, e := range got {
+		if e["defined"] != true {
+			t.Errorf("entry %v missing defined:true", e)
+		}
+		if _, hasCount := e["count"]; hasCount {
+			t.Errorf("defined source must not include count: %v", e)
+		}
+	}
+}
+
+func TestTagsList_SourceAll_UnionShape(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("ANVIL_VAULT", root)
+
+	writeArtifact(t, root, "20-learnings/anvil.a.md",
+		"type: learning\ntitle: A\ntags: [domain/used-only]\n")
+	g := glossary.New()
+	_ = g.AddTag("domain/defined-only", "x")
+	if err := g.Save(glossary.Path(root)); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"tags", "list", "--source", "all", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal(out.Bytes(), &rows); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	byTag := map[string]map[string]any{}
+	for _, r := range rows {
+		byTag[r["tag"].(string)] = r
+	}
+	if u := byTag["domain/used-only"]; u == nil || u["defined"] != false || u["count"].(float64) != 1 {
+		t.Errorf("used-only row wrong: %v", u)
+	}
+	if d := byTag["domain/defined-only"]; d == nil || d["defined"] != true {
+		t.Errorf("defined-only row wrong: %v", d)
+	}
+}
+
+func TestTagsList_LimitEmitsTruncationHint(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("ANVIL_VAULT", root)
+	for i := 0; i < 3; i++ {
+		writeArtifact(t, root, fmt.Sprintf("20-learnings/anvil.%d.md", i),
+			fmt.Sprintf("type: learning\ntitle: A\ntags: [t/%d]\n", i))
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"tags", "list", "--limit", "1"})
+	var out, errBuf bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errBuf)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if !strings.Contains(errBuf.String(), "showing 1 of 3") {
+		t.Errorf("missing truncation hint, got stderr: %q", errBuf.String())
 	}
 }

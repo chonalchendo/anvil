@@ -10,7 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/glossary"
 )
 
 func newTagsCmd() *cobra.Command {
@@ -22,26 +24,29 @@ func newTagsCmd() *cobra.Command {
 	return cmd
 }
 
-type tagCount struct {
-	Tag   string `json:"tag"`
-	Count int    `json:"count"`
+type tagRow struct {
+	Tag     string `json:"tag"`
+	Count   int    `json:"count"`
+	Defined bool   `json:"defined"`
 }
 
 func newTagsListCmd() *cobra.Command {
 	var (
 		flagType   string
 		flagPrefix string
+		flagSource string
+		flagLimit  int
 		flagJSON   bool
 	)
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List tags used across vault artifacts with usage counts",
-		Long: `Walks the vault, collects tags from every artifact's frontmatter,
-deduplicates, and returns counts. Filter by artifact type with --type and
-by tag prefix (e.g. domain/) with --prefix. Use --json for machine output.`,
+		Short: "List vault tags (used, defined, or both)",
+		Long: `--source used (default): tag counts observed in artifact frontmatter.
+--source defined: vocabulary entries from _meta/glossary.md (no counts).
+--source all: union with {tag, count, defined}; count is 0 if defined-only.`,
 		Example: `  anvil tags list
-  anvil tags list --type learning --json
-  anvil tags list --prefix domain/`,
+  anvil tags list --source defined --json
+  anvil tags list --source all --prefix domain/ --json`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
@@ -49,64 +54,171 @@ by tag prefix (e.g. domain/) with --prefix. Use --json for machine output.`,
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 
-			var typeFilter *core.Type
-			if flagType != "" {
-				t, err := core.ParseType(flagType)
-				if err != nil {
-					return err
+			validSources := []string{"used", "defined", "all"}
+			ok := false
+			for _, s := range validSources {
+				if flagSource == s {
+					ok = true
+					break
 				}
-				typeFilter = &t
+			}
+			if !ok {
+				return fmt.Errorf("invalid value %q for --source\n  valid values: %s",
+					flagSource, strings.Join(validSources, ", "))
 			}
 
-			counts := map[string]int{}
-			types := core.AllTypes
-			if typeFilter != nil {
-				types = []core.Type{*typeFilter}
-			}
-			seenDirs := map[string]struct{}{}
-			for _, t := range types {
-				dir := filepath.Join(v.Root, t.Dir())
-				if _, dup := seenDirs[dir]; dup {
-					continue // product-design + system-design share 05-projects
-				}
-				seenDirs[dir] = struct{}{}
-				if err := walkTags(dir, typeFilter, counts); err != nil {
-					return err
-				}
+			rows, err := buildTagRows(v, flagSource, flagType, flagPrefix)
+			if err != nil {
+				return err
 			}
 
-			out := make([]tagCount, 0, len(counts))
-			for tag, n := range counts {
-				if flagPrefix != "" && !strings.HasPrefix(tag, flagPrefix) {
-					continue
-				}
-				out = append(out, tagCount{Tag: tag, Count: n})
+			total := len(rows)
+			if flagLimit > 0 && len(rows) > flagLimit {
+				rows = rows[:flagLimit]
 			}
-			sort.Slice(out, func(i, j int) bool {
-				if out[i].Count != out[j].Count {
-					return out[i].Count > out[j].Count
-				}
-				return out[i].Tag < out[j].Tag
-			})
 
 			if flagJSON {
-				b, err := json.Marshal(out)
+				b, err := json.Marshal(projectRows(rows, flagSource))
 				if err != nil {
 					return err
 				}
 				cmd.Println(string(b))
-				return nil
+			} else {
+				for _, r := range rows {
+					if flagSource == "defined" {
+						fmt.Fprintln(cmd.OutOrStdout(), r.Tag)
+					} else {
+						fmt.Fprintf(cmd.OutOrStdout(), "%d\t%s\n", r.Count, r.Tag)
+					}
+				}
 			}
-			for _, tc := range out {
-				cmd.Printf("%d\t%s\n", tc.Count, tc.Tag)
+			if hint := output.TruncationHint("by count", len(rows), total,
+				[]string{"--prefix", "--type", "--source", "--limit N"}); hint != "" {
+				cmd.PrintErrln(hint)
 			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&flagType, "type", "", "filter to one artifact type (e.g. learning)")
 	cmd.Flags().StringVar(&flagPrefix, "prefix", "", "filter tags by prefix (e.g. domain/)")
-	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON [{tag, count}, ...]")
+	cmd.Flags().StringVar(&flagSource, "source", "used", "tag source: used | defined | all")
+	cmd.Flags().IntVar(&flagLimit, "limit", 50, "maximum results to return (default 50)")
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON")
 	return cmd
+}
+
+func projectRows(rows []tagRow, source string) any {
+	switch source {
+	case "used":
+		out := make([]struct {
+			Tag   string `json:"tag"`
+			Count int    `json:"count"`
+		}, len(rows))
+		for i, r := range rows {
+			out[i].Tag = r.Tag
+			out[i].Count = r.Count
+		}
+		return out
+	case "defined":
+		out := make([]struct {
+			Tag     string `json:"tag"`
+			Defined bool   `json:"defined"`
+		}, len(rows))
+		for i, r := range rows {
+			out[i].Tag = r.Tag
+			out[i].Defined = true
+		}
+		return out
+	default:
+		return rows
+	}
+}
+
+func buildTagRows(v *core.Vault, source, typeFlag, prefix string) ([]tagRow, error) {
+	used := map[string]int{}
+	if source == "used" || source == "all" {
+		var typeFilter *core.Type
+		if typeFlag != "" {
+			t, err := core.ParseType(typeFlag)
+			if err != nil {
+				return nil, err
+			}
+			typeFilter = &t
+		}
+		types := core.AllTypes
+		if typeFilter != nil {
+			types = []core.Type{*typeFilter}
+		}
+		seenDirs := map[string]struct{}{}
+		for _, t := range types {
+			dir := filepath.Join(v.Root, t.Dir())
+			if _, dup := seenDirs[dir]; dup {
+				continue
+			}
+			seenDirs[dir] = struct{}{}
+			if err := walkTags(dir, typeFilter, used); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	defined := map[string]bool{}
+	if source == "defined" || source == "all" {
+		g, err := glossary.Load(glossary.Path(v.Root))
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range g.Tags() {
+			defined[t] = true
+		}
+	}
+
+	keys := map[string]struct{}{}
+	switch source {
+	case "used":
+		for k := range used {
+			keys[k] = struct{}{}
+		}
+	case "defined":
+		for k := range defined {
+			keys[k] = struct{}{}
+		}
+	case "all":
+		for k := range used {
+			keys[k] = struct{}{}
+		}
+		for k := range defined {
+			keys[k] = struct{}{}
+		}
+	}
+
+	rows := make([]tagRow, 0, len(keys))
+	for k := range keys {
+		if prefix != "" && !strings.HasPrefix(k, prefix) {
+			continue
+		}
+		r := tagRow{Tag: k}
+		if source != "defined" {
+			r.Count = used[k]
+		}
+		if source == "all" {
+			r.Defined = defined[k]
+		}
+		if source == "defined" {
+			r.Defined = true
+		}
+		rows = append(rows, r)
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if source == "defined" {
+			return rows[i].Tag < rows[j].Tag
+		}
+		if rows[i].Count != rows[j].Count {
+			return rows[i].Count > rows[j].Count
+		}
+		return rows[i].Tag < rows[j].Tag
+	})
+	return rows, nil
 }
 
 // walkTags accumulates tag counts under dir. If typeFilter is set, only
@@ -116,7 +228,7 @@ func walkTags(dir string, typeFilter *core.Type, counts map[string]int) error {
 	return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			if os.IsNotExist(err) {
-				return nil // missing type dir is fine in fresh vaults
+				return nil
 			}
 			return err
 		}
