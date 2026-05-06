@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -113,8 +112,8 @@ func newSetCmd() *cobra.Command {
 
 			if field == "tags" {
 				for _, f := range flagAllowNewFacet {
-					if !slices.Contains(facets.Facets, f) {
-						return formatEnumError("--allow-new-facet", f, facets.Facets, "")
+					if !facets.Has(f) {
+						return formatEnumError("--allow-new-facet", f, facets.Names(), "")
 					}
 				}
 				allowed := map[string]bool{}

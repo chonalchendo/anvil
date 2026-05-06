@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"text/template"
 	"time"
@@ -180,8 +179,8 @@ func newCreateCmd() *cobra.Command {
 			}
 
 			for _, f := range flagAllowNewFacet {
-				if !slices.Contains(facets.Facets, f) {
-					return formatEnumError("--allow-new-facet", f, facets.Facets, "")
+				if !facets.Has(f) {
+					return formatEnumError("--allow-new-facet", f, facets.Names(), "")
 				}
 			}
 			allowed := map[string]bool{}
