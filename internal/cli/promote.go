@@ -85,12 +85,13 @@ type promoteOutput struct {
 }
 
 func emitPromoteOutput(cmd *cobra.Command, asJSON bool, o promoteOutput, textLine string) error {
+	out := cmd.OutOrStdout()
 	if asJSON {
 		b, _ := json.Marshal(o)
-		cmd.Println(string(b))
+		fmt.Fprintln(out, string(b))
 		return nil
 	}
-	cmd.Println(textLine)
+	fmt.Fprintln(out, textLine)
 	return nil
 }
 

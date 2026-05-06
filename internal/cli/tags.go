@@ -78,18 +78,22 @@ func newTagsListCmd() *cobra.Command {
 				rows = rows[:flagLimit]
 			}
 
+			// Data output goes to stdout via OutOrStdout(); cmd.Println /
+			// cmd.Printf default to stderr unless SetOut was called, which
+			// breaks `anvil tags list --json | jq ...` for agent pipelines.
+			out := cmd.OutOrStdout()
 			if flagJSON {
 				b, err := json.Marshal(projectRows(rows, flagSource))
 				if err != nil {
 					return err
 				}
-				cmd.Println(string(b))
+				fmt.Fprintln(out, string(b))
 			} else {
 				for _, r := range rows {
 					if flagSource == "defined" {
-						cmd.Println(r.Tag)
+						fmt.Fprintln(out, r.Tag)
 					} else {
-						cmd.Printf("%d\t%s\n", r.Count, r.Tag)
+						fmt.Fprintf(out, "%d\t%s\n", r.Count, r.Tag)
 					}
 				}
 			}
@@ -291,7 +295,7 @@ func newTagsAddCmd() *cobra.Command {
 			}
 			existing, hadIt := g.FindTagDesc(tag)
 			if hadIt && existing == flagDesc {
-				cmd.Println(path)
+				fmt.Fprintln(cmd.OutOrStdout(), path)
 				return nil
 			}
 			if hadIt && !flagUpdate {
@@ -309,7 +313,7 @@ func newTagsAddCmd() *cobra.Command {
 			if err := g.Save(path); err != nil {
 				return fmt.Errorf("saving glossary: %w", err)
 			}
-			cmd.Println(path)
+			fmt.Fprintln(cmd.OutOrStdout(), path)
 			return nil
 		},
 	}
@@ -336,7 +340,7 @@ func newTagsDefineCmd() *cobra.Command {
 			if !ok {
 				return fmt.Errorf("term %q not in glossary", args[0])
 			}
-			cmd.Println(def)
+			fmt.Fprintln(cmd.OutOrStdout(), def)
 			return nil
 		},
 	}

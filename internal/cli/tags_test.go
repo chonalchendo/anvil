@@ -354,3 +354,73 @@ func TestTagsDefine_KnownAndMissing(t *testing.T) {
 		t.Error("expected error for missing term")
 	}
 }
+
+// TestTagsList_DataGoesToStdout pins the cobra footgun: cmd.Println /
+// cmd.Printf default to OutOrStderr() unless SetOut is called, which silently
+// breaks `anvil tags list --json | jq ...` for agent pipelines. Other tests
+// in this file call SetOut(&buf) which masks the footgun by aliasing both
+// streams to the same buffer; this test redirects os.Stdout/os.Stderr at the
+// FD level and asserts data lands on stdout.
+func TestTagsList_DataGoesToStdout(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("ANVIL_VAULT", root)
+	writeArtifact(t, root, "20-learnings/anvil.a.md",
+		"type: learning\ntitle: A\ntags: [domain/dev-tools]\n")
+
+	stdout, stderr := captureOSStreams(t, func() {
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"tags", "list", "--json"})
+		// Deliberately NOT calling SetOut/SetErr — the bug only shows up
+		// when cobra falls back to its default writers.
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("execute: %v", err)
+		}
+	})
+
+	if !strings.Contains(stdout, `"domain/dev-tools"`) {
+		t.Errorf("--json data missing from stdout\nstdout: %q\nstderr: %q", stdout, stderr)
+	}
+	if strings.Contains(stderr, `"domain/dev-tools"`) {
+		t.Errorf("--json data leaked to stderr (cobra cmd.Println footgun)\nstderr: %q", stderr)
+	}
+}
+
+// captureOSStreams swaps os.Stdout/os.Stderr for pipes during fn, restores
+// them, and returns whatever fn wrote to each. This catches code that calls
+// cmd.Println without SetOut: those writes go to the real os.Stderr and we
+// can tell them apart from os.Stdout writes.
+func captureOSStreams(t *testing.T, fn func()) (stdout, stderr string) {
+	t.Helper()
+	origOut, origErr := os.Stdout, os.Stderr
+	outR, outW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe stdout: %v", err)
+	}
+	errR, errW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe stderr: %v", err)
+	}
+	os.Stdout, os.Stderr = outW, errW
+	t.Cleanup(func() { os.Stdout, os.Stderr = origOut, origErr })
+
+	done := make(chan struct {
+		out, err string
+	}, 1)
+	go func() {
+		var ob, eb bytes.Buffer
+		bufCh := make(chan struct{}, 2)
+		go func() { _, _ = ob.ReadFrom(outR); bufCh <- struct{}{} }()
+		go func() { _, _ = eb.ReadFrom(errR); bufCh <- struct{}{} }()
+		<-bufCh
+		<-bufCh
+		done <- struct {
+			out, err string
+		}{ob.String(), eb.String()}
+	}()
+
+	fn()
+	_ = outW.Close()
+	_ = errW.Close()
+	r := <-done
+	return r.out, r.err
+}
