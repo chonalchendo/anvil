@@ -397,33 +397,53 @@ func TestCreate_ProductDesign_WritesValidFile(t *testing.T) {
 	}
 }
 
-func TestCreate_ProductDesign_RefusesOverwrite(t *testing.T) {
+func TestCreate_ProductDesign_Idempotent(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "product-design", "--title", "First", "--description", "test description"})
-	if err := cmd.Execute(); err != nil {
+	args := []string{"create", "product-design",
+		"--title", "Foo product",
+		"--description", "summary line",
+		"--json",
+	}
+
+	cmd1 := newRootCmd()
+	cmd1.SetArgs(args)
+	var out1 bytes.Buffer
+	cmd1.SetOut(&out1)
+	if err := cmd1.Execute(); err != nil {
 		t.Fatalf("first create: %v", err)
 	}
+
 	path := filepath.Join(vault, "05-projects", "foo", "product-design.md")
-	first, _ := os.ReadFile(path)
+	statBefore, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cmd2 := newRootCmd()
-	cmd2.SetArgs([]string{"create", "product-design", "--title", "Second", "--description", "test description"})
-	var stderr bytes.Buffer
-	cmd2.SetErr(&stderr)
-	cmd2.SetOut(&stderr)
-	if err := cmd2.Execute(); err == nil {
-		t.Error("expected error on duplicate product-design")
-	} else if !strings.Contains(err.Error(), "already exists") {
-		t.Errorf("error = %v, want mention of existing", err)
+	cmd2.SetArgs(args)
+	var out2 bytes.Buffer
+	cmd2.SetOut(&out2)
+	if err := cmd2.Execute(); err != nil {
+		t.Fatalf("second create: %v", err)
 	}
-	after, _ := os.ReadFile(path)
-	if string(first) != string(after) {
-		t.Error("first file mutated after second create attempt")
+	var second map[string]string
+	if err := json.Unmarshal(out2.Bytes(), &second); err != nil {
+		t.Fatal(err)
+	}
+	if second["status"] != "already_exists" {
+		t.Errorf("status = %q, want already_exists", second["status"])
+	}
+	if second["id"] != "product-design" {
+		t.Errorf("id = %q, want product-design (singleton convention)", second["id"])
+	}
+
+	statAfter, _ := os.Stat(path)
+	if !statBefore.ModTime().Equal(statAfter.ModTime()) {
+		t.Errorf("mtime changed on idempotent singleton re-run")
 	}
 }
 
