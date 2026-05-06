@@ -45,7 +45,7 @@ func ValidateLearning(a *Artifact, known map[string]struct{}) []error {
 			continue
 		}
 		facet, _, hasFacet := strings.Cut(tag, "/")
-		if hasFacet && facet == "status" {
+		if tag == "status" || (hasFacet && facet == "status") {
 			errs = append(errs, fmt.Errorf("tag %q forbidden: status is a frontmatter field, not a tag", tag))
 			continue
 		}
