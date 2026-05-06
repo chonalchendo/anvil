@@ -29,7 +29,7 @@ const goodBody = "\n## TL;DR\nclaim\n\n## Evidence\nsource\n\n## Caveats\nlimit\
 
 func TestValidateLearning_GoodArtifact(t *testing.T) {
 	a := &Artifact{
-		FrontMatter: mustFM([]string{"type/learning", "domain/postgres"}, nil),
+		FrontMatter: mustFM([]string{"domain/postgres", "activity/research"}, nil),
 		Body:        goodBody,
 	}
 	if errs := ValidateLearning(a, nil); len(errs) > 0 {
@@ -39,7 +39,7 @@ func TestValidateLearning_GoodArtifact(t *testing.T) {
 
 func TestValidateLearning_MissingBodySections(t *testing.T) {
 	a := &Artifact{
-		FrontMatter: mustFM([]string{"type/learning"}, nil),
+		FrontMatter: mustFM([]string{"domain/postgres", "activity/research"}, nil),
 		Body:        "\n## TL;DR\nclaim\n\n## Caveats\nlimit\n",
 	}
 	errs := ValidateLearning(a, nil)
@@ -54,7 +54,7 @@ func TestValidateLearning_MissingBodySections(t *testing.T) {
 func TestValidateLearning_BadTagShape(t *testing.T) {
 	for _, bad := range []string{"Domain/Postgres", "domain/With Space", "domain/under_score"} {
 		a := &Artifact{
-			FrontMatter: mustFM([]string{"type/learning", bad}, nil),
+			FrontMatter: mustFM([]string{"domain/postgres", "activity/research", bad}, nil),
 			Body:        goodBody,
 		}
 		errs := ValidateLearning(a, nil)
@@ -66,7 +66,7 @@ func TestValidateLearning_BadTagShape(t *testing.T) {
 
 func TestValidateLearning_StatusAsTag(t *testing.T) {
 	a := &Artifact{
-		FrontMatter: mustFM([]string{"type/learning", "status/draft"}, nil),
+		FrontMatter: mustFM([]string{"domain/postgres", "activity/research", "status/draft"}, nil),
 		Body:        goodBody,
 	}
 	errs := ValidateLearning(a, nil)
@@ -75,22 +75,21 @@ func TestValidateLearning_StatusAsTag(t *testing.T) {
 	}
 }
 
-func TestValidateLearning_TypeTagMustMatch(t *testing.T) {
+func TestValidateLearning_NoTypeTagRequired(t *testing.T) {
 	a := &Artifact{
-		FrontMatter: mustFM([]string{"type/issue"}, nil),
+		FrontMatter: mustFM([]string{"domain/postgres", "activity/research"}, nil),
 		Body:        goodBody,
 	}
-	errs := ValidateLearning(a, nil)
-	if len(errs) == 0 {
-		t.Fatal("expected error for mismatched type/ tag")
+	if errs := ValidateLearning(a, nil); len(errs) > 0 {
+		t.Errorf("expected accept, got %v", errs)
 	}
 }
 
 func TestValidateLearning_GlossaryEnforcement(t *testing.T) {
-	knownTags := map[string]struct{}{"type/learning": {}, "domain/postgres": {}}
+	knownTags := map[string]struct{}{"domain/postgres": {}, "activity/research": {}}
 
 	a := &Artifact{
-		FrontMatter: mustFM([]string{"type/learning", "domain/postgres", "domain/unknown"}, nil),
+		FrontMatter: mustFM([]string{"domain/postgres", "activity/research", "domain/unknown"}, nil),
 		Body:        goodBody,
 	}
 	errs := ValidateLearning(a, knownTags)

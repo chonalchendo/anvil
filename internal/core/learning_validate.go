@@ -13,9 +13,8 @@ var requiredLearningSections = []string{"## TL;DR", "## Evidence", "## Caveats"}
 // ValidateLearning checks invariants beyond the JSON Schema:
 //   - body contains the three required H2s in order
 //   - tag values match tagShape (lowercase ASCII + hyphen)
-//   - exactly one type/ tag, equal to "type/learning"
-//   - no status/ tag
-//   - if known != nil, every non-type/ tag must be in known
+//   - no status/ tag (status is a frontmatter field)
+//   - if known != nil, every tag must be in known
 func ValidateLearning(a *Artifact, known map[string]struct{}) []error {
 	var errs []error
 
@@ -35,7 +34,6 @@ func ValidateLearning(a *Artifact, known map[string]struct{}) []error {
 	}
 
 	tagsRaw, _ := a.FrontMatter["tags"].([]any)
-	typeTagSeen := false
 	for _, raw := range tagsRaw {
 		tag, ok := raw.(string)
 		if !ok {
@@ -47,18 +45,9 @@ func ValidateLearning(a *Artifact, known map[string]struct{}) []error {
 			continue
 		}
 		facet, _, hasFacet := strings.Cut(tag, "/")
-		if hasFacet {
-			switch facet {
-			case "status":
-				errs = append(errs, fmt.Errorf("tag %q forbidden: status is a frontmatter field, not a tag", tag))
-				continue
-			case "type":
-				if tag != "type/learning" {
-					errs = append(errs, fmt.Errorf("type/ tag %q must equal type/learning", tag))
-				}
-				typeTagSeen = true
-				continue
-			}
+		if hasFacet && facet == "status" {
+			errs = append(errs, fmt.Errorf("tag %q forbidden: status is a frontmatter field, not a tag", tag))
+			continue
 		}
 		if known != nil {
 			if _, ok := known[tag]; !ok {
@@ -68,9 +57,6 @@ func ValidateLearning(a *Artifact, known map[string]struct{}) []error {
 				))
 			}
 		}
-	}
-	if !typeTagSeen {
-		errs = append(errs, fmt.Errorf("learning must carry tag type/learning"))
 	}
 
 	return errs
