@@ -20,6 +20,8 @@ import (
 	"github.com/chonalchendo/anvil/internal/templates"
 )
 
+var validSessionSources = []string{"claude-code", "chatgpt", "claude-web", "cursor", "continue"}
+
 // templateData holds all variables that frontmatter templates may reference.
 // Fields unused by a given type are left at their zero values; templates guard
 // conditional fields with {{- if .X }}.
@@ -38,6 +40,7 @@ type templateData struct {
 	SessionID        string
 	RetentionUntil   string
 	ActiveThread     string
+	StartedAt        string
 	Breaking         bool
 	Scope            string
 }
@@ -55,6 +58,11 @@ func newCreateCmd() *cobra.Command {
 		flagBody             string
 		flagBreaking         bool
 		flagScope            string
+		flagSessionID        string
+		flagSource           string
+		flagStartedAt        string
+		flagActiveThread     string
+		flagUpdate           bool
 	)
 
 	cmd := &cobra.Command{
@@ -67,9 +75,17 @@ func newCreateCmd() *cobra.Command {
 				return err
 			}
 
+			if t != core.TypeSession && flagTitle == "" {
+				return fmt.Errorf("--title is required for %s", t)
+			}
+
 			v, err := core.ResolveVault()
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
+			}
+
+			if t == core.TypeSession {
+				return runCreateSession(cmd, v, flagSessionID, flagSource, flagStartedAt, flagActiveThread, flagJSON, flagUpdate)
 			}
 
 			// Resolve project slug: --project overrides auto-detection.
@@ -204,9 +220,123 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	cmd.Flags().BoolVar(&flagBreaking, "breaking", false, "sweep is breaking (required for sweep, must be explicit)")
 	cmd.Flags().StringVar(&flagScope, "scope", "", "sweep scope (required for sweep)")
-	_ = cmd.MarkFlagRequired("title")
+	cmd.Flags().StringVar(&flagSessionID, "session-id", "", "session UUID (required for session)")
+	cmd.Flags().StringVar(&flagSource, "source", "claude-code", "session source (claude-code|chatgpt|claude-web|cursor|continue)")
+	cmd.Flags().StringVar(&flagStartedAt, "started-at", "", "RFC3339 session start time (defaults to now)")
+	cmd.Flags().StringVar(&flagActiveThread, "active-thread", "", "active thread slug to record in related[]")
+	cmd.Flags().BoolVar(&flagUpdate, "update", false, "rewrite existing session artifact on drift")
 
 	return cmd
+}
+
+func runCreateSession(cmd *cobra.Command, v *core.Vault, sessionID, source, startedAt, activeThread string, asJSON, update bool) error {
+	if sessionID == "" {
+		return fmt.Errorf("--session-id is required for session")
+	}
+	validSource := false
+	for _, s := range validSessionSources {
+		if s == source {
+			validSource = true
+			break
+		}
+	}
+	if !validSource {
+		return formatEnumError("--source", source, validSessionSources, "")
+	}
+
+	now := time.Now().UTC()
+	if startedAt == "" {
+		startedAt = now.Format(time.RFC3339)
+	}
+	created := now.Format("2006-01-02")
+	retention := now.AddDate(0, 0, 30).Format("2006-01-02")
+	short := sessionID
+	if len(short) > 8 {
+		short = short[:8]
+	}
+
+	data := templateData{
+		Created:        created,
+		ShortID:        short,
+		Source:         source,
+		SessionID:      sessionID,
+		RetentionUntil: retention,
+		ActiveThread:   activeThread,
+		StartedAt:      startedAt,
+	}
+
+	dir := filepath.Join(v.Root, core.TypeSession.Dir())
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", dir, err)
+	}
+	path := filepath.Join(dir, sessionID+".md")
+
+	if existing, err := core.LoadArtifact(path); err == nil {
+		if !update {
+			if drift := sessionDrift(existing.FrontMatter, source, startedAt, activeThread); drift != "" {
+				return fmt.Errorf("session %s already exists with different %s; use --update to rewrite", sessionID, drift)
+			}
+			if asJSON {
+				return emitSessionJSON(cmd, sessionID, path, activeThread)
+			}
+			cmd.Println(path)
+			return nil
+		}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("checking %s: %w", path, err)
+	}
+
+	fm, err := renderFrontMatter(core.TypeSession, data)
+	if err != nil {
+		return fmt.Errorf("rendering template: %w", err)
+	}
+	if err := schema.Validate(string(core.TypeSession), fm); err != nil {
+		return fmt.Errorf("schema validation: %w", err)
+	}
+	if err := (&core.Artifact{Path: path, FrontMatter: fm}).Save(); err != nil {
+		return fmt.Errorf("saving artifact: %w", err)
+	}
+
+	if asJSON {
+		return emitSessionJSON(cmd, sessionID, path, activeThread)
+	}
+	cmd.Println(path)
+	return nil
+}
+
+func sessionDrift(fm map[string]any, source, startedAt, activeThread string) string {
+	if got, _ := fm["source"].(string); got != source {
+		return "source"
+	}
+	if got, _ := fm["started_at"].(string); got != "" && got != startedAt {
+		return "started_at"
+	}
+	related, _ := fm["related"].([]any)
+	want := ""
+	if activeThread != "" {
+		want = "[[thread." + activeThread + "]]"
+	}
+	got := ""
+	if len(related) > 0 {
+		got, _ = related[0].(string)
+	}
+	if got != want {
+		return "active-thread"
+	}
+	return ""
+}
+
+func emitSessionJSON(cmd *cobra.Command, id, path, activeThread string) error {
+	related := []string{}
+	if activeThread != "" {
+		related = []string{"[[thread." + activeThread + "]]"}
+	}
+	out, err := json.Marshal(map[string]any{"id": id, "path": path, "related": related})
+	if err != nil {
+		return fmt.Errorf("marshalling json: %w", err)
+	}
+	cmd.Println(string(out))
+	return nil
 }
 
 // renderFrontMatter executes the template for t against data and parses the

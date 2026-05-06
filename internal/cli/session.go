@@ -131,16 +131,3 @@ func newSessionEmitCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagFromStdin, "from-stdin", false, "read SessionStart JSON payload from stdin (Claude Code hook mode)")
 	return cmd
 }
-
-func emitSessionJSON(cmd *cobra.Command, id, path, activeThread string) error {
-	related := []string{}
-	if activeThread != "" {
-		related = []string{"[[thread." + activeThread + "]]"}
-	}
-	out, err := json.Marshal(map[string]any{"id": id, "path": path, "related": related})
-	if err != nil {
-		return fmt.Errorf("marshalling json: %w", err)
-	}
-	cmd.Println(string(out))
-	return nil
-}
