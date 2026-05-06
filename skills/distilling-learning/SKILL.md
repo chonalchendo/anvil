@@ -122,13 +122,7 @@ What would change `confidence`. What's still unknown. Limits of applicability.
 
 Progressive disclosure: future agents query `anvil list learning ...`, see frontmatter + (eventually) the TL;DR; only drill into Evidence + Caveats when needed.
 
-Then set tags. Tags live in YAML frontmatter only — never as body `#hashtags` (Obsidian splits those on space and corrupts multi-word values). Edit the `tags:` list directly:
-
-```yaml
-tags:
-  - domain/postgres
-  - activity/debugging
-```
+Tags are seeded on `anvil create` above (passing `--tags` and, for novel values, `--allow-new-facet`). Don't hand-edit the `tags:` frontmatter block — that bypasses the novelty gate. Body edits only.
 
 Backlink the source:
 

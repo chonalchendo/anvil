@@ -48,7 +48,15 @@ func newSetCmd() *cobra.Command {
 			values := args[3:]
 
 			if field == "tags" {
-				values = splitCSV(values)
+				out := make([]string, 0, len(values))
+				for _, v := range values {
+					for _, p := range strings.Split(v, ",") {
+						if p = strings.TrimSpace(p); p != "" {
+							out = append(out, p)
+						}
+					}
+				}
+				values = out
 			}
 
 			if flagAddSet && flagRemSet {
@@ -176,21 +184,6 @@ func newSetCmd() *cobra.Command {
 	}
 
 	return cmd
-}
-
-// splitCSV expands comma-separated values into separate elements, mirroring
-// how `create --tags` (cobra StringSliceVar) parses its input. Empty fragments
-// are dropped; surrounding whitespace is trimmed.
-func splitCSV(in []string) []string {
-	out := make([]string, 0, len(in))
-	for _, v := range in {
-		for _, p := range strings.Split(v, ",") {
-			if p = strings.TrimSpace(p); p != "" {
-				out = append(out, p)
-			}
-		}
-	}
-	return out
 }
 
 // arrayValue normalises a frontmatter value into []any. yaml.v3 may decode
