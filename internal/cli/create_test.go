@@ -3,10 +3,13 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/schema"
@@ -929,5 +932,214 @@ func TestCreate_Issue_Idempotent_ReturnsAlreadyExists(t *testing.T) {
 	}
 	if !statBefore.ModTime().Equal(statAfter.ModTime()) {
 		t.Errorf("mtime changed on idempotent re-run")
+	}
+}
+
+func TestCreate_Issue_DriftRefusedWithoutUpdate(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	mk := func(desc string) *cobra.Command {
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"create", "issue",
+			"--title", "Fix login bug",
+			"--description", desc,
+			"--tags", "domain/dev-tools",
+			"--allow-new-facet=domain",
+		})
+		return cmd
+	}
+	cmd1 := mk("first description")
+	cmd1.SetOut(new(bytes.Buffer))
+	if err := cmd1.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	cmd2 := mk("second description")
+	var out bytes.Buffer
+	cmd2.SetOut(&out)
+	cmd2.SetErr(&out)
+	err := cmd2.Execute()
+	if err == nil {
+		t.Fatal("expected drift error")
+	}
+	if !errors.Is(err, ErrCreateDrift) {
+		t.Errorf("err = %v, want ErrCreateDrift", err)
+	}
+	if !strings.Contains(err.Error(), "description") {
+		t.Errorf("err should name 'description': %v", err)
+	}
+}
+
+func TestCreate_Issue_TagReorder_NoDrift(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	mk := func(tags string) *cobra.Command {
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"create", "issue",
+			"--title", "Fix login bug",
+			"--description", "d",
+			"--tags", tags,
+			"--allow-new-facet=domain",
+		})
+		return cmd
+	}
+	if err := mk("domain/dev-tools,domain/cli").Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if err := mk("domain/cli,domain/dev-tools").Execute(); err != nil {
+		t.Errorf("expected no drift on tag reorder, got: %v", err)
+	}
+}
+
+func TestCreate_Issue_BodyDrift_RefusedWithoutUpdate(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	mk := func(body string) *cobra.Command {
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"create", "issue",
+			"--title", "Fix login bug",
+			"--description", "d",
+			"--body", body,
+			"--tags", "domain/dev-tools",
+			"--allow-new-facet=domain",
+		})
+		return cmd
+	}
+	if err := mk("original body").Execute(); err != nil {
+		t.Fatal(err)
+	}
+	err := mk("different body").Execute()
+	if !errors.Is(err, ErrCreateDrift) {
+		t.Errorf("err = %v, want ErrCreateDrift", err)
+	}
+}
+
+func TestCreate_Issue_UpdateRewritesOnDrift(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd1 := newRootCmd()
+	cmd1.SetArgs([]string{"create", "issue",
+		"--title", "Fix login bug",
+		"--description", "first",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	})
+	if err := cmd1.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(vault, "70-issues", "foo.fix-login-bug.md")
+	first, _ := core.LoadArtifact(path)
+	originalCreated := first.FrontMatter["created"]
+
+	cmd2 := newRootCmd()
+	cmd2.SetArgs([]string{"create", "issue",
+		"--title", "Fix login bug",
+		"--description", "second",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+		"--update",
+		"--json",
+	})
+	var out bytes.Buffer
+	cmd2.SetOut(&out)
+	if err := cmd2.Execute(); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	var resp map[string]string
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp["status"] != "updated" {
+		t.Errorf("status = %q, want updated", resp["status"])
+	}
+
+	after, _ := core.LoadArtifact(path)
+	if after.FrontMatter["description"] != "second" {
+		t.Errorf("description not rewritten: %v", after.FrontMatter["description"])
+	}
+	if after.FrontMatter["created"] != originalCreated {
+		t.Errorf("created changed: %v -> %v", originalCreated, after.FrontMatter["created"])
+	}
+}
+
+func TestCreate_Issue_UpdateWithoutDrift_NoRewrite(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	args := []string{"create", "issue",
+		"--title", "Fix login bug",
+		"--description", "same",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	}
+	cmd1 := newRootCmd()
+	cmd1.SetArgs(args)
+	if err := cmd1.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(vault, "70-issues", "foo.fix-login-bug.md")
+	statBefore, _ := os.Stat(path)
+
+	cmd2 := newRootCmd()
+	cmd2.SetArgs(append(args, "--update", "--json"))
+	var out bytes.Buffer
+	cmd2.SetOut(&out)
+	if err := cmd2.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var resp map[string]string
+	_ = json.Unmarshal(out.Bytes(), &resp)
+	if resp["status"] != "already_exists" {
+		t.Errorf("status = %q, want already_exists (no drift, no rewrite)", resp["status"])
+	}
+	statAfter, _ := os.Stat(path)
+	if !statBefore.ModTime().Equal(statAfter.ModTime()) {
+		t.Errorf("mtime changed despite no drift")
+	}
+}
+
+func TestCreate_Plan_UpdateRevalidates(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	// Need an issue first for --issue.
+	if err := func() error {
+		c := newRootCmd()
+		c.SetArgs([]string{"create", "issue", "--title", "I1", "--description", "d",
+			"--tags", "domain/dev-tools", "--allow-new-facet=domain"})
+		return c.Execute()
+	}(); err != nil {
+		t.Fatal(err)
+	}
+
+	c1 := newRootCmd()
+	c1.SetArgs([]string{"create", "plan", "--title", "P1", "--issue", "[[issue.foo.i1]]",
+		"--description", "d", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
+	if err := c1.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	// --update with a body that fails plan validation should error and not rewrite.
+	c2 := newRootCmd()
+	c2.SetArgs([]string{"create", "plan", "--title", "P1", "--issue", "[[issue.foo.i1]]",
+		"--description", "d2", "--body", "too short",
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain", "--update"})
+	if err := c2.Execute(); err == nil {
+		t.Errorf("expected plan-validate failure on update")
 	}
 }
