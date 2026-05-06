@@ -322,7 +322,10 @@ func TestListInbox_NonEmpty(t *testing.T) {
 func TestListInbox_LimitAndSince(t *testing.T) {
 	newTestVaultWithDatedInbox(t, []string{"2026-04-30", "2026-05-02", "2026-05-04"})
 	cmd := newRootCmd()
-	out, _, _ := runCmd(t, cmd, "list", "inbox", "--since", "2026-05-01", "--json")
+	out, _, err := runCmd(t, cmd, "list", "inbox", "--since", "2026-05-01", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
 	env := unmarshalListEnvelope(t, out)
 	if env.Total != 2 {
 		t.Errorf("total=%d want 2", env.Total)

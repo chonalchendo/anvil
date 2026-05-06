@@ -391,30 +391,9 @@ func TestTagsList_DataGoesToStdout(t *testing.T) {
 	writeArtifact(t, root, "20-learnings/anvil.a.md",
 		"type: learning\ntitle: A\ntags: [domain/dev-tools]\n")
 
-	stdout, stderr := captureOSStreams(t, func() {
-		cmd := newRootCmd()
-		cmd.SetArgs([]string{"tags", "list", "--json"})
-		// Deliberately NOT calling SetOut/SetErr — the bug only shows up
-		// when cobra falls back to its default writers.
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("execute: %v", err)
-		}
-	})
-
-	if !strings.Contains(stdout, `"domain/dev-tools"`) {
-		t.Errorf("--json data missing from stdout\nstdout: %q\nstderr: %q", stdout, stderr)
-	}
-	if strings.Contains(stderr, `"domain/dev-tools"`) {
-		t.Errorf("--json data leaked to stderr (cobra cmd.Println footgun)\nstderr: %q", stderr)
-	}
-}
-
-// captureOSStreams swaps os.Stdout/os.Stderr for pipes during fn, restores
-// them, and returns whatever fn wrote to each. This catches code that calls
-// cmd.Println without SetOut: those writes go to the real os.Stderr and we
-// can tell them apart from os.Stdout writes.
-func captureOSStreams(t *testing.T, fn func()) (stdout, stderr string) {
-	t.Helper()
+	// Swap os.Stdout/os.Stderr for pipes so we can tell them apart even when
+	// cobra falls back to its default writers (cmd.Println without SetOut goes
+	// to the real os.Stderr).
 	origOut, origErr := os.Stdout, os.Stderr
 	outR, outW, err := os.Pipe()
 	if err != nil {
@@ -442,9 +421,22 @@ func captureOSStreams(t *testing.T, fn func()) (stdout, stderr string) {
 		}{ob.String(), eb.String()}
 	}()
 
-	fn()
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"tags", "list", "--json"})
+	// Deliberately NOT calling SetOut/SetErr — the bug only shows up when
+	// cobra falls back to its default writers.
+	if execErr := cmd.Execute(); execErr != nil {
+		t.Fatalf("execute: %v", execErr)
+	}
 	_ = outW.Close()
 	_ = errW.Close()
 	r := <-done
-	return r.out, r.err
+	stdout, stderr := r.out, r.err
+
+	if !strings.Contains(stdout, `"domain/dev-tools"`) {
+		t.Errorf("--json data missing from stdout\nstdout: %q\nstderr: %q", stdout, stderr)
+	}
+	if strings.Contains(stderr, `"domain/dev-tools"`) {
+		t.Errorf("--json data leaked to stderr (cobra cmd.Println footgun)\nstderr: %q", stderr)
+	}
 }

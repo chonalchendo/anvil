@@ -145,7 +145,7 @@ Gaps from the 2026-05-04 audit of every implemented verb against
 **Phase C — ship:**
 #13, #14, #15, #16, #17, #18–21 (+ Bundle F friction sweep alongside).
 
-#3 (`using-anvil` skill) is the only Phase A item still open and can land anywhere; #2 (researching skill) shipped 2026-05-05.
+Item #3 (`using-anvil` skill) is the only Phase A item still open and can land anywhere; #2 (researching skill) shipped 2026-05-05.
 
 ## Bundles
 
@@ -156,7 +156,7 @@ Items that ship together as a single spec/PR:
 - **C — Release pipeline:** #14 + #15 (+ #16 v0.1 entry). Config and the docs that describe it must not drift.
 - **D — Public-facing docs:** #13 + #18. README rewrite has to resolve the `anvil compile` contradiction anyway.
 - **E — Agent-CLI Blockers:** ~~`list --limit`, `inbox list --limit`, `show --full`, `project list --json`, structured `validate` errors~~ **done 2026-05-05** (spec `2026-05-05-bounded-structured-reads-design`); also pulled in adjacent Friction (root `--vault`/`--project`, `show --validate` stream split, `list --json` envelope + per-item fields, `show --json` nested frontmatter, `cmd.Println` → `fmt.Fprintln(cmd.OutOrStdout())` migration for show/list/project/validate). `create` slug collision deferred to a follow-up spec.
-- **F — Agent-CLI Friction sweep:** remaining Friction items — `set`/`link`/`where`/`project *` output + idempotence; `cmd.Println` consistency on `create` and `inbox add` JSON branches; `init` overwrite guard; fang multi-line-error squashing. Mechanical; lands alongside Phase C doc cleanup.
+- **F — Agent-CLI Friction sweep:** remaining Friction items — `set`/`link`/`where`/`project *` output + idempotence; `cmd.Println` consistency on `create` and `create inbox` JSON branches; `init` overwrite guard; fang multi-line-error squashing. Mechanical; lands alongside Phase C doc cleanup.
 
 **Deferred to v0.2 unless cheap:** the Optimization-tagged items (cobra `Example` blocks, `--json` shape stability, `--paths` filters, `--dry-run` on `migrate`).
 

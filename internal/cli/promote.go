@@ -27,7 +27,7 @@ func newPromoteCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := args[0]
 
-			validAs := []string{"issue", "thread", "design", "learning", "discard"}
+			validAs := []string{"issue", "thread", "learning", "discard"}
 			valid := false
 			for _, v := range validAs {
 				if flagAs == v {
@@ -59,15 +59,13 @@ func newPromoteCmd() *cobra.Command {
 			switch flagAs {
 			case "discard":
 				return discardInbox(cmd, a, id, flagJSON)
-			case "design":
-				return fmt.Errorf("promote to design is out of scope in v0.1")
 			default:
 				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON)
 			}
 		},
 	}
 
-	cmd.Flags().StringVar(&flagAs, "as", "", "promotion target type (issue|thread|design|learning|discard)")
+	cmd.Flags().StringVar(&flagAs, "as", "", "promotion target type (issue|thread|learning|discard)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	_ = cmd.MarkFlagRequired("as")
 	return cmd

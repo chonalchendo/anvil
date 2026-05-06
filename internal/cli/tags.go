@@ -63,6 +63,10 @@ func newTagsListCmd() *cobra.Command {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 
+			if flagLimit < 1 || flagLimit > 50 {
+				return fmt.Errorf("invalid value %d for --limit\n  valid values: 1..50", flagLimit)
+			}
+
 			validSources := []string{"used", "defined", "all"}
 			ok := false
 			for _, s := range validSources {
@@ -82,7 +86,7 @@ func newTagsListCmd() *cobra.Command {
 			}
 
 			total := len(rows)
-			if flagLimit > 0 && len(rows) > flagLimit {
+			if len(rows) > flagLimit {
 				rows = rows[:flagLimit]
 			}
 

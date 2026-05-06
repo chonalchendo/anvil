@@ -159,10 +159,11 @@ func (g *Glossary) Save(path string) error {
 }
 
 // SplitTag splits a "<facet>/<name>" tag. Returns ok=false if the shape is wrong
-// (no slash, leading slash, or trailing slash). Does not validate that facet ∈ Facets.
+// (no slash, leading slash, trailing slash, or more than one slash). Does not
+// validate that facet ∈ Facets.
 func SplitTag(tag string) (facet, name string, ok bool) {
 	i := strings.IndexByte(tag, '/')
-	if i <= 0 || i == len(tag)-1 {
+	if i <= 0 || i == len(tag)-1 || strings.IndexByte(tag[i+1:], '/') >= 0 {
 		return "", "", false
 	}
 	return tag[:i], tag[i+1:], true

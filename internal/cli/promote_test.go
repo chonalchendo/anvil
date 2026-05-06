@@ -290,7 +290,7 @@ func TestPromote_InvalidAsValue(t *testing.T) {
 	msg := err.Error()
 	for _, want := range []string{
 		`invalid value "isue" for --as`,
-		"valid values: issue, thread, design, learning, discard",
+		"valid values: issue, thread, learning, discard",
 		"corrected:    anvil promote " + id + " --as issue",
 	} {
 		if !strings.Contains(msg, want) {
