@@ -74,18 +74,18 @@ Draft a list of candidate learnings. For each, pick:
 Tags are **mechanism**, not vocabulary. Use the four-facet system; the actual values come from `_meta/glossary.md`.
 
 ```bash
-anvil tags list --source defined --prefix domain/      # see existing domain tags
-anvil tags list --source defined --prefix activity/    # see existing activity tags
-anvil tags list --source defined --prefix pattern/     # see existing pattern tags
+anvil tags list --source used --prefix domain/      # values currently in vault
+anvil tags list --source used --prefix activity/    # values currently in vault
+anvil tags list --source used --prefix pattern/     # values currently in vault
 ```
 
-For each learning, propose tags drawn from existing glossary values first. Only invent a new tag if no existing one fits — and only after the user approves it. New tags must:
+For each learning, propose tags drawn from existing values first. Only invent a new tag if no existing one fits — and only after the user approves it. New tags must:
 
 - Be lowercase ASCII, hyphens only (no spaces, no underscores, no caps).
-- Have shape `<facet>/<name>` where facet is one of `domain | activity | pattern`. (`type/` is auto-managed; `status/` is forbidden — status is a frontmatter field.)
-- Be added via `anvil tags add <facet>/<name> --desc "..."` BEFORE you write the learning, otherwise `anvil validate` will reject the learning.
+- Have shape `<facet>/<name>` where facet is one of `domain | activity | pattern`. (`status/` is forbidden — status is a frontmatter field.)
+- Pass `--allow-new-facet=<facet>` to the `create` call to introduce the value, OR seed the glossary first via `anvil tags add <facet>/<name> --desc "..."`.
 
-Always include `type/learning` in the tag list. Never include a `status/*` tag.
+Never include a `status/*` tag.
 
 ---
 
@@ -94,7 +94,10 @@ Always include `type/learning` in the tag list. Never include a `status/*` tag.
 For each approved learning, in order:
 
 ```bash
-anvil create learning --title "<claim>" --json
+anvil create learning --title "<claim>" \
+  --tags domain/<x>,activity/<x> \
+  [--allow-new-facet=domain --allow-new-facet=activity] \
+  --json
 # capture {id, path}
 anvil set learning <id> diataxis <tutorial|how-to|reference|explanation>
 anvil set learning <id> confidence <low|medium|high>
@@ -123,7 +126,6 @@ Then set tags. Tags live in YAML frontmatter only — never as body `#hashtags` 
 
 ```yaml
 tags:
-  - type/learning
   - domain/postgres
   - activity/debugging
 ```
@@ -171,8 +173,7 @@ This checks:
 - Schema correctness on every learning frontmatter.
 - Body contains `## TL;DR / ## Evidence / ## Caveats` in order.
 - Tags are lowercase-ASCII-hyphen.
-- Every non-`type/` tag is present in the glossary.
-- `type/learning` tag is present and matches.
+- Required `domain/<x>` and `activity/<x>` facets present (per schema).
 
 Fix any failures and re-run until clean.
 

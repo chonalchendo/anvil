@@ -22,7 +22,7 @@ Implied on every type unless explicitly overridden:
 - `title` — display name.
 - `created` / `updated` — ISO date.
 - `status` — type-specific enum (listed below).
-- `tags` — flat list, `type/<type>` is conventional.
+- `tags` — flat list. Per-type schemas may require minimum facets (see per-type sections). Values match `[a-z0-9-]+` (lowercase, hyphenated, ASCII) under a `<facet>/<value>` shape. The CLI gate (`anvil create`, `anvil set tags`, `anvil promote`) rejects values novel to the vault unless `--allow-new-facet=<facet>` is passed.
 - `aliases` — Obsidian aliases.
 - `related` — wikilink array of associative pointers.
 
@@ -116,6 +116,8 @@ acceptance: ["criterion", ...]
 
 Single source of truth. Knowledge attaches via the child side: `learning.related: [[issue.X]]`. No `learnings`, `discovered_in`, or `promoted_from` arrays on the issue.
 
+Tags: required `domain/<x>`; `activity/<x>` and `pattern/<x>` optional.
+
 ### `plan`
 
 ```yaml
@@ -148,6 +150,8 @@ verification:
 
 Plan `milestone` is derived (`plan.issue → issue.milestone`); not stored.
 
+Tags: required `domain/<x>`; `activity/<x>` and `pattern/<x>` optional.
+
 ### `decision`
 
 ```yaml
@@ -160,6 +164,8 @@ superseded_by: "[[decision...]]" | null
 
 Body absorbs: decision-makers, consulted, informed, evidence. Filenames keep the MADR `nnnn-` numeric prefix in the slug: `30-decisions/<project>.<NNNN>-<slug>.md`.
 
+Tags: required `domain/<x>` and `activity/<x>`; `pattern/<x>` optional.
+
 ### `learning`
 
 ```yaml
@@ -171,6 +177,8 @@ confidence: low | medium | high
 
 Body absorbs: sources. Cut entirely: `parents` (use `related`).
 
+Tags: required `domain/<x>` and `activity/<x>`; `pattern/<x>` optional.
+
 ### `thread`
 
 ```yaml
@@ -180,6 +188,8 @@ diataxis: tutorial | how-to | reference | explanation
 ```
 
 Body absorbs: question, hypothesis, resolution, participants. Cut entirely: `opened`, `closed` (universal `created` / `updated` cover this).
+
+Tags: required `domain/<x>` and `activity/<x>`; `pattern/<x>` optional.
 
 ### `sweep`
 

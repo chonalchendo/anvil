@@ -128,8 +128,16 @@ Tasks default to `model: sonnet-4.6` and `effort: medium` via orchestrator confi
 
 ## Phase 6 — Hand off
 
+List the existing `domain/` taxonomy and reuse a value when one fits:
+
 ```bash
-anvil create plan --issue <issue-id> --title "<title>" --json
+anvil tags list --source used --prefix domain/ --json
+```
+
+The CLI rejects an unrecognised value unless you pass `--allow-new-facet=domain`.
+
+```bash
+anvil create plan --issue <issue-id> --title "<title>" --tags domain/<x> --json
 ```
 
 ```bash
