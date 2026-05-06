@@ -179,9 +179,9 @@ func walkSchemaErr(path string, ve *jsonschema.ValidationError, out *[]*errfmt.V
 			*out = append(*out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, prop, "unexpected").
 				WithExpected("not present"))
 		}
-	case *kind.MinContains, *kind.Contains:
-		// A failing contains/minContains on tags means a required facet is absent.
-		// The cause is a *kind.Pattern whose Want field holds the required regex.
+	case *kind.Contains:
+		// MinContains is intercepted earlier; Contains may still arrive here
+		// for the rare zero-cause path. On tags, treat it as a missing facet.
 		if field == "tags" {
 			pattern := "^domain/[a-z0-9-]+$" // fallback
 			for _, c := range ve.Causes {
