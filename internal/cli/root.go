@@ -36,7 +36,6 @@ func newRootCmd() *cobra.Command {
 	cmd.AddCommand(
 		newWhereCmd(),
 		newInitCmd(),
-		newInboxCmd(),
 		newCreateCmd(),
 		newShowCmd(),
 		newListCmd(),
@@ -46,10 +45,8 @@ func newRootCmd() *cobra.Command {
 		newValidateCmd(),
 		newMigrateCmd(),
 		newThreadCmd(),
-		newSessionCmd(),
-		newInstallCmd(),
 		newPromoteCmd(),
-		newGlossaryCmd(),
+		newInstallCmd(),
 		newTagsCmd(),
 	)
 	return cmd
