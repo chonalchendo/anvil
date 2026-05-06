@@ -218,6 +218,7 @@ func TestValidate_Plan_NewShape_AcceptsModelEffort(t *testing.T) {
 		"created": "2026-04-30", "updated": "2026-04-30",
 		"status": "draft", "plan_version": 1,
 		"issue": "[[issue.anvil.streaming-token-counter]]",
+		"tags":  []any{"domain/dev-tools"},
 		"tasks": []any{
 			map[string]any{
 				"id": "T1", "title": "x", "kind": "tdd",
@@ -270,6 +271,36 @@ func TestValidate_Plan_RejectsBadModel(t *testing.T) {
 	if err := Validate("plan", fm); err == nil {
 		t.Error("expected rejection: model must be Anvil-supported enum")
 	}
+}
+
+func TestValidate_Plan_RequiresDomainTag(t *testing.T) {
+	base := map[string]any{
+		"type": "plan", "id": "anvil.x", "slug": "x",
+		"title": "x", "description": "x",
+		"created": "2026-05-06", "updated": "2026-05-06",
+		"status": "draft", "plan_version": 1,
+		"issue": "[[issue.anvil.x]]",
+		"tasks": []any{
+			map[string]any{
+				"id": "T1", "title": "x", "kind": "tdd",
+				"files": []any{"a.go"}, "depends_on": []any{}, "verify": "true",
+			},
+		},
+	}
+	t.Run("rejects no domain", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["tags"] = []any{}
+		if err := Validate("plan", fm); err == nil {
+			t.Error("expected rejection")
+		}
+	})
+	t.Run("accepts domain", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["tags"] = []any{"domain/dev-tools"}
+		if err := Validate("plan", fm); err != nil {
+			t.Errorf("expected accept: %v", err)
+		}
+	})
 }
 
 func TestValidate_Learning_AcceptsMinimal(t *testing.T) {
