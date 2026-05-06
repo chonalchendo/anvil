@@ -130,6 +130,8 @@ func newCreateCmd() *cobra.Command {
 				path string
 			)
 			switch {
+			// Decisions allocate an ordinal by scanning the vault, so they cannot
+			// use DeterministicID's slug-only path.
 			case t == core.TypeDecision:
 				allocated, err := core.NextID(v, t, core.IDInputs{
 					Title:   flagTitle,
@@ -401,14 +403,11 @@ const (
 // id/path/status to cmd's stdout.
 func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status createStatus) error {
 	if asJSON {
-		out, err := json.Marshal(map[string]string{
+		out, _ := json.Marshal(map[string]string{
 			"id":     id,
 			"path":   path,
 			"status": string(status),
 		})
-		if err != nil {
-			return fmt.Errorf("marshalling json: %w", err)
-		}
 		fmt.Fprintln(cmd.OutOrStdout(), string(out))
 		return nil
 	}
@@ -424,8 +423,8 @@ func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status c
 }
 
 // createDrift compares fm/body against an existing artifact and returns
-// the name of the first diverging field, or "" if no drift. Body is
-// filled in by Task 5.
+// the name of the first diverging field, or "" if no drift. Stubbed to
+// "" until Task 5 lands the full frontmatter+body comparator.
 func createDrift(t core.Type, fm, existing map[string]any, body, existingBody string) string {
 	return ""
 }
