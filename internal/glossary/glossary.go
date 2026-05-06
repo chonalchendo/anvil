@@ -97,6 +97,36 @@ func (g *Glossary) AddTag(tag, desc string) error {
 	return nil
 }
 
+// FindTagDesc returns the description for tag (full <facet>/<name>) or "", false.
+func (g *Glossary) FindTagDesc(tag string) (string, bool) {
+	facet, name, ok := splitTag(tag)
+	if !ok {
+		return "", false
+	}
+	for _, e := range g.tags[facet] {
+		if e.Key == name {
+			return e.Desc, true
+		}
+	}
+	return "", false
+}
+
+// UpdateTagDesc rewrites tag's description in place.
+// Returns false if the tag is absent.
+func (g *Glossary) UpdateTagDesc(tag, desc string) bool {
+	facet, name, ok := splitTag(tag)
+	if !ok {
+		return false
+	}
+	for i, e := range g.tags[facet] {
+		if e.Key == name {
+			g.tags[facet][i].Desc = desc
+			return true
+		}
+	}
+	return false
+}
+
 // Definition returns the description for term, or "", false if absent.
 func (g *Glossary) Definition(term string) (string, bool) {
 	for _, e := range g.definitions {

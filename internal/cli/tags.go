@@ -18,9 +18,9 @@ import (
 func newTagsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tags",
-		Short: "Inspect tag usage across the vault",
+		Short: "Inspect and curate vault tags",
 	}
-	cmd.AddCommand(newTagsListCmd())
+	cmd.AddCommand(newTagsListCmd(), newTagsAddCmd(), newTagsDefineCmd())
 	return cmd
 }
 
@@ -258,4 +258,114 @@ func walkTags(dir string, typeFilter *core.Type, counts map[string]int) error {
 		}
 		return nil
 	})
+}
+
+func newTagsAddCmd() *cobra.Command {
+	var (
+		flagDesc   string
+		flagUpdate bool
+	)
+	cmd := &cobra.Command{
+		Use:   "add <facet>/<name> --desc \"...\"",
+		Short: "Add a tag to the vault glossary (idempotent)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			tag := args[0]
+			if flagDesc == "" {
+				return fmt.Errorf("--desc is required")
+			}
+			facet, _, ok := splitFacet(tag)
+			if !ok || !knownFacet(facet) {
+				return fmt.Errorf("invalid value %q for <facet>/<name>\n  valid values: %s\n  corrected:    anvil tags add %s/<name> --desc %q",
+					tag, strings.Join(glossary.Facets, ", "), glossary.Facets[0], flagDesc)
+			}
+			v, err := core.ResolveVault()
+			if err != nil {
+				return fmt.Errorf("resolving vault: %w", err)
+			}
+			path := glossary.Path(v.Root)
+			g, err := glossary.Load(path)
+			if err != nil {
+				return err
+			}
+			existing, hadIt := findTagDesc(g, tag)
+			if hadIt && existing == flagDesc {
+				cmd.Println(path)
+				return nil
+			}
+			if hadIt && !flagUpdate {
+				return fmt.Errorf("tag %q already defined with a different description\n  existing: %s\n  new:      %s\n  corrected: anvil tags add %s --desc %q --update",
+					tag, existing, flagDesc, tag, flagDesc)
+			}
+			if hadIt && flagUpdate {
+				if err := updateTagDesc(g, tag, flagDesc); err != nil {
+					return err
+				}
+			} else {
+				if err := g.AddTag(tag, flagDesc); err != nil {
+					return err
+				}
+			}
+			if err := g.Save(path); err != nil {
+				return fmt.Errorf("saving glossary: %w", err)
+			}
+			cmd.Println(path)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&flagDesc, "desc", "", "one-line description (required)")
+	cmd.Flags().BoolVar(&flagUpdate, "update", false, "rewrite existing tag's description")
+	return cmd
+}
+
+func newTagsDefineCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "define <term>",
+		Short: "Print the definition for <term> from _meta/glossary.md",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			v, err := core.ResolveVault()
+			if err != nil {
+				return fmt.Errorf("resolving vault: %w", err)
+			}
+			g, err := glossary.Load(glossary.Path(v.Root))
+			if err != nil {
+				return err
+			}
+			def, ok := g.Definition(args[0])
+			if !ok {
+				return fmt.Errorf("term %q not in glossary", args[0])
+			}
+			cmd.Println(def)
+			return nil
+		},
+	}
+}
+
+func splitFacet(tag string) (facet, name string, ok bool) {
+	i := strings.IndexByte(tag, '/')
+	if i <= 0 || i == len(tag)-1 {
+		return "", "", false
+	}
+	return tag[:i], tag[i+1:], true
+}
+
+func knownFacet(f string) bool {
+	for _, k := range glossary.Facets {
+		if k == f {
+			return true
+		}
+	}
+	return false
+}
+
+func findTagDesc(g *glossary.Glossary, tag string) (string, bool) {
+	return g.FindTagDesc(tag)
+}
+
+func updateTagDesc(g *glossary.Glossary, tag, desc string) error {
+	if !g.UpdateTagDesc(tag, desc) {
+		return fmt.Errorf("tag %q vanished during update", tag)
+	}
+	return nil
 }

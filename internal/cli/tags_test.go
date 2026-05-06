@@ -233,3 +233,124 @@ func TestTagsList_LimitEmitsTruncationHint(t *testing.T) {
 		t.Errorf("missing truncation hint, got stderr: %q", errBuf.String())
 	}
 }
+
+func TestTagsAdd_Idempotent(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	first := newRootCmd()
+	first.SetArgs([]string{"tags", "add", "domain/postgres", "--desc", "rdbms"})
+	if err := first.Execute(); err != nil {
+		t.Fatalf("first add: %v", err)
+	}
+
+	second := newRootCmd()
+	second.SetArgs([]string{"tags", "add", "domain/postgres", "--desc", "rdbms"})
+	var out bytes.Buffer
+	second.SetOut(&out)
+	if err := second.Execute(); err != nil {
+		t.Fatalf("second add (same desc) should be no-op: %v", err)
+	}
+
+	g, err := glossary.Load(glossary.Path(vault))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !g.HasTag("domain/postgres") {
+		t.Error("tag missing after add")
+	}
+}
+
+func TestTagsAdd_DriftErrorsWithoutUpdate(t *testing.T) {
+	setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	first := newRootCmd()
+	first.SetArgs([]string{"tags", "add", "domain/postgres", "--desc", "rdbms"})
+	if err := first.Execute(); err != nil {
+		t.Fatalf("first add: %v", err)
+	}
+
+	second := newRootCmd()
+	second.SetArgs([]string{"tags", "add", "domain/postgres", "--desc", "different"})
+	err := second.Execute()
+	if err == nil {
+		t.Fatal("expected drift error")
+	}
+	if !strings.Contains(err.Error(), "--update") {
+		t.Errorf("error must suggest --update: %q", err.Error())
+	}
+}
+
+func TestTagsAdd_UpdateRewrites(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	first := newRootCmd()
+	first.SetArgs([]string{"tags", "add", "domain/postgres", "--desc", "rdbms"})
+	if err := first.Execute(); err != nil {
+		t.Fatalf("first add: %v", err)
+	}
+
+	upd := newRootCmd()
+	upd.SetArgs([]string{"tags", "add", "domain/postgres", "--desc", "relational engine", "--update"})
+	if err := upd.Execute(); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	body, err := os.ReadFile(glossary.Path(vault))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "relational engine") {
+		t.Errorf("description not rewritten:\n%s", body)
+	}
+	if strings.Contains(string(body), "— rdbms\n") {
+		t.Errorf("old description still present:\n%s", body)
+	}
+}
+
+func TestTagsAdd_RejectsUnknownFacet(t *testing.T) {
+	setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"tags", "add", "bogus/foo", "--desc", "x"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected facet error")
+	}
+	if !strings.Contains(err.Error(), "valid values:") || !strings.Contains(err.Error(), "domain") {
+		t.Errorf("error must list valid facets: %q", err.Error())
+	}
+}
+
+func TestTagsDefine_KnownAndMissing(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	body := "# Vault Glossary\n\n## Tags\n\n## Definitions\n- **thread** — live workspace\n"
+	path := glossary.Path(vault)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"tags", "define", "thread"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "live workspace") {
+		t.Errorf("define thread: got %q", out.String())
+	}
+
+	missing := newRootCmd()
+	missing.SetArgs([]string{"tags", "define", "no-such"})
+	if err := missing.Execute(); err == nil {
+		t.Error("expected error for missing term")
+	}
+}
