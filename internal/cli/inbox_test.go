@@ -11,43 +11,6 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-func TestInbox_Add(t *testing.T) {
-	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
-	t.Chdir(t.TempDir())
-
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"inbox", "add", "--title", "streaming feels laggy"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
-	if len(entries) != 1 {
-		t.Errorf("expected 1 inbox file, got %d", len(entries))
-	}
-}
-
-func TestInbox_List(t *testing.T) {
-	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
-	t.Chdir(t.TempDir())
-
-	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "x"})
-	add.Execute()
-
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"inbox", "list"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	if out.Len() == 0 {
-		t.Error("expected non-empty output")
-	}
-}
-
 func TestInbox_Promote_Issue(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
@@ -55,7 +18,7 @@ func TestInbox_Promote_Issue(t *testing.T) {
 	t.Chdir(repo)
 
 	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "broken thing", "--suggested-project", "foo"})
+	add.SetArgs([]string{"create", "inbox", "--title", "broken thing", "--suggested-project", "foo"})
 	if err := add.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +64,7 @@ func TestInbox_Promote_Discard(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.SetArgs([]string{"create", "inbox", "--title", "x"})
 	add.Execute()
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
@@ -139,7 +102,7 @@ func TestInboxPromote_AsThread(t *testing.T) {
 
 	var buf bytes.Buffer
 	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "Ducklake?", "--json"})
+	add.SetArgs([]string{"create", "inbox", "--title", "Ducklake?", "--json"})
 	add.SetOut(&buf)
 	if err := add.Execute(); err != nil {
 		t.Fatal(err)
@@ -176,7 +139,7 @@ func TestInboxPromote_ToLearning(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"inbox", "add", "--title", "FK locks block writes", "--json"})
+	cmd.SetArgs([]string{"create", "inbox", "--title", "FK locks block writes", "--json"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -217,7 +180,7 @@ func TestInboxPromote_RequiresAsFlag(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "x", "--suggested-type", "issue"})
+	add.SetArgs([]string{"create", "inbox", "--title", "x", "--suggested-type", "issue"})
 	add.Execute()
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
@@ -243,7 +206,7 @@ func TestInboxPromote_InvalidAsValue(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.SetArgs([]string{"create", "inbox", "--title", "x"})
 	add.Execute()
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
@@ -272,7 +235,7 @@ func TestInboxPromote_Idempotent(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.SetArgs([]string{"create", "inbox", "--title", "x"})
 	add.Execute()
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
@@ -306,7 +269,7 @@ func TestInboxDiscard_Idempotent(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.SetArgs([]string{"create", "inbox", "--title", "x"})
 	add.Execute()
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
@@ -335,7 +298,7 @@ func TestInboxPromote_MismatchedAs(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.SetArgs([]string{"create", "inbox", "--title", "x"})
 	add.Execute()
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
@@ -370,7 +333,7 @@ func TestInboxPromote_OnDropped(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.SetArgs([]string{"create", "inbox", "--title", "x"})
 	add.Execute()
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
@@ -399,7 +362,7 @@ func TestInboxDiscard_OnPromoted(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.SetArgs([]string{"create", "inbox", "--title", "x"})
 	add.Execute()
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
@@ -449,7 +412,7 @@ func TestInboxPromote_JSON_Promoted(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.SetArgs([]string{"create", "inbox", "--title", "x"})
 	add.Execute()
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
@@ -475,7 +438,7 @@ func TestInboxPromote_JSON_AlreadyPromoted(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.SetArgs([]string{"create", "inbox", "--title", "x"})
 	add.Execute()
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
@@ -496,7 +459,7 @@ func TestInboxPromote_JSON_Discarded(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.SetArgs([]string{"create", "inbox", "--title", "x"})
 	add.Execute()
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
@@ -516,7 +479,7 @@ func TestInboxPromote_JSON_AlreadyDiscarded(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
-	add.SetArgs([]string{"inbox", "add", "--title", "x"})
+	add.SetArgs([]string{"create", "inbox", "--title", "x"})
 	add.Execute()
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
@@ -528,107 +491,5 @@ func TestInboxPromote_JSON_AlreadyDiscarded(t *testing.T) {
 	}
 	if r.TargetID != nil || r.TargetType != nil || r.Path != nil {
 		t.Errorf("already-discarded result must have null target fields: %+v", r)
-	}
-}
-
-func TestInboxList_DefaultsToRaw(t *testing.T) {
-	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
-	t.Chdir(t.TempDir())
-
-	// Seed: one raw, one promoted, one dropped.
-	for _, title := range []string{"raw-one", "to-promote", "to-drop"} {
-		add := newRootCmd()
-		add.SetArgs([]string{"inbox", "add", "--title", title})
-		if err := add.Execute(); err != nil {
-			t.Fatal(err)
-		}
-	}
-	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
-	if len(entries) != 3 {
-		t.Fatalf("expected 3 inbox files, got %d", len(entries))
-	}
-	ids := make([]string, 0, 3)
-	for _, e := range entries {
-		ids = append(ids, strings.TrimSuffix(e.Name(), ".md"))
-	}
-	// ids are sorted by filename; titles encode position.
-	promoteCmd := newRootCmd()
-	promoteCmd.SetArgs([]string{"inbox", "promote", ids[1], "--as", "thread"})
-	if err := promoteCmd.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	discardCmd := newRootCmd()
-	discardCmd.SetArgs([]string{"inbox", "promote", ids[2], "--as", "discard"})
-	if err := discardCmd.Execute(); err != nil {
-		t.Fatal(err)
-	}
-
-	listJSON := func(t *testing.T, args ...string) []map[string]any {
-		t.Helper()
-		cmd := newRootCmd()
-		cmd.SetArgs(append([]string{"inbox", "list"}, args...))
-		var out bytes.Buffer
-		cmd.SetOut(&out)
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("list %v: %v", args, err)
-		}
-		var env struct {
-			Items []map[string]any `json:"items"`
-		}
-		if err := json.Unmarshal([]byte(strings.TrimSpace(out.String())), &env); err != nil {
-			t.Fatalf("unmarshal %q: %v", out.String(), err)
-		}
-		return env.Items
-	}
-
-	if got := listJSON(t, "--json"); len(got) != 1 || got[0]["status"] != "raw" {
-		t.Errorf("default list = %+v, want one raw entry", got)
-	}
-	if got := listJSON(t, "--all", "--json"); len(got) != 3 {
-		t.Errorf("--all list len = %d, want 3", len(got))
-	}
-	if got := listJSON(t, "--status", "promoted", "--json"); len(got) != 1 || got[0]["status"] != "promoted" {
-		t.Errorf("--status promoted = %+v", got)
-	}
-}
-
-func TestInboxList_LimitAndSince(t *testing.T) {
-	newTestVaultWithDatedInbox(t, []string{"2026-04-30", "2026-05-02", "2026-05-04"})
-	cmd := newRootCmd()
-	out, _, _ := runCmd(t, cmd, "inbox", "list", "--since", "2026-05-01", "--all", "--json")
-	env := unmarshalListEnvelope(t, out)
-	if env.Total != 2 {
-		t.Errorf("total=%d want 2", env.Total)
-	}
-}
-
-func TestInboxList_DefaultStatusRawStillApplies(t *testing.T) {
-	newTestVaultWithMixedInbox(t)
-	cmd := newRootCmd()
-	out, _, _ := runCmd(t, cmd, "inbox", "list", "--json")
-	env := unmarshalListEnvelope(t, out)
-	if env.Total != 1 {
-		t.Errorf("default should filter to status:raw; got total=%d", env.Total)
-	}
-}
-
-func TestInboxAdd_WithBody(t *testing.T) {
-	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
-	t.Chdir(t.TempDir())
-
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"inbox", "add", "--title", "x", "--body", "stub body"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
-	if len(entries) != 1 {
-		t.Fatalf("expected 1 inbox file")
-	}
-	a, _ := core.LoadArtifact(filepath.Join(vault, "00-inbox", entries[0].Name()))
-	if !strings.Contains(a.Body, "stub body") {
-		t.Errorf("body = %q", a.Body)
 	}
 }
