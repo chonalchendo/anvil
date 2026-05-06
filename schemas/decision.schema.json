@@ -3,7 +3,7 @@
   "$id": "https://anvil.dev/schemas/decision.schema.json",
   "title": "decision",
   "type": "object",
-  "required": ["type", "title", "description", "created", "status", "date"],
+  "required": ["type", "title", "description", "created", "status", "date", "tags"],
   "properties": {
     "type":          { "const": "decision" },
     "title":         { "type": "string", "minLength": 1 },
@@ -11,7 +11,14 @@
     "created":       { "type": "string", "format": "date" },
     "updated":       { "type": "string", "format": "date" },
     "status":        { "enum": ["proposed", "rejected", "accepted", "deprecated", "superseded"] },
-    "tags":          { "type": "array", "items": { "type": "string" } },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "allOf": [
+        { "contains": { "type": "string", "pattern": "^domain/[a-z0-9-]+$" }, "minContains": 1 },
+        { "contains": { "type": "string", "pattern": "^activity/[a-z0-9-]+$" }, "minContains": 1 }
+      ]
+    },
     "aliases":       { "type": "array", "items": { "type": "string" } },
     "date":          { "type": "string", "format": "date" },
     "supersedes":    { "type": "array", "items": { "type": "string" } },
