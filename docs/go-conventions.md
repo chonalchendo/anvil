@@ -33,7 +33,8 @@ Idioms and rules for Go code in the Anvil orchestrator.
 ## Logging & output
 
 - Structured logging via `log/slog`. `lmittmann/tint` for terminal output; JSON handler for debug-file output. Combine via `samber/slog-multi`.
-- CLI output (user-facing) via cobra's `cmd.Println` / `cmd.PrintErrln`. Never `fmt.Println` directly in command code — it bypasses cobra's output redirection and breaks tests.
+- CLI status/error messages (human-facing) via cobra's `cmd.Println` / `cmd.PrintErrln`. Never `fmt.Println` directly in command code — it bypasses cobra's output redirection and breaks tests.
+- CLI **data output** (anything an agent might pipe through `jq`, e.g. `--json` payloads, IDs, paths, mermaid graphs) via `fmt.Fprintln(cmd.OutOrStdout(), ...)`. `cmd.Println` / `cmd.Print` fall back to `OutOrStderr()` when no writer is set via `SetOut`, which silently routes data to stderr and breaks pipelines like `anvil tags list --json | jq ...`. Pinned by the regression test `TestTagsList_DataGoesToStdout` in `internal/cli/tags_test.go`.
 - No `log.Println` / `log.Fatal` in non-`main` packages. The standard `log` package writes to a global; `slog` is the contract.
 
 ## Concurrency
