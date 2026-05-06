@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -202,8 +201,8 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	}
 
 	for _, f := range flagAllowNewFacet {
-		if !slices.Contains(facets.Facets, f) {
-			return formatEnumError("--allow-new-facet", f, facets.Facets, "")
+		if !facets.Has(f) {
+			return formatEnumError("--allow-new-facet", f, facets.Names(), "")
 		}
 	}
 	allowed := map[string]bool{}
