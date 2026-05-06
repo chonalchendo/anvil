@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/chonalchendo/anvil/internal/core"
@@ -268,5 +269,31 @@ func TestSet_UnknownField_ScalarPath(t *testing.T) {
 	err := cmd.Execute()
 	if err != nil && !errors.Is(err, ErrSchemaInvalid) {
 		t.Errorf("expected ErrSchemaInvalid (or success), got %v", err)
+	}
+}
+
+func TestSet_Tags_RejectsUnknownFacetValue(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "tags", "--add", "domain/quantum-physics"})
+	var errOut bytes.Buffer
+	cmd.SetErr(&errOut)
+	cmd.SetOut(&errOut)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected rejection for unknown domain via set --add")
+	}
+	if !strings.Contains(errOut.String(), "unknown_facet_value") {
+		t.Errorf("expected unknown_facet_value: %q", errOut.String())
+	}
+}
+
+func TestSet_Tags_AllowNewFacetAccepts(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "tags", "--add", "domain/quantum-physics", "--allow-new-facet=domain"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected success: %v", err)
 	}
 }
