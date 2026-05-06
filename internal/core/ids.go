@@ -69,10 +69,10 @@ func DeterministicID(t Type, in IDInputs) (string, error) {
 	return "", fmt.Errorf("unknown type %q", t)
 }
 
-// NextID returns the next available ID for type t under v. For idempotent
-// types it returns DeterministicID(...) when no collision exists, otherwise
-// it falls through to uniqueID's suffix loop. Decisions allocate via
-// nextDecisionOrdinal.
+// NextID returns the next available ID for type t under v.
+// Decisions can't delegate to DeterministicID because the ordinal must be
+// allocated by scanning the vault; for all other types DeterministicID is
+// the slug-keyed base and uniqueID handles collision suffixes.
 func NextID(v *Vault, t Type, in IDInputs) (string, error) {
 	if t == TypeDecision {
 		if in.Topic == "" {
