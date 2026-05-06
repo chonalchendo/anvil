@@ -3,14 +3,21 @@
   "$id": "https://anvil.dev/schemas/thread.schema.json",
   "title": "thread",
   "type": "object",
-  "required": ["type", "title", "created", "status", "diataxis"],
+  "required": ["type", "title", "created", "status", "diataxis", "tags"],
   "properties": {
     "type":     { "const": "thread" },
     "title":    { "type": "string", "minLength": 1 },
     "created":  { "type": "string", "format": "date" },
     "updated":  { "type": "string", "format": "date" },
     "status":   { "enum": ["open", "paused", "closed", "abandoned"] },
-    "tags":     { "type": "array", "items": { "type": "string" } },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "allOf": [
+        { "contains": { "type": "string", "pattern": "^domain/[a-z0-9-]+$" }, "minContains": 1 },
+        { "contains": { "type": "string", "pattern": "^activity/[a-z0-9-]+$" }, "minContains": 1 }
+      ]
+    },
     "aliases":  { "type": "array", "items": { "type": "string" } },
     "diataxis": { "enum": ["tutorial", "how-to", "reference", "explanation"] },
     "related":  { "type": "array", "items": { "type": "string" } }
