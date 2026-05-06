@@ -81,6 +81,22 @@ func TestResolveLinks_UnknownTypePrefix_Ignored(t *testing.T) {
 	}
 }
 
+func TestResolveLinks_CrossProject(t *testing.T) {
+	v := newScaffolded(t)
+	writeBlankIssue(t, v, "dbt-warehouse.add-revenue-model")
+	fm := map[string]any{
+		"depends_on": []any{
+			"[[issue.dbt-warehouse.add-revenue-model]]",
+			"[[issue.airflow-pipelines.ghost]]",
+		},
+	}
+	got := ResolveLinks(v, fm)
+	want := []UnresolvedLink{{Field: "depends_on[1]", Target: "issue.airflow-pipelines.ghost"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
 func TestResolveLinks_Stable(t *testing.T) {
 	v := newScaffolded(t)
 	fm := map[string]any{

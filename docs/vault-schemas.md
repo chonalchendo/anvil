@@ -267,6 +267,8 @@ Two rules:
 
 The plan `id` collapses with the slug: `plan.id == <project>.<slug>`. Decisions keep their MADR numeric prefix in the slug.
 
+Wikilinks are vault-global, not project-scoped. Because the project name is part of every issue/plan/milestone ID, `[[issue.<other-project>.<slug>]]` resolves the same way as a same-project link — useful when work spans repos (e.g. a `dbt-warehouse` issue declaring `depends_on: ["[[issue.airflow-pipelines.<slug>]]"]`). `anvil validate` flags broken cross-project links as `unresolved_link` with no special-casing.
+
 ## Folder structure
 
 ```
