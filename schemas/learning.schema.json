@@ -3,14 +3,21 @@
   "$id": "https://anvil.dev/schemas/learning.schema.json",
   "title": "learning",
   "type": "object",
-  "required": ["type", "title", "created", "status", "diataxis", "confidence"],
+  "required": ["type", "title", "created", "status", "diataxis", "confidence", "tags"],
   "properties": {
     "type":       { "const": "learning" },
     "title":      { "type": "string", "minLength": 1 },
     "created":    { "type": "string", "format": "date" },
     "updated":    { "type": "string", "format": "date" },
     "status":     { "enum": ["draft", "verified", "stale", "retracted"] },
-    "tags":       { "type": "array", "items": { "type": "string" } },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "allOf": [
+        { "contains": { "type": "string", "pattern": "^domain/[a-z0-9-]+$" }, "minContains": 1 },
+        { "contains": { "type": "string", "pattern": "^activity/[a-z0-9-]+$" }, "minContains": 1 }
+      ]
+    },
     "aliases":    { "type": "array", "items": { "type": "string" } },
     "diataxis":   { "enum": ["tutorial", "how-to", "reference", "explanation"] },
     "confidence": { "enum": ["low", "medium", "high"] },

@@ -336,6 +336,7 @@ func TestValidate_Learning_AcceptsMinimal(t *testing.T) {
 	fm := map[string]any{
 		"type": "learning", "title": "X", "created": "2026-04-29",
 		"status": "draft", "diataxis": "explanation", "confidence": "medium",
+		"tags": []any{"domain/dev-tools", "activity/research"},
 	}
 	if err := Validate("learning", fm); err != nil {
 		t.Fatalf("expected valid: %v", err)
@@ -350,6 +351,27 @@ func TestValidate_Learning_RejectsBadEnum(t *testing.T) {
 	if err := Validate("learning", fm); err == nil {
 		t.Error("expected rejection: diataxis enum")
 	}
+}
+
+func TestValidate_Learning_RequiresDomainAndActivityTag(t *testing.T) {
+	base := map[string]any{
+		"type": "learning", "title": "x", "created": "2026-05-06",
+		"status": "draft", "diataxis": "explanation", "confidence": "low",
+	}
+	t.Run("rejects activity only", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["tags"] = []any{"activity/testing"}
+		if err := Validate("learning", fm); err == nil {
+			t.Error("expected rejection")
+		}
+	})
+	t.Run("accepts both", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["tags"] = []any{"domain/dbt", "activity/testing"}
+		if err := Validate("learning", fm); err != nil {
+			t.Errorf("accept: %v", err)
+		}
+	})
 }
 
 func TestValidate_Thread_AcceptsMinimal(t *testing.T) {
