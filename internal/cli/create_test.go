@@ -1111,20 +1111,8 @@ func TestCreate_Issue_UpdateWithoutDrift_NoRewrite(t *testing.T) {
 	}
 }
 
-func TestScalarsEqual_TypePreserving(t *testing.T) {
-	if scalarsEqual(true, "true") {
-		t.Error("bool true and string \"true\" should not compare equal")
-	}
-	if !scalarsEqual(true, true) {
-		t.Error("identical bools should compare equal")
-	}
-	if scalarsEqual(nil, "") {
-		t.Error("nil and empty string should not compare equal")
-	}
-}
-
 func TestCreate_Plan_UpdateRevalidates(t *testing.T) {
-	setupVault(t)
+	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
@@ -1146,6 +1134,8 @@ func TestCreate_Plan_UpdateRevalidates(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	planPath := filepath.Join(vault, "80-plans", "foo.p1.md")
+
 	// --update with a body that fails plan validation should error and not rewrite.
 	c2 := newRootCmd()
 	c2.SetArgs([]string{"create", "plan", "--title", "P1", "--issue", "[[issue.foo.i1]]",
@@ -1153,6 +1143,15 @@ func TestCreate_Plan_UpdateRevalidates(t *testing.T) {
 		"--tags", "domain/dev-tools", "--allow-new-facet=domain", "--update"})
 	if err := c2.Execute(); err == nil {
 		t.Errorf("expected plan-validate failure on update")
+	}
+
+	// After failed --update, the original content must be preserved.
+	got, err := core.LoadArtifact(planPath)
+	if err != nil {
+		t.Fatalf("rollback failed; plan file unreadable: %v", err)
+	}
+	if d, _ := got.FrontMatter["description"].(string); d != "d" {
+		t.Errorf("rollback failed; description = %q, want %q", d, "d")
 	}
 }
 

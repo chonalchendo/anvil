@@ -196,7 +196,7 @@ func newCreateCmd() *cobra.Command {
 						return emitCreateResult(cmd, flagJSON, id, path, statusAlreadyExists)
 					}
 					if !flagUpdate {
-						return formatDriftError(cmd, t, id, drift, fm, existing.FrontMatter, body, existing.Body)
+						return formatDriftError(cmd, id, drift, fm, existing.FrontMatter, body, existing.Body)
 					}
 					// --update path: preserve `created`, then re-run schema + facet
 					// checks against the new fm, and re-run plan-validate after save.
@@ -209,6 +209,14 @@ func newCreateCmd() *cobra.Command {
 					if err := runFacetCheck(cmd, v, path, fm, flagAllowNewFacet); err != nil {
 						return err
 					}
+					var originalBytes []byte
+					if t == core.TypePlan {
+						var rerr error
+						originalBytes, rerr = os.ReadFile(path)
+						if rerr != nil {
+							return fmt.Errorf("reading existing plan for rollback: %w", rerr)
+						}
+					}
 					a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
 					if err := a.Save(); err != nil {
 						return fmt.Errorf("saving artifact: %w", err)
@@ -216,9 +224,11 @@ func newCreateCmd() *cobra.Command {
 					if t == core.TypePlan {
 						p, lerr := core.LoadPlan(path)
 						if lerr != nil {
+							_ = os.WriteFile(path, originalBytes, 0o644)
 							return fmt.Errorf("plan validator: %w", lerr)
 						}
 						if verr := core.ValidatePlan(p); verr != nil {
+							_ = os.WriteFile(path, originalBytes, 0o644)
 							return fmt.Errorf("plan validator: %w", verr)
 						}
 					}
@@ -434,7 +444,7 @@ func createDrift(t core.Type, fm, existing map[string]any, body, existingBody st
 		if want == nil && got == nil {
 			continue
 		}
-		if !scalarsEqual(want, got) {
+		if want != got {
 			return f
 		}
 	}
@@ -445,10 +455,6 @@ func createDrift(t core.Type, fm, existing map[string]any, body, existingBody st
 		return "body"
 	}
 	return ""
-}
-
-func scalarsEqual(a, b any) bool {
-	return a == b
 }
 
 func tagsEqual(a, b any) bool {
@@ -476,7 +482,7 @@ func tagSet(v any) map[string]bool {
 	return out
 }
 
-func formatDriftError(_ *cobra.Command, _ core.Type, id, field string, fm, existing map[string]any, body, existingBody string) error {
+func formatDriftError(_ *cobra.Command, id, field string, fm, existing map[string]any, body, existingBody string) error {
 	var existingStr, newStr string
 	switch field {
 	case "tags":
