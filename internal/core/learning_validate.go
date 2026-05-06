@@ -62,7 +62,7 @@ func ValidateLearning(a *Artifact, known map[string]struct{}) []error {
 		}
 		if known != nil {
 			if _, ok := known[tag]; !ok {
-				errs = append(errs, fmt.Errorf("tag %q not in glossary; add it via `anvil glossary add tag`", tag))
+				errs = append(errs, fmt.Errorf("tag %q not in glossary; add it via `anvil tags add`", tag))
 			}
 		}
 	}

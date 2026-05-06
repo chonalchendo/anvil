@@ -74,16 +74,16 @@ Draft a list of candidate learnings. For each, pick:
 Tags are **mechanism**, not vocabulary. Use the four-facet system; the actual values come from `_meta/glossary.md`.
 
 ```bash
-anvil glossary tags --prefix domain/      # see existing domain tags
-anvil glossary tags --prefix activity/    # see existing activity tags
-anvil glossary tags --prefix pattern/     # see existing pattern tags
+anvil tags list --source defined --prefix domain/      # see existing domain tags
+anvil tags list --source defined --prefix activity/    # see existing activity tags
+anvil tags list --source defined --prefix pattern/     # see existing pattern tags
 ```
 
 For each learning, propose tags drawn from existing glossary values first. Only invent a new tag if no existing one fits — and only after the user approves it. New tags must:
 
 - Be lowercase ASCII, hyphens only (no spaces, no underscores, no caps).
 - Have shape `<facet>/<name>` where facet is one of `domain | activity | pattern`. (`type/` is auto-managed; `status/` is forbidden — status is a frontmatter field.)
-- Be added via `anvil glossary add tag <facet>/<name> --desc "..."` BEFORE you write the learning, otherwise `anvil validate` will reject the learning.
+- Be added via `anvil tags add <facet>/<name> --desc "..."` BEFORE you write the learning, otherwise `anvil validate` will reject the learning.
 
 Always include `type/learning` in the tag list. Never include a `status/*` tag.
 
@@ -141,7 +141,7 @@ anvil link learning <id> <source-type> <source-id>
 If new tags were approved in phase 3, append them now (one per new tag):
 
 ```bash
-anvil glossary add tag domain/<new-name> --desc "<one-line description>"
+anvil tags add domain/<new-name> --desc "<one-line description>"
 ```
 
 Same commit as the learning files.

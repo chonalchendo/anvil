@@ -16,12 +16,10 @@ Capture is the load-bearing habit of the whole methodology. If capture has frict
 1. Take the thought as given. If the message starts with a trigger phrase ("capture this:", "thought:", "remind me to…", "for the inbox:"), strip the trigger and keep the rest verbatim. Otherwise use the message as-is.
 2. Run:
    ```bash
-   anvil inbox add --title "<short title from user's thought>" --json
+   anvil create inbox --title "<short title from user's thought>" --json
    ```
    Capture `id` and `path` from the JSON output.
 3. Direct-edit the body section of `path`, appending the user's thought verbatim under the frontmatter. Preserve voice, hedges, typos that aren't obvious slips, and incompleteness. Do not rewrite, expand, summarize, or "clean up."
-
-> **CLI gap:** `anvil inbox add --body <content>` (or stdin). Today: skill direct-edits the body section of the file the CLI just created. See spec gap #2.
 
 ## Phase 2 — Acknowledge and stop
 
