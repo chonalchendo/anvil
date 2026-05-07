@@ -356,3 +356,18 @@ func TestBuild_Summary_AggregatesAcrossTasks(t *testing.T) {
 		t.Errorf("stderr should end with newline, got %q", got)
 	}
 }
+
+func TestBuild_Summary_OmittedOnDryRun(t *testing.T) {
+	var stderr strings.Builder
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(), DryRun: true,
+		Stdout: io.Discard, Stderr: &stderr,
+		Router: Router{},
+	}
+	if _, err := Build(context.Background(), twoTaskPlan(), opts); err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if got := stderr.String(); got != "" {
+		t.Errorf("dry-run stderr = %q, want empty", got)
+	}
+}
