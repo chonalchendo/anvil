@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/adapters/claude"
 	"github.com/chonalchendo/anvil/internal/build"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/schema"
@@ -61,7 +62,9 @@ func newBuildCmd() *cobra.Command {
 				JSON:        flagJSON,
 				Stdout:      cmd.OutOrStdout(),
 				Stderr:      cmd.ErrOrStderr(),
-				Router:      build.Router{}, // sub-projects 2 / 4 register adapters here
+				Router: build.Router{
+					"claude-": claude.New(""),
+				},
 			}
 			_, err = build.Build(cmd.Context(), p, opts)
 			return err

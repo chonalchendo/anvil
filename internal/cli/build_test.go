@@ -49,9 +49,13 @@ func TestBuild_DryRun_EmitsJSONPerTask(t *testing.T) {
 	}
 }
 
-func TestBuild_NoAdapter_ReturnsErrBuildTaskFailed(t *testing.T) {
+func TestBuild_ClaudeBinaryMissing_ReturnsErrBuildTaskFailed(t *testing.T) {
 	vault := setupVault(t)
 	copyBuildSmokeFixture(t, vault)
+
+	// Force ANVIL_CLAUDE_BIN to a path that does not exist; PATH-fallback
+	// is irrelevant because the adapter consults the env first.
+	t.Setenv("ANVIL_CLAUDE_BIN", filepath.Join(t.TempDir(), "no-such-claude"))
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"build", "anvil.build-smoke"})
@@ -60,7 +64,34 @@ func TestBuild_NoAdapter_ReturnsErrBuildTaskFailed(t *testing.T) {
 	cmd.SetErr(&errBuf)
 	err := cmd.Execute()
 	if !errors.Is(err, build.ErrBuildTaskFailed) {
-		t.Errorf("err = %v, want ErrBuildTaskFailed (no adapter registered → task failure)", err)
+		t.Errorf("err = %v, want ErrBuildTaskFailed (claude binary missing → task failure)", err)
+	}
+}
+
+func TestBuild_ClaudeAdapterReachedViaShim(t *testing.T) {
+	vault := setupVault(t)
+	copyBuildSmokeFixture(t, vault)
+
+	// Stub claude on PATH via ANVIL_CLAUDE_BIN. Reuses the adapter's
+	// happy-path shim so we know it emits valid stream-json.
+	shim, err := filepath.Abs(filepath.Join("..", "adapters", "claude", "testdata", "shim_success.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ANVIL_CLAUDE_BIN", shim)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"build", "anvil.build-smoke", "--json"})
+	var out, errBuf bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errBuf)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("build via shim: %v\nstderr: %s", err, errBuf.String())
+	}
+	for _, want := range []string{`"task_id":"T1"`, `"task_id":"T2"`, `"outcome":"success"`} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("missing %q in stdout:\n%s", want, out.String())
+		}
 	}
 }
 
