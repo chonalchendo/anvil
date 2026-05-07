@@ -153,6 +153,7 @@ func Build(ctx context.Context, p *core.Plan, opts Options) (*Summary, error) {
 		}
 		if anyFail {
 			sum.Wall = time.Since(start)
+			emitSummary(opts.Stderr, sum)
 			// quota wins over cancel: resumption signal is more actionable.
 			switch {
 			case quotaHit:

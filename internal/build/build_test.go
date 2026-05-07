@@ -371,3 +371,37 @@ func TestBuild_Summary_OmittedOnDryRun(t *testing.T) {
 		t.Errorf("dry-run stderr = %q, want empty", got)
 	}
 }
+
+func TestBuild_Summary_PrintedOnPartialFail(t *testing.T) {
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
+		"do T1": {res: RunResult{
+			ExitCode:  1, // task fails
+			Duration:  200 * time.Millisecond,
+			AgentTime: 150 * time.Millisecond,
+			Tokens:    TokenUsage{Input: 80, Output: 40, CacheRead: 2, CacheWrite: 5},
+			CostUSD:   0.0099,
+		}},
+	}}
+	var stderr strings.Builder
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: &stderr,
+		Router: Router{"claude-": fa},
+	}
+	_, err := Build(context.Background(), twoTaskPlan(), opts)
+	if !errors.Is(err, ErrBuildTaskFailed) {
+		t.Fatalf("err = %v, want ErrBuildTaskFailed", err)
+	}
+	got := stderr.String()
+	wantSubstrings := []string{
+		"build summary: 1 tasks,",
+		"$0.0099 cost,",
+		"80→40 tokens",
+		"(cache: 2r/5w)",
+	}
+	for _, want := range wantSubstrings {
+		if !strings.Contains(got, want) {
+			t.Errorf("stderr missing %q\nfull stderr: %q", want, got)
+		}
+	}
+}
