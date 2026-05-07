@@ -11,8 +11,9 @@ What must ship before anvil v0.1. Derived from a 2026-05-03 audit of CLI surface
 
 - **Phase A (unblock the workflow)** — done, except `using-anvil` skill.
 - **Phase A.5 (agent-CLI Blockers)** — done, except `create` slug-collision (follow-up spec).
-- **Phase B (orchestrator)** — not started. The v0.1 main event.
-- **Phase C (ship)** — not started.
+- **Phase B (orchestrator)** — not started. The v0.1 main event. Exits on a dogfood + telemetry-tuning pass.
+- **Phase B.5 (onboarding skills)** — not started. Greenfield `new-project` + brownfield `onboard-project`, one skill family.
+- **Phase C (ship)** — not started. Closes with a brutal cull pass.
 
 Next up: Phase B (`anvil build`), starting with `internal/adapters`.
 
@@ -32,12 +33,24 @@ Three sequenced sub-projects:
 2. **Per-task telemetry (build-only slice)** — SQLite-backed (modernc-sqlite per `dependencies.md`). For each task: model, input/output/cache-read/cache-write tokens, USD cost, wall time, agent time, success/failure, verify exit code. Build-summary table at end of run; queryable via `telemetry/`. **Out of scope:** session-wide events, ad-hoc CLI telemetry, skill-execution telemetry, dashboards.
 3. **`anvil build` command** — walk a validated plan's wave graph, dispatch via the adapter, persist telemetry, fail loudly. Wave graph already computed for `--waves` rendering in `internal/cli/plan.go`.
 
+**Phase B exit criterion** — dogfood `anvil build` end-to-end against a small example project; capture telemetry (tokens read/written per skill, time per task, verify outcomes); refine context loading until tasks complete without errors under a defined token budget. The telemetry stats are the feedback loop, not a separate workstream.
+
+### Phase B.5 — onboarding skills
+
+Treat as a single skill family with greenfield + brownfield variants (one spec, two entry points):
+
+- **`new-project` skill (greenfield)** — walks idea → research → challenge → scope vision → scope system → define milestones → seed high-level issues. Sits on top of `using-anvil` and `anvil build`.
+- **`onboard-project` skill (brownfield)** — collaborative session + codebase scan to derive product/system design, current objectives, milestones, then backfill issues to fulfil them.
+
+Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phase B exit).
+
 ### Phase C — ship
 
 - **README rewrite** — currently describes a Python orchestrator. Public-facing; blocks any external user. Resolve the `anvil compile` contradiction (referenced here and in `product-design.md`, absent from `cli-substrate.md` v0.1 verb set) at the same time. **Bundle D.**
 - **Release pipeline** — `.goreleaser.yml` and `.github/workflows/release.yml` neither exist; Cosign/SLSA/Syft promised in `dependencies.md` are unwired. Rewrite stale `docs/releasing.md` (still mentions `uv version` / PyPI) to match. Add v0.1 entry to empty `CHANGELOG.md`. **Bundle C.**
 - **CI gap closure** — `validate-vault.yml` runs `go build` + `go test ./...` only. Add `golangci-lint`, `-race`, and `//go:build integration` invocation.
 - **Doc cleanup** — Move/delete `docs/design.md` (legacy Python frontmatter); move untracked `docs/IDEAS.md` / `docs/first_principles_anvil.md` / `docs/implementation_plan.md` into the vault or out of the source tree; add `skill-authoring.md` and `vault-schemas.md` references to `CLAUDE.md` index. **Bundle B.**
+- **Brutal cull pass** — final entry before tagging v0.1. Cull skills, docs, and CLI surface guided by progressive disclosure and simple-but-deep interfaces; cut anything whose purpose isn't immediately obvious, anything that bloats the always-on context, anything that makes it harder for an agent to find what it needs. Ordered *after* Phase B dogfooding so telemetry tells us what's actually load-bearing.
 
 ### Agent-CLI follow-ups
 
