@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -18,9 +17,9 @@ import (
 )
 
 // Adapter spawns the Claude Code CLI per task. One Adapter is shared across
-// every task in a build — the per-spawn state (CLAUDE_CONFIG_DIR temp dir,
-// stdin/stdout pipes) lives inside Run. New("") falls back to the `claude`
-// binary on $PATH (or $ANVIL_CLAUDE_BIN if set, used by smoke tests).
+// every task in a build — the per-spawn state (settings JSON, stdin/stdout
+// pipes) lives inside Run. New("") falls back to the `claude` binary on
+// $PATH (or $ANVIL_CLAUDE_BIN if set, used by smoke tests).
 type Adapter struct {
 	binPath string
 }
@@ -32,23 +31,19 @@ func New(binPath string) *Adapter { return &Adapter{binPath: binPath} }
 // Name returns the adapter identifier persisted in telemetry.
 func (a *Adapter) Name() string { return "claude-code" }
 
-// Run spawns the Claude CLI for one task. Per spec §1: isolated
-// CLAUDE_CONFIG_DIR, 8 MiB stdout scanner, cmd.Cancel + cmd.WaitDelay on
-// ctx-cancel, NDJSON parsing of usage/cost, quota-message detection.
+// Run spawns the Claude CLI for one task. Per spec §1: 8 MiB stdout scanner,
+// cmd.Cancel + cmd.WaitDelay on ctx-cancel, NDJSON parsing of usage/cost,
+// quota-message detection. Settings are layered via --settings argv so the
+// user's auth/session state in ~/.claude/ remains intact.
 func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResult, error) {
 	bin, err := a.resolveBin()
 	if err != nil {
 		return build.RunResult{}, err
 	}
 
-	cfgDir, err := os.MkdirTemp("", "anvil-claude-cfg-")
+	settingsArg, err := settingsJSON(req)
 	if err != nil {
-		return build.RunResult{}, fmt.Errorf("creating CLAUDE_CONFIG_DIR: %w", err)
-	}
-	defer os.RemoveAll(cfgDir)
-
-	if err := writeSettings(cfgDir, req); err != nil {
-		return build.RunResult{}, fmt.Errorf("writing settings.json: %w", err)
+		return build.RunResult{}, fmt.Errorf("building settings JSON: %w", err)
 	}
 
 	runCtx := ctx
@@ -59,6 +54,7 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 	}
 
 	args := []string{
+		"--settings", settingsArg,
 		"--print",
 		"--output-format", "stream-json",
 		"--verbose",
@@ -70,7 +66,6 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 
 	cmd := exec.CommandContext(runCtx, bin, args...)
 	cmd.Dir = req.Cwd
-	cmd.Env = append(os.Environ(), "CLAUDE_CONFIG_DIR="+cfgDir)
 	// Setpgid puts the child and all its descendants in a new process group so
 	// cancellation kills the whole tree (e.g. a `sleep` spawned by the shim),
 	// not just the top-level shell. Per go-conventions.md: cmd.Cancel +
@@ -154,11 +149,10 @@ func (a *Adapter) resolveBin() (string, error) {
 	return bin, nil
 }
 
-// writeSettings places the per-spawn settings.json into CLAUDE_CONFIG_DIR.
-// Carries the thinking-budget tier (translated from req.Effort) and the
-// allow-list of skills the agent may load. Plain context files are surfaced
-// in the prompt body (see buildPrompt), not here.
-func writeSettings(cfgDir string, req build.RunRequest) error {
+// settingsJSON marshals the per-spawn settings to a JSON string for
+// --settings argv. Carries the thinking-budget tier (translated from
+// req.Effort) and the allow-list of skills the agent may load.
+func settingsJSON(req build.RunRequest) (string, error) {
 	type extended struct {
 		Budget string `json:"budget"`
 	}
@@ -176,9 +170,9 @@ func writeSettings(cfgDir string, req build.RunRequest) error {
 	}
 	b, err := json.Marshal(settings)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return os.WriteFile(filepath.Join(cfgDir, "settings.json"), b, 0o600)
+	return string(b), nil
 }
 
 // buildPrompt prepends a "## Context files" block (if any) to req.Instruction.

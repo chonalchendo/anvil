@@ -2,8 +2,10 @@ package claude
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,5 +118,37 @@ func TestRun_CtxCancel_ReturnsCancelled(t *testing.T) {
 	// Shim sleeps 30s; if we got here in <30s the cancel propagated.
 	if res.Duration >= 30*time.Second {
 		t.Errorf("Duration = %v >= 30s — cancel did not propagate to subprocess", res.Duration)
+	}
+}
+
+func TestSettingsJSON_BudgetAndSkills(t *testing.T) {
+	req := build.RunRequest{Effort: "medium", Skills: []string{"alpha", "beta"}}
+	got, err := settingsJSON(req)
+	if err != nil {
+		t.Fatalf("settingsJSON: %v", err)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(got), &parsed); err != nil {
+		t.Fatalf("re-parse: %v", err)
+	}
+	et, _ := parsed["extendedThinking"].(map[string]any)
+	if et["budget"] != "low" {
+		t.Errorf("budget = %v, want \"low\" (medium → low)", et["budget"])
+	}
+	sk, _ := parsed["skills"].(map[string]any)
+	allow, _ := sk["allow"].([]any)
+	if len(allow) != 2 || allow[0] != "alpha" || allow[1] != "beta" {
+		t.Errorf("skills.allow = %v, want [alpha beta]", allow)
+	}
+}
+
+func TestSettingsJSON_NoSkills_OmitsAllow(t *testing.T) {
+	req := build.RunRequest{Effort: "low"}
+	got, err := settingsJSON(req)
+	if err != nil {
+		t.Fatalf("settingsJSON: %v", err)
+	}
+	if strings.Contains(got, `"allow"`) {
+		t.Errorf("expected omitempty to drop allow when no skills, got %q", got)
 	}
 }
