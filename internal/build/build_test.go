@@ -3,6 +3,7 @@ package build
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"strings"
@@ -216,5 +217,97 @@ func TestBuild_DiagnosticOnFailure_InJSONAndStderr(t *testing.T) {
 	wantLine := "task T1 [failed]: boom"
 	if !strings.Contains(stderr.String(), wantLine) {
 		t.Errorf("stderr missing %q; got:\n%s", wantLine, stderr.String())
+	}
+}
+
+func TestBuild_JSONRecord_IncludesTokensAndCost(t *testing.T) {
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
+		"do T1": {res: RunResult{
+			ExitCode:  0,
+			Duration:  200 * time.Millisecond,
+			AgentTime: 150 * time.Millisecond,
+			Tokens:    TokenUsage{Input: 100, Output: 50, CacheRead: 3, CacheWrite: 7},
+			CostUSD:   0.0123,
+		}},
+		"do T2": {res: RunResult{
+			ExitCode:  0,
+			Duration:  100 * time.Millisecond,
+			AgentTime: 80 * time.Millisecond,
+			Tokens:    TokenUsage{Input: 60, Output: 40, CacheRead: 2, CacheWrite: 5},
+			CostUSD:   0.0044,
+		}},
+	}}
+	var stdout, stderr strings.Builder
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(), JSON: true,
+		Stdout: &stdout, Stderr: &stderr,
+		Router: Router{"claude-": fa},
+	}
+	if _, err := Build(context.Background(), twoTaskPlan(), opts); err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(stdout.String(), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("got %d JSON lines, want 2: %q", len(lines), stdout.String())
+	}
+	for i, line := range lines {
+		var rec map[string]any
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatalf("line %d: unmarshal: %v (line=%q)", i, err, line)
+		}
+		for _, k := range []string{"tokens", "cost_usd", "agent_time_ms"} {
+			if _, ok := rec[k]; !ok {
+				t.Errorf("line %d missing key %q: %v", i, k, rec)
+			}
+		}
+		toks, ok := rec["tokens"].(map[string]any)
+		if !ok {
+			t.Fatalf("line %d tokens not an object: %v", i, rec["tokens"])
+		}
+		for _, k := range []string{"input", "output", "cache_read", "cache_write"} {
+			if _, ok := toks[k]; !ok {
+				t.Errorf("line %d tokens missing %q: %v", i, k, toks)
+			}
+		}
+	}
+	// Spot-check the T1 row's specific values.
+	var rec map[string]any
+	_ = json.Unmarshal([]byte(lines[0]), &rec)
+	if got := rec["cost_usd"]; got != 0.0123 {
+		t.Errorf("T1 cost_usd = %v, want 0.0123", got)
+	}
+	toks := rec["tokens"].(map[string]any)
+	if got := toks["input"]; got != float64(100) {
+		t.Errorf("T1 tokens.input = %v, want 100", got)
+	}
+}
+
+func TestBuild_JSONRecord_DryRunOmitsCostFields(t *testing.T) {
+	var stdout, stderr strings.Builder
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(), DryRun: true, JSON: true,
+		Stdout: &stdout, Stderr: &stderr,
+		Router: Router{},
+	}
+	if _, err := Build(context.Background(), twoTaskPlan(), opts); err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(stdout.String(), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("got %d JSON lines, want 2: %q", len(lines), stdout.String())
+	}
+	for i, line := range lines {
+		var rec map[string]any
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatalf("line %d: unmarshal: %v (line=%q)", i, err, line)
+		}
+		for _, k := range []string{"tokens", "cost_usd", "agent_time_ms"} {
+			if _, present := rec[k]; present {
+				t.Errorf("line %d unexpectedly contains %q: %v", i, k, rec)
+			}
+		}
+		if rec["status"] != "skipped_dry_run" {
+			t.Errorf("line %d status = %v, want skipped_dry_run", i, rec["status"])
+		}
 	}
 }

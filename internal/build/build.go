@@ -64,14 +64,27 @@ type TaskOutcome struct {
 
 // jsonRecord is the per-task line emitted to stdout in --json mode.
 type jsonRecord struct {
-	TaskID     string `json:"task_id"`
-	Wave       int    `json:"wave"`
-	Model      string `json:"model"`
-	Effort     string `json:"effort"`
-	Outcome    string `json:"outcome,omitempty"`
-	Status     string `json:"status,omitempty"` // "skipped_dry_run" — distinct from outcome enum
-	DurationMS int64  `json:"duration_ms"`
-	Diagnostic string `json:"diagnostic,omitempty"`
+	TaskID      string      `json:"task_id"`
+	Wave        int         `json:"wave"`
+	Model       string      `json:"model"`
+	Effort      string      `json:"effort"`
+	Outcome     string      `json:"outcome,omitempty"`
+	Status      string      `json:"status,omitempty"` // "skipped_dry_run" — distinct from outcome enum
+	DurationMS  int64       `json:"duration_ms"`
+	AgentTimeMS int64       `json:"agent_time_ms,omitempty"`
+	CostUSD     float64     `json:"cost_usd,omitempty"`
+	Tokens      *tokensJSON `json:"tokens,omitempty"`
+	Diagnostic  string      `json:"diagnostic,omitempty"`
+}
+
+// tokensJSON mirrors RunResult.Tokens for the JSON record. Pointer in
+// jsonRecord so omitempty actually drops the whole sub-object when no
+// token data was reported.
+type tokensJSON struct {
+	Input      int64 `json:"input,omitempty"`
+	Output     int64 `json:"output,omitempty"`
+	CacheRead  int64 `json:"cache_read,omitempty"`
+	CacheWrite int64 `json:"cache_write,omitempty"`
 }
 
 // Build walks plan.Waves(), dispatching each task through a routed adapter
@@ -263,6 +276,14 @@ func emitJSONRecord(opts Options, oc TaskOutcome) {
 		rec.Status = oc.Outcome
 	} else {
 		rec.Outcome = oc.Outcome
+		rec.AgentTimeMS = oc.Result.AgentTime.Milliseconds()
+		rec.CostUSD = oc.Result.CostUSD
+		rec.Tokens = &tokensJSON{
+			Input:      oc.Result.Tokens.Input,
+			Output:     oc.Result.Tokens.Output,
+			CacheRead:  oc.Result.Tokens.CacheRead,
+			CacheWrite: oc.Result.Tokens.CacheWrite,
+		}
 	}
 	_ = json.NewEncoder(opts.Stdout).Encode(rec)
 }
