@@ -107,6 +107,21 @@ func ptrIfNonEmpty(s string) *string {
 	return &s
 }
 
+// promotedToBareID extracts the bare `<project>.<slug>` from the inbox's
+// `promoted_to` field. New writes use the wikilink form (`[[<type>.<id>]]`)
+// so the index picks up the edge; legacy fixtures hold the bare ID. Accept
+// either.
+func promotedToBareID(v any) string {
+	s, _ := v.(string)
+	if strings.HasPrefix(s, "[[") && strings.HasSuffix(s, "]]") {
+		s = s[2 : len(s)-2]
+		if dot := strings.IndexByte(s, '.'); dot >= 0 {
+			return s[dot+1:]
+		}
+	}
+	return s
+}
+
 // formatEnumError builds a principle-4 actionable error: offending value,
 // valid values, copy-pasteable corrected invocation. Pass exampleCmd="" to
 // omit the corrected line (used for state-conflict errors with no valid
@@ -131,7 +146,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	switch status {
 	case "promoted":
 		recordedType, _ := inbox.FrontMatter["promoted_type"].(string)
-		recordedTo, _ := inbox.FrontMatter["promoted_to"].(string)
+		recordedTo := promotedToBareID(inbox.FrontMatter["promoted_to"])
 		if recordedType == string(target) {
 			tt, ti := recordedType, recordedTo
 			return emitPromoteOutput(cmd, asJSON,
@@ -236,7 +251,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	}
 
 	inbox.FrontMatter["status"] = "promoted"
-	inbox.FrontMatter["promoted_to"] = targetID
+	inbox.FrontMatter["promoted_to"] = fmt.Sprintf("[[%s.%s]]", target, targetID)
 	inbox.FrontMatter["promoted_type"] = string(target)
 	inbox.FrontMatter["updated"] = created
 	if err := schema.Validate(string(core.TypeInbox), inbox.FrontMatter); err != nil {
