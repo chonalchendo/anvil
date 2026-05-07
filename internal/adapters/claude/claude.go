@@ -99,8 +99,7 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 		return build.RunResult{}, fmt.Errorf("starting claude: %w", err)
 	}
 
-	// Pipe the prompt + context-file references on stdin, then close so the
-	// CLI sees EOF.
+	// Claude Code reads the prompt from stdin and expects EOF to begin processing.
 	go func() {
 		defer stdin.Close()
 		_, _ = io.WriteString(stdin, buildPrompt(req))
@@ -166,6 +165,8 @@ func writeSettings(cfgDir string, req build.RunRequest) error {
 	type skills struct {
 		Allow []string `json:"allow,omitempty"`
 	}
+	// TODO(integration): verify key names against claude --help / release
+	// notes — silent settings drift would be hard to diagnose.
 	settings := struct {
 		ExtendedThinking extended `json:"extendedThinking"`
 		Skills           skills   `json:"skills,omitempty"`

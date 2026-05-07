@@ -6,22 +6,22 @@ import (
 	"strings"
 )
 
-// Event is the minimal slice of a Claude Code stream-json line we care about.
+// event is the minimal slice of a Claude Code stream-json line we care about.
 // Fields absent in the input default to zero values; unknown event types are
 // returned with Type set so callers can ignore them by Type-switching.
-type Event struct {
+type event struct {
 	Type          string
 	Subtype       string
 	DurationMS    int64
 	APIDurationMS int64
 	CostUSD       float64
-	Usage         Usage
+	Usage         usage
 	Text          string
 	IsError       bool
 }
 
-// Usage mirrors the `usage` field of a result event.
-type Usage struct {
+// usage mirrors the `usage` field of a result event.
+type usage struct {
 	InputTokens, OutputTokens int64
 	CacheCreate, CacheRead    int64
 }
@@ -53,25 +53,25 @@ type rawLine struct {
 
 // parseEvent decodes one NDJSON line. Returns ok=false for empty / non-JSON
 // input or input lacking a non-empty `type` field.
-func parseEvent(line []byte) (Event, bool) {
+func parseEvent(line []byte) (event, bool) {
 	line = bytes.TrimSpace(line)
 	if len(line) == 0 || line[0] != '{' {
-		return Event{}, false
+		return event{}, false
 	}
 	var r rawLine
 	if err := json.Unmarshal(line, &r); err != nil {
-		return Event{}, false
+		return event{}, false
 	}
 	if r.Type == "" {
-		return Event{}, false
+		return event{}, false
 	}
-	ev := Event{
+	ev := event{
 		Type:          r.Type,
 		Subtype:       r.Subtype,
 		DurationMS:    r.DurationMS,
 		APIDurationMS: r.APIDurationMS,
 		CostUSD:       r.CostUSD,
-		Usage: Usage{
+		Usage: usage{
 			InputTokens:  r.Usage.InputTokens,
 			OutputTokens: r.Usage.OutputTokens,
 			CacheCreate:  r.Usage.CacheCreate,
