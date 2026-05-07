@@ -187,23 +187,7 @@ func TestBuild_NoAdapterRegistered_ErrorsLoud(t *testing.T) {
 		Router: Router{}, // nothing registered
 	}
 	_, err := Build(context.Background(), twoTaskPlan(), opts)
-	if err == nil || !contains(err.Error(), "no adapter for model") {
+	if err == nil || !strings.Contains(err.Error(), "no adapter for model") {
 		t.Errorf("err = %v, want 'no adapter for model …'", err)
 	}
-}
-
-func contains(haystack, needle string) bool {
-	return len(haystack) >= len(needle) && (haystack == needle ||
-		(len(haystack) > len(needle) && (haystack[:len(needle)] == needle ||
-			haystack[len(haystack)-len(needle):] == needle ||
-			indexOf(haystack, needle) >= 0)))
-}
-
-func indexOf(s, sub string) int {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return i
-		}
-	}
-	return -1
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -98,7 +99,7 @@ func Build(ctx context.Context, p *core.Plan, opts Options) (*Summary, error) {
 
 	for w, wave := range waves {
 		if err := ctx.Err(); err != nil {
-			return sum, fmt.Errorf("%w: parent ctx", ErrBuildCancelled)
+			return sum, fmt.Errorf("%w: context cancelled before wave %d", ErrBuildCancelled, w)
 		}
 
 		g := new(errgroup.Group)
@@ -138,6 +139,7 @@ func Build(ctx context.Context, p *core.Plan, opts Options) (*Summary, error) {
 		}
 		if anyFail {
 			sum.Wall = time.Since(start)
+			// quota wins over cancel: resumption signal is more actionable.
 			switch {
 			case quotaHit:
 				return sum, wrapSentinel(ErrBuildQuotaExhausted, firstErr)
@@ -185,9 +187,9 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 		Model:       model,
 		Effort:      effort,
 		Instruction: assembleInstruction(t),
-		Skills:      append([]string(nil), t.SkillsToLoad...),
-		Context:     append([]string(nil), t.ContextToLoad...),
-		Files:       append([]string(nil), t.Files...),
+		Skills:      t.SkillsToLoad,
+		Context:     t.ContextToLoad,
+		Files:       t.Files,
 		Cwd:         opts.Cwd,
 		Timeout:     defaultRunTimeout,
 	}
@@ -224,7 +226,7 @@ func selectAdapter(r Router, model string) (AgentAdapter, error) {
 	}
 	sort.Slice(keys, func(i, j int) bool { return len(keys[i]) > len(keys[j]) })
 	for _, k := range keys {
-		if len(model) >= len(k) && model[:len(k)] == k {
+		if strings.HasPrefix(model, k) {
 			return r[k], nil
 		}
 	}
