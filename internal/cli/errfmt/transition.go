@@ -22,7 +22,7 @@ func NewIllegalTransition(typ, id, from, to string, next []string) IllegalTransi
 }
 
 func (e IllegalTransition) Error() string {
-	return fmt.Sprintf("illegal transition: %s.%s %s → %s (legal next: %s)",
+	return fmt.Sprintf("[illegal_transition]\n  type: %s\n  id: %s\n  from: %s\n  to: %s\n  legal_next: %s",
 		e.Type, e.ID, e.From, e.To, strings.Join(e.LegalNext, ", "))
 }
 
@@ -41,7 +41,8 @@ func NewTransitionFlagRequired(typ, id, from, to, flag string) TransitionFlagReq
 }
 
 func (e TransitionFlagRequired) Error() string {
-	return fmt.Sprintf("missing --%s for transition %s.%s %s → %s", e.Flag, e.Type, e.ID, e.From, e.To)
+	return fmt.Sprintf("[transition_flag_required]\n  type: %s\n  id: %s\n  from: %s\n  to: %s\n  flag: %s",
+		e.Type, e.ID, e.From, e.To, e.Flag)
 }
 
 // IndexStale signals that the vault has been edited externally and the
@@ -56,7 +57,7 @@ func NewIndexStale() IndexStale {
 }
 
 func (e IndexStale) Error() string {
-	return "vault index stale; run `anvil reindex`"
+	return "[index_stale]\n  hint: anvil reindex"
 }
 
 // UnsupportedForType signals a per-type gate (e.g. --ready is issue-only today).
@@ -71,5 +72,6 @@ func NewUnsupportedForType(typ string, supported []string) UnsupportedForType {
 }
 
 func (e UnsupportedForType) Error() string {
-	return fmt.Sprintf("flag not supported for type %q (supported: %s)", e.Type, strings.Join(e.Supported, ", "))
+	return fmt.Sprintf("[unsupported_for_type]\n  type: %s\n  supported: %s",
+		e.Type, strings.Join(e.Supported, ", "))
 }
