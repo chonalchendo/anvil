@@ -9,8 +9,8 @@ What must ship before anvil v0.1. Derived from a 2026-05-03 audit of CLI surface
 
 ## Status
 
-- **Phase A (unblock the workflow)** — done, except `using-anvil` skill.
-- **Phase A.5 (agent-CLI Blockers)** — done, except `create` slug-collision (follow-up spec).
+- **Phase A (unblock the workflow)** — done, except `using-anvil` skill (deferred to end of Phase C).
+- **Phase A.5 (agent-CLI Blockers)** — done.
 - **Phase B (orchestrator)** — not started. The v0.1 main event. Exits on a dogfood + telemetry-tuning pass.
 - **Phase B.5 (onboarding skills)** — not started. Greenfield `new-project` + brownfield `onboard-project`, one skill family.
 - **Phase C (ship)** — not started. Closes with a brutal cull pass.
@@ -20,10 +20,6 @@ Next up: Phase B (`anvil build`), starting with `internal/adapters`.
 ---
 
 ## Remaining
-
-### Phase A — workflow
-
-- **`using-anvil` skill** — agent-facing entry point that teaches the CLI surface for vault interaction (create/set/promote/show, type-by-type field cheatsheet, when to use CLI vs. direct edit). Today every other skill re-explains anvil verbs inline; this centralises it. Wait on `create` slug-collision fix so it documents the final surface.
 
 ### Phase B — orchestrator (`anvil build`)
 
@@ -50,13 +46,11 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 - **Release pipeline** — `.goreleaser.yml` and `.github/workflows/release.yml` neither exist; Cosign/SLSA/Syft promised in `dependencies.md` are unwired. Rewrite stale `docs/releasing.md` (still mentions `uv version` / PyPI) to match. Add v0.1 entry to empty `CHANGELOG.md`. **Bundle C.**
 - **CI gap closure** — `validate-vault.yml` runs `go build` + `go test ./...` only. Add `golangci-lint`, `-race`, and `//go:build integration` invocation.
 - **Doc cleanup** — Move/delete `docs/design.md` (legacy Python frontmatter); move untracked `docs/IDEAS.md` / `docs/first_principles_anvil.md` / `docs/implementation_plan.md` into the vault or out of the source tree; add `skill-authoring.md` and `vault-schemas.md` references to `CLAUDE.md` index. **Bundle B.**
+- **Sweep type review** — `sweep` may be cut entirely; thin schema, unclear use case. Decide post-Phase-B dogfood, when the smoke test has shown how the vault is actually used end-to-end. Vault shape locks for v0.1 here; further evolution waits for v0.2.
+- **`using-anvil` skill** — agent-facing entry point that teaches the CLI surface for vault interaction (create/set/promote/show, type-by-type field cheatsheet, when to use CLI vs. direct edit). Today every other skill re-explains anvil verbs inline; this centralises it. Lands here so it documents the post-Bundle-F + post-`anvil build` surface; precedes the cull so cull decisions can prune it.
 - **Brutal cull pass** — final entry before tagging v0.1. Cull skills, docs, and CLI surface guided by progressive disclosure and simple-but-deep interfaces; cut anything whose purpose isn't immediately obvious, anything that bloats the always-on context, anything that makes it harder for an agent to find what it needs. Ordered *after* Phase B dogfooding so telemetry tells us what's actually load-bearing.
 
 ### Agent-CLI follow-ups
-
-**Blocker (carved out of Bundle E):**
-
-- `create` slug-collision: re-running with same `--title` allocates a new ID (`slug-2`…) instead of returning the existing one. Detect by slug+project; return existing ID exit 0; require `--update` for content drift.
 
 **Bundle F — Friction sweep** (mechanical; lands alongside Phase C):
 
@@ -115,6 +109,7 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 - `show --validate` — text view to stdout; diagnostics via `cmd.PrintErrln`.
 - `inbox promote` — `formatEnumError` with `corrected:` line; idempotent re-runs return `already_promoted` / `already_discarded`.
 - `cmd.Println` → `fmt.Fprintln(cmd.OutOrStdout())` migration for show/list/project/validate (cobra's `cmd.Print*` defaults to **stderr**, `command.go:1436`).
+- **`create` slug-collision idempotence** — re-running with same `--title` returns the existing ID at exit 0; `--update` rewrites on content drift via structured `ErrCreateDrift` block.
 
 ### Vault schemas
 
@@ -130,5 +125,4 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 - Codex adapter installer — only Claude Code hooks installer ships in v0.1.
 - Session-wide telemetry, dashboards, skill-execution events — only the build slice ships.
 - **`anvil index` verb** — surfaces facet co-occurrence across issue/plan/decision/learning/thread to feed `extract-skill-from-session`. Read-only, no LLM. Spec: `docs/superpowers/specs/2026-05-06-vault-synthesis-design.md`. Faceted-tag prerequisite landed. Natural home for cross-project link discoverability ("show everything that links to X" / reverse-link queries) — wikilinks already resolve across projects (vault-global, since project is in the ID), but there's no verb to surface the wiring.
-- **Sweep type review** — `sweep` may be cut entirely; thin schema, unclear use case. Brainstorm pending.
 - Optimization-tagged agent-CLI items above (cobra `Example` blocks, `--paths` filters, `--dry-run` on `migrate`).
