@@ -65,6 +65,8 @@ suggested_project: <project> | null
 promoted_to: "[[<artifact>]]" | null
 ```
 
+**Legal transitions:** see `internal/core/transitions.go`.
+
 ### `product-design`
 
 ```yaml
@@ -101,6 +103,8 @@ acceptance: ["criterion", ...]
 
 Cut entirely: `target_date`, `horizon`, `ordinal`, `predecessors`, `successors`, `plans`, `issues`, `objectives`, `risks`. Milestones are structural, not scheduled. Done = all child issues `resolved`.
 
+**Legal transitions:** see `internal/core/transitions.go`.
+
 ### `issue`
 
 ```yaml
@@ -117,6 +121,8 @@ acceptance: ["criterion", ...]
 Single source of truth. Knowledge attaches via the child side: `learning.related: [[issue.X]]`. No `learnings`, `discovered_in`, or `promoted_from` arrays on the issue.
 
 Tags: required `domain/<x>`; `activity/<x>` and `pattern/<x>` optional.
+
+**Legal transitions:** see `internal/core/transitions.go`.
 
 ### `plan`
 
@@ -153,6 +159,8 @@ Plan `milestone` is derived (`plan.issue → issue.milestone`); not stored.
 
 Tags: required `domain/<x>`; `activity/<x>` and `pattern/<x>` optional.
 
+**Legal transitions:** see `internal/core/transitions.go`.
+
 ### `decision`
 
 ```yaml
@@ -167,6 +175,8 @@ Body absorbs: decision-makers, consulted, informed, evidence. Filenames keep the
 
 Tags: required `domain/<x>` and `activity/<x>`; `pattern/<x>` optional.
 
+**Legal transitions:** see `internal/core/transitions.go`.
+
 ### `learning`
 
 ```yaml
@@ -180,6 +190,8 @@ Body absorbs: sources. Cut entirely: `parents` (use `related`).
 
 Tags: required `domain/<x>` and `activity/<x>`; `pattern/<x>` optional.
 
+**Legal transitions:** see `internal/core/transitions.go`.
+
 ### `thread`
 
 ```yaml
@@ -192,6 +204,8 @@ Body absorbs: question, hypothesis, resolution, participants. Cut entirely: `ope
 
 Tags: required `domain/<x>` and `activity/<x>`; `pattern/<x>` optional.
 
+**Legal transitions:** see `internal/core/transitions.go`.
+
 ### `sweep`
 
 ```yaml
@@ -202,6 +216,8 @@ scope: <commit-scope>
 ```
 
 Body absorbs: target-repos, prs, metrics, driver. `breaking` and `scope` drive Conventional-Commits generation downstream.
+
+**Legal transitions:** see `internal/core/transitions.go`.
 
 ### `transcript` / `session`
 
