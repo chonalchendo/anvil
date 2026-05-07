@@ -19,9 +19,6 @@ func MigrateVault(v *Vault) error {
 	if err := walkDesignDocs(v); err != nil {
 		return err
 	}
-	if err := migratePlanTasks(v); err != nil {
-		return err
-	}
 	return mergeOperationalIssues(v)
 }
 
@@ -236,87 +233,4 @@ func mergeOperationalIssues(v *Vault) error {
 		}
 	}
 	return nil
-}
-
-// migratePlanTasks walks <vault>/80-plans/*.md and splits each task's
-// skills_to_load entries: paths starting with "docs/" or ending in ".md"
-// move to context_to_load; bare ids stay in skills_to_load. Idempotent.
-func migratePlanTasks(v *Vault) error {
-	dir := filepath.Join(v.Root, TypePlan.Dir())
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return fmt.Errorf("read %s: %w", dir, err)
-	}
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != ".md" {
-			continue
-		}
-		path := filepath.Join(dir, e.Name())
-		a, err := LoadArtifact(path)
-		if err != nil {
-			return fmt.Errorf("load %s: %w", path, err)
-		}
-		if splitTaskSkillsToLoad(a) {
-			if err := a.Save(); err != nil {
-				return fmt.Errorf("save %s: %w", path, err)
-			}
-		}
-	}
-	return nil
-}
-
-// splitTaskSkillsToLoad mutates a.FrontMatter["tasks"] in place, moving
-// path-shaped entries from skills_to_load to context_to_load. Returns true if
-// any task was modified.
-func splitTaskSkillsToLoad(a *Artifact) bool {
-	tasks, ok := a.FrontMatter["tasks"].([]any)
-	if !ok {
-		return false
-	}
-	changed := false
-	for i, t := range tasks {
-		m, ok := t.(map[string]any)
-		if !ok {
-			continue
-		}
-		raw, ok := m["skills_to_load"].([]any)
-		if !ok {
-			continue
-		}
-		var skills, ctx []any
-		for _, item := range raw {
-			s, ok := item.(string)
-			if !ok {
-				skills = append(skills, item)
-				continue
-			}
-			if isContextPath(s) {
-				ctx = append(ctx, s)
-			} else {
-				skills = append(skills, s)
-			}
-		}
-		if len(ctx) == 0 {
-			continue
-		}
-		m["skills_to_load"] = skills
-		if existing, ok := m["context_to_load"].([]any); ok {
-			m["context_to_load"] = append(existing, ctx...)
-		} else {
-			m["context_to_load"] = ctx
-		}
-		tasks[i] = m
-		changed = true
-	}
-	if changed {
-		a.FrontMatter["tasks"] = tasks
-	}
-	return changed
-}
-
-func isContextPath(s string) bool {
-	return strings.HasPrefix(s, "docs/") || strings.HasSuffix(s, ".md")
 }
