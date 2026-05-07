@@ -107,3 +107,29 @@ func TestBuild_PlanNotFound_ReturnsErrArtifactNotFound(t *testing.T) {
 		t.Errorf("err = %v, want ErrArtifactNotFound", err)
 	}
 }
+
+func TestBuild_RejectsPathTraversalInPlanID(t *testing.T) {
+	setupVault(t)
+	cases := []string{
+		"../etc/passwd",
+		"foo/bar",
+		`foo\bar`,
+		"..",
+	}
+	for _, planID := range cases {
+		t.Run(planID, func(t *testing.T) {
+			cmd := newRootCmd()
+			cmd.SetArgs([]string{"build", planID, "--dry-run"})
+			var errBuf bytes.Buffer
+			cmd.SetOut(&errBuf)
+			cmd.SetErr(&errBuf)
+			err := cmd.Execute()
+			if err == nil {
+				t.Fatalf("err = nil, want rejection of plan-id %q", planID)
+			}
+			if !strings.Contains(err.Error(), "invalid plan-id") {
+				t.Errorf("err = %v, want \"invalid plan-id\" rejection", err)
+			}
+		})
+	}
+}
