@@ -22,6 +22,7 @@ func newPromoteCmd() *cobra.Command {
 		flagJSON          bool
 		flagTags          []string
 		flagAllowNewFacet []string
+		flagProjectLocal  string
 	)
 
 	cmd := &cobra.Command{
@@ -65,7 +66,7 @@ func newPromoteCmd() *cobra.Command {
 			case "discard":
 				return discardInbox(cmd, v, a, id, flagJSON)
 			default:
-				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON, flagTags, flagAllowNewFacet)
+				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON, flagTags, flagAllowNewFacet, flagProjectLocal)
 			}
 		},
 	}
@@ -74,6 +75,7 @@ func newPromoteCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	cmd.Flags().StringSliceVar(&flagTags, "tags", nil, "tags to seed on promoted artifact")
 	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet(s) to suppress novelty gate for")
+	cmd.Flags().StringVar(&flagProjectLocal, "project", "", "project slug for the promoted issue (overrides inbox suggested_project and resolver)")
 	_ = cmd.MarkFlagRequired("as")
 	return cmd
 }
@@ -141,7 +143,7 @@ func formatEnumError(field, got string, valid []string, exampleCmd string) error
 // promoteToTyped writes the target artifact, then flips the inbox row to
 // status: promoted with provenance fields. Issue is the only target that
 // resolves a project; the others ignore the project field.
-func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type, asJSON bool, flagTags, flagAllowNewFacet []string) error {
+func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type, asJSON bool, flagTags, flagAllowNewFacet []string, projectOverride string) error {
 	status, _ := inbox.FrontMatter["status"].(string)
 	switch status {
 	case "promoted":
@@ -174,12 +176,15 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	idInputs := core.IDInputs{Title: title}
 
 	if target == core.TypeIssue {
-		project, _ := inbox.FrontMatter["suggested_project"].(string)
+		project := projectOverride
+		if project == "" {
+			project, _ = inbox.FrontMatter["suggested_project"].(string)
+		}
 		if project == "" {
 			p, err := core.ResolveProject()
 			if err != nil {
 				if errors.Is(err, core.ErrNoProject) {
-					return fmt.Errorf("set suggested_project or run from a git repo with a remote")
+					return fmt.Errorf("set --project, set suggested_project on the inbox entry, or run from a git repo with a remote")
 				}
 				return fmt.Errorf("resolving project: %w", err)
 			}
