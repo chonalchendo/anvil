@@ -52,6 +52,9 @@ func TestRun_HappyPath_ParsesUsageAndCost(t *testing.T) {
 	if res.Duration <= 0 {
 		t.Errorf("Duration must be > 0, got %v", res.Duration)
 	}
+	if res.Diagnostic != "Done." {
+		t.Errorf("Diagnostic = %q, want \"Done.\"", res.Diagnostic)
+	}
 }
 
 func TestRun_NameIsClaudeCode(t *testing.T) {
@@ -77,6 +80,9 @@ func TestRun_NonZeroExit_ReturnsFailureExitCodeNoErr(t *testing.T) {
 	if res.Tokens.Input != 10 {
 		t.Errorf("Tokens.Input = %d, want 10 (parsed from result event before exit 1)", res.Tokens.Input)
 	}
+	if res.Diagnostic != "Tool failed." {
+		t.Errorf("Diagnostic = %q, want \"Tool failed.\"", res.Diagnostic)
+	}
 }
 
 func TestRun_QuotaPhrase_ReturnsErrQuotaExhausted(t *testing.T) {
@@ -92,6 +98,9 @@ func TestRun_QuotaPhrase_ReturnsErrQuotaExhausted(t *testing.T) {
 	// Partial result fields populated even on the quota path.
 	if res.Duration <= 0 {
 		t.Errorf("Duration must be > 0, got %v", res.Duration)
+	}
+	if !strings.Contains(res.Diagnostic, "usage limit reached") {
+		t.Errorf("Diagnostic = %q, want to contain \"usage limit reached\"", res.Diagnostic)
 	}
 }
 

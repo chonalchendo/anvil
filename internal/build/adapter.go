@@ -38,6 +38,11 @@ type RunResult struct {
 	AgentTime time.Duration
 	Tokens    TokenUsage
 	CostUSD   float64
+	// Diagnostic carries the agent's last result-event text (or captured
+	// stderr if no result event arrived). Adapters populate it on failure
+	// paths so build's --json record and stderr output can surface why a
+	// task failed without forcing the user into the agent's session log.
+	Diagnostic string
 }
 
 type TokenUsage struct {

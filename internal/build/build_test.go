@@ -1,6 +1,7 @@
 package build
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -189,5 +190,31 @@ func TestBuild_NoAdapterRegistered_ErrorsLoud(t *testing.T) {
 	_, err := Build(context.Background(), twoTaskPlan(), opts)
 	if err == nil || !strings.Contains(err.Error(), "no adapter for model") {
 		t.Errorf("err = %v, want 'no adapter for model …'", err)
+	}
+}
+
+func TestBuild_DiagnosticOnFailure_InJSONAndStderr(t *testing.T) {
+	// Adapter returns ExitCode=1 with a diagnostic message.
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
+		"do T1": {res: RunResult{ExitCode: 1, Diagnostic: "boom"}},
+	}}
+	var stdout, stderr bytes.Buffer
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		JSON:   true,
+		Stdout: &stdout,
+		Stderr: &stderr,
+		Router: Router{"claude-": fa},
+	}
+	_, _ = Build(context.Background(), twoTaskPlan(), opts)
+
+	// JSON record must carry the diagnostic field.
+	if !strings.Contains(stdout.String(), `"diagnostic":"boom"`) {
+		t.Errorf("JSON stdout missing diagnostic; got:\n%s", stdout.String())
+	}
+	// Human-readable line must appear on stderr.
+	wantLine := "task T1 [failed]: boom"
+	if !strings.Contains(stderr.String(), wantLine) {
+		t.Errorf("stderr missing %q; got:\n%s", wantLine, stderr.String())
 	}
 }

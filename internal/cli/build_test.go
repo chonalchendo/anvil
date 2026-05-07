@@ -88,7 +88,7 @@ func TestBuild_ClaudeAdapterReachedViaShim(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("build via shim: %v\nstderr: %s", err, errBuf.String())
 	}
-	for _, want := range []string{`"task_id":"T1"`, `"task_id":"T2"`, `"outcome":"success"`} {
+	for _, want := range []string{`"task_id":"T1"`, `"task_id":"T2"`, `"outcome":"success"`, `"diagnostic":"Done."`} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("missing %q in stdout:\n%s", want, out.String())
 		}

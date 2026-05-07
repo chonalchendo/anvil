@@ -53,11 +53,17 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 		defer cancel()
 	}
 
+	// why: anvil-builds are autonomous-by-design; the user opts in by invoking
+	// `anvil build`. Without bypassPermissions, claude --print auto-denies
+	// any tool that requires user approval (Write, Edit, Bash), silently
+	// no-oping most real engineering work. A plan-task-level override is
+	// reasonable but out of v0.1 scope.
 	args := []string{
 		"--settings", settingsArg,
 		"--print",
 		"--output-format", "stream-json",
 		"--verbose",
+		"--permission-mode", "bypassPermissions",
 		"--model", req.Model,
 	}
 	if req.Cwd != "" {
@@ -111,11 +117,18 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 		_, _ = io.Copy(&stderrBuf, stderr)
 	}()
 
-	res, quotaSeen := scanStdout(stdout)
+	res, quotaSeen, lastText := scanStdout(stdout)
 
 	waitErr := cmd.Wait()
 	res.Duration = time.Since(start)
 	<-stderrDone // goroutine finished; stderrBuf safe to read
+
+	if lastText != "" {
+		res.Diagnostic = lastText
+	} else if s := strings.TrimSpace(stderrBuf.String()); s != "" {
+		res.Diagnostic = s
+	}
+
 	if exitErr := (*exec.ExitError)(nil); errors.As(waitErr, &exitErr) {
 		res.ExitCode = exitErr.ExitCode()
 	} else if waitErr != nil {
@@ -194,11 +207,13 @@ func buildPrompt(req build.RunRequest) string {
 }
 
 // scanStdout reads NDJSON from r with the 8 MiB scanner buffer required by
-// go-conventions.md:49. Returns the aggregated RunResult and whether any
-// event surfaced a usage-cap message.
-func scanStdout(r io.Reader) (build.RunResult, bool) {
+// go-conventions.md:49. Returns the aggregated RunResult, whether any event
+// surfaced a usage-cap message, and the last result-event text (empty if
+// none arrived).
+func scanStdout(r io.Reader) (build.RunResult, bool, string) {
 	var res build.RunResult
 	var quotaSeen bool
+	var lastText string
 
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)
@@ -217,7 +232,8 @@ func scanStdout(r io.Reader) (build.RunResult, bool) {
 			res.Tokens.CacheWrite = ev.Usage.CacheCreate
 			res.CostUSD = ev.CostUSD
 			res.AgentTime = time.Duration(ev.DurationMS) * time.Millisecond
+			lastText = ev.Text
 		}
 	}
-	return res, quotaSeen
+	return res, quotaSeen, lastText
 }
