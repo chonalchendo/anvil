@@ -133,10 +133,11 @@ tasks:
     title: ...
     kind: tdd | mechanical
     model: sonnet-4.6 | opus-4.7 | haiku-4.5    # optional
-    effort: low | medium | high                  # optional
+    effort: low | medium | high | xhigh          # optional, defaults to medium at load time
     files: [...]
     depends_on: [T<n>, ...]
-    skills_to_load: [<skill-name>, ...]
+    skills_to_load: [<skill-id>, ...]            # real SKILL.md ids
+    context_to_load: [<path>, ...]               # plain knowledge files (docs/...)
     verify: <command>
     success_criteria: [...]
 verification:
@@ -146,7 +147,7 @@ verification:
 
 `task.model` / `task.effort` are present only when the task diverges from orchestrator defaults (sonnet-4.6 / medium). Defaults live in `~/.anvil/config.yaml`, not in plan frontmatter.
 
-`task.skills_to_load` is load-bearing: the build orchestrator materializes `skills_to_load + always-on core` into each spawn's state dir, not all bundled skills.
+`task.skills_to_load` carries real `SKILL.md` ids loaded via the agent CLI's skill mechanism; `task.context_to_load` carries knowledge file paths surfaced as plain context. The build orchestrator materialises both into each spawn, alongside the always-on core.
 
 Plan `milestone` is derived (`plan.issue → issue.milestone`); not stored.
 
