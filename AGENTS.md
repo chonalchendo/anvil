@@ -23,6 +23,16 @@ Apply the test before adding anything: *is this load-bearing for an agent decisi
 
 If you write 200 lines and it could be 50, rewrite it. Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
+## Working through issues
+
+- Pick from `anvil list issue --ready --json`, not arbitrary `anvil list issue`. Ready issues have no unresolved blockers.
+- Claim atomically: `anvil transition issue <id> in-progress --owner <your-name>`. The owner flag is required — it's how other agents see the issue is taken.
+- Resolve via `anvil transition issue <id> resolved`. Use `anvil set ... status` only as a force-edit escape hatch when `transition` rejects a legal-but-unusual move.
+- Search before creating: `anvil list <type>` and `anvil link --to <id>` before `anvil create`. Slug-deterministic IDs make duplicate-create idempotent (`already_exists`), but redundant work isn't.
+- Don't promote inbox items already covered by an issue: check `anvil link --to <issue-id>` for the inbox source before promoting.
+
+Status transitions go through `anvil transition`, not direct frontmatter edits.
+
 ## Reference Documents
 
 ### Behavioral Guardrails — `@docs/guardrails.md`

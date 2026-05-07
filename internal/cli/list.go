@@ -9,8 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/index"
 )
 
 const defaultListLimit = 10
@@ -42,6 +44,7 @@ func newListCmd() *cobra.Command {
 		flagTags                         []string
 		flagJSON                         bool
 		flagLimit                        int
+		flagReady, flagOrphans           bool
 	)
 
 	cmd := &cobra.Command{
@@ -53,6 +56,12 @@ func newListCmd() *cobra.Command {
 			t, err := core.ParseType(args[0])
 			if err != nil {
 				return err
+			}
+			if flagReady || flagOrphans {
+				return runListIndexed(cmd, t, flagReady, flagOrphans, listFilters{
+					Status: flagStatus, Project: flagProject,
+					Since: flagSince, Until: flagUntil,
+				}, flagJSON, flagLimit)
 			}
 			v, err := core.ResolveVault()
 			if err != nil {
@@ -77,6 +86,8 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagUntil, "until", "", "include only artifacts created on or before YYYY-MM-DD")
 	cmd.Flags().IntVar(&flagLimit, "limit", defaultListLimit, "maximum results to return (default 10)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
+	cmd.Flags().BoolVar(&flagReady, "ready", false, "filter to issues with no unresolved blockers (issue only)")
+	cmd.Flags().BoolVar(&flagOrphans, "orphans", false, "filter to artifacts with no incoming wikilinks")
 	return cmd
 }
 
@@ -224,6 +235,45 @@ func hasTagSubstring(tags any, sub string) bool {
 		}
 	}
 	return false
+}
+
+func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f listFilters, asJSON bool, limit int) error {
+	if ready && t != core.TypeIssue {
+		e := errfmt.NewUnsupportedForType(string(t), []string{"issue"})
+		return printAndReturn(cmd, e)
+	}
+	v, err := core.ResolveVault()
+	if err != nil {
+		return fmt.Errorf("resolving vault: %w", err)
+	}
+	db, err := indexForRead(v)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
+	qf := index.QueryFilters{
+		Status: f.Status, Project: f.Project,
+		Since: f.Since, Until: f.Until, Limit: limit,
+	}
+	var rows []index.ArtifactRow
+	switch {
+	case ready:
+		rows, err = db.ListReady(string(t), qf)
+	case orphans:
+		rows, err = db.ListOrphans(qf)
+	}
+	if err != nil {
+		return err
+	}
+	items := make([]listItem, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, listItem{
+			ID: r.ID, Type: r.Type, Status: r.Status,
+			Project: r.Project, Path: r.Path, Created: r.Created,
+		})
+	}
+	return emitList(cmd, items, len(items), asJSON)
 }
 
 // hasAllTags reports whether tags contains every element of want (exact match).

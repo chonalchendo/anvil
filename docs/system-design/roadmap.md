@@ -12,10 +12,11 @@ What must ship before anvil v0.1. Derived from a 2026-05-03 audit of CLI surface
 - **Phase A (unblock the workflow)** — done, except `using-anvil` skill (deferred to end of Phase C).
 - **Phase A.5 (agent-CLI Blockers)** — done.
 - **Phase B (orchestrator)** — in progress. Sub-project 3 (`anvil build` command) and the Claude Code half of sub-project 1 (`internal/adapters`) landed; Codex adapter (rest of 1) and per-task telemetry (2) outstanding. Exits on a dogfood + telemetry-tuning pass.
+- **Phase B agent-flow extensions (parallel)** — done. Issue progression + vault graph queries landed (PR #7).
 - **Phase B.5 (onboarding skills)** — not started. Greenfield `new-project` + brownfield `onboard-project`, one skill family.
 - **Phase C (ship)** — not started. Closes with a brutal cull pass.
 
-Next up: Phase B (`anvil build`), starting with `internal/adapters`.
+Next up: Phase B sub-project 3 (per-task telemetry).
 
 ---
 
@@ -115,6 +116,10 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 
 - **Faceted-tag enforcement** (2026-05-06, spec `2026-05-06-faceted-tag-enforcement-design`, plan `2026-05-06-faceted-tag-enforcement.md`) — per-type rules require `domain/<x>` (operational) or `domain/<x>` + `activity/<x>` (knowledge). CLI gate on `create` / `set tags` / `promote` rejects vault-novel values unless `--allow-new-facet=<facet>`; Levenshtein + containment suggestions. `type/<x>` convention dropped (covered by `type` discriminator). Unblocks v0.2 `anvil index`.
 
+### Phase B agent-flow extensions
+
+- **Issue progression + vault graph queries** (2026-05-07, PR #7, spec `2026-05-07-progression-and-graph-queries-design`) — materialised `<vault>/.anvil/vault.db` (modernc-sqlite) with write-through from `create`/`set`/`link`/`promote`/`transition`. Per-type state machines in `internal/core/transitions.go`. New verbs `anvil transition` and `anvil reindex`; new flags `list --ready` / `--orphans`, `link --from` / `--to` / `--unresolved`. Structured error envelopes (`illegal_transition`, `transition_flag_required`, `index_stale`, `unsupported_for_type`). Schema gains `blocks` / `depends_on` on issue.
+
 ---
 
 ## Deferred to v0.2+
@@ -124,5 +129,5 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 - Read-side CLI gaps beyond Bundle E — AI reads files directly.
 - Codex adapter installer — only Claude Code hooks installer ships in v0.1.
 - Session-wide telemetry, dashboards, skill-execution events — only the build slice ships.
-- **`anvil index` verb** — surfaces facet co-occurrence across issue/plan/decision/learning/thread to feed `extract-skill-from-session`. Read-only, no LLM. Spec: `docs/superpowers/specs/2026-05-06-vault-synthesis-design.md`. Faceted-tag prerequisite landed. Natural home for cross-project link discoverability ("show everything that links to X" / reverse-link queries) — wikilinks already resolve across projects (vault-global, since project is in the ID), but there's no verb to surface the wiring.
+- **`anvil index` verb** — surfaces facet co-occurrence across issue/plan/decision/learning/thread to feed `extract-skill-from-session`. Read-only, no LLM. Spec: `docs/superpowers/specs/2026-05-06-vault-synthesis-design.md`. Faceted-tag prerequisite landed. Reverse-link discovery itself is already covered by `anvil link --to/--from/--unresolved` (v0.1, on `.anvil/vault.db`); v0.2 layers facet aggregation on top.
 - Optimization-tagged agent-CLI items above (cobra `Example` blocks, `--paths` filters, `--dry-run` on `migrate`).
