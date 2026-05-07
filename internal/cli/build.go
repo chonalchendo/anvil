@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -27,15 +30,25 @@ func newBuildCmd() *cobra.Command {
 		Example: `  anvil build anvil.refactor-auth --dry-run
   anvil build anvil.refactor-auth --concurrency 2 --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			planID := args[0]
+			// Reject path-traversal segments before composing a filesystem path
+			// — args[0] is user input and could otherwise escape the plan dir.
+			if strings.ContainsAny(planID, `/\`) || strings.Contains(planID, "..") {
+				return fmt.Errorf("invalid plan-id %q", planID)
+			}
+
 			v, err := core.ResolveVault()
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			path := filepath.Join(v.Root, core.TypePlan.Dir(), args[0]+".md")
+			path := filepath.Join(v.Root, core.TypePlan.Dir(), planID+".md")
 
 			a, err := core.LoadArtifact(path)
 			if err != nil {
-				return ErrArtifactNotFound
+				if errors.Is(err, fs.ErrNotExist) {
+					return ErrArtifactNotFound
+				}
+				return fmt.Errorf("loading plan %q: %w", planID, err)
 			}
 			if err := schema.Validate("plan", a.FrontMatter); err != nil {
 				cmd.PrintErrln(err)
@@ -52,7 +65,10 @@ func newBuildCmd() *cobra.Command {
 
 			cwd := flagCwd
 			if cwd == "" {
-				cwd, _ = filepath.Abs(".")
+				cwd, err = filepath.Abs(".")
+				if err != nil {
+					return fmt.Errorf("resolving cwd: %w", err)
+				}
 			}
 
 			opts := build.Options{
