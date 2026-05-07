@@ -170,6 +170,9 @@ func newSetCmd() *cobra.Command {
 					return verr
 				}
 			}
+			if err := indexAfterSave(v, a); err != nil {
+				return fmt.Errorf("indexing %s: %w", args[1], err)
+			}
 			return nil
 		},
 	}

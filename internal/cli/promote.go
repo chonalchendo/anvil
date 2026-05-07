@@ -22,6 +22,7 @@ func newPromoteCmd() *cobra.Command {
 		flagJSON          bool
 		flagTags          []string
 		flagAllowNewFacet []string
+		flagProjectLocal  string
 	)
 
 	cmd := &cobra.Command{
@@ -63,9 +64,9 @@ func newPromoteCmd() *cobra.Command {
 
 			switch flagAs {
 			case "discard":
-				return discardInbox(cmd, a, id, flagJSON)
+				return discardInbox(cmd, v, a, id, flagJSON)
 			default:
-				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON, flagTags, flagAllowNewFacet)
+				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON, flagTags, flagAllowNewFacet, flagProjectLocal)
 			}
 		},
 	}
@@ -74,6 +75,7 @@ func newPromoteCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	cmd.Flags().StringSliceVar(&flagTags, "tags", nil, "tags to seed on promoted artifact")
 	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet(s) to suppress novelty gate for")
+	cmd.Flags().StringVar(&flagProjectLocal, "project", "", "project slug for the promoted issue (overrides inbox suggested_project and resolver)")
 	_ = cmd.MarkFlagRequired("as")
 	return cmd
 }
@@ -107,6 +109,21 @@ func ptrIfNonEmpty(s string) *string {
 	return &s
 }
 
+// promotedToBareID extracts the bare `<project>.<slug>` from the inbox's
+// `promoted_to` field. New writes use the wikilink form (`[[<type>.<id>]]`)
+// so the index picks up the edge; legacy fixtures hold the bare ID. Accept
+// either.
+func promotedToBareID(v any) string {
+	s, _ := v.(string)
+	if strings.HasPrefix(s, "[[") && strings.HasSuffix(s, "]]") {
+		s = s[2 : len(s)-2]
+		if dot := strings.IndexByte(s, '.'); dot >= 0 {
+			return s[dot+1:]
+		}
+	}
+	return s
+}
+
 // formatEnumError builds a principle-4 actionable error: offending value,
 // valid values, copy-pasteable corrected invocation. Pass exampleCmd="" to
 // omit the corrected line (used for state-conflict errors with no valid
@@ -126,12 +143,12 @@ func formatEnumError(field, got string, valid []string, exampleCmd string) error
 // promoteToTyped writes the target artifact, then flips the inbox row to
 // status: promoted with provenance fields. Issue is the only target that
 // resolves a project; the others ignore the project field.
-func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type, asJSON bool, flagTags, flagAllowNewFacet []string) error {
+func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type, asJSON bool, flagTags, flagAllowNewFacet []string, projectOverride string) error {
 	status, _ := inbox.FrontMatter["status"].(string)
 	switch status {
 	case "promoted":
 		recordedType, _ := inbox.FrontMatter["promoted_type"].(string)
-		recordedTo, _ := inbox.FrontMatter["promoted_to"].(string)
+		recordedTo := promotedToBareID(inbox.FrontMatter["promoted_to"])
 		if recordedType == string(target) {
 			tt, ti := recordedType, recordedTo
 			return emitPromoteOutput(cmd, asJSON,
@@ -159,12 +176,15 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	idInputs := core.IDInputs{Title: title}
 
 	if target == core.TypeIssue {
-		project, _ := inbox.FrontMatter["suggested_project"].(string)
+		project := projectOverride
+		if project == "" {
+			project, _ = inbox.FrontMatter["suggested_project"].(string)
+		}
 		if project == "" {
 			p, err := core.ResolveProject()
 			if err != nil {
 				if errors.Is(err, core.ErrNoProject) {
-					return fmt.Errorf("set suggested_project or run from a git repo with a remote")
+					return fmt.Errorf("set --project, set suggested_project on the inbox entry, or run from a git repo with a remote")
 				}
 				return fmt.Errorf("resolving project: %w", err)
 			}
@@ -227,12 +247,16 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		printValidationErrors(cmd, errs)
 		return ErrSchemaInvalid
 	}
-	if err := (&core.Artifact{Path: targetPath, FrontMatter: fm, Body: ""}).Save(); err != nil {
+	tgtArt := &core.Artifact{Path: targetPath, FrontMatter: fm, Body: ""}
+	if err := tgtArt.Save(); err != nil {
 		return fmt.Errorf("saving %s: %w", target, err)
+	}
+	if err := indexAfterSave(v, tgtArt); err != nil {
+		return fmt.Errorf("indexing target: %w", err)
 	}
 
 	inbox.FrontMatter["status"] = "promoted"
-	inbox.FrontMatter["promoted_to"] = targetID
+	inbox.FrontMatter["promoted_to"] = fmt.Sprintf("[[%s.%s]]", target, targetID)
 	inbox.FrontMatter["promoted_type"] = string(target)
 	inbox.FrontMatter["updated"] = created
 	if err := schema.Validate(string(core.TypeInbox), inbox.FrontMatter); err != nil {
@@ -240,6 +264,9 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	}
 	if err := inbox.Save(); err != nil {
 		return fmt.Errorf("saving inbox: %w", err)
+	}
+	if err := indexAfterSave(v, inbox); err != nil {
+		return fmt.Errorf("indexing inbox: %w", err)
 	}
 
 	tt := string(target)
@@ -254,7 +281,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	)
 }
 
-func discardInbox(cmd *cobra.Command, inbox *core.Artifact, inboxID string, asJSON bool) error {
+func discardInbox(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, asJSON bool) error {
 	status, _ := inbox.FrontMatter["status"].(string)
 	switch status {
 	case "dropped":
@@ -276,6 +303,9 @@ func discardInbox(cmd *cobra.Command, inbox *core.Artifact, inboxID string, asJS
 	}
 	if err := inbox.Save(); err != nil {
 		return fmt.Errorf("saving inbox: %w", err)
+	}
+	if err := indexAfterSave(v, inbox); err != nil {
+		return fmt.Errorf("indexing inbox: %w", err)
 	}
 	return emitPromoteOutput(cmd, asJSON,
 		promoteOutput{ID: inboxID, Status: "discarded"},

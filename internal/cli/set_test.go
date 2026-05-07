@@ -125,6 +125,7 @@ func TestSet_MilestoneSystemDesign_RoundTrip(t *testing.T) {
 
 func TestSetPlan_StatusLocked_ValidatesFirst(t *testing.T) {
 	vault := setupVault(t)
+	t.Setenv("ANVIL_VAULT", vault)
 	src, err := os.ReadFile(filepath.Join("testdata", "plan_dangling.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -137,6 +138,16 @@ func TestSetPlan_StatusLocked_ValidatesFirst(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Seed the index at the on-disk state so the post-rollback assertion
+	// can detect a leak from the transient `locked` write.
+	reindex := newRootCmd()
+	reindex.SetArgs([]string{"reindex"})
+	reindex.SetOut(&bytes.Buffer{})
+	reindex.SetErr(&bytes.Buffer{})
+	if err := reindex.Execute(); err != nil {
+		t.Fatalf("seed reindex: %v", err)
+	}
+
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"set", "plan", "ANV-142-streaming-token-counter", "status", "locked"})
 	var stderr bytes.Buffer
@@ -145,6 +156,16 @@ func TestSetPlan_StatusLocked_ValidatesFirst(t *testing.T) {
 	err = cmd.Execute()
 	if !errors.Is(err, core.ErrPlanDAG) {
 		t.Errorf("err = %v, want ErrPlanDAG", err)
+	}
+
+	// Index must reflect the rolled-back state, not the transient `locked`
+	// the file briefly held before the dangling-DAG validator rejected it.
+	row, ierr := openIndex(t, vault).GetArtifact("ANV-142")
+	if ierr != nil {
+		t.Fatalf("expected plan in index after rollback: %v", ierr)
+	}
+	if row.Status != "draft" {
+		t.Errorf("index status after rollback = %q, want draft", row.Status)
 	}
 }
 

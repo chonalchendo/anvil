@@ -31,6 +31,8 @@ Three sequenced sub-projects:
 
 **Phase B exit criterion** — dogfood `anvil build` end-to-end against a small example project; capture telemetry (tokens read/written per skill, time per task, verify outcomes); refine context loading until tasks complete without errors under a defined token budget. The telemetry stats are the feedback loop, not a separate workstream.
 
+**Agent flow extensions (parallel sub-section, not blocking Phase B exit):** Issue progression + vault graph queries. Spec: `docs/superpowers/specs/2026-05-07-progression-and-graph-queries-design.md`. Lands `vault.db`, `anvil transition`, `anvil reindex`, and `list`/`link` graph-query flags. Independent of `internal/adapters` and `anvil build`; ships in parallel.
+
 ### Phase B.5 — onboarding skills
 
 Treat as a single skill family with greenfield + brownfield variants (one spec, two entry points):
@@ -124,5 +126,5 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 - Read-side CLI gaps beyond Bundle E — AI reads files directly.
 - Codex adapter installer — only Claude Code hooks installer ships in v0.1.
 - Session-wide telemetry, dashboards, skill-execution events — only the build slice ships.
-- **`anvil index` verb** — surfaces facet co-occurrence across issue/plan/decision/learning/thread to feed `extract-skill-from-session`. Read-only, no LLM. Spec: `docs/superpowers/specs/2026-05-06-vault-synthesis-design.md`. Faceted-tag prerequisite landed. Natural home for cross-project link discoverability ("show everything that links to X" / reverse-link queries) — wikilinks already resolve across projects (vault-global, since project is in the ID), but there's no verb to surface the wiring.
+- **`anvil index` verb** — surfaces facet co-occurrence across issue/plan/decision/learning/thread to feed `extract-skill-from-session`. Read-only, no LLM. Spec: `docs/superpowers/specs/2026-05-06-vault-synthesis-design.md`. Faceted-tag prerequisite landed. Reverse-link discovery itself is already covered by `anvil link --to/--from/--unresolved` (v0.1, on `.anvil/vault.db`); v0.2 layers facet aggregation on top.
 - Optimization-tagged agent-CLI items above (cobra `Example` blocks, `--paths` filters, `--dry-run` on `migrate`).

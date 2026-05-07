@@ -63,6 +63,8 @@ func newRootCmd() *cobra.Command {
 		newPromoteCmd(),
 		newInstallCmd(),
 		newTagsCmd(),
+		newReindexCmd(),
+		newTransitionCmd(),
 	)
 	return cmd
 }
