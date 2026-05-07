@@ -113,6 +113,8 @@ func Build(ctx context.Context, p *core.Plan, opts Options) (*Summary, error) {
 
 	for w, wave := range waves {
 		if err := ctx.Err(); err != nil {
+			sum.Wall = time.Since(start)
+			emitSummary(opts.Stderr, sum)
 			return sum, fmt.Errorf("%w: context cancelled before wave %d", ErrBuildCancelled, w)
 		}
 
