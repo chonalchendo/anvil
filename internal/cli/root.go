@@ -51,6 +51,7 @@ func newRootCmd() *cobra.Command {
 		newWhereCmd(),
 		newInitCmd(),
 		newCreateCmd(),
+		newBuildCmd(),
 		newShowCmd(),
 		newListCmd(),
 		newLinkCmd(),

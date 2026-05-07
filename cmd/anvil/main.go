@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/chonalchendo/anvil/internal/build"
 	"github.com/chonalchendo/anvil/internal/cli"
 	"github.com/chonalchendo/anvil/internal/core"
 )
@@ -13,6 +14,12 @@ import (
 func main() {
 	if err := cli.Execute(context.Background()); err != nil {
 		switch {
+		case errors.Is(err, build.ErrBuildQuotaExhausted):
+			os.Exit(2)
+		case errors.Is(err, build.ErrBuildCancelled):
+			os.Exit(130)
+		case errors.Is(err, build.ErrBuildTaskFailed):
+			os.Exit(1)
 		case errors.Is(err, core.ErrPlanTDD):
 			os.Exit(3)
 		case errors.Is(err, core.ErrPlanDAG):
