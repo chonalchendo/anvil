@@ -124,7 +124,7 @@ passes after."
 
 ## Phase 5b — Per-task model/effort (optional)
 
-Tasks default to `model: sonnet-4.6` and `effort: medium` via orchestrator config. Set per-task `model: opus-4.7` only on tasks that need deeper reasoning (architectural choices the planner deferred to the executor). Set `effort: high` on tasks expected to require extended work. Both fields are optional — omit when defaults fit.
+Tasks default to `model: claude-sonnet-4-6` and `effort: medium` via orchestrator config. Set per-task `model: claude-opus-4-7` only on tasks that need deeper reasoning (architectural choices the planner deferred to the executor). Set `effort: high` on tasks expected to require extended work. Both fields are optional — omit when defaults fit.
 
 ## Phase 6 — Hand off
 

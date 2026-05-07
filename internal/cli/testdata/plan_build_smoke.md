@@ -14,14 +14,14 @@ tasks:
   - id: T1
     title: "Wave 0 task"
     kind: tdd
-    model: sonnet-4.6
+    model: claude-sonnet-4-6
     files: [a.go]
     depends_on: []
     verify: "true"
   - id: T2
     title: "Wave 1 task"
     kind: tdd
-    model: sonnet-4.6
+    model: claude-sonnet-4-6
     files: [b.go]
     depends_on: [T1]
     verify: "true"

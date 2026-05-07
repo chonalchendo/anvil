@@ -225,7 +225,7 @@ func TestValidate_Plan_NewShape_AcceptsModelEffort(t *testing.T) {
 				"id": "T1", "title": "x", "kind": "tdd",
 				"files": []any{"a.go"}, "depends_on": []any{},
 				"verify": "go test ./...",
-				"model":  "opus-4.7",
+				"model":  "claude-opus-4-7",
 				"effort": "high",
 			},
 		},
