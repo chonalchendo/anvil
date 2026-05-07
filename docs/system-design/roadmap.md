@@ -11,7 +11,7 @@ What must ship before anvil v0.1. Derived from a 2026-05-03 audit of CLI surface
 
 - **Phase A (unblock the workflow)** — done, except `using-anvil` skill (deferred to end of Phase C).
 - **Phase A.5 (agent-CLI Blockers)** — done.
-- **Phase B (orchestrator)** — in progress. Sub-projects 1 (orchestrator skeleton) and 2 (Claude Code adapter) landed; 3 (telemetry) and 4 (Codex adapter) outstanding. Exits on a dogfood + telemetry-tuning pass.
+- **Phase B (orchestrator)** — in progress. Sub-project 3 (`anvil build` command) and the Claude Code half of sub-project 1 (`internal/adapters`) landed; Codex adapter (rest of 1) and per-task telemetry (2) outstanding. Exits on a dogfood + telemetry-tuning pass.
 - **Phase B agent-flow extensions (parallel)** — done. Issue progression + vault graph queries landed (PR #7).
 - **Phase B.5 (onboarding skills)** — not started. Greenfield `new-project` + brownfield `onboard-project`, one skill family.
 - **Phase C (ship)** — not started. Closes with a brutal cull pass.

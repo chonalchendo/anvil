@@ -64,14 +64,27 @@ type TaskOutcome struct {
 
 // jsonRecord is the per-task line emitted to stdout in --json mode.
 type jsonRecord struct {
-	TaskID     string `json:"task_id"`
-	Wave       int    `json:"wave"`
-	Model      string `json:"model"`
-	Effort     string `json:"effort"`
-	Outcome    string `json:"outcome,omitempty"`
-	Status     string `json:"status,omitempty"` // "skipped_dry_run" — distinct from outcome enum
-	DurationMS int64  `json:"duration_ms"`
-	Diagnostic string `json:"diagnostic,omitempty"`
+	TaskID      string      `json:"task_id"`
+	Wave        int         `json:"wave"`
+	Model       string      `json:"model"`
+	Effort      string      `json:"effort"`
+	Outcome     string      `json:"outcome,omitempty"`
+	Status      string      `json:"status,omitempty"` // "skipped_dry_run" — distinct from outcome enum
+	DurationMS  int64       `json:"duration_ms"`
+	AgentTimeMS int64       `json:"agent_time_ms,omitempty"`
+	CostUSD     float64     `json:"cost_usd,omitempty"`
+	Tokens      *tokensJSON `json:"tokens,omitempty"`
+	Diagnostic  string      `json:"diagnostic,omitempty"`
+}
+
+// tokensJSON mirrors RunResult.Tokens for the JSON record. Pointer in
+// jsonRecord so omitempty actually drops the whole sub-object when no
+// token data was reported.
+type tokensJSON struct {
+	Input      int64 `json:"input,omitempty"`
+	Output     int64 `json:"output,omitempty"`
+	CacheRead  int64 `json:"cache_read,omitempty"`
+	CacheWrite int64 `json:"cache_write,omitempty"`
 }
 
 // Build walks plan.Waves(), dispatching each task through a routed adapter
@@ -100,6 +113,8 @@ func Build(ctx context.Context, p *core.Plan, opts Options) (*Summary, error) {
 
 	for w, wave := range waves {
 		if err := ctx.Err(); err != nil {
+			sum.Wall = time.Since(start)
+			emitSummary(opts.Stderr, sum)
 			return sum, fmt.Errorf("%w: context cancelled before wave %d", ErrBuildCancelled, w)
 		}
 
@@ -111,10 +126,13 @@ func Build(ctx context.Context, p *core.Plan, opts Options) (*Summary, error) {
 			waveNum := w
 			g.Go(func() error {
 				oc := dispatchTask(ctx, task, waveNum, opts)
+				// Hold mu across the JSON write so concurrent records can't
+				// interleave on opts.Stdout. Encode is microseconds; the LLM
+				// call is the parallel work, so contention here is noise.
 				mu.Lock()
 				sum.Outcomes[task.ID] = oc
-				mu.Unlock()
 				emitJSONRecord(opts, oc)
+				mu.Unlock()
 				return nil // never error → no auto-cancel of siblings
 			})
 		}
@@ -140,6 +158,7 @@ func Build(ctx context.Context, p *core.Plan, opts Options) (*Summary, error) {
 		}
 		if anyFail {
 			sum.Wall = time.Since(start)
+			emitSummary(opts.Stderr, sum)
 			// quota wins over cancel: resumption signal is more actionable.
 			switch {
 			case quotaHit:
@@ -153,6 +172,7 @@ func Build(ctx context.Context, p *core.Plan, opts Options) (*Summary, error) {
 	}
 
 	sum.Wall = time.Since(start)
+	emitSummary(opts.Stderr, sum)
 	return sum, nil
 }
 
@@ -247,6 +267,38 @@ func wrapSentinel(sentinel, cause error) error {
 	return fmt.Errorf("%w: %v", sentinel, cause)
 }
 
+// emitSummary writes a one-line build summary to w aggregated across all
+// non-skipped TaskOutcomes. No-ops when sum has no real-run outcomes
+// (dry-run, pre-wave-0 cancel). Output errors are dropped — consistent with
+// emitJSONRecord; the summary is best-effort, not load-bearing.
+func emitSummary(w io.Writer, sum *Summary) {
+	var (
+		nReal                   int
+		agent                   time.Duration
+		cost                    float64
+		in, out, cacheR, cacheW int64
+	)
+	for _, oc := range sum.Outcomes {
+		if oc.Outcome == "skipped_dry_run" {
+			continue
+		}
+		nReal++
+		agent += oc.Result.AgentTime
+		cost += oc.Result.CostUSD
+		in += oc.Result.Tokens.Input
+		out += oc.Result.Tokens.Output
+		cacheR += oc.Result.Tokens.CacheRead
+		cacheW += oc.Result.Tokens.CacheWrite
+	}
+	if nReal == 0 {
+		return
+	}
+	_, _ = fmt.Fprintf(w,
+		"build summary: %d tasks, %.1fs wall, %.1fs agent, $%.4f cost, %d→%d tokens (cache: %dr/%dw)\n",
+		nReal, sum.Wall.Seconds(), agent.Seconds(), cost, in, out, cacheR, cacheW,
+	)
+}
+
 func emitJSONRecord(opts Options, oc TaskOutcome) {
 	if !opts.JSON {
 		return
@@ -263,6 +315,14 @@ func emitJSONRecord(opts Options, oc TaskOutcome) {
 		rec.Status = oc.Outcome
 	} else {
 		rec.Outcome = oc.Outcome
+		rec.AgentTimeMS = oc.Result.AgentTime.Milliseconds()
+		rec.CostUSD = oc.Result.CostUSD
+		rec.Tokens = &tokensJSON{
+			Input:      oc.Result.Tokens.Input,
+			Output:     oc.Result.Tokens.Output,
+			CacheRead:  oc.Result.Tokens.CacheRead,
+			CacheWrite: oc.Result.Tokens.CacheWrite,
+		}
 	}
 	_ = json.NewEncoder(opts.Stdout).Encode(rec)
 }

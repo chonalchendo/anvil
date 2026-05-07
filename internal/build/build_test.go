@@ -3,6 +3,7 @@ package build
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"strings"
@@ -216,5 +217,277 @@ func TestBuild_DiagnosticOnFailure_InJSONAndStderr(t *testing.T) {
 	wantLine := "task T1 [failed]: boom"
 	if !strings.Contains(stderr.String(), wantLine) {
 		t.Errorf("stderr missing %q; got:\n%s", wantLine, stderr.String())
+	}
+}
+
+func TestBuild_JSONRecord_IncludesTokensAndCost(t *testing.T) {
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
+		"do T1": {res: RunResult{
+			ExitCode:  0,
+			Duration:  200 * time.Millisecond,
+			AgentTime: 150 * time.Millisecond,
+			Tokens:    TokenUsage{Input: 100, Output: 50, CacheRead: 3, CacheWrite: 7},
+			CostUSD:   0.0123,
+		}},
+		"do T2": {res: RunResult{
+			ExitCode:  0,
+			Duration:  100 * time.Millisecond,
+			AgentTime: 80 * time.Millisecond,
+			Tokens:    TokenUsage{Input: 60, Output: 40, CacheRead: 2, CacheWrite: 5},
+			CostUSD:   0.0044,
+		}},
+	}}
+	var stdout, stderr strings.Builder
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(), JSON: true,
+		Stdout: &stdout, Stderr: &stderr,
+		Router: Router{"claude-": fa},
+	}
+	if _, err := Build(context.Background(), twoTaskPlan(), opts); err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(stdout.String(), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("got %d JSON lines, want 2: %q", len(lines), stdout.String())
+	}
+	for i, line := range lines {
+		var rec map[string]any
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatalf("line %d: unmarshal: %v (line=%q)", i, err, line)
+		}
+		for _, k := range []string{"tokens", "cost_usd", "agent_time_ms"} {
+			if _, ok := rec[k]; !ok {
+				t.Errorf("line %d missing key %q: %v", i, k, rec)
+			}
+		}
+		toks, ok := rec["tokens"].(map[string]any)
+		if !ok {
+			t.Fatalf("line %d tokens not an object: %v", i, rec["tokens"])
+		}
+		for _, k := range []string{"input", "output", "cache_read", "cache_write"} {
+			if _, ok := toks[k]; !ok {
+				t.Errorf("line %d tokens missing %q: %v", i, k, toks)
+			}
+		}
+	}
+	// Spot-check the T1 row's specific values.
+	var rec map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &rec); err != nil {
+		t.Fatalf("spot-check unmarshal: %v (line=%q)", err, lines[0])
+	}
+	if got := rec["cost_usd"]; got != 0.0123 {
+		t.Errorf("T1 cost_usd = %v, want 0.0123", got)
+	}
+	toks := rec["tokens"].(map[string]any)
+	if got := toks["input"]; got != float64(100) {
+		t.Errorf("T1 tokens.input = %v, want 100", got)
+	}
+}
+
+func TestBuild_JSONRecord_DryRunOmitsCostFields(t *testing.T) {
+	var stdout, stderr strings.Builder
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(), DryRun: true, JSON: true,
+		Stdout: &stdout, Stderr: &stderr,
+		Router: Router{},
+	}
+	if _, err := Build(context.Background(), twoTaskPlan(), opts); err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(stdout.String(), "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("got %d JSON lines, want 2: %q", len(lines), stdout.String())
+	}
+	for i, line := range lines {
+		var rec map[string]any
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatalf("line %d: unmarshal: %v (line=%q)", i, err, line)
+		}
+		for _, k := range []string{"tokens", "cost_usd", "agent_time_ms"} {
+			if _, present := rec[k]; present {
+				t.Errorf("line %d unexpectedly contains %q: %v", i, k, rec)
+			}
+		}
+		if rec["status"] != "skipped_dry_run" {
+			t.Errorf("line %d status = %v, want skipped_dry_run", i, rec["status"])
+		}
+	}
+}
+
+func TestBuild_Summary_AggregatesAcrossTasks(t *testing.T) {
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
+		"do T1": {res: RunResult{
+			ExitCode:  0,
+			Duration:  200 * time.Millisecond,
+			AgentTime: 150 * time.Millisecond,
+			Tokens:    TokenUsage{Input: 100, Output: 50, CacheRead: 3, CacheWrite: 7},
+			CostUSD:   0.0123,
+		}},
+		"do T2": {res: RunResult{
+			ExitCode:  0,
+			Duration:  100 * time.Millisecond,
+			AgentTime: 80 * time.Millisecond,
+			Tokens:    TokenUsage{Input: 60, Output: 40, CacheRead: 2, CacheWrite: 5},
+			CostUSD:   0.0044,
+		}},
+	}}
+	var stderr strings.Builder
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: &stderr,
+		Router: Router{"claude-": fa},
+	}
+	if _, err := Build(context.Background(), twoTaskPlan(), opts); err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	got := stderr.String()
+	// Aggregated values: 2 tasks; 160→90 tokens; (cache: 5r/12w); $0.0167; agent 0.2s.
+	wantSubstrings := []string{
+		"build summary: 2 tasks,",
+		"$0.0167 cost,",
+		"160→90 tokens",
+		"(cache: 5r/12w)",
+		"0.2s agent,",
+	}
+	for _, want := range wantSubstrings {
+		if !strings.Contains(got, want) {
+			t.Errorf("stderr missing %q\nfull stderr: %q", want, got)
+		}
+	}
+	if !strings.HasSuffix(got, "\n") {
+		t.Errorf("stderr should end with newline, got %q", got)
+	}
+}
+
+func TestBuild_Summary_OmittedOnDryRun(t *testing.T) {
+	var stderr strings.Builder
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(), DryRun: true,
+		Stdout: io.Discard, Stderr: &stderr,
+		Router: Router{},
+	}
+	if _, err := Build(context.Background(), twoTaskPlan(), opts); err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if got := stderr.String(); got != "" {
+		t.Errorf("dry-run stderr = %q, want empty", got)
+	}
+}
+
+func TestBuild_Summary_PrintedOnPartialFail(t *testing.T) {
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
+		"do T1": {res: RunResult{
+			ExitCode:  1, // task fails
+			Duration:  200 * time.Millisecond,
+			AgentTime: 150 * time.Millisecond,
+			Tokens:    TokenUsage{Input: 80, Output: 40, CacheRead: 2, CacheWrite: 5},
+			CostUSD:   0.0099,
+		}},
+	}}
+	var stderr strings.Builder
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: &stderr,
+		Router: Router{"claude-": fa},
+	}
+	_, err := Build(context.Background(), twoTaskPlan(), opts)
+	if !errors.Is(err, ErrBuildTaskFailed) {
+		t.Fatalf("err = %v, want ErrBuildTaskFailed", err)
+	}
+	got := stderr.String()
+	wantSubstrings := []string{
+		"build summary: 1 tasks,",
+		"$0.0099 cost,",
+		"80→40 tokens",
+		"(cache: 2r/5w)",
+	}
+	for _, want := range wantSubstrings {
+		if !strings.Contains(got, want) {
+			t.Errorf("stderr missing %q\nfull stderr: %q", want, got)
+		}
+	}
+}
+
+func TestBuild_Summary_PrintedOnQuotaExhausted(t *testing.T) {
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
+		"do T1": {
+			res: RunResult{
+				Duration:  200 * time.Millisecond,
+				AgentTime: 150 * time.Millisecond,
+				Tokens:    TokenUsage{Input: 100, Output: 50, CacheRead: 3, CacheWrite: 7},
+				CostUSD:   0.0123,
+			},
+			err: ErrQuotaExhausted,
+		},
+	}}
+	var stderr strings.Builder
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: &stderr,
+		Router: Router{"claude-": fa},
+	}
+	_, err := Build(context.Background(), twoTaskPlan(), opts)
+	if !errors.Is(err, ErrBuildQuotaExhausted) {
+		t.Fatalf("err = %v, want ErrBuildQuotaExhausted", err)
+	}
+	got := stderr.String()
+	if !strings.Contains(got, "build summary: 1 tasks,") {
+		t.Errorf("stderr missing summary header; got %q", got)
+	}
+	if !strings.Contains(got, "$0.0123 cost,") {
+		t.Errorf("stderr missing cost; got %q", got)
+	}
+}
+
+// concurrencyDetectingWriter records the maximum number of in-flight Write
+// calls. Used to verify emitJSONRecord writes are serialized.
+type concurrencyDetectingWriter struct {
+	hold     time.Duration
+	inflight atomic.Int32
+	max      atomic.Int32
+}
+
+func (c *concurrencyDetectingWriter) Write(p []byte) (int, error) {
+	cur := c.inflight.Add(1)
+	defer c.inflight.Add(-1)
+	for {
+		old := c.max.Load()
+		if cur <= old || c.max.CompareAndSwap(old, cur) {
+			break
+		}
+	}
+	if c.hold > 0 {
+		time.Sleep(c.hold)
+	}
+	return len(p), nil
+}
+
+func TestBuild_JSONRecord_WritesAreSerialized(t *testing.T) {
+	plan := &core.Plan{
+		ID: "anvil.fanout", Slug: "fanout", Status: "ready",
+		Tasks: []core.Task{
+			{ID: "T1", Title: "a", Model: "claude-sonnet-4-6", Body: "a", Verify: "true"},
+			{ID: "T2", Title: "b", Model: "claude-sonnet-4-6", Body: "b", Verify: "true"},
+			{ID: "T3", Title: "c", Model: "claude-sonnet-4-6", Body: "c", Verify: "true"},
+			{ID: "T4", Title: "d", Model: "claude-sonnet-4-6", Body: "d", Verify: "true"},
+		},
+	}
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
+		"a": {hold: 5 * time.Millisecond},
+		"b": {hold: 5 * time.Millisecond},
+		"c": {hold: 5 * time.Millisecond},
+		"d": {hold: 5 * time.Millisecond},
+	}}
+	stdout := &concurrencyDetectingWriter{hold: 2 * time.Millisecond}
+	opts := Options{
+		Concurrency: 4, Cwd: t.TempDir(), JSON: true,
+		Stdout: stdout, Stderr: io.Discard,
+		Router: Router{"claude-": fa},
+	}
+	if _, err := Build(context.Background(), plan, opts); err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if got := stdout.max.Load(); got > 1 {
+		t.Errorf("max concurrent writes to stdout = %d, want 1 (records must not interleave)", got)
 	}
 }
