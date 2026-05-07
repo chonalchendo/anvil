@@ -71,22 +71,3 @@ func (d *DB) ReplaceLinks(source string, rows []LinkRow) error {
 	}
 	return tx.Commit()
 }
-
-// LinksFrom returns outgoing edges from source. Moves to query.go in Task 8.
-func (d *DB) LinksFrom(source string) ([]LinkRow, error) {
-	const q = `SELECT source, target, relation, anchor FROM links WHERE source = ? ORDER BY target, relation`
-	rs, err := d.sql.Query(q, source)
-	if err != nil {
-		return nil, fmt.Errorf("links from %s: %w", source, err)
-	}
-	defer rs.Close()
-	var out []LinkRow
-	for rs.Next() {
-		var r LinkRow
-		if err := rs.Scan(&r.Source, &r.Target, &r.Relation, &r.Anchor); err != nil {
-			return nil, err
-		}
-		out = append(out, r)
-	}
-	return out, rs.Err()
-}
