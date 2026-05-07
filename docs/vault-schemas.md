@@ -132,7 +132,7 @@ tasks:
   - id: T1
     title: ...
     kind: tdd | mechanical
-    model: sonnet-4.6 | opus-4.7 | haiku-4.5    # optional
+    model: claude-sonnet-4-6 | claude-opus-4-7 | claude-haiku-4-5    # optional
     effort: low | medium | high | xhigh          # optional, defaults to medium at load time
     files: [...]
     depends_on: [T<n>, ...]
@@ -145,7 +145,7 @@ verification:
   post_build: [<command>, ...]
 ```
 
-`task.model` / `task.effort` are present only when the task diverges from orchestrator defaults (sonnet-4.6 / medium). Defaults live in `~/.anvil/config.yaml`, not in plan frontmatter.
+`task.model` / `task.effort` are present only when the task diverges from orchestrator defaults (claude-sonnet-4-6 / medium). Defaults live in `~/.anvil/config.yaml`, not in plan frontmatter.
 
 `task.skills_to_load` carries real `SKILL.md` ids loaded via the agent CLI's skill mechanism; `task.context_to_load` carries knowledge file paths surfaced as plain context. The build orchestrator materialises both into each spawn, alongside the always-on core.
 

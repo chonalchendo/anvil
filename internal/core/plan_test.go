@@ -103,7 +103,7 @@ tasks:
   - id: T1
     title: x
     kind: tdd
-    model: opus-4.7
+    model: claude-opus-4-7
     effort: high
     files: [a.go]
     depends_on: []
@@ -121,7 +121,7 @@ tasks:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.Tasks[0].Model != "opus-4.7" || p.Tasks[0].Effort != "high" {
+	if p.Tasks[0].Model != "claude-opus-4-7" || p.Tasks[0].Effort != "high" {
 		t.Errorf("got Model=%q Effort=%q", p.Tasks[0].Model, p.Tasks[0].Effort)
 	}
 }
