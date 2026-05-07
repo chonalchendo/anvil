@@ -12,10 +12,11 @@ What must ship before anvil v0.1. Derived from a 2026-05-03 audit of CLI surface
 - **Phase A (unblock the workflow)** — done, except `using-anvil` skill (deferred to end of Phase C).
 - **Phase A.5 (agent-CLI Blockers)** — done.
 - **Phase B (orchestrator)** — in progress. Sub-projects 1 (orchestrator skeleton) and 2 (Claude Code adapter) landed; 3 (telemetry) and 4 (Codex adapter) outstanding. Exits on a dogfood + telemetry-tuning pass.
+- **Phase B agent-flow extensions (parallel)** — done. Issue progression + vault graph queries landed (PR #7).
 - **Phase B.5 (onboarding skills)** — not started. Greenfield `new-project` + brownfield `onboard-project`, one skill family.
 - **Phase C (ship)** — not started. Closes with a brutal cull pass.
 
-Next up: Phase B (`anvil build`), starting with `internal/adapters`.
+Next up: Phase B sub-project 3 (per-task telemetry).
 
 ---
 
@@ -30,8 +31,6 @@ Three sequenced sub-projects:
 3. **`anvil build` command** — walk a validated plan's wave graph, dispatch via the adapter, persist telemetry, fail loudly. Wave graph already computed for `--waves` rendering in `internal/cli/plan.go`.
 
 **Phase B exit criterion** — dogfood `anvil build` end-to-end against a small example project; capture telemetry (tokens read/written per skill, time per task, verify outcomes); refine context loading until tasks complete without errors under a defined token budget. The telemetry stats are the feedback loop, not a separate workstream.
-
-**Agent flow extensions (parallel sub-section, not blocking Phase B exit):** Issue progression + vault graph queries. Spec: `docs/superpowers/specs/2026-05-07-progression-and-graph-queries-design.md`. Lands `vault.db`, `anvil transition`, `anvil reindex`, and `list`/`link` graph-query flags. Independent of `internal/adapters` and `anvil build`; ships in parallel.
 
 ### Phase B.5 — onboarding skills
 
@@ -116,6 +115,10 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 ### Vault schemas
 
 - **Faceted-tag enforcement** (2026-05-06, spec `2026-05-06-faceted-tag-enforcement-design`, plan `2026-05-06-faceted-tag-enforcement.md`) — per-type rules require `domain/<x>` (operational) or `domain/<x>` + `activity/<x>` (knowledge). CLI gate on `create` / `set tags` / `promote` rejects vault-novel values unless `--allow-new-facet=<facet>`; Levenshtein + containment suggestions. `type/<x>` convention dropped (covered by `type` discriminator). Unblocks v0.2 `anvil index`.
+
+### Phase B agent-flow extensions
+
+- **Issue progression + vault graph queries** (2026-05-07, PR #7, spec `2026-05-07-progression-and-graph-queries-design`) — materialised `<vault>/.anvil/vault.db` (modernc-sqlite) with write-through from `create`/`set`/`link`/`promote`/`transition`. Per-type state machines in `internal/core/transitions.go`. New verbs `anvil transition` and `anvil reindex`; new flags `list --ready` / `--orphans`, `link --from` / `--to` / `--unresolved`. Structured error envelopes (`illegal_transition`, `transition_flag_required`, `index_stale`, `unsupported_for_type`). Schema gains `blocks` / `depends_on` on issue.
 
 ---
 
