@@ -63,7 +63,7 @@ func newPromoteCmd() *cobra.Command {
 
 			switch flagAs {
 			case "discard":
-				return discardInbox(cmd, a, id, flagJSON)
+				return discardInbox(cmd, v, a, id, flagJSON)
 			default:
 				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON, flagTags, flagAllowNewFacet)
 			}
@@ -227,8 +227,12 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		printValidationErrors(cmd, errs)
 		return ErrSchemaInvalid
 	}
-	if err := (&core.Artifact{Path: targetPath, FrontMatter: fm, Body: ""}).Save(); err != nil {
+	tgtArt := &core.Artifact{Path: targetPath, FrontMatter: fm, Body: ""}
+	if err := tgtArt.Save(); err != nil {
 		return fmt.Errorf("saving %s: %w", target, err)
+	}
+	if err := indexAfterSave(v, tgtArt); err != nil {
+		return fmt.Errorf("indexing target: %w", err)
 	}
 
 	inbox.FrontMatter["status"] = "promoted"
@@ -240,6 +244,9 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	}
 	if err := inbox.Save(); err != nil {
 		return fmt.Errorf("saving inbox: %w", err)
+	}
+	if err := indexAfterSave(v, inbox); err != nil {
+		return fmt.Errorf("indexing inbox: %w", err)
 	}
 
 	tt := string(target)
@@ -254,7 +261,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	)
 }
 
-func discardInbox(cmd *cobra.Command, inbox *core.Artifact, inboxID string, asJSON bool) error {
+func discardInbox(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, asJSON bool) error {
 	status, _ := inbox.FrontMatter["status"].(string)
 	switch status {
 	case "dropped":
@@ -276,6 +283,9 @@ func discardInbox(cmd *cobra.Command, inbox *core.Artifact, inboxID string, asJS
 	}
 	if err := inbox.Save(); err != nil {
 		return fmt.Errorf("saving inbox: %w", err)
+	}
+	if err := indexAfterSave(v, inbox); err != nil {
+		return fmt.Errorf("indexing inbox: %w", err)
 	}
 	return emitPromoteOutput(cmd, asJSON,
 		promoteOutput{ID: inboxID, Status: "discarded"},

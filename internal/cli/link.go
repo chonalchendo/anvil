@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -31,6 +32,14 @@ func newLinkCmd() *cobra.Command {
 			srcID, tgtID := args[1], args[3]
 			if err := core.AppendLink(v, src, srcID, tgt, tgtID); err != nil {
 				return err
+			}
+			srcPath := filepath.Join(v.Root, src.Dir(), srcID+".md")
+			a, err := core.LoadArtifact(srcPath)
+			if err != nil {
+				return fmt.Errorf("re-loading source after link: %w", err)
+			}
+			if err := indexAfterSave(v, a); err != nil {
+				return fmt.Errorf("indexing source: %w", err)
 			}
 			cmd.Println(fmt.Sprintf("linked %s.%s → %s.%s", src, srcID, tgt, tgtID))
 			return nil

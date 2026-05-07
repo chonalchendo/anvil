@@ -232,6 +232,9 @@ func newCreateCmd() *cobra.Command {
 							return fmt.Errorf("plan validator: %w", verr)
 						}
 					}
+					if err := indexAfterSave(v, a); err != nil {
+						return fmt.Errorf("indexing %s: %w", id, err)
+					}
 					return emitCreateResult(cmd, flagJSON, id, path, statusUpdated)
 				} else if !errors.Is(err, fs.ErrNotExist) {
 					return fmt.Errorf("checking %s: %w", path, err)
@@ -272,6 +275,9 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
+			if err := indexAfterSave(v, a); err != nil {
+				return fmt.Errorf("indexing %s: %w", id, err)
+			}
 			return emitCreateResult(cmd, flagJSON, id, path, statusCreated)
 		},
 	}
@@ -362,8 +368,12 @@ func runCreateSession(cmd *cobra.Command, v *core.Vault, sessionID, source, star
 	if err := schema.Validate(string(core.TypeSession), fm); err != nil {
 		return fmt.Errorf("schema validation: %w", err)
 	}
-	if err := (&core.Artifact{Path: path, FrontMatter: fm}).Save(); err != nil {
+	a := &core.Artifact{Path: path, FrontMatter: fm}
+	if err := a.Save(); err != nil {
 		return fmt.Errorf("saving artifact: %w", err)
+	}
+	if err := indexAfterSave(v, a); err != nil {
+		return fmt.Errorf("indexing %s: %w", sessionID, err)
 	}
 
 	if asJSON {

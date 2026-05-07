@@ -2,6 +2,7 @@ package index
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -20,12 +21,16 @@ type LinkRow struct {
 var wikilinkRe = regexp.MustCompile(`^\[\[([^\]]+)\]\]$`)
 
 // ArtifactRowFromFrontmatter projects parsed frontmatter onto an ArtifactRow.
-// Returns an error if `id` is missing or non-string; everything else is
-// best-effort (missing fields → empty strings).
+// If `id` is absent or empty in frontmatter, the path stem (filename without
+// extension) is used as the ID. Returns an error only if both sources yield an
+// empty ID; everything else is best-effort (missing fields → empty strings).
 func ArtifactRowFromFrontmatter(fm map[string]any, path string) (ArtifactRow, error) {
-	id, ok := fm["id"].(string)
-	if !ok || id == "" {
-		return ArtifactRow{}, fmt.Errorf("frontmatter missing string `id`")
+	id, _ := fm["id"].(string)
+	if id == "" {
+		id = strings.TrimSuffix(filepath.Base(path), ".md")
+	}
+	if id == "" {
+		return ArtifactRow{}, fmt.Errorf("cannot derive id from frontmatter or path %q", path)
 	}
 	get := func(k string) string {
 		s, _ := fm[k].(string)
