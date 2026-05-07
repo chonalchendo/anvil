@@ -311,3 +311,48 @@ func TestBuild_JSONRecord_DryRunOmitsCostFields(t *testing.T) {
 		}
 	}
 }
+
+func TestBuild_Summary_AggregatesAcrossTasks(t *testing.T) {
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
+		"do T1": {res: RunResult{
+			ExitCode:  0,
+			Duration:  200 * time.Millisecond,
+			AgentTime: 150 * time.Millisecond,
+			Tokens:    TokenUsage{Input: 100, Output: 50, CacheRead: 3, CacheWrite: 7},
+			CostUSD:   0.0123,
+		}},
+		"do T2": {res: RunResult{
+			ExitCode:  0,
+			Duration:  100 * time.Millisecond,
+			AgentTime: 80 * time.Millisecond,
+			Tokens:    TokenUsage{Input: 60, Output: 40, CacheRead: 2, CacheWrite: 5},
+			CostUSD:   0.0044,
+		}},
+	}}
+	var stderr strings.Builder
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: &stderr,
+		Router: Router{"claude-": fa},
+	}
+	if _, err := Build(context.Background(), twoTaskPlan(), opts); err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	got := stderr.String()
+	// Aggregated values: 2 tasks; 160→90 tokens; (cache: 5r/12w); $0.0167; agent 0.2s.
+	wantSubstrings := []string{
+		"build summary: 2 tasks,",
+		"$0.0167 cost,",
+		"160→90 tokens",
+		"(cache: 5r/12w)",
+		"0.2s agent,",
+	}
+	for _, want := range wantSubstrings {
+		if !strings.Contains(got, want) {
+			t.Errorf("stderr missing %q\nfull stderr: %q", want, got)
+		}
+	}
+	if !strings.HasSuffix(got, "\n") {
+		t.Errorf("stderr should end with newline, got %q", got)
+	}
+}

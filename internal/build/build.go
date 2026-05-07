@@ -166,6 +166,7 @@ func Build(ctx context.Context, p *core.Plan, opts Options) (*Summary, error) {
 	}
 
 	sum.Wall = time.Since(start)
+	emitSummary(opts.Stderr, sum)
 	return sum, nil
 }
 
@@ -258,6 +259,38 @@ func wrapSentinel(sentinel, cause error) error {
 		return sentinel
 	}
 	return fmt.Errorf("%w: %v", sentinel, cause)
+}
+
+// emitSummary writes a one-line build summary to w aggregated across all
+// non-skipped TaskOutcomes. No-ops when sum has no real-run outcomes
+// (dry-run, pre-wave-0 cancel). Output errors are dropped — consistent with
+// emitJSONRecord; the summary is best-effort, not load-bearing.
+func emitSummary(w io.Writer, sum *Summary) {
+	var (
+		nReal                   int
+		agent                   time.Duration
+		cost                    float64
+		in, out, cacheR, cacheW int64
+	)
+	for _, oc := range sum.Outcomes {
+		if oc.Outcome == "skipped_dry_run" {
+			continue
+		}
+		nReal++
+		agent += oc.Result.AgentTime
+		cost += oc.Result.CostUSD
+		in += oc.Result.Tokens.Input
+		out += oc.Result.Tokens.Output
+		cacheR += oc.Result.Tokens.CacheRead
+		cacheW += oc.Result.Tokens.CacheWrite
+	}
+	if nReal == 0 {
+		return
+	}
+	fmt.Fprintf(w,
+		"build summary: %d tasks, %.1fs wall, %.1fs agent, $%.4f cost, %d→%d tokens (cache: %dr/%dw)\n",
+		nReal, sum.Wall.Seconds(), agent.Seconds(), cost, in, out, cacheR, cacheW,
+	)
 }
 
 func emitJSONRecord(opts Options, oc TaskOutcome) {
