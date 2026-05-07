@@ -15,5 +15,10 @@ skills/*-workspace/
 # Superpowers working artifacts (specs, plans, etc. — not committed)
 docs/superpowers/
 
+# Personal scratchpads (kept on disk, not in source tree)
+docs/IDEAS.md
+docs/first_principles_anvil.md
+docs/implementation_plan.md
+
 # Git worktrees
 .worktrees/
