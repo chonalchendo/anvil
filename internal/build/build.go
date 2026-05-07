@@ -259,6 +259,5 @@ func emitJSONRecord(opts Options, oc TaskOutcome) {
 	} else {
 		rec.Outcome = oc.Outcome
 	}
-	b, _ := json.Marshal(rec)
-	fmt.Fprintln(opts.Stdout, string(b))
+	_ = json.NewEncoder(opts.Stdout).Encode(rec)
 }

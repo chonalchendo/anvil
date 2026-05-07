@@ -12,8 +12,9 @@ import (
 func assembleInstruction(t core.Task) string {
 	var b strings.Builder
 	b.WriteString(strings.TrimSpace(t.Body))
+	b.WriteByte('\n')
 	if len(t.SuccessCriteria) > 0 {
-		b.WriteString("\n\n## Success criteria\n")
+		b.WriteString("\n## Success criteria\n")
 		for _, c := range t.SuccessCriteria {
 			b.WriteString("- ")
 			b.WriteString(c)
