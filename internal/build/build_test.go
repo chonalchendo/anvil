@@ -405,3 +405,34 @@ func TestBuild_Summary_PrintedOnPartialFail(t *testing.T) {
 		}
 	}
 }
+
+func TestBuild_Summary_PrintedOnQuotaExhausted(t *testing.T) {
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
+		"do T1": {
+			res: RunResult{
+				Duration:  200 * time.Millisecond,
+				AgentTime: 150 * time.Millisecond,
+				Tokens:    TokenUsage{Input: 100, Output: 50, CacheRead: 3, CacheWrite: 7},
+				CostUSD:   0.0123,
+			},
+			err: ErrQuotaExhausted,
+		},
+	}}
+	var stderr strings.Builder
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: &stderr,
+		Router: Router{"claude-": fa},
+	}
+	_, err := Build(context.Background(), twoTaskPlan(), opts)
+	if !errors.Is(err, ErrBuildQuotaExhausted) {
+		t.Fatalf("err = %v, want ErrBuildQuotaExhausted", err)
+	}
+	got := stderr.String()
+	if !strings.Contains(got, "build summary: 1 tasks,") {
+		t.Errorf("stderr missing summary header; got %q", got)
+	}
+	if !strings.Contains(got, "$0.0123 cost,") {
+		t.Errorf("stderr missing cost; got %q", got)
+	}
+}
