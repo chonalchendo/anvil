@@ -39,10 +39,11 @@
           "title":           { "type": "string", "minLength": 1 },
           "kind":            { "enum": ["tdd", "mechanical"] },
           "model":           { "enum": ["sonnet-4.6", "opus-4.7", "haiku-4.5"] },
-          "effort":          { "enum": ["low", "medium", "high"] },
+          "effort":          { "enum": ["low", "medium", "high", "xhigh"] },
           "files":           { "type": "array", "items": { "type": "string" } },
           "depends_on":      { "type": "array", "items": { "type": "string", "pattern": "^T[0-9]+$" } },
           "skills_to_load":  { "type": "array", "items": { "type": "string" } },
+          "context_to_load": { "type": "array", "items": { "type": "string" } },
           "verify":          { "type": "string", "minLength": 1 },
           "success_criteria":{ "type": "array", "items": { "type": "string" } }
         },

@@ -579,3 +579,49 @@ func TestValidate_Issue_RequiresDomainTag(t *testing.T) {
 		}
 	})
 }
+
+func TestValidate_Plan_AcceptsContextToLoadAndXhigh(t *testing.T) {
+	fm := map[string]any{
+		"type": "plan", "id": "anvil.x", "slug": "x",
+		"title": "x", "description": "x",
+		"created": "2026-05-07", "updated": "2026-05-07",
+		"status": "draft", "plan_version": 1,
+		"issue": "[[issue.anvil.x]]",
+		"tags":  []any{"domain/dev-tools"},
+		"tasks": []any{
+			map[string]any{
+				"id": "T1", "title": "x", "kind": "tdd",
+				"files": []any{"a.go"}, "depends_on": []any{},
+				"verify":          "go test ./...",
+				"effort":          "xhigh",
+				"skills_to_load":  []any{"tdd"},
+				"context_to_load": []any{"docs/code-design.md", "docs/go-conventions.md"},
+			},
+		},
+	}
+	if err := Validate("plan", fm); err != nil {
+		t.Fatalf("expected valid: %v", err)
+	}
+}
+
+func TestValidate_Plan_RejectsBadEffort(t *testing.T) {
+	fm := map[string]any{
+		"type": "plan", "id": "anvil.x", "slug": "x",
+		"title": "x", "description": "x",
+		"created": "2026-05-07", "updated": "2026-05-07",
+		"status": "draft", "plan_version": 1,
+		"issue": "[[issue.anvil.x]]",
+		"tags":  []any{"domain/dev-tools"},
+		"tasks": []any{
+			map[string]any{
+				"id": "T1", "title": "x", "kind": "tdd",
+				"files": []any{"a.go"}, "depends_on": []any{},
+				"verify": "go test ./...",
+				"effort": "extreme",
+			},
+		},
+	}
+	if err := Validate("plan", fm); err == nil {
+		t.Error("expected rejection: effort must be in low|medium|high|xhigh")
+	}
+}
