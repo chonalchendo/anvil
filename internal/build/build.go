@@ -293,7 +293,7 @@ func emitSummary(w io.Writer, sum *Summary) {
 	if nReal == 0 {
 		return
 	}
-	fmt.Fprintf(w,
+	_, _ = fmt.Fprintf(w,
 		"build summary: %d tasks, %.1fs wall, %.1fs agent, $%.4f cost, %d→%d tokens (cache: %dr/%dw)\n",
 		nReal, sum.Wall.Seconds(), agent.Seconds(), cost, in, out, cacheR, cacheW,
 	)

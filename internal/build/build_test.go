@@ -272,7 +272,9 @@ func TestBuild_JSONRecord_IncludesTokensAndCost(t *testing.T) {
 	}
 	// Spot-check the T1 row's specific values.
 	var rec map[string]any
-	_ = json.Unmarshal([]byte(lines[0]), &rec)
+	if err := json.Unmarshal([]byte(lines[0]), &rec); err != nil {
+		t.Fatalf("spot-check unmarshal: %v (line=%q)", err, lines[0])
+	}
 	if got := rec["cost_usd"]; got != 0.0123 {
 		t.Errorf("T1 cost_usd = %v, want 0.0123", got)
 	}
