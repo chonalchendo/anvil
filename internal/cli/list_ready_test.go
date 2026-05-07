@@ -11,7 +11,7 @@ func TestListReadyFiltersUnblockedIssues(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	createDemoIssue(t, vault)
+	createDemoIssue(t)
 
 	out := execCmd(t, "list", "issue", "--ready", "--json")
 	var env struct {

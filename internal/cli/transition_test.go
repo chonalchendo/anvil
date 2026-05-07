@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func createDemoIssue(t *testing.T, vault string) {
+func createDemoIssue(t *testing.T) {
 	t.Helper()
 	execCmd(t, "create", "issue",
 		"--project", "demo",
@@ -24,7 +24,7 @@ func TestTransitionHappyPathWritesFrontmatter(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	createDemoIssue(t, vault)
+	createDemoIssue(t)
 
 	out := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--json")
 	var got map[string]any
@@ -48,7 +48,7 @@ func TestTransitionIdempotentWhenAlreadyInState(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	createDemoIssue(t, vault)
+	createDemoIssue(t)
 
 	out := execCmd(t, "transition", "issue", "demo.foo", "open", "--json")
 	if !strings.Contains(out, `"already_in_state"`) {
@@ -60,7 +60,7 @@ func TestTransitionIllegalReturnsErr(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	createDemoIssue(t, vault)
+	createDemoIssue(t)
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--json"})
@@ -79,7 +79,7 @@ func TestTransitionMissingRequiredFlag(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	createDemoIssue(t, vault)
+	createDemoIssue(t)
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress"})
@@ -98,7 +98,7 @@ func TestTransitionReverseRequiresReason(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	createDemoIssue(t, vault)
+	createDemoIssue(t)
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 	execCmd(t, "transition", "issue", "demo.foo", "resolved")
 
@@ -116,7 +116,7 @@ func TestTransitionReverseAppendsAuditLine(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	createDemoIssue(t, vault)
+	createDemoIssue(t)
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 	execCmd(t, "transition", "issue", "demo.foo", "resolved")
 	execCmd(t, "transition", "issue", "demo.foo", "open", "--reason", "regression found")

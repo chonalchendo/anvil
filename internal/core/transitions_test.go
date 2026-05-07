@@ -10,7 +10,14 @@ func TestTransitionLookupHit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected hit: %v", err)
 	}
-	if !sliceContains(tr.Requires, "owner") {
+	hasOwner := false
+	for _, req := range tr.Requires {
+		if req == "owner" {
+			hasOwner = true
+			break
+		}
+	}
+	if !hasOwner {
 		t.Fatalf("expected owner required, got %v", tr.Requires)
 	}
 }
@@ -45,11 +52,3 @@ func TestReverseTransitionFlagged(t *testing.T) {
 	}
 }
 
-func sliceContains(xs []string, target string) bool {
-	for _, x := range xs {
-		if x == target {
-			return true
-		}
-	}
-	return false
-}

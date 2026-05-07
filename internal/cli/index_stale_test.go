@@ -13,7 +13,7 @@ func TestListReadyReturnsIndexStaleWhenVaultEditedExternally(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	createDemoIssue(t, vault)
+	createDemoIssue(t)
 
 	// External edit + bump dir mtime so CheckFreshness sees drift.
 	if err := os.WriteFile(filepath.Join(vault, "70-issues", "demo.bar.md"),

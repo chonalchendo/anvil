@@ -51,8 +51,10 @@ func TestReindexPopulatesArtifactsAndLinks(t *testing.T) {
 
 func TestReindexIsIdempotent(t *testing.T) {
 	vault := t.TempDir()
+	// One artifact with one outgoing wikilink so the second reindex has
+	// something to (incorrectly, if buggy) duplicate.
 	writeArtifact(t, filepath.Join(vault, "70-issues", "a.md"),
-		"type: issue\nid: a\nstatus: open\n")
+		"type: issue\nid: a\nstatus: open\nmilestone: \"[[milestone.m1]]\"\n")
 
 	db, err := Open(DBPath(vault))
 	if err != nil {
@@ -69,5 +71,19 @@ func TestReindexIsIdempotent(t *testing.T) {
 	}
 	if stats.Artifacts != 1 {
 		t.Fatalf("artifacts: got %d want 1", stats.Artifacts)
+	}
+	if stats.Links != 1 {
+		t.Fatalf("links: got %d want 1 (second reindex should not duplicate)", stats.Links)
+	}
+	// Belt-and-braces: count the rows directly, not just the stats counter.
+	var artifactRows, linkRows int
+	if err := db.sql.QueryRow(`SELECT COUNT(*) FROM artifacts`).Scan(&artifactRows); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.sql.QueryRow(`SELECT COUNT(*) FROM links`).Scan(&linkRows); err != nil {
+		t.Fatal(err)
+	}
+	if artifactRows != 1 || linkRows != 1 {
+		t.Errorf("rows after second reindex: artifacts=%d links=%d, want 1/1", artifactRows, linkRows)
 	}
 }
