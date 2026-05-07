@@ -126,10 +126,13 @@ func Build(ctx context.Context, p *core.Plan, opts Options) (*Summary, error) {
 			waveNum := w
 			g.Go(func() error {
 				oc := dispatchTask(ctx, task, waveNum, opts)
+				// Hold mu across the JSON write so concurrent records can't
+				// interleave on opts.Stdout. Encode is microseconds; the LLM
+				// call is the parallel work, so contention here is noise.
 				mu.Lock()
 				sum.Outcomes[task.ID] = oc
-				mu.Unlock()
 				emitJSONRecord(opts, oc)
+				mu.Unlock()
 				return nil // never error → no auto-cancel of siblings
 			})
 		}

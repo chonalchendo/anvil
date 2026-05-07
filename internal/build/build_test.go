@@ -436,3 +436,56 @@ func TestBuild_Summary_PrintedOnQuotaExhausted(t *testing.T) {
 		t.Errorf("stderr missing cost; got %q", got)
 	}
 }
+
+// concurrencyDetectingWriter records the maximum number of in-flight Write
+// calls. Used to verify emitJSONRecord writes are serialized.
+type concurrencyDetectingWriter struct {
+	hold     time.Duration
+	inflight atomic.Int32
+	max      atomic.Int32
+}
+
+func (c *concurrencyDetectingWriter) Write(p []byte) (int, error) {
+	cur := c.inflight.Add(1)
+	defer c.inflight.Add(-1)
+	for {
+		old := c.max.Load()
+		if cur <= old || c.max.CompareAndSwap(old, cur) {
+			break
+		}
+	}
+	if c.hold > 0 {
+		time.Sleep(c.hold)
+	}
+	return len(p), nil
+}
+
+func TestBuild_JSONRecord_WritesAreSerialized(t *testing.T) {
+	plan := &core.Plan{
+		ID: "anvil.fanout", Slug: "fanout", Status: "ready",
+		Tasks: []core.Task{
+			{ID: "T1", Title: "a", Model: "claude-sonnet-4-6", Body: "a", Verify: "true"},
+			{ID: "T2", Title: "b", Model: "claude-sonnet-4-6", Body: "b", Verify: "true"},
+			{ID: "T3", Title: "c", Model: "claude-sonnet-4-6", Body: "c", Verify: "true"},
+			{ID: "T4", Title: "d", Model: "claude-sonnet-4-6", Body: "d", Verify: "true"},
+		},
+	}
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
+		"a": {hold: 5 * time.Millisecond},
+		"b": {hold: 5 * time.Millisecond},
+		"c": {hold: 5 * time.Millisecond},
+		"d": {hold: 5 * time.Millisecond},
+	}}
+	stdout := &concurrencyDetectingWriter{hold: 2 * time.Millisecond}
+	opts := Options{
+		Concurrency: 4, Cwd: t.TempDir(), JSON: true,
+		Stdout: stdout, Stderr: io.Discard,
+		Router: Router{"claude-": fa},
+	}
+	if _, err := Build(context.Background(), plan, opts); err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if got := stdout.max.Load(); got > 1 {
+		t.Errorf("max concurrent writes to stdout = %d, want 1 (records must not interleave)", got)
+	}
+}
