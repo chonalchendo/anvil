@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/chonalchendo/anvil/internal/build"
@@ -70,9 +71,14 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 	cmd := exec.CommandContext(runCtx, bin, args...)
 	cmd.Dir = req.Cwd
 	cmd.Env = append(os.Environ(), "CLAUDE_CONFIG_DIR="+cfgDir)
-	// Per go-conventions.md: cmd.Cancel + WaitDelay for graceful-then-forceful
-	// shutdown when ctx is cancelled.
-	cmd.Cancel = func() error { return cmd.Process.Signal(os.Interrupt) }
+	// Setpgid puts the child and all its descendants in a new process group so
+	// cancellation kills the whole tree (e.g. a `sleep` spawned by the shim),
+	// not just the top-level shell. Per go-conventions.md: cmd.Cancel +
+	// WaitDelay for graceful-then-forceful shutdown when ctx is cancelled.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGINT)
+	}
 	cmd.WaitDelay = 5 * time.Second
 
 	stdin, err := cmd.StdinPipe()
@@ -102,14 +108,20 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 
 	// Drain stderr to a buffer for diagnostics; quota detection doesn't
 	// depend on it (the result event carries the message), but it surfaces
-	// useful errors when the spawn itself fails.
+	// useful errors when the spawn itself fails. stderrDone is closed when
+	// the goroutine finishes so the post-Wait read of stderrBuf is race-free.
 	var stderrBuf strings.Builder
-	go func() { _, _ = io.Copy(&stderrBuf, stderr) }()
+	stderrDone := make(chan struct{})
+	go func() {
+		defer close(stderrDone)
+		_, _ = io.Copy(&stderrBuf, stderr)
+	}()
 
 	res, quotaSeen := scanStdout(stdout)
 
 	waitErr := cmd.Wait()
 	res.Duration = time.Since(start)
+	<-stderrDone // goroutine finished; stderrBuf safe to read
 	if exitErr := (*exec.ExitError)(nil); errors.As(waitErr, &exitErr) {
 		res.ExitCode = exitErr.ExitCode()
 	} else if waitErr != nil {
