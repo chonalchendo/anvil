@@ -32,6 +32,7 @@ type Task struct {
 	Files           []string
 	DependsOn       []string
 	SkillsToLoad    []string
+	ContextToLoad   []string
 	Verify          string
 	SuccessCriteria []string
 	Body            string
@@ -72,6 +73,7 @@ func LoadPlan(path string) (*Plan, error) {
 			Files           []string `yaml:"files"`
 			DependsOn       []string `yaml:"depends_on"`
 			SkillsToLoad    []string `yaml:"skills_to_load"`
+			ContextToLoad   []string `yaml:"context_to_load"`
 			Verify          string   `yaml:"verify"`
 			SuccessCriteria []string `yaml:"success_criteria"`
 		} `yaml:"tasks"`
@@ -96,11 +98,16 @@ func LoadPlan(path string) (*Plan, error) {
 	}
 	bodies := sliceTaskBodies(a.Body)
 	for _, t := range typed.Tasks {
+		effort := t.Effort
+		if effort == "" {
+			effort = "medium"
+		}
 		p.Tasks = append(p.Tasks, Task{
 			ID: t.ID, Title: t.Title, Kind: t.Kind,
-			Model: t.Model, Effort: t.Effort,
+			Model: t.Model, Effort: effort,
 			Files: t.Files, DependsOn: t.DependsOn,
-			SkillsToLoad: t.SkillsToLoad, Verify: t.Verify,
+			SkillsToLoad: t.SkillsToLoad, ContextToLoad: t.ContextToLoad,
+			Verify:          t.Verify,
 			SuccessCriteria: t.SuccessCriteria,
 			Body:            bodies[t.ID],
 		})

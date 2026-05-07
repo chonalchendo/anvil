@@ -125,3 +125,105 @@ tasks:
 		t.Errorf("got Model=%q Effort=%q", p.Tasks[0].Model, p.Tasks[0].Effort)
 	}
 }
+
+func TestLoadPlan_ParsesContextToLoad(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "x.md")
+	body := `---
+type: plan
+id: anvil.x
+slug: x
+title: x
+created: 2026-05-07
+updated: 2026-05-07
+status: draft
+plan_version: 1
+issue: "[[issue.anvil.x]]"
+tasks:
+  - id: T1
+    title: x
+    kind: tdd
+    files: [a.go]
+    depends_on: []
+    skills_to_load: [tdd, code-review]
+    context_to_load:
+      - docs/code-design.md
+      - docs/go-conventions.md
+    verify: "go test ./..."
+---
+
+## Task: T1
+
+` + strings.Repeat("body. ", 60) + `
+`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := LoadPlan(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotSkills := p.Tasks[0].SkillsToLoad
+	wantSkills := []string{"tdd", "code-review"}
+	if len(gotSkills) != len(wantSkills) || gotSkills[0] != wantSkills[0] || gotSkills[1] != wantSkills[1] {
+		t.Errorf("SkillsToLoad = %v, want %v", gotSkills, wantSkills)
+	}
+	gotCtx := p.Tasks[0].ContextToLoad
+	wantCtx := []string{"docs/code-design.md", "docs/go-conventions.md"}
+	if len(gotCtx) != len(wantCtx) || gotCtx[0] != wantCtx[0] || gotCtx[1] != wantCtx[1] {
+		t.Errorf("ContextToLoad = %v, want %v", gotCtx, wantCtx)
+	}
+}
+
+func TestLoadPlan_DefaultsEffortToMedium(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "x.md")
+	// effort: omitted; loader should default to "medium".
+	body := `---
+type: plan
+id: anvil.x
+slug: x
+title: x
+created: 2026-05-07
+updated: 2026-05-07
+status: draft
+plan_version: 1
+issue: "[[issue.anvil.x]]"
+tasks:
+  - id: T1
+    title: x
+    kind: tdd
+    files: [a.go]
+    depends_on: []
+    verify: "go test ./..."
+  - id: T2
+    title: y
+    kind: tdd
+    effort: high
+    files: [b.go]
+    depends_on: []
+    verify: "go test ./..."
+---
+
+## Task: T1
+
+` + strings.Repeat("body. ", 60) + `
+
+## Task: T2
+
+` + strings.Repeat("body. ", 60) + `
+`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	p, err := LoadPlan(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := p.Tasks[0].Effort; got != "medium" {
+		t.Errorf("T1 Effort = %q, want %q (default)", got, "medium")
+	}
+	if got := p.Tasks[1].Effort; got != "high" {
+		t.Errorf("T2 Effort = %q, want %q (explicit)", got, "high")
+	}
+}
