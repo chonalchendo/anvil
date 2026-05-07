@@ -71,6 +71,7 @@ type jsonRecord struct {
 	Outcome    string `json:"outcome,omitempty"`
 	Status     string `json:"status,omitempty"` // "skipped_dry_run" — distinct from outcome enum
 	DurationMS int64  `json:"duration_ms"`
+	Diagnostic string `json:"diagnostic,omitempty"`
 }
 
 // Build walks plan.Waves(), dispatching each task through a routed adapter
@@ -198,6 +199,9 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 	oc.Duration = res.Duration
 	oc.Outcome = classify(ctx, res, err)
 	oc.Err = err
+	if oc.Outcome != "success" && oc.Outcome != "skipped_dry_run" && oc.Result.Diagnostic != "" {
+		fmt.Fprintf(opts.Stderr, "task %s [%s]: %s\n", oc.TaskID, oc.Outcome, oc.Result.Diagnostic)
+	}
 	return oc
 }
 
@@ -253,6 +257,7 @@ func emitJSONRecord(opts Options, oc TaskOutcome) {
 		Model:      oc.Model,
 		Effort:     oc.Effort,
 		DurationMS: oc.Duration.Milliseconds(),
+		Diagnostic: oc.Result.Diagnostic,
 	}
 	if oc.Outcome == "skipped_dry_run" {
 		rec.Status = oc.Outcome
