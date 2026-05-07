@@ -154,9 +154,6 @@ func newSetCmd() *cobra.Command {
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("saving artifact: %w", err)
 			}
-			if err := indexAfterSave(v, a); err != nil {
-				return fmt.Errorf("indexing %s: %w", args[1], err)
-			}
 
 			if t == core.TypePlan && field == "status" && len(values) == 1 && values[0] == "locked" {
 				p, lerr := core.LoadPlan(a.Path)
@@ -172,6 +169,9 @@ func newSetCmd() *cobra.Command {
 					_ = a.Save()
 					return verr
 				}
+			}
+			if err := indexAfterSave(v, a); err != nil {
+				return fmt.Errorf("indexing %s: %w", args[1], err)
 			}
 			return nil
 		},

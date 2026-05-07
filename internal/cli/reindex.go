@@ -39,7 +39,7 @@ func newReindexCmd() *cobra.Command {
 				fmt.Fprintln(cmd.OutOrStdout(), string(b))
 				return nil
 			}
-			cmd.Println(fmt.Sprintf("reindexed: %d artifacts, %d links (%dms)", stats.Artifacts, stats.Links, stats.DurationMS))
+			fmt.Fprintf(cmd.OutOrStdout(), "reindexed: %d artifacts, %d links (%dms)\n", stats.Artifacts, stats.Links, stats.DurationMS)
 			return nil
 		},
 	}

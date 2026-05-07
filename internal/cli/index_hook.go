@@ -21,7 +21,9 @@ func indexAfterSave(v *core.Vault, a *core.Artifact) error {
 	}
 	defer db.Close()
 
-	if err := db.CheckFreshness(v.Root); err != nil {
+	// Skip the file we just wrote — its mtime is by definition newer than
+	// the previous stamp, but it's a write we initiated, not external drift.
+	if err := db.CheckFreshnessExcept(v.Root, a.Path); err != nil {
 		switch {
 		case errors.Is(err, index.ErrLastReindexUnset):
 			if _, err := db.Reindex(v.Root); err != nil {

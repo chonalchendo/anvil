@@ -53,7 +53,7 @@ func newLinkCmd() *cobra.Command {
 			if err := indexAfterSave(v, a); err != nil {
 				return err
 			}
-			cmd.Println(fmt.Sprintf("linked %s.%s → %s.%s", src, srcID, tgt, tgtID))
+			fmt.Fprintf(cmd.OutOrStdout(), "linked %s.%s → %s.%s\n", src, srcID, tgt, tgtID)
 			return nil
 		},
 	}
@@ -73,7 +73,17 @@ type linkRowOut struct {
 }
 
 func runLinkQuery(cmd *cobra.Command, fromID, toID string, unresolved, asJSON bool) error {
-	if (boolToInt(fromID != "") + boolToInt(toID != "") + boolToInt(unresolved)) > 1 {
+	count := 0
+	if fromID != "" {
+		count++
+	}
+	if toID != "" {
+		count++
+	}
+	if unresolved {
+		count++
+	}
+	if count > 1 {
 		return fmt.Errorf("--from, --to, --unresolved are mutually exclusive")
 	}
 	v, err := core.ResolveVault()
@@ -116,14 +126,8 @@ func runLinkQuery(cmd *cobra.Command, fromID, toID string, unresolved, asJSON bo
 		return nil
 	}
 	for _, r := range out {
-		cmd.Println(fmt.Sprintf("%s %s -> %s", r.Relation, r.Source, r.Target))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s -> %s\n", r.Relation, r.Source, r.Target)
 	}
 	return nil
 }
 
-func boolToInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
-}

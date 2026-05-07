@@ -143,6 +143,15 @@ func TestList_Learning_MultiTagAllOf(t *testing.T) {
 		if err := a.Save(); err != nil {
 			t.Fatal(err)
 		}
+		// Direct .Save() bypasses indexAfterSave; refresh the stamp so the
+		// next create's freshness check doesn't see this file as drift.
+		reindexCmd := newRootCmd()
+		reindexCmd.SetArgs([]string{"reindex"})
+		reindexCmd.SetOut(&bytes.Buffer{})
+		reindexCmd.SetErr(&bytes.Buffer{})
+		if err := reindexCmd.Execute(); err != nil {
+			t.Fatalf("reindex after direct save: %v", err)
+		}
 	}
 
 	mustCreateLearning("alpha",
@@ -189,6 +198,13 @@ func TestList_Learning_DiataxisAndConfidence(t *testing.T) {
 		a.FrontMatter["confidence"] = confidence
 		if err := a.Save(); err != nil {
 			t.Fatal(err)
+		}
+		reindexCmd := newRootCmd()
+		reindexCmd.SetArgs([]string{"reindex"})
+		reindexCmd.SetOut(&bytes.Buffer{})
+		reindexCmd.SetErr(&bytes.Buffer{})
+		if err := reindexCmd.Execute(); err != nil {
+			t.Fatalf("reindex after direct save: %v", err)
 		}
 	}
 

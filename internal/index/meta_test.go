@@ -76,3 +76,44 @@ func TestCheckFreshnessOKWhenDBNewer(t *testing.T) {
 		t.Fatalf("CheckFreshness: %v", err)
 	}
 }
+
+// In-place file edits don't bump the parent directory's mtime on APFS/ext4,
+// so the freshness check has to inspect file mtimes directly.
+func TestCheckFreshnessReturnsErrIndexStaleWhenExistingFileEdited(t *testing.T) {
+	vault := t.TempDir()
+	old := time.Now().Add(-1 * time.Hour)
+	if err := os.WriteFile(filepath.Join(vault, "a.md"), []byte("v1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(filepath.Join(vault, "a.md"), old, old); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(vault, old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	dbPath := filepath.Join(vault, ".anvil", "vault.db")
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := db.SetLastReindex(time.Now().Add(-30 * time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Edit the existing file (content change) without touching the vault dir
+	// directly, then explicitly hold the dir mtime steady to simulate the
+	// APFS/ext4 behaviour where a content-only edit doesn't propagate.
+	if err := os.WriteFile(filepath.Join(vault, "a.md"), []byte("v2 longer content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(vault, old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	err = db.CheckFreshness(vault)
+	if !errors.Is(err, ErrIndexStale) {
+		t.Fatalf("expected ErrIndexStale on in-place edit, got %v", err)
+	}
+}

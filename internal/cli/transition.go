@@ -51,9 +51,10 @@ func newTransitionCmd() *cobra.Command {
 				return printAndReturn(cmd, e)
 			}
 
+			flagValues := map[string]string{"owner": owner, "reason": reason}
 			for _, flag := range tr.Requires {
-				if flag == "owner" && owner == "" {
-					return printAndReturn(cmd, errfmt.NewTransitionFlagRequired(string(t), id, from, to, "owner"))
+				if flagValues[flag] == "" {
+					return printAndReturn(cmd, errfmt.NewTransitionFlagRequired(string(t), id, from, to, flag))
 				}
 			}
 			if tr.Reverse && reason == "" {
@@ -110,10 +111,10 @@ func emitTransitionJSON(cmd *cobra.Command, asJSON bool, r transitionResult) err
 		return nil
 	}
 	if r.Status == "already_in_state" {
-		cmd.Println(fmt.Sprintf("%s already in state %s", r.ID, r.To))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s already in state %s\n", r.ID, r.To)
 		return nil
 	}
-	cmd.Println(fmt.Sprintf("%s: %s → %s", r.ID, r.From, r.To))
+	fmt.Fprintf(cmd.OutOrStdout(), "%s: %s → %s\n", r.ID, r.From, r.To)
 	return nil
 }
 
