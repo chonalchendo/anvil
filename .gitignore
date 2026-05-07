@@ -22,3 +22,6 @@ docs/implementation_plan.md
 
 # Git worktrees
 .worktrees/
+
+# Claude Code local state (worktrees, scheduled-task lock, etc.)
+.claude/
