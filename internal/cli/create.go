@@ -224,8 +224,11 @@ func newCreateCmd() *cobra.Command {
 						return fmt.Errorf("saving artifact: %w", err)
 					}
 					if err := indexAfterSave(v, a); err != nil {
-						_ = os.WriteFile(path, originalBytes, 0o644)
-						return fmt.Errorf("indexing %s: %w", id, err)
+						indexErr := fmt.Errorf("indexing %s: %w", id, err)
+						if werr := os.WriteFile(path, originalBytes, 0o644); werr != nil {
+							return errors.Join(indexErr, fmt.Errorf("rolling back %s to prior contents: %w", path, werr))
+						}
+						return indexErr
 					}
 					return emitCreateResult(cmd, flagJSON, id, path, statusUpdated, nil)
 				} else if !errors.Is(err, fs.ErrNotExist) {
@@ -254,8 +257,11 @@ func newCreateCmd() *cobra.Command {
 			}
 
 			if err := indexAfterSave(v, a); err != nil {
-				_ = os.Remove(path)
-				return fmt.Errorf("indexing %s: %w", id, err)
+				indexErr := fmt.Errorf("indexing %s: %w", id, err)
+				if rerr := os.Remove(path); rerr != nil {
+					return errors.Join(indexErr, fmt.Errorf("rolling back: removing %s: %w", path, rerr))
+				}
+				return indexErr
 			}
 			var warnings []string
 			if !flagForceNew {

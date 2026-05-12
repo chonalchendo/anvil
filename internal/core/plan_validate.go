@@ -71,9 +71,10 @@ func ValidatePlan(p *Plan) error {
 		if v == "" {
 			return fmt.Errorf("%w: task %s has empty verify", ErrPlanTDD, t.ID)
 		}
-		if noopVerifies[v] {
+		canon := strings.Join(strings.Fields(v), " ")
+		if noopVerifies[canon] {
 			return fmt.Errorf("%w: task %s verify %q is a no-op (always exits 0 without testing)",
-				ErrPlanTDD, t.ID, v)
+				ErrPlanTDD, t.ID, t.Verify)
 		}
 	}
 

@@ -168,6 +168,16 @@ func TestTransitionPlanToLocked_RejectsPlaceholderPlan(t *testing.T) {
 	if a.FrontMatter["status"] != "draft" {
 		t.Errorf("status = %v, want draft", a.FrontMatter["status"])
 	}
+
+	// Index must reflect the same draft state — guards against a future
+	// reorder that writes the index before validation.
+	row, ierr := openIndex(t, vault).GetArtifact("demo.p")
+	if ierr != nil {
+		t.Fatalf("loading index row: %v", ierr)
+	}
+	if row.Status != "draft" {
+		t.Errorf("index status = %q, want draft", row.Status)
+	}
 }
 
 func TestTransitionPlanToLocked_AcceptsRealVerify(t *testing.T) {
