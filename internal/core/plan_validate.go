@@ -11,6 +11,20 @@ import (
 
 const taskBodyMinLen = 200
 
+// noopVerifies are verify commands that exit zero without testing anything.
+// A plan whose verify is in this set evades the TDD Iron Law on paper.
+var noopVerifies = map[string]bool{
+	"true":           true,
+	"false":          true,
+	":":              true,
+	"exit":           true,
+	"exit 0":         true,
+	"/bin/true":      true,
+	"/bin/false":     true,
+	"/usr/bin/true":  true,
+	"/usr/bin/false": true,
+}
+
 // ErrPlanDAG signals a graph-level problem: cycle, dangling dep, file conflict,
 // or invalid file path. Maps to CLI exit code 2.
 var ErrPlanDAG = errors.New("plan dag invalid")
@@ -53,8 +67,13 @@ func ValidatePlan(p *Plan) error {
 	}
 
 	for _, t := range p.Tasks {
-		if strings.TrimSpace(t.Verify) == "" {
+		v := strings.TrimSpace(t.Verify)
+		if v == "" {
 			return fmt.Errorf("%w: task %s has empty verify", ErrPlanTDD, t.ID)
+		}
+		if noopVerifies[v] {
+			return fmt.Errorf("%w: task %s verify %q is a no-op (always exits 0 without testing)",
+				ErrPlanTDD, t.ID, v)
 		}
 	}
 

@@ -61,6 +61,16 @@ func newTransitionCmd() *cobra.Command {
 				return printAndReturn(cmd, errfmt.NewTransitionFlagRequired(string(t), id, from, to, "reason"))
 			}
 
+			if t == core.TypePlan && to == "locked" {
+				p, lerr := core.LoadPlan(path)
+				if lerr != nil {
+					return fmt.Errorf("plan validator: %w", lerr)
+				}
+				if verr := core.ValidatePlan(p); verr != nil {
+					return fmt.Errorf("plan validator: %w", verr)
+				}
+			}
+
 			a.FrontMatter["status"] = to
 			if owner != "" {
 				a.FrontMatter["owner"] = owner

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/chonalchendo/anvil/internal/core"
 )
 
 func createDemoIssue(t *testing.T) {
@@ -127,6 +129,105 @@ func TestTransitionOwnerSurvivesValidate(t *testing.T) {
 	cmd.SetErr(&out)
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("validate failed after transition --owner: %v\noutput: %s", err, out.String())
+	}
+}
+
+func TestTransitionPlanToLocked_RejectsPlaceholderPlan(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	t.Setenv("HOME", t.TempDir())
+	execCmd(t, "init", vault)
+	repo := setupGitRepo(t, "git@github.com:acme/demo.git")
+	t.Chdir(repo)
+
+	execCmd(t, "create", "issue", "--title", "I", "--description", "d",
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
+	execCmd(t, "create", "plan", "--title", "P", "--description", "d",
+		"--issue", "[[issue.demo.i]]", "--tags", "domain/dev-tools",
+		"--allow-new-facet=domain")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "plan", "demo.p", "locked"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected plan validator to reject placeholder; output: %s", out.String())
+	}
+	msg := err.Error() + out.String()
+	if !strings.Contains(msg, "no-op") {
+		t.Errorf("expected no-op-verify diagnostic, got: %s", msg)
+	}
+
+	// File status should still be draft (transition aborted).
+	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "demo.p.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.FrontMatter["status"] != "draft" {
+		t.Errorf("status = %v, want draft", a.FrontMatter["status"])
+	}
+}
+
+func TestTransitionPlanToLocked_AcceptsRealVerify(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	t.Setenv("HOME", t.TempDir())
+	execCmd(t, "init", vault)
+	repo := setupGitRepo(t, "git@github.com:acme/demo.git")
+	t.Chdir(repo)
+
+	execCmd(t, "create", "issue", "--title", "I", "--description", "d",
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
+	execCmd(t, "create", "plan", "--title", "P", "--description", "d",
+		"--issue", "[[issue.demo.i]]", "--tags", "domain/dev-tools",
+		"--allow-new-facet=domain")
+
+	// Rewrite the plan with a real verify and well-formed task body.
+	planPath := filepath.Join(vault, "80-plans", "demo.p.md")
+	realPlan := `---
+type: plan
+id: demo.p
+slug: p
+title: "P"
+description: "d"
+created: 2026-05-12
+updated: 2026-05-12
+status: draft
+plan_version: 1
+issue: "[[issue.demo.i]]"
+tags: [domain/dev-tools]
+project: demo
+tasks:
+  - id: T1
+    title: "Real task"
+    kind: tdd
+    files: ["a.go", "a_test.go"]
+    depends_on: []
+    verify: "go test ./..."
+    success_criteria: []
+---
+
+## Task: T1
+
+Real task body. This body has to be at least 200 characters long for the plan
+validator to accept it, so we write a few sentences explaining the work the
+agent would do. Add the type in a.go, RED test in a_test.go, run verify.
+`
+	if err := os.WriteFile(planPath, []byte(realPlan), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	execCmd(t, "reindex")
+
+	execCmd(t, "transition", "plan", "demo.p", "locked")
+
+	a, err := core.LoadArtifact(planPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.FrontMatter["status"] != "locked" {
+		t.Errorf("status = %v, want locked", a.FrontMatter["status"])
 	}
 }
 

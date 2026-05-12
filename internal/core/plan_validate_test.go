@@ -51,6 +51,24 @@ func TestValidatePlan_EmptyVerify(t *testing.T) {
 	}
 }
 
+func TestValidatePlan_NoopVerify_Rejected(t *testing.T) {
+	for _, noop := range []string{"true", "false", ":", "exit 0", "/bin/true", "/usr/bin/false"} {
+		t.Run(noop, func(t *testing.T) {
+			body := strings.Replace(planFixture,
+				"verify: \"go test ./...\"",
+				"verify: \""+noop+"\"", 1)
+			p, err := LoadPlan(writePlanFile(t, body))
+			if err != nil {
+				t.Fatalf("LoadPlan: %v", err)
+			}
+			err = ValidatePlan(p)
+			if !errors.Is(err, ErrPlanTDD) {
+				t.Errorf("err = %v, want ErrPlanTDD for no-op verify %q", err, noop)
+			}
+		})
+	}
+}
+
 func TestValidatePlan_MissingBodySection(t *testing.T) {
 	body := strings.Split(planFixture, "## Task: T2")[0]
 	err := ValidatePlan(mustLoad(t, body))
