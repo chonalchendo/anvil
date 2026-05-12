@@ -74,6 +74,7 @@ Anvil is its own primary user. Friction surfaced while working on this repo goes
 - Knowledge-base friction. The vault must work as a connected knowledge base, not an issue tracker with extra directories. A relevant learning unreachable via the graph is a vault-as-KB issue.
 - Suggest cuts as you go — for each verb, flag, schema field, body template, ask *load-bearing or routable-around?* Phase C cull rides on this evidence.
 - Don't fix-and-forget. A fix without a captured trace is a trap for the next maintainer.
+- **No structural PR without a vault antecedent.** Structural change = touches `AGENTS.md`, `docs/`, `.claude/`, `internal/schema/`, or adds a new top-level dir. The PR description must reference an issue or inbox id; author the issue mid-session before opening the PR if it doesn't exist. Bug fixes, dep bumps, and typo-only docs PRs exempted.
 
 Friction must square against `@docs/product-design.md`, `@docs/system-design.md`, `@docs/system-design/roadmap.md` — roadmap-tracked items reference the existing entry.
 
