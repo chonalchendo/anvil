@@ -104,26 +104,18 @@ func splitTags(raw []string) []string {
 }
 
 func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJSON bool, limit int) error {
-	dir := filepath.Join(v.Root, t.Dir())
-	entries, err := os.ReadDir(dir)
+	paths, err := collectArtifactPaths(v.Root, t)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return emitList(cmd, nil, 0, asJSON)
-		}
-		return fmt.Errorf("reading %s: %w", dir, err)
+		return err
 	}
 
 	var items []listItem
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		path := filepath.Join(dir, e.Name())
+	for _, path := range paths {
 		a, err := core.LoadArtifact(path)
 		if err != nil {
-			return fmt.Errorf("loading %s: %w", e.Name(), err)
+			return fmt.Errorf("loading %s: %w", filepath.Base(path), err)
 		}
-		id := strings.TrimSuffix(e.Name(), ".md")
+		id := listIDFor(t, path)
 
 		status, _ := a.FrontMatter["status"].(string)
 		project, _ := a.FrontMatter["project"].(string)
@@ -274,6 +266,61 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 		})
 	}
 	return emitList(cmd, items, len(items), asJSON)
+}
+
+// collectArtifactPaths returns absolute paths of artifacts of type t under
+// vaultRoot. Singletons (product-design, system-design) live one directory
+// deeper at 05-projects/<project>/<type>.md and are discovered by walking;
+// every other type is a flat <Dir>/<id>.md layout.
+func collectArtifactPaths(vaultRoot string, t core.Type) ([]string, error) {
+	dir := filepath.Join(vaultRoot, t.Dir())
+	if t.AllocatesID() {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil, nil
+			}
+			return nil, fmt.Errorf("reading %s: %w", dir, err)
+		}
+		var out []string
+		for _, e := range entries {
+			if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+				continue
+			}
+			out = append(out, filepath.Join(dir, e.Name()))
+		}
+		return out, nil
+	}
+	// Singleton: 05-projects/<project>/<type>.md
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("reading %s: %w", dir, err)
+	}
+	leaf := string(t) + ".md"
+	var out []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		p := filepath.Join(dir, e.Name(), leaf)
+		if _, err := os.Stat(p); err == nil {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
+// listIDFor returns the id surfaced in list output. For singletons the id is
+// the project slug (the parent dir name); for other types it is the filename
+// stem.
+func listIDFor(t core.Type, path string) string {
+	if !t.AllocatesID() {
+		return filepath.Base(filepath.Dir(path))
+	}
+	return strings.TrimSuffix(filepath.Base(path), ".md")
 }
 
 // hasAllTags reports whether tags contains every element of want (exact match).

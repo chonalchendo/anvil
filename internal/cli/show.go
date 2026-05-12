@@ -64,7 +64,7 @@ type showOutput struct {
 }
 
 func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, full bool) error {
-	path := filepath.Join(v.Root, t.Dir(), id+".md")
+	path := resolveArtifactPath(v.Root, t, id)
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -110,6 +110,17 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, 
 		fmt.Fprint(w, *out.Body)
 	}
 	return nil
+}
+
+// resolveArtifactPath maps a CLI (type, id) pair to its on-disk path.
+// Singletons accept either the bare project slug or the qualified
+// "<type>.<project>" wikilink form; non-singletons compose <Dir>/<id>.md.
+func resolveArtifactPath(vaultRoot string, t core.Type, id string) string {
+	if t.AllocatesID() {
+		return filepath.Join(vaultRoot, t.Dir(), id+".md")
+	}
+	project := strings.TrimPrefix(id, string(t)+".")
+	return filepath.Join(vaultRoot, t.Dir(), project, string(t)+".md")
 }
 
 func emitFrontMatterText(cmd *cobra.Command, fm map[string]any) {

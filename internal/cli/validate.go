@@ -72,19 +72,12 @@ func newValidateCmd() *cobra.Command {
 				failures = validateOne(t, singleFile, known)
 			} else {
 				for _, t := range core.AllTypes {
-					dir := filepath.Join(root, t.Dir())
-					entries, err := os.ReadDir(dir)
+					paths, err := collectArtifactPaths(root, t)
 					if err != nil {
-						if os.IsNotExist(err) {
-							continue
-						}
-						return fmt.Errorf("read %s: %w", dir, err)
+						return err
 					}
-					for _, e := range entries {
-						if filepath.Ext(e.Name()) != ".md" {
-							continue
-						}
-						failures = append(failures, validateOne(t, filepath.Join(dir, e.Name()), known)...)
+					for _, p := range paths {
+						failures = append(failures, validateOne(t, p, known)...)
 					}
 				}
 			}

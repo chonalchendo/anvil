@@ -72,6 +72,7 @@ func newCreateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create <type>",
 		Short: "Create a new vault artifact",
+		Long:  createLongDescription(),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t, err := core.ParseType(args[0])
@@ -302,6 +303,14 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet to suppress novelty gate for (repeatable: domain|activity|pattern)")
 
 	return cmd
+}
+
+func createLongDescription() string {
+	names := make([]string, 0, len(core.AllTypes))
+	for _, t := range core.AllTypes {
+		names = append(names, string(t))
+	}
+	return "Create a new vault artifact.\n\nSupported types: " + strings.Join(names, ", ")
 }
 
 func runCreateSession(cmd *cobra.Command, v *core.Vault, sessionID, source, startedAt, activeThread string, asJSON, update bool) error {
