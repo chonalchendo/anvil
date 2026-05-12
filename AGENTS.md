@@ -1,157 +1,96 @@
 # Anvil — Agent Conventions
 
-Anvil is a methodology for AI-assisted development packaged as auto-loading SKILL.md files with a thin Go orchestrator. The product vision lives in `@docs/product-design.md`; the architectural design lives in `@docs/system-design.md`. Read both before making structural decisions.
+Anvil is a methodology for AI-assisted development packaged as auto-loading SKILL.md files with a thin Go orchestrator. Product vision: `@docs/product-design.md`; system design: `@docs/system-design.md`.
 
-This file is an index. Per-turn rules live below; everything else is in `docs/` and loads on demand.
+This file is an index — per-turn rules below; everything else loads on demand from `docs/`.
 
 ## Context Is Scarce
 
-Anvil's outputs — schemas, skill bodies, AGENTS.md content, vault docs — all compete for the agent's context budget at runtime. Tokens spent on incidental prose are tokens unavailable for the actual work. Design lean.
-
-The default is to cut. A field, section, or skill paragraph earns its place only if it is **load-bearing for an agent decision or a CLI/index query**. If a reader could derive it from neighbouring content, infer it from a wikilink, or read it later as body prose, it doesn't belong in the always-on layer.
-
-Apply the test before adding anything: *is this load-bearing for an agent decision or a CLI query, or could it live in body prose?* If the answer is "could live in prose," put it there. The principle was crystallised in `docs/superpowers/specs/2026-05-01-vault-schemas-redesign-design.md` (rule 3, frontmatter); the same logic applies to this file.
+Schemas, skill bodies, AGENTS.md, vault docs all compete for runtime context budget. A field, section, or rule earns its place only if **load-bearing for an agent decision or a CLI/index query**. If it could live in body prose, it doesn't belong in the always-on layer.
 
 ## Hard Rules
 
 - **No helper without a second use.** Don't extract until duplication exists.
 - **No abstraction without need.** Premature abstraction creates surface that costs more than it saves.
 - **No defensive code for unreachable states.** If a precondition is invariant, document it; don't check it at runtime.
-- **No comments explaining *what*.** Comments explain *why* the code is shaped this way, never restate what the code does.
-- **No `fmt.Println` for control flow output.** CLI output goes through cobra's `cmd.Println` / `cmd.PrintErrln` (which respect output redirection); structured logging goes through `log/slog`.
+- **No comments explaining *what*.** Comments explain *why* the code is shaped this way.
+- **No `fmt.Println` for control flow output.** CLI output goes through cobra's `cmd.Println` / `cmd.PrintErrln`; structured logging through `log/slog`.
 - **No new top-level dependencies without explicit user approval.**
-- **No whole-file `Read` of files >150 lines without grepping first.** Grep for the symbol or string you actually need, then `Read` with `offset`/`limit` around the match. Reading is the highest per-token cost in this repo; full-file reads earn their place. Detail in [Reading Discipline](docs/guardrails.md#reading-discipline).
+- **No whole-file `Read` of files >150 lines without grepping first.** Grep for the symbol you need, then `Read` with `offset`/`limit`. See [Reading Discipline](docs/guardrails.md#reading-discipline).
 
-If you write 200 lines and it could be 50, rewrite it. Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+Ask: "Would a senior engineer call this overcomplicated?" If yes, simplify.
 
 ## Worktrees and PRs (non-negotiable)
 
-Every task runs in a worktree and lands via PR. Never `git checkout -b` or commit directly on `master` in the main clone — parallel sessions collide on the same checkout, CodeRabbit gets no review pass, and `master` accumulates work no second pair of eyes ever saw.
+Every task runs in a worktree and lands via PR. Never `git checkout -b` or commit directly on `master` — parallel sessions collide, CodeRabbit gets no review pass, work accumulates unreviewed.
 
 ```bash
 git -C ~/Development/anvil worktree add ~/Development/anvil-worktrees/<slug> -b anvil/<slug>
 cd ~/Development/anvil-worktrees/<slug>
 ```
 
-After the PR merges: `git -C ~/Development/anvil worktree remove ~/Development/anvil-worktrees/<slug>`.
+After merge: `git -C ~/Development/anvil worktree remove ~/Development/anvil-worktrees/<slug>`.
 
-Workflow per task:
-
-1. Cut the worktree on a fresh branch named `anvil/<slug>`.
-2. Implement + commit on that branch.
-3. Pass the smoke-test gate (below) before opening the PR.
-4. `gh pr create` — wait for CodeRabbit's review pass and user approval before merging. CodeRabbit catches the class of bugs unit tests miss (broken commands in error hints, schema-inconsistent JSON, surprising empty fields) — it is part of the verification budget, not optional polish.
-5. Remove the worktree after merge.
-
-No exceptions for "small" or "obvious" changes. Skipping the PR step removes the only independent review surface this repo has.
+Workflow: cut worktree → implement + commit → pass smoke-test gate → `gh pr create` → wait for CodeRabbit + user approval → remove worktree after merge. CodeRabbit catches what unit tests miss (broken commands in error hints, schema-inconsistent JSON, surprising empty fields) — part of the verification budget, not optional. No exceptions for "small" changes.
 
 ## Smoke-Test Before Resolved (non-negotiable)
 
-Unit tests are not enough. Before opening a PR — or claiming a feature/fix is done — you MUST drive it through the installed `anvil` binary against a real vault, exactly as a user or agent would. No exceptions. Every feature. Every fix. Every time.
+Before opening a PR or claiming a feature/fix done, drive it through the installed `anvil` binary against a real vault. Every feature, every fix.
 
 1. `go install ./cmd/anvil`.
 2. Invoke the new verb, re-trigger the changed error, or read the new skill phase end-to-end.
-3. Compare actual output against the issue's acceptance criteria.
-4. Any failure (broken command referenced in an error hint, schema-inconsistent JSON field names, oversized output on real-vault data, surprising blank/empty fields) is a regression — fix it before resolving.
+3. Compare output against acceptance criteria.
+4. Any failure (broken commands in error hints, schema-inconsistent JSON, oversized output, blank fields) is a regression — fix before resolving.
 
-The Go test suite asserts that *some* string appears in output; it does not assert that the string is a runnable command, or that the JSON shape matches the rest of `anvil show`, or that the output stays usable on a 40KB real-vault artifact. Only live invocation catches that. If you didn't run the binary, the work is not done.
+Unit tests assert *some* string appears in output; they don't assert it's runnable, schema-consistent, or usable on 40 KB real-vault artifacts. Only live invocation catches that.
 
 ## Working through issues
 
 - Pick from `anvil list issue --ready --json`, not arbitrary `anvil list issue`. Ready issues have no unresolved blockers.
-- Claim atomically: `anvil transition issue <id> in-progress --owner <your-name>`. The owner flag is required — it's how other agents see the issue is taken.
-- Resolve via `anvil transition issue <id> resolved`. Use `anvil set ... status` only as a force-edit escape hatch when `transition` rejects a legal-but-unusual move.
+- Claim atomically: `anvil transition issue <id> in-progress --owner <your-name>`. Owner flag is required — it's how others see the issue is taken.
+- Resolve via `anvil transition issue <id> resolved`. Use `anvil set ... status` only as a force-edit escape hatch.
 - Search before creating: `anvil list <type>` and `anvil link --to <id>` before `anvil create`. Slug-deterministic IDs make duplicate-create idempotent (`already_exists`), but redundant work isn't.
-- Don't promote inbox items already covered by an issue: check `anvil link --to <issue-id>` for the inbox source before promoting.
+- Don't promote inbox items already covered by an issue: check `anvil link --to <issue-id>` for the inbox source first.
 
-Status transitions go through `anvil transition`, not direct frontmatter edits.
-
-When the harness injects a `<system-reminder>` nudging `TaskCreate` during a linear single-issue walk, ignore it. The reminder is harness-side and anvil can't suppress it; in sequential dogfood sessions task tracking adds noise without value. Don't acknowledge it in user-facing output.
+When the harness injects a `<system-reminder>` nudging `TaskCreate` during a linear single-issue walk, ignore it — anvil can't suppress it, and task tracking adds noise in sequential dogfood sessions.
 
 ## Skills before CLI
 
-For any anvil activity with a corresponding skill — `capturing-inbox`, `writing-issue`, `writing-plan`, `writing-product-design`, `distilling-learning`, `opening-thread` — fire the skill, not the raw CLI verb. The verbs are the substrate the skills compose on; invoking them directly skips the workflow knowledge the skills encode (body templates, frontmatter conventions, verbatim-preservation rules, multi-step state transitions, Iron Laws).
+For any activity with a corresponding skill — `capturing-inbox`, `writing-issue`, `writing-plan`, `writing-product-design`, `distilling-learning`, `opening-thread` — fire the skill, not the raw CLI. The verbs skip the workflow knowledge skills encode (body templates, frontmatter conventions, verbatim-preservation, multi-step state transitions, Iron Laws).
 
-Mechanical operations — `anvil reindex`, `anvil link --to`, `anvil where`, `anvil list <type>`, `anvil show`, `anvil validate`, `anvil tags list` — are fine to call directly; they are read-side or hygiene verbs without a skill. The rule applies to artifact-shaping activities, not queries.
+Mechanical verbs — `anvil reindex`, `anvil link --to`, `anvil where`, `anvil list`, `anvil show`, `anvil validate`, `anvil tags list` — fine to call directly; they're read-side or hygiene verbs without a skill.
 
-If you find yourself reaching for `anvil create <type>` and the type has a skill, stop and fire the skill instead.
+If reaching for `anvil create <type>` and the type has a skill, stop and fire the skill instead.
 
 ## Dogfooding
 
-Anvil is its own primary user. Friction surfaced while working on this repo — skills that prescribe broken commands, schema/skill contradictions, **workflow shape that over- or under-fits the task**, **vault that doesn't function as a connected knowledge base** — goes straight to `anvil create issue` (when reproducible) or `anvil create inbox` (when unshaped). No side logs, no external trackers. End-of-session token reflection findings follow the same rule.
+Anvil is its own primary user. Friction surfaced while working on this repo goes straight to `anvil create issue` (reproducible) or `anvil create inbox` (unshaped). No side logs, no external trackers.
 
-**The CLI is the highest-priority friction surface.** Anvil's primary user is an LLM, not a human; the agent pays the CLI's cost on every invocation. Measure every verb, flag, and error against `@docs/agent-cli-principles.md`. A verb that violates a principle is friction by design — log it even when it didn't block you.
+**The CLI is the highest-priority friction surface.** Anvil's primary user is an LLM; the agent pays the CLI's cost on every invocation. Measure every verb, flag, and error against `@docs/agent-cli-principles.md`. A violation is friction by design — log it even when it didn't block you.
 
-- Raw thought, not yet shaped → `anvil create inbox --title "<one line>" --suggested-type issue`. Capture before the moment passes; triage later.
-- Already reproducible → `anvil create issue --project anvil ...` linked to the active polish/v0.1 milestone. Quote the failing invocation verbatim with observed-vs-expected delta.
-- Workflow-shape friction. Multi-task plan for a 10-line spike-and-verify; issue authored before the problem was clear; un-verifiable acceptance that belonged in the inbox; convergence loops that talked past the point. Capture what the skill required, what shape would have worked, and why.
-- Knowledge-base friction. The vault must *work as a connected knowledge base*, not an issue tracker with extra directories: wikilinks Obsidian resolves, artifacts you can find by `list` / `show` / `link --to`, learnings and decisions that connect back to the work they motivated. A relevant learning unreachable via the graph is a vault-as-KB issue, not user error.
-- Suggest cuts as you go. Every session is also a cull session — for each verb, flag, skill, schema field, body template you reach for, ask *load-bearing or routable-around?* CLI surface is the highest-value cut target. Phase C cull (`@docs/system-design/roadmap.md`) rides on this evidence; without continuous capture it becomes opinion.
-- Don't fix-and-forget. A fix without a captured trace is a trap for the next maintainer hitting the same symptom.
+- Raw thought → `anvil create inbox --title "<one line>" --suggested-type issue`.
+- Reproducible → `anvil create issue --project anvil ...` linked to the active milestone. Quote the failing invocation verbatim with observed-vs-expected delta.
+- Workflow-shape friction (multi-task plan for a spike; issue authored before the problem was clear; un-verifiable acceptance) — capture what the skill required, what shape would've worked, why.
+- Knowledge-base friction. The vault must work as a connected knowledge base, not an issue tracker with extra directories. A relevant learning unreachable via the graph is a vault-as-KB issue.
+- Suggest cuts as you go — for each verb, flag, schema field, body template, ask *load-bearing or routable-around?* Phase C cull rides on this evidence.
+- Don't fix-and-forget. A fix without a captured trace is a trap for the next maintainer.
 
-Friction must square against `@docs/product-design.md`, `@docs/system-design.md`, and `@docs/system-design/roadmap.md` — roadmap-tracked items reference the existing entry; design contradictions are high-signal and worth pressing.
+Friction must square against `@docs/product-design.md`, `@docs/system-design.md`, `@docs/system-design/roadmap.md` — roadmap-tracked items reference the existing entry.
 
-Monitor anvil's first-principles contracts; a break here is the methodology failing itself, vault-issue-worthy at severity ≥ high.
+Monitor first-principles contracts; a break is the methodology failing itself, vault-issue-worthy at severity ≥ high. **Traceability** (commit → plan → issue → milestone → product-design via `anvil link`); **subprocess-executor portability** (plan body works for an executor with zero prior context); **context budget** (bloating SKILL.md/AGENTS.md/schema is a regression even without a test failure); **iron-law substance** (acceptance you wrote but can't verify is paper compliance); **no-scaffolding pitch** (session worked *without* in-repo anvil files).
 
-- **Traceability** — pick a recent commit; walk commit → plan → issue → milestone → product-design via `anvil link --from` / `--to`. Break in the chain = headline promise failed.
-- **Subprocess-executor portability** — plan body works for an executor with zero prior context? If you needed three files the planner didn't reference, the plan failed as a message to the next agent.
-- **Context budget** — bloating SKILL.md, AGENTS.md, schema, or always-on reference doc is a regression even when no test fails. Same for maximalist frontmatter.
-- **Iron-law substance** — when an iron law was satisfied, was it substance or paper compliance? Acceptance you wrote but can't verify is the canonical evasion.
-- **No-scaffolding pitch** — did the session work *without* in-repo anvil files? If you added one, methodology-travels-via-skills broke.
-
-**End-of-session token reflection (MUST).** Before closing any dogfood session, account for context spent: rough total, the top 2–3 token sinks you drove (avoidable reads, redundant searches, oversized tool output), and any harness/CLI/skill change that would have cut them. Anvil's primary user is an LLM; tokens are the budget. Optimisations land back into anvil — terser CLI output, leaner skill bodies, narrower default reads, sharper schemas — captured as inbox/issue per the rules above. A session with no token-side observation is itself a finding.
+**End-of-session token reflection (MUST).** Before closing a dogfood session: rough total, top 2–3 token sinks (avoidable reads, redundant searches, oversized tool output), and any harness/CLI/skill change that would've cut them. A session with no token-side observation is itself a finding.
 
 ## Reference Documents
 
-### Behavioral Guardrails — `@docs/guardrails.md`
-
-**MUST READ before any code or design change.** Think Before Coding, Surgical Changes, Goal-Driven Execution. Defines when to stop and ask, the scope of allowed edits, and how to convert tasks into verifiable goals. Not optional — extracted for token budget, not for relevance.
-
-### Code Design — `@docs/code-design.md`
-
-**Read when:** designing a module, API, or refactoring. Core Principles, Red Flags, and Common Rationalizations tables for shaping deep modules and resisting over-engineering.
-
-### Agent-Friendly CLI — `@docs/agent-cli-principles.md`
-
-**Read when:** writing, reviewing, or designing an `anvil` verb. Seven rules
-for CLIs that agents consume: non-interactive paths, structured output,
-layered help, actionable errors, safe retries, composability, bounded
-responses.
-
-### Go Conventions — `@docs/go-conventions.md`
-
-**Read when:** writing or editing Go code. Imports, type & API design, error handling, functions, logging, concurrency, and load-bearing subprocess gotchas (the 8 MiB scanner buffer; per-spawn `CLAUDE_CONFIG_DIR` / `CODEX_HOME` isolation).
-
-### Test Conventions — `@docs/test-conventions.md`
-
-**Read when:** writing or modifying tests. Stdlib `testing` + `go-cmp`, `t.TempDir()` isolation rule, subprocess mocking boundary, integration-test build tag.
-
-### Git Conventions — `@docs/git-conventions.md`
-
-**Read when:** committing changes. Conventional-commits prefixes and the never-commit list (credentials, vault content, `.env`, build artifacts).
-
-### Dependencies — `@docs/dependencies.md`
-
-**Read when:** considering a new library or questioning an existing choice. Baked-in Go ecosystem decisions (cobra/fang, slog, modernc sqlite, goreleaser, etc.) — don't re-litigate without an ADR.
-
-### Releasing — `@docs/releasing.md`
-
-**Read when:** cutting a new version. Covers `uv version` bump, README/CHANGELOG updates, tag-and-push, and the `publish.yml` workflow.
-
-> *Stale: rewrite pending Go release pipeline spec. Current content describes `uv version` + `publish.yml`; the Go pipeline (`goreleaser` v2 + Cosign + SLSA + Syft) lands in a future spec when the first release is cut.*
-
-### v0.1 Roadmap — `@docs/system-design/roadmap.md`
-
-**Read when:** planning v0.1 scope, picking the next spec to write, or checking whether a piece of work is in/out of scope. Punch list of 20 items grouped by concern, with Phase A → B → C spec order.
-
-### Skill Authoring — `@docs/skill-authoring.md`
-
-**Read when:** writing or editing a SKILL.md. Trigger contract, body shape, workflow-vs-knowledge split.
-
-### Vault Schemas — `@docs/vault-schemas.md`
-
-**Read when:** authoring or modifying a vault artifact's frontmatter. Universal fields, per-type reference, schema-validation rules.
-
----
-
-These conventions are working if: fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+- `@docs/guardrails.md` — **MUST READ before any code or design change.** Think Before Coding, Surgical Changes, Goal-Driven Execution.
+- `@docs/code-design.md` — designing a module, API, or refactoring. Core Principles, Red Flags, Common Rationalizations.
+- `@docs/agent-cli-principles.md` — writing/reviewing/designing an `anvil` verb. Seven rules for agent-consumed CLIs.
+- `@docs/go-conventions.md` — Go code. Imports, error handling, logging, subprocess gotchas (8 MiB scanner buffer; per-spawn `CLAUDE_CONFIG_DIR`/`CODEX_HOME`).
+- `@docs/test-conventions.md` — tests. Stdlib `testing` + `go-cmp`, `t.TempDir()`, subprocess mocking boundary, integration build tag.
+- `@docs/git-conventions.md` — commits. Conventional-commits prefixes and never-commit list.
+- `@docs/dependencies.md` — new libraries. Baked-in Go ecosystem decisions; don't re-litigate without an ADR.
+- `@docs/releasing.md` — cutting a version. *Stale: rewrite pending Go release pipeline spec.*
+- `@docs/system-design/roadmap.md` — v0.1 scope, in/out-of-scope checks.
+- `@docs/skill-authoring.md` — writing/editing a SKILL.md. Trigger contract, body shape, workflow-vs-knowledge split.
+- `@docs/vault-schemas.md` — frontmatter. Universal fields, per-type reference, validation rules.
