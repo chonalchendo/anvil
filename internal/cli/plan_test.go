@@ -90,3 +90,83 @@ func TestShowPlan_Waves_RendersMermaid(t *testing.T) {
 		t.Errorf("expected edge T1 --> T2:\n%s", s)
 	}
 }
+
+func TestShowPlan_Task_EmitsTaskFrontmatter(t *testing.T) {
+	vault := setupVault(t)
+	copyPlanFixture(t, vault, "plan_valid.md")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"show", "plan", "ANV-142-streaming-token-counter", "--task", "T2"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	s := out.String()
+	if !strings.Contains(s, `"id": "T2"`) || !strings.Contains(s, "Streaming reader") {
+		t.Errorf("expected task T2 frontmatter, got:\n%s", s)
+	}
+	if strings.Contains(s, "Implement the streaming reader in b.go") {
+		t.Errorf("body must be omitted without --body:\n%s", s)
+	}
+}
+
+func TestShowPlan_TaskBody_EmitsSection(t *testing.T) {
+	vault := setupVault(t)
+	copyPlanFixture(t, vault, "plan_valid.md")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"show", "plan", "ANV-142-streaming-token-counter", "--task", "T2", "--body"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	s := out.String()
+	if !strings.Contains(s, "## Task: T2") {
+		t.Errorf("expected `## Task: T2` header:\n%s", s)
+	}
+	if !strings.Contains(s, "Implement the streaming reader in b.go") {
+		t.Errorf("expected T2 body content:\n%s", s)
+	}
+	if strings.Contains(s, "Define the TokenUsage type in a.go") {
+		t.Errorf("T1 body must not appear when scoped to T2:\n%s", s)
+	}
+}
+
+func TestShowPlan_Task_JSON(t *testing.T) {
+	vault := setupVault(t)
+	copyPlanFixture(t, vault, "plan_valid.md")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"show", "plan", "ANV-142-streaming-token-counter", "--task", "T1", "--body", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	s := out.String()
+	if !strings.Contains(s, `"plan_id":"ANV-142-streaming-token-counter"`) {
+		t.Errorf("expected plan_id field: %s", s)
+	}
+	if !strings.Contains(s, `"id":"T1"`) {
+		t.Errorf("expected task.ID T1: %s", s)
+	}
+	if !strings.Contains(s, "Define the TokenUsage type") {
+		t.Errorf("expected body in JSON: %s", s)
+	}
+}
+
+func TestShowPlan_Task_UnknownReturnsError(t *testing.T) {
+	vault := setupVault(t)
+	copyPlanFixture(t, vault, "plan_valid.md")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"show", "plan", "ANV-142-streaming-token-counter", "--task", "TX"})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for unknown task")
+	}
+	if !strings.Contains(err.Error(), "task_not_found") {
+		t.Errorf("expected task_not_found, got %v", err)
+	}
+}

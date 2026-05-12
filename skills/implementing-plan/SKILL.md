@@ -45,9 +45,7 @@ Then run every command in the plan's `verification.pre_build` field. Stop on any
 
 For each task in a wave, in order:
 
-1. Read the task body. (Today: agent reads the plan Markdown directly.)
-
-   > **CLI gap:** `anvil show plan <id> --task <task-id>` (stream a single task body). See spec gap #6.
+1. Read the task body: `anvil show plan <id> --task <task-id> --body`. Streams just that task's section.
 
 2. Write the failing test exactly as the task specifies.
 3. Run verify, observe RED. If it doesn't fail, the test contract is wrong — stop and revise the plan.
