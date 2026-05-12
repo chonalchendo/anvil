@@ -50,3 +50,23 @@ func (e *ValidationError) WithFix(fix string) *ValidationError {
 	e.Fix = fix
 	return e
 }
+
+// NotInVault signals that an artifact path passed to `anvil validate <file>`
+// is not located under a known type-dir inside a vault.
+type NotInVault struct {
+	Code string `json:"code"`
+	Path string `json:"path"`
+	Hint string `json:"hint"`
+}
+
+func NewNotInVault(path string) NotInVault {
+	return NotInVault{
+		Code: "not_in_vault",
+		Path: path,
+		Hint: "validate a vault root (`anvil validate`) or pass a file under <vault>/<type-dir>/",
+	}
+}
+
+func (e NotInVault) Error() string {
+	return "[not_in_vault]\n  path: " + e.Path + "\n  hint: " + e.Hint
+}

@@ -68,6 +68,54 @@ func TestValidate_DefaultsToAnvilVault(t *testing.T) {
 	_ = os.Remove // silence unused if not needed
 }
 
+func TestValidate_SingleFile_HappyPath(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("ANVIL_VAULT", vault)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue", "--title", "good", "--description", "test description", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	val := newRootCmd()
+	val.SetArgs([]string{"validate", filepath.Join(vault, "70-issues", "foo.good.md")})
+	var out bytes.Buffer
+	val.SetOut(&out)
+	val.SetErr(&out)
+	if err := val.Execute(); err != nil {
+		t.Fatalf("validate <file> failed: %v\noutput: %s", err, out.String())
+	}
+}
+
+func TestValidate_SingleFile_ReportsBadFrontmatter(t *testing.T) {
+	vault := setupVault(t)
+
+	bad := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", "foo.bad.md"),
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "x", "created": "2026-04-29",
+			"status": "totally-bogus",
+		},
+		Body: "",
+	}
+	if err := bad.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"validate", bad.Path})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Errorf("expected validation error, output: %s", stderr.String())
+	}
+}
+
 func TestValidate_Learning_BodyShape(t *testing.T) {
 	vault := setupVault(t)
 	t.Setenv("HOME", t.TempDir())

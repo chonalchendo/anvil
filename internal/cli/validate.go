@@ -26,9 +26,22 @@ func newValidateCmd() *cobra.Command {
 		Args:    cobra.MaximumNArgs(1),
 		Example: "  anvil validate\n  anvil validate --json\n  anvil validate /path/to/vault",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var root string
+			var root, singleFile string
 			if len(args) == 1 {
-				root = args[0]
+				fi, err := os.Stat(args[0])
+				if err != nil {
+					return fmt.Errorf("stat %s: %w", args[0], err)
+				}
+				if fi.IsDir() {
+					root = args[0]
+				} else {
+					vaultRoot, err := vaultRootFromArtifactPath(args[0])
+					if err != nil {
+						return err
+					}
+					root = vaultRoot
+					singleFile = args[0]
+				}
 			} else {
 				v, err := core.ResolveVault()
 				if err != nil {
@@ -51,33 +64,27 @@ func newValidateCmd() *cobra.Command {
 
 
 			var failures []*errfmt.ValidationError
-			for _, t := range core.AllTypes {
-				dir := filepath.Join(root, t.Dir())
-				entries, err := os.ReadDir(dir)
+			if singleFile != "" {
+				t, err := typeFromArtifactPath(singleFile)
 				if err != nil {
-					if os.IsNotExist(err) {
-						continue
-					}
-					return fmt.Errorf("read %s: %w", dir, err)
+					return err
 				}
-				for _, e := range entries {
-					if filepath.Ext(e.Name()) != ".md" {
-						continue
-					}
-					path := filepath.Join(dir, e.Name())
-					a, err := core.LoadArtifact(path)
+				failures = validateOne(t, singleFile, known)
+			} else {
+				for _, t := range core.AllTypes {
+					dir := filepath.Join(root, t.Dir())
+					entries, err := os.ReadDir(dir)
 					if err != nil {
-						failures = append(failures, errfmt.NewValidationError(errfmt.CodeParseError, path, "", err.Error()))
-						continue
-					}
-					if err := schema.Validate(string(t), a.FrontMatter); err != nil {
-						failures = append(failures, schemaErrToValidationErrors(path, err)...)
-						continue
-					}
-					if t == core.TypeLearning {
-						for _, vErr := range core.ValidateLearning(a, known) {
-							failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+						if os.IsNotExist(err) {
+							continue
 						}
+						return fmt.Errorf("read %s: %w", dir, err)
+					}
+					for _, e := range entries {
+						if filepath.Ext(e.Name()) != ".md" {
+							continue
+						}
+						failures = append(failures, validateOne(t, filepath.Join(dir, e.Name()), known)...)
 					}
 				}
 			}
@@ -100,6 +107,63 @@ func newValidateCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON array of structured errors")
 	return cmd
+}
+
+// validateOne runs schema + learning-body checks on a single artifact file and
+// returns any structured failures.
+func validateOne(t core.Type, path string, knownTags map[string]struct{}) []*errfmt.ValidationError {
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		return []*errfmt.ValidationError{errfmt.NewValidationError(errfmt.CodeParseError, path, "", err.Error())}
+	}
+	if err := schema.Validate(string(t), a.FrontMatter); err != nil {
+		return schemaErrToValidationErrors(path, err)
+	}
+	if t != core.TypeLearning {
+		return nil
+	}
+	var out []*errfmt.ValidationError
+	for _, vErr := range core.ValidateLearning(a, knownTags) {
+		out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+	}
+	return out
+}
+
+// vaultRootFromArtifactPath resolves the vault root for an artifact file by
+// matching the parent directory name against the known type-dir set.
+func vaultRootFromArtifactPath(path string) (string, error) {
+	parent := filepath.Dir(path)
+	for _, t := range core.AllTypes {
+		if filepath.Base(parent) == t.Dir() {
+			return filepath.Dir(parent), nil
+		}
+	}
+	// Singletons (product-design, system-design) live at
+	// <vault>/05-projects/<project>/<type>.md — one level deeper.
+	if filepath.Base(filepath.Dir(parent)) == "05-projects" {
+		return filepath.Dir(filepath.Dir(parent)), nil
+	}
+	return "", errfmt.NewNotInVault(path)
+}
+
+// typeFromArtifactPath infers the Type from the artifact's parent dir.
+func typeFromArtifactPath(path string) (core.Type, error) {
+	parent := filepath.Base(filepath.Dir(path))
+	for _, t := range core.AllTypes {
+		if t.Dir() == parent {
+			return t, nil
+		}
+	}
+	// Singleton case: parent is the project dir under 05-projects/.
+	if filepath.Base(filepath.Dir(filepath.Dir(path))) == "05-projects" {
+		stem := strings.TrimSuffix(filepath.Base(path), ".md")
+		for _, t := range core.AllTypes {
+			if string(t) == stem {
+				return t, nil
+			}
+		}
+	}
+	return "", errfmt.NewNotInVault(path)
 }
 
 // schemaErrToValidationErrors walks the validation tree and collects one
