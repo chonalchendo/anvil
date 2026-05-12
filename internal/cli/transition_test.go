@@ -112,6 +112,24 @@ func TestTransitionReverseRequiresReason(t *testing.T) {
 	}
 }
 
+func TestTransitionOwnerSurvivesValidate(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"validate", vault})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("validate failed after transition --owner: %v\noutput: %s", err, out.String())
+	}
+}
+
 func TestTransitionReverseAppendsAuditLine(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)

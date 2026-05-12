@@ -113,6 +113,7 @@ project: <slug>
 status: open | in-progress | resolved | abandoned
 severity: low | medium | high | critical
 milestone: "[[milestone.<project>.<slug>]]"
+owner: <string>            # set by `anvil transition ... --owner <name>`; persists across the issue lifecycle
 external_ref: <string> | null
 external_url: <url> | null
 acceptance: ["criterion", ...]
