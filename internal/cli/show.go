@@ -15,19 +15,6 @@ import (
 
 const showBodyLineCap = 500
 
-// bodyDefault returns whether `anvil show <type>` should include the body when
-// the caller passes neither --body nor --no-body. Bounded types where the body
-// is small and almost always wanted (inbox, decision, issue, sweep) default to
-// true; plan and other unbounded types default to false.
-func bodyDefault(t core.Type) bool {
-	switch t {
-	case core.TypeInbox, core.TypeDecision, core.TypeIssue, core.TypeSweep:
-		return true
-	default:
-		return false
-	}
-}
-
 func newShowCmd() *cobra.Command {
 	var (
 		flagJSON     bool
@@ -55,7 +42,11 @@ func newShowCmd() *cobra.Command {
 			if flagBody && flagNoBody {
 				return fmt.Errorf("--body and --no-body are mutually exclusive")
 			}
-			includeBody := bodyDefault(t)
+			includeBody := false
+			switch t {
+			case core.TypeInbox, core.TypeDecision, core.TypeIssue, core.TypeSweep:
+				includeBody = true
+			}
 			if flagBody {
 				includeBody = true
 			}
