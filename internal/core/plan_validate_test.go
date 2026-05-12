@@ -2,6 +2,7 @@ package core
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -48,6 +49,47 @@ func TestValidatePlan_EmptyVerify(t *testing.T) {
 	}
 	if err := ValidatePlan(p); !errors.Is(err, ErrPlanTDD) {
 		t.Errorf("err = %v, want ErrPlanTDD", err)
+	}
+}
+
+func TestValidatePlan_NoopVerify_Rejected(t *testing.T) {
+	noops := make([]string, 0, len(noopVerifies))
+	for k := range noopVerifies {
+		noops = append(noops, k)
+	}
+	slices.Sort(noops)
+	for _, noop := range noops {
+		t.Run(noop, func(t *testing.T) {
+			body := strings.Replace(planFixture,
+				"verify: \"go test ./...\"",
+				"verify: \""+noop+"\"", 1)
+			p, err := LoadPlan(writePlanFile(t, body))
+			if err != nil {
+				t.Fatalf("LoadPlan: %v", err)
+			}
+			err = ValidatePlan(p)
+			if !errors.Is(err, ErrPlanTDD) {
+				t.Errorf("err = %v, want ErrPlanTDD for no-op verify %q", err, noop)
+			}
+		})
+	}
+}
+
+func TestValidatePlan_NoopVerify_WhitespaceCanonicalized(t *testing.T) {
+	// Inputs with non-canonical whitespace must still be detected as no-ops.
+	for _, noop := range []string{"exit   0", "exit\t0", "  :  "} {
+		t.Run(noop, func(t *testing.T) {
+			body := strings.Replace(planFixture,
+				"verify: \"go test ./...\"",
+				"verify: \""+noop+"\"", 1)
+			p, err := LoadPlan(writePlanFile(t, body))
+			if err != nil {
+				t.Fatalf("LoadPlan: %v", err)
+			}
+			if err := ValidatePlan(p); !errors.Is(err, ErrPlanTDD) {
+				t.Errorf("err = %v, want ErrPlanTDD for whitespace-padded no-op %q", err, noop)
+			}
+		})
 	}
 }
 

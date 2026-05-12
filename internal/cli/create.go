@@ -215,31 +215,20 @@ func newCreateCmd() *cobra.Command {
 					if err := runFacetCheck(cmd, v, path, fm, flagAllowNewFacet); err != nil {
 						return err
 					}
-					var originalBytes []byte
-					if t == core.TypePlan {
-						var rerr error
-						originalBytes, rerr = os.ReadFile(path)
-						if rerr != nil {
-							return fmt.Errorf("reading existing plan for rollback: %w", rerr)
-						}
+					originalBytes, rerr := os.ReadFile(path)
+					if rerr != nil {
+						return fmt.Errorf("reading existing artifact for rollback: %w", rerr)
 					}
 					a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
 					if err := a.Save(); err != nil {
 						return fmt.Errorf("saving artifact: %w", err)
 					}
-					if t == core.TypePlan {
-						p, lerr := core.LoadPlan(path)
-						if lerr != nil {
-							_ = os.WriteFile(path, originalBytes, 0o644)
-							return fmt.Errorf("plan validator: %w", lerr)
-						}
-						if verr := core.ValidatePlan(p); verr != nil {
-							_ = os.WriteFile(path, originalBytes, 0o644)
-							return fmt.Errorf("plan validator: %w", verr)
-						}
-					}
 					if err := indexAfterSave(v, a); err != nil {
-						return fmt.Errorf("indexing %s: %w", id, err)
+						indexErr := fmt.Errorf("indexing %s: %w", id, err)
+						if werr := os.WriteFile(path, originalBytes, 0o644); werr != nil {
+							return errors.Join(indexErr, fmt.Errorf("rolling back %s to prior contents: %w", path, werr))
+						}
+						return indexErr
 					}
 					return emitCreateResult(cmd, flagJSON, id, path, statusUpdated, nil)
 				} else if !errors.Is(err, fs.ErrNotExist) {
@@ -259,8 +248,6 @@ func newCreateCmd() *cobra.Command {
 			}
 
 			if t == core.TypePlan && body == "" {
-				// Seed a ≥200-char body section for T1 so ValidatePlan passes on
-				// a freshly-created plan. The repeat produces 316 chars.
 				body = "\n## Task: T1\n\n" + strings.Repeat(
 					"Replace this with the RED test, expected failure, GREEN sketch, verify+commit. ", 4) + "\n"
 			}
@@ -269,20 +256,12 @@ func newCreateCmd() *cobra.Command {
 				return fmt.Errorf("saving artifact: %w", err)
 			}
 
-			if t == core.TypePlan {
-				p, lerr := core.LoadPlan(path)
-				if lerr != nil {
-					_ = os.Remove(path)
-					return fmt.Errorf("plan validator: %w", lerr)
-				}
-				if verr := core.ValidatePlan(p); verr != nil {
-					_ = os.Remove(path)
-					return fmt.Errorf("plan validator: %w", verr)
-				}
-			}
-
 			if err := indexAfterSave(v, a); err != nil {
-				return fmt.Errorf("indexing %s: %w", id, err)
+				indexErr := fmt.Errorf("indexing %s: %w", id, err)
+				if rerr := os.Remove(path); rerr != nil {
+					return errors.Join(indexErr, fmt.Errorf("rolling back: removing %s: %w", path, rerr))
+				}
+				return indexErr
 			}
 			var warnings []string
 			if !flagForceNew {

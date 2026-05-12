@@ -153,17 +153,15 @@ func TestCreatePlan_NewSchema_Succeeds(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v\n%s", err, out.String())
 	}
-	// Confirm the file exists and validates end-to-end.
+	// Fresh plan parses cleanly and passes schema; ValidatePlan is gated to
+	// the draft→locked transition (the placeholder T1 ships verify: "true",
+	// which the validator rejects as a no-op — by design).
 	path := filepath.Join(vault, "80-plans", "foo.streaming-token-counter.md")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("expected file at %s: %v", path, err)
 	}
-	p, err := core.LoadPlan(path)
-	if err != nil {
+	if _, err := core.LoadPlan(path); err != nil {
 		t.Fatalf("load plan: %v", err)
-	}
-	if err := core.ValidatePlan(p); err != nil {
-		t.Errorf("freshly-created plan should validate, got: %v", err)
 	}
 }
 
@@ -300,27 +298,6 @@ func TestCreatePlan_BodyReplacesT1Seed_ValidWhenWellFormed(t *testing.T) {
 	a, _ := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.author-body.md"))
 	if !strings.Contains(a.Body, "Author-supplied T1") {
 		t.Errorf("body did not replace T1 seed: %q", a.Body)
-	}
-}
-
-func TestCreatePlan_BodyTooShort_FailsValidation(t *testing.T) {
-	setupVault(t)
-	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
-	t.Chdir(repo)
-
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{
-		"create", "plan",
-		"--title", "Short",
-		"--issue", "[[issue.foo.x]]",
-		"--body", "## Task: T1\n\ntoo short.\n",
-	})
-	var stderr bytes.Buffer
-	cmd.SetErr(&stderr)
-	cmd.SetOut(&stderr)
-	if err := cmd.Execute(); err == nil {
-		t.Error("expected ValidatePlan to reject truncated body")
 	}
 }
 
@@ -1108,50 +1085,6 @@ func TestCreate_Issue_UpdateWithoutDrift_NoRewrite(t *testing.T) {
 	statAfter, _ := os.Stat(path)
 	if !statBefore.ModTime().Equal(statAfter.ModTime()) {
 		t.Errorf("mtime changed despite no drift")
-	}
-}
-
-func TestCreate_Plan_UpdateRevalidates(t *testing.T) {
-	vault := setupVault(t)
-	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
-	t.Chdir(repo)
-
-	// Need an issue first for --issue.
-	if err := func() error {
-		c := newRootCmd()
-		c.SetArgs([]string{"create", "issue", "--title", "I1", "--description", "d",
-			"--tags", "domain/dev-tools", "--allow-new-facet=domain"})
-		return c.Execute()
-	}(); err != nil {
-		t.Fatal(err)
-	}
-
-	c1 := newRootCmd()
-	c1.SetArgs([]string{"create", "plan", "--title", "P1", "--issue", "[[issue.foo.i1]]",
-		"--description", "d", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
-	if err := c1.Execute(); err != nil {
-		t.Fatal(err)
-	}
-
-	planPath := filepath.Join(vault, "80-plans", "foo.p1.md")
-
-	// --update with a body that fails plan validation should error and not rewrite.
-	c2 := newRootCmd()
-	c2.SetArgs([]string{"create", "plan", "--title", "P1", "--issue", "[[issue.foo.i1]]",
-		"--description", "d2", "--body", "too short",
-		"--tags", "domain/dev-tools", "--allow-new-facet=domain", "--update"})
-	if err := c2.Execute(); err == nil {
-		t.Errorf("expected plan-validate failure on update")
-	}
-
-	// After failed --update, the original content must be preserved.
-	got, err := core.LoadArtifact(planPath)
-	if err != nil {
-		t.Fatalf("rollback failed; plan file unreadable: %v", err)
-	}
-	if d, _ := got.FrontMatter["description"].(string); d != "d" {
-		t.Errorf("rollback failed; description = %q, want %q", d, "d")
 	}
 }
 

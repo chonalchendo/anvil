@@ -17,14 +17,14 @@ tasks:
     model: claude-sonnet-4-6
     files: [a.go]
     depends_on: []
-    verify: "true"
+    verify: "go test ./..."
   - id: T2
     title: "Wave 1 task"
     kind: tdd
     model: claude-sonnet-4-6
     files: [b.go]
     depends_on: [T1]
-    verify: "true"
+    verify: "go test ./..."
 ---
 
 ## Task: T1
