@@ -24,7 +24,7 @@ func TestListReadyStrictExcludesBlockedAndBlockerTargets(t *testing.T) {
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "charlie", "--description", "charlie desc",
 		"--tags", "domain/dev-tools")
-	execCmd(t, "set", "issue", "demo.bravo", "depends_on", "[[issue.demo.charlie]]")
+	execCmd(t, "set", "issue", "demo.bravo", "depends_on", "--add", "[[issue.demo.charlie]]")
 
 	out := execCmd(t, "list", "issue", "--ready", "--json")
 	var env struct {
@@ -62,7 +62,7 @@ func TestListReadyStrictRecoversWhenBlockerResolves(t *testing.T) {
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "charlie", "--description", "charlie desc",
 		"--tags", "domain/dev-tools")
-	execCmd(t, "set", "issue", "demo.bravo", "depends_on", "[[issue.demo.charlie]]")
+	execCmd(t, "set", "issue", "demo.bravo", "depends_on", "--add", "[[issue.demo.charlie]]")
 	execCmd(t, "transition", "issue", "demo.charlie", "in-progress", "--owner", "claude")
 	execCmd(t, "transition", "issue", "demo.charlie", "resolved")
 

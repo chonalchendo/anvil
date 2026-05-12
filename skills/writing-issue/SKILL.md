@@ -126,13 +126,13 @@ anvil set issue <id> milestone "[[milestone.<project>.<slug>]]"
 anvil set issue <id> severity <low|medium|high|critical>
 ```
 
-For `acceptance[]`, run one `set` per criterion:
+For `acceptance[]`, run one `--add` per criterion:
 
 ```bash
-anvil set issue <id> acceptance "<criterion>"
+anvil set issue <id> acceptance --add "<criterion>"
 ```
 
-> **CLI gap (roadmap #5):** `anvil set` rejects array fields today. If the call errors, fall back to direct-editing the `acceptance:` list in the file's frontmatter. Edit only the typed list; do not hand-author other frontmatter.
+Positional values on array fields error with `field_is_array`; use `--add VALUE` to append and `--remove INDEX` to delete.
 
 Then direct-edit the body section of the file at `path`. Write only the body — never hand-author frontmatter. Required body sections:
 

@@ -50,18 +50,44 @@ func TestSet_InvalidEnum_ReturnsSchemaInvalid(t *testing.T) {
 	}
 }
 
-func TestSet_ArraySingleArg_Replaces(t *testing.T) {
+func TestSet_ArrayPositional_Errors(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "criterion"})
+	var errOut bytes.Buffer
+	cmd.SetErr(&errOut)
+	cmd.SetOut(&errOut)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for positional value on array field")
+	}
+	if !strings.Contains(err.Error(), "field_is_array") {
+		t.Errorf("expected field_is_array token, got %q", err.Error())
+	}
+	if !strings.Contains(err.Error(), "--add") {
+		t.Errorf("expected error to mention --add: %q", err.Error())
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	if _, present := a.FrontMatter["acceptance"]; present {
+		t.Errorf("acceptance must not be written after error, got %v", a.FrontMatter["acceptance"])
+	}
+}
+
+func TestSet_TagsPositional_Errors(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"set", "issue", "foo.a", "tags", "domain/dev-tools"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
+	var errOut bytes.Buffer
+	cmd.SetErr(&errOut)
+	cmd.SetOut(&errOut)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for positional value on tags (array)")
 	}
-	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
-	got, _ := a.FrontMatter["tags"].([]any)
-	if len(got) != 1 || got[0] != "domain/dev-tools" {
-		t.Errorf("tags = %v", got)
+	if !strings.Contains(err.Error(), "field_is_array") {
+		t.Errorf("expected field_is_array token, got %q", err.Error())
 	}
 }
 
@@ -169,37 +195,19 @@ func TestSetPlan_StatusLocked_ValidatesFirst(t *testing.T) {
 	}
 }
 
-func TestSet_ArrayReplace_Multiple(t *testing.T) {
-	vault := setupVault(t)
-	writeFixtureIssue(t, vault, "foo", "a", "A")
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "criterion 1", "criterion 2"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
-	got, _ := a.FrontMatter["acceptance"].([]any)
-	if len(got) != 2 || got[0] != "criterion 1" || got[1] != "criterion 2" {
-		t.Errorf("acceptance = %v", got)
-	}
-}
-
 func TestSet_ArrayAdd_Appends(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
-	c1 := newRootCmd()
-	c1.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "x", "y"})
-	if err := c1.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	c2 := newRootCmd()
-	c2.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "z"})
-	if err := c2.Execute(); err != nil {
-		t.Fatal(err)
+	for _, v := range []string{"x", "y", "z"} {
+		c := newRootCmd()
+		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", v})
+		if err := c.Execute(); err != nil {
+			t.Fatalf("--add %s: %v", v, err)
+		}
 	}
 	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
 	got, _ := a.FrontMatter["acceptance"].([]any)
-	if len(got) != 3 || got[2] != "z" {
+	if len(got) != 3 || got[0] != "x" || got[1] != "y" || got[2] != "z" {
 		t.Errorf("acceptance = %v", got)
 	}
 }
@@ -207,10 +215,12 @@ func TestSet_ArrayAdd_Appends(t *testing.T) {
 func TestSet_ArrayRemove_Index(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
-	c1 := newRootCmd()
-	c1.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "x", "y", "z"})
-	if err := c1.Execute(); err != nil {
-		t.Fatal(err)
+	for _, v := range []string{"x", "y", "z"} {
+		c := newRootCmd()
+		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", v})
+		if err := c.Execute(); err != nil {
+			t.Fatalf("--add %s: %v", v, err)
+		}
 	}
 	c2 := newRootCmd()
 	c2.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--remove", "0"})
@@ -228,7 +238,7 @@ func TestSet_ArrayRemove_OOB_Errors(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	c1 := newRootCmd()
-	c1.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "x"})
+	c1.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "x"})
 	_ = c1.Execute()
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--remove", "5"})
@@ -290,21 +300,6 @@ func TestSet_UnknownField_ScalarPath(t *testing.T) {
 	err := cmd.Execute()
 	if err != nil && !errors.Is(err, ErrSchemaInvalid) {
 		t.Errorf("expected ErrSchemaInvalid (or success), got %v", err)
-	}
-}
-
-func TestSet_Tags_CommaSeparatedValueSplits(t *testing.T) {
-	vault := setupVault(t)
-	writeFixtureIssue(t, vault, "foo", "a", "A")
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "foo.a", "tags", "domain/dev-tools,activity/cleanup", "--allow-new-facet=activity"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("set: %v", err)
-	}
-	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
-	got, _ := a.FrontMatter["tags"].([]any)
-	if len(got) != 2 || got[0] != "domain/dev-tools" || got[1] != "activity/cleanup" {
-		t.Errorf("tags = %v, want [domain/dev-tools activity/cleanup]", got)
 	}
 }
 

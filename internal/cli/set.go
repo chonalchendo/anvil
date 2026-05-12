@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -47,18 +46,6 @@ func newSetCmd() *cobra.Command {
 			field := args[2]
 			values := args[3:]
 
-			if field == "tags" {
-				out := make([]string, 0, len(values))
-				for _, v := range values {
-					for _, p := range strings.Split(v, ",") {
-						if p = strings.TrimSpace(p); p != "" {
-							out = append(out, p)
-						}
-					}
-				}
-				values = out
-			}
-
 			if flagAddSet && flagRemSet {
 				return fmt.Errorf("--add and --remove are mutually exclusive")
 			}
@@ -95,14 +82,18 @@ func newSetCmd() *cobra.Command {
 					}
 					a.FrontMatter[field] = append(existing[:flagRemove], existing[flagRemove+1:]...)
 				default:
-					if len(values) == 0 {
-						return fmt.Errorf("%q is an array; pass values as positional args, --add, or --remove", field)
+					sample := "VALUE"
+					if len(values) > 0 {
+						sample = values[0]
 					}
-					out := make([]any, len(values))
-					for i, s := range values {
-						out[i] = s
-					}
-					a.FrontMatter[field] = out
+					return fmt.Errorf(
+						"field %q is an array (field_is_array); positional values are not accepted — use --add or --remove\n"+
+							"  corrected: anvil set %s %s %s --add %q\n"+
+							"             anvil set %s %s %s --remove INDEX",
+						field,
+						args[0], args[1], field, sample,
+						args[0], args[1], field,
+					)
 				}
 
 			case schema.KindObject:
