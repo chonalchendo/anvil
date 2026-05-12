@@ -6,5 +6,5 @@ package skills
 
 import "embed"
 
-//go:embed capturing-inbox distilling-learning extracting-skill-from-session handing-off-session implementing-plan opening-thread researching writing-issue writing-milestone writing-plan writing-product-design writing-system-design
+//go:embed capturing-inbox distilling-learning extracting-skill-from-session handing-off-session implementing-plan opening-thread researching resuming-session writing-issue writing-milestone writing-plan writing-product-design writing-system-design
 var FS embed.FS
