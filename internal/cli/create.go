@@ -11,6 +11,7 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -23,6 +24,12 @@ import (
 )
 
 var validSessionSources = []string{"claude-code", "chatgpt", "claude-web", "cursor", "continue"}
+
+// maxDescriptionChars mirrors the `maxLength: 120` cap in every spine-type
+// schema (issue, plan, milestone, decision, sweep, product-design,
+// system-design). Pre-flighted here so the CLI rejects oversize descriptions
+// before any template rendering or facet walk, with a single focused error.
+const maxDescriptionChars = 120
 
 // templateData holds all variables that frontmatter templates may reference.
 // Fields unused by a given type are left at their zero values; templates guard
@@ -85,6 +92,13 @@ func newCreateCmd() *cobra.Command {
 
 			if t != core.TypeSession && flagTitle == "" {
 				return fmt.Errorf("--title is required for %s", t)
+			}
+
+			if n := utf8.RuneCountInString(flagDescription); n > maxDescriptionChars {
+				return fmt.Errorf(
+					"--description too long: %d chars (max %d); trim before retrying",
+					n, maxDescriptionChars,
+				)
 			}
 
 			v, err := core.ResolveVault()
@@ -272,7 +286,7 @@ func newCreateCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&flagTitle, "title", "", "artifact title (required)")
-	cmd.Flags().StringVar(&flagDescription, "description", "", "one-line summary (1-120 chars, required for spine types)")
+	cmd.Flags().StringVar(&flagDescription, "description", "", fmt.Sprintf("one-line summary (max %d chars, required for spine types)", maxDescriptionChars))
 	cmd.Flags().StringVar(&flagProject, "project", "", "project slug (overrides auto-detected)")
 	cmd.Flags().StringVar(&flagTopic, "topic", "", "decision topic slug (required for decision)")
 	cmd.Flags().StringVar(&flagSuggestedType, "suggested-type", "", "suggested type (inbox only)")

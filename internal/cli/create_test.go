@@ -1266,3 +1266,36 @@ func TestCreate_AllSlugTypes_Idempotent(t *testing.T) {
 		})
 	}
 }
+
+// TestCreate_DescriptionPreflight_RejectsOversize asserts the CLI rejects an
+// over-cap --description before any artifact is written. Exercises the AC3
+// pre-flight path: error names the limit + actual length, no stub left behind.
+func TestCreate_DescriptionPreflight_RejectsOversize(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	long := strings.Repeat("a", 121)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue", "--title", "oversize", "--description", long, "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected pre-flight error for over-cap description")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "121") || !strings.Contains(msg, "120") {
+		t.Errorf("error must name actual length and cap; got: %s", msg)
+	}
+	// No file should be written under the issues dir.
+	entries, readErr := os.ReadDir(filepath.Join(vault, "70-issues"))
+	if readErr != nil {
+		t.Fatalf("reading issues dir: %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected no files written on pre-flight failure, got %d", len(entries))
+	}
+}
