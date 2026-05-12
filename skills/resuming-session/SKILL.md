@@ -49,7 +49,7 @@ Read the output in full. The body is the user's instructions for this session â€
 
 Print exactly:
 
-```
+```text
 Loaded handoff: session <id>
 Path: ~/anvil-vault/10-sessions/<id>.md
 ```
