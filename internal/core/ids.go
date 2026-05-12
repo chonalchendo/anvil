@@ -15,6 +15,34 @@ import (
 
 var nonAlnum = regexp.MustCompile(`[^a-z0-9]+`)
 
+// slugPattern matches a valid pre-formed slug (lowercase, digits, hyphens;
+// must start with a letter or digit). Same pattern the schemas enforce on
+// `slug:` fields.
+var slugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+
+// ValidateSlug reports whether s is a well-formed slug. Returns an error
+// naming the offending rune and its byte index when invalid.
+func ValidateSlug(s string) error {
+	if s == "" {
+		return fmt.Errorf("slug is empty")
+	}
+	if slugPattern.MatchString(s) {
+		return nil
+	}
+	for i, r := range s {
+		if i == 0 {
+			if !(('a' <= r && r <= 'z') || ('0' <= r && r <= '9')) {
+				return fmt.Errorf("slug %q: first character %q is invalid; must be a-z or 0-9", s, r)
+			}
+			continue
+		}
+		if !(('a' <= r && r <= 'z') || ('0' <= r && r <= '9') || r == '-') {
+			return fmt.Errorf("slug %q: character %q at byte %d is invalid; allowed: a-z 0-9 -", s, r, i)
+		}
+	}
+	return fmt.Errorf("slug %q: does not match pattern %s", s, slugPattern)
+}
+
 // Slugify lowercases s, transliterates via NFD + ASCII-filter, collapses
 // non-alnum runs to "-", trims leading/trailing "-", and clips to 60 chars.
 func Slugify(s string) string {
@@ -39,16 +67,22 @@ func Slugify(s string) string {
 
 // IDInputs carries optional fields used by some artifact types.
 type IDInputs struct {
-	Title   string // required — slug source
+	Title   string // required — slug source when Slug is empty
 	Project string // required for issue/plan/milestone
 	Topic   string // required for decision
+	Slug    string // optional — when set, overrides title-derived slug
 }
 
 // DeterministicID returns the slug-keyed ID a given type would receive
 // before any collision-suffix is applied. Returns an error for decisions
 // (which require a vault scan to allocate an ordinal).
 func DeterministicID(t Type, in IDInputs) (string, error) {
-	slug := Slugify(in.Title)
+	slug := in.Slug
+	if slug == "" {
+		slug = Slugify(in.Title)
+	} else if err := ValidateSlug(slug); err != nil {
+		return "", err
+	}
 	if slug == "" {
 		return "", fmt.Errorf("title required (produced empty slug)")
 	}
@@ -78,7 +112,12 @@ func NextID(v *Vault, t Type, in IDInputs) (string, error) {
 		if in.Topic == "" {
 			return "", fmt.Errorf("topic required for decision")
 		}
-		slug := Slugify(in.Title)
+		slug := in.Slug
+		if slug == "" {
+			slug = Slugify(in.Title)
+		} else if err := ValidateSlug(slug); err != nil {
+			return "", err
+		}
 		if slug == "" {
 			return "", fmt.Errorf("title required (produced empty slug)")
 		}

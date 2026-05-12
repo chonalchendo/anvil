@@ -55,6 +55,7 @@ func newCreateCmd() *cobra.Command {
 		flagTopic            string
 		flagSuggestedType    string
 		flagSuggestedProject string
+		flagSlug             string
 		flagJSON             bool
 		flagIssue            string
 		flagBody             string
@@ -138,18 +139,20 @@ func newCreateCmd() *cobra.Command {
 					Title:   flagTitle,
 					Project: project,
 					Topic:   flagTopic,
+					Slug:    flagSlug,
 				})
 				if err != nil {
-					return fmt.Errorf("allocating ID: %w", err)
+					return invalidSlugError(flagSlug, err)
 				}
 				id = allocated
 			case t.AllocatesID():
 				base, err := core.DeterministicID(t, core.IDInputs{
 					Title:   flagTitle,
 					Project: project,
+					Slug:    flagSlug,
 				})
 				if err != nil {
-					return fmt.Errorf("computing id: %w", err)
+					return invalidSlugError(flagSlug, err)
 				}
 				id = base
 			default:
@@ -289,6 +292,7 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagTopic, "topic", "", "decision topic slug (required for decision)")
 	cmd.Flags().StringVar(&flagSuggestedType, "suggested-type", "", "suggested type (inbox only)")
 	cmd.Flags().StringVar(&flagSuggestedProject, "suggested-project", "", "suggested project (inbox only)")
+	cmd.Flags().StringVar(&flagSlug, "slug", "", "override the title-derived slug (must match ^[a-z0-9][a-z0-9-]*$)")
 	cmd.Flags().StringVar(&flagIssue, "issue", "", "issue wikilink (required for plan)")
 	cmd.Flags().StringVar(&flagBody, "body", "", "artifact body content (or pipe via stdin)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
@@ -303,6 +307,17 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet to suppress novelty gate for (repeatable: domain|activity|pattern)")
 
 	return cmd
+}
+
+// invalidSlugError wraps a ValidateSlug failure with a structured code so
+// agents can dispatch on `invalid_slug` instead of parsing the text. Falls
+// through unchanged when slug is empty (the caller's error wasn't a slug
+// validation failure).
+func invalidSlugError(slug string, cause error) error {
+	if slug == "" {
+		return cause
+	}
+	return fmt.Errorf("[invalid_slug] slug %q: %w; pattern: ^[a-z0-9][a-z0-9-]*$", slug, cause)
 }
 
 func createLongDescription() string {
