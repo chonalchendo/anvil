@@ -1291,7 +1291,10 @@ func TestCreate_DescriptionPreflight_RejectsOversize(t *testing.T) {
 		t.Errorf("error must name actual length and cap; got: %s", msg)
 	}
 	// No file should be written under the issues dir.
-	entries, _ := os.ReadDir(filepath.Join(vault, "70-issues"))
+	entries, readErr := os.ReadDir(filepath.Join(vault, "70-issues"))
+	if readErr != nil {
+		t.Fatalf("reading issues dir: %v", readErr)
+	}
 	if len(entries) != 0 {
 		t.Errorf("expected no files written on pre-flight failure, got %d", len(entries))
 	}
