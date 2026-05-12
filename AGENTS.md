@@ -20,8 +20,41 @@ Apply the test before adding anything: *is this load-bearing for an agent decisi
 - **No comments explaining *what*.** Comments explain *why* the code is shaped this way, never restate what the code does.
 - **No `fmt.Println` for control flow output.** CLI output goes through cobra's `cmd.Println` / `cmd.PrintErrln` (which respect output redirection); structured logging goes through `log/slog`.
 - **No new top-level dependencies without explicit user approval.**
+- **No whole-file `Read` of files >150 lines without grepping first.** Grep for the symbol or string you actually need, then `Read` with `offset`/`limit` around the match. Reading is the highest per-token cost in this repo; full-file reads earn their place. Detail in [Reading Discipline](docs/guardrails.md#reading-discipline).
 
 If you write 200 lines and it could be 50, rewrite it. Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+## Worktrees and PRs (non-negotiable)
+
+Every task runs in a worktree and lands via PR. Never `git checkout -b` or commit directly on `master` in the main clone — parallel sessions collide on the same checkout, CodeRabbit gets no review pass, and `master` accumulates work no second pair of eyes ever saw.
+
+```bash
+git -C ~/Development/anvil worktree add ~/Development/anvil-worktrees/<slug> -b anvil/<slug>
+cd ~/Development/anvil-worktrees/<slug>
+```
+
+After the PR merges: `git -C ~/Development/anvil worktree remove ~/Development/anvil-worktrees/<slug>`.
+
+Workflow per task:
+
+1. Cut the worktree on a fresh branch named `anvil/<slug>`.
+2. Implement + commit on that branch.
+3. Pass the smoke-test gate (below) before opening the PR.
+4. `gh pr create` — wait for CodeRabbit's review pass and user approval before merging. CodeRabbit catches the class of bugs unit tests miss (broken commands in error hints, schema-inconsistent JSON, surprising empty fields) — it is part of the verification budget, not optional polish.
+5. Remove the worktree after merge.
+
+No exceptions for "small" or "obvious" changes. Skipping the PR step removes the only independent review surface this repo has.
+
+## Smoke-Test Before Resolved (non-negotiable)
+
+Unit tests are not enough. Before opening a PR — or claiming a feature/fix is done — you MUST drive it through the installed `anvil` binary against a real vault, exactly as a user or agent would. No exceptions. Every feature. Every fix. Every time.
+
+1. `go install ./cmd/anvil`.
+2. Invoke the new verb, re-trigger the changed error, or read the new skill phase end-to-end.
+3. Compare actual output against the issue's acceptance criteria.
+4. Any failure (broken command referenced in an error hint, schema-inconsistent JSON field names, oversized output on real-vault data, surprising blank/empty fields) is a regression — fix it before resolving.
+
+The Go test suite asserts that *some* string appears in output; it does not assert that the string is a runnable command, or that the JSON shape matches the rest of `anvil show`, or that the output stays usable on a 40KB real-vault artifact. Only live invocation catches that. If you didn't run the binary, the work is not done.
 
 ## Working through issues
 

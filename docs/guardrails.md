@@ -2,6 +2,17 @@
 
 How to approach work in Anvil — non-negotiable behaviors that apply before and during any code or design change.
 
+## Reading Discipline
+
+Reading source is the single highest per-token cost in this repo. Before any `Read`:
+
+- **Grep for the symbol first.** `grep -n "FuncName\|ConstName" path/` returns line ranges; `Read` with `offset`/`limit` around the match (~60-80 lines of surrounding context usually suffices). Bug-fix work rarely needs the whole file.
+- **Whole-file reads earn their place.** Justified when (a) authoring a new file, (b) the file is small (<150 lines), or (c) grep matches scatter across most of the file. Otherwise narrow first.
+- **Don't re-read files you just wrote.** `Edit` / `Write` fail loudly on mismatch; the harness tracks post-edit state.
+- **Scan tool output, don't echo it.** When `go test`, `anvil list`, or similar produces long output, extract the headline (pass/fail count, first failure name) — don't paste the full dump into subsequent reasoning.
+
+The failure mode this prevents: reading a 600-line file end-to-end when the bug lives in 60 of those lines. The cost compounds across a session.
+
 ## Think Before Coding
 
 Don't assume. Don't hide confusion. Surface tradeoffs.

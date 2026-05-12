@@ -21,13 +21,14 @@ func newShowCmd() *cobra.Command {
 		flagBody     bool
 		flagValidate bool
 		flagWaves    bool
+		flagTask     string
 	)
 
 	cmd := &cobra.Command{
 		Use:     "show <type> <id>",
 		Short:   "Display a vault artifact (frontmatter-only by default; pass --body to include the body)",
 		Args:    cobra.ExactArgs(2),
-		Example: "  anvil show issue issue-42\n  anvil show issue issue-42 --body\n  anvil show issue issue-42 --json",
+		Example: "  anvil show issue issue-42\n  anvil show issue issue-42 --body\n  anvil show issue issue-42 --json\n  anvil show plan ANV-142 --task T3 --body",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t, err := core.ParseType(args[0])
 			if err != nil {
@@ -36,6 +37,15 @@ func newShowCmd() *cobra.Command {
 			v, err := core.ResolveVault()
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
+			}
+			if flagTask != "" {
+				if t != core.TypePlan {
+					return fmt.Errorf("--task is only valid for plan artifacts")
+				}
+				if flagValidate || flagWaves {
+					return fmt.Errorf("--task cannot be combined with --validate or --waves")
+				}
+				return runShowPlanTask(cmd, v, args[1], flagTask, flagJSON, flagBody)
 			}
 			if t == core.TypePlan && (flagValidate || flagWaves) {
 				return runShowPlan(cmd, v, args[1], flagValidate, flagWaves)
@@ -51,6 +61,7 @@ func newShowCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagBody, "body", false, "include body (capped at 500 lines)")
 	cmd.Flags().BoolVar(&flagValidate, "validate", false, "validate artifact (plan: full DAG; issue/milestone: schema + wikilinks)")
 	cmd.Flags().BoolVar(&flagWaves, "waves", false, "render plan waves as mermaid (plan only)")
+	cmd.Flags().StringVar(&flagTask, "task", "", "scope output to a single task (plan only; compose with --body for the section text)")
 	return cmd
 }
 
