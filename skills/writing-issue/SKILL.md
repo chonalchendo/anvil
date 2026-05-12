@@ -178,7 +178,7 @@ Use `anvil set ... status` only as a force-edit escape hatch when `transition` r
 
 Three exits:
 
-1. **`issue` created** — file exists, validates, milestone link set. Recommend `anvil:writing-plan` as the next step. **REQUIRED SUB-SKILL:** Use anvil:writing-plan.
+1. **`issue` created** — file exists, validates, milestone link set. **Scope-survey before handing off:** multi-file, multi-task, or non-obvious decomposition → hand off to `anvil:writing-plan`. Single-file or two-file change with a clear test contract → skip the plan, implement inline (under `anvil:implementing-plan` if a plan exists, otherwise direct TDD). The plan layer earns its keep on decomposition, not on file count alone.
 2. **`decision/rejected`** — user bailed mid-session. Prompt: "log this as a rejected decision?" If yes:
    ```bash
    anvil create decision --title "Considered: <X>" --json
