@@ -24,9 +24,30 @@ Apply the test before adding anything: *is this load-bearing for an agent decisi
 
 If you write 200 lines and it could be 50, rewrite it. Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
+## Worktrees and PRs (non-negotiable)
+
+Every task runs in a worktree and lands via PR. Never `git checkout -b` or commit directly on `master` in the main clone — parallel sessions collide on the same checkout, CodeRabbit gets no review pass, and `master` accumulates work no second pair of eyes ever saw.
+
+```bash
+git -C /Users/conal/Development/anvil worktree add /Users/conal/Development/anvil-worktrees/<slug> -b anvil/<slug>
+cd /Users/conal/Development/anvil-worktrees/<slug>
+```
+
+After the PR merges: `git -C /Users/conal/Development/anvil worktree remove /Users/conal/Development/anvil-worktrees/<slug>`.
+
+Workflow per task:
+
+1. Cut the worktree on a fresh branch named `anvil/<slug>`.
+2. Implement + commit on that branch.
+3. Pass the smoke-test gate (below) before opening the PR.
+4. `gh pr create` — wait for CodeRabbit's review pass and user approval before merging. CodeRabbit catches the class of bugs unit tests miss (broken commands in error hints, schema-inconsistent JSON, surprising empty fields) — it is part of the verification budget, not optional polish.
+5. Remove the worktree after merge.
+
+No exceptions for "small" or "obvious" changes. Skipping the PR step removes the only independent review surface this repo has.
+
 ## Smoke-Test Before Resolved (non-negotiable)
 
-Unit tests are not enough. Before marking any issue resolved — or claiming a feature/fix is done — you MUST drive it through the installed `anvil` binary against a real vault, exactly as a user or agent would. No exceptions. Every feature. Every fix. Every time.
+Unit tests are not enough. Before opening a PR — or claiming a feature/fix is done — you MUST drive it through the installed `anvil` binary against a real vault, exactly as a user or agent would. No exceptions. Every feature. Every fix. Every time.
 
 1. `go install ./cmd/anvil`.
 2. Invoke the new verb, re-trigger the changed error, or read the new skill phase end-to-end.
