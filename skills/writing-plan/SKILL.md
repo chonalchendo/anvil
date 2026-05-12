@@ -63,6 +63,28 @@ Fill `depends_on` with task IDs whose *outputs* the task literally needs.
 Do NOT add dependencies for logical sequencing — false serialization prevents
 wave parallelism. Mentally topological-sort after writing all lists.
 
+### File-isolation rule
+
+No two tasks in the same wave may touch the same file. `anvil show plan <id>
+--validate --waves` rejects with `code: same_file_in_wave` (lists the conflicting
+tasks and file) when this is violated. The rule exists because executors fan out
+inside a wave: two concurrent edits to the same file produce non-deterministic
+output, race against each other's pre-condition checks, and break the TDD anchor.
+
+When you hit it:
+
+- **Split the task** along file-set lines. Each split task touches a distinct
+  file; both can run in the same wave.
+- **Add a depends_on edge** between the conflicting tasks. The dependent task
+  drops to the next wave. Choose this when the second task genuinely consumes
+  the first's edit (renamed symbol, new helper).
+- **Don't merge tasks** to avoid the rule — that grows the file-set beyond the
+  ≤ 3 cap and dilutes the TDD anchor.
+
+> Open question for v0.2: a merge-aware fan-out could let multiple tasks edit
+> the same file in one wave if the planner declared disjoint hunks. Out of scope
+> for v0.1; tracked separately in the inbox.
+
 ## Phase 4 — Write the failing-test contract for every task
 
 For each task, the body section MUST contain, in this order:
