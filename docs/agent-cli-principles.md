@@ -42,7 +42,7 @@ CLI output flows cleanly to downstream tools. All content goes to stdout; all di
 (showing 50 of 312 issues — narrow with --status, --milestone, or --limit N)
 ```
 
-`anvil show` on a type with a large body field should print a summary view by default and accept `--full` for the complete content. Unbounded output breaks agent context budgets.
+`anvil show` on a type with a large body field should print a summary view by default and accept `--body` for the artifact body (capped). Unbounded output breaks agent context budgets.
 
 ---
 

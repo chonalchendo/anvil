@@ -16,7 +16,7 @@ func TruncationHint(label string, returned, total int, filters []string) string 
 		returned, total, label, strings.Join(filters, ", "))
 }
 
-// BodyClipHint formats the stderr hint for a clipped --full body.
+// BodyClipHint formats the stderr hint for a clipped --body output.
 func BodyClipHint(returned, total int, path string) string {
 	return fmt.Sprintf("body truncated to %d of %d lines; read %s directly for the rest",
 		returned, total, path)

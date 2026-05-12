@@ -35,7 +35,7 @@ func TestShow_Text(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "bar", "Bar issue")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"show", "issue", "foo.bar", "--full"})
+	cmd.SetArgs([]string{"show", "issue", "foo.bar", "--body"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -55,7 +55,7 @@ func TestShow_JSON(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "bar", "Bar issue")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"show", "issue", "foo.bar", "--full", "--json"})
+	cmd.SetArgs([]string{"show", "issue", "foo.bar", "--body", "--json"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -100,7 +100,7 @@ func TestShow_DefaultIsFrontmatterOnly(t *testing.T) {
 	}
 }
 
-func TestShow_FullPopulatesBody(t *testing.T) {
+func TestShow_BodyFlagPopulatesBody(t *testing.T) {
 	vault := setupVault(t)
 	p := filepath.Join(vault, "70-issues", "foo.bar.md")
 	a := &core.Artifact{
@@ -115,7 +115,7 @@ func TestShow_FullPopulatesBody(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd := newRootCmd()
-	out, _, _ := runCmd(t, cmd, "show", "issue", "foo.bar", "--full", "--json")
+	out, _, _ := runCmd(t, cmd, "show", "issue", "foo.bar", "--body", "--json")
 	var got map[string]any
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatal(err)
@@ -125,7 +125,7 @@ func TestShow_FullPopulatesBody(t *testing.T) {
 	}
 }
 
-func TestShow_FullClipAt500Lines(t *testing.T) {
+func TestShow_BodyFlagClipsAt500Lines(t *testing.T) {
 	vault := setupVault(t)
 	body := strings.Repeat("line\n", 600)
 	p := filepath.Join(vault, "70-issues", "foo.bar.md")
@@ -141,7 +141,7 @@ func TestShow_FullClipAt500Lines(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd := newRootCmd()
-	out, errOut, _ := runCmd(t, cmd, "show", "issue", "foo.bar", "--full", "--json")
+	out, errOut, _ := runCmd(t, cmd, "show", "issue", "foo.bar", "--body", "--json")
 	var got map[string]any
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatal(err)
@@ -154,6 +154,23 @@ func TestShow_FullClipAt500Lines(t *testing.T) {
 	}
 	if !strings.Contains(errOut, "500 of") {
 		t.Errorf("expected clip hint on stderr, got %q", errOut)
+	}
+}
+
+func TestShow_FullFlagRemoved(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "bar", "Bar issue")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"show", "issue", "foo.bar", "--full"})
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected --full to be rejected as unknown flag")
+	}
+	if !strings.Contains(err.Error(), "unknown flag") && !strings.Contains(errOut.String(), "unknown flag") {
+		t.Errorf("err should mention unknown flag, got: %v\nstderr: %s", err, errOut.String())
 	}
 }
 

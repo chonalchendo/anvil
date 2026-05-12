@@ -103,7 +103,7 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 
 - `list` / `inbox list` — `--limit` (default 10), recency-desc sort, `--since`/`--until`, JSON envelope `{items, total, returned, truncated}`, stderr truncation hint.
 - `list` — per-item `id`/`type`/`title`/`description`/`status`/`created`/`project`/`tags`/`path`.
-- `show` — frontmatter-only default; `--full` body up to 500 lines with stderr clip hint; `--json` nests under `"frontmatter"`.
+- `show` — frontmatter-only default; `--body` includes the body up to 500 lines with stderr clip hint; `--json` nests under `"frontmatter"`.
 - `project list` — `--json` flat array.
 - `validate` — structured `{code, path, field, got, expected?, fix?}` via `internal/cli/errfmt`; codes `enum_violation`/`missing_required`/`type_mismatch`/`constraint_violation`/`unresolved_link`.
 - Root `--vault` / `--project` flags — precedence flag > env (`ANVIL_VAULT`/`ANVIL_PROJECT`) > cwd.

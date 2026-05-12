@@ -13,21 +13,21 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-const showFullLineCap = 500
+const showBodyLineCap = 500
 
 func newShowCmd() *cobra.Command {
 	var (
 		flagJSON     bool
-		flagFull     bool
+		flagBody     bool
 		flagValidate bool
 		flagWaves    bool
 	)
 
 	cmd := &cobra.Command{
 		Use:     "show <type> <id>",
-		Short:   "Display a vault artifact (frontmatter-only by default)",
+		Short:   "Display a vault artifact (frontmatter-only by default; pass --body to include the body)",
 		Args:    cobra.ExactArgs(2),
-		Example: "  anvil show issue issue-42\n  anvil show plan plan-7 --full\n  anvil show issue issue-42 --json",
+		Example: "  anvil show issue issue-42\n  anvil show issue issue-42 --body\n  anvil show issue issue-42 --json",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t, err := core.ParseType(args[0])
 			if err != nil {
@@ -43,12 +43,12 @@ func newShowCmd() *cobra.Command {
 			if flagValidate && (t == core.TypeIssue || t == core.TypeMilestone) {
 				return runShowValidate(cmd, v, t, args[1], flagJSON)
 			}
-			return runShow(cmd, v, t, args[1], flagJSON, flagFull)
+			return runShow(cmd, v, t, args[1], flagJSON, flagBody)
 		},
 	}
 
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
-	cmd.Flags().BoolVar(&flagFull, "full", false, "include body (capped at 500 lines)")
+	cmd.Flags().BoolVar(&flagBody, "body", false, "include body (capped at 500 lines)")
 	cmd.Flags().BoolVar(&flagValidate, "validate", false, "validate artifact (plan: full DAG; issue/milestone: schema + wikilinks)")
 	cmd.Flags().BoolVar(&flagWaves, "waves", false, "render plan waves as mermaid (plan only)")
 	return cmd
@@ -63,7 +63,7 @@ type showOutput struct {
 	BodyLinesTotal int            `json:"body_lines_total"`
 }
 
-func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, full bool) error {
+func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, includeBody bool) error {
 	path := resolveArtifactPath(v.Root, t, id)
 	a, err := core.LoadArtifact(path)
 	if err != nil {
@@ -87,12 +87,12 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, 
 		BodyLinesTotal: totalLines,
 	}
 
-	if full {
+	if includeBody {
 		shown := body
-		if totalLines > showFullLineCap {
-			shown = strings.Join(bodyLines[:showFullLineCap], "\n")
+		if totalLines > showBodyLineCap {
+			shown = strings.Join(bodyLines[:showBodyLineCap], "\n")
 			out.BodyTruncated = true
-			cmd.PrintErrln(output.BodyClipHint(showFullLineCap, totalLines, a.Path))
+			cmd.PrintErrln(output.BodyClipHint(showBodyLineCap, totalLines, a.Path))
 		}
 		out.Body = &shown
 	}
@@ -105,7 +105,7 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, 
 	}
 
 	emitFrontMatterText(cmd, a.FrontMatter)
-	if full && out.Body != nil {
+	if includeBody && out.Body != nil {
 		fmt.Fprintln(w, "---")
 		fmt.Fprint(w, *out.Body)
 	}
