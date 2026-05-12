@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -116,7 +117,10 @@ func runShowPlanTask(cmd *cobra.Command, v *core.Vault, id, taskID string, asJSO
 	path := filepath.Join(v.Root, core.TypePlan.Dir(), id+".md")
 	p, err := core.LoadPlan(path)
 	if err != nil {
-		return ErrArtifactNotFound
+		if os.IsNotExist(err) {
+			return ErrArtifactNotFound
+		}
+		return fmt.Errorf("loading plan: %w", err)
 	}
 
 	var task *core.Task

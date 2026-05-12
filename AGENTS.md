@@ -29,11 +29,11 @@ If you write 200 lines and it could be 50, rewrite it. Ask yourself: "Would a se
 Every task runs in a worktree and lands via PR. Never `git checkout -b` or commit directly on `master` in the main clone — parallel sessions collide on the same checkout, CodeRabbit gets no review pass, and `master` accumulates work no second pair of eyes ever saw.
 
 ```bash
-git -C /Users/conal/Development/anvil worktree add /Users/conal/Development/anvil-worktrees/<slug> -b anvil/<slug>
-cd /Users/conal/Development/anvil-worktrees/<slug>
+git -C ~/Development/anvil worktree add ~/Development/anvil-worktrees/<slug> -b anvil/<slug>
+cd ~/Development/anvil-worktrees/<slug>
 ```
 
-After the PR merges: `git -C /Users/conal/Development/anvil worktree remove /Users/conal/Development/anvil-worktrees/<slug>`.
+After the PR merges: `git -C ~/Development/anvil worktree remove ~/Development/anvil-worktrees/<slug>`.
 
 Workflow per task:
 

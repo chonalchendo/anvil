@@ -38,11 +38,17 @@ func newShowCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
+			if flagTask != "" {
+				if t != core.TypePlan {
+					return fmt.Errorf("--task is only valid for plan artifacts")
+				}
+				if flagValidate || flagWaves {
+					return fmt.Errorf("--task cannot be combined with --validate or --waves")
+				}
+				return runShowPlanTask(cmd, v, args[1], flagTask, flagJSON, flagBody)
+			}
 			if t == core.TypePlan && (flagValidate || flagWaves) {
 				return runShowPlan(cmd, v, args[1], flagValidate, flagWaves)
-			}
-			if t == core.TypePlan && flagTask != "" {
-				return runShowPlanTask(cmd, v, args[1], flagTask, flagJSON, flagBody)
 			}
 			if flagValidate && (t == core.TypeIssue || t == core.TypeMilestone) {
 				return runShowValidate(cmd, v, t, args[1], flagJSON)
