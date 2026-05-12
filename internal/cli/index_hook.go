@@ -11,9 +11,10 @@ import (
 )
 
 // indexAfterSave updates vault.db for the artifact at a.Path. Bootstraps
-// vault.db on first use (no stamp = run a full reindex). Returns
-// errfmt.IndexStale if the vault has been edited externally since last
-// reindex.
+// vault.db on first use (no stamp = run a full reindex). Auto-reindexes on
+// detected external drift so sequential writes in one process don't need
+// a manual `anvil reindex` between them; the verb stays for the read path
+// and for full rebuilds.
 func indexAfterSave(v *core.Vault, a *core.Artifact) error {
 	db, err := index.Open(index.DBPath(v.Root))
 	if err != nil {
@@ -30,7 +31,12 @@ func indexAfterSave(v *core.Vault, a *core.Artifact) error {
 				return fmt.Errorf("bootstrap reindex: %w", err)
 			}
 		case errors.Is(err, index.ErrIndexStale):
-			return errfmt.NewIndexStale()
+			// External drift since the last stamp — absorb it via a
+			// full reindex (which also picks up our just-saved file)
+			// instead of forcing the caller to `anvil reindex` first.
+			if _, err := db.Reindex(v.Root); err != nil {
+				return fmt.Errorf("auto-reindex on stale: %w", err)
+			}
 		default:
 			return fmt.Errorf("freshness check: %w", err)
 		}

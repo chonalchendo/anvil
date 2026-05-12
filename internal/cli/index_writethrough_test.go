@@ -105,7 +105,7 @@ func TestLinkWritesThroughToIndex(t *testing.T) {
 	}
 }
 
-func TestExternalEditMarksIndexStale(t *testing.T) {
+func TestExternalEditAbsorbedOnNextWrite(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
@@ -128,12 +128,15 @@ func TestExternalEditMarksIndexStale(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "demo.foo", "status", "in-progress"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected ErrIndexStale, got nil; output: %s", out.String())
+	// The next write through indexAfterSave auto-reindexes, absorbing the
+	// external file so the user is not forced to run `anvil reindex` first.
+	execCmd(t, "set", "issue", "demo.foo", "status", "in-progress")
+
+	db := openIndex(t, vault)
+	if row, err := db.GetArtifact("demo.foo"); err != nil || row.Status != "in-progress" {
+		t.Fatalf("expected demo.foo in-progress; row=%+v err=%v", row, err)
+	}
+	if _, err := db.GetArtifact("demo.bar"); err != nil {
+		t.Fatalf("external demo.bar not absorbed by auto-reindex: %v", err)
 	}
 }
