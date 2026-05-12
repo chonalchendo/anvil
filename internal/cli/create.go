@@ -68,6 +68,7 @@ func newCreateCmd() *cobra.Command {
 		flagUpdate           bool
 		flagTags             []string
 		flagAllowNewFacet    []string
+		flagForceNew         bool
 	)
 
 	cmd := &cobra.Command{
@@ -197,7 +198,7 @@ func newCreateCmd() *cobra.Command {
 				if existing, err := core.LoadArtifact(path); err == nil {
 					drift := createDrift(t, fm, existing.FrontMatter, body, existing.Body)
 					if drift == "" {
-						return emitCreateResult(cmd, flagJSON, id, path, statusAlreadyExists)
+						return emitCreateResult(cmd, flagJSON, id, path, statusAlreadyExists, nil)
 					}
 					if !flagUpdate {
 						return formatDriftError(cmd, id, drift, fm, existing.FrontMatter, body, existing.Body)
@@ -239,7 +240,7 @@ func newCreateCmd() *cobra.Command {
 					if err := indexAfterSave(v, a); err != nil {
 						return fmt.Errorf("indexing %s: %w", id, err)
 					}
-					return emitCreateResult(cmd, flagJSON, id, path, statusUpdated)
+					return emitCreateResult(cmd, flagJSON, id, path, statusUpdated, nil)
 				} else if !errors.Is(err, fs.ErrNotExist) {
 					return fmt.Errorf("checking %s: %w", path, err)
 				}
@@ -282,7 +283,11 @@ func newCreateCmd() *cobra.Command {
 			if err := indexAfterSave(v, a); err != nil {
 				return fmt.Errorf("indexing %s: %w", id, err)
 			}
-			return emitCreateResult(cmd, flagJSON, id, path, statusCreated)
+			var warnings []string
+			if !flagForceNew {
+				warnings = findNearDuplicates(v, t, project, id)
+			}
+			return emitCreateResult(cmd, flagJSON, id, path, statusCreated, warnings)
 		},
 	}
 
@@ -305,6 +310,7 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagUpdate, "update", false, "rewrite existing session artifact on drift")
 	cmd.Flags().StringSliceVar(&flagTags, "tags", nil, "comma-separated tag list (e.g. domain/dbt,activity/testing)")
 	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet to suppress novelty gate for (repeatable: domain|activity|pattern)")
+	cmd.Flags().BoolVar(&flagForceNew, "force-new", false, "skip the near-duplicate similarity check")
 
 	return cmd
 }
@@ -437,13 +443,21 @@ const (
 	statusUpdated       createStatus = "updated"
 )
 
-func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status createStatus) error {
+func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status createStatus, warnings []string) error {
 	if asJSON {
-		out, _ := json.Marshal(map[string]string{
+		payload := map[string]any{
 			"id":     id,
 			"path":   path,
 			"status": string(status),
-		})
+		}
+		if len(warnings) > 0 {
+			ws := make([]map[string]string, 0, len(warnings))
+			for _, w := range warnings {
+				ws = append(ws, map[string]string{"kind": "similar", "id": w})
+			}
+			payload["warnings"] = ws
+		}
+		out, _ := json.Marshal(payload)
 		fmt.Fprintln(cmd.OutOrStdout(), string(out))
 		return nil
 	}
@@ -454,6 +468,9 @@ func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status c
 		fmt.Fprintln(cmd.OutOrStdout(), "already_exists: "+path)
 	case statusUpdated:
 		fmt.Fprintln(cmd.OutOrStdout(), "updated: "+path)
+	}
+	for _, w := range warnings {
+		fmt.Fprintln(cmd.ErrOrStderr(), "warning: similar artifact exists: "+w+" (pass --force-new to skip)")
 	}
 	return nil
 }
