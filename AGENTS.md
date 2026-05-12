@@ -83,10 +83,12 @@ Monitor first-principles contracts; a break is the methodology failing itself, v
 
 ## Reference Documents
 
+`docs/go-conventions.md`, `docs/code-design.md`, and `docs/agent-cli-principles.md` are auto-injected into context on the first `Edit`/`Write` of a `*.go` file per session, via `.claude/hooks/inject-go-conventions.sh` (Claude Code only). The "Read when..." pointers below remain authoritative for other harnesses and for proactive consultation.
+
 - `@docs/guardrails.md` — **MUST READ before any code or design change.** Think Before Coding, Surgical Changes, Goal-Driven Execution.
-- `@docs/code-design.md` — designing a module, API, or refactoring. Core Principles, Red Flags, Common Rationalizations.
-- `@docs/agent-cli-principles.md` — writing/reviewing/designing an `anvil` verb. Seven rules for agent-consumed CLIs.
-- `@docs/go-conventions.md` — Go code. Imports, error handling, logging, subprocess gotchas (8 MiB scanner buffer; per-spawn `CLAUDE_CONFIG_DIR`/`CODEX_HOME`).
+- `@docs/code-design.md` — designing a module, API, or refactoring. Core Principles, Red Flags, Common Rationalizations. **(hook-loaded on .go edits)**
+- `@docs/agent-cli-principles.md` — writing/reviewing/designing an `anvil` verb. Seven rules for agent-consumed CLIs. **(hook-loaded on .go edits)**
+- `@docs/go-conventions.md` — Go code. Imports, error handling, logging, subprocess gotchas (8 MiB scanner buffer; per-spawn `CLAUDE_CONFIG_DIR`/`CODEX_HOME`). **(hook-loaded on .go edits)**
 - `@docs/test-conventions.md` — tests. Stdlib `testing` + `go-cmp`, `t.TempDir()`, subprocess mocking boundary, integration build tag.
 - `@docs/git-conventions.md` — commits. Conventional-commits prefixes and never-commit list.
 - `@docs/dependencies.md` — new libraries. Baked-in Go ecosystem decisions; don't re-litigate without an ADR.
