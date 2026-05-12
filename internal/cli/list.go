@@ -23,6 +23,7 @@ type listItem struct {
 	Title       string   `json:"title"`
 	Description string   `json:"description,omitempty"`
 	Status      string   `json:"status"`
+	Severity    string   `json:"severity,omitempty"`
 	Created     string   `json:"created,omitempty"`
 	Project     string   `json:"project,omitempty"`
 	Tags        []string `json:"tags,omitempty"`
@@ -121,6 +122,7 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 		project, _ := a.FrontMatter["project"].(string)
 		title, _ := a.FrontMatter["title"].(string)
 		description, _ := a.FrontMatter["description"].(string)
+		severity, _ := a.FrontMatter["severity"].(string)
 		created, _ := a.FrontMatter["created"].(string)
 		diataxis, _ := a.FrontMatter["diataxis"].(string)
 		confidence, _ := a.FrontMatter["confidence"].(string)
@@ -131,7 +133,7 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 
 		items = append(items, listItem{
 			ID: id, Type: string(t), Title: title, Description: description,
-			Status: status, Created: created, Project: project,
+			Status: status, Severity: severity, Created: created, Project: project,
 			Tags: stringTags(a.FrontMatter["tags"]), Path: path,
 		})
 	}
@@ -246,7 +248,7 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 
 	qf := index.QueryFilters{
 		Status: f.Status, Project: f.Project,
-		Since: f.Since, Until: f.Until, Limit: limit,
+		Since: f.Since, Until: f.Until,
 	}
 	var rows []index.ArtifactRow
 	switch {
@@ -258,14 +260,25 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 	if err != nil {
 		return err
 	}
+	total := len(rows)
+	if limit > 0 && len(rows) > limit {
+		rows = rows[:limit]
+	}
 	items := make([]listItem, 0, len(rows))
 	for _, r := range rows {
-		items = append(items, listItem{
+		item := listItem{
 			ID: r.ID, Type: r.Type, Status: r.Status,
 			Project: r.Project, Path: r.Path, Created: r.Created,
-		})
+		}
+		if a, err := core.LoadArtifact(r.Path); err == nil {
+			item.Title, _ = a.FrontMatter["title"].(string)
+			item.Description, _ = a.FrontMatter["description"].(string)
+			item.Severity, _ = a.FrontMatter["severity"].(string)
+			item.Tags = stringTags(a.FrontMatter["tags"])
+		}
+		items = append(items, item)
 	}
-	return emitList(cmd, items, len(items), asJSON)
+	return emitList(cmd, items, total, asJSON)
 }
 
 // collectArtifactPaths returns absolute paths of artifacts of type t under
