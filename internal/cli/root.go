@@ -14,7 +14,7 @@ import (
 
 // Execute is the CLI entrypoint, invoked by cmd/anvil/main.go.
 func Execute(ctx context.Context) error {
-	return fang.Execute(ctx, newRootCmd(), fang.WithErrorHandler(errorHandler))
+	return fang.Execute(ctx, newRootCmd(), fang.WithErrorHandler(errorHandler), fang.WithVersion(resolveVersion()))
 }
 
 // errorHandler preserves whitespace for multi-line errors (e.g. the structured

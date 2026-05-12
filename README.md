@@ -36,7 +36,13 @@ The agent conventions (how to write code for Anvil) live in [`AGENTS.md`](AGENTS
 
 ## Setup
 
-After installing the binary, wire Anvil into Claude Code so each new session emits an artifact bound to the active thread:
+Install the binary with Go:
+
+    go install github.com/chonalchendo/anvil/cmd/anvil@latest
+
+This drops `anvil` into `$(go env GOPATH)/bin`. Make sure that directory is on your `$PATH` (e.g. `export PATH="$(go env GOPATH)/bin:$PATH"` in your shell rc). Verify with `anvil --version` — installs from a tagged module report the module version; local `go install ./cmd/anvil` from a checkout reports `dev-<sha7>`.
+
+Then wire Anvil into Claude Code so each new session emits an artifact bound to the active thread:
 
     anvil install hooks
 
