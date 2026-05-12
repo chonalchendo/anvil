@@ -65,11 +65,11 @@ Draft body for "Architectural overview" — 1–3 paragraphs, leading with the s
 
 ### Phase 3 — Tech stack
 
-Capture frontmatter `tech_stack` (object, not list — Obsidian Properties handles single-level objects). Fields are project-specific but typically include: `language`, `framework`/`cli_framework`, `database`/`storage`, `deployment`, `tests`. Use the product-design's locked decisions if any are recorded; otherwise elicit and decide here.
+Draft the **Tech stack** body section: a definition list (language, framework/CLI framework, database/storage, deployment, tests) capturing the locked-in choices. Body prose, not frontmatter — schema is `additionalProperties: false`.
 
-**REQUIRED SUB-SKILL:** Use `anvil:decision-making` for any tech-stack choice that isn't already authorized by an ADR. Capture as `[[decision.{project}.NNNN-{slug}]]` and add to `authorized_decisions` in Phase 8.
+**REQUIRED SUB-SKILL:** Use `anvil:decision-making` for any tech-stack choice that isn't already authorized by an ADR. Each choice should reference its ADR wikilink inline (the structural link goes in `authorized_by` per Phase 8).
 
-**Gate:** user confirms each tech-stack value, or marks it `TODO: decide via ADR`.
+**Gate:** user confirms each value, or marks it `TODO: decide via ADR`.
 
 ### Phase 4 — Components & responsibilities (LOAD-BEARING)
 
@@ -122,7 +122,7 @@ graph LR
 
 ### Phase 7 — Key invariants (LOAD-BEARING)
 
-3–7 statements that must always be true about the system. These are the most-cited downstream artifact: planning checks against them; review verifies them.
+Draft the **Key invariants** body section: 3–7 statements that must always be true about the system. These are the most-cited downstream content: planning checks against them; review verifies them. Body prose, not frontmatter.
 
 Examples (from anvil itself):
 - "Each agent CLI subprocess gets an isolated `CLAUDE_CONFIG_DIR` / `CODEX_HOME`."
@@ -135,15 +135,15 @@ Examples (from anvil itself):
 
 ### Phase 8 — Authorized decisions
 
-Wikilinks to ADRs that authorized architectural choices captured above. Each tech-stack decision and each load-bearing invariant should ideally trace to a `[[decision.{project}.NNNN-{slug}]]`.
+Populate the frontmatter `authorized_by` array — wikilinks to ADRs that authorized the choices captured above. Each tech-stack decision and each load-bearing invariant should ideally trace to a `[[decision.{project}.NNNN-{slug}]]`.
 
 For v0.1 it's acceptable to have unresolved wikilinks — flag them as `TODO: capture as ADR via anvil:decision-making`.
 
-**Gate:** user confirms the list, or accepts the TODO list.
+**Gate:** list confirmed, or TODO list accepted.
 
 ### Phase 9 — Why this shape
 
-≤80 lines of rationale. Reference `product-design.md` for product-side beliefs and the ADRs in `authorized_decisions` for the architectural reasoning. Don't restate; cross-reference.
+Draft the **Why this shape** body section. ≤80 lines of rationale. Reference `product-design.md` for product-side beliefs and the ADRs in `authorized_by` for the architectural reasoning. Don't restate; cross-reference.
 
 **Voice check (critical).** This section is where AI-generic prose creeps in. Audit for hedging, abstract framing, and corporate-speak. Direct, declarative, specific. Cite the user's own words from the product-design where possible.
 
@@ -151,23 +151,24 @@ For v0.1 it's acceptable to have unresolved wikilinks — flag them as `TODO: ca
 
 ### Phase 10 — Risks
 
-Mirrors product-design risks but at the architectural altitude: load-bearing assumptions that could fail, integration boundaries that could break, performance cliffs, security exposures.
+Draft the **Risks** body section. Architectural altitude: load-bearing assumptions that could fail, integration boundaries that could break, performance cliffs, security exposures.
 
 3–7 bullets. Each names *what could go wrong* and (if possible) *what would signal it*.
 
-**Gate:** user confirms the list.
+**Gate:** list confirmed.
 
 ### Phase 11 — Serialize & save
 
-1. Populate frontmatter from body. Replace any remaining placeholders.
-2. Flip `status: draft` → `status: active`.
-3. Append a `revisions:` entry: `{ date: today, change: "Initial draft" }`.
-4. Hand-check against the schema in [vault-schemas.md](../../docs/vault-schemas.md) under the `system-design` section. Verify:
-   - All schema-required frontmatter fields present (`type`, `title`, `project`, `created`, `updated`, `status`, `tags`, `product_design`, `tech_stack`, `key_invariants`, `authorized_decisions`, `revisions`).
-   - Body has these sections in schema order: Architectural overview / Components and responsibilities / Data flow / Boundaries and integration points / Key invariants / Why this shape.
-   - Mermaid diagrams in Data flow and Boundaries sections render (paste-test in Obsidian).
-   - Wikilinks in `authorized_decisions:` are well-formed `[[decision.{project}.NNNN-{slug}]]` (unresolved is OK; malformed is a bug).
-5. Write to `~/anvil-vault/05-projects/{project}/system-design.md`.
+1. Flip frontmatter `status: draft` → `active`. Bump `updated` to today.
+2. Hand-check against `schemas/system-design.schema.json`:
+   - Required frontmatter: `type, title, description, created, status, project`.
+   - Optional frontmatter: `updated, tags, aliases, product_design, authorized_by, related`.
+   - **No other frontmatter fields** — schema is `additionalProperties: false`. Tech-stack, invariants, risks, revisions are body sections.
+   - Body has these sections in order: Architectural overview / Tech stack / Components and responsibilities / Data flow / Boundaries and integration points / Key invariants / Why this shape / Risks.
+   - Mermaid diagrams in Data flow and Boundaries render (paste-test in Obsidian).
+   - Wikilinks under `authorized_by` are well-formed `[[decision.{project}.NNNN-{slug}]]` (unresolved is OK; malformed is a bug).
+3. Run `anvil validate <path>` — must pass clean.
+4. Write to `~/anvil-vault/05-projects/{project}/system-design.md`.
 
 **Gate:** user reads the artifact cold. Does it capture the system's shape? If anything's off, fix and re-show.
 
