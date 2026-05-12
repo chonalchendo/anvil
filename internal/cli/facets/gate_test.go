@@ -59,6 +59,12 @@ func TestCheck_ContainmentSuggestion(t *testing.T) {
 	if e.Fix == "" {
 		t.Error("fix line missing")
 	}
+	if !contains(e.Fix, "anvil tags list --prefix domain/") {
+		t.Errorf("fix line must point at `anvil tags list --prefix domain/`: %q", e.Fix)
+	}
+	if !contains(e.Fix, "--allow-new-facet=domain") {
+		t.Errorf("fix line must point at --allow-new-facet=domain: %q", e.Fix)
+	}
 }
 
 func TestCheck_LevenshteinSuggestion(t *testing.T) {
@@ -84,6 +90,9 @@ func TestCheck_NoSimilarReturnsNote(t *testing.T) {
 	}
 	if e.Fix == "" || !contains(e.Fix, "--allow-new-facet=domain") {
 		t.Errorf("fix line must point at --allow-new-facet=domain: %q", e.Fix)
+	}
+	if !contains(e.Fix, "anvil tags list --prefix domain/") {
+		t.Errorf("fix line must point at `anvil tags list --prefix domain/`: %q", e.Fix)
 	}
 }
 
