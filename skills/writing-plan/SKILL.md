@@ -148,6 +148,26 @@ If it errors, fix and re-validate.
 
 **REQUIRED SUB-SKILL:** Use anvil:implementing-plan for single-agent inline execution today; `anvil build` once it lands for orchestrated execution.
 
+## Plan state walk
+
+The plan lifecycle is `draft → locked → in-progress → done` (with `→ abandoned` and a `done → in-progress` reverse audit edge). Each transition fires at a specific point in the workflow:
+
+```bash
+# Planner — after Phase 5 self-review and Phase 6 validation pass
+anvil transition plan <id> locked
+
+# Executor — at the start of implementation (locked → in-progress)
+anvil transition plan <id> in-progress
+
+# Executor — once every task is resolved and acceptance is met
+anvil transition plan <id> done
+
+# Recovery — reopen for follow-up work (requires --reason)
+anvil transition plan <id> in-progress --reason "<why>"
+```
+
+The planner closes its phase at `locked`; the executor owns every transition after. Lock-before-execute is the contract: any plan in `draft` is not yet committed material.
+
 ## Forbidden patterns
 
 - "The executor will figure out the file layout" — no. Lock the paths.

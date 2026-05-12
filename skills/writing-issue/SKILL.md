@@ -157,6 +157,23 @@ Fix any schema errors reported. Re-run until clean.
 
 ---
 
+## Working the issue (state machine)
+
+The issue lifecycle is `open → in-progress → resolved` (with `→ abandoned` and reverse audit edges). All status changes go through `anvil transition`, not direct frontmatter edits.
+
+```bash
+# Claim — --owner is required (open → in-progress)
+anvil transition issue <id> in-progress --owner <name>
+
+# Resolve when the work is merged (in-progress → resolved)
+anvil transition issue <id> resolved
+
+# Reopen with audit trail (resolved → open requires --reason)
+anvil transition issue <id> open --reason "<why>"
+```
+
+Use `anvil set ... status` only as a force-edit escape hatch when `transition` rejects a legal-but-unusual move.
+
 ## Terminal states
 
 Three exits:

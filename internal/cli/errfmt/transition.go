@@ -26,23 +26,42 @@ func (e IllegalTransition) Error() string {
 		e.Type, e.ID, e.From, e.To, strings.Join(e.LegalNext, ", "))
 }
 
-// TransitionFlagRequired signals a missing CLI flag for an edge that declares Requires.
+// TransitionFlagRequired signals a missing CLI flag for an edge that declares
+// Requires. The error carries a corrected, copy-pasteable invocation per
+// agent-cli-principles rule 4.
 type TransitionFlagRequired struct {
-	Code string `json:"code"`
-	Type string `json:"type"`
-	ID   string `json:"id"`
-	From string `json:"from"`
-	To   string `json:"to"`
-	Flag string `json:"flag"`
+	Code      string `json:"code"`
+	Type      string `json:"type"`
+	ID        string `json:"id"`
+	From      string `json:"from"`
+	To        string `json:"to"`
+	Flag      string `json:"flag"`
+	Required  bool   `json:"required"`
+	Corrected string `json:"corrected"`
 }
 
 func NewTransitionFlagRequired(typ, id, from, to, flag string) TransitionFlagRequired {
-	return TransitionFlagRequired{Code: "transition_flag_required", Type: typ, ID: id, From: from, To: to, Flag: flag}
+	corrected := fmt.Sprintf("anvil transition %s %s %s --%s <%s>", typ, id, to, flag, flagValuePlaceholder(flag))
+	return TransitionFlagRequired{
+		Code: "transition_flag_required", Type: typ, ID: id, From: from, To: to,
+		Flag: flag, Required: true, Corrected: corrected,
+	}
 }
 
 func (e TransitionFlagRequired) Error() string {
-	return fmt.Sprintf("[transition_flag_required]\n  type: %s\n  id: %s\n  from: %s\n  to: %s\n  flag: %s",
-		e.Type, e.ID, e.From, e.To, e.Flag)
+	return fmt.Sprintf("[transition_flag_required]\n  type: %s\n  id: %s\n  from: %s\n  to: %s\n  flag: %s (required: true)\n  corrected: %s",
+		e.Type, e.ID, e.From, e.To, e.Flag, e.Corrected)
+}
+
+func flagValuePlaceholder(flag string) string {
+	switch flag {
+	case "owner":
+		return "name"
+	case "reason":
+		return "audit reason"
+	default:
+		return "value"
+	}
 }
 
 // IndexStale signals that the vault has been edited externally and the
