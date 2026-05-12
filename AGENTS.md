@@ -33,6 +33,39 @@ If you write 200 lines and it could be 50, rewrite it. Ask yourself: "Would a se
 
 Status transitions go through `anvil transition`, not direct frontmatter edits.
 
+## Skills before CLI
+
+For any anvil activity with a corresponding skill — `capturing-inbox`, `writing-issue`, `writing-plan`, `writing-product-design`, `distilling-learning`, `opening-thread` — fire the skill, not the raw CLI verb. The verbs are the substrate the skills compose on; invoking them directly skips the workflow knowledge the skills encode (body templates, frontmatter conventions, verbatim-preservation rules, multi-step state transitions, Iron Laws).
+
+Mechanical operations — `anvil reindex`, `anvil link --to`, `anvil where`, `anvil list <type>`, `anvil show`, `anvil validate`, `anvil tags list` — are fine to call directly; they are read-side or hygiene verbs without a skill. The rule applies to artifact-shaping activities, not queries.
+
+If you find yourself reaching for `anvil create <type>` and the type has a skill, stop and fire the skill instead.
+
+## Dogfooding
+
+Anvil is its own primary user. Friction surfaced while working on this repo — skills that prescribe broken commands, schema/skill contradictions, **workflow shape that over- or under-fits the task**, **vault that doesn't function as a connected knowledge base** — lands in *this* vault, not in a side log and not in GitHub issues (unless an external contributor needs to see it).
+
+**The CLI is the highest-priority friction surface.** Anvil's primary user is an LLM, not a human; the agent pays the CLI's cost on every invocation. Measure every verb, flag, and error against `@docs/agent-cli-principles.md`. A verb that violates a principle is friction by design — log it even when it didn't block you.
+
+- Raw thought, not yet shaped → `anvil create inbox --title "<one line>" --suggested-type issue`. Capture before the moment passes; triage later.
+- Already reproducible → `anvil create issue --project anvil ...` linked to the active polish/v0.1 milestone. Quote the failing invocation verbatim with observed-vs-expected delta.
+- Workflow-shape friction. Multi-task plan for a 10-line spike-and-verify; issue authored before the problem was clear; un-verifiable acceptance that belonged in the inbox; convergence loops that talked past the point. Capture what the skill required, what shape would have worked, and why.
+- Knowledge-base friction. The vault must *work as a connected knowledge base*, not an issue tracker with extra directories: wikilinks Obsidian resolves, artifacts you can find by `list` / `show` / `link --to`, learnings and decisions that connect back to the work they motivated. A relevant learning unreachable via the graph is a vault-as-KB issue, not user error.
+- Suggest cuts as you go. Every session is also a cull session — for each verb, flag, skill, schema field, body template you reach for, ask *load-bearing or routable-around?* CLI surface is the highest-value cut target. Phase C cull (`@docs/system-design/roadmap.md`) rides on this evidence; without continuous capture it becomes opinion.
+- Don't fix-and-forget. A fix without a captured trace is a trap for the next maintainer hitting the same symptom.
+
+Friction must square against `@docs/product-design.md`, `@docs/system-design.md`, and `@docs/system-design/roadmap.md` — roadmap-tracked items reference the existing entry; design contradictions are high-signal and worth pressing.
+
+Monitor anvil's first-principles contracts; a break here is the methodology failing itself, vault-issue-worthy at severity ≥ high.
+
+- **Traceability** — pick a recent commit; walk commit → plan → issue → milestone → product-design via `anvil link --from` / `--to`. Break in the chain = headline promise failed.
+- **Subprocess-executor portability** — plan body works for an executor with zero prior context? If you needed three files the planner didn't reference, the plan failed as a message to the next agent.
+- **Context budget** — bloating SKILL.md, AGENTS.md, schema, or always-on reference doc is a regression even when no test fails. Same for maximalist frontmatter.
+- **Iron-law substance** — when an iron law was satisfied, was it substance or paper compliance? Acceptance you wrote but can't verify is the canonical evasion.
+- **No-scaffolding pitch** — did the session work *without* in-repo anvil files? If you added one, methodology-travels-via-skills broke.
+
+**End-of-session token reflection (MUST).** Before closing any dogfood session, account for context spent: rough total, the top 2–3 token sinks you drove (avoidable reads, redundant searches, oversized tool output), and any harness/CLI/skill change that would have cut them. Anvil's primary user is an LLM; tokens are the budget. Optimisations land back into anvil — terser CLI output, leaner skill bodies, narrower default reads, sharper schemas — captured as inbox/issue per the rules above. A session with no token-side observation is itself a finding.
+
 ## Reference Documents
 
 ### Behavioral Guardrails — `@docs/guardrails.md`
