@@ -47,14 +47,28 @@ func readBody(_ *cobra.Command, flagBody string) (string, error) {
 	return ensureTrailingNewline(string(b)), nil
 }
 
-// stdinIsPipe reports whether os.Stdin is something other than a character
-// device (i.e. a pipe or redirected file). Uses Stat mode bits — no new dep.
+// stdinIsPipe reports whether os.Stdin carries real piped/redirected data
+// the caller intends us to read. Only two shapes qualify:
+//
+//   - a named pipe (`echo x | cmd`, heredocs, process substitution)
+//   - a regular file with non-zero size (`cmd < file.md`)
+//
+// Sockets, ttys, /dev/null, and empty files all return false so we never
+// block on a read that has no producer — e.g. when an agent harness
+// attaches a persistent unix socket to stdin without ever writing to it.
 func stdinIsPipe() (bool, error) {
 	fi, err := os.Stdin.Stat()
 	if err != nil {
 		return false, err
 	}
-	return (fi.Mode() & os.ModeCharDevice) == 0, nil
+	m := fi.Mode()
+	if m&os.ModeNamedPipe != 0 {
+		return true, nil
+	}
+	if m.IsRegular() && fi.Size() > 0 {
+		return true, nil
+	}
+	return false, nil
 }
 
 func ensureTrailingNewline(s string) string {
