@@ -80,7 +80,9 @@ func TestShow_JSON(t *testing.T) {
 	}
 }
 
-func TestShow_DefaultIsFrontmatterOnly(t *testing.T) {
+// TestShow_IssueDefaultIncludesBody: bounded types default body=true so agents
+// don't burn a round-trip on --body for every issue/inbox/decision/sweep view.
+func TestShow_IssueDefaultIncludesBody(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "bar", "Bar issue")
 	cmd := newRootCmd()
@@ -89,14 +91,73 @@ func TestShow_DefaultIsFrontmatterOnly(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if got["body"] != nil {
-		t.Errorf("body=%v, want nil in default mode", got["body"])
+	body, ok := got["body"].(string)
+	if !ok {
+		t.Fatalf("body missing or not string in default mode: %v", got["body"])
 	}
-	if got["body_truncated"] != false {
-		t.Error("body_truncated should be false in default mode")
+	if !strings.Contains(body, "fixture body") {
+		t.Errorf("body=%q, want to contain %q", body, "fixture body")
 	}
 	if _, ok := got["frontmatter"].(map[string]any); !ok {
 		t.Error("frontmatter should be nested object")
+	}
+}
+
+// TestShow_IssueNoBodyOptsOut: --no-body overrides the bounded-type default.
+// JSON consumers can suppress body when frontmatter-only is what they want.
+func TestShow_IssueNoBodyOptsOut(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "bar", "Bar issue")
+	cmd := newRootCmd()
+	out, _, _ := runCmd(t, cmd, "show", "issue", "foo.bar", "--no-body", "--json")
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if got["body"] != nil {
+		t.Errorf("body=%v, want nil with --no-body", got["body"])
+	}
+}
+
+// TestShow_PlanDefaultIsFrontmatterOnly: plan bodies can be large (tasks +
+// waves), so plan keeps the frontmatter-only default. --body opts in.
+func TestShow_PlanDefaultIsFrontmatterOnly(t *testing.T) {
+	vault := setupVault(t)
+	p := filepath.Join(vault, "80-plans", "anv-1.md")
+	a := &core.Artifact{
+		Path: p,
+		FrontMatter: map[string]any{
+			"type": "plan", "title": "P", "description": "fixture description", "created": "2026-04-29",
+			"status": "draft", "issue": "[[issue.foo.bar]]",
+		},
+		Body: "## Task: T1\nplan body content\n",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newRootCmd()
+	out, _, _ := runCmd(t, cmd, "show", "plan", "anv-1", "--json")
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if got["body"] != nil {
+		t.Errorf("plan body=%v, want nil (plan default is frontmatter-only)", got["body"])
+	}
+}
+
+// TestShow_BodyNoBodyMutuallyExclusive: combining the two flags is a user
+// error, not a silent precedence rule.
+func TestShow_BodyNoBodyMutuallyExclusive(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "bar", "Bar issue")
+	cmd := newRootCmd()
+	_, _, err := runCmd(t, cmd, "show", "issue", "foo.bar", "--body", "--no-body")
+	if err == nil {
+		t.Fatal("expected error for --body + --no-body")
+	}
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("err = %v, want mutually-exclusive message", err)
 	}
 }
 
