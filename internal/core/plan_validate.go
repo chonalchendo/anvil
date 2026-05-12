@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 )
 
 const taskBodyMinLen = 200
@@ -19,18 +21,21 @@ var ErrPlanDAG = errors.New("plan dag invalid")
 // the task or add a depends_on edge that pushes one task into a later wave.
 // Wraps ErrPlanDAG so callers' errors.Is checks still match.
 type SameFileInWaveError struct {
-	Code  string   `json:"code"`
-	Wave  int      `json:"wave"`
-	Tasks []string `json:"tasks"`
-	File  string   `json:"file"`
+	*errfmt.Structured
 }
 
-func (e *SameFileInWaveError) Error() string {
-	return fmt.Sprintf("[same_file_in_wave]\n  wave: %d\n  tasks: %s\n  file: %s\n  fix: split the task into per-file tasks, or add depends_on between %s and %s",
-		e.Wave, strings.Join(e.Tasks, ", "), e.File, e.Tasks[0], e.Tasks[1])
+func newSameFileInWaveError(wave int, tasks []string, file string) *SameFileInWaveError {
+	fix := fmt.Sprintf("split the task into per-file tasks, or add depends_on between %s and %s",
+		tasks[0], tasks[1])
+	return &SameFileInWaveError{
+		Structured: errfmt.NewStructured("same_file_in_wave").
+			Set("wave", wave).
+			Set("tasks", tasks).
+			Set("file", file).
+			Set("fix", fix).
+			Wrap(ErrPlanDAG),
+	}
 }
-
-func (e *SameFileInWaveError) Unwrap() error { return ErrPlanDAG }
 
 // ErrPlanTDD signals a TDD-discipline violation: missing body section,
 // empty verify command. Maps to CLI exit code 3.
@@ -79,12 +84,7 @@ func ValidatePlan(p *Plan) error {
 		for _, idx := range wave {
 			for _, f := range p.Tasks[idx].Files {
 				if other, ok := seen[f]; ok {
-					return &SameFileInWaveError{
-						Code:  "same_file_in_wave",
-						Wave:  w,
-						Tasks: []string{other, p.Tasks[idx].ID},
-						File:  f,
-					}
+					return newSameFileInWaveError(w, []string{other, p.Tasks[idx].ID}, f)
 				}
 				seen[f] = p.Tasks[idx].ID
 			}

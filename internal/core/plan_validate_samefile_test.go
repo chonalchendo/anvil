@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -37,14 +38,20 @@ func TestValidatePlan_SameFileInWave_StructuredError(t *testing.T) {
 	if !errors.As(err, &sfe) {
 		t.Fatalf("err is not *SameFileInWaveError: %v", err)
 	}
-	if sfe.Code != "same_file_in_wave" {
-		t.Errorf("Code = %q, want same_file_in_wave", sfe.Code)
+	b, _ := json.Marshal(sfe)
+	var parsed map[string]any
+	if err := json.Unmarshal(b, &parsed); err != nil {
+		t.Fatalf("json: %v", err)
 	}
-	if sfe.File != "internal/cli/list.go" {
-		t.Errorf("File = %q, want internal/cli/list.go", sfe.File)
+	if parsed["code"] != "same_file_in_wave" {
+		t.Errorf("code = %v, want same_file_in_wave", parsed["code"])
 	}
-	if len(sfe.Tasks) != 2 || sfe.Tasks[0] != "demo.a" || sfe.Tasks[1] != "demo.b" {
-		t.Errorf("Tasks = %v, want [demo.a demo.b]", sfe.Tasks)
+	if parsed["file"] != "internal/cli/list.go" {
+		t.Errorf("file = %v, want internal/cli/list.go", parsed["file"])
+	}
+	tasks, _ := parsed["tasks"].([]any)
+	if len(tasks) != 2 || tasks[0] != "demo.a" || tasks[1] != "demo.b" {
+		t.Errorf("tasks = %v, want [demo.a demo.b]", tasks)
 	}
 	msg := err.Error()
 	for _, want := range []string{"same_file_in_wave", "demo.a", "demo.b", "internal/cli/list.go"} {

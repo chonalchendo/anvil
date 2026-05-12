@@ -51,22 +51,23 @@ func (e *ValidationError) WithFix(fix string) *ValidationError {
 	return e
 }
 
-// NotInVault signals that an artifact path passed to `anvil validate <file>`
+// NewNotInVault signals that an artifact path passed to `anvil validate <file>`
 // is not located under a known type-dir inside a vault.
-type NotInVault struct {
-	Code string `json:"code"`
-	Path string `json:"path"`
-	Hint string `json:"hint"`
+func NewNotInVault(path string) *Structured {
+	return NewStructured("not_in_vault").
+		Set("path", path).
+		Set("hint", "validate a vault root (`anvil validate`) or pass a file under <vault>/<type-dir>/")
 }
 
-func NewNotInVault(path string) NotInVault {
-	return NotInVault{
-		Code: "not_in_vault",
-		Path: path,
-		Hint: "validate a vault root (`anvil validate`) or pass a file under <vault>/<type-dir>/",
+// NewInvalidSlug signals that a user-supplied slug failed the
+// `^[a-z0-9][a-z0-9-]*$` validator. Wraps the original cause so errors.Is on
+// the wrapped sentinel keeps working.
+func NewInvalidSlug(slug string, cause error) *Structured {
+	s := NewStructured("invalid_slug").
+		Set("slug", slug).
+		Set("pattern", "^[a-z0-9][a-z0-9-]*$")
+	if cause != nil {
+		s = s.Set("cause", cause.Error()).Wrap(cause)
 	}
-}
-
-func (e NotInVault) Error() string {
-	return "[not_in_vault]\n  path: " + e.Path + "\n  hint: " + e.Hint
+	return s
 }

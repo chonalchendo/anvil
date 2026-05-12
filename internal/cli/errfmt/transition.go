@@ -1,56 +1,44 @@
 package errfmt
 
-import (
-	"fmt"
-	"strings"
-)
+import "fmt"
 
-// IllegalTransition is the JSON-serialisable error for an attempted edge that
+// NewIllegalTransition builds the structured error for an attempted edge that
 // has no row in the type's transition table.
-type IllegalTransition struct {
-	Code      string   `json:"code"`
-	Type      string   `json:"type"`
-	ID        string   `json:"id"`
-	From      string   `json:"from"`
-	To        string   `json:"to"`
-	LegalNext []string `json:"legal_next"`
+func NewIllegalTransition(typ, id, from, to string, next []string) *Structured {
+	return NewStructured("illegal_transition").
+		Set("type", typ).
+		Set("id", id).
+		Set("from", from).
+		Set("to", to).
+		Set("legal_next", next)
 }
 
-// NewIllegalTransition constructs the error with code preset.
-func NewIllegalTransition(typ, id, from, to string, next []string) IllegalTransition {
-	return IllegalTransition{Code: "illegal_transition", Type: typ, ID: id, From: from, To: to, LegalNext: next}
-}
-
-func (e IllegalTransition) Error() string {
-	return fmt.Sprintf("[illegal_transition]\n  type: %s\n  id: %s\n  from: %s\n  to: %s\n  legal_next: %s",
-		e.Type, e.ID, e.From, e.To, strings.Join(e.LegalNext, ", "))
-}
-
-// TransitionFlagRequired signals a missing CLI flag for an edge that declares
-// Requires. The error carries a corrected, copy-pasteable invocation per
-// agent-cli-principles rule 4.
-type TransitionFlagRequired struct {
-	Code      string `json:"code"`
-	Type      string `json:"type"`
-	ID        string `json:"id"`
-	From      string `json:"from"`
-	To        string `json:"to"`
-	Flag      string `json:"flag"`
-	Required  bool   `json:"required"`
-	Corrected string `json:"corrected"`
-}
-
-func NewTransitionFlagRequired(typ, id, from, to, flag string) TransitionFlagRequired {
+// NewTransitionFlagRequired builds the structured error for a missing CLI flag
+// on an edge that declares Requires. Includes a corrected, copy-pasteable
+// invocation per agent-cli-principles rule 4.
+func NewTransitionFlagRequired(typ, id, from, to, flag string) *Structured {
 	corrected := fmt.Sprintf("anvil transition %s %s %s --%s <%s>", typ, id, to, flag, flagValuePlaceholder(flag))
-	return TransitionFlagRequired{
-		Code: "transition_flag_required", Type: typ, ID: id, From: from, To: to,
-		Flag: flag, Required: true, Corrected: corrected,
-	}
+	return NewStructured("transition_flag_required").
+		Set("type", typ).
+		Set("id", id).
+		Set("from", from).
+		Set("to", to).
+		Set("flag", flag).
+		Set("required", true).
+		Set("corrected", corrected)
 }
 
-func (e TransitionFlagRequired) Error() string {
-	return fmt.Sprintf("[transition_flag_required]\n  type: %s\n  id: %s\n  from: %s\n  to: %s\n  flag: %s (required: true)\n  corrected: %s",
-		e.Type, e.ID, e.From, e.To, e.Flag, e.Corrected)
+// NewIndexStale signals that the vault has been edited externally and the
+// vault.db needs `anvil reindex`.
+func NewIndexStale() *Structured {
+	return NewStructured("index_stale").Set("hint", "anvil reindex")
+}
+
+// NewUnsupportedForType signals a per-type gate (e.g. --ready is issue-only).
+func NewUnsupportedForType(typ string, supported []string) *Structured {
+	return NewStructured("unsupported_for_type").
+		Set("type", typ).
+		Set("supported", supported)
 }
 
 func flagValuePlaceholder(flag string) string {
@@ -62,35 +50,4 @@ func flagValuePlaceholder(flag string) string {
 	default:
 		return "value"
 	}
-}
-
-// IndexStale signals that the vault has been edited externally and the
-// vault.db needs `anvil reindex`.
-type IndexStale struct {
-	Code string `json:"code"`
-	Hint string `json:"hint"`
-}
-
-func NewIndexStale() IndexStale {
-	return IndexStale{Code: "index_stale", Hint: "anvil reindex"}
-}
-
-func (e IndexStale) Error() string {
-	return "[index_stale]\n  hint: anvil reindex"
-}
-
-// UnsupportedForType signals a per-type gate (e.g. --ready is issue-only today).
-type UnsupportedForType struct {
-	Code      string   `json:"code"`
-	Type      string   `json:"type"`
-	Supported []string `json:"supported"`
-}
-
-func NewUnsupportedForType(typ string, supported []string) UnsupportedForType {
-	return UnsupportedForType{Code: "unsupported_for_type", Type: typ, Supported: supported}
-}
-
-func (e UnsupportedForType) Error() string {
-	return fmt.Sprintf("[unsupported_for_type]\n  type: %s\n  supported: %s",
-		e.Type, strings.Join(e.Supported, ", "))
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/cli/facets"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/schema"
@@ -323,7 +324,7 @@ func invalidSlugError(slug string, cause error) error {
 	if slug == "" {
 		return cause
 	}
-	return fmt.Errorf("[invalid_slug] slug %q: %w; pattern: ^[a-z0-9][a-z0-9-]*$", slug, cause)
+	return errfmt.NewInvalidSlug(slug, cause)
 }
 
 func createLongDescription() string {

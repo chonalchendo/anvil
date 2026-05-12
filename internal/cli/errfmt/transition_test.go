@@ -1,19 +1,17 @@
-package errfmt
+package errfmt_test
 
 import (
 	"encoding/json"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 )
 
 func TestIllegalTransitionJSON(t *testing.T) {
-	e := IllegalTransition{
-		Code: "illegal_transition",
-		Type: "issue", ID: "demo.foo",
-		From: "open", To: "resolved",
-		LegalNext: []string{"in-progress", "abandoned"},
-	}
+	e := errfmt.NewIllegalTransition("issue", "demo.foo", "open", "resolved",
+		[]string{"in-progress", "abandoned"})
 	b, err := json.Marshal(e)
 	if err != nil {
 		t.Fatal(err)
@@ -36,8 +34,23 @@ func TestIllegalTransitionJSON(t *testing.T) {
 }
 
 func TestTransitionFlagRequiredErrorMessage(t *testing.T) {
-	e := TransitionFlagRequired{Type: "issue", ID: "demo.foo", From: "open", To: "in-progress", Flag: "owner"}
+	e := errfmt.NewTransitionFlagRequired("issue", "demo.foo", "open", "in-progress", "owner")
 	if e.Error() == "" {
 		t.Fatalf("Error() returned empty string")
+	}
+}
+
+func TestInvalidSlug_JSONShape(t *testing.T) {
+	e := errfmt.NewInvalidSlug("Bad Slug", nil)
+	b, _ := json.Marshal(e)
+	var parsed map[string]any
+	if err := json.Unmarshal(b, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if parsed["code"] != "invalid_slug" || parsed["slug"] != "Bad Slug" {
+		t.Errorf("invalid_slug JSON: %v", parsed)
+	}
+	if _, ok := parsed["pattern"].(string); !ok {
+		t.Errorf("missing pattern field: %v", parsed)
 	}
 }
