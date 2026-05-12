@@ -24,4 +24,8 @@ docs/implementation_plan.md
 .worktrees/
 
 # Claude Code local state (worktrees, scheduled-task lock, etc.)
-.claude/
+# Keep settings.json and hooks/ tracked so they ship with the repo.
+.claude/*
+!.claude/settings.json
+!.claude/hooks/
+!.claude/hooks/**
