@@ -44,7 +44,7 @@ type PlanVerification struct {
 	PostBuild []string
 }
 
-var taskHeaderRe = regexp.MustCompile(`(?m)^## Task:\s*(T[0-9]+)\s*$`)
+var taskHeaderRe = regexp.MustCompile(`(?m)^## Task:\s*(T[0-9]+)(?:[\s:—-].*)?$`)
 
 // LoadPlan parses a plan file at path. It does NOT run schema or DAG validation —
 // callers compose with schema.Validate and ValidatePlan as needed.

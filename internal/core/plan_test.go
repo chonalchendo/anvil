@@ -86,6 +86,68 @@ func TestLoadPlan_ParsesFrontmatterAndTaskBodies(t *testing.T) {
 	}
 }
 
+func TestLoadPlan_AcceptsTrailingTitleOnTaskHeading(t *testing.T) {
+	body := `---
+type: plan
+id: anvil.x
+slug: x
+title: x
+created: 2026-05-07
+updated: 2026-05-07
+status: draft
+plan_version: 1
+issue: "[[issue.anvil.x]]"
+tasks:
+  - id: T1
+    title: x
+    kind: tdd
+    files: [a.go]
+    depends_on: []
+    verify: "go test ./..."
+  - id: T2
+    title: y
+    kind: tdd
+    files: [b.go]
+    depends_on: [T1]
+    verify: "go test ./..."
+  - id: T3
+    title: z
+    kind: tdd
+    files: [c.go]
+    depends_on: [T2]
+    verify: "go test ./..."
+---
+
+## Task: T1 — Em-dash title
+
+` + strings.Repeat("body. ", 60) + `
+
+## Task: T2: Colon title
+
+` + strings.Repeat("body. ", 60) + `
+
+## Task: T3 - Hyphen title
+
+` + strings.Repeat("body. ", 60) + `
+`
+	p, err := LoadPlan(writePlanFile(t, body))
+	if err != nil {
+		t.Fatalf("LoadPlan: %v", err)
+	}
+	for _, id := range []string{"T1", "T2", "T3"} {
+		var task *Task
+		for i := range p.Tasks {
+			if p.Tasks[i].ID == id {
+				task = &p.Tasks[i]
+				break
+			}
+		}
+		if task == nil || task.Body == "" {
+			t.Errorf("task %s body missing — heading parser dropped trailing title", id)
+		}
+	}
+}
+
 func TestLoadPlan_ParsesModelEffort(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "x.md")
