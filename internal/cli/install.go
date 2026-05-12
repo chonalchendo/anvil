@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -128,6 +129,33 @@ func resolveAnvilSkillsTarget() (string, error) {
 		return "", fmt.Errorf("home dir: %w", err)
 	}
 	return filepath.Join(home, ".claude", "skills", "anvil"), nil
+}
+
+// refreshSkillsIfStale auto-rebuilds the installed skills bundle when its
+// content diverges from the binary's embedded skills (e.g. after `go install`
+// rebuilt the binary). It is a no-op when skills were never installed, or
+// when the current command is itself an install subcommand. Failures are
+// logged to stderr but never abort the command.
+func refreshSkillsIfStale(cmd *cobra.Command) {
+	if strings.HasPrefix(cmd.CommandPath(), "anvil install") {
+		return
+	}
+	mat, err := resolveAnvilSkillsMaterialiseDir()
+	if err != nil {
+		return
+	}
+	target, err := resolveAnvilSkillsTarget()
+	if err != nil {
+		return
+	}
+	refreshed, err := installer.RefreshSkillsIfStale(skills.FS, mat, target)
+	if err != nil {
+		cmd.PrintErrln("anvil: skills auto-refresh failed:", err)
+		return
+	}
+	if refreshed {
+		cmd.PrintErrln("anvil: refreshed stale skills bundle at", target)
+	}
 }
 
 func resolveAnvilSkillsMaterialiseDir() (string, error) {

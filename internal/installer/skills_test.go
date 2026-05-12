@@ -181,3 +181,134 @@ func TestRemoveSkills_Missing(t *testing.T) {
 		t.Error("missing target should report changed=false")
 	}
 }
+
+func TestInstallSkills_WritesHashFile(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	target := filepath.Join(t.TempDir(), "anvil")
+	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(mat, skillsHashFile))
+	if err != nil {
+		t.Fatalf("read hash file: %v", err)
+	}
+	if len(data) == 0 {
+		t.Error("hash file is empty")
+	}
+}
+
+func TestRefreshSkillsIfStale_NoOpWhenAbsent(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	target := filepath.Join(t.TempDir(), "anvil")
+	refreshed, err := RefreshSkillsIfStale(fakeSkillsFS(), mat, target)
+	if err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if refreshed {
+		t.Error("absent materialiseDir should not be refreshed")
+	}
+	if _, err := os.Stat(mat); !os.IsNotExist(err) {
+		t.Errorf("materialiseDir should remain absent: %v", err)
+	}
+}
+
+func TestRefreshSkillsIfStale_NoOpWhenFresh(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	target := filepath.Join(t.TempDir(), "anvil")
+	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false); err != nil {
+		t.Fatal(err)
+	}
+	refreshed, err := RefreshSkillsIfStale(fakeSkillsFS(), mat, target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refreshed {
+		t.Error("fresh install should not refresh")
+	}
+}
+
+func TestRefreshSkillsIfStale_RefreshesWhenContentDrifts(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	target := filepath.Join(t.TempDir(), "anvil")
+	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false); err != nil {
+		t.Fatal(err)
+	}
+
+	skill := filepath.Join(mat, "capturing-inbox", "SKILL.md")
+	if err := os.WriteFile(skill, []byte("drifted\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mat, skillsHashFile), []byte("stale-hash"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	refreshed, err := RefreshSkillsIfStale(fakeSkillsFS(), mat, target)
+	if err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if !refreshed {
+		t.Fatal("drifted materialiseDir should refresh")
+	}
+
+	body, err := os.ReadFile(skill)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "# capturing-inbox\n" {
+		t.Errorf("after refresh body = %q, want canonical content", body)
+	}
+}
+
+func TestRefreshSkillsIfStale_RefreshesWhenHashFileMissing(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	target := filepath.Join(t.TempDir(), "anvil")
+	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(mat, skillsHashFile)); err != nil {
+		t.Fatal(err)
+	}
+	refreshed, err := RefreshSkillsIfStale(fakeSkillsFS(), mat, target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !refreshed {
+		t.Error("missing hash file should trigger refresh")
+	}
+	if _, err := os.Stat(filepath.Join(mat, skillsHashFile)); err != nil {
+		t.Errorf("hash file should be rewritten: %v", err)
+	}
+}
+
+func TestRefreshSkillsIfStale_PreservesCopyMode(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	target := filepath.Join(t.TempDir(), "anvil")
+	if _, err := InstallSkills(fakeSkillsFS(), mat, target, true); err != nil {
+		t.Fatal(err)
+	}
+	// Corrupt the materialise dir.
+	if err := os.WriteFile(filepath.Join(mat, skillsHashFile), []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	refreshed, err := RefreshSkillsIfStale(fakeSkillsFS(), mat, target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !refreshed {
+		t.Fatal("stale copy install should refresh")
+	}
+	info, err := os.Lstat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Error("target should remain a directory after refresh in copy mode")
+	}
+	body, err := os.ReadFile(filepath.Join(target, "capturing-inbox", "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "# capturing-inbox\n" {
+		t.Errorf("target body not refreshed: %q", body)
+	}
+}

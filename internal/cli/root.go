@@ -42,6 +42,7 @@ func newRootCmd() *cobra.Command {
 			if flagProject != "" {
 				_ = os.Setenv("ANVIL_PROJECT", flagProject)
 			}
+			refreshSkillsIfStale(cmd)
 			return nil
 		},
 	}
