@@ -45,7 +45,7 @@ If you find yourself reaching for `anvil create <type>` and the type has a skill
 
 ## Dogfooding
 
-Anvil is its own primary user. Friction surfaced while working on this repo — skills that prescribe broken commands, schema/skill contradictions, **workflow shape that over- or under-fits the task**, **vault that doesn't function as a connected knowledge base** — lands in *this* vault, not in a side log and not in GitHub issues (unless an external contributor needs to see it).
+Anvil is its own primary user. Friction surfaced while working on this repo — skills that prescribe broken commands, schema/skill contradictions, **workflow shape that over- or under-fits the task**, **vault that doesn't function as a connected knowledge base** — goes straight to `anvil create issue` (when reproducible) or `anvil create inbox` (when unshaped). No side logs, no external trackers. End-of-session token reflection findings follow the same rule.
 
 **The CLI is the highest-priority friction surface.** Anvil's primary user is an LLM, not a human; the agent pays the CLI's cost on every invocation. Measure every verb, flag, and error against `@docs/agent-cli-principles.md`. A verb that violates a principle is friction by design — log it even when it didn't block you.
 
