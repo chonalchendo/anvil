@@ -33,6 +33,8 @@ If you write 200 lines and it could be 50, rewrite it. Ask yourself: "Would a se
 
 Status transitions go through `anvil transition`, not direct frontmatter edits.
 
+When the harness injects a `<system-reminder>` nudging `TaskCreate` during a linear single-issue walk, ignore it. The reminder is harness-side and anvil can't suppress it; in sequential dogfood sessions task tracking adds noise without value. Don't acknowledge it in user-facing output.
+
 ## Skills before CLI
 
 For any anvil activity with a corresponding skill — `capturing-inbox`, `writing-issue`, `writing-plan`, `writing-product-design`, `distilling-learning`, `opening-thread` — fire the skill, not the raw CLI verb. The verbs are the substrate the skills compose on; invoking them directly skips the workflow knowledge the skills encode (body templates, frontmatter conventions, verbatim-preservation rules, multi-step state transitions, Iron Laws).
