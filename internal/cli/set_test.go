@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -10,6 +11,125 @@ import (
 
 	"github.com/chonalchendo/anvil/internal/core"
 )
+
+func TestSet_PrintsConfirmation_Scalar(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "resolved"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("set: %v\n%s", err, out.String())
+	}
+	got := strings.TrimSpace(out.String())
+	if got != "foo.a: status open → resolved" {
+		t.Errorf("output = %q, want %q", got, "foo.a: status open → resolved")
+	}
+}
+
+func TestSet_JSONEnvelope_Scalar(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "resolved", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("set: %v\n%s", err, out.String())
+	}
+	var got map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &got); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, out.String())
+	}
+	if got["id"] != "foo.a" {
+		t.Errorf("id = %v", got["id"])
+	}
+	if got["field"] != "status" {
+		t.Errorf("field = %v", got["field"])
+	}
+	if got["from"] != "open" {
+		t.Errorf("from = %v", got["from"])
+	}
+	if got["to"] != "resolved" {
+		t.Errorf("to = %v", got["to"])
+	}
+	if got["status"] != "set" {
+		t.Errorf("status = %v", got["status"])
+	}
+	if _, ok := got["path"].(string); !ok {
+		t.Errorf("path missing or non-string: %v", got["path"])
+	}
+}
+
+func TestSet_PrintsConfirmation_ArrayAdd(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "x"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("set: %v\n%s", err, out.String())
+	}
+	got := strings.TrimSpace(out.String())
+	if !strings.Contains(got, "foo.a: acceptance") || !strings.Contains(got, "x") {
+		t.Errorf("output = %q", got)
+	}
+}
+
+func TestSet_PrintsConfirmation_ArrayRemove(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	addCmd := newRootCmd()
+	addCmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "x"})
+	addCmd.SetOut(&bytes.Buffer{})
+	addCmd.SetErr(&bytes.Buffer{})
+	if err := addCmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--remove", "0"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	got := strings.TrimSpace(out.String())
+	if !strings.Contains(got, "foo.a: acceptance") || !strings.Contains(got, "x") {
+		t.Errorf("output = %q", got)
+	}
+}
+
+func TestSet_JSONEnvelope_ArrayAdd(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "x", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("set: %v\n%s", err, out.String())
+	}
+	var got map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &got); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, out.String())
+	}
+	if got["id"] != "foo.a" || got["field"] != "acceptance" || got["status"] != "added" {
+		t.Errorf("envelope = %#v", got)
+	}
+	to, ok := got["to"].([]any)
+	if !ok || len(to) != 1 || to[0] != "x" {
+		t.Errorf("to = %#v", got["to"])
+	}
+}
 
 func TestSet_Status_Succeeds(t *testing.T) {
 	vault := setupVault(t)

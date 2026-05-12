@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -19,6 +20,7 @@ func newSetCmd() *cobra.Command {
 		flagAddSet        bool
 		flagRemSet        bool
 		flagAllowNewFacet []string
+		flagJSON          bool
 	)
 
 	cmd := &cobra.Command{
@@ -60,6 +62,8 @@ func newSetCmd() *cobra.Command {
 
 			prev, hadPrev := a.FrontMatter[field]
 
+			result := setResult{ID: args[1], Path: path, Field: field, Status: "set"}
+
 			switch kind {
 			case schema.KindScalar:
 				if flagAddSet || flagRemSet {
@@ -69,18 +73,33 @@ func newSetCmd() *cobra.Command {
 					return fmt.Errorf("%q is a scalar; expected exactly 1 value, got %d", field, len(values))
 				}
 				a.FrontMatter[field] = values[0]
+				result.From = prev
+				result.To = values[0]
 
 			case schema.KindArray:
 				switch {
 				case flagAddSet:
 					existing := arrayValue(a.FrontMatter[field])
-					a.FrontMatter[field] = append(existing, flagAdd)
+					before := append([]any(nil), existing...)
+					next := append(existing, flagAdd)
+					a.FrontMatter[field] = next
+					result.From = before
+					result.To = append([]any(nil), next...)
+					result.Value = flagAdd
+					result.Status = "added"
 				case flagRemSet:
 					existing := arrayValue(a.FrontMatter[field])
 					if flagRemove < 0 || flagRemove >= len(existing) {
 						return fmt.Errorf("--remove %d out of bounds (len=%d)", flagRemove, len(existing))
 					}
-					a.FrontMatter[field] = append(existing[:flagRemove], existing[flagRemove+1:]...)
+					before := append([]any(nil), existing...)
+					removed := existing[flagRemove]
+					next := append(existing[:flagRemove], existing[flagRemove+1:]...)
+					a.FrontMatter[field] = next
+					result.From = before
+					result.To = append([]any(nil), next...)
+					result.Value = removed
+					result.Status = "removed"
 				default:
 					sample := "VALUE"
 					if len(values) > 0 {
@@ -107,6 +126,8 @@ func newSetCmd() *cobra.Command {
 					return fmt.Errorf("%q is not a known field; expected exactly 1 value, got %d", field, len(values))
 				}
 				a.FrontMatter[field] = values[0]
+				result.From = prev
+				result.To = values[0]
 			}
 
 			if field == "tags" {
@@ -164,13 +185,14 @@ func newSetCmd() *cobra.Command {
 			if err := indexAfterSave(v, a); err != nil {
 				return fmt.Errorf("indexing %s: %w", args[1], err)
 			}
-			return nil
+			return emitSetResult(cmd, flagJSON, result)
 		},
 	}
 
 	cmd.Flags().StringVar(&flagAdd, "add", "", "append a value to an array field")
 	cmd.Flags().IntVar(&flagRemove, "remove", 0, "remove the value at the given 0-based index from an array field")
 	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet(s) to suppress novelty gate for (tags only)")
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
 	cmd.PreRunE = func(c *cobra.Command, _ []string) error {
 		flagAddSet = c.Flags().Changed("add")
 		flagRemSet = c.Flags().Changed("remove")
@@ -178,6 +200,43 @@ func newSetCmd() *cobra.Command {
 	}
 
 	return cmd
+}
+
+type setResult struct {
+	ID     string `json:"id"`
+	Path   string `json:"path"`
+	Field  string `json:"field"`
+	From   any    `json:"from"`
+	To     any    `json:"to"`
+	Value  any    `json:"value,omitempty"`
+	Status string `json:"status"`
+}
+
+func emitSetResult(cmd *cobra.Command, asJSON bool, r setResult) error {
+	if asJSON {
+		b, _ := json.Marshal(r)
+		fmt.Fprintln(cmd.OutOrStdout(), string(b))
+		return nil
+	}
+	switch r.Status {
+	case "added":
+		fmt.Fprintf(cmd.OutOrStdout(), "%s: %s + %s\n", r.ID, r.Field, formatSetValue(r.Value))
+	case "removed":
+		fmt.Fprintf(cmd.OutOrStdout(), "%s: %s − %s\n", r.ID, r.Field, formatSetValue(r.Value))
+	default:
+		fmt.Fprintf(cmd.OutOrStdout(), "%s: %s %s → %s\n", r.ID, r.Field, formatSetValue(r.From), formatSetValue(r.To))
+	}
+	return nil
+}
+
+func formatSetValue(v any) string {
+	if v == nil {
+		return "<unset>"
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return fmt.Sprintf("%v", v)
 }
 
 // arrayValue normalises a frontmatter value into []any. yaml.v3 may decode
