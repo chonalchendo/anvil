@@ -42,11 +42,12 @@ Install the binary with Go:
 
 This drops `anvil` into `$(go env GOPATH)/bin`. Make sure that directory is on your `$PATH` (e.g. `export PATH="$(go env GOPATH)/bin:$PATH"` in your shell rc). Verify with `anvil --version` — installs from a tagged module report the module version; local `go install ./cmd/anvil` from a checkout reports `dev-<sha7>`.
 
-Then wire Anvil into Claude Code so each new session emits an artifact bound to the active thread:
+Then wire Anvil into Claude Code:
 
-    anvil install hooks
+    anvil install skills    # symlinks ~/.claude/skills/anvil -> ~/.anvil/skills (use --copy on filesystems without symlinks)
+    anvil install hooks     # SessionStart hook binds each session to the active thread
 
-To remove: `anvil install hooks --uninstall`.
+To remove either, pass `--uninstall` (e.g. `anvil install skills --uninstall`).
 
 ## License
 
