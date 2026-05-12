@@ -38,7 +38,7 @@ Workflow: cut worktree → implement + commit → pass smoke-test gate → `gh p
 Before opening a PR or claiming a feature/fix done, drive it through the installed `anvil` binary against a real vault. Every feature, every fix.
 
 1. `go install ./cmd/anvil`.
-2. Confirm freshness: `which anvil` must resolve to `$(go env GOPATH)/bin/anvil` (or a symlink to it); else invoke `$(go env GOPATH)/bin/anvil` by absolute path. Cross-check `anvil --version` ends in the short sha of `git rev-parse HEAD` (Go embeds VCS info only when building from the main checkout, not a worktree — `dev` with no sha means run from the main checkout to confirm).
+2. Confirm freshness: `which anvil` must resolve to `$(go env GOPATH)/bin/anvil` (or a symlink to it); else invoke `$(go env GOPATH)/bin/anvil` by absolute path. Cross-check `anvil --version` ends in the short sha of `git rev-parse --short HEAD` (Go embeds VCS info only when building from the main checkout, not a worktree — `dev` with no sha means run from the main checkout to confirm).
 3. Invoke the new verb, re-trigger the changed error, or read the new skill phase end-to-end.
 4. Compare output against acceptance criteria.
 5. Any failure (broken commands in error hints, schema-inconsistent JSON, oversized output, blank fields) is a regression — fix before resolving.
