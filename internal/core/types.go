@@ -64,6 +64,31 @@ func (t Type) AllocatesID() bool {
 	return true
 }
 
+// SupportsProject reports whether the type's schema accepts a `project:`
+// frontmatter field. Types that return false (decision, inbox, learning,
+// session, sweep, thread) are deliberately cross-project — scope them via
+// tags (`domain/X`) or topic-prefix conventions.
+func (t Type) SupportsProject() bool {
+	switch t {
+	case TypeIssue, TypePlan, TypeMilestone, TypeProductDesign, TypeSystemDesign:
+		return true
+	}
+	return false
+}
+
+// TypesSupportingProject returns the list of type names whose schema accepts
+// a `project:` field, in AllTypes order. Used for help text and error
+// suggestions.
+func TypesSupportingProject() []string {
+	var out []string
+	for _, t := range AllTypes {
+		if t.SupportsProject() {
+			out = append(out, string(t))
+		}
+	}
+	return out
+}
+
 // Path returns the absolute artifact path under vaultRoot. Singletons
 // (product-design, system-design) ignore id and use a fixed per-project
 // filename; other types compose <Dir>/<id>.md.

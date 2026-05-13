@@ -351,3 +351,41 @@ func TestListInbox_LimitAndSince(t *testing.T) {
 		t.Errorf("total=%d want 2", env.Total)
 	}
 }
+
+// TestList_ProjectFlag_RejectedForUnsupportedTypes asserts that passing
+// --project for a type whose schema rejects `project:` returns a clean
+// structured error rather than silently returning empty results.
+func TestList_ProjectFlag_RejectedForUnsupportedTypes(t *testing.T) {
+	setupVault(t)
+	for _, typ := range []string{"learning", "decision", "inbox", "session", "sweep", "thread"} {
+		t.Run(typ, func(t *testing.T) {
+			cmd := newRootCmd()
+			_, errOut, err := runCmd(t, cmd, "list", typ, "--project", "anvil")
+			if err == nil {
+				t.Fatalf("expected error for --project on %s, got nil", typ)
+			}
+			if !strings.Contains(errOut, "unsupported_flag_for_type") {
+				t.Errorf("stderr missing code: %q", errOut)
+			}
+			if !strings.Contains(errOut, `"flag":"project"`) {
+				t.Errorf("stderr missing flag field: %q", errOut)
+			}
+			if !strings.Contains(errOut, `"suggest"`) {
+				t.Errorf("stderr missing suggest field: %q", errOut)
+			}
+		})
+	}
+}
+
+// TestList_ProjectFlag_AcceptedForSupportedTypes guards against over-eager
+// rejection: the supported set (issue, plan, milestone, designs) must keep
+// accepting --project without error.
+func TestList_ProjectFlag_AcceptedForSupportedTypes(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A issue")
+	cmd := newRootCmd()
+	_, _, err := runCmd(t, cmd, "list", "issue", "--project", "foo")
+	if err != nil {
+		t.Fatalf("expected --project to work for issue, got %v", err)
+	}
+}
