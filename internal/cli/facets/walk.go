@@ -1,7 +1,6 @@
 package facets
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -23,11 +22,18 @@ func Names() []string { return slices.Clone(validFacets) }
 
 // CollectValues walks vaultRoot and returns a facet-keyed map of value sets.
 // Every recognised facet key is present even when its set is empty.
-func CollectValues(vaultRoot string) (map[string]map[string]struct{}, error) {
+//
+// Artifacts whose YAML frontmatter cannot be parsed are skipped rather than
+// aborting the walk; their paths are returned in the second return value so
+// callers can surface a warning. Real OS errors (permissions, missing parent
+// directory, etc.) still propagate as a non-nil error.
+func CollectValues(vaultRoot string) (map[string]map[string]struct{}, []string, error) {
 	out := make(map[string]map[string]struct{}, len(validFacets))
 	for _, f := range validFacets {
 		out[f] = map[string]struct{}{}
 	}
+
+	var skipped []string
 
 	seenDirs := map[string]struct{}{}
 	for _, t := range core.AllTypes {
@@ -46,9 +52,12 @@ func CollectValues(vaultRoot string) (map[string]map[string]struct{}, error) {
 			if d.IsDir() || !strings.HasSuffix(path, ".md") {
 				return nil
 			}
-			a, err := core.LoadArtifact(path)
-			if err != nil {
-				return fmt.Errorf("loading %s: %w", path, err)
+			a, aErr := core.LoadArtifact(path)
+			if aErr != nil {
+				// Tolerate corrupt frontmatter: record the path and continue
+				// the walk so one bad artifact doesn't block creates everywhere.
+				skipped = append(skipped, path)
+				return nil
 			}
 			raw, ok := a.FrontMatter["tags"].([]any)
 			if !ok {
@@ -72,8 +81,8 @@ func CollectValues(vaultRoot string) (map[string]map[string]struct{}, error) {
 			return nil
 		})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
-	return out, nil
+	return out, skipped, nil
 }
