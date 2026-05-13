@@ -83,6 +83,8 @@ Friction must square against `@docs/product-design.md`, `@docs/system-design.md`
 
 Monitor first-principles contracts; a break is the methodology failing itself, vault-issue-worthy at severity ≥ high. **Traceability** (commit → plan → issue → milestone → product-design via `anvil link`); **subprocess-executor portability** (plan body works for an executor with zero prior context); **context budget** (bloating SKILL.md/AGENTS.md/schema is a regression even without a test failure); **iron-law substance** (acceptance you wrote but can't verify is paper compliance); **no-scaffolding pitch** (session worked *without* in-repo anvil files).
 
+**Obsidian wikilink stubs.** Clicking an unresolved `[[issue.foo.bar]]` link in Obsidian stamps a 0-byte `issue.foo.bar.md` at the vault root. `anvil reindex` flags these on stderr (`WARN: 0-byte stub at vault root: ...`); `anvil reindex --prune-stubs` deletes the 0-byte ones. Non-zero files at the root with type-prefixed names are reported but never auto-deleted — move them into the canonical `<NN>-<type>/` dir or remove by hand.
+
 **End-of-session token reflection (MUST).** Before closing a dogfood session: rough total, top 2–3 token sinks (avoidable reads, redundant searches, oversized tool output), and any harness/CLI/skill change that would've cut them. A session with no token-side observation is itself a finding.
 
 ## Reference Documents
