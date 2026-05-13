@@ -1,6 +1,6 @@
 ---
 name: handing-off-session
-description: Use at end of a working session to write a load-ready handoff into the current session file. Triggers include "session handoff", "wrap up the session", "hand off to a new session", "write the handoff". Captures state and next action without re-narrating what the new agent can derive from `git log` / `anvil list --ready` / `anvil show`. Companion: anvil:resuming-session loads it next terminal.
+description: Use at end of a working session to write a load-ready handoff into the current session file. Triggers include "session handoff", "wrap up the session", "hand off to a new session", "write the handoff". Captures state and next action without re-narrating what the new agent can derive from `git log` / `anvil list --ready` / `anvil show`. Companion — anvil:resuming-session loads it next terminal.
 ---
 
 # Handing-off Session
