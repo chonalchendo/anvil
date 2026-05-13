@@ -33,6 +33,12 @@ After merge: `git -C ~/Development/anvil worktree remove ~/Development/anvil-wor
 
 Workflow: cut worktree → implement + commit → pass smoke-test gate → `gh pr create` → wait for CodeRabbit + user approval → remove worktree after merge. CodeRabbit catches what unit tests miss (broken commands in error hints, schema-inconsistent JSON, surprising empty fields) — part of the verification budget, not optional. No exceptions for "small" changes.
 
+**Waiting on human-gated PR events.** Do not poll PRs on a fixed interval — each wakeup past the 300 s prompt-cache window pays a full context reload.
+
+- If the user said something equivalent to "monitor until merge" / "wait for it to land" / "babysit the PR", treat that as standing approval: once CodeRabbit + CI are green and the PR is mergeable, merge and remove the worktree without a further prompt.
+- Otherwise: schedule **at most one** wakeup (≥ 2 h), check once, then stop and surface "awaiting your call" rather than looping.
+- Exception: a blocking CI job expected to finish in ≤ 5 min may be checked immediately once without a scheduled wakeup.
+
 ## Smoke-Test Before Resolved (non-negotiable)
 
 Before opening a PR or claiming a feature/fix done, drive it through the installed `anvil` binary against a real vault. Every feature, every fix.
