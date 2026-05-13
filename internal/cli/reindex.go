@@ -50,7 +50,25 @@ populated after the fact, and removing them would be destructive.`,
 			if err != nil {
 				return fmt.Errorf("scanning for stubs: %w", err)
 			}
-			pruned, kept := handleStubs(cmd, stubs, pruneStubs)
+			var pruned, kept []core.Stub
+			for _, s := range stubs {
+				switch {
+				case s.Size == 0 && pruneStubs:
+					if err := os.Remove(s.Path); err != nil {
+						cmd.PrintErrf("WARN: stub %s: prune failed: %v\n", s.Path, err)
+						kept = append(kept, s)
+						continue
+					}
+					cmd.PrintErrf("pruned: %s (0 bytes)\n", s.Path)
+					pruned = append(pruned, s)
+				case s.Size == 0:
+					cmd.PrintErrf("WARN: 0-byte stub at vault root: %s (run `anvil reindex --prune-stubs` to delete)\n", s.Path)
+					kept = append(kept, s)
+				default:
+					cmd.PrintErrf("WARN: stray artifact-named file at vault root: %s (%d bytes; move into the canonical <NN>-<type>/ dir)\n", s.Path, s.Size)
+					kept = append(kept, s)
+				}
+			}
 
 			if asJSON {
 				payload := map[string]any{
@@ -74,31 +92,6 @@ populated after the fact, and removing them would be destructive.`,
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON output")
 	cmd.Flags().BoolVar(&pruneStubs, "prune-stubs", false, "delete 0-byte stray <type>.*.md files at vault root (non-empty stubs are kept and warned about)")
 	return cmd
-}
-
-// handleStubs warns on every detected stub and, when prune is true, deletes
-// the 0-byte ones. Returns (pruned, kept) for caller reporting. Non-zero stubs
-// are never deleted — they may hold user content.
-func handleStubs(cmd *cobra.Command, stubs []core.Stub, prune bool) (pruned, kept []core.Stub) {
-	for _, s := range stubs {
-		switch {
-		case s.Size == 0 && prune:
-			if err := os.Remove(s.Path); err != nil {
-				cmd.PrintErrf("WARN: stub %s: prune failed: %v\n", s.Path, err)
-				kept = append(kept, s)
-				continue
-			}
-			cmd.PrintErrf("pruned: %s (0 bytes)\n", s.Path)
-			pruned = append(pruned, s)
-		case s.Size == 0:
-			cmd.PrintErrf("WARN: 0-byte stub at vault root: %s (run `anvil reindex --prune-stubs` to delete)\n", s.Path)
-			kept = append(kept, s)
-		default:
-			cmd.PrintErrf("WARN: stray artifact-named file at vault root: %s (%d bytes; move into the canonical <NN>-<type>/ dir)\n", s.Path, s.Size)
-			kept = append(kept, s)
-		}
-	}
-	return pruned, kept
 }
 
 func stubFilenames(stubs []core.Stub) []string {

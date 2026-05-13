@@ -152,7 +152,11 @@ func TestReindexPruneStubsJSON(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
 		t.Fatalf("json: %v\n%s", err, stdout.String())
 	}
-	if len(got.Stubs) != 1 || len(got.Pruned) != 1 {
-		t.Fatalf("json shape: stubs=%v pruned=%v", got.Stubs, got.Pruned)
+	wantPath := filepath.Join(vault, "issue.x.md")
+	if len(got.Stubs) != 1 || got.Stubs[0] != wantPath {
+		t.Fatalf("stubs: got %v want [%s]", got.Stubs, wantPath)
+	}
+	if len(got.Pruned) != 1 || got.Pruned[0] != wantPath {
+		t.Fatalf("pruned: got %v want [%s]", got.Pruned, wantPath)
 	}
 }
