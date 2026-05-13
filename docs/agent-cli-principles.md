@@ -16,7 +16,7 @@ Never prompt. Never require a TTY. Never depend on `$EDITOR`. Every `create` and
 
 ## 4. Precise constraint language in --help
 
-Name the enforced bound, not a range. Write `max 120 chars` when only the upper bound is checked; write `min 1` only when an empty value is separately valid and the lower bound is the actual gate. `M-N` ranges are for genuinely closed intervals where both ends are enforced (e.g., `--port 1024-65535`). A help string that reads `1-120 chars` forces an agent to verify which end is enforced — a wasted round-trip. When the real constraint is "required and capped", say `required, max 120 chars`.
+Name the enforced bound, not a range. Write `max 120 chars` when only the upper bound is checked; write `min N` when only the lower bound is enforced. Reserve `M-N` ranges for genuinely closed intervals where both ends matter (e.g., `--port 1024-65535`). A help string that reads `1-120 chars` forces an agent to verify which end is enforced — a wasted round-trip. When the constraint is "required and capped", say `required, max 120 chars`.
 
 ## 5. Actionable errors
 
