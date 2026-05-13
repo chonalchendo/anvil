@@ -1,11 +1,11 @@
 ---
 name: handing-off-session
-description: Use at end of a working session to produce a copy-pasteable prompt for the next session. Triggers include "session handoff", "wrap up the session", "give me a prompt for the next session", "hand off to a new session". Captures state and next action without re-narrating what the new agent can derive from `git log` / `anvil list --ready` / `anvil show`.
+description: Use at end of a working session to write a load-ready handoff into the current session file. Triggers include "session handoff", "wrap up the session", "hand off to a new session", "write the handoff". Captures state and next action without re-narrating what the new agent can derive from `git log` / `anvil list --ready` / `anvil show`. Companion: anvil:resuming-session loads it next terminal.
 ---
 
 # Handing-off Session
 
-Your job is to produce one tight Markdown block the user pastes into a new session. The receiving agent has zero memory of this session but has the same shell, repo, and vault. Anything they can derive from `git`, `anvil list`, or `anvil show` does **not** belong in the handoff — name the query, don't paste the output.
+Your job is to write one tight Markdown block into the current session file that `anvil:resuming-session` will load in the next terminal. The receiving agent has zero memory of this session but has the same shell, repo, and vault. Anything they can derive from `git`, `anvil list`, or `anvil show` does **not** belong in the handoff — name the query, don't paste the output.
 
 ## Iron Law
 
@@ -24,6 +24,20 @@ anvil list issue --project <p> --status open --ready --json   # what's pickable 
 ```
 
 If the session resolved issues, also run `anvil list issue --status resolved` filtered to today (or grep recent transitions) — but only to confirm IDs you'll cite, not to recap.
+
+## Brevity budget
+
+The handoff body must aim for **≤1 KB**. A typical dogfood-loop handoff is 600–900 B; anything past 1 KB needs every paragraph to justify itself against the cuts below. `anvil:resuming-session` loads this file verbatim every session — bloat compounds across the entire dogfood loop.
+
+Section-by-section cuts to apply *before* writing, not after:
+
+- **Just landed:** PR number + one phrase of impact. Never implementation detail; the new agent runs `gh pr view <n>` or `git log -p` if they need it.
+- **Next action:** the *query*, never the list of candidate IDs the query returns. `anvil list issue --project <p> --ready` beats five enumerated IDs.
+- **Open threads:** one line each, pointing to an artifact id (inbox slug, PR number, issue id). No paraphrase.
+- **Don't redo:** approach + one-word reason. No reasoning chain.
+- **Reminders:** if every candidate line restates AGENTS.md, omit the section entirely. AGENTS.md auto-loads. Keep only session-specific deltas (a transient env var, a one-off stash).
+
+If a section would be empty after these cuts, omit the section header too. "Skip if empty" in the template is a hard rule, not a suggestion.
 
 ## Phase 2 — Shape the prompt
 
@@ -60,6 +74,8 @@ Do not offer to commit, push, or summarise further. The handoff is the deliverab
 - Full conversation recap or chronological narrative.
 - The list of every modified file (the new agent runs `git status`).
 - Resolved issue bodies (the new agent runs `anvil show issue <id>`).
+- Implementation detail of landed PRs (the new agent runs `gh pr view <n>` or `git log -p`).
+- Enumerated candidate issue IDs from `anvil list --ready` — name the query, never the result set.
 - Restating AGENTS.md / CLAUDE.md content (it auto-loads).
 - "We learned that…" reflections — those belong in `anvil:distilling-learning`, not the handoff.
 - TODOs the new agent should self-discover via `anvil list issue --ready`.
