@@ -156,10 +156,6 @@ func TestRename_Issue_CosmesticChange_SlugUnchanged(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "old-title", "Old Title")
 
 	cmd := newRootCmd()
-	// This title slugifies identically to "old-title".
-	cmd.SetArgs([]string{"rename", "issue", "foo.old-title", "--title", "Old Title Updated"})
-	// "old-title-updated" != "old-title" so this will rename — let's test cosmetic properly.
-	// Use a title that gives same slug: "OLD TITLE" → "old-title".
 	cmd.SetArgs([]string{"rename", "issue", "foo.old-title", "--title", "OLD TITLE"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -202,8 +198,7 @@ func TestRename_Issue_MissingTitle_Error(t *testing.T) {
 }
 
 func TestRename_Issue_NotFound_Error(t *testing.T) {
-	vault := setupVault(t)
-	_ = vault
+	setupVault(t)
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"rename", "issue", "foo.nonexistent", "--title", "Anything"})

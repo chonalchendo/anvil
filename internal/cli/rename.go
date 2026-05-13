@@ -64,7 +64,7 @@ rename always takes effect first.`,
 				return fmt.Errorf("loading artifact: %w", err)
 			}
 
-			newSlug := newIDSlug(t, oldID, flagTitle)
+			newSlug := core.Slugify(flagTitle)
 			if newSlug == "" {
 				return fmt.Errorf("new title %q produces an empty slug", flagTitle)
 			}
@@ -143,11 +143,6 @@ rename always takes effect first.`,
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
 	_ = cmd.MarkFlagRequired("title")
 	return cmd
-}
-
-// newIDSlug computes the slug portion of the new ID from the new title.
-func newIDSlug(_ core.Type, _ string, newTitle string) string {
-	return core.Slugify(newTitle)
 }
 
 // replaceSlug replaces the slug part of an existing ID with newSlug.
