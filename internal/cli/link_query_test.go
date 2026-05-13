@@ -83,6 +83,49 @@ func TestLinkUnresolvedReturnsDanglingEdges(t *testing.T) {
 	}
 }
 
+func TestLinkDriftFlagsSlugMismatch(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+
+	// One drift pair: plan slug `pre-parse` links to issue `with-pre-parse`.
+	execCmd(t, "create", "issue",
+		"--project", "demo", "--title", "x", "--description", "x",
+		"--slug", "with-pre-parse",
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
+	execCmd(t, "create", "plan",
+		"--project", "demo", "--title", "y", "--description", "y",
+		"--slug", "pre-parse",
+		"--issue", "[[issue.demo.with-pre-parse]]",
+		"--tags", "domain/dev-tools")
+
+	// One clean pair: plan slug matches issue slug exactly.
+	execCmd(t, "create", "issue",
+		"--project", "demo", "--title", "z", "--description", "z",
+		"--slug", "aligned",
+		"--tags", "domain/dev-tools")
+	execCmd(t, "create", "plan",
+		"--project", "demo", "--title", "w", "--description", "w",
+		"--issue", "[[issue.demo.aligned]]",
+		"--tags", "domain/dev-tools")
+
+	out := execCmd(t, "link", "--drift", "--json")
+	var rows []map[string]string
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &rows); err != nil {
+		t.Fatalf("json: %v\nout: %s", err, out)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want 1 drift row, got %d: %s", len(rows), out)
+	}
+	r := rows[0]
+	if r["source"] != "demo.pre-parse" || r["target"] != "demo.with-pre-parse" {
+		t.Errorf("source/target = %q/%q", r["source"], r["target"])
+	}
+	if r["source_slug"] != "pre-parse" || r["target_slug"] != "with-pre-parse" {
+		t.Errorf("source_slug/target_slug = %q/%q", r["source_slug"], r["target_slug"])
+	}
+}
+
 func TestLinkReadModesMutuallyExclusiveWithWriteForm(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)

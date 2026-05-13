@@ -114,3 +114,67 @@ func TestCreate_SlugFlag_AppliesToDecisionsToo(t *testing.T) {
 	}
 }
 
+// TestCreate_Plan_DefaultsSlugFromIssueLink locks in the contract: a plan
+// created with --issue and no --slug derives its slug from the issue's slug,
+// not from the plan's own title. Prevents the connective-token drift bug
+// (issue title "X with Y" + plan title "X + Y" producing
+// `foo.x-with-y` vs `foo.x-y` linked artifacts).
+func TestCreate_Plan_DefaultsSlugFromIssueLink(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "plan",
+		"--title", "totally different plan title",
+		"--description", "x",
+		"--issue", "[[issue.foo.bootstrap-with-pre-parse]]",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create: %v\n%s", err, out.String())
+	}
+	path := filepath.Join(vault, "80-plans", "foo.bootstrap-with-pre-parse.md")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected plan slug to derive from issue: missing %s: %v\n%s",
+			path, err, out.String())
+	}
+}
+
+// TestCreate_Plan_SlugFlagOverridesIssueDerivation asserts --slug still wins
+// over the issue-derived default — needed for the fan-out case (multiple
+// plans per issue).
+func TestCreate_Plan_SlugFlagOverridesIssueDerivation(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "plan",
+		"--title", "phase 2",
+		"--description", "x",
+		"--issue", "[[issue.foo.bootstrap-with-pre-parse]]",
+		"--slug", "bootstrap-phase-2",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create: %v\n%s", err, out.String())
+	}
+	path := filepath.Join(vault, "80-plans", "foo.bootstrap-phase-2.md")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected --slug to override issue derivation: missing %s\n%s",
+			path, out.String())
+	}
+}

@@ -116,6 +116,39 @@ func (d *DB) LinksTo(target string) ([]LinkRow, error) {
 	return d.linkQuery(`SELECT source, target, relation, anchor FROM links WHERE target = ? ORDER BY source, relation`, target)
 }
 
+// LinksSlugDrift returns plan→issue edges whose source and target slugs
+// disagree. Slug = the portion of the artifact id after the project dot
+// (`<project>.<slug>`). Drift surfaces typo/rename pairs that hand-edit or
+// title-drift left out of sync — agents working from the plan side won't
+// notice their issue link points to a near-identical-but-distinct slug
+// without a query like this. Both id sides are filtered to ones that contain
+// a `.` so we only compare project-scoped types (issue/plan/milestone).
+func (d *DB) LinksSlugDrift() ([]LinkRow, error) {
+	const q = `SELECT l.source, l.target, l.relation, l.anchor
+FROM links l
+JOIN artifacts s ON s.id = l.source AND s.type = 'plan'
+WHERE l.relation = 'issue'
+  AND instr(l.source, '.') > 0
+  AND instr(l.target, '.') > 0
+  AND substr(l.source, instr(l.source, '.') + 1)
+      != substr(l.target, instr(l.target, '.') + 1)
+ORDER BY l.source, l.target`
+	rs, err := d.sql.Query(q)
+	if err != nil {
+		return nil, err
+	}
+	defer rs.Close()
+	var out []LinkRow
+	for rs.Next() {
+		var r LinkRow
+		if err := rs.Scan(&r.Source, &r.Target, &r.Relation, &r.Anchor); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rs.Err()
+}
+
 // LinksUnresolved returns edges whose target has no row in artifacts.
 func (d *DB) LinksUnresolved() ([]LinkRow, error) {
 	const q = `SELECT l.source, l.target, l.relation, l.anchor

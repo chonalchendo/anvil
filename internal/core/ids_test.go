@@ -24,6 +24,26 @@ func TestSlugify_BasicCases(t *testing.T) {
 	}
 }
 
+// TestSlugify_PreservesConnectiveTokens locks in the no-stopword-stripping
+// contract. Connective words like "with"/"and"/"of"/"the" are kept verbatim;
+// dropping them produces near-identical slugs across linked artifacts which
+// breaks the graph (see issue
+// anvil.slug-derivation-silently-drops-connective-tokens-causing-dri).
+func TestSlugify_PreservesConnectiveTokens(t *testing.T) {
+	cases := map[string]string{
+		"foo with bar":            "foo-with-bar",
+		"validate with pre parse": "validate-with-pre-parse",
+		"alpha and omega":         "alpha-and-omega",
+		"king of the hill":        "king-of-the-hill",
+		"to be or not to be":      "to-be-or-not-to-be",
+	}
+	for in, want := range cases {
+		if got := Slugify(in); got != want {
+			t.Errorf("Slugify(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestSlugify_TruncatesTo60(t *testing.T) {
 	long := ""
 	for i := 0; i < 80; i++ {
