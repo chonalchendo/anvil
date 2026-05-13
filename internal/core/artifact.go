@@ -31,7 +31,7 @@ func LoadArtifact(path string) (*Artifact, error) {
 	}
 	a := &Artifact{Path: path, FrontMatter: map[string]any{}}
 	if err := yaml.Unmarshal(rest, &a.FrontMatter); err != nil {
-		return nil, fmt.Errorf("parse frontmatter %s: %w", path, err)
+		return nil, fmt.Errorf("parse frontmatter %s: %w", path, enrichYAMLError(rest, err))
 	}
 	a.Body = body
 	return a, nil
