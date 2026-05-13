@@ -45,9 +45,13 @@ Working in <repo path>. <One-sentence framing: what kind of work, which project.
 **Reminders.** <Session-specific rules the receiving agent might not infer from AGENTS.md alone. Skip if nothing.>
 ```
 
-## Phase 3 — Emit and stop
+## Phase 3 — Write into the session file and stop
 
-Print the populated template inside a fenced code block so the user can copy it in one click. Add nothing after the block except a single line: *"Paste into the next session."*
+Write the populated template into the body of the current session file at `~/anvil-vault/10-sessions/<session-id>.md` (the file the `session-start` hook created — its frontmatter already exists). Preserve the frontmatter; place the body under a `## Handoff` heading.
+
+Do **not** emit a copy-pasteable block for the user. `anvil:resuming-session` reads the body directly from the session file in the next terminal — paste is dead weight.
+
+Confirm the write in one line: `Handoff written to ~/anvil-vault/10-sessions/<session-id>.md.`
 
 Do not offer to commit, push, or summarise further. The handoff is the deliverable.
 
