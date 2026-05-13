@@ -210,7 +210,7 @@ func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool, t co
 	for _, item := range items {
 		fmt.Fprintf(w, "%s\t%s\t%s\n", item.ID, item.Status, firstNonEmpty(item.Description, item.Title))
 	}
-	suggestions := []string{"--since/--until", "--status", "--type", "--tag"}
+	suggestions := []string{"--since/--until", "--status", "--tag"}
 	if t.SupportsProject() {
 		suggestions = append(suggestions, "--project")
 	}
