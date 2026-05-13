@@ -1,6 +1,6 @@
 # Agent-Friendly CLI Principles
 
-Agents are first-class CLI consumers — they call `anvil` dozens of times per session with no human in the loop. The seven rules below extend the design-rules line in `docs/system-design/cli-substrate.md` ("boring, no interactive prompts, JSON output behind `--json`, stdout for content, stderr for diagnostics, meaningful exit codes") with concrete guidance for agent-facing verbs. Source: compound-engineering, *Building Agent-Friendly CLIs: Practical Principles*.
+Agents are first-class CLI consumers — they call `anvil` dozens of times per session with no human in the loop. The eight rules below extend the design-rules line in `docs/system-design/cli-substrate.md` ("boring, no interactive prompts, JSON output behind `--json`, stdout for content, stderr for diagnostics, meaningful exit codes") with concrete guidance for agent-facing verbs. Source: compound-engineering, *Building Agent-Friendly CLIs: Practical Principles*.
 
 ## 1. Non-interactive automation paths
 
@@ -14,7 +14,11 @@ Never prompt. Never require a TTY. Never depend on `$EDITOR`. Every `create` and
 
 `--help` on every verb shows: required flags, optional flags with defaults, at least one usage example, and a pointer to deeper docs when they exist. Subcommands are discoverable from their parent (`anvil --help` lists top-level groups; `anvil inbox --help` lists `add | list | show | promote`). An agent that has never seen a verb can bootstrap from `--help` alone.
 
-## 4. Actionable errors
+## 4. Precise constraint language in --help
+
+Name the enforced bound, not a range. Write `max 120 chars` when only the upper bound is checked; write `min N` when only the lower bound is enforced. Reserve `M-N` ranges for genuinely closed intervals where both ends matter (e.g., `--port 1024-65535`). A help string that reads `1-120 chars` forces an agent to verify which end is enforced — a wasted round-trip. When the constraint is "required and capped", say `required, max 120 chars`.
+
+## 5. Actionable errors
 
 Validation failures from `create` and `set` print three things: the offending field, the set of valid values pulled from the schema, and a copy-pasteable corrected invocation. Example: `anvil create issue --priority urgent` should produce:
 
@@ -26,15 +30,15 @@ error: invalid value "urgent" for --priority
 
 Use sentinel errors from `internal/cli/errors.go` so the error shape is consistent across verbs.
 
-## 5. Safe retries (idempotence)
+## 6. Safe retries (idempotence)
 
 `anvil create <type> --slug X` with identical content is a no-op: print the existing artifact ID and exit 0. Content drift (same slug, different field values) is an error unless `--update` is passed. Re-running `anvil link <type> <id> --to <type> <id>` with the same pair is a no-op. Agents retry on transient failures; idempotence prevents duplicate artifacts.
 
-## 6. Composability
+## 7. Composability
 
 CLI output flows cleanly to downstream tools. All content goes to stdout; all diagnostics go to stderr. Use `cmd.Println` / `cmd.PrintErrln`, never `fmt.Println` (cobra respects output redirection; `fmt` doesn't). Exit codes are meaningful: 0 success, 1 validation/user error, 2 internal error. `--json` output pipes cleanly to `jq` — no ANSI codes, no progress noise, no preamble prose.
 
-## 7. Bounded responses
+## 8. Bounded responses
 
 `anvil list <type>` defaults to `--limit 50`. When the result set is truncated, print a narrowing hint on stderr: available filter flags and how to raise the limit. Example:
 
