@@ -109,20 +109,50 @@ rename always takes effect first.`,
 				return fmt.Errorf("removing old artifact: %w", err)
 			}
 
-			// Update the index: register new ID, drop old one.
 			db, err := index.Open(index.DBPath(v.Root))
 			if err != nil {
 				return fmt.Errorf("opening index: %w", err)
 			}
 			defer db.Close()
 			if _, err := db.Reindex(v.Root); err != nil {
-				return fmt.Errorf("reindexing after rename: %w", err)
+				cmd.PrintErrf("WARN: reindex after rename failed: %v\n", err)
 			}
 
-			// Rewrite inbound wikilinks across the vault.
 			oldWikilink := fmt.Sprintf("[[%s.%s]]", t, oldID)
 			newWikilink := fmt.Sprintf("[[%s.%s]]", t, newID)
-			rewritten, skipped := rewriteWikilinks(v.Root, oldWikilink, newWikilink, newPath)
+
+			var rewritten, skipped []string
+			_ = filepath.WalkDir(v.Root, func(path string, d fs.DirEntry, err error) error {
+				if err != nil {
+					skipped = append(skipped, fmt.Sprintf("%s: %v", path, err))
+					return nil
+				}
+				if d.IsDir() {
+					return nil
+				}
+				if !strings.HasSuffix(path, ".md") {
+					return nil
+				}
+				if path == newPath {
+					return nil
+				}
+				b, rerr := os.ReadFile(path)
+				if rerr != nil {
+					skipped = append(skipped, path)
+					return nil
+				}
+				content := string(b)
+				if !strings.Contains(content, oldWikilink) {
+					return nil
+				}
+				updated := strings.ReplaceAll(content, oldWikilink, newWikilink)
+				if werr := os.WriteFile(path, []byte(updated), 0o644); werr != nil {
+					skipped = append(skipped, path)
+					return nil
+				}
+				rewritten = append(rewritten, path)
+				return nil
+			})
 
 			r := renameResult{
 				OldID: oldID, NewID: newID,
@@ -145,9 +175,6 @@ rename always takes effect first.`,
 	return cmd
 }
 
-// replaceSlug replaces the slug part of an existing ID with newSlug.
-// For project-scoped types (issue, plan, milestone) the ID is <project>.<slug>.
-// For inbox it is <date>-<slug>. For others it is just the slug.
 func replaceSlug(t core.Type, oldID, newSlug string) string {
 	switch t {
 	case core.TypeIssue, core.TypePlan, core.TypeMilestone:
@@ -156,12 +183,10 @@ func replaceSlug(t core.Type, oldID, newSlug string) string {
 			return oldID[:dot+1] + newSlug
 		}
 	case core.TypeInbox:
-		// ID format: <date>-<slug>; date portion is YYYY-MM-DD (10 chars + dash = 11).
 		if len(oldID) > 11 && oldID[10] == '-' {
 			return oldID[:11] + newSlug
 		}
 	case core.TypeDecision:
-		// ID format: <topic>.<ordinal>-<slug>; preserve up through the ordinal dash.
 		dot := strings.IndexByte(oldID, '.')
 		if dot >= 0 {
 			rest := oldID[dot+1:]
@@ -171,42 +196,7 @@ func replaceSlug(t core.Type, oldID, newSlug string) string {
 			}
 		}
 	}
-	// Thread, learning, sweep, session, product-design, system-design: id == slug.
 	return newSlug
-}
-
-// rewriteWikilinks walks vaultRoot and replaces every occurrence of oldLink
-// with newLink in .md files (skipping skipPath, the just-renamed file itself).
-// Returns lists of rewritten and failed file paths.
-func rewriteWikilinks(vaultRoot, oldLink, newLink, skipPath string) (rewritten, skipped []string) {
-	_ = filepath.WalkDir(vaultRoot, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(path, ".md") {
-			return nil
-		}
-		if path == skipPath {
-			return nil
-		}
-		b, rerr := os.ReadFile(path)
-		if rerr != nil {
-			skipped = append(skipped, path)
-			return nil
-		}
-		content := string(b)
-		if !strings.Contains(content, oldLink) {
-			return nil
-		}
-		updated := strings.ReplaceAll(content, oldLink, newLink)
-		if werr := os.WriteFile(path, []byte(updated), 0o644); werr != nil {
-			skipped = append(skipped, path)
-			return nil
-		}
-		rewritten = append(rewritten, path)
-		return nil
-	})
-	return rewritten, skipped
 }
 
 type renameResult struct {
