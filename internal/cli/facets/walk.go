@@ -1,6 +1,7 @@
 package facets
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -54,10 +55,13 @@ func CollectValues(vaultRoot string) (map[string]map[string]struct{}, []string, 
 			}
 			a, aErr := core.LoadArtifact(path)
 			if aErr != nil {
-				// Tolerate corrupt frontmatter: record the path and continue
-				// the walk so one bad artifact doesn't block creates everywhere.
-				skipped = append(skipped, path)
-				return nil
+				if errors.Is(aErr, core.ErrFrontmatterParse) {
+					// Tolerate corrupt frontmatter: record the path and continue
+					// the walk so one bad artifact doesn't block creates everywhere.
+					skipped = append(skipped, path)
+					return nil
+				}
+				return aErr
 			}
 			raw, ok := a.FrontMatter["tags"].([]any)
 			if !ok {

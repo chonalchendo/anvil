@@ -77,6 +77,32 @@ func TestCollectValues_AggregatesAcrossTypes(t *testing.T) {
 	}
 }
 
+func TestCollectValues_NonParseError_Propagates(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("root bypasses file-permission checks")
+	}
+	dir := t.TempDir()
+	v := &core.Vault{Root: dir}
+	if err := v.Scaffold(); err != nil {
+		t.Fatal(err)
+	}
+	// Write a valid artifact, then remove read permission so LoadArtifact hits
+	// an OS-level error (not a frontmatter parse error).
+	full := filepath.Join(dir, "70-issues", "unreadable.md")
+	if err := os.WriteFile(full, []byte("---\ntype: issue\ntitle: t\n---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(full, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(full, 0o644) })
+
+	_, _, err := facets.CollectValues(dir)
+	if err == nil {
+		t.Fatal("expected CollectValues to return an error for an unreadable file, got nil")
+	}
+}
+
 func TestCollectValues_CorruptArtifact_SkippedNotError(t *testing.T) {
 	dir := t.TempDir()
 	v := &core.Vault{Root: dir}
