@@ -66,6 +66,7 @@ func newRootCmd() *cobra.Command {
 		newTagsCmd(),
 		newReindexCmd(),
 		newTransitionCmd(),
+		newRenameCmd(),
 	)
 	return cmd
 }
