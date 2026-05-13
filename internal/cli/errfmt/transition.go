@@ -41,6 +41,17 @@ func NewUnsupportedForType(typ string, supported []string) *Structured {
 		Set("supported", supported)
 }
 
+// NewUnsupportedFlagForType signals that a CLI flag is inert for the given
+// type because the type's schema rejects the corresponding frontmatter field.
+// Includes a `suggest` hint pointing to the convention to use instead.
+func NewUnsupportedFlagForType(flag, typ string, supported []string, suggest string) *Structured {
+	return NewStructured("unsupported_flag_for_type").
+		Set("flag", flag).
+		Set("type", typ).
+		Set("supported", supported).
+		Set("suggest", suggest)
+}
+
 func flagValuePlaceholder(flag string) string {
 	switch flag {
 	case "owner":

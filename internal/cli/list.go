@@ -58,6 +58,12 @@ func newListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if cmd.Flags().Changed("project") && !t.SupportsProject() {
+				return printAndReturn(cmd, errfmt.NewUnsupportedFlagForType(
+					"project", string(t), core.TypesSupportingProject(),
+					suggestProjectAlternative(t),
+				))
+			}
 			if flagReady || flagOrphans {
 				return runListIndexed(cmd, t, flagReady, flagOrphans, listFilters{
 					Status: flagStatus, Project: flagProject,
@@ -78,7 +84,7 @@ func newListCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&flagStatus, "status", "", "filter by status (exact match)")
-	cmd.Flags().StringVar(&flagProject, "project", "", "filter by project (exact match)")
+	cmd.Flags().StringVar(&flagProject, "project", "", "filter by project (exact match; supported on: "+strings.Join(core.TypesSupportingProject(), ", ")+")")
 	cmd.Flags().StringVar(&flagTag, "tag", "", "filter by tag (substring match, single)")
 	cmd.Flags().StringSliceVar(&flagTags, "tags", nil, "filter by tags (all-of, exact, comma-separated)")
 	cmd.Flags().StringVar(&flagDiataxis, "diataxis", "", "filter by diataxis (exact match)")
@@ -102,6 +108,21 @@ func splitTags(raw []string) []string {
 		}
 	}
 	return out
+}
+
+// suggestProjectAlternative returns the recommended scoping mechanism for a
+// type whose schema rejects `project:`. Surfaced in the unsupported-flag
+// error so agents don't re-discover the convention by guessing.
+func suggestProjectAlternative(t core.Type) string {
+	switch t {
+	case core.TypeLearning:
+		return "scope learnings via --tags domain/<area>"
+	case core.TypeDecision:
+		return "scope decisions via topic prefix in the id (e.g. data-sources.0001-...) and grep the listing"
+	case core.TypeInbox:
+		return "inbox items carry suggested_project, not project; list and grep instead"
+	}
+	return "this type is deliberately cross-project; filter via --tag or --tags"
 }
 
 func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJSON bool, limit int) error {
@@ -149,7 +170,7 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 	if limit > 0 && len(items) > limit {
 		items = items[:limit]
 	}
-	return emitList(cmd, items, total, asJSON)
+	return emitList(cmd, items, total, asJSON, t)
 }
 
 func matchesFilters(f listFilters, status, project, diataxis, confidence, created string, tagsRaw any) bool {
@@ -180,7 +201,7 @@ func matchesFilters(f listFilters, status, project, diataxis, confidence, create
 	return true
 }
 
-func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool) error {
+func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool, t core.Type) error {
 	returned := len(items)
 	if asJSON {
 		return output.WriteListJSON(cmd.OutOrStdout(), items, total, returned)
@@ -189,8 +210,11 @@ func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool) erro
 	for _, item := range items {
 		fmt.Fprintf(w, "%s\t%s\t%s\n", item.ID, item.Status, firstNonEmpty(item.Description, item.Title))
 	}
-	if hint := output.TruncationHint("most recent", returned, total,
-		[]string{"--since/--until", "--status", "--type", "--tag", "--project"}); hint != "" {
+	suggestions := []string{"--since/--until", "--status", "--tag"}
+	if t.SupportsProject() {
+		suggestions = append(suggestions, "--project")
+	}
+	if hint := output.TruncationHint("most recent", returned, total, suggestions); hint != "" {
 		cmd.PrintErrln(hint)
 	}
 	return nil
@@ -278,7 +302,7 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 		}
 		items = append(items, item)
 	}
-	return emitList(cmd, items, total, asJSON)
+	return emitList(cmd, items, total, asJSON, t)
 }
 
 // collectArtifactPaths returns absolute paths of artifacts of type t under
