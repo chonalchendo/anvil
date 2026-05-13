@@ -70,3 +70,11 @@ For multi-step tasks, state a brief plan:
     3. [Step] → verify: [check]
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+## Vault Hygiene
+
+**Obsidian wikilink stubs.** Clicking an unresolved `[[issue.foo.bar]]` link in Obsidian stamps a 0-byte `issue.foo.bar.md` at the vault root. `anvil reindex` flags these on stderr (`WARN: 0-byte stub at vault root: ...`); `anvil reindex --prune-stubs` deletes the 0-byte ones. Non-zero files at the root with type-prefixed names are reported but never auto-deleted — move them into the canonical `<NN>-<type>/` dir or remove by hand.
+
+## End-of-Session Token Reflection
+
+Before closing a dogfood session: rough total, top 2–3 token sinks (avoidable reads, redundant searches, oversized tool output), and any harness/CLI/skill change that would've cut them. A session with no token-side observation is itself a finding.
