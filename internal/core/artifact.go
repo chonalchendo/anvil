@@ -2,12 +2,19 @@ package core
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+// ErrFrontmatterParse is the sentinel wrapped into every LoadArtifact error
+// that originates from malformed YAML or a missing frontmatter delimiter.
+// Callers that tolerate corrupt files (e.g. the facet walk) test for this via
+// errors.Is; other load failures (OS/permission errors) are not wrapped.
+var ErrFrontmatterParse = errors.New("frontmatter parse error")
 
 // Artifact is a parsed vault file: YAML frontmatter delimited by `---`,
 // followed by a Markdown body.
@@ -27,11 +34,11 @@ func LoadArtifact(path string) (*Artifact, error) {
 	}
 	rest, body, ok := splitFrontMatter(b)
 	if !ok {
-		return nil, fmt.Errorf("no frontmatter delimiter in %s", path)
+		return nil, fmt.Errorf("no frontmatter delimiter in %s: %w", path, ErrFrontmatterParse)
 	}
 	a := &Artifact{Path: path, FrontMatter: map[string]any{}}
 	if err := yaml.Unmarshal(rest, &a.FrontMatter); err != nil {
-		return nil, fmt.Errorf("parse frontmatter %s: %w", path, enrichYAMLError(rest, err))
+		return nil, fmt.Errorf("parse frontmatter %s: %w", path, errors.Join(enrichYAMLError(rest, err), ErrFrontmatterParse))
 	}
 	a.Body = body
 	return a, nil

@@ -140,9 +140,12 @@ func newSetCmd() *cobra.Command {
 				for _, f := range flagAllowNewFacet {
 					allowed[f] = true
 				}
-				vaultValues, vErr := facets.CollectValues(v.Root)
+				vaultValues, skipped, vErr := facets.CollectValues(v.Root)
 				if vErr != nil {
 					return fmt.Errorf("walking vault: %w", vErr)
+				}
+				for _, p := range skipped {
+					cmd.PrintErrln("warn: skipped corrupt artifact during facet walk: " + p)
 				}
 				tagsRaw, _ := a.FrontMatter[field].([]any)
 				tagsStr := make([]string, 0, len(tagsRaw))

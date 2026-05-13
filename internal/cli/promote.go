@@ -229,9 +229,12 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	for _, f := range flagAllowNewFacet {
 		allowed[f] = true
 	}
-	values, gErr := facets.CollectValues(v.Root)
+	values, skipped, gErr := facets.CollectValues(v.Root)
 	if gErr != nil {
 		return fmt.Errorf("walking vault for facet values: %w", gErr)
+	}
+	for _, p := range skipped {
+		cmd.PrintErrln("warn: skipped corrupt artifact during facet walk: " + p)
 	}
 	tagsRaw, _ := fm["tags"].([]any)
 	tagsStr := make([]string, 0, len(tagsRaw))
