@@ -156,7 +156,10 @@ func TestCreatePlan_NewSchema_Succeeds(t *testing.T) {
 	// Fresh plan parses cleanly and passes schema; ValidatePlan is gated to
 	// the draft→locked transition (the placeholder T1 ships verify: "true",
 	// which the validator rejects as a no-op — by design).
-	path := filepath.Join(vault, "80-plans", "foo.streaming-token-counter.md")
+	//
+	// Plan slug defaults to the linked issue's slug (`streaming`), not the
+	// plan title — keeps linked-artifact pairs anchored on the same slug.
+	path := filepath.Join(vault, "80-plans", "foo.streaming.md")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("expected file at %s: %v", path, err)
 	}
@@ -284,7 +287,7 @@ func TestCreatePlan_BodyReplacesT1Seed_ValidWhenWellFormed(t *testing.T) {
 		"create", "plan",
 		"--title", "Author body",
 		"--description", "test description",
-		"--issue", "[[issue.foo.streaming]]",
+		"--issue", "[[issue.foo.author-body-target]]",
 		"--body", body,
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
@@ -295,7 +298,7 @@ func TestCreatePlan_BodyReplacesT1Seed_ValidWhenWellFormed(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create plan: %v\n%s", err, stderr.String())
 	}
-	a, _ := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.author-body.md"))
+	a, _ := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.author-body-target.md"))
 	if !strings.Contains(a.Body, "Author-supplied T1") {
 		t.Errorf("body did not replace T1 seed: %q", a.Body)
 	}

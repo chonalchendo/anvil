@@ -147,7 +147,7 @@ func TestTransitionPlanToLocked_RejectsPlaceholderPlan(t *testing.T) {
 		"--allow-new-facet=domain")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "plan", "demo.p", "locked"})
+	cmd.SetArgs([]string{"transition", "plan", "demo.i", "locked"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -161,7 +161,7 @@ func TestTransitionPlanToLocked_RejectsPlaceholderPlan(t *testing.T) {
 	}
 
 	// File status should still be draft (transition aborted).
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "demo.p.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "demo.i.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestTransitionPlanToLocked_RejectsPlaceholderPlan(t *testing.T) {
 
 	// Index must reflect the same draft state — guards against a future
 	// reorder that writes the index before validation.
-	row, ierr := openIndex(t, vault).GetArtifact("demo.p")
+	row, ierr := openIndex(t, vault).GetArtifact("demo.i")
 	if ierr != nil {
 		t.Fatalf("loading index row: %v", ierr)
 	}
@@ -195,10 +195,10 @@ func TestTransitionPlanToLocked_AcceptsRealVerify(t *testing.T) {
 		"--allow-new-facet=domain")
 
 	// Rewrite the plan with a real verify and well-formed task body.
-	planPath := filepath.Join(vault, "80-plans", "demo.p.md")
+	planPath := filepath.Join(vault, "80-plans", "demo.i.md")
 	realPlan := `---
 type: plan
-id: demo.p
+id: demo.i
 slug: p
 title: "P"
 description: "d"
@@ -230,7 +230,7 @@ agent would do. Add the type in a.go, RED test in a_test.go, run verify.
 	}
 	execCmd(t, "reindex")
 
-	execCmd(t, "transition", "plan", "demo.p", "locked")
+	execCmd(t, "transition", "plan", "demo.i", "locked")
 
 	a, err := core.LoadArtifact(planPath)
 	if err != nil {

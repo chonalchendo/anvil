@@ -143,6 +143,18 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
+			// Plan default slug derives from the linked issue's slug, not the
+			// plan's own title. Same-slug pairing makes drift between linked
+			// artifacts a typo, not the default. --slug still wins; pass it to
+			// override (e.g. issue→plans fan-out where each plan needs its own
+			// slug).
+			slugDefault := flagSlug
+			if slugDefault == "" && t == core.TypePlan && flagIssue != "" {
+				if s, ok := slugFromIssueLink(flagIssue, project); ok {
+					slugDefault = s
+				}
+			}
+
 			var (
 				id   string
 				path string
@@ -155,20 +167,20 @@ func newCreateCmd() *cobra.Command {
 					Title:   flagTitle,
 					Project: project,
 					Topic:   flagTopic,
-					Slug:    flagSlug,
+					Slug:    slugDefault,
 				})
 				if err != nil {
-					return invalidSlugError(flagSlug, err)
+					return invalidSlugError(slugDefault, err)
 				}
 				id = allocated
 			case t.AllocatesID():
 				base, err := core.DeterministicID(t, core.IDInputs{
 					Title:   flagTitle,
 					Project: project,
-					Slug:    flagSlug,
+					Slug:    slugDefault,
 				})
 				if err != nil {
-					return invalidSlugError(flagSlug, err)
+					return invalidSlugError(slugDefault, err)
 				}
 				id = base
 			default:
@@ -307,6 +319,29 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagForceNew, "force-new", false, "skip the near-duplicate similarity check")
 
 	return cmd
+}
+
+// slugFromIssueLink extracts the slug component from an issue wikilink of
+// the form `[[issue.<project>.<slug>]]`. Returns false when the link doesn't
+// match the shape or its project disagrees with the plan's project — both
+// signal the caller's `--issue` is malformed; falling back to title-derived
+// slug surfaces that to the user via the create flow's normal validation.
+func slugFromIssueLink(link, project string) (string, bool) {
+	s := strings.TrimSpace(link)
+	if !strings.HasPrefix(s, "[[") || !strings.HasSuffix(s, "]]") {
+		return "", false
+	}
+	body := s[2 : len(s)-2]
+	const prefix = "issue."
+	if !strings.HasPrefix(body, prefix) {
+		return "", false
+	}
+	rest := body[len(prefix):]
+	dot := strings.IndexByte(rest, '.')
+	if dot < 0 || rest[:dot] != project {
+		return "", false
+	}
+	return rest[dot+1:], true
 }
 
 // invalidSlugError wraps a ValidateSlug failure with a structured code so
