@@ -72,7 +72,6 @@ rename always takes effect first.`,
 			newPath := filepath.Join(v.Root, t.Dir(), newID+".md")
 
 			if newID == oldID {
-				// Cosmetic-only change: slug unchanged, just update the title field.
 				a.FrontMatter["title"] = flagTitle
 				a.FrontMatter["updated"] = time.Now().UTC().Format("2006-01-02")
 				if err := a.Save(); err != nil {
@@ -92,13 +91,11 @@ rename always takes effect first.`,
 				return fmt.Errorf("target %s already exists; choose a different title", newID)
 			}
 
-			// Update frontmatter before writing to new path.
 			a.FrontMatter["title"] = flagTitle
 			a.FrontMatter["updated"] = time.Now().UTC().Format("2006-01-02")
 			// Wipe any explicit slug field — the filename is the canonical ID.
 			delete(a.FrontMatter, "slug")
 
-			// Write to new path, then remove old file.
 			a.Path = newPath
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("writing new artifact: %w", err)
@@ -121,7 +118,8 @@ rename always takes effect first.`,
 			oldWikilink := fmt.Sprintf("[[%s.%s]]", t, oldID)
 			newWikilink := fmt.Sprintf("[[%s.%s]]", t, newID)
 
-			var rewritten, skipped []string
+			rewritten := make([]string, 0)
+			skipped := make([]string, 0)
 			_ = filepath.WalkDir(v.Root, func(path string, d fs.DirEntry, err error) error {
 				if err != nil {
 					skipped = append(skipped, fmt.Sprintf("%s: %v", path, err))
@@ -145,8 +143,13 @@ rename always takes effect first.`,
 				if !strings.Contains(content, oldWikilink) {
 					return nil
 				}
+				fi, statErr := os.Stat(path)
+				mode := os.FileMode(0o644)
+				if statErr == nil {
+					mode = fi.Mode().Perm()
+				}
 				updated := strings.ReplaceAll(content, oldWikilink, newWikilink)
-				if werr := os.WriteFile(path, []byte(updated), 0o644); werr != nil {
+				if werr := os.WriteFile(path, []byte(updated), mode); werr != nil {
 					skipped = append(skipped, path)
 					return nil
 				}
@@ -204,8 +207,8 @@ type renameResult struct {
 	NewID          string   `json:"new_id"`
 	OldPath        string   `json:"old_path"`
 	NewPath        string   `json:"new_path"`
-	LinksRewritten []string `json:"links_rewritten,omitempty"`
-	LinksSkipped   []string `json:"links_skipped,omitempty"`
+	LinksRewritten []string `json:"links_rewritten"`
+	LinksSkipped   []string `json:"links_skipped"`
 	Status         string   `json:"status"`
 }
 
