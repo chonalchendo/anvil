@@ -57,7 +57,9 @@ When the harness injects a `<system-reminder>` nudging `TaskCreate` during a lin
 
 ## Skills before CLI
 
-For any activity with a corresponding skill — `capturing-inbox`, `writing-issue`, `writing-plan`, `writing-product-design`, `distilling-learning`, `opening-thread` — fire the skill, not the raw CLI. The verbs skip the workflow knowledge skills encode (body templates, frontmatter conventions, verbatim-preservation, multi-step state transitions, Iron Laws).
+For any activity with a corresponding skill — `capturing-inbox`, `writing-issue`, `writing-plan`, `writing-product-design`, `distilling-learning`, `opening-thread`, `handing-off-session`, `resuming-session` — fire the skill, not the raw CLI. The verbs skip the workflow knowledge skills encode (body templates, frontmatter conventions, verbatim-preservation, multi-step state transitions, Iron Laws).
+
+Starting a fresh terminal mid-task? Fire `anvil:resuming-session` to load the prior session's handoff. Ending one? Fire `anvil:handing-off-session`.
 
 Mechanical verbs — `anvil reindex`, `anvil link --to`, `anvil where`, `anvil list`, `anvil show`, `anvil validate`, `anvil tags list` — fine to call directly; they're read-side or hygiene verbs without a skill.
 
