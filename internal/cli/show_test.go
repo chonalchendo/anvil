@@ -445,3 +445,101 @@ func TestShowValidate_JSON(t *testing.T) {
 		t.Errorf("unresolved_links = %v", got.UnresolvedLinks)
 	}
 }
+
+// TestShow_IncomingEdges asserts the acceptance criterion: create A and B,
+// `anvil link A B`, `anvil show B` lists A under incoming — in both text and
+// JSON outputs, grouped by source type with id+title.
+func TestShow_IncomingEdges(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	execCmd(t, "create", "issue",
+		"--project", "demo", "--title", "Source issue", "--description", "src",
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
+	execCmd(t, "create", "issue",
+		"--project", "demo", "--title", "Target issue", "--description", "tgt",
+		"--tags", "domain/dev-tools")
+	execCmd(t, "link", "issue", "demo.source-issue", "issue", "demo.target-issue")
+
+	// JSON shape: incoming.<type> -> [{id, title}]
+	out := execCmd(t, "show", "issue", "demo.target-issue", "--json", "--no-body")
+	var got struct {
+		Incoming map[string][]struct {
+			ID    string `json:"id"`
+			Title string `json:"title"`
+		} `json:"incoming"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	issues, ok := got.Incoming["issue"]
+	if !ok || len(issues) != 1 {
+		t.Fatalf("incoming.issue = %v (want one entry), full: %v", issues, got.Incoming)
+	}
+	if issues[0].ID != "demo.source-issue" || issues[0].Title != "Source issue" {
+		t.Errorf("incoming entry = %+v, want {demo.source-issue, Source issue}", issues[0])
+	}
+
+	// Text output: section header + grouped entry.
+	text := execCmd(t, "show", "issue", "demo.target-issue", "--no-body")
+	if !strings.Contains(text, "Incoming links:") {
+		t.Errorf("text output missing section header:\n%s", text)
+	}
+	if !strings.Contains(text, "demo.source-issue") || !strings.Contains(text, "Source issue") {
+		t.Errorf("text output missing incoming entry id+title:\n%s", text)
+	}
+}
+
+// TestShow_NoIncomingFlagSuppresses asserts --no-incoming removes the section
+// (text) and drops the JSON key entirely (`omitempty`).
+func TestShow_NoIncomingFlagSuppresses(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	execCmd(t, "create", "issue",
+		"--project", "demo", "--title", "A", "--description", "a",
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
+	execCmd(t, "create", "issue",
+		"--project", "demo", "--title", "B", "--description", "b",
+		"--tags", "domain/dev-tools")
+	execCmd(t, "link", "issue", "demo.a", "issue", "demo.b")
+
+	out := execCmd(t, "show", "issue", "demo.b", "--no-incoming", "--json", "--no-body")
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if _, present := got["incoming"]; present {
+		t.Errorf("incoming key should be absent under --no-incoming, got: %v", got["incoming"])
+	}
+
+	text := execCmd(t, "show", "issue", "demo.b", "--no-incoming", "--no-body")
+	if strings.Contains(text, "Incoming links:") {
+		t.Errorf("text output should not contain section under --no-incoming:\n%s", text)
+	}
+}
+
+// TestShow_NoIncomingEdgesRendersCleanly ensures the section header doesn't
+// dangle when no incoming edges exist.
+func TestShow_NoIncomingEdgesRendersCleanly(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	execCmd(t, "create", "issue",
+		"--project", "demo", "--title", "Lonely", "--description", "lonely",
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
+
+	text := execCmd(t, "show", "issue", "demo.lonely", "--no-body")
+	if strings.Contains(text, "Incoming links:") {
+		t.Errorf("section header should be absent when no incoming edges:\n%s", text)
+	}
+
+	out := execCmd(t, "show", "issue", "demo.lonely", "--json", "--no-body")
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if _, present := got["incoming"]; present {
+		t.Errorf("incoming key should be omitted when empty, got: %v", got["incoming"])
+	}
+}

@@ -2,27 +2,31 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/index"
 )
 
 const showBodyLineCap = 500
 
 func newShowCmd() *cobra.Command {
 	var (
-		flagJSON     bool
-		flagBody     bool
-		flagNoBody   bool
-		flagValidate bool
-		flagWaves    bool
-		flagTask     string
+		flagJSON       bool
+		flagBody       bool
+		flagNoBody     bool
+		flagValidate   bool
+		flagWaves      bool
+		flagTask       string
+		flagNoIncoming bool
 	)
 
 	cmd := &cobra.Command{
@@ -68,7 +72,7 @@ func newShowCmd() *cobra.Command {
 			if flagValidate && (t == core.TypeIssue || t == core.TypeMilestone) {
 				return runShowValidate(cmd, v, t, args[1], flagJSON)
 			}
-			return runShow(cmd, v, t, args[1], flagJSON, includeBody)
+			return runShow(cmd, v, t, args[1], flagJSON, includeBody, !flagNoIncoming)
 		},
 	}
 
@@ -78,19 +82,26 @@ func newShowCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagValidate, "validate", false, "validate artifact (plan: full DAG; issue/milestone: schema + wikilinks)")
 	cmd.Flags().BoolVar(&flagWaves, "waves", false, "render plan waves as mermaid (plan only)")
 	cmd.Flags().StringVar(&flagTask, "task", "", "scope output to a single task (plan only; compose with --body for the section text)")
+	cmd.Flags().BoolVar(&flagNoIncoming, "no-incoming", false, "suppress the Incoming links section (artifacts whose related[]/etc. point at this one)")
 	return cmd
 }
 
 type showOutput struct {
-	ID             string         `json:"id"`
-	Path           string         `json:"path"`
-	FrontMatter    map[string]any `json:"frontmatter"`
-	Body           *string        `json:"body"`
-	BodyTruncated  bool           `json:"body_truncated"`
-	BodyLinesTotal int            `json:"body_lines_total"`
+	ID             string                     `json:"id"`
+	Path           string                     `json:"path"`
+	FrontMatter    map[string]any             `json:"frontmatter"`
+	Body           *string                    `json:"body"`
+	BodyTruncated  bool                       `json:"body_truncated"`
+	BodyLinesTotal int                        `json:"body_lines_total"`
+	Incoming       map[string][]incomingEdge  `json:"incoming,omitempty"`
 }
 
-func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, includeBody bool) error {
+type incomingEdge struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, includeBody, includeIncoming bool) error {
 	path := resolveArtifactPath(v.Root, t, id)
 	a, err := core.LoadArtifact(path)
 	if err != nil {
@@ -114,6 +125,14 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, 
 		BodyLinesTotal: totalLines,
 	}
 
+	if includeIncoming {
+		incoming, err := loadIncomingEdges(v, id)
+		if err != nil {
+			return err
+		}
+		out.Incoming = incoming
+	}
+
 	if includeBody {
 		shown := body
 		if totalLines > showBodyLineCap {
@@ -132,11 +151,88 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, 
 	}
 
 	emitFrontMatterText(cmd, a.FrontMatter)
+	emitIncomingText(cmd, out.Incoming)
 	if includeBody && out.Body != nil {
 		fmt.Fprintln(w, "---")
 		fmt.Fprint(w, *out.Body)
 	}
 	return nil
+}
+
+// loadIncomingEdges returns artifacts whose outgoing edges target id, grouped
+// by source type. Missing index (vault not initialised) and unindexed sources
+// (link target without a backing artifact row) are skipped silently — incoming
+// is an additive display surface; degrading gracefully beats failing the whole
+// show call. Returns nil when no edges exist so JSON `omitempty` keeps the
+// envelope compact.
+func loadIncomingEdges(v *core.Vault, id string) (map[string][]incomingEdge, error) {
+	db, err := indexForRead(v)
+	if err != nil {
+		// Surface stale-index errors so callers see the same actionable hint
+		// as `anvil link --to` and `anvil list`. Other errors propagate too.
+		return nil, err
+	}
+	defer db.Close()
+
+	rows, err := db.LinksTo(id)
+	if err != nil {
+		return nil, fmt.Errorf("query incoming edges: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+
+	seen := make(map[string]bool, len(rows))
+	grouped := make(map[string][]incomingEdge)
+	for _, r := range rows {
+		if r.Source == id || seen[r.Source] {
+			continue
+		}
+		seen[r.Source] = true
+
+		row, err := db.GetArtifact(r.Source)
+		if err != nil {
+			if errors.Is(err, index.ErrArtifactNotInIndex) {
+				continue
+			}
+			return nil, fmt.Errorf("resolve incoming source %s: %w", r.Source, err)
+		}
+		title := ""
+		if a, lerr := core.LoadArtifact(row.Path); lerr == nil {
+			title, _ = a.FrontMatter["title"].(string)
+		}
+		grouped[row.Type] = append(grouped[row.Type], incomingEdge{ID: r.Source, Title: title})
+	}
+	if len(grouped) == 0 {
+		return nil, nil
+	}
+	for _, edges := range grouped {
+		sort.Slice(edges, func(i, j int) bool { return edges[i].ID < edges[j].ID })
+	}
+	return grouped, nil
+}
+
+func emitIncomingText(cmd *cobra.Command, incoming map[string][]incomingEdge) {
+	if len(incoming) == 0 {
+		return
+	}
+	w := cmd.OutOrStdout()
+	types := make([]string, 0, len(incoming))
+	for k := range incoming {
+		types = append(types, k)
+	}
+	sort.Strings(types)
+	fmt.Fprintln(w, "Incoming links:")
+	for _, typ := range types {
+		fmt.Fprintf(w, "  %s:\n", typ)
+		for _, e := range incoming[typ] {
+			if e.Title != "" {
+				fmt.Fprintf(w, "    - %s — %s\n", e.ID, e.Title)
+			} else {
+				fmt.Fprintf(w, "    - %s\n", e.ID)
+			}
+		}
+	}
 }
 
 // resolveArtifactPath maps a CLI (type, id) pair to its on-disk path.
