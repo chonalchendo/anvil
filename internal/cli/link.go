@@ -13,18 +13,28 @@ import (
 )
 
 func newLinkCmd() *cobra.Command {
-	var fromID, toID string
+	var fromID, toID, externalURI string
 	var unresolved, drift, asJSON bool
 	cmd := &cobra.Command{
-		Use:   "link [<source-type> <source-id> <target-type> <target-id>]",
-		Short: "Append a wikilink, or query the link graph (--from/--to/--unresolved/--drift)",
+		Use:   "link [<source-type> <source-id> <target-type> <target-id> | <source-type> <source-id> --external <uri>]",
+		Short: "Append a wikilink, an external URI (--external), or query the link graph (--from/--to/--unresolved/--drift)",
+		Example: "  anvil link issue demo.foo learning demo.gotcha\n" +
+			"  anvil link issue demo.foo --external https://github.com/x/y/pull/13\n" +
+			"  anvil link --from demo.foo --json",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			readMode := fromID != "" || toID != "" || unresolved || drift
 			if readMode {
-				if len(args) > 0 {
-					return fmt.Errorf("--from/--to/--unresolved/--drift cannot be combined with positional write args")
+				if len(args) > 0 || externalURI != "" {
+					return fmt.Errorf("--from/--to/--unresolved/--drift cannot be combined with positional write args or --external")
 				}
 				return runLinkQuery(cmd, fromID, toID, unresolved, drift, asJSON)
+			}
+
+			if externalURI != "" {
+				if len(args) != 2 {
+					return fmt.Errorf("--external form requires 2 args: source-type source-id (got %d)", len(args))
+				}
+				return runLinkExternal(cmd, args[0], args[1], externalURI)
 			}
 
 			if len(args) != 4 {
@@ -60,10 +70,38 @@ func newLinkCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&fromID, "from", "", "list outgoing edges from this artifact id")
 	cmd.Flags().StringVar(&toID, "to", "", "list incoming edges to this artifact id")
+	cmd.Flags().StringVar(&externalURI, "external", "", "append a free-form URI (commit sha, PR url, doc link) to source.external_links")
 	cmd.Flags().BoolVar(&unresolved, "unresolved", false, "list edges whose target is not in the vault")
 	cmd.Flags().BoolVar(&drift, "drift", false, "list plan→issue pairs whose slugs disagree")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON output")
 	return cmd
+}
+
+// runLinkExternal appends uri to the source artifact's external_links and
+// re-indexes. Idempotent — re-running with the same uri is a no-op (per
+// AppendExternalLink). Mirrors the write-form post-save pattern.
+func runLinkExternal(cmd *cobra.Command, srcType, srcID, uri string) error {
+	src, err := core.ParseType(srcType)
+	if err != nil {
+		return fmt.Errorf("source type: %w", err)
+	}
+	v, err := core.ResolveVault()
+	if err != nil {
+		return fmt.Errorf("resolving vault: %w", err)
+	}
+	if err := core.AppendExternalLink(v, src, srcID, uri); err != nil {
+		return err
+	}
+	srcPath := filepath.Join(v.Root, src.Dir(), srcID+".md")
+	a, err := core.LoadArtifact(srcPath)
+	if err != nil {
+		return fmt.Errorf("re-loading source: %w", err)
+	}
+	if err := indexAfterSave(v, a); err != nil {
+		return err
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "linked %s.%s → %s\n", src, srcID, uri)
+	return nil
 }
 
 // runLinkDrift emits plan→issue pairs whose slugs disagree. Output format
