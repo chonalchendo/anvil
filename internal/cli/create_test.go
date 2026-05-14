@@ -641,6 +641,9 @@ func TestCreateMilestone_SeedsAcceptanceSlot(t *testing.T) {
 	if len(acc) != 0 {
 		t.Errorf("acceptance = %v, want empty slice", acc)
 	}
+	if got := a.FrontMatter["kind"]; got != "scoped" {
+		t.Errorf("kind = %v, want \"scoped\" (template default)", got)
+	}
 	if err := schema.Validate("milestone", a.FrontMatter); err != nil {
 		t.Errorf("frontmatter fails milestone schema: %v", err)
 	}
