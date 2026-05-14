@@ -90,9 +90,25 @@ func newSetCmd() *cobra.Command {
 					result.Status = "added"
 				case flagRemSet:
 					existing := arrayValue(a.FrontMatter[field])
-					idx, err := resolveRemoveTarget(flagRemove, existing, field)
-					if err != nil {
-						return err
+					idx := -1
+					for i, v := range existing {
+						if s, ok := v.(string); ok && s == flagRemove {
+							idx = i
+							break
+						}
+					}
+					if idx < 0 {
+						n, err := strconv.Atoi(flagRemove)
+						if err != nil {
+							return fmt.Errorf(
+								"--remove %q: no such value in %q and not a valid 0-based index (len=%d); pass an existing value or an integer index",
+								flagRemove, field, len(existing),
+							)
+						}
+						if n < 0 || n >= len(existing) {
+							return fmt.Errorf("--remove %d out of bounds (len=%d)", n, len(existing))
+						}
+						idx = n
 					}
 					before := append([]any(nil), existing...)
 					removed := existing[idx]
@@ -242,28 +258,6 @@ func formatSetValue(v any) string {
 		return s
 	}
 	return fmt.Sprintf("%v", v)
-}
-
-// resolveRemoveTarget maps a --remove argument to an index into existing.
-// Value-mode wins: if input matches an existing entry exactly, that index is
-// returned. Otherwise the input is parsed as a 0-based index. Anything else is
-// a clean validation error (no strconv leak).
-func resolveRemoveTarget(input string, existing []any, field string) (int, error) {
-	for i, v := range existing {
-		if s, ok := v.(string); ok && s == input {
-			return i, nil
-		}
-	}
-	if idx, err := strconv.Atoi(input); err == nil {
-		if idx < 0 || idx >= len(existing) {
-			return 0, fmt.Errorf("--remove %d out of bounds (len=%d)", idx, len(existing))
-		}
-		return idx, nil
-	}
-	return 0, fmt.Errorf(
-		"--remove %q: no such value in %q and not a valid 0-based index (len=%d); pass an existing value or an integer index",
-		input, field, len(existing),
-	)
 }
 
 // arrayValue normalises a frontmatter value into []any. yaml.v3 may decode
