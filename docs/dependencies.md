@@ -27,3 +27,5 @@ These choices are decided. Don't re-litigate without an ADR.
     just install-hooks   # writes .git/hooks/pre-commit
 
 Hooks defined in `.pre-commit-config.yaml`. Toolchain pins (golangci-lint version) live in `tool.go.mod` so the local gate mirrors `.github/workflows/ci.yml`. `just check` runs the same fmt/lint/vet/test sequence without going through git hooks.
+
+`just install-hooks` passes `--allow-missing-config` so the hook no-ops on branches without `.pre-commit-config.yaml` instead of erroring on every commit. Re-run after pulling a config change.
