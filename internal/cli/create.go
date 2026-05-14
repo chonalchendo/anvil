@@ -96,7 +96,7 @@ func newCreateCmd() *cobra.Command {
 			// callers can avoid the create-stub-then-edit round-trip when the
 			// frontmatter carries rich content (e.g. plan tasks). CLI flags still
 			// own identity (id, created, slug) and override matching file fields
-			// when explicitly set.
+			// when explicitly set; gaps fall through to the file's values.
 			var inputFM map[string]any
 			var inputBody string
 			if flagFrom != "" {
@@ -106,11 +106,57 @@ func newCreateCmd() *cobra.Command {
 				if flagBody != "" {
 					return errors.New("--from and --body are mutually exclusive")
 				}
-				inputFM, inputBody, err = readFromArtifact(flagFrom, cmd.InOrStdin())
-				if err != nil {
-					return err
+				var content []byte
+				if flagFrom == "-" {
+					b, err := io.ReadAll(cmd.InOrStdin())
+					if err != nil {
+						return fmt.Errorf("read stdin: %w", err)
+					}
+					content = b
+				} else {
+					b, err := os.ReadFile(flagFrom)
+					if err != nil {
+						return fmt.Errorf("read %s: %w", flagFrom, err)
+					}
+					content = b
 				}
-				fillFlagsFromInput(cmd, inputFM, &flagTitle, &flagDescription, &flagProject, &flagIssue, &flagTags)
+				a, err := core.ParseArtifact(content)
+				if err != nil {
+					return fmt.Errorf("parse --from content: %w", err)
+				}
+				inputFM, inputBody = a.FrontMatter, a.Body
+
+				// CLI-set values win; file fills gaps for identity fields the
+				// existing per-type required-flag checks already cover.
+				if !cmd.Flags().Changed("title") {
+					if s, ok := inputFM["title"].(string); ok {
+						flagTitle = s
+					}
+				}
+				if !cmd.Flags().Changed("description") {
+					if s, ok := inputFM["description"].(string); ok {
+						flagDescription = s
+					}
+				}
+				if !cmd.Flags().Changed("project") {
+					if s, ok := inputFM["project"].(string); ok {
+						flagProject = s
+					}
+				}
+				if !cmd.Flags().Changed("issue") {
+					if s, ok := inputFM["issue"].(string); ok {
+						flagIssue = s
+					}
+				}
+				if !cmd.Flags().Changed("tags") {
+					if vs, ok := inputFM["tags"].([]any); ok {
+						for _, x := range vs {
+							if s, ok := x.(string); ok {
+								flagTags = append(flagTags, s)
+							}
+						}
+					}
+				}
 			}
 
 			if t != core.TypeSession && flagTitle == "" {
@@ -249,8 +295,17 @@ func newCreateCmd() *cobra.Command {
 				fm["tags"] = anyTags
 			}
 
-			if inputFM != nil {
-				mergeInputFrontMatter(fm, inputFM)
+			// Overlay --from frontmatter onto the template-rendered fm. Identity
+			// fields stay CLI/template-owned; CLI-controllable fields were already
+			// folded in above; everything else (tasks, verification, plan-specific
+			// authoring) comes from the file.
+			for k, v := range inputFM {
+				switch k {
+				case "type", "id", "slug", "created", "updated", "status", "plan_version",
+					"title", "description", "project", "issue", "tags":
+					continue
+				}
+				fm[k] = v
 			}
 
 			if t != core.TypeDecision {
@@ -726,80 +781,3 @@ func normaliseDates(fm map[string]any) {
 	}
 }
 
-// readFromArtifact reads a complete artifact from a filesystem path or from
-// stdinReader (when src is "-") and returns its parsed frontmatter and body.
-// stdinReader is the cobra command's input reader, so tests can supply stdin
-// via cmd.SetIn().
-func readFromArtifact(src string, stdinReader io.Reader) (map[string]any, string, error) {
-	var content []byte
-	if src == "-" {
-		b, err := io.ReadAll(stdinReader)
-		if err != nil {
-			return nil, "", fmt.Errorf("read stdin: %w", err)
-		}
-		content = b
-	} else {
-		b, err := os.ReadFile(src)
-		if err != nil {
-			return nil, "", fmt.Errorf("read %s: %w", src, err)
-		}
-		content = b
-	}
-	a, err := core.ParseArtifact(content)
-	if err != nil {
-		return nil, "", fmt.Errorf("parse --from content: %w", err)
-	}
-	return a.FrontMatter, a.Body, nil
-}
-
-// fillFlagsFromInput pulls CLI-controllable identity fields from --from input
-// into the corresponding flag variables when the user didn't pass them on the
-// command line. CLI-set values always win; this only fills gaps.
-func fillFlagsFromInput(cmd *cobra.Command, fm map[string]any, title, description, project, issue *string, tags *[]string) {
-	if !cmd.Flags().Changed("title") {
-		if s, ok := fm["title"].(string); ok {
-			*title = s
-		}
-	}
-	if !cmd.Flags().Changed("description") {
-		if s, ok := fm["description"].(string); ok {
-			*description = s
-		}
-	}
-	if !cmd.Flags().Changed("project") {
-		if s, ok := fm["project"].(string); ok {
-			*project = s
-		}
-	}
-	if !cmd.Flags().Changed("issue") {
-		if s, ok := fm["issue"].(string); ok {
-			*issue = s
-		}
-	}
-	if !cmd.Flags().Changed("tags") {
-		if vs, ok := fm["tags"].([]any); ok {
-			for _, x := range vs {
-				if s, ok := x.(string); ok {
-					*tags = append(*tags, s)
-				}
-			}
-		}
-	}
-}
-
-// mergeInputFrontMatter overlays --from frontmatter onto the template-rendered
-// fm. CLI/template-owned identity fields (type, id, slug, created, updated,
-// status, plan_version) are never overwritten; fields already covered by CLI
-// flags (title, description, project, issue, tags) were folded in earlier via
-// fillFlagsFromInput. Everything else (tasks, verification, anything plan-
-// specific the user authored) is taken from the input.
-func mergeInputFrontMatter(fm, input map[string]any) {
-	for k, v := range input {
-		switch k {
-		case "type", "id", "slug", "created", "updated", "status", "plan_version",
-			"title", "description", "project", "issue", "tags":
-			continue
-		}
-		fm[k] = v
-	}
-}
