@@ -9,15 +9,15 @@ import (
 
 func fakeSkillsFS() fstest.MapFS {
 	return fstest.MapFS{
-		"capturing-inbox/SKILL.md":            {Data: []byte("# capturing-inbox\n")},
-		"writing-issue/SKILL.md":              {Data: []byte("# writing-issue\n")},
-		"writing-issue/references/heavy.md":   {Data: []byte("heavy reference\n")},
+		"capturing-inbox/SKILL.md":          {Data: []byte("# capturing-inbox\n")},
+		"writing-issue/SKILL.md":            {Data: []byte("# writing-issue\n")},
+		"writing-issue/references/heavy.md": {Data: []byte("heavy reference\n")},
 	}
 }
 
-func TestInstallSkills_Symlink(t *testing.T) {
+func TestInstallSkills_FlatPerSkillSymlinks(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
-	target := filepath.Join(t.TempDir(), "anvil")
+	target := filepath.Join(t.TempDir(), "claude-skills")
 
 	changed, err := InstallSkills(fakeSkillsFS(), mat, target, false)
 	if err != nil {
@@ -27,33 +27,75 @@ func TestInstallSkills_Symlink(t *testing.T) {
 		t.Error("first install should report changed=true")
 	}
 
-	info, err := os.Lstat(target)
-	if err != nil {
-		t.Fatalf("lstat target: %v", err)
-	}
-	if info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("target is not a symlink: mode=%v", info.Mode())
-	}
-	got, err := os.Readlink(target)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != mat {
-		t.Errorf("symlink = %q, want %q", got, mat)
+	for _, name := range []string{"capturing-inbox", "writing-issue"} {
+		child := filepath.Join(target, name)
+		info, err := os.Lstat(child)
+		if err != nil {
+			t.Fatalf("lstat %s: %v", child, err)
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			t.Fatalf("%s should be a symlink, mode=%v", child, info.Mode())
+		}
+		want := filepath.Join(mat, name)
+		got, _ := os.Readlink(child)
+		if got != want {
+			t.Errorf("symlink target = %q, want %q", got, want)
+		}
 	}
 
 	body, err := os.ReadFile(filepath.Join(target, "capturing-inbox", "SKILL.md"))
 	if err != nil {
-		t.Fatalf("read via symlink: %v", err)
+		t.Fatalf("read SKILL.md via symlink: %v", err)
 	}
 	if string(body) != "# capturing-inbox\n" {
 		t.Errorf("body = %q", body)
 	}
 }
 
-func TestInstallSkills_SymlinkIdempotent(t *testing.T) {
+func TestInstallSkills_CleansUpLegacyNestedInstall(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
-	target := filepath.Join(t.TempDir(), "anvil")
+	target := filepath.Join(t.TempDir(), "claude-skills")
+
+	legacy := filepath.Join(target, "anvil")
+	if err := os.MkdirAll(legacy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacy, ".anvil-skills-hash"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Errorf("legacy target/anvil should be removed: %v", err)
+	}
+}
+
+func TestInstallSkills_PreservesForeignAnvilDir(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	target := filepath.Join(t.TempDir(), "claude-skills")
+
+	if err := os.MkdirAll(filepath.Join(target, "anvil"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(target, "anvil", "user.md"), []byte("user content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(target, "anvil", "user.md")); err != nil {
+		t.Errorf("foreign anvil/ was clobbered: %v", err)
+	}
+}
+
+func TestInstallSkills_IdempotentFlat(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	target := filepath.Join(t.TempDir(), "claude-skills")
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false); err != nil {
 		t.Fatal(err)
 	}
@@ -66,11 +108,14 @@ func TestInstallSkills_SymlinkIdempotent(t *testing.T) {
 	}
 }
 
-func TestInstallSkills_SymlinkReplacesWrongLink(t *testing.T) {
+func TestInstallSkills_ReplacesWrongSymlink(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
-	target := filepath.Join(t.TempDir(), "anvil")
+	target := filepath.Join(t.TempDir(), "claude-skills")
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	other := t.TempDir()
-	if err := os.Symlink(other, target); err != nil {
+	if err := os.Symlink(other, filepath.Join(target, "capturing-inbox")); err != nil {
 		t.Fatal(err)
 	}
 
@@ -81,33 +126,34 @@ func TestInstallSkills_SymlinkReplacesWrongLink(t *testing.T) {
 	if !changed {
 		t.Error("replacing wrong symlink should report changed=true")
 	}
-	got, _ := os.Readlink(target)
-	if got != mat {
-		t.Errorf("symlink = %q, want %q", got, mat)
+	got, _ := os.Readlink(filepath.Join(target, "capturing-inbox"))
+	want := filepath.Join(mat, "capturing-inbox")
+	if got != want {
+		t.Errorf("symlink = %q, want %q", got, want)
 	}
 }
 
-func TestInstallSkills_SymlinkRefusesNonSymlinkTarget(t *testing.T) {
+func TestInstallSkills_RefusesNonSymlinkAtSkillName(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
-	target := filepath.Join(t.TempDir(), "anvil")
-	if err := os.MkdirAll(target, 0o755); err != nil {
+	target := filepath.Join(t.TempDir(), "claude-skills")
+	if err := os.MkdirAll(filepath.Join(target, "capturing-inbox"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(target, "user.md"), []byte("user data"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(target, "capturing-inbox", "user.md"), []byte("user"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false); err == nil {
-		t.Fatal("expected error refusing to clobber non-symlink target")
+		t.Fatal("expected error refusing to clobber non-symlink at shipped-name path")
 	}
-	if _, err := os.Stat(filepath.Join(target, "user.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(target, "capturing-inbox", "user.md")); err != nil {
 		t.Errorf("user data was clobbered: %v", err)
 	}
 }
 
-func TestInstallSkills_Copy(t *testing.T) {
+func TestInstallSkills_FlatCopyMode(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
-	target := filepath.Join(t.TempDir(), "anvil")
+	target := filepath.Join(t.TempDir(), "claude-skills")
 
 	changed, err := InstallSkills(fakeSkillsFS(), mat, target, true)
 	if err != nil {
@@ -116,12 +162,14 @@ func TestInstallSkills_Copy(t *testing.T) {
 	if !changed {
 		t.Error("copy install should report changed=true")
 	}
-	info, err := os.Lstat(target)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		t.Error("target should be a directory, not a symlink, in --copy mode")
+	for _, name := range []string{"capturing-inbox", "writing-issue"} {
+		info, err := os.Lstat(filepath.Join(target, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			t.Errorf("%s should be a dir, not a symlink, in --copy mode", name)
+		}
 	}
 	body, err := os.ReadFile(filepath.Join(target, "writing-issue", "references", "heavy.md"))
 	if err != nil {
@@ -132,48 +180,97 @@ func TestInstallSkills_Copy(t *testing.T) {
 	}
 }
 
-func TestRemoveSkills_Symlink(t *testing.T) {
+func TestRemoveSkills_FlatSymlinks(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
-	target := filepath.Join(t.TempDir(), "anvil")
+	target := filepath.Join(t.TempDir(), "claude-skills")
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false); err != nil {
 		t.Fatal(err)
 	}
-	changed, err := RemoveSkills(target)
+
+	changed, err := RemoveSkills(fakeSkillsFS(), mat, target)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !changed {
 		t.Error("remove should report changed=true")
 	}
-	if _, err := os.Lstat(target); !os.IsNotExist(err) {
-		t.Errorf("target should be gone: %v", err)
+	for _, name := range []string{"capturing-inbox", "writing-issue"} {
+		if _, err := os.Lstat(filepath.Join(target, name)); !os.IsNotExist(err) {
+			t.Errorf("%s should be gone: %v", name, err)
+		}
 	}
 	if _, err := os.Stat(filepath.Join(mat, "capturing-inbox", "SKILL.md")); err != nil {
 		t.Errorf("materialised dir should be preserved: %v", err)
 	}
 }
 
-func TestRemoveSkills_CopiedDir(t *testing.T) {
+func TestRemoveSkills_FlatCopied(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
-	target := filepath.Join(t.TempDir(), "anvil")
+	target := filepath.Join(t.TempDir(), "claude-skills")
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, true); err != nil {
 		t.Fatal(err)
 	}
-	changed, err := RemoveSkills(target)
+
+	changed, err := RemoveSkills(fakeSkillsFS(), mat, target)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !changed {
 		t.Error("remove should report changed=true")
 	}
-	if _, err := os.Stat(target); !os.IsNotExist(err) {
-		t.Errorf("target should be gone: %v", err)
+	for _, name := range []string{"capturing-inbox", "writing-issue"} {
+		if _, err := os.Stat(filepath.Join(target, name)); !os.IsNotExist(err) {
+			t.Errorf("%s should be gone: %v", name, err)
+		}
+	}
+}
+
+func TestRemoveSkills_PreservesForeignSibling(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	target := filepath.Join(t.TempDir(), "claude-skills")
+	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false); err != nil {
+		t.Fatal(err)
+	}
+
+	foreign := filepath.Join(target, "other-vendor-skill")
+	if err := os.MkdirAll(foreign, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(foreign, "SKILL.md"), []byte("foreign"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := RemoveSkills(fakeSkillsFS(), mat, target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(foreign, "SKILL.md")); err != nil {
+		t.Errorf("foreign sibling was removed: %v", err)
+	}
+}
+
+func TestRemoveSkills_RemovesLegacyNested(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	target := filepath.Join(t.TempDir(), "claude-skills")
+	legacy := filepath.Join(target, "anvil")
+	if err := os.MkdirAll(legacy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacy, ".anvil-skills-hash"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := RemoveSkills(fakeSkillsFS(), mat, target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Errorf("legacy nested install should be removed: %v", err)
 	}
 }
 
 func TestRemoveSkills_Missing(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
 	target := filepath.Join(t.TempDir(), "does-not-exist")
-	changed, err := RemoveSkills(target)
+	changed, err := RemoveSkills(fakeSkillsFS(), mat, target)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,7 +281,7 @@ func TestRemoveSkills_Missing(t *testing.T) {
 
 func TestInstallSkills_WritesHashFile(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
-	target := filepath.Join(t.TempDir(), "anvil")
+	target := filepath.Join(t.TempDir(), "claude-skills")
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false); err != nil {
 		t.Fatal(err)
 	}
@@ -199,7 +296,7 @@ func TestInstallSkills_WritesHashFile(t *testing.T) {
 
 func TestRefreshSkillsIfStale_NoOpWhenAbsent(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
-	target := filepath.Join(t.TempDir(), "anvil")
+	target := filepath.Join(t.TempDir(), "claude-skills")
 	refreshed, err := RefreshSkillsIfStale(fakeSkillsFS(), mat, target)
 	if err != nil {
 		t.Fatalf("refresh: %v", err)
@@ -214,7 +311,7 @@ func TestRefreshSkillsIfStale_NoOpWhenAbsent(t *testing.T) {
 
 func TestRefreshSkillsIfStale_NoOpWhenFresh(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
-	target := filepath.Join(t.TempDir(), "anvil")
+	target := filepath.Join(t.TempDir(), "claude-skills")
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false); err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +326,7 @@ func TestRefreshSkillsIfStale_NoOpWhenFresh(t *testing.T) {
 
 func TestRefreshSkillsIfStale_RefreshesWhenContentDrifts(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
-	target := filepath.Join(t.TempDir(), "anvil")
+	target := filepath.Join(t.TempDir(), "claude-skills")
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false); err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +358,7 @@ func TestRefreshSkillsIfStale_RefreshesWhenContentDrifts(t *testing.T) {
 
 func TestRefreshSkillsIfStale_RefreshesWhenHashFileMissing(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
-	target := filepath.Join(t.TempDir(), "anvil")
+	target := filepath.Join(t.TempDir(), "claude-skills")
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false); err != nil {
 		t.Fatal(err)
 	}
@@ -282,11 +379,10 @@ func TestRefreshSkillsIfStale_RefreshesWhenHashFileMissing(t *testing.T) {
 
 func TestRefreshSkillsIfStale_PreservesCopyMode(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
-	target := filepath.Join(t.TempDir(), "anvil")
+	target := filepath.Join(t.TempDir(), "claude-skills")
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, true); err != nil {
 		t.Fatal(err)
 	}
-	// Corrupt the materialise dir.
 	if err := os.WriteFile(filepath.Join(mat, skillsHashFile), []byte("stale"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -297,18 +393,18 @@ func TestRefreshSkillsIfStale_PreservesCopyMode(t *testing.T) {
 	if !refreshed {
 		t.Fatal("stale copy install should refresh")
 	}
-	info, err := os.Lstat(target)
+	info, err := os.Lstat(filepath.Join(target, "capturing-inbox"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
-		t.Error("target should remain a directory after refresh in copy mode")
+		t.Error("per-skill child should remain a directory after refresh in copy mode")
 	}
 	body, err := os.ReadFile(filepath.Join(target, "capturing-inbox", "SKILL.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(body) != "# capturing-inbox\n" {
-		t.Errorf("target body not refreshed: %q", body)
+		t.Errorf("body = %q", body)
 	}
 }
