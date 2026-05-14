@@ -16,7 +16,8 @@
     "status":          { "enum": ["raw", "triaged", "distilled", "archived"] },
     "retention_until": { "type": "string", "format": "date" },
     "related":         { "type": "array", "items": { "type": "string" } },
-    "started_at":      { "type": "string", "format": "date-time" }
+    "started_at":      { "type": "string", "format": "date-time" },
+    "external_links":  { "type": "array", "items": { "type": "string" } }
   },
   "additionalProperties": false
 }

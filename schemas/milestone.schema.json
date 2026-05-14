@@ -18,7 +18,8 @@
     "system_design":  { "type": "string", "minLength": 1 },
     "authorized_by":  { "type": "array", "items": { "type": "string" } },
     "acceptance":     { "type": "array", "items": { "type": "string" } },
-    "related":        { "type": "array", "items": { "type": "string" } }
+    "related":        { "type": "array", "items": { "type": "string" } },
+    "external_links": { "type": "array", "items": { "type": "string" } }
   },
   "additionalProperties": false
 }

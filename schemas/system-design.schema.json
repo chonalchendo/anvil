@@ -16,7 +16,8 @@
     "project":        { "type": "string", "minLength": 1 },
     "product_design": { "type": ["string", "null"] },
     "authorized_by":  { "type": "array", "items": { "type": "string" } },
-    "related":        { "type": "array", "items": { "type": "string" } }
+    "related":        { "type": "array", "items": { "type": "string" } },
+    "external_links": { "type": "array", "items": { "type": "string" } }
   },
   "additionalProperties": false
 }

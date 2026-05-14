@@ -64,10 +64,10 @@ func TestLinkRowsFromFrontmatter_Array(t *testing.T) {
 
 func TestLinkRowsFromFrontmatter_IgnoresNonWikilinks(t *testing.T) {
 	fm := map[string]any{
-		"type":         "issue",
-		"id":           "demo.foo",
-		"external_url": "https://example.com",
-		"severity":     "high",
+		"type":           "issue",
+		"id":             "demo.foo",
+		"external_links": []any{"https://example.com", "abc1234"},
+		"severity":       "high",
 	}
 	got := LinkRowsFromFrontmatter("demo.foo", fm)
 	if len(got) != 0 {
