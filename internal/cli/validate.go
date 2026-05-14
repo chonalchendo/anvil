@@ -114,12 +114,16 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}) []*err
 	if err := schema.Validate(string(t), a.FrontMatter); err != nil {
 		return schemaErrToValidationErrors(path, err)
 	}
-	if t != core.TypeLearning {
-		return nil
-	}
 	var out []*errfmt.ValidationError
-	for _, vErr := range core.ValidateLearning(a, knownTags) {
-		out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+	switch t {
+	case core.TypeLearning:
+		for _, vErr := range core.ValidateLearning(a, knownTags) {
+			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+		}
+	case core.TypeIssue:
+		for _, vErr := range core.ValidateIssue(a) {
+			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+		}
 	}
 	return out
 }

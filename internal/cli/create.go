@@ -270,6 +270,22 @@ func newCreateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				if body == "" && !cmd.Flags().Changed("body") {
+					var sections []string
+					switch t {
+					case core.TypeLearning:
+						sections = core.RequiredLearningSections
+					case core.TypeIssue:
+						sections = core.RequiredIssueSections
+					}
+					var sb strings.Builder
+					for _, h := range sections {
+						sb.WriteString("\n")
+						sb.WriteString(h)
+						sb.WriteString("\n")
+					}
+					body = sb.String()
+				}
 			}
 
 			created := time.Now().UTC().Format("2006-01-02")
@@ -788,4 +804,5 @@ func normaliseDates(fm map[string]any) {
 		}
 	}
 }
+
 
