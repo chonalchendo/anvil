@@ -124,6 +124,11 @@ func newCreateCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("parse --from content: %w", err)
 				}
+				// Reject non-plan inputs early so fields like `severity` from an
+				// issue can't leak through the later merge into a plan artifact.
+				if ty, ok := a.FrontMatter["type"].(string); ok && ty != "" && ty != "plan" {
+					return fmt.Errorf("--from input has type %q; expected plan", ty)
+				}
 				inputFM, inputBody = a.FrontMatter, a.Body
 
 				// CLI-set values win; file fills gaps for identity fields the
@@ -360,7 +365,10 @@ func newCreateCmd() *cobra.Command {
 				return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 			}
 
-			if t == core.TypePlan && body == "" {
+			// The T1 placeholder is a bootstrap convenience for the empty-handed
+			// path. With --from the user is explicitly authoring the artifact,
+			// so respect their (possibly empty) body rather than overwriting it.
+			if t == core.TypePlan && body == "" && flagFrom == "" {
 				body = "\n## Task: T1\n\n" + strings.Repeat(
 					"Replace this with the RED test, expected failure, GREEN sketch, verify+commit. ", 4) + "\n"
 			}

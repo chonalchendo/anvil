@@ -486,6 +486,95 @@ func TestCreatePlan_From_MutexWithBody(t *testing.T) {
 	}
 }
 
+func TestCreatePlan_From_RejectsNonPlanType(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	issueArtifact := `---
+type: issue
+title: "Not a plan"
+severity: high
+---
+body
+`
+	input := filepath.Join(t.TempDir(), "issue.md")
+	if err := os.WriteFile(input, []byte(issueArtifact), 0o644); err != nil {
+		t.Fatalf("write input: %v", err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "plan",
+		"--title", "x",
+		"--issue", "[[issue.foo.from-target]]",
+		"--from", input,
+		"--allow-new-facet=domain",
+	})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), `type "issue"`) {
+		t.Errorf("expected type-mismatch error, got: %v", err)
+	}
+}
+
+func TestCreatePlan_From_EmptyBodyNotScaffolded(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	// Frontmatter only — no body sections. The T1 placeholder must NOT be
+	// injected; the user authored intentionally.
+	frontmatterOnly := `---
+type: plan
+title: "FM-only plan"
+description: "no body"
+status: draft
+plan_version: 1
+issue: "[[issue.foo.from-target]]"
+tags: [domain/dev-tools]
+project: foo
+tasks:
+  - id: T1
+    title: "Will get body added later"
+    kind: tdd
+    skills_to_load: []
+    context_to_load: []
+    files: []
+    depends_on: []
+    verify: "go test ./..."
+    success_criteria: []
+---
+`
+	input := filepath.Join(t.TempDir(), "fm.md")
+	if err := os.WriteFile(input, []byte(frontmatterOnly), 0o644); err != nil {
+		t.Fatalf("write input: %v", err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "plan",
+		"--title", "FM-only plan",
+		"--issue", "[[issue.foo.from-target]]",
+		"--from", input,
+		"--allow-new-facet=domain",
+	})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create plan: %v\n%s", err, stderr.String())
+	}
+
+	a, _ := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.from-target.md"))
+	if strings.Contains(a.Body, "## Task: T1") && strings.Contains(a.Body, "Replace this with the RED test") {
+		t.Errorf("--from with empty body should not trigger T1 placeholder; body:\n%s", a.Body)
+	}
+}
+
 func TestCreatePlan_From_CLIFlagsOverrideFileFields(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
