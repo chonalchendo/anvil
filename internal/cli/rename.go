@@ -97,13 +97,12 @@ rename always takes effect first.`,
 			delete(a.FrontMatter, "slug")
 
 			a.Path = newPath
-			if err := a.Save(); err != nil {
-				return fmt.Errorf("writing new artifact: %w", err)
+			content, err := a.Marshal()
+			if err != nil {
+				return fmt.Errorf("marshalling artifact: %w", err)
 			}
-			if err := os.Remove(oldPath); err != nil {
-				// New file exists; try to clean it up before returning the error.
-				_ = os.Remove(newPath)
-				return fmt.Errorf("removing old artifact: %w", err)
+			if err := atomicSwap(oldPath, newPath, content); err != nil {
+				return fmt.Errorf("atomic rename: %w", err)
 			}
 
 			db, err := index.Open(index.DBPath(v.Root))
