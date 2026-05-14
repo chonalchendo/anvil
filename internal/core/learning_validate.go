@@ -32,7 +32,7 @@ func ValidateLearning(a *Artifact, known map[string]struct{}) []error {
 		if idx >= 0 {
 			pos = pos + idx + len(h) + 1
 		} else {
-			pos = len(h)
+			pos += len(h)
 		}
 	}
 

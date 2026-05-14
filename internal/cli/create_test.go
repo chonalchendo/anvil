@@ -272,10 +272,16 @@ func TestCreate_Issue_ScaffoldsH2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	last := -1
 	for _, h := range core.RequiredIssueSections {
-		if !strings.Contains(a.Body, h) {
-			t.Errorf("body missing %q; got %q", h, a.Body)
+		i := strings.Index(a.Body, h)
+		if i < 0 {
+			t.Fatalf("body missing %q; got %q", h, a.Body)
 		}
+		if i <= last {
+			t.Fatalf("heading %q out of order in body: %q", h, a.Body)
+		}
+		last = i
 	}
 }
 
@@ -293,10 +299,37 @@ func TestCreate_Learning_ScaffoldsH2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	last := -1
 	for _, h := range core.RequiredLearningSections {
-		if !strings.Contains(a.Body, h) {
-			t.Errorf("body missing %q; got %q", h, a.Body)
+		i := strings.Index(a.Body, h)
+		if i < 0 {
+			t.Fatalf("body missing %q; got %q", h, a.Body)
 		}
+		if i <= last {
+			t.Fatalf("heading %q out of order in body: %q", h, a.Body)
+		}
+		last = i
+	}
+}
+
+func TestCreate_Issue_ExplicitEmptyBody_NoScaffold(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue", "--title", "no scaffold", "--description", "x", "--tags", "domain/dev-tools", "--allow-new-facet=domain", "--body", ""})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.no-scaffold.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// explicit --body "" must be preserved — scaffold must not be injected
+	if strings.TrimSpace(a.Body) != "" {
+		t.Errorf("expected empty body with explicit --body \"\", got %q", a.Body)
 	}
 }
 
