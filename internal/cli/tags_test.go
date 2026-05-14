@@ -355,6 +355,88 @@ func TestTagsDefine_KnownAndMissing(t *testing.T) {
 	}
 }
 
+func TestTagsList_Undefined_JSON(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("ANVIL_VAULT", root)
+
+	g := glossary.New()
+	_ = g.AddTag("domain/known", "x")
+	if err := g.Save(glossary.Path(root)); err != nil {
+		t.Fatal(err)
+	}
+	writeArtifact(t, root, "20-learnings/anvil.a.md",
+		"type: learning\ntitle: A\ntags: [domain/known, domain/drift]\n")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"tags", "list", "--source", "used", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal(out.Bytes(), &rows); err != nil {
+		t.Fatalf("parse: %v\n%s", err, out.String())
+	}
+	byTag := map[string]map[string]any{}
+	for _, r := range rows {
+		byTag[r["tag"].(string)] = r
+	}
+	if k := byTag["domain/known"]; k == nil || k["defined"] != true {
+		t.Errorf("known row wrong: %v", k)
+	}
+	if d := byTag["domain/drift"]; d == nil || d["defined"] != false {
+		t.Errorf("drift row wrong: %v", d)
+	}
+}
+
+func TestTagsList_Undefined_TextSuffix(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("ANVIL_VAULT", root)
+
+	g := glossary.New()
+	_ = g.AddTag("domain/known", "x")
+	if err := g.Save(glossary.Path(root)); err != nil {
+		t.Fatal(err)
+	}
+	writeArtifact(t, root, "20-learnings/anvil.a.md",
+		"type: learning\ntitle: A\ntags: [domain/known, domain/drift]\n")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"tags", "list", "--source", "used"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	s := out.String()
+	if !strings.Contains(s, "domain/drift (undefined)") {
+		t.Errorf("expected `(undefined)` suffix on domain/drift, got:\n%s", s)
+	}
+	if strings.Contains(s, "domain/known (undefined)") {
+		t.Errorf("known tag must not have suffix, got:\n%s", s)
+	}
+}
+
+func TestTagsList_Undefined_FreshVaultNoSuffix(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("ANVIL_VAULT", root)
+	// No glossary at all.
+	writeArtifact(t, root, "20-learnings/anvil.a.md",
+		"type: learning\ntitle: A\ntags: [domain/x]\n")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"tags", "list", "--source", "used"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out.String(), "(undefined)") {
+		t.Errorf("fresh vault must suppress suffix, got:\n%s", out.String())
+	}
+}
+
 func TestTagsParent_UnknownSubcommandErrors(t *testing.T) {
 	setupVault(t)
 	t.Setenv("HOME", t.TempDir())

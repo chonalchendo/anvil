@@ -80,7 +80,7 @@ func newTagsListCmd() *cobra.Command {
 					flagSource, strings.Join(validSources, ", "))
 			}
 
-			rows, err := buildTagRows(v, flagSource, flagType, flagPrefix)
+			rows, glossaryLoaded, err := buildTagRows(v, flagSource, flagType, flagPrefix)
 			if err != nil {
 				return err
 			}
@@ -95,7 +95,7 @@ func newTagsListCmd() *cobra.Command {
 			// breaks `anvil tags list --json | jq ...` for agent pipelines.
 			out := cmd.OutOrStdout()
 			if flagJSON {
-				b, err := json.Marshal(projectRows(rows, flagSource))
+				b, err := json.Marshal(projectRows(rows, flagSource, glossaryLoaded))
 				if err != nil {
 					return err
 				}
@@ -104,6 +104,8 @@ func newTagsListCmd() *cobra.Command {
 				for _, r := range rows {
 					if flagSource == "defined" {
 						fmt.Fprintln(out, r.Tag)
+					} else if flagSource == "used" && glossaryLoaded && !r.Defined {
+						fmt.Fprintf(out, "%d\t%s (undefined)\n", r.Count, r.Tag)
 					} else {
 						fmt.Fprintf(out, "%d\t%s\n", r.Count, r.Tag)
 					}
@@ -124,9 +126,26 @@ func newTagsListCmd() *cobra.Command {
 	return cmd
 }
 
-func projectRows(rows []tagRow, source string) any {
+// projectRows shapes rows for JSON output. For --source used with a non-empty
+// glossary, emit {tag, count, defined} so callers can detect drift without
+// running validate. For a fresh vault (rows carry zero-value Defined), keep
+// the compact {tag, count} shape to avoid misleading false:false output.
+func projectRows(rows []tagRow, source string, glossaryLoaded bool) any {
 	switch source {
 	case "used":
+		if glossaryLoaded {
+			out := make([]struct {
+				Tag     string `json:"tag"`
+				Count   int    `json:"count"`
+				Defined bool   `json:"defined"`
+			}, len(rows))
+			for i, r := range rows {
+				out[i].Tag = r.Tag
+				out[i].Count = r.Count
+				out[i].Defined = r.Defined
+			}
+			return out
+		}
 		out := make([]struct {
 			Tag   string `json:"tag"`
 			Count int    `json:"count"`
@@ -151,14 +170,17 @@ func projectRows(rows []tagRow, source string) any {
 	}
 }
 
-func buildTagRows(v *core.Vault, source, typeFlag, prefix string) ([]tagRow, error) {
+// buildTagRows returns the tag rows and a bool indicating whether the glossary
+// was loaded with at least one entry (used by callers to decide whether to show
+// the "defined" field or the "(undefined)" suffix).
+func buildTagRows(v *core.Vault, source, typeFlag, prefix string) ([]tagRow, bool, error) {
 	used := map[string]int{}
 	if source == "used" || source == "all" {
 		var typeFilter *core.Type
 		if typeFlag != "" {
 			t, err := core.ParseType(typeFlag)
 			if err != nil {
-				return nil, err
+				return nil, false, err
 			}
 			typeFilter = &t
 		}
@@ -174,19 +196,23 @@ func buildTagRows(v *core.Vault, source, typeFlag, prefix string) ([]tagRow, err
 			}
 			seenDirs[dir] = struct{}{}
 			if err := walkTags(dir, typeFilter, used); err != nil {
-				return nil, err
+				return nil, false, err
 			}
 		}
 	}
 
 	defined := map[string]bool{}
-	if source == "defined" || source == "all" {
+	glossaryLoaded := false
+	if source == "defined" || source == "all" || source == "used" {
 		g, err := glossary.Load(glossary.Path(v.Root))
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
-		for _, t := range g.Tags() {
-			defined[t] = true
+		if tags := g.Tags(); len(tags) > 0 {
+			glossaryLoaded = true
+			for _, t := range tags {
+				defined[t] = true
+			}
 		}
 	}
 
@@ -218,7 +244,7 @@ func buildTagRows(v *core.Vault, source, typeFlag, prefix string) ([]tagRow, err
 		if source != "defined" {
 			r.Count = used[k] // zero for defined-only tags under source=all
 		}
-		if source == "all" {
+		if source == "all" || (source == "used" && glossaryLoaded) {
 			r.Defined = defined[k]
 		}
 		if source == "defined" {
@@ -235,7 +261,7 @@ func buildTagRows(v *core.Vault, source, typeFlag, prefix string) ([]tagRow, err
 		}
 		return rows[i].Tag < rows[j].Tag
 	})
-	return rows, nil
+	return rows, glossaryLoaded, nil
 }
 
 // walkTags accumulates tag counts under dir. If typeFilter is set, only
