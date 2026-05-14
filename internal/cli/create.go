@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -67,6 +68,7 @@ func newCreateCmd() *cobra.Command {
 		flagJSON             bool
 		flagIssue            string
 		flagBody             string
+		flagFrom             string
 		flagBreaking         bool
 		flagScope            string
 		flagSessionID        string
@@ -88,6 +90,78 @@ func newCreateCmd() *cobra.Command {
 			t, err := core.ParseType(args[0])
 			if err != nil {
 				return err
+			}
+
+			// --from ingests a complete authored artifact (frontmatter + body) so
+			// callers can avoid the create-stub-then-edit round-trip when the
+			// frontmatter carries rich content (e.g. plan tasks). CLI flags still
+			// own identity (id, created, slug) and override matching file fields
+			// when explicitly set; gaps fall through to the file's values.
+			var inputFM map[string]any
+			var inputBody string
+			if flagFrom != "" {
+				if t != core.TypePlan {
+					return fmt.Errorf("--from is supported for plan only")
+				}
+				if flagBody != "" {
+					return errors.New("--from and --body are mutually exclusive")
+				}
+				var content []byte
+				if flagFrom == "-" {
+					b, err := io.ReadAll(cmd.InOrStdin())
+					if err != nil {
+						return fmt.Errorf("read stdin: %w", err)
+					}
+					content = b
+				} else {
+					b, err := os.ReadFile(flagFrom)
+					if err != nil {
+						return fmt.Errorf("read %s: %w", flagFrom, err)
+					}
+					content = b
+				}
+				a, err := core.ParseArtifact(content)
+				if err != nil {
+					return fmt.Errorf("parse --from content: %w", err)
+				}
+				// Reject non-plan inputs early so fields like `severity` from an
+				// issue can't leak through the later merge into a plan artifact.
+				if ty, ok := a.FrontMatter["type"].(string); ok && ty != "" && ty != "plan" {
+					return fmt.Errorf("--from input has type %q; expected plan", ty)
+				}
+				inputFM, inputBody = a.FrontMatter, a.Body
+
+				// CLI-set values win; file fills gaps for identity fields the
+				// existing per-type required-flag checks already cover.
+				if !cmd.Flags().Changed("title") {
+					if s, ok := inputFM["title"].(string); ok {
+						flagTitle = s
+					}
+				}
+				if !cmd.Flags().Changed("description") {
+					if s, ok := inputFM["description"].(string); ok {
+						flagDescription = s
+					}
+				}
+				if !cmd.Flags().Changed("project") {
+					if s, ok := inputFM["project"].(string); ok {
+						flagProject = s
+					}
+				}
+				if !cmd.Flags().Changed("issue") {
+					if s, ok := inputFM["issue"].(string); ok {
+						flagIssue = s
+					}
+				}
+				if !cmd.Flags().Changed("tags") {
+					if vs, ok := inputFM["tags"].([]any); ok {
+						for _, x := range vs {
+							if s, ok := x.(string); ok {
+								flagTags = append(flagTags, s)
+							}
+						}
+					}
+				}
 			}
 
 			if t != core.TypeSession && flagTitle == "" {
@@ -188,9 +262,14 @@ func newCreateCmd() *cobra.Command {
 			}
 			path = t.Path(v.Root, project, id)
 
-			body, err := readBody(cmd, flagBody)
-			if err != nil {
-				return err
+			var body string
+			if inputFM != nil {
+				body = inputBody
+			} else {
+				body, err = readBody(cmd, flagBody)
+				if err != nil {
+					return err
+				}
 			}
 
 			created := time.Now().UTC().Format("2006-01-02")
@@ -219,6 +298,19 @@ func newCreateCmd() *cobra.Command {
 					anyTags = append(anyTags, s)
 				}
 				fm["tags"] = anyTags
+			}
+
+			// Overlay --from frontmatter onto the template-rendered fm. Identity
+			// fields stay CLI/template-owned; CLI-controllable fields were already
+			// folded in above; everything else (tasks, verification, plan-specific
+			// authoring) comes from the file.
+			for k, v := range inputFM {
+				switch k {
+				case "type", "id", "slug", "created", "updated", "status", "plan_version",
+					"title", "description", "project", "issue", "tags":
+					continue
+				}
+				fm[k] = v
 			}
 
 			if t != core.TypeDecision {
@@ -273,7 +365,10 @@ func newCreateCmd() *cobra.Command {
 				return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 			}
 
-			if t == core.TypePlan && body == "" {
+			// The T1 placeholder is a bootstrap convenience for the empty-handed
+			// path. With --from the user is explicitly authoring the artifact,
+			// so respect their (possibly empty) body rather than overwriting it.
+			if t == core.TypePlan && body == "" && flagFrom == "" {
 				body = "\n## Task: T1\n\n" + strings.Repeat(
 					"Replace this with the RED test, expected failure, GREEN sketch, verify+commit. ", 4) + "\n"
 			}
@@ -306,6 +401,7 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagSlug, "slug", "", "override the title-derived slug (must match ^[a-z0-9][a-z0-9-]*$)")
 	cmd.Flags().StringVar(&flagIssue, "issue", "", "issue wikilink (required for plan)")
 	cmd.Flags().StringVar(&flagBody, "body", "", "artifact body content (or pipe via stdin)")
+	cmd.Flags().StringVar(&flagFrom, "from", "", "read a complete artifact (frontmatter + body) from <path> or - for stdin; plan only")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	cmd.Flags().BoolVar(&flagBreaking, "breaking", false, "sweep is breaking (required for sweep, must be explicit)")
 	cmd.Flags().StringVar(&flagScope, "scope", "", "sweep scope (required for sweep)")
@@ -692,3 +788,4 @@ func normaliseDates(fm map[string]any) {
 		}
 	}
 }
+
