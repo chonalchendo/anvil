@@ -22,6 +22,13 @@ func newLinkCmd() *cobra.Command {
 			"  anvil link issue demo.foo --external https://github.com/x/y/pull/13\n" +
 			"  anvil link --from demo.foo --json",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if trimmed := strings.TrimSpace(externalURI); trimmed != externalURI {
+				if trimmed == "" {
+					return fmt.Errorf("--external requires a non-blank value")
+				}
+				externalURI = trimmed
+			}
+
 			readMode := fromID != "" || toID != "" || unresolved || drift
 			if readMode {
 				if len(args) > 0 || externalURI != "" {

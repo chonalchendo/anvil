@@ -115,6 +115,19 @@ func TestLink_ExternalRejectsReadMode(t *testing.T) {
 	}
 }
 
+func TestLink_ExternalRejectsWhitespaceOnly(t *testing.T) {
+	vault := setupVault(t)
+	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"link", "plan", "foo.q2", "--external", "   "})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected error rejecting whitespace-only --external, got: %s", buf.String())
+	}
+}
+
 func TestLink_AnyPair_WritesToRelated(t *testing.T) {
 	vault := setupVault(t)
 	writeFixturePlan(t, vault, "foo", "q2", "Q2")
