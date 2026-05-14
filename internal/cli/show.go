@@ -43,6 +43,18 @@ func newShowCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
+			if t.AllocatesID() {
+				prefix := string(t) + "."
+				if strings.HasPrefix(args[1], prefix) {
+					candidate := strings.TrimPrefix(args[1], prefix)
+					// Guard: only strip when remainder still contains "." —
+					// proves the input is "<type>.<project>.<slug>", not the
+					// bare ID "<type>.<project>" where project equals type name.
+					if strings.Contains(candidate, ".") {
+						args[1] = candidate
+					}
+				}
+			}
 			if flagBody && flagNoBody {
 				return fmt.Errorf("--body and --no-body are mutually exclusive")
 			}

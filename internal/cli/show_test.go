@@ -519,6 +519,66 @@ func TestShow_NoIncomingFlagSuppresses(t *testing.T) {
 	}
 }
 
+// TestShow_PrefixedIDResolvesLikeBareID asserts parity with transition/set:
+// "issue.foo.bar" and "foo.bar" must resolve the same artifact.
+func TestShow_PrefixedIDResolvesLikeBareID(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "bar", "Bar issue")
+
+	cases := []struct {
+		name string
+		id   string
+	}{
+		{"bare", "foo.bar"},
+		{"prefixed", "issue.foo.bar"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := newRootCmd()
+			out, _, err := runCmd(t, cmd, "show", "issue", tc.id, "--json", "--no-body")
+			if err != nil {
+				t.Fatalf("id=%q: unexpected error: %v", tc.id, err)
+			}
+			var got map[string]any
+			if err := json.Unmarshal([]byte(out), &got); err != nil {
+				t.Fatalf("invalid JSON: %v\n%s", err, out)
+			}
+			fm, ok := got["frontmatter"].(map[string]any)
+			if !ok {
+				t.Fatalf("frontmatter missing: %v", got)
+			}
+			if fm["title"] != "Bar issue" {
+				t.Errorf("id=%q: title=%v, want \"Bar issue\"", tc.id, fm["title"])
+			}
+		})
+	}
+}
+
+// TestShow_BareProjectMatchesType guards against stripTypePrefix mis-resolving
+// a bare ID whose project name equals the artifact type. project="issue",
+// slug="foo" → bare id "issue.foo"; it must NOT be stripped to "foo".
+func TestShow_BareProjectMatchesType(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "issue", "foo", "Issue-project issue")
+
+	cmd := newRootCmd()
+	out, _, err := runCmd(t, cmd, "show", "issue", "issue.foo", "--json", "--no-body")
+	if err != nil {
+		t.Fatalf("id=%q: unexpected error: %v", "issue.foo", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	fm, ok := got["frontmatter"].(map[string]any)
+	if !ok {
+		t.Fatalf("frontmatter missing: %v", got)
+	}
+	if fm["title"] != "Issue-project issue" {
+		t.Errorf("title=%v, want \"Issue-project issue\"", fm["title"])
+	}
+}
+
 // TestShow_NoIncomingEdgesRendersCleanly ensures the section header doesn't
 // dangle when no incoming edges exist.
 func TestShow_NoIncomingEdgesRendersCleanly(t *testing.T) {
