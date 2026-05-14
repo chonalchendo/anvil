@@ -42,6 +42,17 @@ If no milestone fits, the workflow stops at Phase 2 and offers two exits: log a 
 
 ---
 
+## Severity rubric
+
+Anchor severity on **blast-radius × workaround-cost**:
+
+- `critical` — corrupts data, breaks the schema, or makes `anvil` itself unusable. No workaround.
+- `high` — blocks a documented workflow; agent or human must context-switch around it. Workaround exists but is costly enough that fixing-now is cheaper than working-around-twice.
+- `medium` — adds friction (time, tokens, round-trips) to a workflow but does not block it. Clear, cheap workaround.
+- `low` — polish, cosmetic, missing affordance that costs little to live with.
+
+---
+
 ## Phase 0 — Entry detection
 
 Classify the user's first message before doing anything else. The classification chooses which phases run.
@@ -101,7 +112,7 @@ If a frame surfaces an unknown that needs evidence (a dependency, a competitor b
 
 ## Phase 4 — Author the issue (always)
 
-Before calling the CLI, confirm `severity` (`low | medium | high | critical`) with the user. Severity is required by the schema and gates triage queries.
+Before calling the CLI, **propose severity using the rubric** above, then confirm with the user. The agent does the first-pass classification rather than defaulting to `medium`; severity is required by the schema and gates triage queries.
 
 List the existing `domain/` taxonomy so you reuse a value the user has already introduced rather than coining a near-duplicate:
 
