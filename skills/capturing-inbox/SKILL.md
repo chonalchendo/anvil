@@ -7,6 +7,12 @@ description: Use when the user wants to dump a thought, idea, task, reminder, or
 
 Capture is the load-bearing habit of the whole methodology. If capture has friction, the user stops capturing, and every later skill starves. Your single job is to turn a thought into a file and get out of the way. You are a stenographer, not an editor.
 
+## Shape test
+
+**If you can name an acceptance criterion in one breath, it's an issue, not an inbox.** Capture is for fleeting / fuzzy ideas not yet sharp enough to write an AC. Shape, not domain: a fully-shaped thought about anvil itself still routes to `anvil:writing-issue`; a half-formed thought about anything routes here.
+
+Wrong-choice example: user pastes a problem statement, acceptance bullets, and a milestone hint. That's an issue — hand off to `anvil:writing-issue` rather than capturing and forcing a later promote round-trip.
+
 ## Iron Law
 
 **NO VALIDATION DURING CAPTURE.** Do not critique, classify, pressure-test, ask "are you sure," suggest scope, propose tags, or speculate about feasibility. `writing-issue` exists for all of that. From the user's side, capture is write-only.

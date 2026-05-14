@@ -22,6 +22,12 @@ metadata:
 
 Workflow for taking a problem worth tracking — whether a fuzzy "should we build X" thought or a fully-shaped request — through to a schema-valid issue artifact under `~/anvil-vault/70-issues/`. Issues sit one level below milestones: product-design → milestones → **issues** → plans.
 
+## Shape test
+
+**If you can name an acceptance criterion in one breath, it's an issue.** Use this skill when the entry is decisive (problem + AC + milestone hint) OR when a fuzzy thought is ready to be pressure-tested into one. Inbox-first is NOT required when the entry is already shaped — route here directly.
+
+Wrong-choice example: user is dumping a half-formed thought with no AC and no clear acceptance shape. That's an inbox item — hand off to `anvil:capturing-inbox` and resume here later via `anvil promote` if the thought sharpens.
+
 ## Iron Law
 
 **NO ISSUE FILE LANDS WITHOUT AN EXPLICIT MILESTONE LINK.**
