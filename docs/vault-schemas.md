@@ -95,11 +95,14 @@ Body absorbs: tech stack, key invariants, risks, boundary diagrams, revisions. M
 type: milestone
 project: <slug>
 status: planned | in-progress | done | abandoned
+kind: scoped | bucket
 product_design: "[[product-design.<project>]]"
 system_design: "[[system-design.<project>]]"
 authorized_by: ["[[decision...]]"]
 acceptance: ["criterion", ...]
 ```
+
+`kind` distinguishes the two milestone shapes: `scoped` (a discrete shippable bundle with acceptance criteria) and `bucket` (a deliberate rolling-findings tracker that may keep `acceptance: []`). Defaults to `scoped` on `anvil create milestone`; pick `bucket` only for friction-collection milestones. The schema requires `kind`; both create and validate fail without it.
 
 Cut entirely: `target_date`, `horizon`, `ordinal`, `predecessors`, `successors`, `plans`, `issues`, `objectives`, `risks`. Milestones are structural, not scheduled. Done = all child issues `resolved`.
 
