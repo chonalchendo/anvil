@@ -94,5 +94,9 @@ func writeFileSync(path string, data []byte, mode os.FileMode) error {
 		_ = os.Remove(path)
 		return err
 	}
-	return f.Close()
+	if err := f.Close(); err != nil {
+		_ = os.Remove(path)
+		return err
+	}
+	return nil
 }

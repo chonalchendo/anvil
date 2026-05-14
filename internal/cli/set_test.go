@@ -397,7 +397,9 @@ func TestSet_ArrayRemove_UnknownValue_CleanError(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	c1 := newRootCmd()
 	c1.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "x"})
-	_ = c1.Execute()
+	if err := c1.Execute(); err != nil {
+		t.Fatalf("seed --add failed: %v", err)
+	}
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--remove", "domain/skills"})
 	var stderr bytes.Buffer

@@ -15,8 +15,9 @@ description: |
 You enter this skill holding:
 
 1. A validated plan at `~/anvil-vault/80-plans/<id>.md`.
-2. A dedicated worktree for this plan's branch (see Phase 0).
-3. The user's intent to start inline execution.
+2. The user's intent to start inline execution.
+
+Phase 0 cuts a worktree for this plan's branch if one is not already in place.
 
 ## When to use this skill vs `anvil build`
 
