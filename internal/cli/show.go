@@ -275,31 +275,23 @@ func runShowSkill(cmd *cobra.Command, name string) error {
 	data, err := fs.ReadFile(skills.FS, filepath.Join(name, "SKILL.md"))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			available, lerr := listBundledSkills()
+			entries, lerr := fs.ReadDir(skills.FS, ".")
 			if lerr != nil {
 				return fmt.Errorf("unknown skill %q (and failed to list bundled skills: %w)", name, lerr)
 			}
+			available := make([]string, 0, len(entries))
+			for _, e := range entries {
+				if e.IsDir() {
+					available = append(available, e.Name())
+				}
+			}
+			sort.Strings(available)
 			return fmt.Errorf("unknown skill %q; available: %s", name, strings.Join(available, ", "))
 		}
 		return fmt.Errorf("reading skill %q: %w", name, err)
 	}
 	fmt.Fprint(cmd.OutOrStdout(), string(data))
 	return nil
-}
-
-func listBundledSkills() ([]string, error) {
-	entries, err := fs.ReadDir(skills.FS, ".")
-	if err != nil {
-		return nil, err
-	}
-	out := make([]string, 0, len(entries))
-	for _, e := range entries {
-		if e.IsDir() {
-			out = append(out, e.Name())
-		}
-	}
-	sort.Strings(out)
-	return out, nil
 }
 
 func emitFrontMatterText(cmd *cobra.Command, fm map[string]any) {
