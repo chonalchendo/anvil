@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -34,13 +35,19 @@ type listFilters struct {
 	Status, Project, Tag string
 	TagsAllOf            []string
 	Diataxis, Confidence string
+	Severity             string
 	Since, Until         string
 }
+
+// issueSeverityEnum mirrors schemas/issue.schema.json. Kept inline because
+// list is the only consumer; promote to schema package on a second use.
+var issueSeverityEnum = []string{"low", "medium", "high", "critical"}
 
 func newListCmd() *cobra.Command {
 	var (
 		flagStatus, flagProject, flagTag string
 		flagDiataxis, flagConfidence     string
+		flagSeverity                     string
 		flagSince, flagUntil             string
 		flagTags                         []string
 		flagJSON                         bool
@@ -64,10 +71,17 @@ func newListCmd() *cobra.Command {
 					suggestProjectAlternative(t),
 				))
 			}
+			if flagSeverity != "" && !slices.Contains(issueSeverityEnum, flagSeverity) {
+				return printAndReturn(cmd, errfmt.NewStructured("bad_flag_value").
+					Set("flag", "severity").
+					Set("value", flagSeverity).
+					Set("allowed", issueSeverityEnum))
+			}
 			if flagReady || flagOrphans {
 				return runListIndexed(cmd, t, flagReady, flagOrphans, listFilters{
 					Status: flagStatus, Project: flagProject,
-					Since: flagSince, Until: flagUntil,
+					Severity: flagSeverity,
+					Since:    flagSince, Until: flagUntil,
 				}, flagJSON, flagLimit)
 			}
 			v, err := core.ResolveVault()
@@ -78,7 +92,8 @@ func newListCmd() *cobra.Command {
 			return runList(cmd, v, t, listFilters{
 				Status: flagStatus, Project: flagProject, Tag: flagTag,
 				TagsAllOf: tagsAllOf, Diataxis: flagDiataxis,
-				Confidence: flagConfidence, Since: flagSince, Until: flagUntil,
+				Confidence: flagConfidence, Severity: flagSeverity,
+				Since: flagSince, Until: flagUntil,
 			}, flagJSON, flagLimit)
 		},
 	}
@@ -89,6 +104,7 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&flagTags, "tags", nil, "filter by tags (all-of, exact, comma-separated)")
 	cmd.Flags().StringVar(&flagDiataxis, "diataxis", "", "filter by diataxis (exact match)")
 	cmd.Flags().StringVar(&flagConfidence, "confidence", "", "filter by confidence (exact match)")
+	cmd.Flags().StringVar(&flagSeverity, "severity", "", "filter by severity (exact match: "+strings.Join(issueSeverityEnum, "|")+"; issue only)")
 	cmd.Flags().StringVar(&flagSince, "since", "", "include only artifacts created on or after YYYY-MM-DD")
 	cmd.Flags().StringVar(&flagUntil, "until", "", "include only artifacts created on or before YYYY-MM-DD")
 	cmd.Flags().IntVar(&flagLimit, "limit", defaultListLimit, "maximum results to return (default 10)")
@@ -148,7 +164,7 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 		diataxis, _ := a.FrontMatter["diataxis"].(string)
 		confidence, _ := a.FrontMatter["confidence"].(string)
 
-		if !matchesFilters(f, status, project, diataxis, confidence, created, a.FrontMatter["tags"]) {
+		if !matchesFilters(f, status, project, diataxis, confidence, severity, created, a.FrontMatter["tags"]) {
 			continue
 		}
 
@@ -173,7 +189,7 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 	return emitList(cmd, items, total, asJSON, t)
 }
 
-func matchesFilters(f listFilters, status, project, diataxis, confidence, created string, tagsRaw any) bool {
+func matchesFilters(f listFilters, status, project, diataxis, confidence, severity, created string, tagsRaw any) bool {
 	if f.Status != "" && status != f.Status {
 		return false
 	}
@@ -184,6 +200,9 @@ func matchesFilters(f listFilters, status, project, diataxis, confidence, create
 		return false
 	}
 	if f.Confidence != "" && confidence != f.Confidence {
+		return false
+	}
+	if f.Severity != "" && severity != f.Severity {
 		return false
 	}
 	if f.Tag != "" && !hasTagSubstring(tagsRaw, f.Tag) {
@@ -284,10 +303,9 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 	if err != nil {
 		return err
 	}
-	total := len(rows)
-	if limit > 0 && len(rows) > limit {
-		rows = rows[:limit]
-	}
+	// Severity is not in the index; filter post-load. Load all matching rows
+	// before applying the limit so the truncation hint reflects the filtered
+	// total, not the pre-filter row count.
 	items := make([]listItem, 0, len(rows))
 	for _, r := range rows {
 		item := listItem{
@@ -300,7 +318,14 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 			item.Severity, _ = a.FrontMatter["severity"].(string)
 			item.Tags = stringTags(a.FrontMatter["tags"])
 		}
+		if f.Severity != "" && item.Severity != f.Severity {
+			continue
+		}
 		items = append(items, item)
+	}
+	total := len(items)
+	if limit > 0 && len(items) > limit {
+		items = items[:limit]
 	}
 	return emitList(cmd, items, total, asJSON, t)
 }
