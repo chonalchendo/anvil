@@ -114,17 +114,45 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}) []*err
 	if err := schema.Validate(string(t), a.FrontMatter); err != nil {
 		return schemaErrToValidationErrors(path, err)
 	}
+
 	var out []*errfmt.ValidationError
-	switch t {
-	case core.TypeLearning:
+
+	if t == core.TypeLearning {
+		// ValidateLearning covers both body-shape and glossary membership for
+		// learnings; the generic drift check below skips learnings to avoid
+		// double-reporting.
 		for _, vErr := range core.ValidateLearning(a, knownTags) {
 			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 		}
-	case core.TypeIssue:
+		return out
+	}
+
+	if t == core.TypeIssue {
 		for _, vErr := range core.ValidateIssue(a) {
 			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 		}
 	}
+
+	// Drift check: flag tags not present in the glossary. Skipped when the
+	// glossary is empty so fresh vaults don't fail until any tags are defined.
+	if knownTags != nil {
+		raw, _ := a.FrontMatter["tags"].([]any)
+		for _, item := range raw {
+			tag, ok := item.(string)
+			if !ok {
+				continue
+			}
+			if _, _, valid := glossary.SplitTag(tag); !valid {
+				// Malformed shape — schema layer surfaces these.
+				continue
+			}
+			if _, defined := knownTags[tag]; !defined {
+				out = append(out, errfmt.NewValidationError(errfmt.CodeUnknownGlossaryTag, path, "tags", tag).
+					WithFix(fmt.Sprintf(`add it via "anvil tags add %s --desc \"...\""`, tag)))
+			}
+		}
+	}
+
 	return out
 }
 

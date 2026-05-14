@@ -12,6 +12,7 @@ const (
 	CodeConstraintViolation  = "constraint_violation"
 	CodeUnresolvedLink       = "unresolved_link"
 	CodeParseError           = "parse_error"
+	CodeUnknownGlossaryTag   = "unknown_glossary_tag"
 )
 
 // ValidationError is the canonical shape. Optional fields use omitempty so

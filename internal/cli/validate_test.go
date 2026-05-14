@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/glossary"
 )
 
 func TestValidate_GoodVault(t *testing.T) {
@@ -303,5 +304,86 @@ func TestValidate_TextMode_BlocksSeparated(t *testing.T) {
 	_ = cmd.Execute()
 	if !strings.Contains(errOut.String(), "\n\n") {
 		t.Errorf("expected blank line between blocks, got:\n%s", errOut.String())
+	}
+}
+
+func TestValidate_GlossaryDrift(t *testing.T) {
+	vault := setupVault(t)
+
+	// Seed glossary with one tag so it's non-empty (drift check is gated on
+	// a non-empty glossary).
+	g := glossary.New()
+	_ = g.AddTag("domain/cli", "x")
+	if err := g.Save(glossary.Path(vault)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Plant a valid issue tagged with a drift tag (domain/drift not in glossary).
+	drift := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", "anvil.drift.md"),
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "x", "description": "y",
+			"created": "2026-05-14", "status": "open",
+			"project": "anvil", "severity": "low",
+			"tags": []any{"domain/drift"},
+		},
+	}
+	if err := drift.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"validate", "--json", vault})
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected validate to fail for unknown_glossary_tag")
+	}
+
+	var failures []map[string]any
+	if err := json.Unmarshal(out.Bytes(), &failures); err != nil {
+		t.Fatalf("parse json: %v\n%s", err, out.String())
+	}
+	var found map[string]any
+	for _, f := range failures {
+		if f["code"] == "unknown_glossary_tag" && f["got"] == "domain/drift" {
+			found = f
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected unknown_glossary_tag for domain/drift, got %v", failures)
+	}
+	if found["field"] != "tags" {
+		t.Errorf("field=%v want tags", found["field"])
+	}
+	fix, _ := found["fix"].(string)
+	if !strings.Contains(fix, "anvil tags add domain/drift") {
+		t.Errorf("fix must invoke `anvil tags add domain/drift ...`, got %q", fix)
+	}
+}
+
+func TestValidate_GlossaryDrift_EmptyGlossarySkips(t *testing.T) {
+	vault := setupVault(t)
+
+	drift := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", "anvil.drift.md"),
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "x", "description": "y",
+			"created": "2026-05-14", "status": "open",
+			"project": "anvil", "severity": "low",
+			"tags": []any{"domain/drift"},
+		},
+		Body: "\n## Problem\np\n\n## Acceptance criteria\nac\n\n## Non-goals\nng\n\n## Links\nlinks\n",
+	}
+	if err := drift.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"validate", vault})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("empty-glossary fresh vault must skip drift check, got: %v", err)
 	}
 }
