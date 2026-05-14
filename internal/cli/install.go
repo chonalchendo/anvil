@@ -213,23 +213,14 @@ func refusalPathKey(err error) string {
 	if idx < 0 {
 		return msg
 	}
-	// Skip past "refusing to overwrite " then the qualifier word
-	// ("non-symlink" or "non-anvil dir"); the path follows.
-	rest := msg[idx+len(marker):]
-	rest = strings.TrimLeft(rest, " ")
-	// Drop the qualifier — everything up to the next space, but "non-anvil
-	// dir" has an embedded space, so walk word-by-word until we hit a token
-	// that looks like a path (starts with "/").
-	for rest != "" {
-		sp := strings.IndexByte(rest, ' ')
-		if sp < 0 {
-			break
-		}
-		token := rest[:sp]
-		rest = rest[sp+1:]
-		if strings.HasPrefix(token, "/") {
-			// trim trailing ';' if present
-			return strings.TrimRight(token, ";")
+	rest := strings.TrimLeft(msg[idx+len(marker):], " ")
+	for _, prefix := range []string{"non-symlink ", "non-anvil dir "} {
+		if strings.HasPrefix(rest, prefix) {
+			rest = rest[len(prefix):]
+			if end := strings.Index(rest, ";"); end >= 0 {
+				return strings.TrimSpace(rest[:end])
+			}
+			return strings.TrimSpace(rest)
 		}
 	}
 	return msg

@@ -91,8 +91,14 @@ func TestRoot_AutoRefreshWarnsOncePerProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err1Out, _ := runCmd(t, newRootCmd(), "where")
-	_, err2Out, _ := runCmd(t, newRootCmd(), "where")
+	_, err1Out, err := runCmd(t, newRootCmd(), "where")
+	if err != nil {
+		t.Fatalf("first where: %v\nstderr: %s", err, err1Out)
+	}
+	_, err2Out, err := runCmd(t, newRootCmd(), "where")
+	if err != nil {
+		t.Fatalf("second where: %v\nstderr: %s", err, err2Out)
+	}
 
 	if !strings.Contains(err1Out, "anvil: skills auto-refresh failed") {
 		t.Errorf("first invocation must warn; got stderr: %s", err1Out)
