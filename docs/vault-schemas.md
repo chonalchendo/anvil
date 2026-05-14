@@ -119,6 +119,13 @@ external_url: <url> | null
 acceptance: ["criterion", ...]
 ```
 
+**Severity rubric** (blast-radius × workaround-cost):
+
+- `critical` — corrupts data, breaks the schema, or makes `anvil` itself unusable. No workaround.
+- `high` — blocks a documented workflow; workaround costly enough that fixing-now is cheaper than working-around-twice.
+- `medium` — adds friction but does not block; clear cheap workaround.
+- `low` — polish, cosmetic, missing affordance that costs little to live with.
+
 Single source of truth. Knowledge attaches via the child side: `learning.related: [[issue.X]]`. No `learnings`, `discovered_in`, or `promoted_from` arrays on the issue.
 
 Tags: required `domain/<x>`; `activity/<x>` and `pattern/<x>` optional.
