@@ -569,7 +569,10 @@ tasks:
 		t.Fatalf("create plan: %v\n%s", err, stderr.String())
 	}
 
-	a, _ := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.from-target.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.from-target.md"))
+	if err != nil {
+		t.Fatalf("load artifact: %v", err)
+	}
 	if strings.Contains(a.Body, "## Task: T1") && strings.Contains(a.Body, "Replace this with the RED test") {
 		t.Errorf("--from with empty body should not trigger T1 placeholder; body:\n%s", a.Body)
 	}
@@ -604,7 +607,10 @@ func TestCreatePlan_From_CLIFlagsOverrideFileFields(t *testing.T) {
 		t.Fatalf("create plan: %v\n%s", err, stderr.String())
 	}
 
-	a, _ := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.from-target.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.from-target.md"))
+	if err != nil {
+		t.Fatalf("load artifact: %v", err)
+	}
 	if a.FrontMatter["title"] != "CLI-supplied title" {
 		t.Errorf("CLI --title should override file title, got %v", a.FrontMatter["title"])
 	}
