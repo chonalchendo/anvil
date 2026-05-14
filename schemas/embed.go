@@ -6,5 +6,7 @@ package schemas
 
 import "embed"
 
+// FS is the embedded JSON Schema bundle (one *.schema.json file per artifact type).
+//
 //go:embed *.schema.json
 var FS embed.FS

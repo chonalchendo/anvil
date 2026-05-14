@@ -82,7 +82,9 @@ func newSetCmd() *cobra.Command {
 				case flagAddSet:
 					existing := arrayValue(a.FrontMatter[field])
 					before := append([]any(nil), existing...)
-					next := append(existing, flagAdd)
+					// Builds a new slice; not reusing existing's storage is intentional
+					// so `before` snapshot is safe to retain alongside.
+					next := append(existing, flagAdd) //nolint:gocritic // appendAssign: see comment
 					a.FrontMatter[field] = next
 					result.From = before
 					result.To = append([]any(nil), next...)
@@ -112,7 +114,7 @@ func newSetCmd() *cobra.Command {
 					}
 					before := append([]any(nil), existing...)
 					removed := existing[idx]
-					next := append(existing[:idx], existing[idx+1:]...)
+					next := append(existing[:idx], existing[idx+1:]...) //nolint:gocritic // appendAssign: splice-out; before snapshot taken above
 					a.FrontMatter[field] = next
 					result.From = before
 					result.To = append([]any(nil), next...)

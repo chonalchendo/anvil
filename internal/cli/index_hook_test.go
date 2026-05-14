@@ -46,7 +46,7 @@ func TestIndexAfterSaveBootstrapsOnFirstUse(t *testing.T) {
 	v := &core.Vault{Root: vault}
 
 	a := &core.Artifact{
-		Path: filepath.Join(vault, "70-issues", "x.md"),
+		Path:        filepath.Join(vault, "70-issues", "x.md"),
 		FrontMatter: map[string]any{"type": "issue", "id": "x", "status": "open"},
 	}
 	if err := indexAfterSave(v, a); err != nil {

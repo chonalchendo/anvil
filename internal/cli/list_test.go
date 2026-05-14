@@ -120,9 +120,11 @@ func TestList_Learning_MultiTagAllOf(t *testing.T) {
 	mustCreateLearning := func(title string, tags []string, diataxis, confidence string) {
 		t.Helper()
 		cmd := newRootCmd()
-		cmd.SetArgs([]string{"create", "learning", "--title", title,
+		cmd.SetArgs([]string{
+			"create", "learning", "--title", title,
 			"--tags", "domain/dev-tools,activity/research",
-			"--allow-new-facet=domain", "--allow-new-facet=activity"})
+			"--allow-new-facet=domain", "--allow-new-facet=activity",
+		})
 		var out bytes.Buffer
 		cmd.SetOut(&out)
 		if err := cmd.Execute(); err != nil {
@@ -181,9 +183,11 @@ func TestList_Learning_DiataxisAndConfidence(t *testing.T) {
 	mustCreateLearning := func(title, diataxis, confidence string) {
 		t.Helper()
 		cmd := newRootCmd()
-		cmd.SetArgs([]string{"create", "learning", "--title", title,
+		cmd.SetArgs([]string{
+			"create", "learning", "--title", title,
 			"--tags", "domain/dev-tools,activity/research",
-			"--allow-new-facet=domain", "--allow-new-facet=activity"})
+			"--allow-new-facet=domain", "--allow-new-facet=activity",
+		})
 		var out bytes.Buffer
 		cmd.SetOut(&out)
 		if err := cmd.Execute(); err != nil {

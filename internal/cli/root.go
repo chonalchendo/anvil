@@ -20,6 +20,11 @@ import (
 var flagLeadingErrRE = regexp.MustCompile(`^-+[A-Za-z]`)
 
 // Execute is the CLI entrypoint, invoked by cmd/anvil/main.go.
+// fang.Execute propagates ctx into every RunE; nested cmd constructors
+// (newBuildCmd etc.) are pure builders that receive ctx via cmd.Context() at
+// run time, so the contextcheck false positive on newRootCmd is suppressed.
+//
+//nolint:contextcheck
 func Execute(ctx context.Context) error {
 	return fang.Execute(ctx, newRootCmd(), fang.WithErrorHandler(errorHandler), fang.WithVersion(resolveVersion()))
 }

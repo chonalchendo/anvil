@@ -82,11 +82,11 @@ func similarSlugs(a, b string) bool {
 			inter++
 		}
 	}
-	min := len(ta)
-	if len(tb) < min {
-		min = len(tb)
+	smaller := len(ta)
+	if len(tb) < smaller {
+		smaller = len(tb)
 	}
-	return float64(inter)/float64(min) >= similarityThreshold
+	return float64(inter)/float64(smaller) >= similarityThreshold
 }
 
 func slugTokenSet(slug string) map[string]bool {

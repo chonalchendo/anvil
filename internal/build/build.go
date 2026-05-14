@@ -264,7 +264,7 @@ func wrapSentinel(sentinel, cause error) error {
 	if cause == nil {
 		return sentinel
 	}
-	return fmt.Errorf("%w: %v", sentinel, cause)
+	return fmt.Errorf("%w: %w", sentinel, cause)
 }
 
 // emitSummary writes a one-line build summary to w aggregated across all

@@ -26,12 +26,12 @@ func runShowPlan(cmd *cobra.Command, v *core.Vault, id string, validate, waves b
 	}
 	if err := schema.Validate("plan", a.FrontMatter); err != nil {
 		cmd.PrintErrln(err)
-		return fmt.Errorf("%w: %v", ErrSchemaInvalid, err)
+		return fmt.Errorf("%w: %w", ErrSchemaInvalid, err)
 	}
 
 	p, err := core.LoadPlan(path)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrSchemaInvalid, err)
+		return fmt.Errorf("%w: %w", ErrSchemaInvalid, err)
 	}
 
 	if validate {

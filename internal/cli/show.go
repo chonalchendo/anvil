@@ -99,13 +99,13 @@ func newShowCmd() *cobra.Command {
 }
 
 type showOutput struct {
-	ID             string                     `json:"id"`
-	Path           string                     `json:"path"`
-	FrontMatter    map[string]any             `json:"frontmatter"`
-	Body           *string                    `json:"body"`
-	BodyTruncated  bool                       `json:"body_truncated"`
-	BodyLinesTotal int                        `json:"body_lines_total"`
-	Incoming       map[string][]incomingEdge  `json:"incoming,omitempty"`
+	ID             string                    `json:"id"`
+	Path           string                    `json:"path"`
+	FrontMatter    map[string]any            `json:"frontmatter"`
+	Body           *string                   `json:"body"`
+	BodyTruncated  bool                      `json:"body_truncated"`
+	BodyLinesTotal int                       `json:"body_lines_total"`
+	Incoming       map[string][]incomingEdge `json:"incoming,omitempty"`
 }
 
 type incomingEdge struct {

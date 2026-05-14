@@ -102,11 +102,12 @@ func newTagsListCmd() *cobra.Command {
 				fmt.Fprintln(out, string(b))
 			} else {
 				for _, r := range rows {
-					if flagSource == "defined" {
+					switch {
+					case flagSource == "defined":
 						fmt.Fprintln(out, r.Tag)
-					} else if flagSource == "used" && glossaryLoaded && !r.Defined {
+					case flagSource == "used" && glossaryLoaded && !r.Defined:
 						fmt.Fprintf(out, "%d\t%s (undefined)\n", r.Count, r.Tag)
-					} else {
+					default:
 						fmt.Fprintf(out, "%d\t%s\n", r.Count, r.Tag)
 					}
 				}

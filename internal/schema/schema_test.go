@@ -34,7 +34,6 @@ func TestValidate_RejectsMissingTitle(t *testing.T) {
 	}
 }
 
-
 func TestValidate_PlanExecutable_RequiresVerify(t *testing.T) {
 	fm := map[string]any{
 		"type": "plan", "id": "ANV-1", "slug": "x", "title": "x",
@@ -54,7 +53,6 @@ func TestValidate_PlanExecutable_RequiresVerify(t *testing.T) {
 		t.Fatal("expected validation error for missing verify")
 	}
 }
-
 
 func TestValidate_Decision_NewShape(t *testing.T) {
 	fm := map[string]any{
@@ -466,7 +464,6 @@ func TestValidate_Sweep_AcceptsMinimal(t *testing.T) {
 		t.Fatalf("expected valid: %v", err)
 	}
 }
-
 
 func TestValidate_Session_AcceptsMinimal(t *testing.T) {
 	fm := map[string]any{

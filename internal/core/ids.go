@@ -31,12 +31,12 @@ func ValidateSlug(s string) error {
 	}
 	for i, r := range s {
 		if i == 0 {
-			if !(('a' <= r && r <= 'z') || ('0' <= r && r <= '9')) {
+			if (r < 'a' || r > 'z') && (r < '0' || r > '9') {
 				return fmt.Errorf("slug %q: first character %q is invalid; must be a-z or 0-9", s, r)
 			}
 			continue
 		}
-		if !(('a' <= r && r <= 'z') || ('0' <= r && r <= '9') || r == '-') {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' {
 			return fmt.Errorf("slug %q: character %q at byte %d is invalid; allowed: a-z 0-9 -", s, r, i)
 		}
 	}
@@ -161,7 +161,7 @@ func nextDecisionOrdinal(v *Vault, topic string) (int, error) {
 		return 0, fmt.Errorf("reading decisions dir: %w", err)
 	}
 	prefix := topic + "."
-	max := 0
+	highest := 0
 	for _, e := range entries {
 		name := e.Name()
 		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, ".md") {
@@ -177,11 +177,11 @@ func nextDecisionOrdinal(v *Vault, topic string) (int, error) {
 		if err != nil {
 			continue
 		}
-		if n > max {
-			max = n
+		if n > highest {
+			highest = n
 		}
 	}
-	return max + 1, nil
+	return highest + 1, nil
 }
 
 func fileExists(path string) bool {

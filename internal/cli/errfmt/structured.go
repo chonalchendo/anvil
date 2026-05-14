@@ -60,6 +60,8 @@ func (e *Structured) Error() string {
 	return b.String()
 }
 
+// MarshalJSON emits the structured error as a JSON object with code first
+// followed by fields in declaration order.
 func (e *Structured) MarshalJSON() ([]byte, error) {
 	var b bytes.Buffer
 	b.WriteByte('{')

@@ -57,7 +57,7 @@ func runShowValidate(cmd *cobra.Command, v *core.Vault, t core.Type, id string, 
 
 	switch {
 	case schemaErr != nil:
-		return fmt.Errorf("%w: %v", ErrSchemaInvalid, schemaErr)
+		return fmt.Errorf("%w: %w", ErrSchemaInvalid, schemaErr)
 	case len(links) > 0:
 		return fmt.Errorf("%w: %d unresolved", ErrUnresolvedLinks, len(links))
 	}

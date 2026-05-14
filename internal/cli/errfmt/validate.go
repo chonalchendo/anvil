@@ -28,25 +28,31 @@ type ValidationError struct {
 	Fix      string `json:"fix,omitempty"`
 }
 
+// NewValidationError constructs a ValidationError with the required core
+// fields; optional fields are added via the With* chain.
 func NewValidationError(code, path, field, got string) *ValidationError {
 	return &ValidationError{Code: code, Path: path, Field: field, Got: got}
 }
 
+// WithExpected attaches the expected value (enum slice or constraint string).
 func (e *ValidationError) WithExpected(expected any) *ValidationError {
 	e.Expected = expected
 	return e
 }
 
+// WithSuggest attaches a similarity-based hint for unknown_facet_value.
 func (e *ValidationError) WithSuggest(s string) *ValidationError {
 	e.Suggest = s
 	return e
 }
 
+// WithNote attaches a narrative hint (e.g. genuine novelty acknowledgement).
 func (e *ValidationError) WithNote(s string) *ValidationError {
 	e.Note = s
 	return e
 }
 
+// WithFix attaches a copy-pasteable fix string.
 func (e *ValidationError) WithFix(fix string) *ValidationError {
 	e.Fix = fix
 	return e
