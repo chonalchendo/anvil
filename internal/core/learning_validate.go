@@ -8,7 +8,10 @@ import (
 
 var tagShape = regexp.MustCompile(`^[a-z][a-z0-9-]*(/[a-z][a-z0-9-]*)?$`)
 
-var requiredLearningSections = []string{"## TL;DR", "## Evidence", "## Caveats"}
+// RequiredLearningSections is the ordered set of H2 headings validate enforces
+// on learning body content. Exported so create can scaffold the skeleton without
+// duplicating the list.
+var RequiredLearningSections = []string{"## TL;DR", "## Evidence", "## Caveats"}
 
 // ValidateLearning checks invariants beyond the JSON Schema:
 //   - body contains the three required H2s in order
@@ -20,7 +23,7 @@ func ValidateLearning(a *Artifact, known map[string]struct{}) []error {
 
 	pos := 0
 	body := a.Body
-	for _, h := range requiredLearningSections {
+	for _, h := range RequiredLearningSections {
 		idx := strings.Index(body[pos:], "\n"+h)
 		if idx < 0 && !strings.HasPrefix(body[pos:], h) {
 			errs = append(errs, fmt.Errorf("learning body missing required heading %q", h))
