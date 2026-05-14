@@ -381,6 +381,88 @@ func TestList_ProjectFlag_RejectedForUnsupportedTypes(t *testing.T) {
 	}
 }
 
+// TestList_SeverityFilter exercises the issue --severity flag end-to-end:
+// exact-match filtering, composition with --ready (indexed path), and the
+// bad_flag_value error for unknown enum values.
+func TestList_SeverityFilter(t *testing.T) {
+	vault := setupVault(t)
+
+	mustWriteIssue := func(slug, severity string) {
+		t.Helper()
+		path := writeFixtureIssue(t, vault, "foo", slug, "title "+slug)
+		a, err := core.LoadArtifact(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a.FrontMatter["severity"] = severity
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWriteIssue("a", "high")
+	mustWriteIssue("b", "low")
+	mustWriteIssue("c", "high")
+
+	t.Run("exact-match filter", func(t *testing.T) {
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "list", "issue", "--severity", "high", "--json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := unmarshalListEnvelope(t, out)
+		if env.Total != 2 {
+			t.Errorf("total=%d want 2", env.Total)
+		}
+		for _, item := range env.Items {
+			if item.Severity != "high" {
+				t.Errorf("item %s severity=%q want high", item.ID, item.Severity)
+			}
+		}
+	})
+
+	t.Run("composes with --ready", func(t *testing.T) {
+		// Reindex so --ready (indexed path) sees the freshly-saved issues.
+		reindex := newRootCmd()
+		reindex.SetArgs([]string{"reindex"})
+		reindex.SetOut(&bytes.Buffer{})
+		reindex.SetErr(&bytes.Buffer{})
+		if err := reindex.Execute(); err != nil {
+			t.Fatalf("reindex: %v", err)
+		}
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "list", "issue", "--severity", "high", "--ready", "--json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := unmarshalListEnvelope(t, out)
+		if env.Total != 2 {
+			t.Errorf("ready+high total=%d want 2", env.Total)
+		}
+		for _, item := range env.Items {
+			if item.Severity != "high" {
+				t.Errorf("item %s severity=%q want high", item.ID, item.Severity)
+			}
+		}
+	})
+
+	t.Run("rejects unknown value", func(t *testing.T) {
+		cmd := newRootCmd()
+		_, errOut, err := runCmd(t, cmd, "list", "issue", "--severity", "spicy")
+		if err == nil {
+			t.Fatal("expected error for unknown severity, got nil")
+		}
+		if !strings.Contains(errOut, "bad_flag_value") {
+			t.Errorf("stderr missing code: %q", errOut)
+		}
+		if !strings.Contains(errOut, `"flag":"severity"`) {
+			t.Errorf("stderr missing flag field: %q", errOut)
+		}
+		if !strings.Contains(errOut, `"allowed":["low","medium","high","critical"]`) {
+			t.Errorf("stderr missing allowed enum: %q", errOut)
+		}
+	})
+}
+
 // TestList_ProjectFlag_AcceptedForSupportedTypes guards against over-eager
 // rejection: the supported set (issue, plan, milestone, designs) must keep
 // accepting --project without error.

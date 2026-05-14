@@ -37,6 +37,7 @@ type listEnvItem struct {
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
 	Status      string   `json:"status"`
+	Severity    string   `json:"severity"`
 	Created     string   `json:"created"`
 	Project     string   `json:"project"`
 	Path        string   `json:"path"`
