@@ -69,20 +69,31 @@ func splitFrontMatter(b []byte) ([]byte, string, bool) {
 
 // Save writes a back to disk: frontmatter delimited by `---`, then Body.
 func (a *Artifact) Save() error {
+	b, err := a.Marshal()
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(a.Path, b, 0o644)
+}
+
+// Marshal returns the on-disk byte representation of a (frontmatter delimited
+// by `---`, then Body) without touching the filesystem. Used by callers that
+// need to stage the bytes themselves — e.g. the atomic rename swap.
+func (a *Artifact) Marshal() ([]byte, error) {
 	var out bytes.Buffer
 	out.WriteString(fmDelim + "\n")
 	enc := yaml.NewEncoder(&out)
 	enc.SetIndent(2)
 	if err := enc.Encode(a.FrontMatter); err != nil {
-		return err
+		return nil, err
 	}
 	if err := enc.Close(); err != nil {
-		return err
+		return nil, err
 	}
 	out.WriteString(fmDelim + "\n")
 	if !strings.HasPrefix(a.Body, "\n") {
 		out.WriteString("\n")
 	}
 	out.WriteString(a.Body)
-	return os.WriteFile(a.Path, out.Bytes(), 0o644)
+	return out.Bytes(), nil
 }
