@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -151,6 +152,57 @@ func TestShowPlan_Task_JSON(t *testing.T) {
 	}
 	if !strings.Contains(s, "Define the TokenUsage type") {
 		t.Errorf("expected body in JSON: %s", s)
+	}
+}
+
+// TestShow_PlanTaskTerseByDefault pins the issue acceptance for
+// `anvil.terse-mode-for-anvil-show-plan-task-to-skip-verbose-body-pro`:
+// without --body, the JSON envelope carries the load-bearing task fields
+// (success_criteria, verify) and omits the body prose marker. A future
+// change to runShowPlanTask that silently included the body would expand
+// per-task fetch cost during plan walks; this test catches that regression.
+func TestShow_PlanTaskTerseByDefault(t *testing.T) {
+	vault := setupVault(t)
+	src := filepath.Join("testdata", "plan_terse_default.md")
+	data, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(vault, core.TypePlan.Dir(), "ANV-999-terse-default.md")
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dst, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	out, _, err := runCmd(t, cmd, "show", "plan", "ANV-999-terse-default", "--task", "T1", "--json")
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+
+	task, ok := got["task"].(map[string]any)
+	if !ok {
+		t.Fatalf("task field missing or not object: %v", got["task"])
+	}
+	sc, ok := task["success_criteria"].([]any)
+	if !ok || len(sc) == 0 {
+		t.Errorf("task.success_criteria empty or wrong type: %v", task["success_criteria"])
+	}
+	if verify, _ := task["verify"].(string); verify == "" {
+		t.Errorf("task.verify empty: %v", task["verify"])
+	}
+	if _, present := got["body"]; present {
+		t.Errorf("body should be omitted without --body, got key with value %v", got["body"])
+	}
+	if strings.Contains(out, "Context the executor needs") {
+		t.Errorf("body prose marker leaked into terse output:\n%s", out)
 	}
 }
 
