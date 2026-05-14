@@ -270,6 +270,9 @@ func newCreateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				if body == "" {
+					body = bodyScaffold(t)
+				}
 			}
 
 			created := time.Now().UTC().Format("2006-01-02")
@@ -787,5 +790,28 @@ func normaliseDates(fm map[string]any) {
 			fm[k] = t.UTC().Format("2006-01-02")
 		}
 	}
+}
+
+// bodyScaffold returns the H2 skeleton for types whose bodies are validated by
+// ValidateLearning / ValidateIssue. Empty string for all other types so
+// callers that check body == "" for their own defaults (e.g. plan T1 seed)
+// are unaffected.
+func bodyScaffold(t core.Type) string {
+	var sections []string
+	switch t {
+	case core.TypeLearning:
+		sections = core.RequiredLearningSections
+	case core.TypeIssue:
+		sections = core.RequiredIssueSections
+	default:
+		return ""
+	}
+	var b strings.Builder
+	for _, h := range sections {
+		b.WriteString("\n")
+		b.WriteString(h)
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
