@@ -337,7 +337,9 @@ func TestValidate_GlossaryDrift(t *testing.T) {
 	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
-	_ = cmd.Execute()
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected validate to fail for unknown_glossary_tag")
+	}
 
 	var failures []map[string]any
 	if err := json.Unmarshal(out.Bytes(), &failures); err != nil {
@@ -373,6 +375,7 @@ func TestValidate_GlossaryDrift_EmptyGlossarySkips(t *testing.T) {
 			"project": "anvil", "severity": "low",
 			"tags": []any{"domain/drift"},
 		},
+		Body: "\n## Problem\np\n\n## Acceptance criteria\nac\n\n## Non-goals\nng\n\n## Links\nlinks\n",
 	}
 	if err := drift.Save(); err != nil {
 		t.Fatal(err)
