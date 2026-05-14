@@ -11,20 +11,28 @@ import (
 	"strings"
 )
 
-// skillsHashFile is the marker `anvil install skills` drops alongside the
-// materialised tree so future invocations can detect when the on-disk copy
-// no longer matches the binary's embedded skills.
+// skillsHashFile marks the materialised skills tree with the hash of the
+// embedded source FS so future invocations can detect drift.
 const skillsHashFile = ".anvil-skills-hash"
 
-// InstallSkills materialises srcFS to materialiseDir, then wires target so
-// that path resolves to those files. When useCopy is false (default), target
-// is created as a symlink pointing at materialiseDir; when true, the
-// materialised tree is copied to target instead (for filesystems that don't
-// support symlinks). Existing target symlinks are replaced; existing target
-// directories cause an error to avoid clobbering user content.
+// skillMarker is dropped inside each per-skill directory in --copy mode so
+// uninstall and refresh can recognise anvil-owned content vs. user content
+// that happens to share a skill name.
+const skillMarker = ".anvil-skill"
+
+// legacyNamespace is the subdirectory used by pre-flat-layout installs that
+// nested every skill under <target>/anvil/<name>/. It is removed on install
+// and uninstall when the directory is recognisably an old anvil install.
+const legacyNamespace = "anvil"
+
+// InstallSkills materialises srcFS to materialiseDir, then exposes every
+// top-level skill at target/<name> as a symlink into materialiseDir/<name>
+// (or a copied tree when useCopy is true). target is the user-skills parent
+// directory (typically ~/.claude/skills), shared with non-anvil skills.
+// A legacy target/anvil/ nested install is cleaned up if detected.
 //
-// Returns changed=false only when a symlink at target already points at
-// materialiseDir and the materialised tree didn't need updating.
+// Returns changed=false only when every per-skill entry is already in place
+// and no legacy artefact was removed.
 func InstallSkills(srcFS fs.FS, materialiseDir, target string, useCopy bool) (bool, error) {
 	hash, err := computeSkillsHash(srcFS)
 	if err != nil {
@@ -36,18 +44,73 @@ func InstallSkills(srcFS fs.FS, materialiseDir, target string, useCopy bool) (bo
 	if err := os.WriteFile(filepath.Join(materialiseDir, skillsHashFile), []byte(hash), 0o644); err != nil {
 		return false, fmt.Errorf("write skills hash: %w", err)
 	}
-	if useCopy {
-		return installSkillsCopy(materialiseDir, target)
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		return false, fmt.Errorf("mkdir target %s: %w", target, err)
 	}
-	return installSkillsSymlink(materialiseDir, target)
+
+	changed := false
+	legacyRemoved, err := removeLegacyNamespace(target)
+	if err != nil {
+		return false, err
+	}
+	if legacyRemoved {
+		changed = true
+	}
+
+	names, err := listSkillNames(srcFS)
+	if err != nil {
+		return false, err
+	}
+	for _, name := range names {
+		c, err := installOneSkill(materialiseDir, target, name, useCopy)
+		if err != nil {
+			return false, err
+		}
+		if c {
+			changed = true
+		}
+	}
+	return changed, nil
 }
 
-// RefreshSkillsIfStale rewrites the installed skills bundle when the on-disk
-// copy at materialiseDir no longer matches srcFS. Detection compares the hash
-// stored in <materialiseDir>/.anvil-skills-hash against a hash computed from
-// srcFS. The function is a no-op when materialiseDir is absent (skills were
-// never installed). The install mode (symlink vs copy) is recovered from the
-// current shape of target.
+// RemoveSkills removes target/<name> for each top-level skill name in srcFS.
+// Foreign sibling entries in target are left untouched. Legacy target/anvil/
+// nested installs are also cleaned up.
+func RemoveSkills(srcFS fs.FS, materialiseDir, target string) (bool, error) {
+	if _, err := os.Stat(target); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("stat %s: %w", target, err)
+	}
+	names, err := listSkillNames(srcFS)
+	if err != nil {
+		return false, err
+	}
+	changed := false
+	for _, name := range names {
+		c, err := removeOneSkill(materialiseDir, target, name)
+		if err != nil {
+			return false, err
+		}
+		if c {
+			changed = true
+		}
+	}
+	legacyRemoved, err := removeLegacyNamespace(target)
+	if err != nil {
+		return false, err
+	}
+	if legacyRemoved {
+		changed = true
+	}
+	return changed, nil
+}
+
+// RefreshSkillsIfStale rewrites the installed bundle when the hash recorded
+// in materialiseDir diverges from srcFS. No-op when materialiseDir is absent.
+// The install mode (symlink vs copy) is recovered by inspecting any existing
+// per-skill child under target.
 func RefreshSkillsIfStale(srcFS fs.FS, materialiseDir, target string) (bool, error) {
 	if _, err := os.Stat(materialiseDir); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -66,14 +129,170 @@ func RefreshSkillsIfStale(srcFS fs.FS, materialiseDir, target string) (bool, err
 	if err == nil && strings.TrimSpace(string(onDisk)) == expected {
 		return false, nil
 	}
-	useCopy := false
-	if info, terr := os.Lstat(target); terr == nil && info.Mode()&os.ModeSymlink == 0 {
-		useCopy = true
+	useCopy, err := detectCopyMode(srcFS, target)
+	if err != nil {
+		return false, err
 	}
 	if _, err := InstallSkills(srcFS, materialiseDir, target, useCopy); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+func listSkillNames(srcFS fs.FS) ([]string, error) {
+	entries, err := fs.ReadDir(srcFS, ".")
+	if err != nil {
+		return nil, fmt.Errorf("read skills FS: %w", err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		names = append(names, e.Name())
+	}
+	return names, nil
+}
+
+func installOneSkill(materialiseDir, target, name string, useCopy bool) (bool, error) {
+	dst := filepath.Join(target, name)
+	src := filepath.Join(materialiseDir, name)
+	if useCopy {
+		return installSkillCopy(src, dst)
+	}
+	return installSkillSymlink(src, dst)
+}
+
+func installSkillSymlink(src, dst string) (bool, error) {
+	info, err := os.Lstat(dst)
+	switch {
+	case err == nil && info.Mode()&os.ModeSymlink != 0:
+		current, _ := os.Readlink(dst)
+		if current == src {
+			return false, nil
+		}
+		if err := os.Remove(dst); err != nil {
+			return false, fmt.Errorf("replace symlink %s: %w", dst, err)
+		}
+	case err == nil:
+		return false, fmt.Errorf("refusing to overwrite non-symlink %s; remove it first or use --copy", dst)
+	case !errors.Is(err, os.ErrNotExist):
+		return false, fmt.Errorf("stat %s: %w", dst, err)
+	}
+	if err := os.Symlink(src, dst); err != nil {
+		return false, fmt.Errorf("symlink %s -> %s: %w", dst, src, err)
+	}
+	return true, nil
+}
+
+func installSkillCopy(src, dst string) (bool, error) {
+	info, err := os.Lstat(dst)
+	switch {
+	case err == nil && info.Mode()&os.ModeSymlink != 0:
+		if err := os.Remove(dst); err != nil {
+			return false, fmt.Errorf("replace symlink %s: %w", dst, err)
+		}
+	case err == nil:
+		if _, mErr := os.Stat(filepath.Join(dst, skillMarker)); mErr != nil {
+			return false, fmt.Errorf("refusing to overwrite non-anvil dir %s; remove it first", dst)
+		}
+		if err := os.RemoveAll(dst); err != nil {
+			return false, fmt.Errorf("clear %s: %w", dst, err)
+		}
+	case !errors.Is(err, os.ErrNotExist):
+		return false, fmt.Errorf("stat %s: %w", dst, err)
+	}
+	if err := writeFSTree(os.DirFS(src), dst); err != nil {
+		return false, err
+	}
+	if err := os.WriteFile(filepath.Join(dst, skillMarker), nil, 0o644); err != nil {
+		return false, fmt.Errorf("write skill marker: %w", err)
+	}
+	return true, nil
+}
+
+func removeOneSkill(materialiseDir, target, name string) (bool, error) {
+	dst := filepath.Join(target, name)
+	info, err := os.Lstat(dst)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("stat %s: %w", dst, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		current, _ := os.Readlink(dst)
+		if !ownsSymlinkTarget(current, materialiseDir) {
+			return false, nil
+		}
+		if err := os.Remove(dst); err != nil {
+			return false, fmt.Errorf("remove symlink %s: %w", dst, err)
+		}
+		return true, nil
+	}
+	if _, err := os.Stat(filepath.Join(dst, skillMarker)); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("stat skill marker %s: %w", dst, err)
+	}
+	if err := os.RemoveAll(dst); err != nil {
+		return false, fmt.Errorf("remove %s: %w", dst, err)
+	}
+	return true, nil
+}
+
+func ownsSymlinkTarget(linkTarget, materialiseDir string) bool {
+	if linkTarget == materialiseDir {
+		return true
+	}
+	return strings.HasPrefix(linkTarget, materialiseDir+string(filepath.Separator))
+}
+
+func removeLegacyNamespace(target string) (bool, error) {
+	legacy := filepath.Join(target, legacyNamespace)
+	info, err := os.Lstat(legacy)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("stat legacy %s: %w", legacy, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		if err := os.Remove(legacy); err != nil {
+			return false, fmt.Errorf("remove legacy symlink %s: %w", legacy, err)
+		}
+		return true, nil
+	}
+	if _, err := os.Stat(filepath.Join(legacy, skillsHashFile)); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("stat legacy hash %s: %w", legacy, err)
+	}
+	if err := os.RemoveAll(legacy); err != nil {
+		return false, fmt.Errorf("remove legacy %s: %w", legacy, err)
+	}
+	return true, nil
+}
+
+func detectCopyMode(srcFS fs.FS, target string) (bool, error) {
+	names, err := listSkillNames(srcFS)
+	if err != nil {
+		return false, err
+	}
+	for _, name := range names {
+		child := filepath.Join(target, name)
+		info, err := os.Lstat(child)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return false, fmt.Errorf("stat %s: %w", child, err)
+		}
+		return info.Mode()&os.ModeSymlink == 0, nil
+	}
+	return false, nil
 }
 
 func computeSkillsHash(srcFS fs.FS) (string, error) {
@@ -96,74 +315,6 @@ func computeSkillsHash(srcFS fs.FS) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-// RemoveSkills removes target whether it is a symlink (the default install
-// shape) or a directory (the --copy shape). It does not touch the
-// materialised tree, which is binary-owned state. Returns changed=false when
-// target was already absent.
-func RemoveSkills(target string) (bool, error) {
-	info, err := os.Lstat(target)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false, nil
-		}
-		return false, fmt.Errorf("stat %s: %w", target, err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		if err := os.Remove(target); err != nil {
-			return false, fmt.Errorf("remove symlink %s: %w", target, err)
-		}
-		return true, nil
-	}
-	if err := os.RemoveAll(target); err != nil {
-		return false, fmt.Errorf("remove %s: %w", target, err)
-	}
-	return true, nil
-}
-
-func installSkillsSymlink(materialiseDir, target string) (bool, error) {
-	info, err := os.Lstat(target)
-	switch {
-	case err == nil && info.Mode()&os.ModeSymlink != 0:
-		current, _ := os.Readlink(target)
-		if current == materialiseDir {
-			return false, nil
-		}
-		if err := os.Remove(target); err != nil {
-			return false, fmt.Errorf("replace symlink %s: %w", target, err)
-		}
-	case err == nil:
-		return false, fmt.Errorf("refusing to overwrite non-symlink %s; remove it first or use --copy", target)
-	case !errors.Is(err, os.ErrNotExist):
-		return false, fmt.Errorf("stat %s: %w", target, err)
-	}
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		return false, fmt.Errorf("mkdir parent of %s: %w", target, err)
-	}
-	if err := os.Symlink(materialiseDir, target); err != nil {
-		return false, fmt.Errorf("symlink %s -> %s: %w", target, materialiseDir, err)
-	}
-	return true, nil
-}
-
-func installSkillsCopy(materialiseDir, target string) (bool, error) {
-	info, err := os.Lstat(target)
-	if err == nil && info.Mode()&os.ModeSymlink != 0 {
-		if err := os.Remove(target); err != nil {
-			return false, fmt.Errorf("replace symlink %s: %w", target, err)
-		}
-	} else if err == nil {
-		if err := os.RemoveAll(target); err != nil {
-			return false, fmt.Errorf("clear %s: %w", target, err)
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return false, fmt.Errorf("stat %s: %w", target, err)
-	}
-	if err := writeFSTree(os.DirFS(materialiseDir), target); err != nil {
-		return false, err
-	}
-	return true, nil
 }
 
 // writeFSTree extracts every file in srcFS to dst, clearing any prior

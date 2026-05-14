@@ -8,7 +8,10 @@ import (
 	"testing"
 )
 
-func TestInstall_Skills_SymlinkLayout(t *testing.T) {
+// TestInstall_Skills_FlatPerSkillSymlinks confirms each shipped skill lands at
+// ~/.claude/skills/<name>/ as a symlink into materialiseDir — the flat layout
+// required by Claude Code's user-skill discovery.
+func TestInstall_Skills_FlatPerSkillSymlinks(t *testing.T) {
 	claudeDir := t.TempDir()
 	skillsDir := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
@@ -22,23 +25,23 @@ func TestInstall_Skills_SymlinkLayout(t *testing.T) {
 		t.Fatalf("install skills: %v", err)
 	}
 
-	target := filepath.Join(claudeDir, "skills", "anvil")
-	info, err := os.Lstat(target)
+	target := filepath.Join(claudeDir, "skills")
+	child := filepath.Join(target, "capturing-inbox")
+	info, err := os.Lstat(child)
 	if err != nil {
-		t.Fatalf("lstat target: %v", err)
+		t.Fatalf("lstat %s: %v", child, err)
 	}
 	if info.Mode()&os.ModeSymlink == 0 {
-		t.Fatalf("target should be a symlink, mode=%v", info.Mode())
+		t.Fatalf("%s should be a symlink, mode=%v", child, info.Mode())
 	}
-	got, _ := os.Readlink(target)
-	if got != skillsDir {
-		t.Errorf("symlink = %q, want %q", got, skillsDir)
+	if got, _ := os.Readlink(child); got != filepath.Join(skillsDir, "capturing-inbox") {
+		t.Errorf("symlink = %q, want %q", got, filepath.Join(skillsDir, "capturing-inbox"))
 	}
-	if _, err := os.Stat(filepath.Join(target, "capturing-inbox", "SKILL.md")); err != nil {
-		t.Errorf("capturing-inbox skill not reachable through target: %v", err)
+	if _, err := os.Stat(filepath.Join(child, "SKILL.md")); err != nil {
+		t.Errorf("capturing-inbox SKILL.md not reachable: %v", err)
 	}
-	if !strings.Contains(out.String(), "linked") {
-		t.Errorf("output = %q, want mention of linked", out.String())
+	if !strings.Contains(out.String(), "linked anvil skills") {
+		t.Errorf("output = %q, want mention of linked anvil skills", out.String())
 	}
 }
 
@@ -56,8 +59,7 @@ func TestInstall_Skills_Idempotent(t *testing.T) {
 			t.Fatalf("run %d: %v", i, err)
 		}
 	}
-	target := filepath.Join(claudeDir, "skills", "anvil")
-	if _, err := os.Stat(filepath.Join(target, "writing-issue", "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(claudeDir, "skills", "writing-issue", "SKILL.md")); err != nil {
 		t.Errorf("writing-issue not present after 2 installs: %v", err)
 	}
 }
@@ -75,16 +77,46 @@ func TestInstall_Skills_CopyMode(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("install skills --copy: %v", err)
 	}
-	target := filepath.Join(claudeDir, "skills", "anvil")
-	info, err := os.Lstat(target)
+	child := filepath.Join(claudeDir, "skills", "capturing-inbox")
+	info, err := os.Lstat(child)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if info.Mode()&os.ModeSymlink != 0 {
-		t.Error("--copy target should not be a symlink")
+		t.Error("--copy per-skill target should not be a symlink")
 	}
-	if !strings.Contains(out.String(), "copied") {
-		t.Errorf("output = %q, want mention of copied", out.String())
+	if !strings.Contains(out.String(), "copied anvil skills") {
+		t.Errorf("output = %q, want mention of copied anvil skills", out.String())
+	}
+}
+
+// TestInstall_Skills_CleansUpLegacyNestedInstall asserts that a prior nested
+// install at ~/.claude/skills/anvil/ is removed when a fresh install runs,
+// so users upgrading from an earlier anvil version don't end up with two
+// copies of every skill on disk.
+func TestInstall_Skills_CleansUpLegacyNestedInstall(t *testing.T) {
+	claudeDir := t.TempDir()
+	skillsDir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+	t.Setenv("ANVIL_SKILLS_DIR", skillsDir)
+
+	legacy := filepath.Join(claudeDir, "skills", "anvil")
+	if err := os.MkdirAll(legacy, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacy, ".anvil-skills-hash"), []byte("old"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"install", "skills"})
+	cmd.SetOut(&bytes.Buffer{})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("install skills: %v", err)
+	}
+
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Errorf("legacy ~/.claude/skills/anvil/ should be removed: %v", err)
 	}
 }
 
@@ -108,9 +140,8 @@ func TestInstall_Skills_Uninstall(t *testing.T) {
 	if err := cmd2.Execute(); err != nil {
 		t.Fatalf("uninstall: %v", err)
 	}
-	target := filepath.Join(claudeDir, "skills", "anvil")
-	if _, err := os.Lstat(target); !os.IsNotExist(err) {
-		t.Errorf("target should be gone: %v", err)
+	if _, err := os.Lstat(filepath.Join(claudeDir, "skills", "capturing-inbox")); !os.IsNotExist(err) {
+		t.Errorf("per-skill target should be gone: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(skillsDir, "capturing-inbox", "SKILL.md")); err != nil {
 		t.Errorf("materialised dir should be preserved: %v", err)

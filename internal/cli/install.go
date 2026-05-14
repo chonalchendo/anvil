@@ -77,28 +77,28 @@ func newInstallSkillsCmd() *cobra.Command {
 	var uninstall, useCopy bool
 	cmd := &cobra.Command{
 		Use:   "skills",
-		Short: "Install (or remove) the bundled Anvil skills into ~/.claude/skills/anvil",
+		Short: "Install (or remove) the bundled Anvil skills into ~/.claude/skills/<name>/",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			target, err := resolveAnvilSkillsTarget()
 			if err != nil {
 				return err
 			}
+			mat, err := resolveAnvilSkillsMaterialiseDir()
+			if err != nil {
+				return err
+			}
 			if uninstall {
-				changed, err := installer.RemoveSkills(target)
+				changed, err := installer.RemoveSkills(skills.FS, mat, target)
 				if err != nil {
 					return fmt.Errorf("removing skills: %w", err)
 				}
 				if changed {
-					cmd.Println("removed skills bundle at", target)
+					cmd.Println("removed anvil skills from", target)
 				} else {
-					cmd.Println("no skills bundle at", target)
+					cmd.Println("no anvil skills found at", target)
 				}
 				return nil
-			}
-			mat, err := resolveAnvilSkillsMaterialiseDir()
-			if err != nil {
-				return err
 			}
 			changed, err := installer.InstallSkills(skills.FS, mat, target, useCopy)
 			if err != nil {
@@ -106,29 +106,32 @@ func newInstallSkillsCmd() *cobra.Command {
 			}
 			switch {
 			case changed && useCopy:
-				cmd.Println("copied skills bundle to", target)
+				cmd.Println("copied anvil skills into", target)
 			case changed:
-				cmd.Println("linked skills bundle at", target, "->", mat)
+				cmd.Println("linked anvil skills under", target, "->", mat)
 			default:
-				cmd.Println("skills bundle already installed at", target)
+				cmd.Println("anvil skills already installed at", target)
 			}
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove the bundle instead of installing it")
+	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove anvil skills instead of installing them")
 	cmd.Flags().BoolVar(&useCopy, "copy", false, "copy files instead of symlinking (use when symlinks aren't supported)")
 	return cmd
 }
 
+// resolveAnvilSkillsTarget returns the user-skills parent directory. Anvil
+// installs each shipped skill flat under this path (target/<skill>/SKILL.md)
+// so Claude Code's user-skill discovery picks them up.
 func resolveAnvilSkillsTarget() (string, error) {
 	if d := os.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
-		return filepath.Join(d, "skills", "anvil"), nil
+		return filepath.Join(d, "skills"), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("home dir: %w", err)
 	}
-	return filepath.Join(home, ".claude", "skills", "anvil"), nil
+	return filepath.Join(home, ".claude", "skills"), nil
 }
 
 // refreshSkillsIfStale auto-rebuilds the installed skills bundle when its
