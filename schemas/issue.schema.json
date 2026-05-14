@@ -23,10 +23,9 @@
     "severity":     { "enum": ["low", "medium", "high", "critical"] },
     "milestone":    { "type": "string", "minLength": 1 },
     "owner":        { "type": "string", "minLength": 1 },
-    "external_ref": { "type": ["string", "null"] },
-    "external_url": { "type": ["string", "null"] },
     "acceptance":   { "type": "array", "items": { "type": "string" } },
     "related":      { "type": "array", "items": { "type": "string" } },
+    "external_links": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "blocks":       { "type": "array", "items": { "type": "string" } },
     "depends_on":   { "type": "array", "items": { "type": "string" } }
   },

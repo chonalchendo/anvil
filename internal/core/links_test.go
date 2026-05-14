@@ -52,3 +52,32 @@ func TestAppendLink_MissingSource_Errors(t *testing.T) {
 		t.Error("expected error for missing source")
 	}
 }
+
+func TestAppendExternalLink_AppendsAndDedupes(t *testing.T) {
+	v := newScaffolded(t)
+	mustWriteIssue(t, v, "anvil.x")
+	uri := "https://github.com/chonalchendo/anvil/pull/13"
+	for i := 0; i < 2; i++ {
+		if err := AppendExternalLink(v, TypeIssue, "anvil.x", uri); err != nil {
+			t.Fatalf("AppendExternalLink iter %d: %v", i, err)
+		}
+	}
+	a, err := LoadArtifact(filepath.Join(v.Root, "70-issues", "anvil.x.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ext, _ := a.FrontMatter["external_links"].([]any)
+	if len(ext) != 1 || ext[0] != uri {
+		t.Fatalf("external_links = %v, want [%q]", ext, uri)
+	}
+	if _, ok := a.FrontMatter["related"]; ok {
+		t.Fatalf("related should not be touched by AppendExternalLink: %v", a.FrontMatter["related"])
+	}
+}
+
+func TestAppendExternalLink_MissingSource_Errors(t *testing.T) {
+	v := newScaffolded(t)
+	if err := AppendExternalLink(v, TypeIssue, "ghost", "https://x"); err == nil {
+		t.Error("expected error for missing source")
+	}
+}

@@ -25,6 +25,7 @@ Implied on every type unless explicitly overridden:
 - `tags` — flat list. Per-type schemas may require minimum facets (see per-type sections). Values match `[a-z0-9-]+` (lowercase, hyphenated, ASCII) under a `<facet>/<value>` shape. The CLI gate (`anvil create`, `anvil set tags`, `anvil promote`) rejects values novel to the vault unless `--allow-new-facet=<facet>` is passed.
 - `aliases` — Obsidian aliases.
 - `related` — wikilink array of associative pointers.
+- `external_links` — flat array of free-form URIs (commit shas, PR urls, doc links). Appended by `anvil link --external <uri>`. Optional; not a wikilink — one-way artifact→external edge, out-of-graph by design.
 
 ## The spine
 
@@ -117,8 +118,6 @@ status: open | in-progress | resolved | abandoned
 severity: low | medium | high | critical
 milestone: "[[milestone.<project>.<slug>]]"
 owner: <string>            # set by `anvil transition ... --owner <name>`; persists across the issue lifecycle
-external_ref: <string> | null
-external_url: <url> | null
 acceptance: ["criterion", ...]
 ```
 

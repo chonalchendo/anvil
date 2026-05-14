@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"path/filepath"
 	"testing"
 
@@ -47,6 +48,83 @@ func TestLink_PlanToMilestone(t *testing.T) {
 	related, _ := a.FrontMatter["related"].([]any)
 	if len(related) != 1 || related[0] != "[[milestone.foo.m1-bar]]" {
 		t.Errorf("related = %v", related)
+	}
+}
+
+func TestLink_ExternalAppendsURI(t *testing.T) {
+	vault := setupVault(t)
+	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"link", "plan", "foo.q2", "--external", "https://github.com/chonalchendo/anvil/pull/13"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ext, _ := a.FrontMatter["external_links"].([]any)
+	if len(ext) != 1 || ext[0] != "https://github.com/chonalchendo/anvil/pull/13" {
+		t.Fatalf("external_links = %v", ext)
+	}
+}
+
+func TestLink_ExternalIdempotent(t *testing.T) {
+	vault := setupVault(t)
+	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	for i := 0; i < 2; i++ {
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"link", "plan", "foo.q2", "--external", "abc1234"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("iter %d: %v", i, err)
+		}
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ext, _ := a.FrontMatter["external_links"].([]any)
+	if len(ext) != 1 {
+		t.Fatalf("external_links len = %d, want 1 (idempotent): %v", len(ext), ext)
+	}
+}
+
+func TestLink_ExternalRejectsTargetArgs(t *testing.T) {
+	vault := setupVault(t)
+	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"link", "plan", "foo.q2", "issue", "foo.x", "--external", "https://x"})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected error, got: %s", buf.String())
+	}
+}
+
+func TestLink_ExternalRejectsReadMode(t *testing.T) {
+	_ = setupVault(t)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"link", "--from", "demo.a", "--external", "https://x"})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected error")
+	}
+}
+
+func TestLink_ExternalRejectsWhitespaceOnly(t *testing.T) {
+	vault := setupVault(t)
+	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"link", "plan", "foo.q2", "--external", "   "})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected error rejecting whitespace-only --external, got: %s", buf.String())
 	}
 }
 
