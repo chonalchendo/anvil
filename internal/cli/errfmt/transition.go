@@ -3,14 +3,21 @@ package errfmt
 import "fmt"
 
 // NewIllegalTransition builds the structured error for an attempted edge that
-// has no row in the type's transition table.
+// has no row in the type's transition table. Always includes a `hint` field
+// carrying the raw, copy-pasteable `anvil set` command that bypasses the
+// state machine — so agents consuming the JSON envelope literally get an
+// executable next step. A separate `hint_note` carries the caveat (no audit
+// trail) for humans reading the text rendering.
 func NewIllegalTransition(typ, id, from, to string, next []string) *Structured {
+	hint := fmt.Sprintf("anvil set %s %s status %s", typ, id, to)
 	return NewStructured("illegal_transition").
 		Set("type", typ).
 		Set("id", id).
 		Set("from", from).
 		Set("to", to).
-		Set("legal_next", next)
+		Set("legal_next", next).
+		Set("hint", hint).
+		Set("hint_note", "force-edit: bypasses state machine, no audit trail")
 }
 
 // NewTransitionFlagRequired builds the structured error for a missing CLI flag

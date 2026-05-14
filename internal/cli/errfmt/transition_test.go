@@ -27,6 +27,8 @@ func TestIllegalTransitionJSON(t *testing.T) {
 		"from":       "open",
 		"to":         "resolved",
 		"legal_next": []any{"in-progress", "abandoned"},
+		"hint":       "anvil set issue demo.foo status resolved",
+		"hint_note":  "force-edit: bypasses state machine, no audit trail",
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("json mismatch (-want +got):\n%s", diff)
