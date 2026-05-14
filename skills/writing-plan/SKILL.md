@@ -190,6 +190,15 @@ anvil transition plan <id> in-progress --reason "<why>"
 
 The planner closes its phase at `locked`; the executor owns every transition after. Lock-before-execute is the contract: any plan in `draft` is not yet committed material.
 
+## YAML frontmatter traps
+
+The validator surfaces these as cryptic parse errors. Quote any scalar that hits them with `'...'` or `"..."`:
+
+- **Backtick-prefixed scalar** — `` `cmd`: ... `` parses as a tag, not a string. Write `` '`cmd`: ...' ``.
+- **Colon-space inside a value** — `summary: foo: bar` parses as a nested mapping. Write `summary: 'foo: bar'`.
+- **Leading reserved indicators** (`>`, `|`, `&`, `*`, `!`, `%`, `@`, `` ` ``) — quote the value.
+- **Multi-line text** — use block scalars (`>` folded, `|` literal) instead of embedded `\n`.
+
 ## Forbidden patterns
 
 - "The executor will figure out the file layout" — no. Lock the paths.
