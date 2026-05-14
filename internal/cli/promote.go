@@ -217,7 +217,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	}
 	targetPath := filepath.Join(dir, targetID+".md")
 	if err := schema.Validate(string(target), fm); err != nil {
-		return renderSchemaErr(cmd, targetPath, err)
+		return renderSchemaErr(cmd, v, targetPath, err)
 	}
 
 	for _, f := range flagAllowNewFacet {

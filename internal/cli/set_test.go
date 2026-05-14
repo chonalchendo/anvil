@@ -448,3 +448,37 @@ func TestSet_Tags_AllowNewFacetAccepts(t *testing.T) {
 		t.Fatalf("expected success: %v", err)
 	}
 }
+
+// Removing the only tag matching a required facet pattern must surface
+// `missing_required_facet` (actionable: name the facet, suggest the fix),
+// not the raw schema diagnostic citing /tags/0 and a pattern mismatch on the
+// surviving tag.
+func TestSet_Tags_RemoveLastRequiredFacet_ReportsMissingFacet(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	// Fixture starts with [domain/dev-tools]. Removing index 0 leaves [] —
+	// issue requires ≥1 domain/* tag.
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "tags", "--remove", "0"})
+	var errOut bytes.Buffer
+	cmd.SetErr(&errOut)
+	cmd.SetOut(&errOut)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected schema-invalid")
+	}
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Errorf("err = %v, want ErrSchemaInvalid", err)
+	}
+	got := errOut.String()
+	if !strings.Contains(got, "missing_required_facet") {
+		t.Errorf("expected missing_required_facet, got: %s", got)
+	}
+	if !strings.Contains(got, "^domain/[a-z0-9-]+$") {
+		t.Errorf("expected ^domain/ pattern in expected[], got: %s", got)
+	}
+	// The misleading "does not match pattern" raw schema text must NOT leak.
+	if strings.Contains(got, "does not match pattern") {
+		t.Errorf("raw schema diagnostic leaked instead of structured error: %s", got)
+	}
+}

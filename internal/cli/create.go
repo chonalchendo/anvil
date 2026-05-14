@@ -236,7 +236,7 @@ func newCreateCmd() *cobra.Command {
 						fm["created"] = c
 					}
 					if err := schema.Validate(string(t), fm); err != nil {
-						return renderSchemaErr(cmd, path, err)
+						return renderSchemaErr(cmd, v, path, err)
 					}
 					if err := runFacetCheck(cmd, v, path, fm, flagAllowNewFacet); err != nil {
 						return err
@@ -263,7 +263,7 @@ func newCreateCmd() *cobra.Command {
 			}
 
 			if err := schema.Validate(string(t), fm); err != nil {
-				return renderSchemaErr(cmd, path, err)
+				return renderSchemaErr(cmd, v, path, err)
 			}
 
 			if err := runFacetCheck(cmd, v, path, fm, flagAllowNewFacet); err != nil {
