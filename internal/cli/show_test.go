@@ -604,3 +604,34 @@ func TestShow_NoIncomingEdgesRendersCleanly(t *testing.T) {
 		t.Errorf("incoming key should be omitted when empty, got: %v", got["incoming"])
 	}
 }
+
+// TestShow_Skill prints the bundled SKILL.md body verbatim. Skills are not
+// vault artifacts but the show verb resolves them from the embedded bundle so
+// agents stop bouncing to grep on every smoke test.
+func TestShow_Skill(t *testing.T) {
+	cmd := newRootCmd()
+	out, _, err := runCmd(t, cmd, "show", "skill", "capturing-inbox")
+	if err != nil {
+		t.Fatalf("show skill capturing-inbox: %v", err)
+	}
+	if !strings.Contains(out, "name: capturing-inbox") {
+		t.Errorf("expected SKILL.md frontmatter (name: capturing-inbox), got:\n%s", out)
+	}
+}
+
+// TestShow_SkillUnknown surfaces the available skill list so agents can
+// self-correct from a typo without needing to grep the repo.
+func TestShow_SkillUnknown(t *testing.T) {
+	cmd := newRootCmd()
+	_, _, err := runCmd(t, cmd, "show", "skill", "no-such-skill")
+	if err == nil {
+		t.Fatal("expected error for unknown skill")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "unknown skill") {
+		t.Errorf("error should name the failure mode, got: %s", msg)
+	}
+	if !strings.Contains(msg, "capturing-inbox") {
+		t.Errorf("error should list available skills, got: %s", msg)
+	}
+}

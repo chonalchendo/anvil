@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -14,6 +15,7 @@ import (
 	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
+	"github.com/chonalchendo/anvil/skills"
 )
 
 const showBodyLineCap = 500
@@ -31,10 +33,16 @@ func newShowCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "show <type> <id>",
-		Short:   "Display a vault artifact (body included by default for bounded types: inbox, decision, issue, sweep; pass --no-body to suppress, or --body to opt in for plan)",
+		Short:   "Display a vault artifact (body included by default for bounded types: inbox, decision, issue, sweep; pass --no-body to suppress, or --body to opt in for plan). Also accepts type=skill to print a bundled SKILL.md body.",
 		Args:    cobra.ExactArgs(2),
-		Example: "  anvil show issue issue-42\n  anvil show issue issue-42 --no-body\n  anvil show issue issue-42 --json\n  anvil show plan ANV-142\n  anvil show plan ANV-142 --task T3\n  anvil show plan ANV-142 --task T3 --body",
+		Example: "  anvil show issue issue-42\n  anvil show issue issue-42 --no-body\n  anvil show issue issue-42 --json\n  anvil show plan ANV-142\n  anvil show plan ANV-142 --task T3\n  anvil show plan ANV-142 --task T3 --body\n  anvil show skill capturing-inbox",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Skills are bundled, not vault artifacts — short-circuit before
+			// ParseType so `anvil show skill <name>` reads from the embedded
+			// skill bundle rather than failing with "unknown type".
+			if args[0] == "skill" {
+				return runShowSkill(cmd, args[1])
+			}
 			t, err := core.ParseType(args[0])
 			if err != nil {
 				return err
@@ -256,6 +264,42 @@ func resolveArtifactPath(vaultRoot string, t core.Type, id string) string {
 	}
 	project := strings.TrimPrefix(id, string(t)+".")
 	return filepath.Join(vaultRoot, t.Dir(), project, string(t)+".md")
+}
+
+// runShowSkill prints the embedded SKILL.md body for the named bundled skill.
+// Source-of-truth is the binary's embed.FS — same content `anvil install
+// skills` deposits to ~/.claude/skills/<name>/SKILL.md — so output is stable
+// regardless of whether the user has run install. Unknown names list the
+// available skill set so agents can self-correct without grepping the repo.
+func runShowSkill(cmd *cobra.Command, name string) error {
+	data, err := fs.ReadFile(skills.FS, filepath.Join(name, "SKILL.md"))
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			available, lerr := listBundledSkills()
+			if lerr != nil {
+				return fmt.Errorf("unknown skill %q (and failed to list bundled skills: %w)", name, lerr)
+			}
+			return fmt.Errorf("unknown skill %q; available: %s", name, strings.Join(available, ", "))
+		}
+		return fmt.Errorf("reading skill %q: %w", name, err)
+	}
+	fmt.Fprint(cmd.OutOrStdout(), string(data))
+	return nil
+}
+
+func listBundledSkills() ([]string, error) {
+	entries, err := fs.ReadDir(skills.FS, ".")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(entries))
+	for _, e := range entries {
+		if e.IsDir() {
+			out = append(out, e.Name())
+		}
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 func emitFrontMatterText(cmd *cobra.Command, fm map[string]any) {
