@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -85,13 +86,50 @@ func printValidationErrors(cmd *cobra.Command, errs []*errfmt.ValidationError) {
 	}
 }
 
+// printValidationErrorsJSON emits the stable schema-invalid envelope to stdout
+// for `--json` callers of create/set/promote. Shape:
+//
+//	{"error":"schema_invalid","violations":[<ValidationError>...]}
+//
+// The envelope is an object (not a bare array) so it is distinguishable from
+// success envelopes — agents dispatch on the top-level `error` key, then walk
+// `violations[]` to correct fields without a non-JSON debug round-trip.
+func printValidationErrorsJSON(cmd *cobra.Command, errs []*errfmt.ValidationError) {
+	if errs == nil {
+		errs = []*errfmt.ValidationError{}
+	}
+	payload := map[string]any{
+		"error":      "schema_invalid",
+		"violations": errs,
+	}
+	b, _ := json.Marshal(payload)
+	// cobra's cmd.Println falls back to stderr; route through OutOrStdout so
+	// the envelope lands on stdout next to the success envelopes — agents
+	// parse one stream for both outcomes.
+	fmt.Fprintln(cmd.OutOrStdout(), string(b))
+}
+
+// emitValidationErrors is the dispatch helper: JSON envelope when asJSON, the
+// human-readable block otherwise. Centralised so create/set/promote agree on
+// the contract for both axes.
+func emitValidationErrors(cmd *cobra.Command, asJSON bool, errs []*errfmt.ValidationError) {
+	if asJSON {
+		printValidationErrorsJSON(cmd, errs)
+		return
+	}
+	printValidationErrors(cmd, errs)
+}
+
 // renderSchemaErr prints structured validation errors and returns
 // ErrSchemaInvalid. When v is non-nil it walks the vault to enrich
 // missing_required_facet errors with known facet values or the
 // `--allow-new-facet` hint, so a single error block tells the agent every
 // constraint they need to satisfy. Pass nil for v when no vault is available
-// (the error block remains correct, just less specific).
-func renderSchemaErr(cmd *cobra.Command, v *core.Vault, path string, err error) error {
+// (the error block remains correct, just less specific). When asJSON, the
+// envelope goes to stdout in the shape documented on printValidationErrorsJSON
+// — agents parse it instead of re-running without --json to read the human
+// block.
+func renderSchemaErr(cmd *cobra.Command, v *core.Vault, path string, err error, asJSON bool) error {
 	errs := schemaErrToValidationErrors(path, err)
 	if v != nil {
 		if vals, skipped, gErr := facets.CollectValues(v.Root); gErr == nil {
@@ -101,6 +139,6 @@ func renderSchemaErr(cmd *cobra.Command, v *core.Vault, path string, err error) 
 			}
 		}
 	}
-	printValidationErrors(cmd, errs)
+	emitValidationErrors(cmd, asJSON, errs)
 	return ErrSchemaInvalid
 }

@@ -1632,6 +1632,63 @@ func TestCreate_Issue_FreshVault_MissingFacet_OneShotHint(t *testing.T) {
 	}
 }
 
+// --json failure must carry the same constraint_violation payload (field,
+// got, expected) the non-JSON path prints, in a stable envelope so agents
+// can re-issue without re-running without --json to read the human block.
+func TestCreate_JSON_SchemaInvalid_EmitsViolationsEnvelope(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	// Missing --description triggers the constraint_violation block
+	// (min 1 chars / pattern ^[^\n]+$) — same shape as the issue's repro.
+	cmd.SetArgs([]string{"create", "issue", "--title", "x",
+		"--tags", "domain/methodology", "--allow-new-facet=domain", "--json"})
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected schema-invalid")
+	}
+
+	var env struct {
+		Error      string `json:"error"`
+		Violations []struct {
+			Code     string `json:"code"`
+			Field    string `json:"field"`
+			Got      string `json:"got"`
+			Expected any    `json:"expected"`
+		} `json:"violations"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("stdout is not JSON: %v\nstdout=%q", err, out.String())
+	}
+	if env.Error != "schema_invalid" {
+		t.Errorf("envelope.error = %q, want schema_invalid", env.Error)
+	}
+	// Both the min-length and pattern checks fire on `description`; the
+	// envelope must surface both rows with `expected` populated so an agent
+	// can read either to know how to satisfy the field.
+	var withGot, withExpected int
+	for _, v := range env.Violations {
+		if v.Code != "constraint_violation" || v.Field != "description" {
+			continue
+		}
+		if v.Got != "" {
+			withGot++
+		}
+		if v.Expected != nil {
+			withExpected++
+		}
+	}
+	if withGot == 0 || withExpected < 2 {
+		t.Errorf("description violations missing got/expected detail (withGot=%d, withExpected=%d): %+v",
+			withGot, withExpected, env.Violations)
+	}
+}
+
 // On a fresh vault, decision (requires both domain/* and activity/*) must
 // surface BOTH missing facets in a single error block, each with its own
 // pattern and --allow-new-facet hint.

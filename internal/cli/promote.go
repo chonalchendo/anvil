@@ -217,7 +217,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	}
 	targetPath := filepath.Join(dir, targetID+".md")
 	if err := schema.Validate(string(target), fm); err != nil {
-		return renderSchemaErr(cmd, v, targetPath, err)
+		return renderSchemaErr(cmd, v, targetPath, err, asJSON)
 	}
 
 	for _, f := range flagAllowNewFacet {
@@ -247,7 +247,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		for _, e := range errs {
 			e.Path = targetPath
 		}
-		printValidationErrors(cmd, errs)
+		emitValidationErrors(cmd, asJSON, errs)
 		return ErrSchemaInvalid
 	}
 	tgtArt := &core.Artifact{Path: targetPath, FrontMatter: fm, Body: ""}

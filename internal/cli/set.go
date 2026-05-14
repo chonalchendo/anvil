@@ -160,13 +160,13 @@ func newSetCmd() *cobra.Command {
 					for _, e := range errs {
 						e.Path = path
 					}
-					printValidationErrors(cmd, errs)
+					emitValidationErrors(cmd, flagJSON, errs)
 					return ErrSchemaInvalid
 				}
 			}
 
 			if err := schema.Validate(string(t), a.FrontMatter); err != nil {
-				return renderSchemaErr(cmd, v, path, err)
+				return renderSchemaErr(cmd, v, path, err, flagJSON)
 			}
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("saving artifact: %w", err)

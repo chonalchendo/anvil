@@ -328,9 +328,9 @@ func newCreateCmd() *cobra.Command {
 						fm["created"] = c
 					}
 					if err := schema.Validate(string(t), fm); err != nil {
-						return renderSchemaErr(cmd, v, path, err)
+						return renderSchemaErr(cmd, v, path, err, flagJSON)
 					}
-					if err := runFacetCheck(cmd, v, path, fm, flagAllowNewFacet); err != nil {
+					if err := runFacetCheck(cmd, v, path, fm, flagAllowNewFacet, flagJSON); err != nil {
 						return err
 					}
 					originalBytes, rerr := os.ReadFile(path)
@@ -355,10 +355,10 @@ func newCreateCmd() *cobra.Command {
 			}
 
 			if err := schema.Validate(string(t), fm); err != nil {
-				return renderSchemaErr(cmd, v, path, err)
+				return renderSchemaErr(cmd, v, path, err, flagJSON)
 			}
 
-			if err := runFacetCheck(cmd, v, path, fm, flagAllowNewFacet); err != nil {
+			if err := runFacetCheck(cmd, v, path, fm, flagAllowNewFacet, flagJSON); err != nil {
 				return err
 			}
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -707,7 +707,7 @@ func truncateBody(s string) string {
 	return fmt.Sprintf("%q…", s[:80])
 }
 
-func runFacetCheck(cmd *cobra.Command, v *core.Vault, path string, fm map[string]any, allowNewFacet []string) error {
+func runFacetCheck(cmd *cobra.Command, v *core.Vault, path string, fm map[string]any, allowNewFacet []string, asJSON bool) error {
 	for _, f := range allowNewFacet {
 		if !facets.Has(f) {
 			return formatEnumError("--allow-new-facet", f, facets.Names(), "")
@@ -735,7 +735,7 @@ func runFacetCheck(cmd *cobra.Command, v *core.Vault, path string, fm map[string
 		for _, e := range errs {
 			e.Path = path
 		}
-		printValidationErrors(cmd, errs)
+		emitValidationErrors(cmd, asJSON, errs)
 		return ErrSchemaInvalid
 	}
 	return nil
