@@ -120,6 +120,98 @@ func TestInstall_Skills_CleansUpLegacyNestedInstall(t *testing.T) {
 	}
 }
 
+// TestInstall_Skills_ReinstallReportsUpToDate confirms that re-running
+// `anvil install skills` against a vault whose embedded bundle is unchanged
+// exits 0, names the next command (`--force`) in the message, and does not
+// repeat the "linked" / "copied" wording reserved for actual work.
+func TestInstall_Skills_ReinstallReportsUpToDate(t *testing.T) {
+	claudeDir := t.TempDir()
+	skillsDir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+	t.Setenv("ANVIL_SKILLS_DIR", skillsDir)
+
+	first := newRootCmd()
+	first.SetArgs([]string{"install", "skills"})
+	first.SetOut(&bytes.Buffer{})
+	if err := first.Execute(); err != nil {
+		t.Fatalf("first install: %v", err)
+	}
+
+	second := newRootCmd()
+	second.SetArgs([]string{"install", "skills"})
+	var out bytes.Buffer
+	second.SetOut(&out)
+	if err := second.Execute(); err != nil {
+		t.Fatalf("second install: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "up to date") {
+		t.Errorf("output = %q, want mention of up to date", got)
+	}
+	if !strings.Contains(got, "--force") {
+		t.Errorf("output = %q, want next-command hint mentioning --force", got)
+	}
+}
+
+// TestInstall_Skills_ForceRedeploys covers the explicit-overwrite path: with
+// --force on an up-to-date install we still rewrite and report linked/copied.
+func TestInstall_Skills_ForceRedeploys(t *testing.T) {
+	claudeDir := t.TempDir()
+	skillsDir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+	t.Setenv("ANVIL_SKILLS_DIR", skillsDir)
+
+	first := newRootCmd()
+	first.SetArgs([]string{"install", "skills"})
+	first.SetOut(&bytes.Buffer{})
+	if err := first.Execute(); err != nil {
+		t.Fatalf("first install: %v", err)
+	}
+
+	forced := newRootCmd()
+	forced.SetArgs([]string{"install", "skills", "--force"})
+	var out bytes.Buffer
+	forced.SetOut(&out)
+	if err := forced.Execute(); err != nil {
+		t.Fatalf("forced install: %v", err)
+	}
+	if !strings.Contains(out.String(), "linked anvil skills") {
+		t.Errorf("output = %q, want linked anvil skills after --force", out.String())
+	}
+}
+
+// TestInstall_Skills_RefreshesOnContentDrift covers the dogfood case the
+// originating issue called out: an installed bundle whose recorded hash is
+// stale (e.g. binary rebuilt with new skill bodies) must redeploy automatically
+// without --force.
+func TestInstall_Skills_RefreshesOnContentDrift(t *testing.T) {
+	claudeDir := t.TempDir()
+	skillsDir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+	t.Setenv("ANVIL_SKILLS_DIR", skillsDir)
+
+	first := newRootCmd()
+	first.SetArgs([]string{"install", "skills"})
+	first.SetOut(&bytes.Buffer{})
+	if err := first.Execute(); err != nil {
+		t.Fatalf("first install: %v", err)
+	}
+	// Simulate a rebuilt binary whose embed differs from the recorded hash.
+	if err := os.WriteFile(filepath.Join(skillsDir, ".anvil-skills-hash"), []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	second := newRootCmd()
+	second.SetArgs([]string{"install", "skills"})
+	var out bytes.Buffer
+	second.SetOut(&out)
+	if err := second.Execute(); err != nil {
+		t.Fatalf("second install: %v", err)
+	}
+	if !strings.Contains(out.String(), "linked anvil skills") {
+		t.Errorf("output = %q, want linked anvil skills on drift", out.String())
+	}
+}
+
 func TestInstall_Skills_Uninstall(t *testing.T) {
 	claudeDir := t.TempDir()
 	skillsDir := t.TempDir()

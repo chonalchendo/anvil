@@ -74,7 +74,7 @@ func resolveClaudeSettingsPath() (string, error) {
 }
 
 func newInstallSkillsCmd() *cobra.Command {
-	var uninstall, useCopy bool
+	var uninstall, useCopy, force bool
 	cmd := &cobra.Command{
 		Use:   "skills",
 		Short: "Install (or remove) the bundled Anvil skills into ~/.claude/skills/<name>/",
@@ -100,23 +100,39 @@ func newInstallSkillsCmd() *cobra.Command {
 				}
 				return nil
 			}
-			changed, err := installer.InstallSkills(skills.FS, mat, target, useCopy)
+			// Skip the install when on-disk content already matches the
+			// embedded bundle and the user didn't pass --force. This makes
+			// re-running `anvil install skills` a content-aware no-op rather
+			// than a confusing "already installed" wall — the only case where
+			// we'd refuse useful work is when the embed has drifted, and the
+			// hash check covers that.
+			if !force {
+				if _, err := os.Stat(mat); err == nil {
+					fresh, err := installer.SkillsAreFresh(skills.FS, mat)
+					if err != nil {
+						return fmt.Errorf("checking skills freshness: %w", err)
+					}
+					if fresh {
+						cmd.Println("anvil skills up to date at", target+"; run `anvil install skills --force` to redeploy")
+						return nil
+					}
+				}
+			}
+			_, err = installer.InstallSkills(skills.FS, mat, target, useCopy)
 			if err != nil {
 				return fmt.Errorf("installing skills: %w", err)
 			}
-			switch {
-			case changed && useCopy:
+			if useCopy {
 				cmd.Println("copied anvil skills into", target)
-			case changed:
+			} else {
 				cmd.Println("linked anvil skills under", target, "->", mat)
-			default:
-				cmd.Println("anvil skills already installed at", target)
 			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove anvil skills instead of installing them")
 	cmd.Flags().BoolVar(&useCopy, "copy", false, "copy files instead of symlinking (use when symlinks aren't supported)")
+	cmd.Flags().BoolVar(&force, "force", false, "redeploy even when installed content matches the embedded bundle")
 	return cmd
 }
 

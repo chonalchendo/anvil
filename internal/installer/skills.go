@@ -118,15 +118,11 @@ func RefreshSkillsIfStale(srcFS fs.FS, materialiseDir, target string) (bool, err
 		}
 		return false, fmt.Errorf("stat %s: %w", materialiseDir, err)
 	}
-	expected, err := computeSkillsHash(srcFS)
+	fresh, err := SkillsAreFresh(srcFS, materialiseDir)
 	if err != nil {
-		return false, fmt.Errorf("hash skills: %w", err)
+		return false, err
 	}
-	onDisk, err := os.ReadFile(filepath.Join(materialiseDir, skillsHashFile))
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return false, fmt.Errorf("read skills hash: %w", err)
-	}
-	if err == nil && strings.TrimSpace(string(onDisk)) == expected {
+	if fresh {
 		return false, nil
 	}
 	useCopy, err := detectCopyMode(srcFS, target)
@@ -137,6 +133,24 @@ func RefreshSkillsIfStale(srcFS fs.FS, materialiseDir, target string) (bool, err
 		return false, err
 	}
 	return true, nil
+}
+
+// SkillsAreFresh reports whether the hash recorded under materialiseDir
+// matches srcFS. Returns false when the hash file is missing — callers
+// treat that as drift so a missing marker forces a refresh.
+func SkillsAreFresh(srcFS fs.FS, materialiseDir string) (bool, error) {
+	expected, err := computeSkillsHash(srcFS)
+	if err != nil {
+		return false, fmt.Errorf("hash skills: %w", err)
+	}
+	onDisk, err := os.ReadFile(filepath.Join(materialiseDir, skillsHashFile))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("read skills hash: %w", err)
+	}
+	return strings.TrimSpace(string(onDisk)) == expected, nil
 }
 
 func listSkillNames(srcFS fs.FS) ([]string, error) {
