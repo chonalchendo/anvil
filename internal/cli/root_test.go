@@ -9,6 +9,28 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
+func TestFlagLeadingErrRE(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"--body and --no-body are mutually exclusive", true},
+		{"--description too long: 160 chars (max 120)", true},
+		{"-f requires an argument", true},
+		{"---weird but still flag-shaped", true},
+		{"flag --body conflicts with --no-body", false},
+		{"unknown command", false},
+		{"-- needs a letter", false},
+		{"-1 leading digit, not a flag", false},
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := flagLeadingErrRE.MatchString(c.in); got != c.want {
+			t.Errorf("flagLeadingErrRE.MatchString(%q) = %v, want %v", c.in, got, c.want)
+		}
+	}
+}
+
 func TestRoot_VaultFlagOverridesEnvAndCwd(t *testing.T) {
 	flagDir := t.TempDir()
 	envDir := t.TempDir()
