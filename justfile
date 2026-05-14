@@ -23,10 +23,13 @@ run:
 # Install anvil into $(go env GOPATH)/bin and assert it's what PATH resolves to.
 # Closes the stale-binary smoke-test gap: if an older anvil is earlier on PATH,
 # `go install` succeeds but every subsequent `anvil` call runs the stale copy.
+# `-a` forces a full rebuild so edits to //go:embed sources (e.g. SKILL.md
+# bodies under skills/) reach the installed binary's embed.FS — without it
+# Go's build cache can reuse an object whose embed snapshot predates the edit.
 install:
     #!/usr/bin/env bash
     set -euo pipefail
-    go install ./cmd/anvil
+    go install -a ./cmd/anvil
     gobin="$(go env GOPATH)/bin/anvil"
     path_anvil="$(command -v anvil 2>/dev/null || true)"
     if [ -z "$path_anvil" ]; then
