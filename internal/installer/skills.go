@@ -231,7 +231,10 @@ func removeOneSkill(materialiseDir, target, name string) (bool, error) {
 		return true, nil
 	}
 	if _, err := os.Stat(filepath.Join(dst, skillMarker)); err != nil {
-		return false, nil
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("stat skill marker %s: %w", dst, err)
 	}
 	if err := os.RemoveAll(dst); err != nil {
 		return false, fmt.Errorf("remove %s: %w", dst, err)
@@ -262,7 +265,10 @@ func removeLegacyNamespace(target string) (bool, error) {
 		return true, nil
 	}
 	if _, err := os.Stat(filepath.Join(legacy, skillsHashFile)); err != nil {
-		return false, nil
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("stat legacy hash %s: %w", legacy, err)
 	}
 	if err := os.RemoveAll(legacy); err != nil {
 		return false, fmt.Errorf("remove legacy %s: %w", legacy, err)
@@ -276,9 +282,13 @@ func detectCopyMode(srcFS fs.FS, target string) (bool, error) {
 		return false, err
 	}
 	for _, name := range names {
-		info, err := os.Lstat(filepath.Join(target, name))
+		child := filepath.Join(target, name)
+		info, err := os.Lstat(child)
 		if err != nil {
-			continue
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return false, fmt.Errorf("stat %s: %w", child, err)
 		}
 		return info.Mode()&os.ModeSymlink == 0, nil
 	}
