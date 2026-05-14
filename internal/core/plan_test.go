@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -234,6 +235,52 @@ tasks:
 	wantCtx := []string{"docs/code-design.md", "docs/go-conventions.md"}
 	if len(gotCtx) != len(wantCtx) || gotCtx[0] != wantCtx[0] || gotCtx[1] != wantCtx[1] {
 		t.Errorf("ContextToLoad = %v, want %v", gotCtx, wantCtx)
+	}
+}
+
+// TestPlanLoad_CorruptFrontmatterDoesNotLeakStdlib verifies that LoadArtifact
+// (used by the facet walk and plan loader) wraps corrupt-YAML errors with
+// ErrFrontmatterParse rather than leaking raw "strconv.ParseInt" or
+// "yaml: line N: found character that cannot start any token" strings to
+// callers. This is the acceptance test for the stdlib-error-leak sweep.
+func TestPlanLoad_CorruptFrontmatterDoesNotLeakStdlib(t *testing.T) {
+	// A file whose YAML frontmatter contains a leading backtick in an unquoted
+	// value — the same class of failure documented in the issue body
+	// ("found character that cannot start any token").
+	corrupt := "---\ntype: issue\nid: test.corrupt\ntitle: test corrupt\ntags:\n  - `bad-token\n---\nBody\n"
+	dir := t.TempDir()
+	path := filepath.Join(dir, "corrupt.md")
+	if err := os.WriteFile(path, []byte(corrupt), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := LoadArtifact(path)
+	if err == nil {
+		t.Fatal("expected error for corrupt YAML, got nil")
+	}
+
+	// Must carry ErrFrontmatterParse so callers (e.g. facet walk) can tolerate it.
+	if !errors.Is(err, ErrFrontmatterParse) {
+		t.Errorf("error does not wrap ErrFrontmatterParse: %v", err)
+	}
+
+	// Must NOT leak raw stdlib strings — agents should never see these.
+	rawLeaks := []string{
+		"strconv.ParseInt",
+		"strconv.Atoi",
+	}
+	msg := err.Error()
+	for _, leak := range rawLeaks {
+		if strings.Contains(msg, leak) {
+			t.Errorf("error leaks raw stdlib string %q: %s", leak, msg)
+		}
+	}
+
+	// The yaml error itself may still appear in the enriched message, but it
+	// must be accompanied by an actionable hint — not the bare "yaml: line N:"
+	// format. Check that enrichYAMLError fired (hint or field context present).
+	if strings.Contains(msg, "yaml: line") && !strings.Contains(msg, "hint:") && !strings.Contains(msg, "near line") {
+		t.Errorf("yaml error appears unenriched (no hint/near-line context): %s", msg)
 	}
 }
 
