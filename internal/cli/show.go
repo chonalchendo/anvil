@@ -43,7 +43,18 @@ func newShowCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			args[1] = stripTypePrefix(t, args[1])
+			if t.AllocatesID() {
+				prefix := string(t) + "."
+				if strings.HasPrefix(args[1], prefix) {
+					candidate := strings.TrimPrefix(args[1], prefix)
+					// Guard: only strip when remainder still contains "." —
+					// proves the input is "<type>.<project>.<slug>", not the
+					// bare ID "<type>.<project>" where project equals type name.
+					if strings.Contains(candidate, ".") {
+						args[1] = candidate
+					}
+				}
+			}
 			if flagBody && flagNoBody {
 				return fmt.Errorf("--body and --no-body are mutually exclusive")
 			}
@@ -245,16 +256,6 @@ func resolveArtifactPath(vaultRoot string, t core.Type, id string) string {
 	}
 	project := strings.TrimPrefix(id, string(t)+".")
 	return filepath.Join(vaultRoot, t.Dir(), project, string(t)+".md")
-}
-
-// stripTypePrefix removes a leading "<type>." from id when t allocates IDs —
-// wikilinks are emitted as "<type>.<id>" and callers may paste them verbatim.
-func stripTypePrefix(t core.Type, id string) string {
-	prefix := string(t) + "."
-	if t.AllocatesID() && strings.HasPrefix(id, prefix) {
-		return id[len(prefix):]
-	}
-	return id
 }
 
 func emitFrontMatterText(cmd *cobra.Command, fm map[string]any) {
