@@ -69,5 +69,7 @@ check:
     go run ./cmd/anvil validate "$vault_dir"
 
 # Install pre-commit hooks via prek. Requires `brew install j178/tap/prek` first.
+# --allow-missing-config so the hook no-ops on branches without .pre-commit-config.yaml
+# instead of erroring on every commit (cross-branch friction).
 install-hooks:
-    prek install
+    prek install --allow-missing-config
