@@ -58,7 +58,7 @@ Then run every command in the plan's `verification.pre_build` field. Stop on any
 
 For each task in a wave, in order:
 
-1. Read the task body: `anvil show plan <id> --task <task-id> --body`. Streams just that task's section.
+1. Read the task fields: `anvil show plan <id> --task <task-id>`. Returns the structured fields the executor needs (success_criteria, verify, files, depends_on). If the task body has prose you need (ambiguous task, embedded code block), opt in with `--body`.
 
 2. Write the failing test exactly as the task specifies.
 3. Run verify, observe RED. If it doesn't fail, the test contract is wrong — stop and revise the plan.
