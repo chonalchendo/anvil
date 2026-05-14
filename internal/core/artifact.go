@@ -32,15 +32,26 @@ func LoadArtifact(path string) (*Artifact, error) {
 	if err != nil {
 		return nil, err
 	}
+	a, err := ParseArtifact(b)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	a.Path = path
+	return a, nil
+}
+
+// ParseArtifact splits raw bytes into frontmatter and body. Path is left blank;
+// callers that have an originating path should set Path themselves. Used by
+// `anvil create --from <path|->` to ingest an authored artifact from memory.
+func ParseArtifact(b []byte) (*Artifact, error) {
 	rest, body, ok := splitFrontMatter(b)
 	if !ok {
-		return nil, fmt.Errorf("no frontmatter delimiter in %s: %w", path, ErrFrontmatterParse)
+		return nil, fmt.Errorf("no frontmatter delimiter: %w", ErrFrontmatterParse)
 	}
-	a := &Artifact{Path: path, FrontMatter: map[string]any{}}
+	a := &Artifact{FrontMatter: map[string]any{}, Body: body}
 	if err := yaml.Unmarshal(rest, &a.FrontMatter); err != nil {
-		return nil, fmt.Errorf("parse frontmatter %s: %w", path, errors.Join(enrichYAMLError(rest, err), ErrFrontmatterParse))
+		return nil, fmt.Errorf("parse frontmatter: %w", errors.Join(enrichYAMLError(rest, err), ErrFrontmatterParse))
 	}
-	a.Body = body
 	return a, nil
 }
 

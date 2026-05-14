@@ -320,6 +320,210 @@ func TestCreatePlan_RequiresIssue(t *testing.T) {
 	}
 }
 
+// planFromInput is the canonical --from input fixture: rich tasks frontmatter
+// plus per-task body sections — the shape an agent would author locally to
+// avoid the create-stub-then-edit roundtrip.
+const planFromInput = `---
+type: plan
+title: "From-file plan"
+description: "drives --from coverage"
+status: draft
+plan_version: 1
+issue: "[[issue.foo.from-target]]"
+tags: [domain/dev-tools]
+project: foo
+tasks:
+  - id: T1
+    title: "First task"
+    kind: tdd
+    skills_to_load: []
+    context_to_load: []
+    files: []
+    depends_on: []
+    verify: "go test ./..."
+    success_criteria: ["builds"]
+  - id: T2
+    title: "Second task"
+    kind: tdd
+    skills_to_load: []
+    context_to_load: []
+    files: []
+    depends_on: [T1]
+    verify: "go test ./..."
+    success_criteria: ["ships"]
+verification:
+  pre_build: ["go vet ./..."]
+  post_build: ["go test ./..."]
+---
+
+## Task: T1
+
+Body for the first task.
+
+## Task: T2
+
+Body for the second task.
+`
+
+func TestCreatePlan_From_FileRoundTripsTasksAndBody(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	input := filepath.Join(t.TempDir(), "plan.md")
+	if err := os.WriteFile(input, []byte(planFromInput), 0o644); err != nil {
+		t.Fatalf("write input: %v", err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "plan",
+		"--title", "From-file plan",
+		"--issue", "[[issue.foo.from-target]]",
+		"--from", input,
+		"--allow-new-facet=domain",
+	})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create plan --from: %v\n%s", err, stderr.String())
+	}
+
+	p, err := core.LoadPlan(filepath.Join(vault, "80-plans", "foo.from-target.md"))
+	if err != nil {
+		t.Fatalf("load plan: %v", err)
+	}
+	if len(p.Tasks) != 2 {
+		t.Fatalf("expected 2 tasks from --from input, got %d", len(p.Tasks))
+	}
+	if p.Tasks[1].ID != "T2" || len(p.Tasks[1].DependsOn) != 1 || p.Tasks[1].DependsOn[0] != "T1" {
+		t.Errorf("task DAG did not survive --from round-trip: %+v", p.Tasks[1])
+	}
+	if !strings.Contains(p.Tasks[0].Body, "Body for the first task") {
+		t.Errorf("T1 body did not round-trip via --from: %q", p.Tasks[0].Body)
+	}
+}
+
+func TestCreatePlan_From_StdinPath(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "plan",
+		"--title", "From-file plan",
+		"--issue", "[[issue.foo.from-target]]",
+		"--from", "-",
+		"--allow-new-facet=domain",
+	})
+	cmd.SetIn(strings.NewReader(planFromInput))
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create plan --from -: %v\n%s", err, stderr.String())
+	}
+
+	p, err := core.LoadPlan(filepath.Join(vault, "80-plans", "foo.from-target.md"))
+	if err != nil {
+		t.Fatalf("load plan: %v", err)
+	}
+	if len(p.Tasks) != 2 {
+		t.Fatalf("expected 2 tasks from stdin, got %d", len(p.Tasks))
+	}
+}
+
+func TestCreatePlan_From_RejectsOnNonPlan(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	input := filepath.Join(t.TempDir(), "x.md")
+	if err := os.WriteFile(input, []byte(planFromInput), 0o644); err != nil {
+		t.Fatalf("write input: %v", err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "y", "--tags", "domain/dev-tools", "--allow-new-facet=domain", "--from", input})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "plan only") {
+		t.Errorf("expected plan-only error, got: %v", err)
+	}
+}
+
+func TestCreatePlan_From_MutexWithBody(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	input := filepath.Join(t.TempDir(), "x.md")
+	if err := os.WriteFile(input, []byte(planFromInput), 0o644); err != nil {
+		t.Fatalf("write input: %v", err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "plan",
+		"--title", "x",
+		"--issue", "[[issue.foo.from-target]]",
+		"--from", input,
+		"--body", "literal body",
+		"--allow-new-facet=domain",
+	})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("expected mutex error, got: %v", err)
+	}
+}
+
+func TestCreatePlan_From_CLIFlagsOverrideFileFields(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	input := filepath.Join(t.TempDir(), "plan.md")
+	if err := os.WriteFile(input, []byte(planFromInput), 0o644); err != nil {
+		t.Fatalf("write input: %v", err)
+	}
+
+	// File has title "From-file plan" and description "drives --from coverage";
+	// CLI passes overrides for both — CLI must win.
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "plan",
+		"--title", "CLI-supplied title",
+		"--description", "CLI-supplied description",
+		"--issue", "[[issue.foo.from-target]]",
+		"--from", input,
+		"--allow-new-facet=domain",
+	})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create plan: %v\n%s", err, stderr.String())
+	}
+
+	a, _ := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.from-target.md"))
+	if a.FrontMatter["title"] != "CLI-supplied title" {
+		t.Errorf("CLI --title should override file title, got %v", a.FrontMatter["title"])
+	}
+	if a.FrontMatter["description"] != "CLI-supplied description" {
+		t.Errorf("CLI --description should override file description, got %v", a.FrontMatter["description"])
+	}
+}
+
 func TestCreateMilestone_SeedsAcceptanceSlot(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
