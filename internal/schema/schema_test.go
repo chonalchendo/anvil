@@ -140,6 +140,7 @@ func TestValidate_Milestone_NewShape(t *testing.T) {
 	fm := map[string]any{
 		"type": "milestone", "title": "M3", "description": "x", "created": "2026-04-29",
 		"status": "planned", "project": "anvil",
+		"kind":           "scoped",
 		"product_design": "[[product-design.anvil]]",
 		"system_design":  "[[system-design.anvil]]",
 		"authorized_by":  []any{"[[decision.anvil.0001]]"},
@@ -147,6 +148,56 @@ func TestValidate_Milestone_NewShape(t *testing.T) {
 	}
 	if err := Validate("milestone", fm); err != nil {
 		t.Fatalf("expected valid: %v", err)
+	}
+}
+
+func TestValidate_Milestone_RequiresKind(t *testing.T) {
+	fm := map[string]any{
+		"type": "milestone", "title": "M", "description": "x",
+		"created": "2026-04-29", "status": "planned", "project": "anvil",
+		"acceptance": []any{"done"},
+	}
+	if err := Validate("milestone", fm); err == nil {
+		t.Error("expected rejection: kind is required")
+	}
+}
+
+func TestValidate_Milestone_KindScopedAcceptsEmptyAcceptance(t *testing.T) {
+	// Schema-level kind+acceptance gate is intentionally absent: the issue's
+	// acceptance criteria called for a warn, not a hard reject, and the
+	// transition-time gate is tracked separately. See plan locked decision D3.
+	fm := map[string]any{
+		"type": "milestone", "title": "M", "description": "x",
+		"created": "2026-04-29", "status": "planned", "project": "anvil",
+		"kind":       "scoped",
+		"acceptance": []any{},
+	}
+	if err := Validate("milestone", fm); err != nil {
+		t.Fatalf("expected valid scoped milestone with empty acceptance (schema-level): %v", err)
+	}
+}
+
+func TestValidate_Milestone_KindBucketAllowsEmptyAcceptance(t *testing.T) {
+	fm := map[string]any{
+		"type": "milestone", "title": "M", "description": "x",
+		"created": "2026-04-29", "status": "planned", "project": "anvil",
+		"kind":       "bucket",
+		"acceptance": []any{},
+	}
+	if err := Validate("milestone", fm); err != nil {
+		t.Fatalf("expected valid bucket milestone: %v", err)
+	}
+}
+
+func TestValidate_Milestone_RejectsUnknownKind(t *testing.T) {
+	fm := map[string]any{
+		"type": "milestone", "title": "M", "description": "x",
+		"created": "2026-04-29", "status": "planned", "project": "anvil",
+		"kind":       "epic",
+		"acceptance": []any{"done"},
+	}
+	if err := Validate("milestone", fm); err == nil {
+		t.Error("expected rejection: kind enum")
 	}
 }
 

@@ -316,6 +316,7 @@ func TestShowValidate_Milestone_DanglingArrayEntry(t *testing.T) {
 		FrontMatter: map[string]any{
 			"type": "milestone", "title": "M", "description": "fixture description", "created": "2026-04-29",
 			"status": "planned", "project": "foo",
+			"kind":    "bucket",
 			"related": []any{"[[issue.foo.ghost]]"},
 		},
 	}
