@@ -49,7 +49,7 @@ install:
 validate vault="":
     @if [ -z "{{vault}}" ]; then go run ./cmd/anvil validate; else go run ./cmd/anvil validate {{vault}}; fi
 
-# Run all local checks in CI order: fmt, lint, vet, test. Mirrors .github/workflows/ci.yml.
+# Run all local checks in CI order: fmt, lint, vet, build, test, init+validate smoke. Mirrors .github/workflows/ci.yml.
 check:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -61,7 +61,12 @@ check:
     fi
     go tool -modfile=tool.go.mod golangci-lint run ./...
     go vet ./...
+    go build ./...
     go test ./...
+    vault_dir="$(mktemp -d)"
+    trap 'rm -rf "$vault_dir"' EXIT
+    go run ./cmd/anvil init "$vault_dir"
+    go run ./cmd/anvil validate "$vault_dir"
 
 # Install pre-commit hooks via prek. Requires `brew install j178/tap/prek` first.
 install-hooks:
