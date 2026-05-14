@@ -519,6 +519,41 @@ func TestShow_NoIncomingFlagSuppresses(t *testing.T) {
 	}
 }
 
+// TestShow_PrefixedIDResolvesLikeBareID asserts parity with transition/set:
+// "issue.foo.bar" and "foo.bar" must resolve the same artifact.
+func TestShow_PrefixedIDResolvesLikeBareID(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "bar", "Bar issue")
+
+	cases := []struct {
+		name string
+		id   string
+	}{
+		{"bare", "foo.bar"},
+		{"prefixed", "issue.foo.bar"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := newRootCmd()
+			out, _, err := runCmd(t, cmd, "show", "issue", tc.id, "--json", "--no-body")
+			if err != nil {
+				t.Fatalf("id=%q: unexpected error: %v", tc.id, err)
+			}
+			var got map[string]any
+			if err := json.Unmarshal([]byte(out), &got); err != nil {
+				t.Fatalf("invalid JSON: %v\n%s", err, out)
+			}
+			fm, ok := got["frontmatter"].(map[string]any)
+			if !ok {
+				t.Fatalf("frontmatter missing: %v", got)
+			}
+			if fm["title"] != "Bar issue" {
+				t.Errorf("id=%q: title=%v, want \"Bar issue\"", tc.id, fm["title"])
+			}
+		})
+	}
+}
+
 // TestShow_NoIncomingEdgesRendersCleanly ensures the section header doesn't
 // dangle when no incoming edges exist.
 func TestShow_NoIncomingEdgesRendersCleanly(t *testing.T) {
