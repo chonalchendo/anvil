@@ -46,8 +46,10 @@ Anvil is its own primary user. Friction surfaced while working on this repo goes
 
 **The CLI is the highest-priority friction surface.** Measure every verb, flag, and error against `@docs/agent-cli-principles.md`. A violation is friction by design — log it even when it didn't block you.
 
-- Raw thought → `anvil create inbox --title "<one line>" --suggested-type issue`.
-- Reproducible → `anvil create issue --project anvil ...` linked to the active milestone. Quote the failing invocation verbatim with observed-vs-expected delta.
+Route by shape, not domain — if you can name an acceptance criterion in one breath, it's an issue:
+
+- Raw / fuzzy thought → `anvil create inbox --title "<one line>" --suggested-type issue`.
+- Shaped (problem + AC) → `anvil create issue --project anvil ...` linked to the active milestone. Quote the failing invocation verbatim with observed-vs-expected delta.
 - **No structural PR without a vault antecedent.** Structural change = touches `AGENTS.md`, `docs/`, `.claude/`, `internal/schema/`, or adds a new top-level dir. The PR must reference an issue or inbox id.
 
 Friction must square against `@docs/product-design.md`, `@docs/system-design.md`, `@docs/system-design/roadmap.md`. Monitor first-principles contracts — traceability, context budget, iron-law substance, no-scaffolding pitch — a break is vault-issue-worthy at severity ≥ high.
