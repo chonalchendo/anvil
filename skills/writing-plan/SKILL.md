@@ -190,14 +190,16 @@ anvil transition plan <id> in-progress --reason "<why>"
 
 The planner closes its phase at `locked`; the executor owns every transition after. Lock-before-execute is the contract: any plan in `draft` is not yet committed material.
 
-## YAML frontmatter traps
+## Phase 6 gotchas (YAML + schema)
 
-The validator surfaces these as cryptic parse errors. Quote any scalar that hits them with `'...'` or `"..."`:
+The validator surfaces these as cryptic parse errors. Quote any scalar that hits the YAML traps with `'...'` or `"..."`:
 
 - **Backtick-prefixed scalar** — `` `cmd`: ... `` parses as a tag, not a string. Write `` '`cmd`: ...' ``.
 - **Colon-space inside a value** — `summary: foo: bar` parses as a nested mapping. Write `summary: 'foo: bar'`.
 - **Leading reserved indicators** (`>`, `|`, `&`, `*`, `!`, `%`, `@`, `` ` ``) — quote the value.
 - **Multi-line text** — use block scalars (`>` folded, `|` literal) instead of embedded `\n`.
+- **Task `id` regex `^T[0-9]+$`** — `T1a`, `t1`, `T-1`, `task-1` all reject. Every `depends_on` entry follows the same pattern.
+- **Task `kind` enum** — `tdd` or `mechanical` only. `refactor`, `chore`, `docs` fail validation; pick `mechanical` for non-TDD tasks per Phase 4's escape hatch.
 
 ## Forbidden patterns
 
