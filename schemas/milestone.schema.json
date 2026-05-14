@@ -3,7 +3,7 @@
   "$id": "https://anvil.dev/schemas/milestone.schema.json",
   "title": "milestone",
   "type": "object",
-  "required": ["type", "title", "description", "created", "status", "project"],
+  "required": ["type", "title", "description", "created", "status", "project", "kind"],
   "properties": {
     "type":           { "const": "milestone" },
     "title":          { "type": "string", "minLength": 1 },
@@ -11,6 +11,7 @@
     "created":        { "type": "string", "format": "date" },
     "updated":        { "type": "string", "format": "date" },
     "status":         { "enum": ["planned", "in-progress", "done", "abandoned"] },
+    "kind":           { "enum": ["scoped", "bucket"] },
     "tags":           { "type": "array", "items": { "type": "string" } },
     "aliases":        { "type": "array", "items": { "type": "string" } },
     "project":        { "type": "string", "minLength": 1 },

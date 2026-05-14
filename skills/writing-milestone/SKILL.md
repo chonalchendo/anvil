@@ -57,9 +57,10 @@ Confirm with the user which design doc to derive from (product or system, or bot
 Draft the following before calling the CLI:
 
 - **title** — one line; verb-noun ("Ship X", "Validate Y", "Deliver Z").
-- **acceptance** — testable conditions for "done"; each must be checkable without ambiguity.
+- **kind** — `scoped` (the default — discrete shippable bundle with acceptance criteria) or `bucket` (rolling-findings tracker; `acceptance` stays `[]`). Pick `bucket` only for friction-collection milestones; everything else is `scoped`.
+- **acceptance** — testable conditions for "done"; each must be checkable without ambiguity. Required substance for `kind: scoped`; warn the user before leaving it empty.
 
-**Gate:** user confirms title and acceptance criteria.
+**Gate:** user confirms title, kind, and acceptance criteria.
 
 ---
 
@@ -71,7 +72,13 @@ anvil create milestone \
   --json
 ```
 
-Capture `id` and `path` from the JSON output. Then direct-edit the body sections (objectives, success criteria, non-goals) into the file the CLI created at `path`.
+Capture `id` and `path` from the JSON output. The artifact ships with `kind: scoped` by default. If this is a bucket milestone, flip it now:
+
+```bash
+anvil set milestone <id> kind bucket
+```
+
+Then direct-edit the body sections (objectives, success criteria, non-goals) into the file the CLI created at `path`.
 
 ---
 
