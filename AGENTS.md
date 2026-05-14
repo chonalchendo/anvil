@@ -24,6 +24,8 @@ Ask: "Would a senior engineer call this overcomplicated?" If yes, simplify.
 
 Every task runs in a worktree and lands via PR. Never commit directly on `master`. See `@docs/worktree-workflow.md` for the cut command, merge cleanup, the smoke-test gate required before every PR, and the wait-on-human-gated-PR rule.
 
+**Install with `just install` only.** Never `go install ./cmd/anvil` directly — bypasses the PATH-shadow inode check and silently hands you a stale binary.
+
 ## Working through issues
 
 - Pick from `anvil list issue --ready --json`, not arbitrary `anvil list issue`. Ready issues have no unresolved blockers.
