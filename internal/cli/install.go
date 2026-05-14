@@ -5,12 +5,28 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/internal/installer"
 	"github.com/chonalchendo/anvil/skills"
 )
+
+// autoRefreshWarned tracks offending paths the current process has already
+// warned about during auto-refresh. Process-scoped only — explicit v0.1
+// non-goal to persist across invocations. Keyed by the offending absolute
+// path extracted from the installer refusal error.
+var autoRefreshWarned sync.Map
+
+// resetAutoRefreshWarnedForTest clears the once-per-process warning gate so
+// tests can exercise repeated invocations within a single test process.
+func resetAutoRefreshWarnedForTest() {
+	autoRefreshWarned.Range(func(k, _ any) bool {
+		autoRefreshWarned.Delete(k)
+		return true
+	})
+}
 
 const sessionStartHookCommand = `anvil install fire-session-start`
 
@@ -169,12 +185,54 @@ func refreshSkillsIfStale(cmd *cobra.Command) {
 	}
 	refreshed, err := installer.RefreshSkillsIfStale(skills.FS, mat, target)
 	if err != nil {
+		// Suppress repeat warnings for the same offending path within this
+		// process. The path is embedded in the installer refusal error
+		// (format locked by T1 in internal/installer/skills.go). For errors
+		// we can't classify, fall through and warn — better noisy than
+		// silently dropping a new failure mode.
+		key := refusalPathKey(err)
+		if _, loaded := autoRefreshWarned.LoadOrStore(key, struct{}{}); loaded {
+			return
+		}
 		cmd.PrintErrln("anvil: skills auto-refresh failed:", err)
 		return
 	}
 	if refreshed {
 		cmd.PrintErrln("anvil: refreshed stale skills bundle at", target)
 	}
+}
+
+// refusalPathKey extracts the offending path from an installer refusal
+// error so once-per-process warning suppression keys on the path, not the
+// error identity. Returns the raw error string when the refusal marker is
+// absent — that bucket warns at most once for non-refusal failure modes.
+func refusalPathKey(err error) string {
+	msg := err.Error()
+	marker := "refusing to overwrite"
+	idx := strings.Index(msg, marker)
+	if idx < 0 {
+		return msg
+	}
+	// Skip past "refusing to overwrite " then the qualifier word
+	// ("non-symlink" or "non-anvil dir"); the path follows.
+	rest := msg[idx+len(marker):]
+	rest = strings.TrimLeft(rest, " ")
+	// Drop the qualifier — everything up to the next space, but "non-anvil
+	// dir" has an embedded space, so walk word-by-word until we hit a token
+	// that looks like a path (starts with "/").
+	for rest != "" {
+		sp := strings.IndexByte(rest, ' ')
+		if sp < 0 {
+			break
+		}
+		token := rest[:sp]
+		rest = rest[sp+1:]
+		if strings.HasPrefix(token, "/") {
+			// trim trailing ';' if present
+			return strings.TrimRight(token, ";")
+		}
+	}
+	return msg
 }
 
 func resolveAnvilSkillsMaterialiseDir() (string, error) {
