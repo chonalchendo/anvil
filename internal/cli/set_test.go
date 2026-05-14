@@ -370,6 +370,51 @@ func TestSet_ArrayRemove_OOB_Errors(t *testing.T) {
 	}
 }
 
+func TestSet_ArrayRemove_ByValue(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	for _, v := range []string{"x", "y", "z"} {
+		c := newRootCmd()
+		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", v})
+		if err := c.Execute(); err != nil {
+			t.Fatalf("--add %s: %v", v, err)
+		}
+	}
+	c2 := newRootCmd()
+	c2.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--remove", "y"})
+	if err := c2.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	got, _ := a.FrontMatter["acceptance"].([]any)
+	if len(got) != 2 || got[0] != "x" || got[1] != "z" {
+		t.Errorf("acceptance = %v", got)
+	}
+}
+
+func TestSet_ArrayRemove_UnknownValue_CleanError(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	c1 := newRootCmd()
+	c1.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "x"})
+	_ = c1.Execute()
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--remove", "domain/skills"})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for unknown value")
+	}
+	if strings.Contains(err.Error(), "strconv") {
+		t.Errorf("error leaked strconv internals: %v", err)
+	}
+	if !strings.Contains(err.Error(), "domain/skills") {
+		t.Errorf("error did not name the offending value: %v", err)
+	}
+}
+
 func TestSet_AddAndRemove_Together_Errors(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")

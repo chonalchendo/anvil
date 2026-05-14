@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -16,7 +17,7 @@ import (
 func newSetCmd() *cobra.Command {
 	var (
 		flagAdd           string
-		flagRemove        int
+		flagRemove        string
 		flagAddSet        bool
 		flagRemSet        bool
 		flagAllowNewFacet []string
@@ -89,12 +90,13 @@ func newSetCmd() *cobra.Command {
 					result.Status = "added"
 				case flagRemSet:
 					existing := arrayValue(a.FrontMatter[field])
-					if flagRemove < 0 || flagRemove >= len(existing) {
-						return fmt.Errorf("--remove %d out of bounds (len=%d)", flagRemove, len(existing))
+					idx, err := resolveRemoveTarget(flagRemove, existing, field)
+					if err != nil {
+						return err
 					}
 					before := append([]any(nil), existing...)
-					removed := existing[flagRemove]
-					next := append(existing[:flagRemove], existing[flagRemove+1:]...)
+					removed := existing[idx]
+					next := append(existing[:idx], existing[idx+1:]...)
 					a.FrontMatter[field] = next
 					result.From = before
 					result.To = append([]any(nil), next...)
@@ -108,7 +110,7 @@ func newSetCmd() *cobra.Command {
 					return fmt.Errorf(
 						"field %q is an array (field_is_array); positional values are not accepted — use --add or --remove\n"+
 							"  corrected: anvil set %s %s %s --add %q\n"+
-							"             anvil set %s %s %s --remove INDEX",
+							"             anvil set %s %s %s --remove VALUE_OR_INDEX",
 						field,
 						args[0], args[1], field, sample,
 						args[0], args[1], field,
@@ -193,7 +195,7 @@ func newSetCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&flagAdd, "add", "", "append a value to an array field")
-	cmd.Flags().IntVar(&flagRemove, "remove", 0, "remove the value at the given 0-based index from an array field")
+	cmd.Flags().StringVar(&flagRemove, "remove", "", "remove a value from an array field (matches exact value; falls back to 0-based index)")
 	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet(s) to suppress novelty gate for (tags only)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
 	cmd.PreRunE = func(c *cobra.Command, _ []string) error {
@@ -240,6 +242,28 @@ func formatSetValue(v any) string {
 		return s
 	}
 	return fmt.Sprintf("%v", v)
+}
+
+// resolveRemoveTarget maps a --remove argument to an index into existing.
+// Value-mode wins: if input matches an existing entry exactly, that index is
+// returned. Otherwise the input is parsed as a 0-based index. Anything else is
+// a clean validation error (no strconv leak).
+func resolveRemoveTarget(input string, existing []any, field string) (int, error) {
+	for i, v := range existing {
+		if s, ok := v.(string); ok && s == input {
+			return i, nil
+		}
+	}
+	if idx, err := strconv.Atoi(input); err == nil {
+		if idx < 0 || idx >= len(existing) {
+			return 0, fmt.Errorf("--remove %d out of bounds (len=%d)", idx, len(existing))
+		}
+		return idx, nil
+	}
+	return 0, fmt.Errorf(
+		"--remove %q: no such value in %q and not a valid 0-based index (len=%d); pass an existing value or an integer index",
+		input, field, len(existing),
+	)
 }
 
 // arrayValue normalises a frontmatter value into []any. yaml.v3 may decode
