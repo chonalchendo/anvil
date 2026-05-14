@@ -15,7 +15,7 @@ description: |
 You enter this skill holding:
 
 1. A validated plan at `~/anvil-vault/80-plans/<id>.md`.
-2. A clean working tree on the issue's branch (or a dedicated worktree).
+2. A dedicated worktree for this plan's branch (see Phase 0).
 3. The user's intent to start inline execution.
 
 ## When to use this skill vs `anvil build`
@@ -29,9 +29,21 @@ Defer to `anvil build` when:
 
 > **CLI gap:** `anvil build <plan-path>` is the future default for orchestrated runs. See spec gaps #7–#10. Today, walk inline.
 
+## Phase 0 — Cut a worktree (default)
+
+Branched work runs in a dedicated worktree, not the parent checkout. Parallel sessions sharing one checkout collide on branch switches and bleed working-tree state across issues.
+
+Cut per `@docs/worktree-workflow.md` (or `superpowers:using-git-worktrees` outside this repo). Surface the worktree path back to the user on claim so they (and any parallel session) see where the work lives:
+
+```text
+Claimed <issue-id>. Working in <worktree-path> on branch <branch>.
+```
+
+**Opt out only for:** read-only inspection, single-file in-place fixes on a branch the user is already on, or when the user explicitly says "stay in this checkout." Note the deviation in the claim line.
+
 ## Phase 1 — Pre-flight
 
-Run in order. Stop on first failure.
+Run in order, **from inside the worktree**. Stop on first failure.
 
 ```bash
 anvil show plan <plan-id> --validate --waves    # must exit 0
