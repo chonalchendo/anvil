@@ -198,8 +198,8 @@ func TestShow_PlanTaskTerseByDefault(t *testing.T) {
 	if verify, _ := task["verify"].(string); verify == "" {
 		t.Errorf("task.verify empty: %v", task["verify"])
 	}
-	if body, present := got["body"]; present && body != nil {
-		t.Errorf("body should be absent without --body, got %v", body)
+	if _, present := got["body"]; present {
+		t.Errorf("body should be omitted without --body, got key with value %v", got["body"])
 	}
 	if strings.Contains(out, "Context the executor needs") {
 		t.Errorf("body prose marker leaked into terse output:\n%s", out)
