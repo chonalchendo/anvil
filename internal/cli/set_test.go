@@ -333,6 +333,80 @@ func TestSet_ArrayAdd_Appends(t *testing.T) {
 	}
 }
 
+// Repeated --add flags in a single invocation must each append; previously the
+// last value silently overwrote the prior ones because flagAdd was a scalar
+// StringVar that only retained the most recent occurrence.
+func TestSet_ArrayAdd_RepeatedFlags_AppendsAll(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	c := newRootCmd()
+	c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "x", "--add", "y", "--add", "z"})
+	var out bytes.Buffer
+	c.SetOut(&out)
+	c.SetErr(&out)
+	if err := c.Execute(); err != nil {
+		t.Fatalf("set: %v\n%s", err, out.String())
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	got, _ := a.FrontMatter["acceptance"].([]any)
+	if len(got) != 3 || got[0] != "x" || got[1] != "y" || got[2] != "z" {
+		t.Errorf("acceptance = %v, want [x y z]", got)
+	}
+}
+
+// Repeated --remove flags in a single invocation must each remove; same
+// scalar-overwrite bug as --add. Removing by value (not index) so the order
+// of removal doesn't shift indices unsafely.
+func TestSet_ArrayRemove_RepeatedFlags_RemovesAll(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	for _, v := range []string{"x", "y", "z"} {
+		c := newRootCmd()
+		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", v})
+		if err := c.Execute(); err != nil {
+			t.Fatalf("--add %s: %v", v, err)
+		}
+	}
+	c2 := newRootCmd()
+	c2.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--remove", "x", "--remove", "z"})
+	var out bytes.Buffer
+	c2.SetOut(&out)
+	c2.SetErr(&out)
+	if err := c2.Execute(); err != nil {
+		t.Fatalf("set: %v\n%s", err, out.String())
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	got, _ := a.FrontMatter["acceptance"].([]any)
+	if len(got) != 1 || got[0] != "y" {
+		t.Errorf("acceptance = %v, want [y]", got)
+	}
+}
+
+func TestSet_ArrayRemove_DuplicateStringTarget_Errors(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	for _, v := range []string{"x", "y"} {
+		c := newRootCmd()
+		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", v})
+		if err := c.Execute(); err != nil {
+			t.Fatalf("--add %s: %v", v, err)
+		}
+	}
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--remove", "x", "--remove", "x"})
+	var buf bytes.Buffer
+	cmd.SetErr(&buf)
+	cmd.SetOut(&buf)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected duplicate-target error")
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	got, _ := a.FrontMatter["acceptance"].([]any)
+	if len(got) != 2 {
+		t.Errorf("acceptance mutated on error: %v", got)
+	}
+}
+
 func TestSet_ArrayRemove_Index(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
