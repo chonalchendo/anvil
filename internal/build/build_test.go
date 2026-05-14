@@ -70,10 +70,14 @@ func twoTaskPlan() *core.Plan {
 	return &core.Plan{
 		ID: "anvil.demo", Slug: "demo", Status: "ready",
 		Tasks: []core.Task{
-			{ID: "T1", Title: "Wave-0 task", Model: "claude-sonnet-4-6", Effort: "medium",
-				Body: "do T1", Verify: "true"},
-			{ID: "T2", Title: "Wave-1 task", Model: "claude-sonnet-4-6", Effort: "medium",
-				Body: "do T2", Verify: "true", DependsOn: []string{"T1"}},
+			{
+				ID: "T1", Title: "Wave-0 task", Model: "claude-sonnet-4-6", Effort: "medium",
+				Body: "do T1", Verify: "true",
+			},
+			{
+				ID: "T2", Title: "Wave-1 task", Model: "claude-sonnet-4-6", Effort: "medium",
+				Body: "do T2", Verify: "true", DependsOn: []string{"T1"},
+			},
 		},
 	}
 }

@@ -52,11 +52,11 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		}
 		a, err := core.LoadArtifact(path)
 		if err != nil {
-			return nil // ignore unparseable files; reindex is best-effort
+			return nil //nolint:nilerr // reindex is best-effort; unparseable files are skipped
 		}
 		row, err := ArtifactRowFromFrontmatter(a.FrontMatter, path)
 		if err != nil {
-			return nil
+			return nil //nolint:nilerr // reindex is best-effort; malformed frontmatter is skipped
 		}
 		if err := d.UpsertArtifact(row); err != nil {
 			return err

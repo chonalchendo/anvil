@@ -64,7 +64,6 @@ func newValidateCmd() *cobra.Command {
 				}
 			}
 
-
 			var failures []*errfmt.ValidationError
 			if singleFile != "" {
 				t, err := typeFromArtifactPath(singleFile)

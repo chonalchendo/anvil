@@ -10,9 +10,9 @@ import (
 // matching step. Tests assign to swapHook for a single call and clear it
 // after; production callers never touch this.
 type swapFault struct {
-	afterTempWrite  error // fail before renaming old → bak
-	afterOldToBak   error // fail between rename old→bak and rename tmp→new
-	afterTempToNew  error // fail between rename tmp→new and remove bak
+	afterTempWrite error // fail before renaming old → bak
+	afterOldToBak  error // fail between rename old→bak and rename tmp→new
+	afterTempToNew error // fail between rename tmp→new and remove bak
 }
 
 var swapHook *swapFault
@@ -60,7 +60,7 @@ func atomicSwap(oldPath, newPath string, content []byte) error {
 		// Roll back: restore oldPath from backup, drop tmp.
 		if rerr := os.Rename(bakPath, oldPath); rerr != nil {
 			_ = os.Remove(tmpPath)
-			return fmt.Errorf("renaming temp to new: %w (rollback also failed: %v; backup left at %s)", err, rerr, bakPath)
+			return fmt.Errorf("renaming temp to new: %w (rollback also failed: %w; backup left at %s)", err, rerr, bakPath)
 		}
 		_ = os.Remove(tmpPath)
 		return fmt.Errorf("renaming temp to new: %w", err)

@@ -1,0 +1,29 @@
+# Local commit-time gate. Install once via `just install-hooks` (requires `prek`).
+# Hooks here mirror `.github/workflows/ci.yml` so commits that pass locally pass CI.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        entry: gofmt -l -w
+        language: system
+        types: [go]
+      - id: golangci-lint
+        name: golangci-lint
+        entry: go tool -modfile=tool.go.mod golangci-lint run --fix
+        language: system
+        types: [go]
+        pass_filenames: false
+      - id: anvil-validate
+        name: anvil validate (fresh-vault smoke)
+        entry: bash -c 'tmp=$(mktemp -d) && go run ./cmd/anvil init "$tmp" >/dev/null && go run ./cmd/anvil validate "$tmp"'
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]

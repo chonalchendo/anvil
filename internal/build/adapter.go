@@ -45,6 +45,7 @@ type RunResult struct {
 	Diagnostic string
 }
 
+// TokenUsage is per-task token accounting reported by an adapter alongside RunResult.
 type TokenUsage struct {
 	Input, Output, CacheRead, CacheWrite int64
 }

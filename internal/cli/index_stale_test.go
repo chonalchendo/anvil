@@ -80,11 +80,13 @@ func TestTwoCreatesInOneProcessSucceedWithoutManualReindex(t *testing.T) {
 	execCmd(t, "init", vault)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue",
+	cmd.SetArgs([]string{
+		"create", "issue",
 		"--project", "demo", "--title", "one",
 		"--description", "first issue",
 		"--tags", "domain/dev-tools",
-		"--allow-new-facet=domain"})
+		"--allow-new-facet=domain",
+	})
 	var out1 bytes.Buffer
 	cmd.SetOut(&out1)
 	cmd.SetErr(&out1)
@@ -104,10 +106,12 @@ func TestTwoCreatesInOneProcessSucceedWithoutManualReindex(t *testing.T) {
 	}
 
 	cmd = newRootCmd()
-	cmd.SetArgs([]string{"create", "issue",
+	cmd.SetArgs([]string{
+		"create", "issue",
 		"--project", "demo", "--title", "two",
 		"--description", "second issue",
-		"--tags", "domain/dev-tools"})
+		"--tags", "domain/dev-tools",
+	})
 	var out2 bytes.Buffer
 	cmd.SetOut(&out2)
 	cmd.SetErr(&out2)

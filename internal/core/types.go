@@ -8,14 +8,15 @@ import (
 // Type names a vault artifact type. The set is closed in v0.1.
 type Type string
 
+// Canonical artifact-type identifiers used across the CLI and schemas.
 const (
-	TypeInbox     Type = "inbox"
-	TypeIssue     Type = "issue"
-	TypePlan      Type = "plan"
-	TypeMilestone Type = "milestone"
-	TypeDecision  Type = "decision"
-	TypeLearning  Type = "learning"
-	TypeThread    Type = "thread"
+	TypeInbox         Type = "inbox"
+	TypeIssue         Type = "issue"
+	TypePlan          Type = "plan"
+	TypeMilestone     Type = "milestone"
+	TypeDecision      Type = "decision"
+	TypeLearning      Type = "learning"
+	TypeThread        Type = "thread"
 	TypeSweep         Type = "sweep"
 	TypeSession       Type = "session"
 	TypeProductDesign Type = "product-design"

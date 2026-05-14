@@ -231,4 +231,3 @@ func runLinkQuery(cmd *cobra.Command, fromID, toID string, unresolved, drift, as
 	}
 	return nil
 }
-

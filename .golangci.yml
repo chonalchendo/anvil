@@ -1,0 +1,38 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # default: standard enables errcheck, govet, ineffassign, staticcheck, unused.
+  # We disable errcheck for this PR (~116 findings, mostly cobra println/test setenv
+  # call sites that need per-call-site judgment — tracked as follow-up).
+  default: standard
+  disable:
+    - errcheck
+  enable:
+    - bodyclose
+    - contextcheck
+    - errorlint
+    - gocritic
+    - misspell
+    - nilerr
+    - revive
+  # gosec deferred — 165 baseline findings dominated by G304 false-positives in tests
+  # (filepath.Join on test-controlled inputs) and G301/G306 permission warnings on
+  # 0o755/0o644 that are correct for the call sites. Re-enable in a follow-up with
+  # a nuanced suppression strategy (per-test //nolint, helper wrappers).
+  exclusions:
+    paths:
+      - bin
+      - .scratch
+      - .worktrees
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

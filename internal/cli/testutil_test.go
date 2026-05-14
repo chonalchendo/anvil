@@ -99,7 +99,10 @@ func newTestVaultWithDatedInbox(t *testing.T, dates []string) string {
 }
 
 // newTestVaultWithMixedInbox seeds three inbox artifacts across statuses:
-// one raw, one promoted, one dropped.
+// one raw, one promoted, one dropped. Retained for future inbox-list test
+// coverage; no current call site.
+//
+//nolint:unused // test helper kept on the bench
 func newTestVaultWithMixedInbox(t *testing.T) string {
 	t.Helper()
 	vault := setupVault(t)

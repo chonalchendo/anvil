@@ -136,7 +136,7 @@ rename always takes effect first.`,
 				b, rerr := os.ReadFile(path)
 				if rerr != nil {
 					skipped = append(skipped, path)
-					return nil
+					return nil //nolint:nilerr // best-effort rewrite; unreadable files surface via skipped[]
 				}
 				content := string(b)
 				if !strings.Contains(content, oldWikilink) {
@@ -150,7 +150,7 @@ rename always takes effect first.`,
 				updated := strings.ReplaceAll(content, oldWikilink, newWikilink)
 				if werr := os.WriteFile(path, []byte(updated), mode); werr != nil {
 					skipped = append(skipped, path)
-					return nil
+					return nil //nolint:nilerr // best-effort rewrite; unwritable files surface via skipped[]
 				}
 				rewritten = append(rewritten, path)
 				return nil

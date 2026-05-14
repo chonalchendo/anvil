@@ -284,7 +284,7 @@ func TestShowValidate_Issue_DanglingMilestone(t *testing.T) {
 		FrontMatter: map[string]any{
 			"type": "issue", "title": "x", "description": "fixture description", "created": "2026-04-29",
 			"status": "open", "project": "foo", "severity": "low",
-			"tags": []any{"domain/dev-tools"},
+			"tags":      []any{"domain/dev-tools"},
 			"milestone": "[[milestone.foo.ghost]]",
 		},
 	}
@@ -369,7 +369,7 @@ func TestShowValidate_StdoutVsStderr(t *testing.T) {
 		FrontMatter: map[string]any{
 			"type": "issue", "title": "x", "description": "d", "created": "2026-04-29",
 			"status": "open", "project": "foo", "severity": "low",
-			"tags": []any{"domain/dev-tools"},
+			"tags":      []any{"domain/dev-tools"},
 			"milestone": "[[milestone.foo.ghost]]",
 		},
 	}
@@ -405,7 +405,7 @@ func TestShowValidate_JSON(t *testing.T) {
 		FrontMatter: map[string]any{
 			"type": "issue", "title": "x", "description": "fixture description", "created": "2026-04-29",
 			"status": "open", "project": "foo", "severity": "low",
-			"tags": []any{"domain/dev-tools"},
+			"tags":      []any{"domain/dev-tools"},
 			"milestone": "[[milestone.foo.ghost]]",
 		},
 	}

@@ -527,8 +527,10 @@ func TestPromote_Issue_RequiresTags(t *testing.T) {
 	}
 
 	cmd3 := newRootCmd()
-	cmd3.SetArgs([]string{"promote", id, "--as", "issue",
-		"--tags", "domain/dev-tools", "--allow-new-facet=domain"})
+	cmd3.SetArgs([]string{
+		"promote", id, "--as", "issue",
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain",
+	})
 	if err := cmd3.Execute(); err != nil {
 		t.Fatalf("expected success: %v", err)
 	}

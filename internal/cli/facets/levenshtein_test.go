@@ -14,7 +14,7 @@ func TestDistance(t *testing.T) {
 		{"", "", 0},
 		{"abc", "abc", 0},
 		{"abc", "abd", 1},
-		{"dbt", "dtb", 2},     // adjacent transposition costs two single-char edits
+		{"dbt", "dtb", 2}, // adjacent transposition costs two single-char edits
 		{"pyhton", "python", 2},
 		{"kitten", "sitting", 3},
 		{"", "abc", 3},

@@ -747,7 +747,8 @@ func TestCreate_ProductDesign_Idempotent(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	args := []string{"create", "product-design",
+	args := []string{
+		"create", "product-design",
 		"--title", "Foo product",
 		"--description", "summary line",
 		"--json",
@@ -972,8 +973,10 @@ func TestCreateSession_IdempotentOnReRun(t *testing.T) {
 	vault := setupVault(t)
 
 	first := newRootCmd()
-	first.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID,
-		"--started-at", "2026-05-06T12:00:00Z"})
+	first.SetArgs([]string{
+		"create", "session", "--session-id", fakeSessionUUID,
+		"--started-at", "2026-05-06T12:00:00Z",
+	})
 	first.SetOut(&bytes.Buffer{})
 	if err := first.Execute(); err != nil {
 		t.Fatalf("first: %v", err)
@@ -982,8 +985,10 @@ func TestCreateSession_IdempotentOnReRun(t *testing.T) {
 	c1, _ := os.ReadFile(path)
 
 	second := newRootCmd()
-	second.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID,
-		"--started-at", "2026-05-06T12:00:00Z"})
+	second.SetArgs([]string{
+		"create", "session", "--session-id", fakeSessionUUID,
+		"--started-at", "2026-05-06T12:00:00Z",
+	})
 	second.SetOut(&bytes.Buffer{})
 	if err := second.Execute(); err != nil {
 		t.Fatalf("second: %v", err)
@@ -998,16 +1003,20 @@ func TestCreateSession_DriftErrorsWithoutUpdate(t *testing.T) {
 	setupVault(t)
 
 	first := newRootCmd()
-	first.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID,
-		"--started-at", "2026-05-06T12:00:00Z"})
+	first.SetArgs([]string{
+		"create", "session", "--session-id", fakeSessionUUID,
+		"--started-at", "2026-05-06T12:00:00Z",
+	})
 	first.SetOut(&bytes.Buffer{})
 	if err := first.Execute(); err != nil {
 		t.Fatalf("first: %v", err)
 	}
 
 	second := newRootCmd()
-	second.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID,
-		"--started-at", "2026-05-06T13:00:00Z"})
+	second.SetArgs([]string{
+		"create", "session", "--session-id", fakeSessionUUID,
+		"--started-at", "2026-05-06T13:00:00Z",
+	})
 	second.SetErr(&bytes.Buffer{})
 	err := second.Execute()
 	if err == nil {
@@ -1022,16 +1031,20 @@ func TestCreateSession_UpdateRewritesOnDrift(t *testing.T) {
 	vault := setupVault(t)
 
 	first := newRootCmd()
-	first.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID,
-		"--started-at", "2026-05-06T12:00:00Z"})
+	first.SetArgs([]string{
+		"create", "session", "--session-id", fakeSessionUUID,
+		"--started-at", "2026-05-06T12:00:00Z",
+	})
 	first.SetOut(&bytes.Buffer{})
 	if err := first.Execute(); err != nil {
 		t.Fatalf("first: %v", err)
 	}
 
 	upd := newRootCmd()
-	upd.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID,
-		"--started-at", "2026-05-06T13:00:00Z", "--update"})
+	upd.SetArgs([]string{
+		"create", "session", "--session-id", fakeSessionUUID,
+		"--started-at", "2026-05-06T13:00:00Z", "--update",
+	})
 	upd.SetOut(&bytes.Buffer{})
 	if err := upd.Execute(); err != nil {
 		t.Fatalf("update: %v", err)
@@ -1057,8 +1070,10 @@ func TestCreateSession_JSON(t *testing.T) {
 	vault := setupVault(t)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID,
-		"--active-thread", "research-ducklake", "--json"})
+	cmd.SetArgs([]string{
+		"create", "session", "--session-id", fakeSessionUUID,
+		"--active-thread", "research-ducklake", "--json",
+	})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -1145,10 +1160,12 @@ func TestCreate_Issue_RejectsUnknownDomain(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue",
+	cmd.SetArgs([]string{
+		"create", "issue",
 		"--title", "Fix X",
 		"--description", "y",
-		"--tags", "domain/quantum-physics"})
+		"--tags", "domain/quantum-physics",
+	})
 	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
@@ -1171,11 +1188,13 @@ func TestCreate_Issue_AllowNewFacetSucceeds(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue",
+	cmd.SetArgs([]string{
+		"create", "issue",
 		"--title", "Fix X",
 		"--description", "y",
 		"--tags", "domain/quantum-physics",
-		"--allow-new-facet=domain"})
+		"--allow-new-facet=domain",
+	})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -1190,15 +1209,19 @@ func TestCreate_Issue_SuggestsContainmentMatch(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "seed",
-		"--description", "y", "--tags", "domain/dbt", "--allow-new-facet=domain"})
+	cmd.SetArgs([]string{
+		"create", "issue", "--title", "seed",
+		"--description", "y", "--tags", "domain/dbt", "--allow-new-facet=domain",
+	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
 
 	cmd2 := newRootCmd()
-	cmd2.SetArgs([]string{"create", "issue", "--title", "Other",
-		"--description", "y", "--tags", "domain/dbt-testing"})
+	cmd2.SetArgs([]string{
+		"create", "issue", "--title", "Other",
+		"--description", "y", "--tags", "domain/dbt-testing",
+	})
 	var errOut bytes.Buffer
 	cmd2.SetErr(&errOut)
 	if err := cmd2.Execute(); err == nil {
@@ -1215,7 +1238,8 @@ func TestCreate_Issue_Idempotent_ReturnsAlreadyExists(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	args := []string{"create", "issue",
+	args := []string{
+		"create", "issue",
 		"--title", "Fix login bug",
 		"--description", "test description",
 		"--tags", "domain/dev-tools",
@@ -1284,7 +1308,8 @@ func TestCreate_Issue_DriftRefusedWithoutUpdate(t *testing.T) {
 
 	mk := func(desc string) *cobra.Command {
 		cmd := newRootCmd()
-		cmd.SetArgs([]string{"create", "issue",
+		cmd.SetArgs([]string{
+			"create", "issue",
 			"--title", "Fix login bug",
 			"--description", desc,
 			"--tags", "domain/dev-tools",
@@ -1321,7 +1346,8 @@ func TestCreate_Issue_TagReorder_NoDrift(t *testing.T) {
 
 	mk := func(tags string) *cobra.Command {
 		cmd := newRootCmd()
-		cmd.SetArgs([]string{"create", "issue",
+		cmd.SetArgs([]string{
+			"create", "issue",
 			"--title", "Fix login bug",
 			"--description", "d",
 			"--tags", tags,
@@ -1345,7 +1371,8 @@ func TestCreate_Issue_BodyDrift_RefusedWithoutUpdate(t *testing.T) {
 
 	mk := func(body string) *cobra.Command {
 		cmd := newRootCmd()
-		cmd.SetArgs([]string{"create", "issue",
+		cmd.SetArgs([]string{
+			"create", "issue",
 			"--title", "Fix login bug",
 			"--description", "d",
 			"--body", body,
@@ -1370,7 +1397,8 @@ func TestCreate_Issue_UpdateRewritesOnDrift(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd1 := newRootCmd()
-	cmd1.SetArgs([]string{"create", "issue",
+	cmd1.SetArgs([]string{
+		"create", "issue",
 		"--title", "Fix login bug",
 		"--description", "first",
 		"--tags", "domain/dev-tools",
@@ -1384,7 +1412,8 @@ func TestCreate_Issue_UpdateRewritesOnDrift(t *testing.T) {
 	originalCreated := first.FrontMatter["created"]
 
 	cmd2 := newRootCmd()
-	cmd2.SetArgs([]string{"create", "issue",
+	cmd2.SetArgs([]string{
+		"create", "issue",
 		"--title", "Fix login bug",
 		"--description", "second",
 		"--tags", "domain/dev-tools",
@@ -1420,7 +1449,8 @@ func TestCreate_Issue_UpdateWithoutDrift_NoRewrite(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	args := []string{"create", "issue",
+	args := []string{
+		"create", "issue",
 		"--title", "Fix login bug",
 		"--description", "same",
 		"--tags", "domain/dev-tools",
@@ -1460,7 +1490,8 @@ func TestCreate_DriftError_FormatsScalar(t *testing.T) {
 
 	mk := func(desc string) *cobra.Command {
 		cmd := newRootCmd()
-		cmd.SetArgs([]string{"create", "issue",
+		cmd.SetArgs([]string{
+			"create", "issue",
 			"--title", "Fix login bug",
 			"--description", desc,
 			"--tags", "domain/dev-tools",
@@ -1501,7 +1532,8 @@ func TestCreate_DriftError_FormatsTagsArray(t *testing.T) {
 
 	mk := func(tags string) *cobra.Command {
 		cmd := newRootCmd()
-		cmd.SetArgs([]string{"create", "issue",
+		cmd.SetArgs([]string{
+			"create", "issue",
 			"--title", "Fix login bug",
 			"--description", "d",
 			"--tags", tags,
@@ -1525,7 +1557,8 @@ func TestCreate_DriftError_FormatsBodyTruncated(t *testing.T) {
 	long := strings.Repeat("a", 200)
 	mk := func(body string) *cobra.Command {
 		cmd := newRootCmd()
-		cmd.SetArgs([]string{"create", "issue",
+		cmd.SetArgs([]string{
+			"create", "issue",
 			"--title", "Fix login bug",
 			"--description", "d",
 			"--body", body,
@@ -1554,7 +1587,8 @@ func TestCreate_Decision_StaysAppendOnly(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	args := []string{"create", "decision",
+	args := []string{
+		"create", "decision",
 		"--topic", "db",
 		"--title", "Pick Postgres",
 		"--description", "d",
@@ -1587,15 +1621,23 @@ func TestCreate_AllSlugTypes_Idempotent(t *testing.T) {
 		args []string
 	}
 	cases := []tc{
-		{"thread", []string{"create", "thread", "--title", "auth retries", "--description", "d",
-			"--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"}},
-		{"learning", []string{"create", "learning", "--title", "slogger gotcha", "--description", "d",
-			"--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"}},
-		{"sweep", []string{"create", "sweep", "--title", "drop python2", "--description", "d",
+		{"thread", []string{
+			"create", "thread", "--title", "auth retries", "--description", "d",
+			"--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity",
+		}},
+		{"learning", []string{
+			"create", "learning", "--title", "slogger gotcha", "--description", "d",
+			"--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity",
+		}},
+		{"sweep", []string{
+			"create", "sweep", "--title", "drop python2", "--description", "d",
 			"--scope", "py", "--breaking=false",
-			"--tags", "domain/dev-tools", "--allow-new-facet=domain"}},
-		{"inbox", []string{"create", "inbox", "--title", "random thought", "--description", "d",
-			"--tags", "domain/dev-tools", "--allow-new-facet=domain"}},
+			"--tags", "domain/dev-tools", "--allow-new-facet=domain",
+		}},
+		{"inbox", []string{
+			"create", "inbox", "--title", "random thought", "--description", "d",
+			"--tags", "domain/dev-tools", "--allow-new-facet=domain",
+		}},
 	}
 	for _, tcase := range cases {
 		t.Run(tcase.name, func(t *testing.T) {
@@ -1706,8 +1748,10 @@ func TestCreate_JSON_SchemaInvalid_EmitsViolationsEnvelope(t *testing.T) {
 	cmd := newRootCmd()
 	// Missing --description triggers the constraint_violation block
 	// (min 1 chars / pattern ^[^\n]+$) — same shape as the issue's repro.
-	cmd.SetArgs([]string{"create", "issue", "--title", "x",
-		"--tags", "domain/methodology", "--allow-new-facet=domain", "--json"})
+	cmd.SetArgs([]string{
+		"create", "issue", "--title", "x",
+		"--tags", "domain/methodology", "--allow-new-facet=domain", "--json",
+	})
 	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
@@ -1761,8 +1805,10 @@ func TestCreate_Decision_FreshVault_MissingBothFacets_Coalesced(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "decision", "--topic", "smoke",
-		"--title", "x", "--description", "y"})
+	cmd.SetArgs([]string{
+		"create", "decision", "--topic", "smoke",
+		"--title", "x", "--description", "y",
+	})
 	var errOut bytes.Buffer
 	cmd.SetOut(&errOut)
 	cmd.SetErr(&errOut)

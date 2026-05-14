@@ -51,4 +51,3 @@ func TestReverseTransitionFlagged(t *testing.T) {
 		t.Fatalf("expected reverse=true")
 	}
 }
-

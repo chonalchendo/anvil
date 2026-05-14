@@ -6,5 +6,7 @@ package skills
 
 import "embed"
 
+// FS is the embedded bundle of canonical Anvil skill directories.
+//
 //go:embed capturing-inbox distilling-learning extracting-skill-from-session handing-off-session implementing-plan opening-thread researching resuming-session writing-issue writing-milestone writing-plan writing-product-design writing-system-design
 var FS embed.FS

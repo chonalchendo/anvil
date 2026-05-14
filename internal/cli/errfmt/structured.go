@@ -60,6 +60,8 @@ func (e *Structured) Error() string {
 	return b.String()
 }
 
+// MarshalJSON writes code first then preserves field insertion order so
+// JSON output is deterministic and diffable across runs.
 func (e *Structured) MarshalJSON() ([]byte, error) {
 	var b bytes.Buffer
 	b.WriteByte('{')

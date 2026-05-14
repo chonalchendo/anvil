@@ -52,11 +52,11 @@ func newBuildCmd() *cobra.Command {
 			}
 			if err := schema.Validate("plan", a.FrontMatter); err != nil {
 				cmd.PrintErrln(err)
-				return fmt.Errorf("%w: %v", ErrSchemaInvalid, err)
+				return fmt.Errorf("%w: %w", ErrSchemaInvalid, err)
 			}
 			p, err := core.LoadPlan(path)
 			if err != nil {
-				return fmt.Errorf("%w: %v", ErrSchemaInvalid, err)
+				return fmt.Errorf("%w: %w", ErrSchemaInvalid, err)
 			}
 			if err := core.ValidatePlan(p); err != nil {
 				cmd.PrintErrln(err)

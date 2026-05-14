@@ -8,6 +8,7 @@ import (
 // Kind classifies a top-level frontmatter field by its JSON Schema type.
 type Kind int
 
+// Field-kind classifications used by FieldKind.
 const (
 	KindUnknown Kind = iota
 	KindScalar
