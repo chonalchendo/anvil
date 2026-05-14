@@ -189,7 +189,7 @@ func installSkillSymlink(src, dst string) (bool, error) {
 			return false, fmt.Errorf("replace symlink %s: %w", dst, err)
 		}
 	case err == nil:
-		return false, fmt.Errorf("refusing to overwrite non-symlink %s; remove it first or use --copy", dst)
+		return false, fmt.Errorf("refusing to overwrite non-symlink %s; run `anvil install skills --force` to redeploy, or `rm -rf %q && anvil install skills` to take the destructive path", dst, dst)
 	case !errors.Is(err, os.ErrNotExist):
 		return false, fmt.Errorf("stat %s: %w", dst, err)
 	}
@@ -208,7 +208,7 @@ func installSkillCopy(src, dst string) (bool, error) {
 		}
 	case err == nil:
 		if _, mErr := os.Stat(filepath.Join(dst, skillMarker)); mErr != nil {
-			return false, fmt.Errorf("refusing to overwrite non-anvil dir %s; remove it first", dst)
+			return false, fmt.Errorf("refusing to overwrite non-anvil dir %s; run `anvil install skills --force` to redeploy, or `rm -rf %q && anvil install skills` to take the destructive path", dst, dst)
 		}
 		if err := os.RemoveAll(dst); err != nil {
 			return false, fmt.Errorf("clear %s: %w", dst, err)

@@ -3,6 +3,7 @@ package installer
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -143,11 +144,49 @@ func TestInstallSkills_RefusesNonSymlinkAtSkillName(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false); err == nil {
+	_, err := InstallSkills(fakeSkillsFS(), mat, target, false)
+	if err == nil {
 		t.Fatal("expected error refusing to clobber non-symlink at shipped-name path")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "anvil install skills --force") {
+		t.Errorf("symlink refusal must name --force command verbatim; got: %s", msg)
+	}
+	if !strings.Contains(msg, "rm -rf") {
+		t.Errorf("symlink refusal must name rm -rf escape; got: %s", msg)
 	}
 	if _, err := os.Stat(filepath.Join(target, "capturing-inbox", "user.md")); err != nil {
 		t.Errorf("user data was clobbered: %v", err)
+	}
+}
+
+func TestInstallSkills_RefusesNonAnvilDirNamesForceCommand(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	target := filepath.Join(t.TempDir(), "claude-skills")
+	foreign := filepath.Join(target, "capturing-inbox")
+	if err := os.MkdirAll(foreign, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(foreign, "user.md"), []byte("user"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := InstallSkills(fakeSkillsFS(), mat, target, true)
+	if err == nil {
+		t.Fatal("expected refusal error on foreign non-anvil dir in --copy mode")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "anvil install skills --force") {
+		t.Errorf("copy refusal must name --force command verbatim; got: %s", msg)
+	}
+	if !strings.Contains(msg, "rm -rf") {
+		t.Errorf("copy refusal must name rm -rf escape; got: %s", msg)
+	}
+	if !strings.Contains(msg, "refusing to overwrite") {
+		t.Errorf("copy refusal must keep 'refusing to overwrite' prefix (T2 depends on it); got: %s", msg)
+	}
+	if _, err := os.Stat(filepath.Join(foreign, "user.md")); err != nil {
+		t.Errorf("foreign data was clobbered: %v", err)
 	}
 }
 
