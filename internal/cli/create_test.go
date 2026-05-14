@@ -1302,3 +1302,70 @@ func TestCreate_DescriptionPreflight_RejectsOversize(t *testing.T) {
 		t.Errorf("expected no files written on pre-flight failure, got %d", len(entries))
 	}
 }
+
+// Coalesced missing_required_facet: on a fresh vault, the missing-tag error
+// must tell the agent both `--tags` and `--allow-new-facet=<facet>` in a
+// single error block so they can satisfy it in one retry.
+func TestCreate_Issue_FreshVault_MissingFacet_OneShotHint(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "y"})
+	var errOut bytes.Buffer
+	cmd.SetOut(&errOut)
+	cmd.SetErr(&errOut)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected schema-invalid on missing tags")
+	}
+	got := errOut.String()
+	for _, want := range []string{
+		"missing_required_facet",
+		"^domain/[a-z0-9-]+$",
+		"--allow-new-facet=domain",
+		"first domain/* in the vault",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("error block missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// On a fresh vault, decision (requires both domain/* and activity/*) must
+// surface BOTH missing facets in a single error block, each with its own
+// pattern and --allow-new-facet hint.
+func TestCreate_Decision_FreshVault_MissingBothFacets_Coalesced(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "decision", "--topic", "smoke",
+		"--title", "x", "--description", "y"})
+	var errOut bytes.Buffer
+	cmd.SetOut(&errOut)
+	cmd.SetErr(&errOut)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected schema-invalid on missing tags")
+	}
+	got := errOut.String()
+	// Both patterns must appear, each with its own facet name in the fix text.
+	for _, want := range []string{
+		"^domain/[a-z0-9-]+$",
+		"^activity/[a-z0-9-]+$",
+		"--allow-new-facet=domain",
+		"--allow-new-facet=activity",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("error block missing %q:\n%s", want, got)
+		}
+	}
+	// And the bug where both rows said domain/ must not return.
+	domainCount := strings.Count(got, "^domain/[a-z0-9-]+$")
+	if domainCount != 1 {
+		t.Errorf("expected exactly one domain/ pattern row, got %d:\n%s", domainCount, got)
+	}
+}

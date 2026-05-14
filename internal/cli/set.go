@@ -164,7 +164,7 @@ func newSetCmd() *cobra.Command {
 			}
 
 			if err := schema.Validate(string(t), a.FrontMatter); err != nil {
-				return fmt.Errorf("%w: %w", ErrSchemaInvalid, err)
+				return renderSchemaErr(cmd, v, path, err)
 			}
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("saving artifact: %w", err)
