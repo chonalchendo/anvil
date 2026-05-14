@@ -21,7 +21,7 @@
     "aliases":  { "type": "array", "items": { "type": "string" } },
     "diataxis": { "enum": ["tutorial", "how-to", "reference", "explanation"] },
     "related":  { "type": "array", "items": { "type": "string" } },
-    "external_links": { "type": "array", "items": { "type": "string" } }
+    "external_links": { "type": "array", "items": { "type": "string", "minLength": 1 } }
   },
   "additionalProperties": false
 }

@@ -17,7 +17,7 @@
     "retention_until": { "type": "string", "format": "date" },
     "related":         { "type": "array", "items": { "type": "string" } },
     "started_at":      { "type": "string", "format": "date-time" },
-    "external_links":  { "type": "array", "items": { "type": "string" } }
+    "external_links":  { "type": "array", "items": { "type": "string", "minLength": 1 } }
   },
   "additionalProperties": false
 }

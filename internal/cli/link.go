@@ -34,7 +34,28 @@ func newLinkCmd() *cobra.Command {
 				if len(args) != 2 {
 					return fmt.Errorf("--external form requires 2 args: source-type source-id (got %d)", len(args))
 				}
-				return runLinkExternal(cmd, args[0], args[1], externalURI)
+				src, err := core.ParseType(args[0])
+				if err != nil {
+					return fmt.Errorf("source type: %w", err)
+				}
+				v, err := core.ResolveVault()
+				if err != nil {
+					return fmt.Errorf("resolving vault: %w", err)
+				}
+				srcID := args[1]
+				if err := core.AppendExternalLink(v, src, srcID, externalURI); err != nil {
+					return err
+				}
+				srcPath := filepath.Join(v.Root, src.Dir(), srcID+".md")
+				a, err := core.LoadArtifact(srcPath)
+				if err != nil {
+					return fmt.Errorf("re-loading source: %w", err)
+				}
+				if err := indexAfterSave(v, a); err != nil {
+					return err
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "linked %s.%s → %s\n", src, srcID, externalURI)
+				return nil
 			}
 
 			if len(args) != 4 {
@@ -75,33 +96,6 @@ func newLinkCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&drift, "drift", false, "list plan→issue pairs whose slugs disagree")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON output")
 	return cmd
-}
-
-// runLinkExternal appends uri to the source artifact's external_links and
-// re-indexes. Idempotent — re-running with the same uri is a no-op (per
-// AppendExternalLink). Mirrors the write-form post-save pattern.
-func runLinkExternal(cmd *cobra.Command, srcType, srcID, uri string) error {
-	src, err := core.ParseType(srcType)
-	if err != nil {
-		return fmt.Errorf("source type: %w", err)
-	}
-	v, err := core.ResolveVault()
-	if err != nil {
-		return fmt.Errorf("resolving vault: %w", err)
-	}
-	if err := core.AppendExternalLink(v, src, srcID, uri); err != nil {
-		return err
-	}
-	srcPath := filepath.Join(v.Root, src.Dir(), srcID+".md")
-	a, err := core.LoadArtifact(srcPath)
-	if err != nil {
-		return fmt.Errorf("re-loading source: %w", err)
-	}
-	if err := indexAfterSave(v, a); err != nil {
-		return err
-	}
-	fmt.Fprintf(cmd.OutOrStdout(), "linked %s.%s → %s\n", src, srcID, uri)
-	return nil
 }
 
 // runLinkDrift emits plan→issue pairs whose slugs disagree. Output format

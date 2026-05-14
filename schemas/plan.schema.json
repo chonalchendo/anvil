@@ -59,7 +59,7 @@
       "additionalProperties": false
     },
     "related": { "type": "array", "items": { "type": "string" } },
-    "external_links": { "type": "array", "items": { "type": "string" } }
+    "external_links": { "type": "array", "items": { "type": "string", "minLength": 1 } }
   },
   "additionalProperties": false
 }

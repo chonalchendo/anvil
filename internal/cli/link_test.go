@@ -80,7 +80,10 @@ func TestLink_ExternalIdempotent(t *testing.T) {
 			t.Fatalf("iter %d: %v", i, err)
 		}
 	}
-	a, _ := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	ext, _ := a.FrontMatter["external_links"].([]any)
 	if len(ext) != 1 {
 		t.Fatalf("external_links len = %d, want 1 (idempotent): %v", len(ext), ext)

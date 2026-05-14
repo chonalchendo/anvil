@@ -62,7 +62,10 @@ func TestAppendExternalLink_AppendsAndDedupes(t *testing.T) {
 			t.Fatalf("AppendExternalLink iter %d: %v", i, err)
 		}
 	}
-	a, _ := LoadArtifact(filepath.Join(v.Root, "70-issues", "anvil.x.md"))
+	a, err := LoadArtifact(filepath.Join(v.Root, "70-issues", "anvil.x.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	ext, _ := a.FrontMatter["external_links"].([]any)
 	if len(ext) != 1 || ext[0] != uri {
 		t.Fatalf("external_links = %v, want [%q]", ext, uri)

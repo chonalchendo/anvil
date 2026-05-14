@@ -16,7 +16,7 @@
     "promoted_to":      { "type": ["string", "null"] },
     "promoted_type":    { "enum": ["issue", "thread", "design", "learning"] },
     "related":          { "type": "array", "items": { "type": "string" } },
-    "external_links":   { "type": "array", "items": { "type": "string" } }
+    "external_links":   { "type": "array", "items": { "type": "string", "minLength": 1 } }
   },
   "additionalProperties": false
 }

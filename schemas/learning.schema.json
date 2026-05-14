@@ -22,7 +22,7 @@
     "diataxis":   { "enum": ["tutorial", "how-to", "reference", "explanation"] },
     "confidence": { "enum": ["low", "medium", "high"] },
     "related":    { "type": "array", "items": { "type": "string" } },
-    "external_links": { "type": "array", "items": { "type": "string" } }
+    "external_links": { "type": "array", "items": { "type": "string", "minLength": 1 } }
   },
   "additionalProperties": false
 }

@@ -25,7 +25,7 @@
     "owner":        { "type": "string", "minLength": 1 },
     "acceptance":   { "type": "array", "items": { "type": "string" } },
     "related":      { "type": "array", "items": { "type": "string" } },
-    "external_links": { "type": "array", "items": { "type": "string" } },
+    "external_links": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "blocks":       { "type": "array", "items": { "type": "string" } },
     "depends_on":   { "type": "array", "items": { "type": "string" } }
   },
