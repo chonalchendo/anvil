@@ -105,13 +105,20 @@ func newSetCmd() *cobra.Command {
 					removed := make([]any, 0, len(flagRemove))
 					for _, target := range flagRemove {
 						idx := -1
+						hadStringMatch := false
 						for i, v := range existing {
-							if s, ok := v.(string); ok && s == target && !seen[i] {
-								idx = i
-								break
+							if s, ok := v.(string); ok && s == target {
+								hadStringMatch = true
+								if !seen[i] {
+									idx = i
+									break
+								}
 							}
 						}
 						if idx < 0 {
+							if hadStringMatch {
+								return fmt.Errorf("--remove %q: value already targeted in this invocation", target)
+							}
 							n, err := strconv.Atoi(target)
 							if err != nil {
 								return fmt.Errorf(

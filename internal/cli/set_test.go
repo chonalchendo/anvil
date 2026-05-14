@@ -382,6 +382,31 @@ func TestSet_ArrayRemove_RepeatedFlags_RemovesAll(t *testing.T) {
 	}
 }
 
+func TestSet_ArrayRemove_DuplicateStringTarget_Errors(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+	for _, v := range []string{"x", "y"} {
+		c := newRootCmd()
+		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", v})
+		if err := c.Execute(); err != nil {
+			t.Fatalf("--add %s: %v", v, err)
+		}
+	}
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--remove", "x", "--remove", "x"})
+	var buf bytes.Buffer
+	cmd.SetErr(&buf)
+	cmd.SetOut(&buf)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected duplicate-target error")
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	got, _ := a.FrontMatter["acceptance"].([]any)
+	if len(got) != 2 {
+		t.Errorf("acceptance mutated on error: %v", got)
+	}
+}
+
 func TestSet_ArrayRemove_Index(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
