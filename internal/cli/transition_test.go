@@ -241,6 +241,126 @@ agent would do. Add the type in a.go, RED test in a_test.go, run verify.
 	}
 }
 
+// TestTransitionIllegalLeavesDiskUnchanged covers the bug a user reported as
+// "transition silently no-ops on backward moves". The CLI in fact rejects the
+// move with exit 1, but the error envelope read as success-shaped to a fast
+// scan. This test pins both halves: the error fires AND disk state is
+// preserved. It also asserts the rejection now surfaces an `anvil set`
+// escape-hatch hint so agents know how to force the move when intended.
+func TestTransitionIllegalLeavesDiskUnchanged(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+	execCmd(t, "transition", "issue", "demo.foo", "resolved")
+
+	// resolved → in-progress is not in the transitions table.
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude"})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected illegal_transition error; output: %s", buf.String())
+	}
+	if !strings.Contains(buf.String(), "illegal_transition") {
+		t.Errorf("output should mention illegal_transition: %s", buf.String())
+	}
+	if !strings.Contains(buf.String(), "anvil set") {
+		t.Errorf("output should point at `anvil set` escape hatch: %s", buf.String())
+	}
+
+	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "demo.foo.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v after illegal transition, want resolved (unchanged)", a.FrontMatter["status"])
+	}
+}
+
+// TestTransitionIssueStateGraphAllEdgesPersist walks every legal edge in the
+// issue state machine and asserts the file on disk reflects the move after
+// each transition. Guards against future regressions where a transition
+// reports success but never writes (the original bug framing).
+func TestTransitionIssueStateGraphAllEdgesPersist(t *testing.T) {
+	type step struct {
+		to         string
+		flags      []string
+		wantOnDisk string
+	}
+	cases := []struct {
+		name  string
+		steps []step
+	}{
+		{
+			name: "forward to resolved",
+			steps: []step{
+				{to: "in-progress", flags: []string{"--owner", "claude"}, wantOnDisk: "in-progress"},
+				{to: "resolved", wantOnDisk: "resolved"},
+			},
+		},
+		{
+			name: "in-progress audit edge back to open",
+			steps: []step{
+				{to: "in-progress", flags: []string{"--owner", "claude"}, wantOnDisk: "in-progress"},
+				{to: "open", wantOnDisk: "open"},
+			},
+		},
+		{
+			name: "open to abandoned",
+			steps: []step{
+				{to: "abandoned", wantOnDisk: "abandoned"},
+			},
+		},
+		{
+			name: "in-progress to abandoned",
+			steps: []step{
+				{to: "in-progress", flags: []string{"--owner", "claude"}, wantOnDisk: "in-progress"},
+				{to: "abandoned", wantOnDisk: "abandoned"},
+			},
+		},
+		{
+			name: "reverse resolved to open with reason",
+			steps: []step{
+				{to: "in-progress", flags: []string{"--owner", "claude"}, wantOnDisk: "in-progress"},
+				{to: "resolved", wantOnDisk: "resolved"},
+				{to: "open", flags: []string{"--reason", "regression"}, wantOnDisk: "open"},
+			},
+		},
+		{
+			name: "reverse abandoned to open with reason",
+			steps: []step{
+				{to: "abandoned", wantOnDisk: "abandoned"},
+				{to: "open", flags: []string{"--reason", "back on the plate"}, wantOnDisk: "open"},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vault := t.TempDir()
+			t.Setenv("ANVIL_VAULT", vault)
+			execCmd(t, "init", vault)
+			createDemoIssue(t)
+			path := filepath.Join(vault, "70-issues", "demo.foo.md")
+
+			for i, s := range tc.steps {
+				args := append([]string{"transition", "issue", "demo.foo", s.to}, s.flags...)
+				execCmd(t, args...)
+				a, err := core.LoadArtifact(path)
+				if err != nil {
+					t.Fatalf("step %d (%s): load: %v", i, s.to, err)
+				}
+				if a.FrontMatter["status"] != s.wantOnDisk {
+					t.Fatalf("step %d (%s): disk status = %v, want %v", i, s.to, a.FrontMatter["status"], s.wantOnDisk)
+				}
+			}
+		})
+	}
+}
+
 func TestTransitionReverseAppendsAuditLine(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
