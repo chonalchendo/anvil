@@ -504,6 +504,108 @@ func TestPromote_JSON_AlreadyDiscarded(t *testing.T) {
 	}
 }
 
+func TestPromote_CopiesInboxBody(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	const body = "this body must travel\n"
+	add := newRootCmd()
+	add.SetArgs([]string{"create", "inbox", "--title", "carries body", "--suggested-project", "foo", "--body", body})
+	if err := add.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"promote", id, "--as", "issue", "--tags", "domain/dev-tools", "--allow-new-facet=domain", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("promote: %v", err)
+	}
+	var r promoteJSONResult
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out.String())), &r); err != nil {
+		t.Fatalf("parse: %v\n%s", err, out.String())
+	}
+	if r.Path == nil {
+		t.Fatal("promote did not return target path")
+	}
+	a, err := core.LoadArtifact(*r.Path)
+	if err != nil {
+		t.Fatalf("load promoted: %v", err)
+	}
+	if strings.TrimSpace(a.Body) != strings.TrimSpace(body) {
+		t.Errorf("promoted body = %q, want %q", a.Body, body)
+	}
+}
+
+// TestPromote_PreExistingTargetGetsSuffix documents the NextID uniqueness
+// contract: when the deterministic target path is occupied, NextID hands out a
+// suffixed ID (e.g. `-2`), so promote can never overwrite a pre-existing file.
+// This is why promote.go does not need a defensive os.Stat guard before Save.
+func TestPromote_PreExistingTargetGetsSuffix(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	threadsDir := filepath.Join(vault, "60-threads")
+	if err := os.MkdirAll(threadsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	preExistingPath := filepath.Join(threadsDir, "collide.md")
+	preExistingBody := "do not touch me\n"
+	preExisting := &core.Artifact{
+		Path: preExistingPath,
+		FrontMatter: map[string]any{
+			"id":      "collide",
+			"type":    "thread",
+			"title":   "pre-existing",
+			"status":  "active",
+			"created": "2026-01-01",
+			"updated": "2026-01-01",
+			"tags":    []any{"domain/dev-tools", "activity/research"},
+		},
+		Body: preExistingBody,
+	}
+	if err := preExisting.Save(); err != nil {
+		t.Fatalf("pre-create: %v", err)
+	}
+
+	add := newRootCmd()
+	add.SetArgs([]string{"create", "inbox", "--title", "collide"})
+	if err := add.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"promote", id, "--as", "thread", "--json", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("promote: %v", err)
+	}
+	var r promoteJSONResult
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out.String())), &r); err != nil {
+		t.Fatalf("parse: %v\n%s", err, out.String())
+	}
+	if r.TargetID == nil || *r.TargetID != "collide-2" {
+		t.Errorf("target_id = %v, want collide-2", r.TargetID)
+	}
+
+	preAfter, err := core.LoadArtifact(preExistingPath)
+	if err != nil {
+		t.Fatalf("reload pre-existing: %v", err)
+	}
+	if strings.TrimSpace(preAfter.Body) != strings.TrimSpace(preExistingBody) {
+		t.Errorf("pre-existing body mutated: got %q, want %q", preAfter.Body, preExistingBody)
+	}
+}
+
 func TestPromote_Issue_RequiresTags(t *testing.T) {
 	vault := setupVault(t)
 	t.Setenv("HOME", t.TempDir())

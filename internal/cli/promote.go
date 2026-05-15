@@ -250,7 +250,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		emitValidationErrors(cmd, asJSON, errs)
 		return ErrSchemaInvalid
 	}
-	tgtArt := &core.Artifact{Path: targetPath, FrontMatter: fm, Body: ""}
+	tgtArt := &core.Artifact{Path: targetPath, FrontMatter: fm, Body: inbox.Body}
 	if err := tgtArt.Save(); err != nil {
 		return fmt.Errorf("saving %s: %w", target, err)
 	}
