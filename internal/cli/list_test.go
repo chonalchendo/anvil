@@ -625,24 +625,12 @@ func TestList_LearningDecision_ProjectFilter(t *testing.T) {
 				t.Fatalf("list %s --project burgh: %v", tc.typ, err)
 			}
 			env := unmarshalListEnvelope(t, out)
-			ids := make([]string, 0, len(env.Items))
-			for _, it := range env.Items {
-				ids = append(ids, it.ID)
-			}
-			found, foundMiss := false, false
-			for _, id := range ids {
-				if id == tc.want {
-					found = true
+			if env.Total != 1 || len(env.Items) != 1 || env.Items[0].ID != tc.want {
+				got := make([]string, 0, len(env.Items))
+				for _, it := range env.Items {
+					got = append(got, it.ID)
 				}
-				if id == tc.wantMiss {
-					foundMiss = true
-				}
-			}
-			if !found {
-				t.Errorf("expected %q in results, got %v", tc.want, ids)
-			}
-			if foundMiss {
-				t.Errorf("did not expect %q in results, got %v", tc.wantMiss, ids)
+				t.Errorf("expected only %q, got %v (total=%d)", tc.want, got, env.Total)
 			}
 		})
 	}
