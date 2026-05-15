@@ -130,13 +130,29 @@ Pick the closest existing value if one fits; only invent a new one if no existin
 
 When promoting an inbox item, pass `--tags` on the `anvil promote <id> --as issue` call after consulting the same list.
 
+Author the body up front and pass it to `create` via `--body-file` (or `--body -` for piped stdin). `create` validates the frontmatter AND body (required H2s, wikilink targets) and rolls back the write on failure — no separate `anvil validate` step:
+
 ```bash
-anvil create issue --title "<title>" --tags domain/<x> --json
+cat > /tmp/issue-body.md <<'EOF'
+## Problem
+<one paragraph from convergence (fuzzy) or the stated problem (decisive)>
+
+## Acceptance criteria
+- <testable criterion 1>
+
+## Non-goals
+- <from Phase 3 smallest-viable or stated up front>
+
+## Links
+- [[milestone.<project>.<slug>]]
+EOF
+
+anvil create issue --title "<title>" --tags domain/<x> --body-file /tmp/issue-body.md --json
 ```
 
 Capture `id` and `path` from the JSON output. The file lands at `~/anvil-vault/70-issues/<project>.<slug>.md`.
 
-Set typed frontmatter slots:
+Set typed frontmatter slots (these are still post-create — typed setters live outside the body):
 
 ```bash
 anvil set issue <id> milestone "[[milestone.<project>.<slug>]]"
@@ -151,26 +167,14 @@ anvil set issue <id> acceptance --add "<criterion>"
 
 Positional values on array fields error with `field_is_array`; use `--add VALUE` to append and `--remove INDEX` to delete.
 
-Then direct-edit the body section of the file at `path`. Write only the body — never hand-author frontmatter. Required body sections:
+Required body sections (enforced by `create`):
 
 - `## Problem` — one paragraph from convergence (fuzzy) or the stated problem (decisive).
 - `## Acceptance criteria` — bulleted, each testable without ambiguity.
 - `## Non-goals` — from Phase 3 smallest-viable (fuzzy) or stated up front (decisive).
-- `## Links` — to milestone, design docs, related issues. Use `[[wikilink]]` form.
+- `## Links` — to milestone, design docs, related issues. Use `[[wikilink]]` form. Targets must resolve (the file must exist) or `create` rejects.
 
-> **CLI gap (roadmap #4):** `anvil create` lacks `--body` / stdin. Until that lands, body is direct-edited as above; this is the existing pattern.
-
----
-
-## Phase 5 — Validate (always)
-
-```bash
-anvil validate <path>
-```
-
-Fix any schema errors reported. Re-run until clean.
-
-> **CLI gap (roadmap #7):** `anvil show issue <id> --validate` parity is plan-only today. Use `anvil validate <path>` for now.
+`anvil validate <path>` remains useful as a re-check after edits (e.g. after `anvil set ... acceptance --add`), but it is **not** required after `create` when the body was supplied via `--body-file` / `--body -`.
 
 ---
 

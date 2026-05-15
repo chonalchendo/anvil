@@ -10,41 +10,72 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// readBody resolves the body content for `create` and `inbox add`:
-//   - flagBody set, stdin tty → use flagBody.
-//   - flagBody empty, stdin non-tty → read all of stdin.
-//   - both → error (silent discard would be a footgun).
-//   - neither → "".
+// readBody resolves the body content for `create` and `inbox add`. Sources
+// are mutually exclusive — supplying more than one is an error so the agent
+// learns which input the CLI used:
+//
+//   - `--body-file <path>`  → file contents.
+//   - `--body -` (explicit) → read all of stdin; requires piped stdin.
+//   - `--body <literal>`    → literal string.
+//   - piped stdin alone     → read all of stdin (legacy form).
+//   - none of the above     → "".
 //
 // A trailing newline is ensured on non-empty bodies so the artifact file
 // always terminates cleanly.
-func readBody(_ *cobra.Command, flagBody string) (string, error) {
+func readBody(_ *cobra.Command, flagBody, flagBodyFile string) (string, error) {
 	piped, err := stdinIsPipe()
 	if err != nil {
 		return "", fmt.Errorf("stat stdin: %w", err)
 	}
 
-	if flagBody != "" && piped {
-		_, _ = io.Copy(io.Discard, os.Stdin)
-		return "", errors.New("--body and piped stdin are mutually exclusive")
+	stdinFlag := flagBody == "-"
+	bodyLiteral := flagBody != "" && !stdinFlag
+	hasFile := flagBodyFile != ""
+
+	// piped stdin combined with --body - is the canonical "read from stdin"
+	// pair; both refer to the same source. Any other combination is ambiguous.
+	switch {
+	case bodyLiteral && hasFile,
+		bodyLiteral && piped,
+		hasFile && piped,
+		hasFile && stdinFlag:
+		if piped {
+			_, _ = io.Copy(io.Discard, os.Stdin)
+		}
+		return "", errors.New("--body, --body-file, and piped stdin are mutually exclusive")
 	}
 
-	if flagBody != "" {
+	if hasFile {
+		b, err := os.ReadFile(flagBodyFile)
+		if err != nil {
+			return "", fmt.Errorf("read %s: %w", flagBodyFile, err)
+		}
+		if len(b) == 0 {
+			return "", nil
+		}
+		return ensureTrailingNewline(string(b)), nil
+	}
+
+	if stdinFlag && !piped {
+		return "", errors.New("--body - requires piped stdin")
+	}
+
+	if stdinFlag || piped {
+		b, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return "", fmt.Errorf("read stdin: %w", err)
+		}
+		if len(b) == 0 {
+			return "", nil
+		}
+		return ensureTrailingNewline(string(b)), nil
+	}
+
+	if bodyLiteral {
 		return ensureTrailingNewline(flagBody), nil
 	}
 
-	if !piped {
-		return "", nil
-	}
-
-	b, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		return "", fmt.Errorf("read stdin: %w", err)
-	}
-	if len(b) == 0 {
-		return "", nil
-	}
-	return ensureTrailingNewline(string(b)), nil
+	return "", nil
 }
 
 // stdinIsPipe reports whether os.Stdin carries real piped/redirected data

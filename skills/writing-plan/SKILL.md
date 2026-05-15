@@ -154,9 +154,13 @@ anvil tags list --source used --prefix domain/ --json
 
 The CLI rejects an unrecognised value unless you pass `--allow-new-facet=domain`.
 
+Author the plan body (frontmatter `tasks:` plus per-task `## Task: T<N>` sections) in a file and hand it to `create --from` — `create` validates frontmatter, body sections, and wikilink targets in one call, and rolls back on failure. `anvil validate <path>` afterward is unnecessary:
+
 ```bash
-anvil create plan --issue <issue-id> --title "<title>" --tags domain/<x> --json
+anvil create plan --issue <issue-id> --title "<title>" --tags domain/<x> --from /tmp/plan.md --json
 ```
+
+For plans without rich task bodies up front, `anvil create plan ... --body-file <path>` (or `--body -`) accepts a body section only. The follow-up wave/task validation still requires:
 
 ```bash
 anvil show plan <plan-id> --validate --waves

@@ -244,7 +244,8 @@ func TestCreate_Issue_WithBody_FlagRoundTrips(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description", "--body", "## Context\n\nFrom flag.", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
+	body := "## Problem\nFrom flag.\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Links\n- none"
+	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description", "--body", body, "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -312,7 +313,11 @@ func TestCreate_Learning_ScaffoldsH2(t *testing.T) {
 	}
 }
 
-func TestCreate_Issue_ExplicitEmptyBody_NoScaffold(t *testing.T) {
+// Explicit --body "" on an issue used to be an escape hatch that suppressed
+// the H2 scaffold. Auto-validation now rejects it because the issue body
+// shape (Problem / Acceptance criteria / Non-goals / Links) is part of the
+// schema contract, and the create flow is the right place to surface that.
+func TestCreate_Issue_ExplicitEmptyBody_RejectsWithMissingSections(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
@@ -320,16 +325,135 @@ func TestCreate_Issue_ExplicitEmptyBody_NoScaffold(t *testing.T) {
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"create", "issue", "--title", "no scaffold", "--description", "x", "--tags", "domain/dev-tools", "--allow-new-facet=domain", "--body", ""})
+	if err := cmd.Execute(); !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
+	}
+	if _, err := os.Stat(filepath.Join(vault, "70-issues", "foo.no-scaffold.md")); !os.IsNotExist(err) {
+		t.Errorf("expected file rolled back, got stat err = %v", err)
+	}
+}
+
+func TestCreate_Issue_BodyFile_RoundTrips(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	body := "## Problem\nFrom file.\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Links\n- none\n"
+	bodyPath := filepath.Join(t.TempDir(), "issue-body.md")
+	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "issue",
+		"--title", "from-body-file",
+		"--description", "test",
+		"--body-file", bodyPath,
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.no-scaffold.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.from-body-file.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	// explicit --body "" must be preserved — scaffold must not be injected
-	if strings.TrimSpace(a.Body) != "" {
-		t.Errorf("expected empty body with explicit --body \"\", got %q", a.Body)
+	if !strings.Contains(a.Body, "From file.") {
+		t.Errorf("body = %q", a.Body)
+	}
+}
+
+func TestCreate_Issue_BodyFile_RejectsBadWikilink_RollsBack(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	body := "## Problem\nrefs [[issue.foo.ghost]] which does not exist.\n## Acceptance criteria\n- x\n## Non-goals\n- none\n## Links\n- none\n"
+	bodyPath := filepath.Join(t.TempDir(), "issue-body.md")
+	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "issue",
+		"--title", "bad-link",
+		"--description", "test",
+		"--body-file", bodyPath,
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	err := cmd.Execute()
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
+	}
+	if !strings.Contains(stderr.String(), "issue.foo.ghost") {
+		t.Errorf("stderr should name the unresolved target, got: %s", stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(vault, "70-issues", "foo.bad-link.md")); !os.IsNotExist(err) {
+		t.Errorf("file should be rolled back; stat err = %v", err)
+	}
+}
+
+func TestCreate_Issue_BodyStdinDash(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cleanup := withStdin(t, "## Problem\nFrom stdin.\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Links\n- none\n")
+	defer cleanup()
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "issue",
+		"--title", "from-stdin-dash",
+		"--description", "test",
+		"--body", "-",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.from-stdin-dash.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(a.Body, "From stdin.") {
+		t.Errorf("body = %q", a.Body)
+	}
+}
+
+func TestCreate_BodyFlagAndBodyFile_Conflict(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	bodyPath := filepath.Join(t.TempDir(), "b.md")
+	if err := os.WriteFile(bodyPath, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "issue",
+		"--title", "x",
+		"--description", "d",
+		"--body", "literal",
+		"--body-file", bodyPath,
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("want mutually-exclusive error, got %v", err)
 	}
 }
 
@@ -1381,10 +1505,13 @@ func TestCreate_Issue_BodyDrift_RefusedWithoutUpdate(t *testing.T) {
 		})
 		return cmd
 	}
-	if err := mk("original body").Execute(); err != nil {
+	withSections := func(intro string) string {
+		return "## Problem\n" + intro + "\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Links\n- none"
+	}
+	if err := mk(withSections("original body")).Execute(); err != nil {
 		t.Fatal(err)
 	}
-	err := mk("different body").Execute()
+	err := mk(withSections("different body")).Execute()
 	if !errors.Is(err, ErrCreateDrift) {
 		t.Errorf("err = %v, want ErrCreateDrift", err)
 	}
@@ -1554,7 +1681,10 @@ func TestCreate_DriftError_FormatsBodyTruncated(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	long := strings.Repeat("a", 200)
+	withSections := func(intro string) string {
+		return "## Problem\n" + intro + "\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Links\n- none"
+	}
+	long := withSections(strings.Repeat("a", 200))
 	mk := func(body string) *cobra.Command {
 		cmd := newRootCmd()
 		cmd.SetArgs([]string{
@@ -1568,7 +1698,7 @@ func TestCreate_DriftError_FormatsBodyTruncated(t *testing.T) {
 		return cmd
 	}
 	_ = mk(long).Execute()
-	err := mk(strings.Repeat("b", 200)).Execute()
+	err := mk(withSections(strings.Repeat("b", 200))).Execute()
 	if err == nil {
 		t.Fatal("expected drift error")
 	}

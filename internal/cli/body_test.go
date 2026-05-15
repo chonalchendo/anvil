@@ -34,7 +34,7 @@ func withStdin(t *testing.T, data string) func() {
 func TestReadBody_FlagWins(t *testing.T) {
 	cmd := &cobra.Command{}
 	cmd.SetOut(&bytes.Buffer{})
-	got, err := readBody(cmd, "hello body")
+	got, err := readBody(cmd, "hello body", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestReadBody_StdinPipe(t *testing.T) {
 	cleanup := withStdin(t, "from stdin\nline2")
 	defer cleanup()
 	cmd := &cobra.Command{}
-	got, err := readBody(cmd, "")
+	got, err := readBody(cmd, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestReadBody_BothSupplied_Errors(t *testing.T) {
 	cleanup := withStdin(t, "from stdin")
 	defer cleanup()
 	cmd := &cobra.Command{}
-	if _, err := readBody(cmd, "from flag"); err == nil {
+	if _, err := readBody(cmd, "from flag", ""); err == nil {
 		t.Error("expected error when --body and stdin both supplied")
 	}
 }
@@ -103,7 +103,7 @@ func TestReadBody_SocketStdinDoesNotHang(t *testing.T) {
 	var got string
 	var err error
 	go func() {
-		got, err = readBody(cmd, "")
+		got, err = readBody(cmd, "", "")
 		close(done)
 	}()
 	select {
@@ -130,7 +130,7 @@ func TestReadBody_SocketStdinWithFlagDoesNotHang(t *testing.T) {
 	var got string
 	var err error
 	go func() {
-		got, err = readBody(cmd, "from flag")
+		got, err = readBody(cmd, "from flag", "")
 		close(done)
 	}()
 	select {
@@ -154,7 +154,7 @@ func TestReadBody_NoFlagNoStdin(t *testing.T) {
 	defer func() { os.Stdin = orig; _ = r.Close() }()
 
 	cmd := &cobra.Command{}
-	got, err := readBody(cmd, "")
+	got, err := readBody(cmd, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
