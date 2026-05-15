@@ -49,6 +49,12 @@ Then wire Anvil into Claude Code:
 
 To remove either, pass `--uninstall` (e.g. `anvil install skills --uninstall`).
 
+### Verify skills loaded
+
+Skills are discovered by Claude Code at session start, so after `anvil install skills` you need to **restart Claude Code** — exit your current session and launch a fresh one. Inside that new session, the available-skills listing should include anvil's skills (`writing-issue`, `writing-plan`, `capturing-inbox`, …).
+
+They appear **bare**, without an `anvil:` prefix. That's intentional for v0.1; see [`skills-namespace-prefix.0001`](../anvil-vault/30-decisions/skills-namespace-prefix.0001-defer-anvil-namespace-prefix-for-skills-until-v0-1-distribut.md) for the rationale.
+
 ## License
 
 [MIT](LICENSE)
