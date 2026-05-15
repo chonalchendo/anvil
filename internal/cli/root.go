@@ -85,6 +85,7 @@ func newRootCmd() *cobra.Command {
 		newReindexCmd(),
 		newTransitionCmd(),
 		newRenameCmd(),
+		newFleetCmd(),
 	)
 	return cmd
 }
