@@ -47,6 +47,9 @@ func TestIllegalTransitionJSON_NoSequenceHintForOtherEdges(t *testing.T) {
 	if _, ok := got["sequence_hint"]; ok {
 		t.Errorf("sequence_hint should only appear on issue: open→resolved, got %v", got)
 	}
+	if _, ok := got["sequence_note"]; ok {
+		t.Errorf("sequence_note should only appear on issue: open→resolved, got %v", got)
+	}
 }
 
 func TestTransitionFlagRequiredErrorMessage(t *testing.T) {
