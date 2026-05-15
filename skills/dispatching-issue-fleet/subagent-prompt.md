@@ -38,21 +38,31 @@ Treat the check as a structural invariant, not a sanity tip.
 
 ## Final-line self-check (PRE-TERMINATE INVARIANT)
 
-Before terminating, verify your final output line matches **exactly one** of these regexes:
+**Root cause this rule exists:** in the review-respond polling loop, structured emission feels gated behind a "settle" condition (CI green, CodeRabbit done, comments resolved). The agent narrates the wait instead of returning. The watchdog reads narrative as in-progress and the run terminates with no structured line. Treat this check as structural — identical in force to the Forbidden-write-location check above — not as advisory. Emission is **unconditional** on every terminate path, including polling-loop exit, watchdog timeout, and "I'll check again later" intuition.
 
-- `^https://github\.com/.+/pull/[0-9]+$` — the PR url, nothing else on the line.
-- `^Blocker: .+$` — a one-line blocker description, nothing else on the line.
+Last line is one of, alone on the line, nothing trailing:
 
-If neither matches, halt with `Blocker: final-line-self-check-failed (last-line=<text>)`. Three consecutive sessions (2026-05-13, 2026-05-14, 2026-05-15) hit narrative-as-final-output stalls in the 100-200 LOC band — the subagent trails off into "Now add the test:" and never produces the PR. The self-check forces a structured Blocker emission instead of a silent stall.
+- `^https://github\.com/.+/pull/[0-9]+$` — PR url.
+- `^Blocker: .+$` — one-line blocker.
+
+There is no third option. No narrative tail. No "let me wait."
+
+**Anti-patterns observed 5/5 in the 2026-05-15 fleet — if you find yourself typing any of these as your last line, you are demonstrating the bug. Terminate with the structured form instead:**
+
+- `Waiting for monitor events.`
+- `Waiting for CI to settle. I'll be notified when the until-loop exits.`
+- `Let me wait ~270s and check again.`
+- `CodeRabbit is still processing. Wait for the monitor.`
+- `No inline comments yet. CI in progress and CodeRabbit pending.`
+- `Good — <observation>. Let me <next-step>.`
+
+Any sentence whose verb is "wait", "let me", "still", "pending", or "I'll check" is narrative. If CI is still running and you've hit your poll budget, **the PR url is the return** (CI status lives on the PR). If CodeRabbit is rate-limited and you cannot respond, `Blocker: review-pending-rate-limit <pr-url>` is the return.
+
+If you cannot decide which structured line to emit, the answer is `Blocker: final-line-self-check-failed (last-line=<what-you-almost-said>)`. That is itself a valid structured return.
 
 ## Return contract
 
-Your **last line** is one of:
-
-- The PR url, alone.
-- `Blocker: <reason>`, alone.
-
-Anything else is a detected failure by the orchestrator and triggers an action-only re-dispatch. Do not emit narrative as final output; do not paste tool outputs; do not summarize the work. The PR body and the inline review replies are where prose belongs — not the orchestrator return.
+Your **last line** is one of the two regexes above. Nothing else. The PR body and inline replies are where prose belongs — not the orchestrator return.
 
 ## Scope-change protocol
 
