@@ -8,9 +8,15 @@ import "fmt"
 // state machine — so agents consuming the JSON envelope literally get an
 // executable next step. A separate `hint_note` carries the caveat (no audit
 // trail) for humans reading the text rendering.
+//
+// For the specific case of issue: open → resolved (the recurring out-of-band
+// resolution path) the error also carries `sequence_hint` + `sequence_note`
+// naming the canonical two-step claim-then-resolve ceremony and its rationale,
+// so the agent reads a deliberate next step instead of reaching for the
+// force-edit escape.
 func NewIllegalTransition(typ, id, from, to string, next []string) *Structured {
 	hint := fmt.Sprintf("anvil set %s %s status %s", typ, id, to)
-	return NewStructured("illegal_transition").
+	s := NewStructured("illegal_transition").
 		Set("type", typ).
 		Set("id", id).
 		Set("from", from).
@@ -18,6 +24,12 @@ func NewIllegalTransition(typ, id, from, to string, next []string) *Structured {
 		Set("legal_next", next).
 		Set("hint", hint).
 		Set("hint_note", "force-edit: bypasses state machine, no audit trail")
+	if typ == "issue" && from == "open" && to == "resolved" {
+		seq := fmt.Sprintf("anvil transition issue %s in-progress --owner <name> && anvil transition issue %s resolved", id, id)
+		s.Set("sequence_hint", seq).
+			Set("sequence_note", "claim records ownership and in-progress duration before resolution; force-edit skips this audit trail")
+	}
+	return s
 }
 
 // NewTransitionFlagRequired builds the structured error for a missing CLI flag
