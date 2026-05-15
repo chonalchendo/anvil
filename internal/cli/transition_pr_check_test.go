@@ -163,6 +163,53 @@ func TestTransitionResolvedGhMissingDowngradesToWarning(t *testing.T) {
 	}
 }
 
+// TestLinkedPlanSlugs_SurfacesPartialReadAsWarning pins the CodeRabbit
+// finding on PR #67: plan-link discovery failures must not silently shrink
+// the candidate set. Remove a linked plan file behind the index's back and
+// the helper must surface a non-empty warning so the caller can render it.
+func TestLinkedPlanSlugs_SurfacesPartialReadAsWarning(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	planPath := filepath.Join(vault, "80-plans", "demo.foo.md")
+	planBody := `---
+type: plan
+id: demo.foo
+slug: short
+title: "P"
+description: "d"
+created: 2026-05-15
+updated: 2026-05-15
+status: draft
+plan_version: 1
+issue: "[[issue.demo.foo]]"
+tags: [domain/dev-tools]
+project: demo
+tasks: []
+---
+
+body
+`
+	if err := os.WriteFile(planPath, []byte(planBody), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	execCmd(t, "reindex")
+	// Yank the file behind the index's back so LoadArtifact fails on the
+	// row LinksTo still hands us. Index thinks the plan is there.
+	if err := os.Remove(planPath); err != nil {
+		t.Fatal(err)
+	}
+
+	_, warn := linkedPlanSlugs(&core.Vault{Root: vault}, "demo.foo")
+	if warn == "" {
+		t.Errorf("expected non-empty warning when a linked plan is unreadable")
+	}
+	if !strings.Contains(warn, "plan-link discovery") {
+		t.Errorf("warning should mention plan-link discovery; got: %q", warn)
+	}
+}
+
 // TestCandidateBranchesIncludesCurrentBranch verifies the worktree-branch
 // fallback: when an agent runs `anvil transition resolved` from inside a
 // worktree whose branch is `anvil/<divergent-slug>`, the check still finds
@@ -190,7 +237,10 @@ func TestCandidateBranchesIncludesCurrentBranch(t *testing.T) {
 	}
 	t.Chdir(repo)
 
-	branches := candidateBranchesForIssue(&core.Vault{Root: vault}, "demo.foo")
+	branches, warn := candidateBranchesForIssue(&core.Vault{Root: vault}, "demo.foo")
+	if warn != "" {
+		t.Errorf("unexpected discovery warning: %s", warn)
+	}
 	var saw bool
 	for _, b := range branches {
 		if b == "anvil/short-divergent" {
@@ -236,7 +286,10 @@ body
 	}
 	execCmd(t, "reindex")
 
-	branches := candidateBranchesForIssue(&core.Vault{Root: vault}, "demo.foo")
+	branches, warn := candidateBranchesForIssue(&core.Vault{Root: vault}, "demo.foo")
+	if warn != "" {
+		t.Errorf("unexpected discovery warning: %s", warn)
+	}
 
 	var sawIDSlug, sawPlanSlug bool
 	for _, b := range branches {

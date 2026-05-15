@@ -77,7 +77,10 @@ func newTransitionCmd() *cobra.Command {
 			// every codepath that calls `anvil transition`. See
 			// transition_pr_check.go for branch-candidate resolution.
 			if t == core.TypeIssue && to == "resolved" && !force {
-				branch, prURL, qerr := openPRForIssueResolve(v, id)
+				branch, prURL, warn, qerr := openPRForIssueResolve(v, id)
+				if warn != "" {
+					cmd.PrintErrln("warning: " + warn)
+				}
 				switch {
 				case errors.Is(qerr, errGhUnavailable):
 					cmd.PrintErrln("warning: gh unavailable; skipping open-PR refusal check")
