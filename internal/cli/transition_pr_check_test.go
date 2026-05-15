@@ -10,6 +10,16 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
+// TestMain installs a process-wide no-PR stub so every test that crosses the
+// `transition issue ... resolved` codepath gets a deterministic answer
+// regardless of the host's gh state. CI runners have gh installed but
+// unauthenticated; without the stub those tests would hit live gh and fail.
+// Tests that exercise the refusal path re-stub explicitly via stubGhPRList.
+func TestMain(m *testing.M) {
+	ghPRListFn = func(_ string) (string, error) { return "", nil }
+	os.Exit(m.Run())
+}
+
 // stubGhPRList swaps ghPRListFn for the duration of a test. fn receives the
 // branch passed to gh and returns (url, error).
 func stubGhPRList(t *testing.T, fn func(branch string) (string, error)) {
@@ -137,7 +147,7 @@ func TestTransitionResolvedGhMissingDowngradesToWarning(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	stubGhPRList(t, func(_ string) (string, error) {
-		return "", errGhMissing
+		return "", errGhUnavailable
 	})
 
 	cmd := newRootCmd()
@@ -148,7 +158,7 @@ func TestTransitionResolvedGhMissingDowngradesToWarning(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("expected success when gh missing; got err=%v output=%s", err, out.String())
 	}
-	if !strings.Contains(out.String(), "gh not on PATH") {
+	if !strings.Contains(out.String(), "gh unavailable") {
 		t.Errorf("expected gh-missing warning; got: %s", out.String())
 	}
 }
@@ -164,6 +174,14 @@ func TestCandidateBranchesIncludesCurrentBranch(t *testing.T) {
 	execCmd(t, "init", vault)
 
 	repo := setupGitRepo(t, "git@github.com:acme/demo.git")
+	// CI runners have no git author identity by default — set local config
+	// so the empty commit below doesn't error with "empty ident name".
+	if out, err := runIn(repo, "git", "config", "user.email", "test@example.com"); err != nil {
+		t.Fatalf("git config email: %v %s", err, out)
+	}
+	if out, err := runIn(repo, "git", "config", "user.name", "Test"); err != nil {
+		t.Fatalf("git config name: %v %s", err, out)
+	}
 	if out, err := runIn(repo, "git", "commit", "--allow-empty", "-m", "init", "-q"); err != nil {
 		t.Fatalf("git commit: %v %s", err, out)
 	}

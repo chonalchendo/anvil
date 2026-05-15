@@ -23,10 +23,12 @@ type ghPR struct {
 
 // ghPRListReal invokes `gh pr list --head <branch> --state open --json url,number,headRefName`.
 // Returns (url, nil) when an open PR exists; ("", nil) when none; ("", err)
-// when gh failed or is not installed.
+// when gh is unusable in this environment (binary missing, unauthenticated,
+// no network, no remote). Callers downgrade `errGhUnavailable` to a stderr
+// warning so agents on fresh laptops or CI containers aren't blocked.
 func ghPRListReal(branch string) (string, error) {
 	if _, err := exec.LookPath("gh"); err != nil {
-		return "", errGhMissing
+		return "", errGhUnavailable
 	}
 	out, err := exec.Command("gh", "pr", "list",
 		"--head", branch,
@@ -34,7 +36,11 @@ func ghPRListReal(branch string) (string, error) {
 		"--json", "url,number,headRefName",
 	).Output()
 	if err != nil {
-		return "", fmt.Errorf("gh pr list: %w", err)
+		// Any exec failure here is "we can't ask GitHub right now" — auth
+		// missing, no network, no upstream remote, repo not on GitHub. All
+		// of these warrant a warning, not a hard refusal: the user opted
+		// into running anvil without a gh-ready environment.
+		return "", errGhUnavailable
 	}
 	var prs []ghPR
 	if err := json.Unmarshal(out, &prs); err != nil {
@@ -48,11 +54,13 @@ func ghPRListReal(branch string) (string, error) {
 	return "", nil
 }
 
-// errGhMissing signals the gh binary is unavailable. Callers downgrade the
-// refusal to a warning rather than fail-closed — agents working without gh
-// (CI containers, fresh laptops) shouldn't be blocked, but they shouldn't be
-// silently bypassed either.
-var errGhMissing = errors.New("gh: command not found")
+// errGhUnavailable signals gh is unusable here — binary missing, no auth,
+// no network, no GitHub remote. Callers downgrade the refusal to a stderr
+// warning. Fail-open is deliberate: a user whose environment lacks gh
+// shouldn't be permanently blocked from resolving issues. (The methodology
+// already requires a smoke gate before resolve, so the human still owns the
+// post-merge call.)
+var errGhUnavailable = errors.New("gh: unavailable (missing, unauthenticated, or no remote)")
 
 // openPRForIssueResolve enumerates candidate `anvil/<slug>` branches for an
 // issue and returns (branch, prURL) of the first open PR found. Returns

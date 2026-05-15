@@ -79,8 +79,8 @@ func newTransitionCmd() *cobra.Command {
 			if t == core.TypeIssue && to == "resolved" && !force {
 				branch, prURL, qerr := openPRForIssueResolve(v, id)
 				switch {
-				case errors.Is(qerr, errGhMissing):
-					cmd.PrintErrln("warning: gh not on PATH; skipping open-PR refusal check")
+				case errors.Is(qerr, errGhUnavailable):
+					cmd.PrintErrln("warning: gh unavailable; skipping open-PR refusal check")
 				case qerr != nil:
 					return fmt.Errorf("checking for open PR: %w", qerr)
 				case prURL != "":
