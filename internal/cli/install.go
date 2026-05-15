@@ -139,7 +139,7 @@ func newInstallSkillsCmd() *cobra.Command {
 					}
 				}
 			}
-			_, err = installer.InstallSkills(skills.FS, mat, target, useCopy)
+			_, err = installer.InstallSkills(skills.FS, mat, target, useCopy, force)
 			if err != nil {
 				return fmt.Errorf("installing skills: %w", err)
 			}
