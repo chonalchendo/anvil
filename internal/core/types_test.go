@@ -118,6 +118,40 @@ func TestType_AllocatesID(t *testing.T) {
 	}
 }
 
+func TestType_SupportsProject(t *testing.T) {
+	cases := map[Type]bool{
+		TypeIssue:         true,
+		TypePlan:          true,
+		TypeMilestone:     true,
+		TypeProductDesign: true,
+		TypeSystemDesign:  true,
+		TypeLearning:      true,
+		TypeDecision:      true,
+		TypeInbox:         false,
+		TypeSession:       false,
+		TypeSweep:         false,
+		TypeThread:        false,
+	}
+	for tp, want := range cases {
+		if got := tp.SupportsProject(); got != want {
+			t.Errorf("%s.SupportsProject() = %v, want %v", tp, got, want)
+		}
+	}
+}
+
+func TestTypesSupportingProject_IncludesLearningAndDecision(t *testing.T) {
+	got := TypesSupportingProject()
+	have := make(map[string]bool, len(got))
+	for _, s := range got {
+		have[s] = true
+	}
+	for _, want := range []string{"learning", "decision", "issue", "plan", "milestone", "product-design", "system-design"} {
+		if !have[want] {
+			t.Errorf("TypesSupportingProject() missing %q; got %v", want, got)
+		}
+	}
+}
+
 func TestType_Path(t *testing.T) {
 	root := "/v"
 	cases := []struct {

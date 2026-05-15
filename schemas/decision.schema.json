@@ -20,6 +20,7 @@
       ]
     },
     "aliases":       { "type": "array", "items": { "type": "string" } },
+    "project":       { "type": "string", "minLength": 1 },
     "date":          { "type": "string", "format": "date" },
     "supersedes":    { "type": "array", "items": { "type": "string" } },
     "superseded_by": { "type": ["string", "null"] },
