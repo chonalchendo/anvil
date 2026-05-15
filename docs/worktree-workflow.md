@@ -27,7 +27,7 @@ Or drop `--delete-branch` and delete the local branch yourself after `worktree r
 Before `gh pr create` or claiming done, drive the change through the installed binary against a real vault.
 
 1. `just install` — runs `go install ./cmd/anvil` then asserts the `anvil` on `PATH` is the just-installed binary (same inode as `$(go env GOPATH)/bin/anvil`). Exits non-zero if a stale binary shadows it; fix PATH or the symlink before continuing. If your shell has cached an old path, run `hash -r`.
-2. Cross-check `anvil --version` ends in the short sha of `git rev-parse --short HEAD` (building from a worktree emits `dev` with no sha — run from the main checkout if you need the sha confirmed).
+2. Cross-check `anvil --version` ends in the short sha of `git rev-parse --short HEAD` (with a `-dirty` suffix if the tree has uncommitted changes). `just install` injects the sha via `-ldflags` so worktree builds stamp correctly — Go's `buildvcs` drops VCS metadata for worktrees (golang/go#58300), so a bare `anvil --version` reporting `dev` means the install bypassed `just install`.
 3. Invoke the new verb, re-trigger the changed error, or read the new skill phase end-to-end.
 4. Compare output against acceptance criteria.
 5. Any failure (broken commands in error hints, schema-inconsistent JSON, oversized output, blank fields) is a regression — fix before resolving.

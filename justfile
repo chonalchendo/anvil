@@ -26,10 +26,22 @@ run:
 # `-a` forces a full rebuild so edits to //go:embed sources (e.g. SKILL.md
 # bodies under skills/) reach the installed binary's embed.FS — without it
 # Go's build cache can reuse an object whose embed snapshot predates the edit.
+#
+# Version is injected via -ldflags rather than relying on Go's buildvcs
+# detection, which silently drops VCS metadata when building from a git
+# worktree (golang/go#58300). Without this, `anvil --version` from a
+# worktree-built binary reports bare `dev` and the smoke-test sha cross-check
+# is unhelpful.
 install:
     #!/usr/bin/env bash
     set -euo pipefail
-    go install -a ./cmd/anvil
+    sha="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+        version="dev-${sha}-dirty"
+    else
+        version="dev-${sha}"
+    fi
+    go install -a -ldflags "-X github.com/chonalchendo/anvil/internal/cli.Version=${version}" ./cmd/anvil
     gobin="$(go env GOPATH)/bin/anvil"
     path_anvil="$(command -v anvil 2>/dev/null || true)"
     if [ -z "$path_anvil" ]; then
