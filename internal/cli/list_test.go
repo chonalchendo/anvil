@@ -463,6 +463,99 @@ func TestList_SeverityFilter(t *testing.T) {
 	})
 }
 
+// TestList_MilestoneFilterAndProjection exercises the four acceptance
+// criteria of the milestone-column feature: JSON projects the milestone
+// slug, --milestone filters on exact slug match, default text output
+// surfaces a milestone cell (em-dash when unset), and the filter composes
+// with --ready (indexed path) + --status.
+func TestList_MilestoneFilterAndProjection(t *testing.T) {
+	vault := setupVault(t)
+
+	writeIssueWithMilestone := func(slug, milestone string) {
+		t.Helper()
+		path := writeFixtureIssue(t, vault, "foo", slug, "title "+slug)
+		a, err := core.LoadArtifact(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if milestone != "" {
+			a.FrontMatter["milestone"] = "[[milestone." + milestone + "]]"
+		}
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeIssueWithMilestone("a", "foo.m1")
+	writeIssueWithMilestone("b", "foo.m2")
+	writeIssueWithMilestone("c", "") // no milestone
+
+	t.Run("json projects milestone slug", func(t *testing.T) {
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "list", "issue", "--json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := unmarshalListEnvelope(t, out)
+		got := map[string]string{}
+		for _, it := range env.Items {
+			got[it.ID] = it.Milestone
+		}
+		if got["foo.a"] != "foo.m1" || got["foo.b"] != "foo.m2" || got["foo.c"] != "" {
+			t.Errorf("milestone projection mismatch: %+v", got)
+		}
+	})
+
+	t.Run("--milestone filter narrows", func(t *testing.T) {
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "list", "issue", "--milestone", "foo.m1", "--json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := unmarshalListEnvelope(t, out)
+		if env.Total != 1 || env.Items[0].ID != "foo.a" {
+			t.Errorf("milestone filter: got %+v, want [foo.a]", env.Items)
+		}
+	})
+
+	t.Run("default text output shows milestone column and em-dash", func(t *testing.T) {
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "list", "issue")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out, "foo.m1") {
+			t.Errorf("expected milestone slug foo.m1 in text output, got:\n%s", out)
+		}
+		if !strings.Contains(out, "—") {
+			t.Errorf("expected em-dash for milestone-less issue in text output, got:\n%s", out)
+		}
+	})
+
+	t.Run("composes with --ready and --status", func(t *testing.T) {
+		// Reindex so --ready (indexed path) sees the freshly-saved issues.
+		reindex := newRootCmd()
+		reindex.SetArgs([]string{"reindex"})
+		reindex.SetOut(&bytes.Buffer{})
+		reindex.SetErr(&bytes.Buffer{})
+		if err := reindex.Execute(); err != nil {
+			t.Fatalf("reindex: %v", err)
+		}
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "list", "issue",
+			"--ready", "--status", "open", "--milestone", "foo.m1", "--json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := unmarshalListEnvelope(t, out)
+		if env.Total != 1 || env.Items[0].ID != "foo.a" {
+			t.Errorf("ready+status+milestone compose: got %+v, want [foo.a]", env.Items)
+		}
+		if env.Items[0].Milestone != "foo.m1" {
+			t.Errorf("indexed-path milestone projection: got %q want foo.m1", env.Items[0].Milestone)
+		}
+	})
+}
+
 // TestList_ProjectFlag_AcceptedForSupportedTypes guards against over-eager
 // rejection: the supported set (issue, plan, milestone, designs) must keep
 // accepting --project without error.
