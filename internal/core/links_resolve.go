@@ -61,7 +61,10 @@ func checkWikilink(v *Vault, field, s string) (UnresolvedLink, bool) {
 	if m == nil {
 		return UnresolvedLink{}, false
 	}
-	target := m[1]
+	return checkWikilinkTarget(v, field, m[1])
+}
+
+func checkWikilinkTarget(v *Vault, field, target string) (UnresolvedLink, bool) {
 	dot := strings.IndexByte(target, '.')
 	if dot < 0 {
 		return UnresolvedLink{}, false
@@ -76,4 +79,28 @@ func checkWikilink(v *Vault, field, s string) (UnresolvedLink, bool) {
 		return UnresolvedLink{}, false
 	}
 	return UnresolvedLink{Field: field, Target: target}, true
+}
+
+// ResolveBodyLinks scans body text for every `[[type.id]]` wikilink and
+// returns the targets that don't resolve in v. Mirrors ResolveLinks but
+// walks free-form markdown instead of typed frontmatter slots — duplicate
+// targets in the body are reported once. Field is "body" for every entry.
+func ResolveBodyLinks(v *Vault, body string) []UnresolvedLink {
+	matches := wikilinkRe.FindAllStringSubmatch(body, -1)
+	if matches == nil {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(matches))
+	var out []UnresolvedLink
+	for _, m := range matches {
+		target := m[1]
+		if _, ok := seen[target]; ok {
+			continue
+		}
+		seen[target] = struct{}{}
+		if u, ok := checkWikilinkTarget(v, "body", target); ok {
+			out = append(out, u)
+		}
+	}
+	return out
 }

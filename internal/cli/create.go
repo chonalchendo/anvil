@@ -68,6 +68,7 @@ func newCreateCmd() *cobra.Command {
 		flagJSON             bool
 		flagIssue            string
 		flagBody             string
+		flagBodyFile         string
 		flagFrom             string
 		flagBreaking         bool
 		flagScope            string
@@ -105,6 +106,9 @@ func newCreateCmd() *cobra.Command {
 				}
 				if flagBody != "" {
 					return errors.New("--from and --body are mutually exclusive")
+				}
+				if flagBodyFile != "" {
+					return errors.New("--from and --body-file are mutually exclusive")
 				}
 				var content []byte
 				if flagFrom == "-" {
@@ -263,14 +267,22 @@ func newCreateCmd() *cobra.Command {
 			path = t.Path(v.Root, project, id)
 
 			var body string
+			// userAuthoredBody flags whether the agent supplied body content
+			// (via --body, --body-file, --body -, piped stdin, or --from). When
+			// true, post-write validation runs body checks (section shape +
+			// wikilink resolution). When false, the body is a CLI-generated
+			// stub and only the frontmatter is validated.
+			var userAuthoredBody bool
 			if inputFM != nil {
 				body = inputBody
+				userAuthoredBody = true
 			} else {
-				body, err = readBody(cmd, flagBody)
+				body, err = readBody(cmd, flagBody, flagBodyFile)
 				if err != nil {
 					return err
 				}
-				if body == "" && !cmd.Flags().Changed("body") {
+				userAuthoredBody = cmd.Flags().Changed("body") || cmd.Flags().Changed("body-file") || body != ""
+				if body == "" && !cmd.Flags().Changed("body") && !cmd.Flags().Changed("body-file") {
 					var sections []string
 					switch t {
 					case core.TypeLearning:
@@ -357,6 +369,12 @@ func newCreateCmd() *cobra.Command {
 					if err := a.Save(); err != nil {
 						return fmt.Errorf("saving artifact: %w", err)
 					}
+					if err := postCreateValidate(cmd, v, t, path, a, userAuthoredBody, flagJSON); err != nil {
+						if werr := os.WriteFile(path, originalBytes, 0o644); werr != nil {
+							return errors.Join(err, fmt.Errorf("rolling back %s to prior contents: %w", path, werr))
+						}
+						return err
+					}
 					if err := indexAfterSave(v, a); err != nil {
 						indexErr := fmt.Errorf("indexing %s: %w", id, err)
 						if werr := os.WriteFile(path, originalBytes, 0o644); werr != nil {
@@ -393,6 +411,13 @@ func newCreateCmd() *cobra.Command {
 				return fmt.Errorf("saving artifact: %w", err)
 			}
 
+			if err := postCreateValidate(cmd, v, t, path, a, userAuthoredBody, flagJSON); err != nil {
+				if rerr := os.Remove(path); rerr != nil {
+					return errors.Join(err, fmt.Errorf("rolling back: removing %s: %w", path, rerr))
+				}
+				return err
+			}
+
 			if err := indexAfterSave(v, a); err != nil {
 				indexErr := fmt.Errorf("indexing %s: %w", id, err)
 				if rerr := os.Remove(path); rerr != nil {
@@ -416,7 +441,8 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagSuggestedProject, "suggested-project", "", "suggested project (inbox only)")
 	cmd.Flags().StringVar(&flagSlug, "slug", "", "override the title-derived slug (must match ^[a-z0-9][a-z0-9-]*$)")
 	cmd.Flags().StringVar(&flagIssue, "issue", "", "issue wikilink (required for plan)")
-	cmd.Flags().StringVar(&flagBody, "body", "", "artifact body content (or pipe via stdin)")
+	cmd.Flags().StringVar(&flagBody, "body", "", "artifact body content (literal, or '-' to read stdin)")
+	cmd.Flags().StringVar(&flagBodyFile, "body-file", "", "read artifact body from <path>; mutually exclusive with --body and piped stdin")
 	cmd.Flags().StringVar(&flagFrom, "from", "", "read a complete artifact (frontmatter + body) from <path> or - for stdin; plan only")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	cmd.Flags().BoolVar(&flagBreaking, "breaking", false, "sweep is breaking (required for sweep, must be explicit)")
@@ -472,7 +498,14 @@ func createLongDescription() string {
 	for _, t := range core.AllTypes {
 		names = append(names, string(t))
 	}
-	return "Create a new vault artifact.\n\nSupported types: " + strings.Join(names, ", ")
+	return "Create a new vault artifact.\n\n" +
+		"Supported types: " + strings.Join(names, ", ") + "\n\n" +
+		"Body authoring: pass --body <literal>, --body-file <path>, or --body - " +
+		"(reads stdin). The full artifact lands in one call — no follow-up edit.\n\n" +
+		"Validation: create always validates the frontmatter it just wrote. " +
+		"When --body / --body-file / --body - / --from supplies a body, body " +
+		"sections and wikilink targets are validated too; a failure rolls back " +
+		"the write. Running 'anvil validate <path>' afterward is unnecessary."
 }
 
 func runCreateSession(cmd *cobra.Command, v *core.Vault, sessionID, source, startedAt, activeThread string, asJSON, update bool) error {
@@ -803,4 +836,42 @@ func normaliseDates(fm map[string]any) {
 			fm[k] = t.UTC().Format("2006-01-02")
 		}
 	}
+}
+
+// postCreateValidate runs the same checks as `anvil validate <path>` against
+// the just-saved artifact, plus body-wikilink resolution when the agent
+// supplied body content. Frontmatter checks always run; body-section and
+// body-link checks only run when authoredBody is true so empty-stub creates
+// (the bootstrap path) still succeed.
+//
+// On any failure the caller rolls back the file write.
+func postCreateValidate(cmd *cobra.Command, v *core.Vault, t core.Type, path string, a *core.Artifact, authoredBody, asJSON bool) error {
+	var failures []*errfmt.ValidationError
+
+	if err := schema.Validate(string(t), a.FrontMatter); err != nil {
+		failures = append(failures, schemaErrToValidationErrors(path, err)...)
+	}
+
+	if authoredBody {
+		switch t {
+		case core.TypeIssue:
+			for _, vErr := range core.ValidateIssue(a) {
+				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+			}
+		case core.TypeLearning:
+			for _, vErr := range core.ValidateLearning(a, nil) {
+				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+			}
+		}
+		for _, link := range core.ResolveBodyLinks(v, a.Body) {
+			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "body", fmt.Sprintf("unresolved wikilink [[%s]]", link.Target)).
+				WithFix("create the target artifact or remove the wikilink"))
+		}
+	}
+
+	if len(failures) == 0 {
+		return nil
+	}
+	emitValidationErrors(cmd, asJSON, failures)
+	return ErrSchemaInvalid
 }
