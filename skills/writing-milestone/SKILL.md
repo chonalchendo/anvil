@@ -1,6 +1,6 @@
 ---
 name: writing-milestone
-description: "Use when a product- or system-design exists and a discrete shippable bundle of work needs scoping into a milestone. Triggers: \"scope a milestone\", \"what's the next milestone\", \"M1\", \"M2\", \"define M3\". Not for system design (anvil:writing-system-design) or individual issues (anvil:writing-issue)."
+description: "Use when scoping a shippable bundle of work into a milestone (product/system design must already exist). Triggers: 'scope a milestone', 'what's the next milestone', 'M1', 'M2', 'define M3'."
 license: MIT
 allowed-tools: [Bash, Read, Edit]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"

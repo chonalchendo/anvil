@@ -1,6 +1,6 @@
 ---
 name: dispatching-issue-fleet
-description: Use when the user wants to dispatch a fleet of parallel subagents to work multiple ready issues end-to-end through PR review-green. Triggers include "fleet", "dispatch a batch", "fan out subagents", "work the next N ready issues in parallel". Orchestrates N subagents (default 5, --max 1-8) each owning one issue; the human owns the merge button. Companion — anvil:responding-to-pr-review handles the per-PR review-respond loop.
+description: "Use when the user wants to dispatch parallel subagents to work multiple ready issues end-to-end through PR review-green. Triggers: 'fleet', 'dispatch a batch', 'fan out subagents', 'work the next N issues in parallel'."
 ---
 
 # Dispatching Issue Fleet

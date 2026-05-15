@@ -1,6 +1,6 @@
 ---
 name: responding-to-pr-review
-description: Use when a PR has inline review comments to address — CodeRabbit, a human reviewer, or anvil:reviewing-pr's fresh-subagent output. Triggers include "respond to the review", "address coderabbit", "reply to inline comments", "review-respond loop", "babysit PR <n>". Runs the read → evaluate → apply-or-push-back → reply-per-thread → top-level-summary loop until every inline comment has a reply and CI is green. Companion of anvil:dispatching-issue-fleet — fleet-shipped PRs MUST run this loop even when the user said "merge on green".
+description: "Use when a PR has inline review comments to address — CodeRabbit, a human reviewer, or reviewing-pr's output. Triggers: 'respond to the review', 'address coderabbit', 'reply to inline comments', 'babysit PR <n>'."
 ---
 
 # Responding to PR Review
