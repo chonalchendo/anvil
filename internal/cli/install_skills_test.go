@@ -180,6 +180,45 @@ func TestInstall_Skills_ForceRedeploys(t *testing.T) {
 	}
 }
 
+// TestInstall_Skills_ForceOverwritesForeignDir confirms `anvil install skills
+// --force` does what its flag name promises: a foreign non-anvil directory at
+// the shipped name is replaced, not refused with a hint that contradicts the
+// invocation. Pins the bug fixed by issue
+// anvil-install-skills-force-error-hint-contradicts-the-invoca.
+func TestInstall_Skills_ForceOverwritesForeignDir(t *testing.T) {
+	claudeDir := t.TempDir()
+	skillsDir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+	t.Setenv("ANVIL_SKILLS_DIR", skillsDir)
+
+	foreign := filepath.Join(claudeDir, "skills", "capturing-inbox")
+	if err := os.MkdirAll(foreign, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(foreign, "user.md"), []byte("user"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"install", "skills", "--force"})
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("install --force: %v\nstderr: %s", err, errOut.String())
+	}
+	info, err := os.Lstat(foreign)
+	if err != nil {
+		t.Fatalf("lstat: %v", err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Errorf("--force should leave a symlink at the shipped name; mode=%v", info.Mode())
+	}
+	if !strings.Contains(out.String(), "linked anvil skills") {
+		t.Errorf("output = %q, want linked anvil skills after --force", out.String())
+	}
+}
+
 // TestInstall_Skills_RefreshesOnContentDrift covers the dogfood case the
 // originating issue called out: an installed bundle whose recorded hash is
 // stale (e.g. binary rebuilt with new skill bodies) must redeploy automatically

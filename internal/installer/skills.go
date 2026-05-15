@@ -31,9 +31,14 @@ const legacyNamespace = "anvil"
 // directory (typically ~/.claude/skills), shared with non-anvil skills.
 // A legacy target/anvil/ nested install is cleaned up if detected.
 //
+// When force is true, foreign non-symlink dirs and non-anvil dirs at
+// target/<name> are deleted and replaced — matching the --force flag's
+// promise to the user. When false, those paths are refused with a hint
+// that names --force as the next command.
+//
 // Returns changed=false only when every per-skill entry is already in place
 // and no legacy artefact was removed.
-func InstallSkills(srcFS fs.FS, materialiseDir, target string, useCopy bool) (bool, error) {
+func InstallSkills(srcFS fs.FS, materialiseDir, target string, useCopy, force bool) (bool, error) {
 	hash, err := computeSkillsHash(srcFS)
 	if err != nil {
 		return false, fmt.Errorf("hash skills: %w", err)
@@ -62,7 +67,7 @@ func InstallSkills(srcFS fs.FS, materialiseDir, target string, useCopy bool) (bo
 		return false, err
 	}
 	for _, name := range names {
-		c, err := installOneSkill(materialiseDir, target, name, useCopy)
+		c, err := installOneSkill(materialiseDir, target, name, useCopy, force)
 		if err != nil {
 			return false, err
 		}
@@ -129,7 +134,7 @@ func RefreshSkillsIfStale(srcFS fs.FS, materialiseDir, target string) (bool, err
 	if err != nil {
 		return false, err
 	}
-	if _, err := InstallSkills(srcFS, materialiseDir, target, useCopy); err != nil {
+	if _, err := InstallSkills(srcFS, materialiseDir, target, useCopy, false); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -168,16 +173,16 @@ func listSkillNames(srcFS fs.FS) ([]string, error) {
 	return names, nil
 }
 
-func installOneSkill(materialiseDir, target, name string, useCopy bool) (bool, error) {
+func installOneSkill(materialiseDir, target, name string, useCopy, force bool) (bool, error) {
 	dst := filepath.Join(target, name)
 	src := filepath.Join(materialiseDir, name)
 	if useCopy {
-		return installSkillCopy(src, dst)
+		return installSkillCopy(src, dst, force)
 	}
-	return installSkillSymlink(src, dst)
+	return installSkillSymlink(src, dst, force)
 }
 
-func installSkillSymlink(src, dst string) (bool, error) {
+func installSkillSymlink(src, dst string, force bool) (bool, error) {
 	info, err := os.Lstat(dst)
 	switch {
 	case err == nil && info.Mode()&os.ModeSymlink != 0:
@@ -189,7 +194,12 @@ func installSkillSymlink(src, dst string) (bool, error) {
 			return false, fmt.Errorf("replace symlink %s: %w", dst, err)
 		}
 	case err == nil:
-		return false, fmt.Errorf("refusing to overwrite non-symlink %s; run `anvil install skills --force` to redeploy, or `rm -rf %q && anvil install skills` to take the destructive path", dst, dst)
+		if !force {
+			return false, fmt.Errorf("refusing to overwrite non-symlink %s; run `anvil install skills --force` to redeploy, or `rm -rf %q && anvil install skills` to take the destructive path", dst, dst)
+		}
+		if err := os.RemoveAll(dst); err != nil {
+			return false, fmt.Errorf("clear %s: %w", dst, err)
+		}
 	case !errors.Is(err, os.ErrNotExist):
 		return false, fmt.Errorf("stat %s: %w", dst, err)
 	}
@@ -199,7 +209,7 @@ func installSkillSymlink(src, dst string) (bool, error) {
 	return true, nil
 }
 
-func installSkillCopy(src, dst string) (bool, error) {
+func installSkillCopy(src, dst string, force bool) (bool, error) {
 	info, err := os.Lstat(dst)
 	switch {
 	case err == nil && info.Mode()&os.ModeSymlink != 0:
@@ -207,7 +217,7 @@ func installSkillCopy(src, dst string) (bool, error) {
 			return false, fmt.Errorf("replace symlink %s: %w", dst, err)
 		}
 	case err == nil:
-		if _, mErr := os.Stat(filepath.Join(dst, skillMarker)); mErr != nil {
+		if _, mErr := os.Stat(filepath.Join(dst, skillMarker)); mErr != nil && !force {
 			return false, fmt.Errorf("refusing to overwrite non-anvil dir %s; run `anvil install skills --force` to redeploy, or `rm -rf %q && anvil install skills` to take the destructive path", dst, dst)
 		}
 		if err := os.RemoveAll(dst); err != nil {
