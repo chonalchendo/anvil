@@ -93,8 +93,13 @@ func newInstallSkillsCmd() *cobra.Command {
 	var uninstall, useCopy, force bool
 	cmd := &cobra.Command{
 		Use:   "skills",
-		Short: "Install (or remove) the bundled Anvil skills into ~/.claude/skills/<name>/",
-		Args:  cobra.NoArgs,
+		Short: "Install (or remove) the binary-embedded Anvil skills into ~/.claude/skills/<name>/",
+		Long: "Install (or remove) the Anvil skills bundle into ~/.claude/skills/<name>/.\n\n" +
+			"Skills are embedded into the anvil binary at build time. This command deploys\n" +
+			"that embedded bundle — it does NOT read skills/ from disk. Editing\n" +
+			"skills/<name>/SKILL.md in an anvil checkout has no effect until you rebuild\n" +
+			"the binary (`just install`) and re-run `anvil install skills --force`.",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			target, err := resolveAnvilSkillsTarget()
 			if err != nil {
@@ -129,7 +134,7 @@ func newInstallSkillsCmd() *cobra.Command {
 						return fmt.Errorf("checking skills freshness: %w", err)
 					}
 					if fresh {
-						cmd.Println("anvil skills up to date at", target+"; run `anvil install skills --force` to redeploy")
+						cmd.Println("anvil skills up to date at", target+" (embedded bundle); run `anvil install skills --force` to redeploy, or `just install` first if you edited skills/ on disk")
 						return nil
 					}
 				}
@@ -139,9 +144,9 @@ func newInstallSkillsCmd() *cobra.Command {
 				return fmt.Errorf("installing skills: %w", err)
 			}
 			if useCopy {
-				cmd.Println("copied anvil skills into", target)
+				cmd.Println("copied anvil skills (embedded bundle) into", target+"; rebuild with `just install` to refresh after editing skills/ on disk")
 			} else {
-				cmd.Println("linked anvil skills under", target, "->", mat)
+				cmd.Println("linked anvil skills (embedded bundle) under", target, "->", mat+"; rebuild with `just install` to refresh after editing skills/ on disk")
 			}
 			return nil
 		},
