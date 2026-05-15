@@ -26,6 +26,35 @@ func setupVault(t *testing.T) string {
 	return dir
 }
 
+// TestCreate_DescriptionTooLong_NamesSpineRule pins the cap rationale into the
+// error message so agents see *why* 120 is the cap, not just *that* it is.
+// Without the rule reference, the natural response is to fight the cap; with
+// it, the response is to re-summarise.
+func TestCreate_DescriptionTooLong_NamesSpineRule(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	long := strings.Repeat("x", 125)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue", "--title", "T", "--description", long})
+	var errBuf bytes.Buffer
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&errBuf)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected error for over-length description")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "125 chars") || !strings.Contains(msg, "max 120") {
+		t.Errorf("error missing length/cap: %q", msg)
+	}
+	if !strings.Contains(msg, "spine") {
+		t.Errorf("error must name the spine-validation rule behind the cap: %q", msg)
+	}
+}
+
 func TestCreate_Issue_WritesValidFile(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")

@@ -174,7 +174,7 @@ func newCreateCmd() *cobra.Command {
 
 			if n := utf8.RuneCountInString(flagDescription); n > maxDescriptionChars {
 				return fmt.Errorf(
-					"--description too long: %d chars (max %d); trim before retrying",
+					"--description too long: %d chars (max %d); description is spine index/preview text, not docs — re-summarise to fit the cap rather than raise it",
 					n, maxDescriptionChars,
 				)
 			}
