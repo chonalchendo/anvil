@@ -40,6 +40,7 @@ type listEnvItem struct {
 	Severity    string   `json:"severity"`
 	Created     string   `json:"created"`
 	Project     string   `json:"project"`
+	Milestone   string   `json:"milestone"`
 	Path        string   `json:"path"`
 	Tags        []string `json:"tags"`
 }

@@ -27,6 +27,7 @@ type listItem struct {
 	Severity    string   `json:"severity,omitempty"`
 	Created     string   `json:"created,omitempty"`
 	Project     string   `json:"project,omitempty"`
+	Milestone   string   `json:"milestone,omitempty"`
 	Tags        []string `json:"tags,omitempty"`
 	Path        string   `json:"path"`
 }
@@ -36,6 +37,7 @@ type listFilters struct {
 	TagsAllOf            []string
 	Diataxis, Confidence string
 	Severity             string
+	Milestone            string
 	Since, Until         string
 }
 
@@ -48,6 +50,7 @@ func newListCmd() *cobra.Command {
 		flagStatus, flagProject, flagTag string
 		flagDiataxis, flagConfidence     string
 		flagSeverity                     string
+		flagMilestone                    string
 		flagSince, flagUntil             string
 		flagTags                         []string
 		flagJSON                         bool
@@ -80,8 +83,8 @@ func newListCmd() *cobra.Command {
 			if flagReady || flagOrphans {
 				return runListIndexed(cmd, t, flagReady, flagOrphans, listFilters{
 					Status: flagStatus, Project: flagProject,
-					Severity: flagSeverity,
-					Since:    flagSince, Until: flagUntil,
+					Severity: flagSeverity, Milestone: flagMilestone,
+					Since: flagSince, Until: flagUntil,
 				}, flagJSON, flagLimit)
 			}
 			v, err := core.ResolveVault()
@@ -93,7 +96,8 @@ func newListCmd() *cobra.Command {
 				Status: flagStatus, Project: flagProject, Tag: flagTag,
 				TagsAllOf: tagsAllOf, Diataxis: flagDiataxis,
 				Confidence: flagConfidence, Severity: flagSeverity,
-				Since: flagSince, Until: flagUntil,
+				Milestone: flagMilestone,
+				Since:     flagSince, Until: flagUntil,
 			}, flagJSON, flagLimit)
 		},
 	}
@@ -105,6 +109,7 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagDiataxis, "diataxis", "", "filter by diataxis (exact match)")
 	cmd.Flags().StringVar(&flagConfidence, "confidence", "", "filter by confidence (exact match)")
 	cmd.Flags().StringVar(&flagSeverity, "severity", "", "filter by severity (exact match: "+strings.Join(issueSeverityEnum, "|")+"; issue only)")
+	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "filter by milestone slug (exact match, e.g. anvil.v0-1-polish-dogfood-findings; issue only)")
 	cmd.Flags().StringVar(&flagSince, "since", "", "include only artifacts created on or after YYYY-MM-DD")
 	cmd.Flags().StringVar(&flagUntil, "until", "", "include only artifacts created on or before YYYY-MM-DD")
 	cmd.Flags().IntVar(&flagLimit, "limit", defaultListLimit, "maximum results to return (default 10)")
@@ -163,15 +168,17 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 		created, _ := a.FrontMatter["created"].(string)
 		diataxis, _ := a.FrontMatter["diataxis"].(string)
 		confidence, _ := a.FrontMatter["confidence"].(string)
+		milestone := milestoneSlug(a.FrontMatter["milestone"])
 
-		if !matchesFilters(f, status, project, diataxis, confidence, severity, created, a.FrontMatter["tags"]) {
+		if !matchesFilters(f, status, project, diataxis, confidence, severity, milestone, created, a.FrontMatter["tags"]) {
 			continue
 		}
 
 		items = append(items, listItem{
 			ID: id, Type: string(t), Title: title, Description: description,
 			Status: status, Severity: severity, Created: created, Project: project,
-			Tags: stringTags(a.FrontMatter["tags"]), Path: path,
+			Milestone: milestone,
+			Tags:      stringTags(a.FrontMatter["tags"]), Path: path,
 		})
 	}
 
@@ -189,7 +196,7 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 	return emitList(cmd, items, total, asJSON, t)
 }
 
-func matchesFilters(f listFilters, status, project, diataxis, confidence, severity, created string, tagsRaw any) bool {
+func matchesFilters(f listFilters, status, project, diataxis, confidence, severity, milestone, created string, tagsRaw any) bool {
 	if f.Status != "" && status != f.Status {
 		return false
 	}
@@ -203,6 +210,9 @@ func matchesFilters(f listFilters, status, project, diataxis, confidence, severi
 		return false
 	}
 	if f.Severity != "" && severity != f.Severity {
+		return false
+	}
+	if f.Milestone != "" && milestone != f.Milestone {
 		return false
 	}
 	if f.Tag != "" && !hasTagSubstring(tagsRaw, f.Tag) {
@@ -227,16 +237,43 @@ func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool, t co
 	}
 	w := cmd.OutOrStdout()
 	for _, item := range items {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", item.ID, item.Status, firstNonEmpty(item.Description, item.Title))
+		// Em-dash marks milestone-less issues so the column stays visible
+		// at pick-time scan.
+		milestone := item.Milestone
+		if milestone == "" {
+			milestone = "—"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", item.ID, item.Status, milestone, firstNonEmpty(item.Description, item.Title))
 	}
 	suggestions := []string{"--since/--until", "--status", "--tag"}
 	if t.SupportsProject() {
 		suggestions = append(suggestions, "--project")
 	}
+	if t == core.TypeIssue {
+		suggestions = append(suggestions, "--milestone")
+	}
 	if hint := output.TruncationHint("most recent", returned, total, suggestions); hint != "" {
 		cmd.PrintErrln(hint)
 	}
 	return nil
+}
+
+// milestoneSlug extracts the slug from a milestone wikilink of the form
+// `[[milestone.<slug>]]`. Returns "" for missing, non-string, or
+// non-conforming values — issues without a milestone are valid, and a
+// malformed link should not crash a list.
+func milestoneSlug(raw any) string {
+	s, ok := raw.(string)
+	if !ok {
+		return ""
+	}
+	s = strings.TrimSpace(s)
+	const prefix = "[[milestone."
+	const suffix = "]]"
+	if !strings.HasPrefix(s, prefix) || !strings.HasSuffix(s, suffix) {
+		return ""
+	}
+	return s[len(prefix) : len(s)-len(suffix)]
 }
 
 func firstNonEmpty(a, b string) string {
@@ -303,9 +340,9 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 	if err != nil {
 		return err
 	}
-	// Severity is not in the index; filter post-load. Load all matching rows
-	// before applying the limit so the truncation hint reflects the filtered
-	// total, not the pre-filter row count.
+	// Severity and milestone are not in the index; filter post-load. Load all
+	// matching rows before applying the limit so the truncation hint reflects
+	// the filtered total, not the pre-filter row count.
 	items := make([]listItem, 0, len(rows))
 	for _, r := range rows {
 		item := listItem{
@@ -316,9 +353,13 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 			item.Title, _ = a.FrontMatter["title"].(string)
 			item.Description, _ = a.FrontMatter["description"].(string)
 			item.Severity, _ = a.FrontMatter["severity"].(string)
+			item.Milestone = milestoneSlug(a.FrontMatter["milestone"])
 			item.Tags = stringTags(a.FrontMatter["tags"])
 		}
 		if f.Severity != "" && item.Severity != f.Severity {
+			continue
+		}
+		if f.Milestone != "" && item.Milestone != f.Milestone {
 			continue
 		}
 		items = append(items, item)
