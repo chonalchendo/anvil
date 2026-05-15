@@ -36,7 +36,7 @@ The agent fires this skill from the description's trigger contract. If the user'
 | User intent | Right skill |
 |---|---|
 | Capture *principles* the user has been applying repeatedly | `anvil:synthesizing-knowledge-skill` (if learnings already exist in the vault) |
-| Bootstrap a knowledge skill on a topic researched but not yet practiced | `anvil:researching-domain` |
+| Bootstrap a knowledge skill on a topic researched but not yet practiced | `anvil:researching` |
 | Refresh an existing knowledge skill with new vault learnings | `anvil:synthesizing-knowledge-skill` |
 | Crystallize a workflow that just ran successfully | this skill |
 
