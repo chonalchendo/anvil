@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -15,7 +16,7 @@ import (
 
 func newTransitionCmd() *cobra.Command {
 	var owner, reason string
-	var asJSON bool
+	var asJSON, force bool
 	cmd := &cobra.Command{
 		Use:   "transition <type> <id> <new-state>",
 		Short: "Move an artifact through its state machine",
@@ -71,6 +72,25 @@ func newTransitionCmd() *cobra.Command {
 				}
 			}
 
+			// Refuse issue → resolved when the issue's anvil/<slug> branch
+			// still has an open PR, unless --force is set. Uniform across
+			// every codepath that calls `anvil transition`. See
+			// transition_pr_check.go for branch-candidate resolution.
+			if t == core.TypeIssue && to == "resolved" && !force {
+				branch, prURL, warn, qerr := openPRForIssueResolve(v, id)
+				if warn != "" {
+					cmd.PrintErrln("warning: " + warn)
+				}
+				switch {
+				case errors.Is(qerr, errGhUnavailable):
+					cmd.PrintErrln("warning: gh unavailable; skipping open-PR refusal check")
+				case qerr != nil:
+					return fmt.Errorf("checking for open PR: %w", qerr)
+				case prURL != "":
+					return printAndReturn(cmd, errfmt.NewOpenPRBlocksResolve(id, branch, prURL))
+				}
+			}
+
 			a.FrontMatter["status"] = to
 			if owner != "" {
 				a.FrontMatter["owner"] = owner
@@ -80,6 +100,19 @@ func newTransitionCmd() *cobra.Command {
 			if tr.Reverse {
 				stamp := time.Now().UTC().Format("2006-01-02")
 				audit := fmt.Sprintf("\n> reopened %s: %s\n", stamp, reason)
+				if !strings.HasSuffix(a.Body, "\n") {
+					a.Body += "\n"
+				}
+				a.Body += audit
+			}
+
+			if t == core.TypeIssue && to == "resolved" && force {
+				stamp := time.Now().UTC().Format("2006-01-02")
+				note := reason
+				if note == "" {
+					note = "no reason given"
+				}
+				audit := fmt.Sprintf("\n> resolved --force %s: %s\n", stamp, note)
 				if !strings.HasSuffix(a.Body, "\n") {
 					a.Body += "\n"
 				}
@@ -101,6 +134,7 @@ func newTransitionCmd() *cobra.Command {
 	cmd.Flags().StringVar(&owner, "owner", "", "owner (required for claim transitions)")
 	cmd.Flags().StringVar(&reason, "reason", "", "audit reason (required for reverse transitions)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON envelope")
+	cmd.Flags().BoolVar(&force, "force", false, "override the open-PR refusal on issue → resolved (audit-logged)")
 	return cmd
 }
 

@@ -1,0 +1,203 @@
+package cli
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os/exec"
+	"strings"
+
+	"github.com/chonalchendo/anvil/internal/core"
+)
+
+// ghPRListFn looks up open PRs whose head branch matches `branch`. Returns the
+// first matching PR url, or empty string if none. Package-level for tests to
+// swap; default implementation shells out to `gh pr list`.
+var ghPRListFn = ghPRListReal
+
+type ghPR struct {
+	URL         string `json:"url"`
+	Number      int    `json:"number"`
+	HeadRefName string `json:"headRefName"`
+}
+
+// ghPRListReal invokes `gh pr list --head <branch> --state open --json url,number,headRefName`.
+// Returns (url, nil) when an open PR exists; ("", nil) when none; ("", err)
+// when gh is unusable in this environment (binary missing, unauthenticated,
+// no network, no remote). Callers downgrade `errGhUnavailable` to a stderr
+// warning so agents on fresh laptops or CI containers aren't blocked.
+func ghPRListReal(branch string) (string, error) {
+	if _, err := exec.LookPath("gh"); err != nil {
+		return "", errGhUnavailable
+	}
+	out, err := exec.Command("gh", "pr", "list",
+		"--head", branch,
+		"--state", "open",
+		"--json", "url,number,headRefName",
+	).Output()
+	if err != nil {
+		// Any exec failure here is "we can't ask GitHub right now" — auth
+		// missing, no network, no upstream remote, repo not on GitHub. All
+		// of these warrant a warning, not a hard refusal: the user opted
+		// into running anvil without a gh-ready environment.
+		return "", errGhUnavailable
+	}
+	var prs []ghPR
+	if err := json.Unmarshal(out, &prs); err != nil {
+		return "", fmt.Errorf("gh pr list: parsing json: %w", err)
+	}
+	for _, pr := range prs {
+		if pr.HeadRefName == branch && pr.URL != "" {
+			return pr.URL, nil
+		}
+	}
+	return "", nil
+}
+
+// errGhUnavailable signals gh is unusable here — binary missing, no auth,
+// no network, no GitHub remote. Callers downgrade the refusal to a stderr
+// warning. Fail-open is deliberate: a user whose environment lacks gh
+// shouldn't be permanently blocked from resolving issues. (The methodology
+// already requires a smoke gate before resolve, so the human still owns the
+// post-merge call.)
+var errGhUnavailable = errors.New("gh: unavailable (missing, unauthenticated, or no remote)")
+
+// openPRForIssueResolve enumerates candidate `anvil/<slug>` branches for an
+// issue and returns (branch, prURL, discoveryWarning, err). On any matching
+// open PR: (branch, url, "", nil). On no match: ("", "", warning, nil)
+// where warning is non-empty when plan-link discovery skipped one or more
+// rows. err is non-nil only when gh itself is unavailable.
+//
+// Candidate branches:
+//  1. anvil/<slug-from-issue-id> — covers the common single-issue workflow
+//     where the agent cuts a worktree mirroring the issue slug.
+//  2. anvil/<plan-slug> for any incoming plan link — covers the case where a
+//     fleet-orchestrator or manual planner chose a divergent shorter slug.
+//  3. The current git branch when it bears the `anvil/` prefix.
+func openPRForIssueResolve(v *core.Vault, id string) (branch, prURL, warn string, err error) {
+	branches, warn := candidateBranchesForIssue(v, id)
+	for _, b := range branches {
+		url, qerr := ghPRListFn(b)
+		if qerr != nil {
+			return "", "", warn, qerr
+		}
+		if url != "" {
+			return b, url, warn, nil
+		}
+	}
+	return "", "", warn, nil
+}
+
+// candidateBranchesForIssue returns the `anvil/<slug>` branches to query for
+// an issue. Order: id-derived first, then linked-plan slugs, then the
+// current git branch when it bears the `anvil/` prefix. Duplicates removed.
+// The string return is a human-readable warning when plan-link discovery
+// was incomplete (index read failure, link query failure, or unreadable
+// plan artifact) — the caller surfaces it so the user sees that the PR
+// check ran against a smaller-than-expected candidate set.
+//
+// The current-branch fallback catches the fleet-orchestrator case: a
+// dispatcher may choose a divergent short slug that is recorded in neither
+// the issue id nor any plan frontmatter. The agent runs `anvil transition`
+// from inside the worktree, so the branch name is right there.
+func candidateBranchesForIssue(v *core.Vault, id string) ([]string, string) {
+	seen := map[string]bool{}
+	var out []string
+	addBranch := func(b string) {
+		if b == "" || seen[b] {
+			return
+		}
+		seen[b] = true
+		out = append(out, b)
+	}
+	addSlug := func(slug string) {
+		if slug == "" {
+			return
+		}
+		addBranch("anvil/" + slug)
+	}
+
+	// Issue id is "<project>.<slug>"; pull the slug.
+	if dot := strings.IndexByte(id, '.'); dot >= 0 && dot+1 < len(id) {
+		addSlug(id[dot+1:])
+	}
+
+	// Any incoming plan link contributes its frontmatter slug. Surface a
+	// warning if discovery was incomplete: the index may be stale or a
+	// plan artifact may be unreadable, and an agent silently missing a
+	// branch candidate could allow a resolve through with an open PR.
+	slugs, warn := linkedPlanSlugs(v, id)
+	for _, slug := range slugs {
+		addSlug(slug)
+	}
+
+	// Current branch, when it follows the `anvil/<slug>` convention.
+	if b := currentAnvilBranch(); b != "" {
+		addBranch(b)
+	}
+	return out, warn
+}
+
+// currentAnvilBranch returns the current git branch only when it begins with
+// `anvil/`. Empty string on any error (not in a git repo, detached HEAD,
+// non-anvil branch). Best-effort: this is one of several signals into the
+// candidate-branch set.
+func currentAnvilBranch() string {
+	out, err := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD").Output()
+	if err != nil {
+		return ""
+	}
+	branch := strings.TrimSpace(string(out))
+	if !strings.HasPrefix(branch, "anvil/") {
+		return ""
+	}
+	return branch
+}
+
+// linkedPlanSlugs returns the `slug:` frontmatter field of every plan whose
+// outgoing edges target `id`, plus a human-readable warning when discovery
+// was incomplete. Unlike loadIncomingEdges in show.go (additive display),
+// this helper feeds the resolve guard, so failures must be visible —
+// silently treating a broken index as "no plans" can mask a missing
+// candidate branch and let `resolved` through with an open PR.
+//
+// Per-plan read errors (one artifact missing) are still tolerated and
+// surfaced in the warning rather than aborted, because skipping an
+// unreadable plan never widens the bypass — the remaining candidates still
+// run.
+func linkedPlanSlugs(v *core.Vault, id string) ([]string, string) {
+	db, err := indexForRead(v)
+	if err != nil {
+		return nil, fmt.Sprintf("plan-link discovery skipped: index unreadable (%v)", err)
+	}
+	defer db.Close()
+
+	rows, err := db.LinksTo(id)
+	if err != nil {
+		return nil, fmt.Sprintf("plan-link discovery skipped: links query failed (%v)", err)
+	}
+	var slugs []string
+	var skipped int
+	for _, r := range rows {
+		row, err := db.GetArtifact(r.Source)
+		if err != nil {
+			skipped++
+			continue
+		}
+		if row.Type != string(core.TypePlan) {
+			continue
+		}
+		a, err := core.LoadArtifact(row.Path)
+		if err != nil {
+			skipped++
+			continue
+		}
+		if s, _ := a.FrontMatter["slug"].(string); s != "" {
+			slugs = append(slugs, s)
+		}
+	}
+	if skipped > 0 {
+		return slugs, fmt.Sprintf("plan-link discovery partial: %d source(s) unreadable", skipped)
+	}
+	return slugs, ""
+}

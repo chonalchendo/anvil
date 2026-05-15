@@ -41,6 +41,23 @@ func NewIndexStale() *Structured {
 	return NewStructured("index_stale").Set("hint", "anvil reindex")
 }
 
+// NewOpenPRBlocksResolve builds the structured error returned when an issue's
+// `anvil/<slug>` branch still has an open PR at the moment of
+// `anvil transition issue <id> resolved`. The error names the PR url and the
+// `--force` escape hatch explicitly so an agent reading the JSON envelope can
+// pick its next step without re-querying anything.
+func NewOpenPRBlocksResolve(id, branch, prURL string) *Structured {
+	corrected := fmt.Sprintf("anvil transition issue %s resolved --force --reason \"<post-merge intent>\"", id)
+	return NewStructured("open_pr_blocks_resolve").
+		Set("type", "issue").
+		Set("id", id).
+		Set("branch", branch).
+		Set("pr_url", prURL).
+		Set("override_flag", "--force").
+		Set("corrected", corrected).
+		Set("hint", "merge or close the PR first; --force overrides and is audit-logged")
+}
+
 // NewUnsupportedForType signals a per-type gate (e.g. --ready is issue-only).
 func NewUnsupportedForType(typ string, supported []string) *Structured {
 	return NewStructured("unsupported_for_type").
