@@ -36,7 +36,7 @@ Every task runs in a worktree and lands via PR. Never commit directly on `master
 
 ## Skills before CLI
 
-For any activity with a corresponding skill — `capturing-inbox`, `writing-issue`, `writing-plan`, `writing-product-design`, `distilling-learning`, `opening-thread`, `handing-off-session`, `resuming-session` — fire the skill, not the raw CLI.
+For any activity with a corresponding skill — `capturing-inbox`, `writing-issue`, `writing-plan`, `writing-product-design`, `distilling-learning`, `opening-thread`, `handing-off-session`, `resuming-session`, `dispatching-issue-fleet`, `responding-to-pr-review` — fire the skill, not the raw CLI.
 
 Mechanical verbs — `anvil reindex`, `anvil link --to`, `anvil where`, `anvil list`, `anvil show`, `anvil validate`, `anvil tags list` — fine to call directly.
 
