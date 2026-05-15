@@ -1,6 +1,6 @@
 ---
 name: distilling-learning
-description: "Use when the user explicitly says \"let's distill\" / \"wrap this up into a learning\" / \"extract what we learned from <source>\". Source-agnostic: a thread + sessions, a completed plan, a transcript, or an ad-hoc reflection. Produces N tagged learnings (not 1) keyed by diataxis + confidence + four-facet tags so future agents can retrieve them via `anvil list learning --diataxis ... --tags ... --confidence ...`. Not for active research (stay in the thread); not for one-off thoughts (use anvil:capturing-inbox); not for summaries that aren't durable claims."
+description: "Use when the user says 'let's distill', 'wrap this up into a learning', or 'extract what we learned from <source>'. Produces N tagged learnings (diataxis + confidence + facets). Not for active research or one-off thoughts."
 license: MIT
 allowed-tools: [Bash, Read, Edit]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"

@@ -1,6 +1,6 @@
 ---
 name: researching
-description: "Use when researching a library, technique, or domain - standalone (\"research ducklake\", \"look into X best practices\") or as sub-skill before design / planning skills. NOT for clarifying intent (brainstorming) or recording a chosen path (decision-making)."
+description: "Use when researching a library, technique, or domain — standalone ('research ducklake', 'look into X best practices') or as sub-skill before design/planning. Not for brainstorming or decision-making."
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
 ---
 

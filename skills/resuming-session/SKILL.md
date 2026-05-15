@@ -1,6 +1,6 @@
 ---
 name: resuming-session
-description: Use at the start of a fresh terminal/session when the user wants to pick up prior work. Triggers include "resume session", "resuming session", "load last handoff", "load the handoff", "pick up where I left off", "what was I doing", "continue from last session". Not for ending a session — that is anvil:handing-off-session.
+description: "Use at the start of a fresh terminal/session when the user wants to pick up prior work. Triggers: 'resume session', 'load the handoff', 'pick up where I left off', 'what was I doing', 'continue from last session'."
 ---
 
 # Resuming Session

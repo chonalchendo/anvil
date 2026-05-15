@@ -1,6 +1,6 @@
 ---
 name: reviewing-pr
-description: Use when an Anvil PR needs an independent code review and CodeRabbit is unavailable (rate-limited, paused, free-tier cap hit) or the user explicitly invokes a self-review. Triggers include "review this PR", "self-review PR <n>", "coderabbit fallback review", "review pass on PR <n>". Dispatches a fresh general-purpose subagent so the review runs in an independent context. NOT auto-fired; companion of anvil:responding-to-pr-review which consumes the findings.
+description: "Use when an Anvil PR needs an independent code review and CodeRabbit is unavailable (rate-limited/paused) or the user invokes a self-review. Triggers: 'review this PR', 'self-review PR <n>', 'coderabbit fallback review'. NOT auto-fired."
 ---
 
 # Reviewing PR

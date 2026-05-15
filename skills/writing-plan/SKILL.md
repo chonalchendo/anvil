@@ -1,10 +1,6 @@
 ---
 name: writing-plan
-description: |
-  Use when an issue under 70-issues/ is open and a build-ready plan is needed
-  before any production code is written. The issue must already link to a
-  milestone with an approved design. Do NOT use when implementing inline in
-  the current session; that path goes through anvil:implementing-plan.
+description: "Use when an open issue needs a build-ready plan before code is written. Issue must link to a milestone with an approved design. Not for inline implementation (use anvil:implementing-plan)."
 ---
 
 # Writing Plan

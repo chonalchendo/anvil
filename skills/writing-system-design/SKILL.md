@@ -1,6 +1,6 @@
 ---
 name: writing-system-design
-description: Use when authoring system design — architecture, components, data flow, invariants. Requires existing product-design. Not for product vision (anvil:writing-product-design), milestones (anvil:defining-milestone), tasks (anvil:creating-issue).
+description: "Use when authoring system design — architecture, components, data flow, invariants. Requires existing product-design. Not for product vision (writing-product-design) or issues (writing-issue)."
 license: MIT
 allowed-tools: [Read, Edit, Write]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"

@@ -1,6 +1,6 @@
 ---
 name: extracting-skill-from-session
-description: Use when a workflow just ran end-to-end and the user wants it as a reusable skill, or says "extract a skill" or "turn this into a skill". Do NOT use for knowledge or refresh — try anvil:researching-domain or anvil:synthesizing-knowledge-skill.
+description: "Use when a workflow just ran end-to-end and the user wants it captured as a reusable skill. Triggers: 'extract a skill', 'turn this into a skill'. Not for knowledge refresh — use anvil:researching."
 license: MIT
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
 metadata:

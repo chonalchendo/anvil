@@ -1,6 +1,6 @@
 ---
 name: opening-thread
-description: "Use when the user explicitly commits to research now — \"let's research X\", \"open a thread on X\", \"promote inbox <id> to a thread\". Triggers a thread artifact + active-session binding so subsequent sessions auto-link. Not for passive captures (use anvil:capturing-inbox); not for project-tied research where an issue already exists."
+description: "Use when the user explicitly commits to research now. Triggers: 'let's research X', 'open a thread on X', 'promote inbox <id> to a thread'. Not for passive captures (use capturing-inbox) or project-tied research with an existing issue."
 license: MIT
 allowed-tools: [Bash, Read, Edit]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
