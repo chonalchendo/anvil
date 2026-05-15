@@ -66,12 +66,12 @@ func (t Type) AllocatesID() bool {
 }
 
 // SupportsProject reports whether the type's schema accepts a `project:`
-// frontmatter field. Types that return false (decision, inbox, learning,
-// session, sweep, thread) are deliberately cross-project — scope them via
-// tags (`domain/X`) or topic-prefix conventions.
+// frontmatter field. Types that return false (inbox, session, sweep, thread)
+// are deliberately cross-project — inbox predates project assignment, sessions
+// cross repos, and sweep/thread are spans by construction.
 func (t Type) SupportsProject() bool {
 	switch t {
-	case TypeIssue, TypePlan, TypeMilestone, TypeProductDesign, TypeSystemDesign:
+	case TypeIssue, TypePlan, TypeMilestone, TypeProductDesign, TypeSystemDesign, TypeLearning, TypeDecision:
 		return true
 	}
 	return false

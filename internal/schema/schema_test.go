@@ -423,6 +423,62 @@ func TestValidate_Learning_RequiresDomainAndActivityTag(t *testing.T) {
 	})
 }
 
+func TestValidate_Learning_AcceptsOptionalProject(t *testing.T) {
+	base := map[string]any{
+		"type": "learning", "title": "X", "created": "2026-05-15",
+		"status": "draft", "diataxis": "explanation", "confidence": "low",
+		"tags": []any{"domain/dev-tools", "activity/research"},
+	}
+	t.Run("accepts with project", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["project"] = "burgh"
+		if err := Validate("learning", fm); err != nil {
+			t.Errorf("expected valid with project: %v", err)
+		}
+	})
+	t.Run("rejects empty project", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["project"] = ""
+		if err := Validate("learning", fm); err == nil {
+			t.Error("expected rejection: empty project string violates minLength 1")
+		}
+	})
+	t.Run("accepts without project", func(t *testing.T) {
+		fm := maps.Clone(base)
+		if err := Validate("learning", fm); err != nil {
+			t.Errorf("expected valid without project (field is optional): %v", err)
+		}
+	})
+}
+
+func TestValidate_Decision_AcceptsOptionalProject(t *testing.T) {
+	base := map[string]any{
+		"type": "decision", "title": "X", "description": "d", "created": "2026-05-15",
+		"status": "proposed", "date": "2026-05-15",
+		"tags": []any{"domain/dev-tools", "activity/research"},
+	}
+	t.Run("accepts with project", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["project"] = "burgh"
+		if err := Validate("decision", fm); err != nil {
+			t.Errorf("expected valid with project: %v", err)
+		}
+	})
+	t.Run("rejects empty project", func(t *testing.T) {
+		fm := maps.Clone(base)
+		fm["project"] = ""
+		if err := Validate("decision", fm); err == nil {
+			t.Error("expected rejection: empty project string violates minLength 1")
+		}
+	})
+	t.Run("accepts without project", func(t *testing.T) {
+		fm := maps.Clone(base)
+		if err := Validate("decision", fm); err != nil {
+			t.Errorf("expected valid without project (field is optional): %v", err)
+		}
+	})
+}
+
 func TestValidate_Thread_AcceptsMinimal(t *testing.T) {
 	fm := map[string]any{
 		"type": "thread", "title": "X", "created": "2026-04-29",

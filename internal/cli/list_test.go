@@ -361,7 +361,7 @@ func TestListInbox_LimitAndSince(t *testing.T) {
 // structured error rather than silently returning empty results.
 func TestList_ProjectFlag_RejectedForUnsupportedTypes(t *testing.T) {
 	setupVault(t)
-	for _, typ := range []string{"learning", "decision", "inbox", "session", "sweep", "thread"} {
+	for _, typ := range []string{"inbox", "session", "sweep", "thread"} {
 		t.Run(typ, func(t *testing.T) {
 			cmd := newRootCmd()
 			_, errOut, err := runCmd(t, cmd, "list", typ, "--project", "anvil")
@@ -557,14 +557,93 @@ func TestList_MilestoneFilterAndProjection(t *testing.T) {
 }
 
 // TestList_ProjectFlag_AcceptedForSupportedTypes guards against over-eager
-// rejection: the supported set (issue, plan, milestone, designs) must keep
-// accepting --project without error.
+// rejection: the supported set (issue, plan, milestone, designs, learning,
+// decision) must keep accepting --project without error.
 func TestList_ProjectFlag_AcceptedForSupportedTypes(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A issue")
-	cmd := newRootCmd()
-	_, _, err := runCmd(t, cmd, "list", "issue", "--project", "foo")
-	if err != nil {
-		t.Fatalf("expected --project to work for issue, got %v", err)
+	for _, typ := range []string{"issue", "learning", "decision"} {
+		t.Run(typ, func(t *testing.T) {
+			cmd := newRootCmd()
+			_, _, err := runCmd(t, cmd, "list", typ, "--project", "foo")
+			if err != nil {
+				t.Fatalf("expected --project to work for %s, got %v", typ, err)
+			}
+		})
+	}
+}
+
+// TestList_LearningDecision_ProjectFilter exercises end-to-end filtering on
+// the optional project field for learning + decision (AC #3).
+func TestList_LearningDecision_ProjectFilter(t *testing.T) {
+	vault := setupVault(t)
+
+	writeFixture := func(typ, dir, id, project string) {
+		t.Helper()
+		fm := map[string]any{
+			"type": typ, "title": id, "created": "2026-05-10", "updated": "2026-05-10",
+			"tags": []any{"domain/methodology", "activity/testing"},
+		}
+		switch typ {
+		case "learning":
+			fm["status"] = "draft"
+			fm["diataxis"] = "explanation"
+			fm["confidence"] = "low"
+		case "decision":
+			fm["status"] = "proposed"
+			fm["date"] = "2026-05-10"
+			fm["description"] = "fixture decision"
+		}
+		if project != "" {
+			fm["project"] = project
+		}
+		path := filepath.Join(vault, dir, id+".md")
+		a := &core.Artifact{Path: path, FrontMatter: fm, Body: "body\n"}
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	writeFixture("learning", "20-learnings", "l-burgh", "burgh")
+	writeFixture("learning", "20-learnings", "l-anvil", "anvil")
+	writeFixture("learning", "20-learnings", "l-unscoped", "")
+	writeFixture("decision", "30-decisions", "d-burgh", "burgh")
+	writeFixture("decision", "30-decisions", "d-anvil", "anvil")
+
+	for _, tc := range []struct {
+		typ      string
+		want     string
+		wantMiss string
+	}{
+		{"learning", "l-burgh", "l-anvil"},
+		{"decision", "d-burgh", "d-anvil"},
+	} {
+		t.Run(tc.typ, func(t *testing.T) {
+			cmd := newRootCmd()
+			out, _, err := runCmd(t, cmd, "list", tc.typ, "--project", "burgh", "--json")
+			if err != nil {
+				t.Fatalf("list %s --project burgh: %v", tc.typ, err)
+			}
+			env := unmarshalListEnvelope(t, out)
+			ids := make([]string, 0, len(env.Items))
+			for _, it := range env.Items {
+				ids = append(ids, it.ID)
+			}
+			found, foundMiss := false, false
+			for _, id := range ids {
+				if id == tc.want {
+					found = true
+				}
+				if id == tc.wantMiss {
+					foundMiss = true
+				}
+			}
+			if !found {
+				t.Errorf("expected %q in results, got %v", tc.want, ids)
+			}
+			if foundMiss {
+				t.Errorf("did not expect %q in results, got %v", tc.wantMiss, ids)
+			}
+		})
 	}
 }

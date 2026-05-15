@@ -135,12 +135,7 @@ func splitTags(raw []string) []string {
 // type whose schema rejects `project:`. Surfaced in the unsupported-flag
 // error so agents don't re-discover the convention by guessing.
 func suggestProjectAlternative(t core.Type) string {
-	switch t {
-	case core.TypeLearning:
-		return "scope learnings via --tags domain/<area>"
-	case core.TypeDecision:
-		return "scope decisions via topic prefix in the id (e.g. data-sources.0001-...) and grep the listing"
-	case core.TypeInbox:
+	if t == core.TypeInbox {
 		return "inbox items carry suggested_project, not project; list and grep instead"
 	}
 	return "this type is deliberately cross-project; filter via --tag or --tags"

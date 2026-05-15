@@ -7,3 +7,5 @@ date: {{ .Created }}
 status: proposed
 # tags: required domain/<x> + activity/<x>; pattern/<x> optional
 tags: [{{- range $i, $t := .Tags }}{{ if $i }}, {{ end }}{{ $t }}{{- end }}]
+{{ if .Project }}project: {{ .Project }}
+{{ end }}
