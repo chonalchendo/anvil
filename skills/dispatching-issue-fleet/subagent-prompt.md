@@ -81,7 +81,7 @@ Never invoke:
 - `gh pr merge` — the human owns the merge button.
 - `git worktree remove` — post-merge cleanup is the human's.
 - `anvil transition resolved` — the human transitions to resolved after merge.
-- `anvil transition abandoned` — stalled exits halt with a structured `Blocker:` line; abandoned is a human-initiated state, never a subagent self-rescue.
+- `anvil transition abandoned` — halt with `Blocker:` instead; abandoned is human-only.
 
 Echo this checklist verbatim in your final structured report (before the PR url / Blocker line) so the orchestrator can audit non-execution:
 
