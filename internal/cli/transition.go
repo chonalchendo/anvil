@@ -57,6 +57,9 @@ func newTransitionCmd() *cobra.Command {
 						Set("flag", "--no-longer-reproduces").
 						Set("applies_to", "transition issue <id> in-progress"))
 				}
+				if from != "open" {
+					return printAndReturn(cmd, errfmt.NewIllegalTransition(string(t), id, from, "in-progress", core.LegalNext(t, from)))
+				}
 				ok, anchorCmd, diff, aerr := runAnchorCheck(cmd.Context(), a, cmd.ErrOrStderr())
 				if aerr != nil {
 					return fmt.Errorf("anchor check: %w", aerr)

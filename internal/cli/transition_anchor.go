@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -19,8 +20,36 @@ import (
 // be slimmed in the issue's frontmatter.
 const anchorTimeout = 30 * time.Second
 
+// anchorMaxStdoutBytes caps captured stdout to prevent runaway memory growth
+// from a noisy anchor command (e.g. an accidental `yes` or unbounded log
+// stream). Real anchors emit a line or a few KB; 256 KiB is generous slack.
+const anchorMaxStdoutBytes = 256 * 1024
+
 // shaRe matches an `expected` field that opts into sha256-digest comparison.
 var shaRe = regexp.MustCompile(`(?i)^sha:[0-9a-f]+$`)
+
+// capWriter writes to an underlying buffer up to a fixed cap, then silently
+// discards further bytes (still claiming acceptance so the producer's pipe
+// doesn't block). Truncation is exposed via Truncated.
+type capWriter struct {
+	buf       bytes.Buffer
+	cap       int
+	truncated bool
+}
+
+func (w *capWriter) Write(p []byte) (int, error) {
+	remaining := w.cap - w.buf.Len()
+	if remaining <= 0 {
+		w.truncated = true
+		return len(p), nil
+	}
+	if len(p) > remaining {
+		w.buf.Write(p[:remaining])
+		w.truncated = true
+		return len(p), nil
+	}
+	return w.buf.Write(p)
+}
 
 // runAnchorCheck runs the issue's reproduction_anchor (if any) and reports
 // whether the observed output matches the recorded `expected` value. Returns
@@ -43,18 +72,34 @@ func runAnchorCheck(ctx context.Context, a *core.Artifact, stderr io.Writer) (ma
 	defer cancel()
 
 	c := exec.CommandContext(ctx, "/bin/sh", "-c", cmdStr)
-	var stdout bytes.Buffer
-	c.Stdout = &stdout
+	stdout := &capWriter{cap: anchorMaxStdoutBytes}
+	c.Stdout = stdout
 	c.Stderr = stderr
-	// Exit code is ignored: a non-zero exit with mismatched stdout still
-	// surfaces as a mismatch; a non-zero exit whose stdout happens to match
-	// the expected value is treated as a match (the recorded reproduction
-	// includes the exit). This keeps the gate purely about output identity.
-	_ = c.Run()
+	// Exit code is ignored for ExitError: a non-zero exit with mismatched
+	// stdout still surfaces as a mismatch; a non-zero exit whose stdout
+	// happens to match the expected value is treated as a match (the
+	// recorded reproduction includes the exit). Timeout and exec-startup
+	// failures are surfaced as hard errors — they don't carry meaningful
+	// "output identity" semantics.
+	runErr := c.Run()
+	if runErr != nil {
+		var exitErr *exec.ExitError
+		switch {
+		case errors.As(runErr, &exitErr):
+			// fall through to output comparison
+		case errors.Is(ctx.Err(), context.DeadlineExceeded):
+			return false, cmdStr, "", fmt.Errorf("anchor command timed out after %s", anchorTimeout)
+		default:
+			return false, cmdStr, "", fmt.Errorf("anchor command failed: %w", runErr)
+		}
+	}
+	if stdout.truncated {
+		return false, cmdStr, "", fmt.Errorf("anchor stdout exceeded %d bytes", anchorMaxStdoutBytes)
+	}
 
-	got := stdout.String()
+	got := stdout.buf.String()
 	if shaRe.MatchString(expected) {
-		sum := sha256.Sum256(stdout.Bytes())
+		sum := sha256.Sum256(stdout.buf.Bytes())
 		gotDigest := "sha:" + hex.EncodeToString(sum[:])
 		if equalFold(gotDigest, expected) {
 			return true, cmdStr, "", nil
