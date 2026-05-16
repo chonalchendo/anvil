@@ -39,7 +39,7 @@ For any activity with a corresponding skill, fire the skill — not the raw CLI.
 
 Anvil is its own primary user. Friction surfaces here — no side logs, no external trackers. **But friction is signal, not work.** Most observations should not become individual issues. Three principles govern what gets worked on:
 
-1. **Observations decay.** An issue must embed a reproduction — failing command, output snapshot, or SHA stamp — not just an AC. A future agent must be able to re-run and see if the gap still exists. `anvil list --ready` rolls into filtering on this once `anvil verify` lands.
+1. **Observations decay.** An issue must embed a reproduction — failing command, output snapshot, or SHA stamp — not just an AC. A future agent must be able to re-run and see if the gap still exists. `anvil list issue --ready --json` rolls into filtering on this once `anvil verify` lands.
 
 2. **Friction is signal, not work.** Repeated friction against the same surface (a verb, a flag, an error message) aggregates. Don't file five issues for five paper-cuts on the same edge; the *fix* is a redesign of that surface, surfaced when the signal crosses a threshold. The CLI is the highest-value surface to measure (`@docs/agent-cli-principles.md`).
 
