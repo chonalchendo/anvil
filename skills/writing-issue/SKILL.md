@@ -176,6 +176,15 @@ Required body sections (enforced by `create`):
 
 `anvil validate <path>` remains useful as a re-check after edits (e.g. after `anvil set ... acceptance --add`), but it is **not** required after `create` when the body was supplied via `--body-file` / `--body -`.
 
+**Reproduction anchor — bug issues only.** Author `reproduction_anchor` only when the issue is a **bug**: something concrete is broken today and a shell command reproduces the failure. **Skip the anchor** for feature, refactor, doc, or design-shaping issues — there is no failure mode to reproduce, and forcing one is a category error.
+
+Shape (bug case): `command` (shell-runnable invocation that reproduces the gap), `expected` (literal output or `sha:<hex>` digest). When an agent later runs `anvil transition issue <id> in-progress`, anvil re-runs the command and refuses the claim if the output no longer matches. Two escape hatches if the gate misfires:
+
+- `--force` — bypass the check and claim anyway (use when the anchor itself is broken but the issue is real).
+- `--no-longer-reproduces` — confirm the mismatch and close the issue directly as `resolved` with the diff captured in the audit trail.
+
+Anchor authoring stays optional. Bug issues without an anchor, and all non-bug issues, transition normally (grandfather rule).
+
 ---
 
 ## Working the issue (state machine)
