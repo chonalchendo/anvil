@@ -72,6 +72,19 @@ func newTransitionCmd() *cobra.Command {
 				}
 			}
 
+			// Refuse issue → in-progress when the recorded reproduction_anchor
+			// no longer matches observed output. Grandfathers issues that have
+			// no anchor. T3 lands the structured error envelope.
+			if t == core.TypeIssue && to == "in-progress" && !force {
+				ok, _, diff, aerr := runAnchorCheck(cmd.Context(), a, cmd.ErrOrStderr())
+				if aerr != nil {
+					return fmt.Errorf("anchor check: %w", aerr)
+				}
+				if !ok {
+					return fmt.Errorf("anchor mismatch:\n%s", diff)
+				}
+			}
+
 			// Refuse issue → resolved when the issue's anvil/<slug> branch
 			// still has an open PR, unless --force is set. Uniform across
 			// every codepath that calls `anvil transition`. See
