@@ -35,17 +35,23 @@ Every task runs in a worktree and lands via PR. Never commit directly on `master
 
 For any activity with a corresponding skill, fire the skill — not the raw CLI. Mechanical verbs — `anvil reindex`, `anvil link --to`, `anvil where`, `anvil list`, `anvil show`, `anvil validate`, `anvil tags list` — fine to call directly. If reaching for `anvil create <type>` and the type has a skill, stop and fire the skill instead.
 
-## Dogfooding
+## Evaluating work
 
-Anvil is its own primary user. Friction goes straight to `anvil create issue` (reproducible) or `anvil create inbox` (unshaped) — no side logs, no external trackers.
+Anvil is its own primary user. Friction surfaces here — no side logs, no external trackers. **But friction is signal, not work.** Most observations should not become individual issues. Three principles govern what gets worked on:
 
-**The CLI is the highest-priority friction surface.** Measure every verb, flag, and error against `@docs/agent-cli-principles.md`. A violation is friction by design — log it even when it didn't block you.
+1. **Observations decay.** An issue must embed a reproduction — failing command, output snapshot, or SHA stamp — not just an AC. A future agent must be able to re-run and see if the gap still exists. `anvil list --ready` rolls into filtering on this once `anvil verify` lands.
 
-Route by shape, not domain — if you can name an acceptance criterion in one breath, it's an issue:
+2. **Friction is signal, not work.** Repeated friction against the same surface (a verb, a flag, an error message) aggregates. Don't file five issues for five paper-cuts on the same edge; the *fix* is a redesign of that surface, surfaced when the signal crosses a threshold. The CLI is the highest-value surface to measure (`@docs/agent-cli-principles.md`).
 
-- Raw / fuzzy thought → `anvil create inbox --title "<one line>" --suggested-type issue`.
-- Shaped (problem + AC) → `anvil create issue --project anvil ...` linked to the active milestone. Quote the failing invocation verbatim with observed-vs-expected delta.
-- **No structural PR without a vault antecedent.** Structural change = touches `AGENTS.md`, `docs/`, `.claude/`, `internal/schema/`, or adds a new top-level dir. The PR must reference an issue or inbox id.
+3. **Milestones are scoped, not buckets.** Every milestone has closed acceptance criteria. "Worth fixing now?" reduces to "blocks a named AC on an open milestone?" — yes pulls in, no aggregates. Existing bucket milestones (e.g. `v0-1-polish-dogfood-findings`) are grandfathered until they're re-scoped or culled.
+
+When to use which surface:
+
+- Reproduction in hand, blocks a scoped milestone → `anvil create issue --project anvil ...`. Quote the failing invocation verbatim with observed-vs-expected delta.
+- Pattern without a single fix → aggregate; surface in end-of-session reflection.
+- Fleeting hunch, no reproduction yet → `anvil create inbox --title "<one line>" --suggested-type issue`.
+
+**No structural PR without a vault antecedent.** Structural change = touches `AGENTS.md`, `docs/`, `.claude/`, `internal/schema/`, or adds a new top-level dir. The PR must reference an issue or inbox id.
 
 See `@docs/guardrails.md` for vault hygiene (Obsidian stub cleanup) and end-of-session token reflection.
 
