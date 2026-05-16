@@ -27,7 +27,7 @@ If the session resolved issues, also run `anvil list issue --status resolved` fi
 
 ## Brevity budget
 
-The handoff body must aim for **≤1 KB**. A typical dogfood-loop handoff is 600–900 B; anything past 1 KB needs every paragraph to justify itself against the cuts below. `anvil:resuming-session` loads this file verbatim every session — bloat compounds across the entire dogfood loop.
+The handoff body must aim for **≤1.2 KB** (≤1 KB pointer body + ≤200 B token-reflection block). A typical dogfood-loop handoff is 600–900 B before the reflection; anything past the cap needs every paragraph to justify itself against the cuts below. `anvil:resuming-session` loads this file verbatim every session — bloat compounds across the entire dogfood loop.
 
 Section-by-section cuts to apply *before* writing, not after:
 
@@ -36,6 +36,7 @@ Section-by-section cuts to apply *before* writing, not after:
 - **Open threads:** one line each, pointing to an artifact id (inbox slug, PR number, issue id). No paraphrase.
 - **Don't redo:** approach + one-word reason. No reasoning chain.
 - **Reminders:** if every candidate line restates AGENTS.md, omit the section entirely. AGENTS.md auto-loads. Keep only session-specific deltas (a transient env var, a one-off stash).
+- **Token reflection:** 2–3 bullets, ≤200 B total. Top sinks (avoidable reads, redundant searches, oversized tool output) + one-phrase cut each. Not optional — a session with no token-side observation is itself a finding; write *"no avoidable sinks observed"* if true.
 
 If a section would be empty after these cuts, omit the section header too. "Skip if empty" in the template is a hard rule, not a suggestion.
 
@@ -57,6 +58,8 @@ Working in <repo path>. <One-sentence framing: what kind of work, which project.
 **Don't redo.** <Approaches considered and rejected this session, with one-line reason. Skip if nothing.>
 
 **Reminders.** <Session-specific rules the receiving agent might not infer from AGENTS.md alone. Skip if nothing.>
+
+**Token reflection.** <2–3 bullets, ≤200 B. Top sinks this session → one-phrase cut. Required; satisfies the CLAUDE.md MUST. Write *"no avoidable sinks observed"* if none.>
 ```
 
 ## Phase 3 — Write into the session file and stop
@@ -77,11 +80,11 @@ Do not offer to commit, push, or summarise further. The handoff is the deliverab
 - Implementation detail of landed PRs (the new agent runs `gh pr view <n>` or `git log -p`).
 - Enumerated candidate issue IDs from `anvil list --ready` — name the query, never the result set.
 - Restating AGENTS.md / CLAUDE.md content (it auto-loads).
-- "We learned that…" reflections — those belong in `anvil:distilling-learning`, not the handoff.
+- "We learned that…" reflections — those belong in `anvil:distilling-learning`, not the handoff. **Exception:** token-cost observations (sinks + cuts) belong in the **Token reflection** section above — that satisfies the CLAUDE.md end-of-session MUST and has no other destination.
 - TODOs the new agent should self-discover via `anvil list issue --ready`.
 
 If the temptation to include any of the above appears, replace it with the one-line query that surfaces it.
 
 ## When the session has nothing handoff-worthy
 
-If `git status` is clean, no new artifacts were created, and no decisions were reached: say so in one line — *"Nothing to hand off; new session starts from a clean tree."* Do not invent next-actions to fill the template.
+If `git status` is clean, no new artifacts were created, and no decisions were reached: say so in one line — *"Nothing to hand off; new session starts from a clean tree."* — followed by the **Token reflection** bullets (still required). Do not invent next-actions to fill the template.
