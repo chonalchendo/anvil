@@ -106,19 +106,58 @@ func newShowCmd() *cobra.Command {
 	return cmd
 }
 
+// showOutput is the in-memory shape used by both text and JSON emit paths.
+// For JSON, frontmatter fields are flattened onto the top-level envelope so
+// callers read `status`, `severity`, etc. with the same idiom they use against
+// `anvil list --json` items (no `frontmatter.` indirection). Envelope keys
+// (id, path, body, body_truncated, body_lines_total, incoming) take precedence
+// on collision with frontmatter keys of the same name.
 type showOutput struct {
-	ID             string                    `json:"id"`
-	Path           string                    `json:"path"`
-	FrontMatter    map[string]any            `json:"frontmatter"`
-	Body           *string                   `json:"body"`
-	BodyTruncated  bool                      `json:"body_truncated"`
-	BodyLinesTotal int                       `json:"body_lines_total"`
-	Incoming       map[string][]incomingEdge `json:"incoming,omitempty"`
+	ID             string
+	Path           string
+	FrontMatter    map[string]any
+	Body           *string
+	BodyTruncated  bool
+	BodyLinesTotal int
+	Incoming       map[string][]incomingEdge
 }
 
 type incomingEdge struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
+}
+
+// envelopeKeys is the set of top-level fields show always emits. Frontmatter
+// keys colliding with these are shadowed (envelope wins) — keeps the contract
+// stable when an artifact ever puts `id`/`path` etc. in its own frontmatter.
+var envelopeKeys = map[string]struct{}{
+	"id": {}, "path": {}, "body": {},
+	"body_truncated": {}, "body_lines_total": {}, "incoming": {},
+}
+
+// MarshalJSON produces the flat envelope: frontmatter merged onto the top
+// level with envelope fields overriding any colliding keys. Implements
+// json.Marshaler so `json.Marshal(out)` (and downstream encoders) emit the
+// flat shape transparently. `incoming` is omitted when nil (matches the
+// previous `omitempty` behaviour); `body` is serialised as JSON null when
+// caller didn't ask for it, preserving the explicit-absence signal.
+func (o *showOutput) MarshalJSON() ([]byte, error) {
+	out := make(map[string]any, len(o.FrontMatter)+6)
+	for k, v := range o.FrontMatter {
+		if _, reserved := envelopeKeys[k]; reserved {
+			continue
+		}
+		out[k] = v
+	}
+	out["id"] = o.ID
+	out["path"] = o.Path
+	out["body"] = o.Body
+	out["body_truncated"] = o.BodyTruncated
+	out["body_lines_total"] = o.BodyLinesTotal
+	if o.Incoming != nil {
+		out["incoming"] = o.Incoming
+	}
+	return json.Marshal(out)
 }
 
 func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, includeBody, includeIncoming bool) error {
@@ -165,7 +204,7 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, 
 
 	w := cmd.OutOrStdout()
 	if asJSON {
-		b, _ := json.Marshal(out)
+		b, _ := json.Marshal(&out)
 		fmt.Fprintln(w, string(b))
 		return nil
 	}

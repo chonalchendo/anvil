@@ -65,18 +65,98 @@ func TestShow_JSON(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
 	}
-	fm, ok := got["frontmatter"].(map[string]any)
-	if !ok {
-		t.Fatalf("frontmatter not nested object: %v", got["frontmatter"])
+	// Frontmatter fields are flattened onto the top-level envelope so callers
+	// read `status`, `title`, etc. with the same idiom as `anvil list --json`.
+	if got["title"] != "Bar issue" {
+		t.Errorf("title = %v", got["title"])
 	}
-	if fm["title"] != "Bar issue" {
-		t.Errorf("title = %v", fm["title"])
+	if _, present := got["frontmatter"]; present {
+		t.Errorf("frontmatter key should not exist (flat shape); got: %v", got["frontmatter"])
 	}
 	if _, ok := got["body"].(string); !ok {
 		t.Errorf("body missing or not string: %v", got["body"])
 	}
 	if _, ok := got["path"].(string); !ok {
 		t.Errorf("path missing or not string: %v", got["path"])
+	}
+}
+
+// TestShow_JSON_ShapeParityWithList pins the contract that motivated this
+// change: a JSON-driven caller reads `status` (and other frontmatter fields)
+// the same way from both verbs without verb-specific branching.
+func TestShow_JSON_ShapeParityWithList(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "bar", "Bar issue")
+
+	// show: frontmatter flattened onto top level.
+	showOut, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--json", "--no-body")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var showGot map[string]any
+	if err := json.Unmarshal([]byte(showOut), &showGot); err != nil {
+		t.Fatalf("show JSON invalid: %v\n%s", err, showOut)
+	}
+	if showGot["status"] != "open" {
+		t.Errorf("show: status=%v, want \"open\" at top level", showGot["status"])
+	}
+	if showGot["severity"] != "medium" {
+		t.Errorf("show: severity=%v, want \"medium\" at top level", showGot["severity"])
+	}
+
+	// list: same key at the same path (items[0].status).
+	listOut, _, err := runCmd(t, newRootCmd(), "list", "issue", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var listGot struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(listOut), &listGot); err != nil {
+		t.Fatalf("list JSON invalid: %v\n%s", err, listOut)
+	}
+	if len(listGot.Items) == 0 {
+		t.Fatal("list returned no items")
+	}
+	if listGot.Items[0]["status"] != "open" {
+		t.Errorf("list: items[0].status=%v, want \"open\"", listGot.Items[0]["status"])
+	}
+}
+
+// TestShow_JSON_EnvelopeKeysShadowFrontmatter pins collision behaviour: if an
+// artifact's frontmatter has a key that collides with an envelope-reserved
+// name (e.g. plan frontmatter carries its own `id`), the envelope value wins
+// so callers can always rely on the top-level `id`/`path`/`body` semantics.
+func TestShow_JSON_EnvelopeKeysShadowFrontmatter(t *testing.T) {
+	vault := setupVault(t)
+	p := filepath.Join(vault, "70-issues", "foo.bar.md")
+	a := &core.Artifact{
+		Path: p,
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "x", "description": "d", "created": "2026-04-29",
+			"status": "open", "project": "foo", "severity": "low",
+			// Adversarial: frontmatter keys that collide with envelope fields.
+			"id":   "frontmatter-id-should-lose",
+			"path": "/frontmatter/path/should/lose",
+		},
+		Body: "body content",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--json", "--no-body")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if got["id"] != "foo.bar" {
+		t.Errorf("id=%v, want \"foo.bar\" (envelope wins on collision)", got["id"])
+	}
+	if got["path"] == "/frontmatter/path/should/lose" {
+		t.Errorf("path=%v, frontmatter value leaked through (envelope must win)", got["path"])
 	}
 }
 
@@ -98,8 +178,11 @@ func TestShow_IssueDefaultIncludesBody(t *testing.T) {
 	if !strings.Contains(body, "fixture body") {
 		t.Errorf("body=%q, want to contain %q", body, "fixture body")
 	}
-	if _, ok := got["frontmatter"].(map[string]any); !ok {
-		t.Error("frontmatter should be nested object")
+	if got["status"] != "open" {
+		t.Errorf("status=%v, want \"open\" (flattened)", got["status"])
+	}
+	if _, present := got["frontmatter"]; present {
+		t.Error("frontmatter key should not exist (flat shape)")
 	}
 }
 
@@ -544,12 +627,8 @@ func TestShow_PrefixedIDResolvesLikeBareID(t *testing.T) {
 			if err := json.Unmarshal([]byte(out), &got); err != nil {
 				t.Fatalf("invalid JSON: %v\n%s", err, out)
 			}
-			fm, ok := got["frontmatter"].(map[string]any)
-			if !ok {
-				t.Fatalf("frontmatter missing: %v", got)
-			}
-			if fm["title"] != "Bar issue" {
-				t.Errorf("id=%q: title=%v, want \"Bar issue\"", tc.id, fm["title"])
+			if got["title"] != "Bar issue" {
+				t.Errorf("id=%q: title=%v, want \"Bar issue\"", tc.id, got["title"])
 			}
 		})
 	}
@@ -571,12 +650,8 @@ func TestShow_BareProjectMatchesType(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
-	fm, ok := got["frontmatter"].(map[string]any)
-	if !ok {
-		t.Fatalf("frontmatter missing: %v", got)
-	}
-	if fm["title"] != "Issue-project issue" {
-		t.Errorf("title=%v, want \"Issue-project issue\"", fm["title"])
+	if got["title"] != "Issue-project issue" {
+		t.Errorf("title=%v, want \"Issue-project issue\"", got["title"])
 	}
 }
 
