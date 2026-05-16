@@ -141,7 +141,7 @@ var envelopeKeys = map[string]struct{}{
 // flat shape transparently. `incoming` is omitted when nil (matches the
 // previous `omitempty` behaviour); `body` is serialised as JSON null when
 // caller didn't ask for it, preserving the explicit-absence signal.
-func (o *showOutput) MarshalJSON() ([]byte, error) {
+func (o showOutput) MarshalJSON() ([]byte, error) {
 	out := make(map[string]any, len(o.FrontMatter)+6)
 	for k, v := range o.FrontMatter {
 		if _, reserved := envelopeKeys[k]; reserved {
@@ -204,7 +204,10 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, 
 
 	w := cmd.OutOrStdout()
 	if asJSON {
-		b, _ := json.Marshal(&out)
+		b, err := json.Marshal(out)
+		if err != nil {
+			return fmt.Errorf("marshaling show output: %w", err)
+		}
 		fmt.Fprintln(w, string(b))
 		return nil
 	}
