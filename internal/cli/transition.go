@@ -74,14 +74,19 @@ func newTransitionCmd() *cobra.Command {
 
 			// Refuse issue → in-progress when the recorded reproduction_anchor
 			// no longer matches observed output. Grandfathers issues that have
-			// no anchor. T3 lands the structured error envelope.
+			// no anchor.
 			if t == core.TypeIssue && to == "in-progress" && !force {
-				ok, _, diff, aerr := runAnchorCheck(cmd.Context(), a, cmd.ErrOrStderr())
+				ok, anchorCmd, diff, aerr := runAnchorCheck(cmd.Context(), a, cmd.ErrOrStderr())
 				if aerr != nil {
 					return fmt.Errorf("anchor check: %w", aerr)
 				}
 				if !ok {
-					return fmt.Errorf("anchor mismatch:\n%s", diff)
+					e := errfmt.NewStructured("anchor_mismatch").
+						Set("issue", id).
+						Set("command", anchorCmd).
+						Set("diff", diff).
+						Set("fix_hint", "rerun with --force to claim anyway, or --no-longer-reproduces to close as stale")
+					return printAndReturn(cmd, e)
 				}
 			}
 

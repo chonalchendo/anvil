@@ -112,3 +112,48 @@ func TestTransition_InProgress_AnchorExecFailureRefuses(t *testing.T) {
 		t.Errorf("status should remain open after refused transition")
 	}
 }
+
+func TestTransition_InProgress_AnchorMismatchRefusesStructured(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	writeIssueWithAnchor(t, vault, "anvil.m", "printf actual", "expected")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "anvil.m", "in-progress", "--owner", "x"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected mismatch error; output: %s", out.String())
+	}
+	// Error envelope (printed to stderr by printAndReturn) carries the code,
+	// the offending command, the diff, and the escape-hatch hint.
+	combined := out.String() + "\n" + err.Error()
+	if !strings.Contains(combined, "anchor_mismatch") {
+		t.Errorf("error must carry anchor_mismatch code: %s", combined)
+	}
+	if !strings.Contains(combined, "--force") {
+		t.Errorf("error must name --force escape hatch: %s", combined)
+	}
+	if !strings.Contains(combined, "--no-longer-reproduces") {
+		t.Errorf("error must name --no-longer-reproduces escape hatch: %s", combined)
+	}
+	if !strings.Contains(readIssueRaw(t, vault, "anvil.m"), "status: open") {
+		t.Errorf("status should remain open after refused transition")
+	}
+}
+
+func TestTransition_InProgress_AnchorMismatchForceProceeds(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	writeIssueWithAnchor(t, vault, "anvil.f", "printf actual", "expected")
+
+	execCmd(t, "transition", "issue", "anvil.f", "in-progress", "--owner", "x", "--force")
+
+	if !strings.Contains(readIssueRaw(t, vault, "anvil.f"), "status: in-progress") {
+		t.Errorf("expected --force to bypass anchor check and claim the issue")
+	}
+}
