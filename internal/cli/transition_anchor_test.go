@@ -157,3 +157,87 @@ func TestTransition_InProgress_AnchorMismatchForceProceeds(t *testing.T) {
 		t.Errorf("expected --force to bypass anchor check and claim the issue")
 	}
 }
+
+func TestTransition_InProgress_NoLongerReproducesOnMismatch(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	writeIssueWithAnchor(t, vault, "anvil.stale", "printf actual", "expected")
+
+	execCmd(t, "transition", "issue", "anvil.stale", "in-progress", "--no-longer-reproduces")
+
+	got := readIssueRaw(t, vault, "anvil.stale")
+	if !strings.Contains(got, "status: resolved") {
+		t.Errorf("expected redirect to resolved on stale-anchor confirmation; got:\n%s", got)
+	}
+	if !strings.Contains(got, "resolved --no-longer-reproduces") {
+		t.Errorf("audit line missing --no-longer-reproduces tag:\n%s", got)
+	}
+	if !strings.Contains(got, "anchor no longer reproduces") {
+		t.Errorf("audit line missing diff capture:\n%s", got)
+	}
+}
+
+func TestTransition_InProgress_NoLongerReproducesErrorsOnMatch(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	writeIssueWithAnchor(t, vault, "anvil.real", "printf hello", "hello")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "anvil.real", "in-progress", "--no-longer-reproduces"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected error when anchor still reproduces; output: %s", out.String())
+	}
+	combined := out.String() + "\n" + err.Error()
+	if !strings.Contains(combined, "anchor_still_reproduces") {
+		t.Errorf("error must carry anchor_still_reproduces code: %s", combined)
+	}
+	if !strings.Contains(readIssueRaw(t, vault, "anvil.real"), "status: open") {
+		t.Errorf("status should remain open when anchor still reproduces")
+	}
+}
+
+func TestTransition_InProgress_NoLongerReproducesErrorsOnAbsentAnchor(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	writeIssueWithAnchor(t, vault, "anvil.bare", "", "")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "anvil.bare", "in-progress", "--no-longer-reproduces"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected error when issue has no anchor; output: %s", out.String())
+	}
+	combined := out.String() + "\n" + err.Error()
+	if !strings.Contains(combined, "no_anchor_to_check") {
+		t.Errorf("error must carry no_anchor_to_check code: %s", combined)
+	}
+	if !strings.Contains(readIssueRaw(t, vault, "anvil.bare"), "status: open") {
+		t.Errorf("status should remain open when there is no anchor to check")
+	}
+}
+
+func TestTransition_InProgress_ForceAndNoLongerReproducesMutuallyExclusive(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	writeIssueWithAnchor(t, vault, "anvil.both", "printf actual", "expected")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "anvil.both", "in-progress", "--owner", "x", "--force", "--no-longer-reproduces"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected error when both --force and --no-longer-reproduces are passed; output: %s", out.String())
+	}
+}

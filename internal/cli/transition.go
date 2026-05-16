@@ -16,7 +16,7 @@ import (
 
 func newTransitionCmd() *cobra.Command {
 	var owner, reason string
-	var asJSON, force bool
+	var asJSON, force, noLongerReproduces bool
 	cmd := &cobra.Command{
 		Use:   "transition <type> <id> <new-state>",
 		Short: "Move an artifact through its state machine",
@@ -43,6 +43,51 @@ func newTransitionCmd() *cobra.Command {
 			if from == to {
 				return emitTransitionJSON(cmd, asJSON, transitionResult{
 					ID: id, Path: path, From: from, To: to, Status: "already_in_state",
+				})
+			}
+
+			if noLongerReproduces {
+				if force {
+					return printAndReturn(cmd, errfmt.NewStructured("flags_conflict").
+						Set("flags", []string{"--force", "--no-longer-reproduces"}).
+						Set("fix_hint", "use one or the other"))
+				}
+				if t != core.TypeIssue || to != "in-progress" {
+					return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
+						Set("flag", "--no-longer-reproduces").
+						Set("applies_to", "transition issue <id> in-progress"))
+				}
+				ok, anchorCmd, diff, aerr := runAnchorCheck(cmd.Context(), a, cmd.ErrOrStderr())
+				if aerr != nil {
+					return fmt.Errorf("anchor check: %w", aerr)
+				}
+				if anchorCmd == "" {
+					return printAndReturn(cmd, errfmt.NewStructured("no_anchor_to_check").
+						Set("issue", id).
+						Set("fix_hint", "--no-longer-reproduces requires a reproduction_anchor on the issue"))
+				}
+				if ok {
+					return printAndReturn(cmd, errfmt.NewStructured("anchor_still_reproduces").
+						Set("issue", id).
+						Set("command", anchorCmd).
+						Set("fix_hint", "issue still reproduces; claim and fix, do not close as stale"))
+				}
+				stamp := time.Now().UTC().Format("2006-01-02")
+				audit := fmt.Sprintf("\n> resolved --no-longer-reproduces %s: anchor no longer reproduces:\n%s\n", stamp, diff)
+				if !strings.HasSuffix(a.Body, "\n") {
+					a.Body += "\n"
+				}
+				a.Body += audit
+				a.FrontMatter["status"] = "resolved"
+				a.FrontMatter["updated"] = stamp
+				if err := a.Save(); err != nil {
+					return fmt.Errorf("saving: %w", err)
+				}
+				if err := indexAfterSave(v, a); err != nil {
+					return err
+				}
+				return emitTransitionJSON(cmd, asJSON, transitionResult{
+					ID: id, Path: path, From: from, To: "resolved", Status: "transitioned",
 				})
 			}
 
@@ -153,6 +198,7 @@ func newTransitionCmd() *cobra.Command {
 	cmd.Flags().StringVar(&reason, "reason", "", "audit reason (required for reverse transitions)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON envelope")
 	cmd.Flags().BoolVar(&force, "force", false, "override the open-PR refusal on issue → resolved (audit-logged)")
+	cmd.Flags().BoolVar(&noLongerReproduces, "no-longer-reproduces", false, "on a mismatching reproduction_anchor, close the issue as resolved with the diff captured (mutually exclusive with --force)")
 	return cmd
 }
 
