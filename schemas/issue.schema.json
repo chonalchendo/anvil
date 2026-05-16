@@ -27,7 +27,16 @@
     "related":      { "type": "array", "items": { "type": "string" } },
     "external_links": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "blocks":       { "type": "array", "items": { "type": "string" } },
-    "depends_on":   { "type": "array", "items": { "type": "string" } }
+    "depends_on":   { "type": "array", "items": { "type": "string" } },
+    "reproduction_anchor": {
+      "type": "object",
+      "required": ["command", "expected"],
+      "properties": {
+        "command":  { "type": "string", "minLength": 1 },
+        "expected": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }
