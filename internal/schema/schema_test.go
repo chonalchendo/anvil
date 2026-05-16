@@ -729,3 +729,46 @@ func TestValidate_Plan_RejectsBadEffort(t *testing.T) {
 		t.Error("expected rejection: effort must be in low|medium|high|xhigh")
 	}
 }
+
+func TestIssue_ReproductionAnchorValid(t *testing.T) {
+	fm := map[string]any{
+		"type": "issue", "title": "x", "description": "x", "created": "2026-05-16",
+		"status": "open", "project": "anvil", "severity": "low",
+		"tags": []any{"domain/methodology"},
+		"reproduction_anchor": map[string]any{
+			"command":  "echo hello",
+			"expected": "hello\n",
+		},
+	}
+	if err := Validate("issue", fm); err != nil {
+		t.Fatalf("expected reproduction_anchor to validate, got: %v", err)
+	}
+}
+
+func TestIssue_ReproductionAnchorRejectsMissingCommand(t *testing.T) {
+	fm := map[string]any{
+		"type": "issue", "title": "x", "description": "x", "created": "2026-05-16",
+		"status": "open", "project": "anvil", "severity": "low",
+		"tags":                []any{"domain/methodology"},
+		"reproduction_anchor": map[string]any{"expected": "hello"},
+	}
+	if err := Validate("issue", fm); err == nil {
+		t.Fatal("expected error for missing reproduction_anchor.command")
+	}
+}
+
+func TestIssue_ReproductionAnchorRejectsAdditionalProperties(t *testing.T) {
+	fm := map[string]any{
+		"type": "issue", "title": "x", "description": "x", "created": "2026-05-16",
+		"status": "open", "project": "anvil", "severity": "low",
+		"tags": []any{"domain/methodology"},
+		"reproduction_anchor": map[string]any{
+			"command":          "echo hello",
+			"expected":         "hello\n",
+			"last_verified_at": "2026-05-16",
+		},
+	}
+	if err := Validate("issue", fm); err == nil {
+		t.Fatal("expected error for additionalProperties inside reproduction_anchor")
+	}
+}
