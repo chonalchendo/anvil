@@ -81,11 +81,12 @@ Never invoke:
 - `gh pr merge` — the human owns the merge button.
 - `git worktree remove` — post-merge cleanup is the human's.
 - `anvil transition resolved` — the human transitions to resolved after merge.
+- `anvil transition abandoned` — halt with `Blocker:` instead; abandoned is human-only.
 
 Echo this checklist verbatim in your final structured report (before the PR url / Blocker line) so the orchestrator can audit non-execution:
 
 ```text
-Forbidden-call audit: gh pr merge=not-called, git worktree remove=not-called, anvil transition resolved=not-called.
+Forbidden-call audit: gh pr merge=not-called, git worktree remove=not-called, anvil transition resolved=not-called, anvil transition abandoned=not-called.
 <PR url OR Blocker: ...>
 ```
 
