@@ -1,6 +1,6 @@
 ---
 name: writing-plan
-description: "Use when an open issue needs a build-ready plan before code is written. Issue must link to a milestone with an approved design. Not for inline implementation (use anvil:implementing-plan)."
+description: "DEPRECATED — superseded by writing-issue (operational verification) + completing-issue. Only triggers on explicit request: 'use writing-plan', 'legacy plan workflow', 'author a plan artifact'. New work should not invoke this."
 ---
 
 # Writing Plan

@@ -13,13 +13,9 @@ The orchestrator will fill these fields before sending:
 
 Execute in order. A failure at any step is a halt, not a self-correction.
 
-1. **Claim.** `anvil transition issue <issue-id> in-progress --owner <your-name>`. If the claim fails (already owned, blocker present), halt with `Blocker: claim-failed <reason>`.
-2. **Cut / enter worktree.** Confirm `git rev-parse --show-toplevel` from inside `<worktree-path>` equals `<worktree-path>` exactly. If the path doesn't exist yet, cut it per `docs/worktree-workflow.md`. Surface the path in your first status line.
-3. **Implement.** Make the minimal change satisfying the issue's acceptance criteria. Stay within `<declared-files>`. See scope-change protocol below.
-4. **Smoke-test gate.** Run the project's smoke gate (`just install` then exercise the changed verb against a real vault, per `CLAUDE.md`). Unit tests alone are **not** sufficient. If smoke fails, halt with `Blocker: smoke-failed <quoted-error>`.
-5. **Self-review.** Re-read the diff once, looking for the documented hard-rule violations (no helper without second use, no defensive code for unreachable states, etc.). Fix what you find before opening the PR — CodeRabbit budget is finite.
-6. **Open PR.** `gh pr create --title "<conventional-commit-style>" --body "<one-paragraph summary + closes #<issue-number-if-any>>"`. Capture the returned PR url.
-7. **Review-respond.** Invoke `anvil:responding-to-pr-review` against the PR. The fleet-PR override applies: even on green CI, the review-respond loop runs before you return. Loop until: all inline comments are replied (fix / skip-with-reason / push-back), CI green, no further reviewer activity within the poll budget.
+1. **Enter worktree.** Confirm `git rev-parse --show-toplevel` from inside `<worktree-path>` equals `<worktree-path>` exactly. If the path doesn't exist yet, cut it per `docs/worktree-workflow.md`. Surface the path in your first status line.
+2. **Drive to PR opened.** Invoke `anvil:completing-issue` against `<issue-id>` — it owns claim, implement, verify (direct + indirect), `just install` smoke gate, hard-rule self-review, and `gh pr create`. Stay within `<declared-files>`; see scope-change protocol below. If `completing-issue` returns a verification-failure report instead of a PR url, halt with `Blocker: completing-issue-failed <one-line root cause>`.
+3. **Review-respond.** Invoke `anvil:responding-to-pr-review` against the PR. The fleet-PR override applies: even on green CI, the review-respond loop runs before you return. Loop until: all inline comments are replied (fix / skip-with-reason / push-back), CI green, no further reviewer activity within the poll budget.
 
 ## Forbidden-write-location check (PRE-EDIT INVARIANT)
 

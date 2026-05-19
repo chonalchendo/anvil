@@ -1,6 +1,6 @@
 ---
 name: writing-issue
-description: "Use when a problem worth tracking surfaces. Triggers: 'open an issue for X', 'track this as an issue', 'should we build X', 'promote inbox item to issue'. Not for raw capture (capturing-inbox) or plans (writing-plan)."
+description: "Use when a problem worth tracking surfaces. Triggers: 'open an issue for X', 'track this as an issue', 'should we build X', 'promote inbox item to issue'. Not for raw capture (capturing-inbox) or implementation (completing-issue)."
 license: MIT
 allowed-tools: [Bash, Read, Edit]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -43,7 +43,7 @@ If no milestone fits, the workflow stops at Phase 2 and offers two exits: log a 
 ## When not to use
 
 - The user is dumping a thought without engagement → `anvil:capturing-inbox`.
-- You need to design the solution after the issue is approved → `anvil:writing-plan`.
+- You need to implement the issue → `anvil:completing-issue`.
 - Editing existing issue frontmatter only (status flip, tag) → a direct `anvil set` call.
 
 ---
@@ -130,9 +130,9 @@ Pick the closest existing value if one fits; only invent a new one if no existin
 
 When promoting an inbox item, pass `--tags` on the `anvil promote <id> --as issue` call after consulting the same list.
 
-Author the body up front and pass it to `create` via `--body-file` (or `--body -` for piped stdin). `create` validates the frontmatter AND body (required H2s, wikilink targets) and rolls back the write on failure — no separate `anvil validate` step:
+Author the body up front and pass it to `create` via `--body-file` (or `--body -` for piped stdin). `create` validates the frontmatter AND body (required H2s, wikilink targets) and rolls back the write on failure — no separate `anvil validate` step. The `## Verification` block uses fenced bash; see `docs/issue-spec.md` for the full format spec.
 
-```bash
+````bash
 cat > /tmp/issue-body.md <<'EOF'
 ## Problem
 <one paragraph from convergence (fuzzy) or the stated problem (decisive)>
@@ -143,12 +143,24 @@ cat > /tmp/issue-body.md <<'EOF'
 ## Non-goals
 - <from Phase 3 smallest-viable or stated up front>
 
+## Verification
+
+### Direct (unit/integration)
+```bash
+<shell command — exit 0 = pass>
+```
+
+### Indirect (live smoke)
+```bash
+<shell command with predicate baked in — grep -q "X", jq -r .field, [ ... = ... ]>
+```
+
 ## Links
 - [[milestone.<project>.<slug>]]
 EOF
 
 anvil create issue --title "<title>" --tags domain/<x> --body-file /tmp/issue-body.md --json
-```
+````
 
 Capture `id` and `path` from the JSON output. The file lands at `~/anvil-vault/70-issues/<project>.<slug>.md`.
 
@@ -172,6 +184,9 @@ Required body sections (enforced by `create`):
 - `## Problem` — one paragraph from convergence (fuzzy) or the stated problem (decisive).
 - `## Acceptance criteria` — bulleted, each testable without ambiguity.
 - `## Non-goals` — from Phase 3 smallest-viable (fuzzy) or stated up front (decisive).
+- `## Verification` — operational checks in fenced bash blocks (full spec: `docs/issue-spec.md`). Two subsections, both required:
+  - `### Direct` — fenced `bash` block with ≥1 line. Each line must exit 0. Typically unit/integration tests run against the dev tree.
+  - `### Indirect` — fenced `bash` block with ≥1 line. Each line must exit 0. Live invocations against the built/installed/served artifact; bake the predicate into the command (`grep -q "X"`, `jq -r .field`, `[ ... = ... ]`). `anvil:completing-issue` re-runs these against the installed binary in its Phase 4 build gate — they catch behavioral gaps the Direct checks can't see.
 - `## Links` — to milestone, design docs, related issues. Use `[[wikilink]]` form. Targets must resolve (the file must exist) or `create` rejects.
 
 `anvil validate <path>` remains useful as a re-check after edits (e.g. after `anvil set ... acceptance --add`), but it is **not** required after `create` when the body was supplied via `--body-file` / `--body -`.
@@ -208,7 +223,7 @@ Use `anvil set ... status` only as a force-edit escape hatch when `transition` r
 
 Three exits:
 
-1. **`issue` created** — file exists, validates, milestone link set. **Scope-survey before handing off:** multi-file, multi-task, or non-obvious decomposition → hand off to `anvil:writing-plan`. Single-file or two-file change with a clear test contract → skip the plan, implement inline (under `anvil:implementing-plan` if a plan exists, otherwise direct TDD). The plan layer earns its keep on decomposition, not on file count alone.
+1. **`issue` created** — file exists, validates, milestone link set. Hand off to `anvil:completing-issue` for implementation.
 2. **`decision/rejected`** — user bailed mid-session. Prompt: "log this as a rejected decision?" If yes:
    ```bash
    anvil create decision --title "Considered: <X>" --json
@@ -222,7 +237,7 @@ Three exits:
 
 ## What this skill does NOT do
 
-- Does not design solutions or list approaches. That is `anvil:writing-plan`.
+- Does not implement the issue. That is `anvil:completing-issue`.
 - Does not create milestones inline. It hands off to `anvil:writing-milestone` and resumes after.
 - Does not run research. It can flag the need for it.
 - Does not persist pre-mortem or working-backwards headline. Validation tools, not specification content.

@@ -27,7 +27,7 @@ The overlap check is one-line declarations plus eyeball compare. No static analy
 
 ## Phase 3 — Dispatch N subagents
 
-For each surviving candidate, fire one subagent via the Agent tool. The prompt is the orchestrator-filled template at `skills/dispatching-issue-fleet/subagent-prompt.md` — read it, fill issue-specific fields (issue id, worktree path, branch name, declared files), and send. Each subagent owns one issue end-to-end through PR opened + review responded.
+For each surviving candidate, fire one subagent via the Agent tool. The prompt is the orchestrator-filled template at `skills/dispatching-issue-fleet/subagent-prompt.md` — read it, fill issue-specific fields (issue id, worktree path, branch name, declared files), and send. Each subagent invokes `anvil:completing-issue` to drive its issue end-to-end through PR opened, then `anvil:responding-to-pr-review` for the CodeRabbit loop.
 
 Dispatch all N in a single tool-use block so they run in parallel.
 
