@@ -46,21 +46,19 @@ func TestRoot_AutoRefreshesStaleSkills(t *testing.T) {
 	}
 }
 
-// TestRoot_AutoRefreshWarnsOncePerProcess confirms that when auto-refresh
-// fails with a refusal error (non-anvil dir planted at a skill path), the
-// warning fires on first invocation but is suppressed on subsequent
-// invocations of refreshSkillsIfStale within the same process for the same
-// offending path. The emitted warning must include the actionable hint.
-func TestRoot_AutoRefreshWarnsOncePerProcess(t *testing.T) {
+// TestAutoRefreshNonSymlinkQuiet confirms the implicit auto-refresh path
+// is silent when a target/<name> entry is a user-owned regular directory
+// rather than a symlink. The detailed "refusing to overwrite" warning is
+// reserved for the explicit `anvil install skills` command — the implicit
+// refresh must not flood stderr on every invocation.
+func TestAutoRefreshNonSymlinkQuiet(t *testing.T) {
 	skillsRoot := t.TempDir()
 	claudeRoot := t.TempDir()
 	t.Setenv("ANVIL_SKILLS_DIR", skillsRoot)
 	t.Setenv("CLAUDE_CONFIG_DIR", claudeRoot)
 	setupVault(t)
-	resetAutoRefreshWarnedForTest()
-	t.Cleanup(resetAutoRefreshWarnedForTest)
 
-	// First, materialise a successful install so the refresh path engages.
+	// Materialise a successful install so the refresh path engages.
 	if _, _, err := runCmd(t, newInstallCmd(), "skills"); err != nil {
 		t.Fatalf("install skills: %v", err)
 	}
@@ -68,8 +66,8 @@ func TestRoot_AutoRefreshWarnsOncePerProcess(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(skillsRoot, ".anvil-skills-hash"), []byte("stale"), 0o644); err != nil {
 		t.Fatalf("corrupt hash: %v", err)
 	}
-	// Replace a materialised symlink with a foreign non-anvil dir at the
-	// target so the refresh refuses.
+	// Replace a materialised symlink with a regular non-anvil dir at the
+	// target so the refresh would refuse if it surfaced the error.
 	targetSkillsDir := filepath.Join(claudeRoot, "skills")
 	entries, err := os.ReadDir(targetSkillsDir)
 	if err != nil {
@@ -91,23 +89,32 @@ func TestRoot_AutoRefreshWarnsOncePerProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err1Out, err := runCmd(t, newRootCmd(), "where")
-	if err != nil {
-		t.Fatalf("first where: %v\nstderr: %s", err, err1Out)
-	}
-	_, err2Out, err := runCmd(t, newRootCmd(), "where")
-	if err != nil {
-		t.Fatalf("second where: %v\nstderr: %s", err, err2Out)
+	// Two back-to-back invocations of an unrelated command — neither may
+	// emit the refusal warning on stderr.
+	for i := 0; i < 2; i++ {
+		_, errOut, err := runCmd(t, newRootCmd(), "where")
+		if err != nil {
+			t.Fatalf("where invocation %d: %v\nstderr: %s", i+1, err, errOut)
+		}
+		if strings.Contains(errOut, "refusing to overwrite") {
+			t.Errorf("invocation %d leaked refusal warning to stderr: %s", i+1, errOut)
+		}
+		if strings.Contains(errOut, "skills auto-refresh failed") {
+			t.Errorf("invocation %d emitted auto-refresh failure for benign non-symlink: %s", i+1, errOut)
+		}
 	}
 
-	if !strings.Contains(err1Out, "anvil: skills auto-refresh failed") {
-		t.Errorf("first invocation must warn; got stderr: %s", err1Out)
+	// The explicit install path must still surface the refusal.
+	_, errOut, runErr := runCmd(t, newInstallCmd(), "skills")
+	if runErr == nil {
+		t.Fatal("explicit `install skills` must refuse non-symlink target without --force")
 	}
-	if !strings.Contains(err1Out, "anvil install skills --force") {
-		t.Errorf("warning must include actionable command; got stderr: %s", err1Out)
+	combined := runErr.Error() + "\n" + errOut
+	if !strings.Contains(combined, "refusing to overwrite") {
+		t.Errorf("explicit install must name the refusal; got: %s", combined)
 	}
-	if strings.Contains(err2Out, "anvil: skills auto-refresh failed") {
-		t.Errorf("second invocation must be silent for same path; got stderr: %s", err2Out)
+	if !strings.Contains(combined, "anvil install skills --force") {
+		t.Errorf("explicit refusal must name --force escape; got: %s", combined)
 	}
 }
 
