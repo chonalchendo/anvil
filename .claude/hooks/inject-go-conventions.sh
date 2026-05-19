@@ -27,10 +27,44 @@ main() {
         *) return 0 ;;
     esac
 
-    [[ -n "$session_id" ]] || return 0
+    # Scope filter: only Go files under internal/ or cmd/ touch the idioms the
+    # injected docs cover (types, error handling, subprocess gotchas, CLI shape).
+    # Edits to skills/skills.go (embed list), generated fixtures, etc. don't
+    # benefit from the ~10KB payload. Match on the path as given — relative
+    # paths are matched at any depth, absolute paths must contain the segment.
+    local rel="$file_path"
+    case "$rel" in
+        /*) rel="${rel#"${CLAUDE_PROJECT_DIR:-$(pwd)}/"}" ;;
+    esac
+    case "$rel" in
+        internal/*|cmd/*|*/internal/*|*/cmd/*) ;;
+        *) return 0 ;;
+    esac
 
-    sentinel="${TMPDIR:-/tmp}/anvil-go-conventions-${session_id}.lock"
-    [[ -f "$sentinel" ]] && return 0
+    # Line-shape filter: if every changed non-blank line is a Go comment
+    # (including //go:embed directives), the conventions payload is dead
+    # weight. Inspects old_string/new_string (Edit) and content (Write).
+    # Multi-line raw strings whose lines start with `//` are a known
+    # false-positive — acceptable cost vs a real Go parser.
+    local old_str new_str content combined
+    old_str=$(printf '%s' "$input" | jq -r '.tool_input.old_string // empty')
+    new_str=$(printf '%s' "$input" | jq -r '.tool_input.new_string // empty')
+    content=$(printf '%s' "$input" | jq -r '.tool_input.content // empty')
+    combined="${old_str}"$'\n'"${new_str}"$'\n'"${content}"
+    if [[ -n "${old_str}${new_str}${content}" ]] \
+        && ! printf '%s\n' "$combined" \
+            | grep -vE '^[[:space:]]*(//.*)?$' \
+            | grep -q .; then
+        return 0
+    fi
+
+    # Once-per-session sentinel: dedupe only when we have a session_id; without
+    # one (e.g. synthetic test invocations) every call emits, since there's no
+    # session to scope the lock to.
+    if [[ -n "$session_id" ]]; then
+        sentinel="${TMPDIR:-/tmp}/anvil-go-conventions-${session_id}.lock"
+        [[ -f "$sentinel" ]] && return 0
+    fi
 
     docs_dir="${CLAUDE_PROJECT_DIR:-$(pwd)}/docs"
     for f in go-conventions.md code-design.md agent-cli-principles.md; do
@@ -38,7 +72,7 @@ main() {
     done
 
     # Mark sentinel only after we've decided to emit, so a failed run can retry.
-    touch "$sentinel"
+    [[ -n "$session_id" ]] && touch "$sentinel"
 
     payload=$(cat <<EOF
 The following Anvil conventions apply to Go edits in this repo. They are
