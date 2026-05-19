@@ -20,9 +20,8 @@ func loadIssueDoc(t *testing.T, vault, id string) *core.Artifact {
 	return a
 }
 
-// stubAll swaps every external side-effect fn for the duration of a test and
-// records the calls. Tests opt into per-fn behavior by setting fields on the
-// returned recorder.
+// sideFXStub captures the calls made by stubSideFX-installed fakes; tests
+// opt into per-fn behavior by setting fields on the returned recorder.
 type sideFXStub struct {
 	listEntries map[string]worktreeInfo
 	listErr     error
@@ -126,18 +125,15 @@ func TestSlugFromIssueID(t *testing.T) {
 	}
 }
 
-func TestDefaultWorktreeAndBranch(t *testing.T) {
+func TestDefaultWorktreePath(t *testing.T) {
 	s := stubSideFX(t)
 	s.homeDir = "/u/me"
 	got, err := defaultWorktreePath("anvil", "foo")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := "/u/me/Development/anvil-worktrees/foo"; got != want {
+	if want := filepath.Join("/u/me", "Development", "anvil-worktrees", "foo"); got != want {
 		t.Errorf("path = %q, want %q", got, want)
-	}
-	if got := defaultBranchName("anvil", "foo"); got != "anvil/foo" {
-		t.Errorf("branch = %q, want anvil/foo", got)
 	}
 }
 
@@ -454,5 +450,142 @@ func TestLandPRConflictsWithForce(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "flags_conflict") {
 		t.Errorf("missing error code: %s", out.String())
+	}
+}
+
+func TestLandPRRefusesWhenWorktreeRemoveFails(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	s.homeDir = t.TempDir()
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE"}`)
+	// Make the derived worktree path exist so the remove branch fires.
+	wtPath := filepath.Join(s.homeDir, "Development", "demo-worktrees", "foo")
+	if err := os.MkdirAll(wtPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s.removeErr = errors.New("uncommitted changes in worktree")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected refusal; got: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "land_pr_worktree_remove_failed") {
+		t.Errorf("missing error code: %s", out.String())
+	}
+	if len(s.mergeCalls) != 0 {
+		t.Errorf("merge should not have been called: %v", s.mergeCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "in-progress" {
+		t.Errorf("status = %v, want in-progress (unchanged)", a.FrontMatter["status"])
+	}
+}
+
+func TestCutWorktreeRejectedWhenIDLacksDot(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	// Hand-author an issue with id missing the project prefix; createDemoIssue
+	// always emits `demo.foo`, so we drop a malformed file in place.
+	body := `---
+type: issue
+title: x
+description: x
+created: 2026-05-19
+status: open
+project: ""
+severity: low
+tags: [domain/dev-tools]
+---
+body
+`
+	if err := os.WriteFile(filepath.Join(vault, "70-issues", "nodot.md"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	execCmd(t, "reindex")
+
+	stubSideFX(t)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "nodot", "in-progress", "--owner", "claude", "--cut-worktree"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected refusal; got: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "cut_worktree_path_failed") {
+		t.Errorf("missing error code: %s", out.String())
+	}
+}
+
+func TestCutWorktreeRefusesWhenHomeLookupFails(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	s.homeErr = errors.New("HOME not set")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected refusal; got: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "cut_worktree_path_failed") {
+		t.Errorf("missing error code: %s", out.String())
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "open" {
+		t.Errorf("status = %v after refusal, want open (unchanged)", a.FrontMatter["status"])
+	}
+}
+
+func TestLandPRSaveFailureSurfacesRecovery(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE"}`)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+
+	// Make the issue file read-only after load succeeds: LoadArtifact reads,
+	// then a.Save() WriteFile fails on the unwritable inode. Restore perms in
+	// cleanup so t.TempDir's RemoveAll succeeds.
+	issuePath := filepath.Join(vault, "70-issues", "demo.foo.md")
+	if err := os.Chmod(issuePath, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(issuePath, 0o644) })
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected save-failed error after merge; got: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "land_pr_succeeded_save_failed") {
+		t.Errorf("missing structured code: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "anvil set issue demo.foo status resolved") {
+		t.Errorf("missing recovery hint: %s", out.String())
 	}
 }

@@ -53,10 +53,6 @@ func defaultWorktreePath(project, slug string) (string, error) {
 	return filepath.Join(home, "Development", project+"-worktrees", slug), nil
 }
 
-func defaultBranchName(project, slug string) string {
-	return project + "/" + slug
-}
-
 func gitWorktreeAddReal(repoDir, path, branch string) error {
 	cmd := exec.Command("git", "worktree", "add", path, "-b", branch)
 	if repoDir != "" {
@@ -120,11 +116,20 @@ func gitMainRootReal() (string, error) {
 }
 
 func ghPRViewJSONReal(num int, fields string) ([]byte, error) {
+	if _, err := exec.LookPath("gh"); err != nil {
+		return nil, errGhUnavailable
+	}
 	return exec.Command("gh", "pr", "view", strconv.Itoa(num), "--json", fields).Output()
 }
 
+// ghPRChecksReal runs `gh pr checks <num> --required` so optional pending
+// checks (e.g. an unfinished CodeRabbit pass) don't gate the merge — only
+// the required-checks suite enforces refusal.
 func ghPRChecksReal(num int) error {
-	cmd := exec.Command("gh", "pr", "checks", strconv.Itoa(num))
+	if _, err := exec.LookPath("gh"); err != nil {
+		return errGhUnavailable
+	}
+	cmd := exec.Command("gh", "pr", "checks", strconv.Itoa(num), "--required")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("gh pr checks: %w: %s", err, strings.TrimSpace(string(out)))
 	}
@@ -132,6 +137,9 @@ func ghPRChecksReal(num int) error {
 }
 
 func ghPRMergeReal(num int) error {
+	if _, err := exec.LookPath("gh"); err != nil {
+		return errGhUnavailable
+	}
 	cmd := exec.Command("gh", "pr", "merge", strconv.Itoa(num), "--squash", "--delete-branch")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("gh pr merge: %w: %s", err, strings.TrimSpace(string(out)))
@@ -160,7 +168,7 @@ func doCutWorktree(a *core.Artifact, id, pathOverride, branchOverride string) er
 	}
 	branch := branchOverride
 	if branch == "" {
-		branch = defaultBranchName(project, slug)
+		branch = project + "/" + slug
 	}
 	if err := cutWorktreeIfNeeded(wtPath, branch); err != nil {
 		return errfmt.NewStructured("cut_worktree_failed").
@@ -171,19 +179,20 @@ func doCutWorktree(a *core.Artifact, id, pathOverride, branchOverride string) er
 	return nil
 }
 
-// doLandPR resolves the worktree path (override or default) and runs landPR.
-func doLandPR(a *core.Artifact, id string, prNum int, pathOverride string) error {
-	wtPath := pathOverride
-	if wtPath == "" {
-		project := projectFromArtifact(a, id)
-		slug := slugFromIssueID(id)
-		if project != "" && slug != "" {
-			p, derr := defaultWorktreePath(project, slug)
-			if derr != nil {
-				return errfmt.NewStructured("land_pr_path_failed").Set("error", derr.Error())
-			}
-			wtPath = p
-		}
+// doLandPR derives the worktree path from the issue and runs landPR. Path
+// derivation is a hard error: the audit line claims "worktree removed" and we
+// refuse to lie if we can't compute the location.
+func doLandPR(a *core.Artifact, id string, prNum int) error {
+	project := projectFromArtifact(a, id)
+	slug := slugFromIssueID(id)
+	if project == "" || slug == "" {
+		return errfmt.NewStructured("land_pr_path_failed").
+			Set("error", "issue id lacks `<project>.<slug>` shape").
+			Set("id", id)
+	}
+	wtPath, derr := defaultWorktreePath(project, slug)
+	if derr != nil {
+		return errfmt.NewStructured("land_pr_path_failed").Set("error", derr.Error())
 	}
 	return landPR(prNum, wtPath)
 }

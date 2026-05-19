@@ -170,7 +170,7 @@ func newTransitionCmd() *cobra.Command {
 			}
 
 			if landPRNum != 0 {
-				if err := doLandPR(a, id, landPRNum, worktreeOverride); err != nil {
+				if err := doLandPR(a, id, landPRNum); err != nil {
 					return printAndReturn(cmd, err)
 				}
 			}
@@ -232,6 +232,13 @@ func newTransitionCmd() *cobra.Command {
 			}
 
 			if err := a.Save(); err != nil {
+				if t == core.TypeIssue && to == "resolved" && landPRNum != 0 {
+					return printAndReturn(cmd, errfmt.NewStructured("land_pr_succeeded_save_failed").
+						Set("issue", id).
+						Set("pr", landPRNum).
+						Set("error", err.Error()).
+						Set("fix_hint", fmt.Sprintf("PR #%d is merged but vault save failed; run `anvil set issue %s status resolved` to repair", landPRNum, id)))
+				}
 				return fmt.Errorf("saving: %w", err)
 			}
 			if err := indexAfterSave(v, a); err != nil {
