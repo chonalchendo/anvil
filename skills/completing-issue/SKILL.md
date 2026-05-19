@@ -22,38 +22,41 @@ metadata:
 
 > **Iron Law: NO PR OPENS WITHOUT BOTH DIRECT AND INDIRECT VERIFICATION PASSING.**
 >
-> Indirect verification drives the change through the installed binary or a live sub-skill — "tests pass" is not enough. The issue's `## Verification → Indirect` block enumerates what "actually works" looks like; refusing to run it is how regressions land in merged PRs.
+> Indirect verification drives the change through the built/installed/served artifact — "tests pass" is not enough. The issue's `## Verification → Indirect` block enumerates what "actually works" looks like; refusing to run it is how regressions land in merged PRs.
 
 ## When this skill runs
 
 You enter holding:
 
-1. An open or in-progress issue with a `## Verification` section containing both `### Direct` and `### Indirect` entries.
-2. A worktree on the issue's branch (`anvil/<slug>`), per `@docs/worktree-workflow.md`.
+1. An open or in-progress issue that declares operational verification — typically a `## Verification` section with `### Direct` and `### Indirect` subsections, or an equivalent contract the project uses.
+2. A worktree (or branch) dedicated to the issue, separated from the main checkout per the project's branching convention.
 
-If `## Verification` is missing either subsection, halt and hand back to `anvil:writing-issue`. Do not improvise checks — the issue spec is the contract.
+If operational verification is missing or non-predicate-shaped ("feature works" rather than "command X exits 0 / output contains Y"), halt and ask the user to add it. Do not improvise checks — the issue spec is the contract.
 
-## Phase 0 — Claim
+## Phase 0 — Locate and claim the issue
 
-```bash
-anvil show issue <id>
-anvil transition issue <id> in-progress --owner <your-name>
-```
+Identify the project's issue tracker from its conventions (`CLAUDE.md`, `AGENTS.md`, contributor docs, or repo layout). Common shapes:
 
-The `in-progress` transition re-runs `reproduction_anchor` for bug issues. A mismatch means the bug is stale or already fixed — surface and stop; do not paper over with `--force`.
+- GitHub issues — `gh issue view <id>`; claim via `gh issue edit <id> --add-assignee @me`.
+- Linear / JIRA / other SaaS tracker — use the project's documented CLI or markdown reference.
+- Markdown-in-repo trackers — read the file directly.
+
+Confirm goal, acceptance criteria, non-goals, and verification. If the tracker supports it, transition status to "in progress" and assign yourself; otherwise proceed.
+
+**Bug issues with a reproduction step:** run it. If the failure mode no longer reproduces, surface and stop — the bug may be stale or already fixed. Do not bypass.
 
 ## Phase 1 — Implement
 
-Make the minimal change satisfying every `## Acceptance criteria` entry. Stay within the issue's declared file set (or `<declared-files>` when dispatched by `anvil:dispatching-issue-fleet`). See **Scope-change protocol** below if the work outgrows declared scope.
+Make the minimal change satisfying every acceptance criterion. Stay within the issue's declared file set; if it doesn't declare one, infer the minimum surface and stick to it. See **Scope-change protocol** below if the work outgrows declared scope.
 
-No refactoring "while in the area." No helpers without a second use. No defensive code for unreachable states. Per `CLAUDE.md`.
+No refactoring "while in the area." No helpers without a second use. No defensive code for unreachable states. Defer to the project's conventions (`CLAUDE.md`, `AGENTS.md`, style guides) for project-specific hard rules.
 
 ## Phase 2 — Verify (max 5 cycles)
 
 Run, in order:
 
-1. Every `## Verification → Direct` entry (unit/integration tests).
-2. Every `## Verification → Indirect` entry (live smoke against CLI or sub-skill).
+1. Every `### Direct` entry (unit/integration tests, declared in the issue).
+2. Every `### Indirect` entry (live invocation against the running product — CLI, web, service — declared in the issue).
 
 Outcomes:
 
@@ -66,35 +69,38 @@ A Direct pass with an Indirect fail is the precise gap this skill exists to catc
 
 ## Phase 3 — Self-review the diff
 
-Re-read the change once for `CLAUDE.md` hard-rule violations:
+Re-read the change once. Two checklists:
 
-- Helper without a second use.
-- Defensive code for unreachable states.
-- Comments explaining *what* instead of *why*.
-- `fmt.Println` for CLI output (use `cmd.Println` / `cmd.PrintErrln` / `log/slog`).
-- New top-level dependency (requires explicit user approval).
-- Whole-file `Read` of files >150 lines without grepping first.
+**Project-specific** — pull violations from `CLAUDE.md`, `AGENTS.md`, contributor docs, or the project's style guide. Fix what you find.
 
-Fix what you find. CodeRabbit budget is finite — the cheaper the diff, the more of its budget catches real bugs.
+**Generic anti-patterns** — these apply regardless of project:
 
-## Phase 4 — Smoke-test gate
+- Dead or unused code added by the change.
+- Helpers introduced for a single caller.
+- Defensive code for states the type system already forbids.
+- Comments explaining *what* (the code already shows that) instead of *why*.
+- New top-level dependencies pulled in without explicit need.
+- Edits outside the change's declared scope.
 
-```bash
-just install
-anvil --version
-```
+CodeRabbit (or whichever review bot the project uses) has a finite budget — the cheaper the diff, the more of its budget catches real bugs.
 
-`anvil --version` must end in `$(git rev-parse --short HEAD)` (per `@docs/worktree-workflow.md`). Then re-run every `## Verification → Indirect` entry against the installed binary. A passing dev-tree verify and a failing installed-binary verify means the install path is broken — fix before opening the PR.
+## Phase 4 — Build-and-install gate
+
+Run the project's build-and-install command — read it from the repo's conventions. Common shapes: `make install`, `just install`, `npm run build && npm link`, `cargo install --path .`, `pip install -e .`, project-specific scripts. The goal is to rebuild the artifact your change lives in so the installed/served version reflects the working tree, not stale bits.
+
+If the project stamps the built artifact with a version or commit sha, verify the just-built artifact reports the current HEAD (`-dirty` suffix is expected when the tree has uncommitted changes). If it doesn't match, the install path bypassed your build — fix that before continuing.
+
+Then re-run every `### Indirect` entry against the built artifact, not the dev tree. A passing dev-tree verify and a failing built-artifact verify means the install/build path is broken — fix before opening the PR.
 
 ## Phase 5 — Open PR or report failure
 
-**On verify + smoke success:**
+**On verify + build-gate success:**
 
 ```bash
 gh pr create --title "<conventional-commit summary>" --body "<one-paragraph + closes #<issue-number>>"
 ```
 
-Surface the PR url. Stop. The issue stays `in-progress`; the human transitions it to `resolved` after merge. **REQUIRED SUB-SKILL:** Use anvil:responding-to-pr-review once CodeRabbit reports.
+Surface the PR url. Stop. The issue stays in its "in progress" state; whoever owns the merge button closes it after merge. If the project provides a review-response skill (`anvil:responding-to-pr-review` or equivalent), invoke it once the bot/human reviewer reports.
 
 **On verify failure (Phase 2 abort):**
 
@@ -110,7 +116,7 @@ What is blocked: <one sentence>
 Recommended next step: <one sentence>
 ```
 
-Do NOT call `gh pr create`. Do NOT transition the issue. Leave the worktree for human review.
+Do NOT call `gh pr create`. Do NOT close the issue. Leave the worktree for human review.
 
 ## Scope-change protocol
 
@@ -124,10 +130,10 @@ Do not silently scope down (cut a quieter version) or up (touch sibling files). 
 
 ## Forbidden calls
 
-- `gh pr merge` — human owns the merge button.
-- `git worktree remove` — post-merge cleanup is the human's.
-- `anvil transition resolved` — human transitions after merge.
-- `anvil transition abandoned` — emit a failure report instead.
+- Merging the PR — the human or maintainer owns the merge button.
+- Removing the worktree / branch — post-merge cleanup is the project owner's.
+- Closing or resolving the issue — the maintainer transitions after merge.
+- Abandoning the issue — emit a failure report instead.
 
 ## Forbidden patterns
 
