@@ -16,7 +16,9 @@ import (
 
 func newTransitionCmd() *cobra.Command {
 	var owner, reason string
-	var asJSON, force, noLongerReproduces bool
+	var asJSON, force, noLongerReproduces, cutWorktree bool
+	var worktreeOverride, branchOverride string
+	var landPRNum int
 	cmd := &cobra.Command{
 		Use:   "transition <type> <id> <new-state>",
 		Short: "Move an artifact through its state machine",
@@ -44,6 +46,29 @@ func newTransitionCmd() *cobra.Command {
 				return emitTransitionJSON(cmd, asJSON, transitionResult{
 					ID: id, Path: path, From: from, To: to, Status: "already_in_state",
 				})
+			}
+
+			if cutWorktree && (t != core.TypeIssue || to != "in-progress") {
+				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
+					Set("flag", "--cut-worktree").
+					Set("applies_to", "transition issue <id> in-progress"))
+			}
+			if (worktreeOverride != "" || branchOverride != "") && !cutWorktree {
+				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
+					Set("flag", "--worktree/--branch").
+					Set("applies_to", "use only with --cut-worktree"))
+			}
+			if landPRNum != 0 {
+				if t != core.TypeIssue || to != "resolved" {
+					return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
+						Set("flag", "--land-pr").
+						Set("applies_to", "transition issue <id> resolved"))
+				}
+				if force || noLongerReproduces {
+					return printAndReturn(cmd, errfmt.NewStructured("flags_conflict").
+						Set("flags", []string{"--land-pr", "--force/--no-longer-reproduces"}).
+						Set("fix_hint", "--land-pr merges and verifies; do not combine with override flags"))
+				}
 			}
 
 			if noLongerReproduces {
@@ -138,6 +163,18 @@ func newTransitionCmd() *cobra.Command {
 				}
 			}
 
+			if cutWorktree {
+				if err := doCutWorktree(a, id, worktreeOverride, branchOverride); err != nil {
+					return printAndReturn(cmd, err)
+				}
+			}
+
+			if landPRNum != 0 {
+				if err := doLandPR(a, id, landPRNum, worktreeOverride); err != nil {
+					return printAndReturn(cmd, err)
+				}
+			}
+
 			// Refuse issue → resolved when the issue's anvil/<slug> branch
 			// still has an open PR, unless --force is set. Uniform across
 			// every codepath that calls `anvil transition`. See
@@ -185,6 +222,15 @@ func newTransitionCmd() *cobra.Command {
 				a.Body += audit
 			}
 
+			if t == core.TypeIssue && to == "resolved" && landPRNum != 0 {
+				stamp := time.Now().UTC().Format("2006-01-02")
+				audit := fmt.Sprintf("\n> resolved --land-pr %d %s: merged via squash + branch deleted\n", landPRNum, stamp)
+				if !strings.HasSuffix(a.Body, "\n") {
+					a.Body += "\n"
+				}
+				a.Body += audit
+			}
+
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("saving: %w", err)
 			}
@@ -202,6 +248,10 @@ func newTransitionCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON envelope")
 	cmd.Flags().BoolVar(&force, "force", false, "override the open-PR refusal on issue → resolved (audit-logged)")
 	cmd.Flags().BoolVar(&noLongerReproduces, "no-longer-reproduces", false, "on a mismatching reproduction_anchor, close the issue as resolved with the diff captured (mutually exclusive with --force)")
+	cmd.Flags().BoolVar(&cutWorktree, "cut-worktree", false, "create the conventional worktree+branch before transitioning (issue → in-progress only)")
+	cmd.Flags().StringVar(&worktreeOverride, "worktree", "", "override the derived worktree path (used with --cut-worktree)")
+	cmd.Flags().StringVar(&branchOverride, "branch", "", "override the derived branch name (used with --cut-worktree)")
+	cmd.Flags().IntVar(&landPRNum, "land-pr", 0, "verify-mergeable + CI-green, remove worktree, squash-merge and delete branch, verify MERGED, then transition (issue → resolved only)")
 	return cmd
 }
 
