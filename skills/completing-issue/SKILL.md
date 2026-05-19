@@ -28,26 +28,23 @@ metadata:
 
 You enter holding:
 
-1. An open or in-progress issue that declares operational verification — typically a `## Verification` section with `### Direct` and `### Indirect` subsections, or an equivalent contract the project uses.
+1. An open or in-progress issue with a `## Verification` section containing both `### Direct` and `### Indirect` entries.
 2. A worktree (or branch) dedicated to the issue, separated from the main checkout per the project's branching convention.
 
-If operational verification is missing or non-predicate-shaped ("feature works" rather than "command X exits 0 / output contains Y"), halt and ask the user to add it. Do not improvise checks — the issue spec is the contract.
+If `## Verification` is missing either subsection or its entries are non-predicate-shaped ("feature works" rather than "command X exits 0 / output contains Y"), halt and hand back to `anvil:writing-issue`. Do not improvise checks — the issue spec is the contract.
 
-## Phase 0 — Locate and claim the issue
+## Phase 0 — Claim
 
-Identify the project's issue tracker from its conventions (`CLAUDE.md`, `AGENTS.md`, contributor docs, or repo layout). Common shapes:
+```bash
+anvil show issue <id>
+anvil transition issue <id> in-progress --owner <your-name>
+```
 
-- GitHub issues — `gh issue view <id>`; claim via `gh issue edit <id> --add-assignee @me`.
-- Linear / JIRA / other SaaS tracker — use the project's documented CLI or markdown reference.
-- Markdown-in-repo trackers — read the file directly.
-
-Confirm goal, acceptance criteria, non-goals, and verification. If the tracker supports it, transition status to "in progress" and assign yourself; otherwise proceed.
-
-**Bug issues with a reproduction step:** run it. If the failure mode no longer reproduces, surface and stop — the bug may be stale or already fixed. Do not bypass.
+The `in-progress` transition re-runs `reproduction_anchor` for bug issues. A mismatch means the bug is stale or already fixed — surface and stop; do not paper over with `--force`.
 
 ## Phase 1 — Implement
 
-Make the minimal change satisfying every acceptance criterion. Stay within the issue's declared file set; if it doesn't declare one, infer the minimum surface and stick to it. See **Scope-change protocol** below if the work outgrows declared scope.
+Make the minimal change satisfying every `## Acceptance criteria` entry. Stay within the issue's declared file set (or `<declared-files>` when dispatched by `anvil:dispatching-issue-fleet`). See **Scope-change protocol** below if the work outgrows declared scope.
 
 No refactoring "while in the area." No helpers without a second use. No defensive code for unreachable states. Defer to the project's conventions (`CLAUDE.md`, `AGENTS.md`, style guides) for project-specific hard rules.
 
@@ -100,7 +97,7 @@ Then re-run every `### Indirect` entry against the built artifact, not the dev t
 gh pr create --title "<conventional-commit summary>" --body "<one-paragraph + closes #<issue-number>>"
 ```
 
-Surface the PR url. Stop. The issue stays in its "in progress" state; whoever owns the merge button closes it after merge. If the project provides a review-response skill (`anvil:responding-to-pr-review` or equivalent), invoke it once the bot/human reviewer reports.
+Surface the PR url. Stop. The issue stays `in-progress`; the human transitions it to `resolved` after merge. **REQUIRED SUB-SKILL:** Use anvil:responding-to-pr-review once CodeRabbit reports.
 
 **On verify failure (Phase 2 abort):**
 
@@ -116,7 +113,7 @@ What is blocked: <one sentence>
 Recommended next step: <one sentence>
 ```
 
-Do NOT call `gh pr create`. Do NOT close the issue. Leave the worktree for human review.
+Do NOT call `gh pr create`. Do NOT transition the issue. Leave the worktree for human review.
 
 ## Scope-change protocol
 
@@ -130,10 +127,10 @@ Do not silently scope down (cut a quieter version) or up (touch sibling files). 
 
 ## Forbidden calls
 
-- Merging the PR — the human or maintainer owns the merge button.
-- Removing the worktree / branch — post-merge cleanup is the project owner's.
-- Closing or resolving the issue — the maintainer transitions after merge.
-- Abandoning the issue — emit a failure report instead.
+- `gh pr merge` — human owns the merge button.
+- `git worktree remove` — post-merge cleanup is the human's.
+- `anvil transition resolved` — human transitions after merge.
+- `anvil transition abandoned` — emit a failure report instead.
 
 ## Forbidden patterns
 
