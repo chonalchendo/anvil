@@ -102,6 +102,89 @@ func TestCreateMilestone_NoOrdinal(t *testing.T) {
 	}
 }
 
+// TestCreateInbox_ProjectFlag_AliasesToSuggestedProject asserts that
+// --project on `create inbox` aliases internally to --suggested-project
+// rather than silently no-op'ing (the documented schema gap: inbox carries
+// suggested_project, not project). Explicit --suggested-project still wins
+// when both are passed.
+func TestCreateInbox_ProjectFlag_AliasesToSuggestedProject(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	cmd := newRootCmd()
+	if _, _, err := runCmd(t, cmd, "create", "inbox", "--title", "x", "--project", "verifytest", "--json"); err != nil {
+		t.Fatalf("create inbox --project: %v", err)
+	}
+	entries, err := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("expected 1 inbox file, got %d (%v)", len(entries), err)
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "00-inbox", entries[0].Name()))
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if got, _ := a.FrontMatter["suggested_project"].(string); got != "verifytest" {
+		t.Errorf("suggested_project: got %q want %q", got, "verifytest")
+	}
+	if got, _ := a.FrontMatter["project"].(string); got != "" {
+		t.Errorf("project leaked into inbox frontmatter: %q", got)
+	}
+}
+
+// TestCreateInbox_ProjectFlag_ExplicitSuggestedWins asserts that passing
+// both --project and --suggested-project keeps the explicit
+// --suggested-project value rather than clobbering it with the alias.
+func TestCreateInbox_ProjectFlag_ExplicitSuggestedWins(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	cmd := newRootCmd()
+	if _, _, err := runCmd(t, cmd, "create", "inbox", "--title", "x",
+		"--project", "ignored", "--suggested-project", "kept", "--json"); err != nil {
+		t.Fatalf("create inbox: %v", err)
+	}
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "00-inbox", entries[0].Name()))
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if got, _ := a.FrontMatter["suggested_project"].(string); got != "kept" {
+		t.Errorf("suggested_project: got %q want %q", got, "kept")
+	}
+}
+
+// TestCreate_ProjectFlag_RejectedForUnsupportedTypes asserts that --project
+// on a non-inbox no-project type (session, sweep, thread) returns the same
+// unsupported_flag_for_type envelope that `list <type> --project` does,
+// rather than silently no-op'ing or aliasing. Inbox is the documented
+// exception — covered separately by TestCreateInbox_ProjectFlag_* above.
+func TestCreate_ProjectFlag_RejectedForUnsupportedTypes(t *testing.T) {
+	for _, typ := range []string{"session", "sweep", "thread"} {
+		t.Run(typ, func(t *testing.T) {
+			setupVault(t)
+			t.Setenv("HOME", t.TempDir())
+			t.Chdir(t.TempDir())
+
+			cmd := newRootCmd()
+			_, errOut, err := runCmd(t, cmd, "create", typ, "--title", "x", "--project", "verifytest")
+			if err == nil {
+				t.Fatalf("expected error for --project on %s, got nil", typ)
+			}
+			if !strings.Contains(errOut, "unsupported_flag_for_type") {
+				t.Errorf("stderr missing code: %q", errOut)
+			}
+			if !strings.Contains(errOut, `"flag":"project"`) {
+				t.Errorf("stderr missing flag field: %q", errOut)
+			}
+			if !strings.Contains(errOut, `"suggest"`) {
+				t.Errorf("stderr missing suggest field: %q", errOut)
+			}
+		})
+	}
+}
+
 func TestCreate_Inbox_NoProjectNeeded(t *testing.T) {
 	vault := setupVault(t)
 	t.Setenv("HOME", t.TempDir())

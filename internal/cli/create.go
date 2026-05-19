@@ -93,6 +93,26 @@ func newCreateCmd() *cobra.Command {
 				return err
 			}
 
+			// Stop --project from silently no-op'ing on types whose schema rejects
+			// `project:`. Inbox is the documented exception: its schema has
+			// `suggested_project`, so we alias internally rather than error,
+			// matching the AC. Other unsupported types (session, sweep, thread)
+			// fall through to the unsupported_flag_for_type envelope — the same
+			// precedent `anvil list <type> --project` already uses.
+			if cmd.Flags().Changed("project") && !t.SupportsProject() {
+				if t == core.TypeInbox {
+					if !cmd.Flags().Changed("suggested-project") {
+						flagSuggestedProject = flagProject
+					}
+					flagProject = ""
+				} else {
+					return printAndReturn(cmd, errfmt.NewUnsupportedFlagForType(
+						"project", string(t), core.TypesSupportingProject(),
+						"this type is deliberately cross-project; omit --project",
+					))
+				}
+			}
+
 			// --from ingests a complete authored artifact (frontmatter + body) so
 			// callers can avoid the create-stub-then-edit round-trip when the
 			// frontmatter carries rich content (e.g. plan tasks). CLI flags still
@@ -435,7 +455,7 @@ func newCreateCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&flagTitle, "title", "", "artifact title (required)")
 	cmd.Flags().StringVar(&flagDescription, "description", "", fmt.Sprintf("one-line summary (max %d chars, required for spine types)", maxDescriptionChars))
-	cmd.Flags().StringVar(&flagProject, "project", "", "project slug (overrides auto-detected)")
+	cmd.Flags().StringVar(&flagProject, "project", "", "project slug (overrides auto-detected; supported on: "+strings.Join(core.TypesSupportingProject(), ", ")+"; inbox aliases to --suggested-project)")
 	cmd.Flags().StringVar(&flagTopic, "topic", "", "decision topic slug (required for decision)")
 	cmd.Flags().StringVar(&flagSuggestedType, "suggested-type", "", "suggested type (inbox only)")
 	cmd.Flags().StringVar(&flagSuggestedProject, "suggested-project", "", "suggested project (inbox only)")
