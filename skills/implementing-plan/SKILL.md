@@ -1,7 +1,6 @@
 ---
 name: implementing-plan
-description: |
-  Use when a validated plan exists at ~/anvil-vault/80-plans/<id>.md and the user wants to walk it inline (single-agent, this session). For orchestrated multi-task runs, use `anvil build` once available.
+description: "DEPRECATED — superseded by completing-issue. Only triggers on explicit request: 'use implementing-plan', 'walk a legacy plan', 'execute plan <id>'. New work should not invoke this."
 ---
 
 # implementing-plan
