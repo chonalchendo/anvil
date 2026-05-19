@@ -130,9 +130,9 @@ Pick the closest existing value if one fits; only invent a new one if no existin
 
 When promoting an inbox item, pass `--tags` on the `anvil promote <id> --as issue` call after consulting the same list.
 
-Author the body up front and pass it to `create` via `--body-file` (or `--body -` for piped stdin). `create` validates the frontmatter AND body (required H2s, wikilink targets) and rolls back the write on failure — no separate `anvil validate` step:
+Author the body up front and pass it to `create` via `--body-file` (or `--body -` for piped stdin). `create` validates the frontmatter AND body (required H2s, wikilink targets) and rolls back the write on failure — no separate `anvil validate` step. The `## Verification` block uses fenced bash; see `docs/issue-spec.md` for the full format spec.
 
-```bash
+````bash
 cat > /tmp/issue-body.md <<'EOF'
 ## Problem
 <one paragraph from convergence (fuzzy) or the stated problem (decisive)>
@@ -146,17 +146,21 @@ cat > /tmp/issue-body.md <<'EOF'
 ## Verification
 
 ### Direct (unit/integration)
-- <named command — exit 0 / output predicate>
+```bash
+<shell command — exit 0 = pass>
+```
 
 ### Indirect (live smoke)
-- <CLI invocation or sub-skill — predicate proving the feature works in practice>
+```bash
+<shell command with predicate baked in — grep -q "X", jq -r .field, [ ... = ... ]>
+```
 
 ## Links
 - [[milestone.<project>.<slug>]]
 EOF
 
 anvil create issue --title "<title>" --tags domain/<x> --body-file /tmp/issue-body.md --json
-```
+````
 
 Capture `id` and `path` from the JSON output. The file lands at `~/anvil-vault/70-issues/<project>.<slug>.md`.
 
@@ -180,9 +184,9 @@ Required body sections (enforced by `create`):
 - `## Problem` — one paragraph from convergence (fuzzy) or the stated problem (decisive).
 - `## Acceptance criteria` — bulleted, each testable without ambiguity.
 - `## Non-goals` — from Phase 3 smallest-viable (fuzzy) or stated up front (decisive).
-- `## Verification` — operational checks. Two subsections, both required:
-  - `### Direct` — ≥1 named test command with a success predicate (exit code, output match). Example: `` `go test ./internal/transition -run TestClaimAtomic` — exit 0 ``.
-  - `### Indirect` — ≥1 live invocation (CLI smoke or sub-skill) with a success predicate. `anvil:completing-issue` re-runs these against the installed binary; they catch behavioral gaps unit tests can't see. Example: `` `anvil transition issue test-fixture in-progress --owner test` — output contains "transitioned to in-progress" ``.
+- `## Verification` — operational checks in fenced bash blocks (full spec: `docs/issue-spec.md`). Two subsections, both required:
+  - `### Direct` — fenced `bash` block with ≥1 line. Each line must exit 0. Typically unit/integration tests run against the dev tree.
+  - `### Indirect` — fenced `bash` block with ≥1 line. Each line must exit 0. Live invocations against the built/installed/served artifact; bake the predicate into the command (`grep -q "X"`, `jq -r .field`, `[ ... = ... ]`). `anvil:completing-issue` re-runs these against the installed binary in its Phase 4 build gate — they catch behavioral gaps the Direct checks can't see.
 - `## Links` — to milestone, design docs, related issues. Use `[[wikilink]]` form. Targets must resolve (the file must exist) or `create` rejects.
 
 `anvil validate <path>` remains useful as a re-check after edits (e.g. after `anvil set ... acceptance --add`), but it is **not** required after `create` when the body was supplied via `--body-file` / `--body -`.

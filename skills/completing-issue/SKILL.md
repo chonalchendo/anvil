@@ -50,10 +50,13 @@ No refactoring "while in the area." No helpers without a second use. No defensiv
 
 ## Phase 2 — Verify (max 5 cycles)
 
-Run, in order:
+Run the bundled verification runner against the issue. It parses `## Verification → ### Direct` then `### Indirect` (fenced bash blocks; full spec at `docs/issue-spec.md`), executes each line, and emits a compact `PASS [Direct#N] <cmd>` / `FAIL [Direct#N] <cmd>` summary with up to 10 lines of failure output per fail.
 
-1. Every `### Direct` entry (unit/integration tests, declared in the issue).
-2. Every `### Indirect` entry (live invocation against the running product — CLI, web, service — declared in the issue).
+```bash
+anvil show issue <id> | bash ~/.claude/skills/completing-issue/scripts/run-verification.sh
+```
+
+Exit 0 = every check passed. Non-zero = at least one failed; the summary names which.
 
 Outcomes:
 
