@@ -40,7 +40,10 @@ run_section() {
     local n=0 fails=0 rc
     while IFS= read -r cmd; do
         n=$((n + 1))
-        if output=$(bash -c "$cmd" 2>&1); then
+        # Redirect bash -c stdin from /dev/null so commands that read stdin
+        # (e.g. anvil verbs that probe for piped body input) don't consume
+        # the heredoc feeding this while-read loop and silently drop later checks.
+        if output=$(bash -c "$cmd" </dev/null 2>&1); then
             echo "PASS [$label#$n] $cmd"
         else
             rc=$?
