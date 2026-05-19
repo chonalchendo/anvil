@@ -37,7 +37,7 @@ run_section() {
         return 1
     fi
 
-    local n=0 fails=0
+    local n=0 fails=0 rc
     while IFS= read -r cmd; do
         n=$((n + 1))
         if output=$(bash -c "$cmd" 2>&1); then

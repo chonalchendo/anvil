@@ -1,6 +1,6 @@
 ---
 name: completing-issue
-description: "Use when implementing an open issue end-to-end to PR-opened via a direct+indirect verify-or-iterate loop. Triggers: 'complete issue X', 'work issue <id>'. Not for authoring (writing-issue) or fleet dispatch (dispatching-issue-fleet)."
+description: "Use when implementing an open issue end-to-end to PR-opened. Triggers: 'complete issue X', 'work issue <id>'. Not for authoring (writing-issue) or fleet dispatch (dispatching-issue-fleet)."
 license: MIT
 allowed-tools: [Bash, Read, Edit, Write]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
