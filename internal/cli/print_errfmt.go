@@ -64,18 +64,25 @@ func printValidationErrors(cmd *cobra.Command, errs []*errfmt.ValidationError) {
 		if i > 0 {
 			cmd.PrintErrln("")
 		}
-		cmd.PrintErrln(fmt.Sprintf("[%s] %s", f.Code, f.Path))
+		// First line is the agent-actionable spine: code + field + expected.
+		// Path moves to a subordinate indented line so the structured grep
+		// `\[code\][[:space:]]+field:` matches on a single line.
+		head := fmt.Sprintf("[%s]", f.Code)
 		if f.Field != "" {
-			cmd.PrintErrln(fmt.Sprintf("  field: %s", f.Field))
+			head += fmt.Sprintf(" field: %s", f.Field)
+		}
+		if f.Expected != nil {
+			head += fmt.Sprintf(" expected: %v", f.Expected)
+		}
+		cmd.PrintErrln(head)
+		if f.Path != "" {
+			cmd.PrintErrln(fmt.Sprintf("  path: %s", f.Path))
 		}
 		if f.Got != "" {
 			cmd.PrintErrln(fmt.Sprintf("  got: %s", f.Got))
 		}
 		if f.Suggest != "" {
 			cmd.PrintErrln(fmt.Sprintf("  suggest: %s", f.Suggest))
-		}
-		if f.Expected != nil {
-			cmd.PrintErrln(fmt.Sprintf("  expected: %v", f.Expected))
 		}
 		if f.Note != "" {
 			cmd.PrintErrln(fmt.Sprintf("  note: %s", f.Note))

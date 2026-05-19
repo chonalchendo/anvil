@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -2073,5 +2074,35 @@ func TestCreate_Decision_FreshVault_MissingBothFacets_Coalesced(t *testing.T) {
 	domainCount := strings.Count(got, "^domain/[a-z0-9-]+$")
 	if domainCount != 1 {
 		t.Errorf("expected exactly one domain/ pattern row, got %d:\n%s", domainCount, got)
+	}
+}
+
+// The structured-error head line must put `[code]`, `field:`, and `expected:`
+// on the SAME line so agents can grep for the spine with a single regex —
+// path moves to a subordinate `path:` line. Mirrors the contract that
+// `anvil promote --as issue` already honours.
+func TestCreate_Issue_StructuredErrorHead_CodeFieldExpectedOnSameLine(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "y"})
+	var errOut bytes.Buffer
+	cmd.SetOut(&errOut)
+	cmd.SetErr(&errOut)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected schema-invalid on missing tags")
+	}
+	got := errOut.String()
+	// `[missing_required_facet] field: tags expected: [^domain/...]` — single line.
+	headRE := regexp.MustCompile(`(?m)^\[missing_required_facet\] field: tags expected: \[\^domain/`)
+	if !headRE.MatchString(got) {
+		t.Errorf("expected single-line spine `[code] field: <name> expected: <pattern>`, got:\n%s", got)
+	}
+	// Path moved to a subordinate indented line.
+	if !strings.Contains(got, "  path: ") {
+		t.Errorf("expected subordinate `  path: ...` line, got:\n%s", got)
 	}
 }
