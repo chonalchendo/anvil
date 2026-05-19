@@ -27,8 +27,6 @@ Use this skill when:
 Defer to `anvil build` when:
 - Many tasks, large per-task scope, parallelizable waves, or per-task atomic commits across a long run.
 
-> **CLI gap:** `anvil build <plan-path>` is the future default for orchestrated runs. See spec gaps #7–#10. Today, walk inline.
-
 ## Phase 0 — Cut a worktree (default)
 
 Branched work runs in a dedicated worktree, not the parent checkout. Parallel sessions sharing one checkout collide on branch switches and bleed working-tree state across issues.

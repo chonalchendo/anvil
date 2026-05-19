@@ -96,10 +96,8 @@ Both calls land in dedicated typed slots. If a system-design doesn't yet exist, 
 ## Phase 5 — Validate
 
 ```bash
-anvil validate "<path-from-phase-3>"
+anvil show milestone <id> --validate
 ```
-
-> **CLI gap:** `anvil show milestone <id> --validate` parity (plan-only today). See spec gap #1. Fallback: `anvil validate <path>`.
 
 Fix any schema errors reported. Re-run until clean.
 
