@@ -116,6 +116,17 @@ func RemoveSkills(srcFS fs.FS, materialiseDir, target string) (bool, error) {
 // in materialiseDir diverges from srcFS. No-op when materialiseDir is absent.
 // The install mode (symlink vs copy) is recovered by inspecting any existing
 // per-skill child under target.
+//
+// If any target/<name> entry would block install (user planted a regular
+// dir over what should be a symlink, or a non-anvil dir in copy mode), the
+// refresh silently no-ops without touching materialiseDir. The implicit
+// auto-refresh path must not flood stderr when the user has chosen to
+// manage that skill path manually; the explicit `anvil install skills`
+// command, which calls InstallSkills directly, still surfaces the refusal
+// and points at --force — that is where the user expects to be told.
+// Leaving materialiseDir untouched also preserves the stale-hash signal so
+// the explicit install path continues to detect the conflict instead of
+// short-circuiting on freshness.
 func RefreshSkillsIfStale(srcFS fs.FS, materialiseDir, target string) (bool, error) {
 	if _, err := os.Stat(materialiseDir); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -134,10 +145,54 @@ func RefreshSkillsIfStale(srcFS fs.FS, materialiseDir, target string) (bool, err
 	if err != nil {
 		return false, err
 	}
+	blocked, err := refreshBlocked(srcFS, target, useCopy)
+	if err != nil {
+		return false, err
+	}
+	if blocked {
+		return false, nil
+	}
 	if _, err := InstallSkills(srcFS, materialiseDir, target, useCopy, false); err != nil {
 		return false, err
 	}
 	return true, nil
+}
+
+// refreshBlocked reports whether any target/<name> entry would cause
+// InstallSkills(..., force=false) to refuse: a regular dir at a symlink
+// path in symlink mode, or a non-anvil dir in copy mode. The check is
+// per-skill, mirroring installOneSkill's own logic — keeping them in sync
+// is cheap because both only inspect target/<name>.
+func refreshBlocked(srcFS fs.FS, target string, useCopy bool) (bool, error) {
+	names, err := listSkillNames(srcFS)
+	if err != nil {
+		return false, err
+	}
+	for _, name := range names {
+		dst := filepath.Join(target, name)
+		info, err := os.Lstat(dst)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return false, fmt.Errorf("stat %s: %w", dst, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+		if !useCopy {
+			return true, nil
+		}
+		// Copy mode: a directory without the skill marker is user-owned.
+		_, statErr := os.Stat(filepath.Join(dst, skillMarker))
+		if errors.Is(statErr, os.ErrNotExist) {
+			return true, nil
+		}
+		if statErr != nil {
+			return false, fmt.Errorf("stat skill marker %s: %w", dst, statErr)
+		}
+	}
+	return false, nil
 }
 
 // SkillsAreFresh reports whether the hash recorded under materialiseDir
