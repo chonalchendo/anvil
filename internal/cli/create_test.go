@@ -155,6 +155,36 @@ func TestCreateInbox_ProjectFlag_ExplicitSuggestedWins(t *testing.T) {
 	}
 }
 
+// TestCreate_ProjectFlag_RejectedForUnsupportedTypes asserts that --project
+// on a non-inbox no-project type (session, sweep, thread) returns the same
+// unsupported_flag_for_type envelope that `list <type> --project` does,
+// rather than silently no-op'ing or aliasing. Inbox is the documented
+// exception — covered separately by TestCreateInbox_ProjectFlag_* above.
+func TestCreate_ProjectFlag_RejectedForUnsupportedTypes(t *testing.T) {
+	for _, typ := range []string{"session", "sweep", "thread"} {
+		t.Run(typ, func(t *testing.T) {
+			setupVault(t)
+			t.Setenv("HOME", t.TempDir())
+			t.Chdir(t.TempDir())
+
+			cmd := newRootCmd()
+			_, errOut, err := runCmd(t, cmd, "create", typ, "--title", "x", "--project", "verifytest")
+			if err == nil {
+				t.Fatalf("expected error for --project on %s, got nil", typ)
+			}
+			if !strings.Contains(errOut, "unsupported_flag_for_type") {
+				t.Errorf("stderr missing code: %q", errOut)
+			}
+			if !strings.Contains(errOut, `"flag":"project"`) {
+				t.Errorf("stderr missing flag field: %q", errOut)
+			}
+			if !strings.Contains(errOut, `"suggest"`) {
+				t.Errorf("stderr missing suggest field: %q", errOut)
+			}
+		})
+	}
+}
+
 func TestCreate_Inbox_NoProjectNeeded(t *testing.T) {
 	vault := setupVault(t)
 	t.Setenv("HOME", t.TempDir())
