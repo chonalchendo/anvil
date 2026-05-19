@@ -79,7 +79,7 @@ Re-read the change once. Two checklists:
 - New top-level dependencies pulled in without explicit need.
 - Edits outside the change's declared scope.
 
-CodeRabbit (or whichever review bot the project uses) has a finite budget — the cheaper the diff, the more of its budget catches real bugs.
+Code review agents have a finite budget — the cheaper the diff, the more of their budget catches real bugs.
 
 ## Phase 4 — Build-and-install gate
 
@@ -97,7 +97,7 @@ Then re-run every `### Indirect` entry against the built artifact, not the dev t
 gh pr create --title "<conventional-commit summary>" --body "<one-paragraph + closes #<issue-number>>"
 ```
 
-Surface the PR url. Stop. The issue stays `in-progress`; the human transitions it to `resolved` after merge. **REQUIRED SUB-SKILL:** Use anvil:responding-to-pr-review once CodeRabbit reports.
+Surface the PR url. Stop. The issue stays `in-progress`; the human transitions it to `resolved` after merge. **REQUIRED SUB-SKILL:** Use anvil:responding-to-pr-review once the code review agent reports.
 
 **On verify failure (Phase 2 abort):**
 
