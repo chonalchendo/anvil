@@ -74,3 +74,51 @@ func TestLinkRowsFromFrontmatter_IgnoresNonWikilinks(t *testing.T) {
 		t.Fatalf("expected 0 link rows, got %v", got)
 	}
 }
+
+// TestParseWikilink_PlanIssueEdge_BareID pins the indexer-side fix for
+// anvil.anvil-create-plan-writes-issue-as-bare-id-indexer-drops-it-a: `anvil
+// create plan` writes `issue:` as a bare id, so the indexer accepts both that
+// and the wikilink form on typed-slot relations.
+func TestParseWikilink_PlanIssueEdge_BareID(t *testing.T) {
+	fm := map[string]any{
+		"type":  "plan",
+		"id":    "demo.foo-plan",
+		"issue": "demo.foo",
+	}
+	got := LinkRowsFromFrontmatter("demo.foo-plan", fm)
+	want := []LinkRow{{Source: "demo.foo-plan", Target: "demo.foo", Relation: "issue", Anchor: ""}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestParseWikilink_PlanIssueEdge_WikilinkUnchanged guards the regression
+// surface: existing plans that already use wikilink form continue to produce
+// the same edge after the bare-id fallback is added.
+func TestParseWikilink_PlanIssueEdge_WikilinkUnchanged(t *testing.T) {
+	fm := map[string]any{
+		"type":  "plan",
+		"id":    "demo.foo-plan",
+		"issue": "[[issue.demo.foo]]",
+	}
+	got := LinkRowsFromFrontmatter("demo.foo-plan", fm)
+	want := []LinkRow{{Source: "demo.foo-plan", Target: "demo.foo", Relation: "issue", Anchor: ""}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestParseWikilink_BareID_NonTypedSlotIgnored confirms the bare-id fallback
+// is scoped to the typed-slot allowlist — random fields that happen to hold a
+// dotted string (e.g. a hash or version) do not become spurious edges.
+func TestParseWikilink_BareID_NonTypedSlotIgnored(t *testing.T) {
+	fm := map[string]any{
+		"type":     "issue",
+		"id":       "demo.foo",
+		"checksum": "demo.foo",
+	}
+	got := LinkRowsFromFrontmatter("demo.foo", fm)
+	if len(got) != 0 {
+		t.Fatalf("expected 0 link rows for non-typed-slot field, got %v", got)
+	}
+}

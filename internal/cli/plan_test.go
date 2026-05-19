@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/index"
 )
 
 func copyPlanFixture(t *testing.T, vault, name string) string {
@@ -203,6 +204,56 @@ func TestShow_PlanTaskTerseByDefault(t *testing.T) {
 	}
 	if strings.Contains(out, "Context the executor needs") {
 		t.Errorf("body prose marker leaked into terse output:\n%s", out)
+	}
+}
+
+// TestCreatePlan_BareIDIssue_PersistedFormIsIndexerCompatible pins the writer
+// side of anvil.anvil-create-plan-writes-issue-as-bare-id-indexer-drops-it-a:
+// `anvil create plan --issue <bare-id>` writes the bare id verbatim, and the
+// indexer's link extraction must accept that persisted form so the plan→issue
+// edge surfaces after reindex.
+func TestCreatePlan_BareIDIssue_PersistedFormIsIndexerCompatible(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "plan",
+		"--title", "Bare-id issue plan",
+		"--description", "test",
+		"--issue", "foo.target-issue",
+		"--slug", "bare-id-issue-plan",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create plan: %v\n%s", err, out.String())
+	}
+
+	path := filepath.Join(vault, "80-plans", "foo.bare-id-issue-plan.md")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatalf("load artifact: %v", err)
+	}
+	issueField, _ := a.FrontMatter["issue"].(string)
+	if issueField == "" {
+		t.Fatalf("plan frontmatter missing issue field: %v", a.FrontMatter)
+	}
+	rows := index.LinkRowsFromFrontmatter("foo.bare-id-issue-plan", a.FrontMatter)
+	var found bool
+	for _, r := range rows {
+		if r.Relation == "issue" && r.Target == "foo.target-issue" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("persisted issue=%q did not produce indexer edge to foo.target-issue; rows=%v", issueField, rows)
 	}
 }
 

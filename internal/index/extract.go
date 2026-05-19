@@ -20,6 +20,16 @@ type LinkRow struct {
 
 var wikilinkRe = regexp.MustCompile(`^\[\[([^\]]+)\]\]$`)
 
+// typedSlotRelations are frontmatter field names whose value is a single typed
+// link to one specific artifact type. `anvil create plan` writes the `issue`
+// slot as a bare id (e.g. `issue: anvil.foo`) rather than wikilink form, so
+// the indexer accepts both shapes for these fields. The allowlist is scoped
+// to the slot where the bug was observed; extend deliberately if other typed
+// slots show the same writer/indexer mismatch.
+var typedSlotRelations = map[string]bool{
+	"issue": true,
+}
+
 // ArtifactRowFromFrontmatter projects parsed frontmatter onto an ArtifactRow.
 // If `id` is absent or empty in frontmatter, the path stem (filename without
 // extension) is used as the ID. Returns an error only if both sources yield an
@@ -80,14 +90,19 @@ func LinkRowsFromFrontmatter(source string, fm map[string]any) []LinkRow {
 }
 
 func parseWikilink(source, relation, s string) (LinkRow, bool) {
-	m := wikilinkRe.FindStringSubmatch(strings.TrimSpace(s))
-	if m == nil {
-		return LinkRow{}, false
+	trimmed := strings.TrimSpace(s)
+	if m := wikilinkRe.FindStringSubmatch(trimmed); m != nil {
+		target := m[1]
+		dot := strings.IndexByte(target, '.')
+		if dot < 0 {
+			return LinkRow{}, false
+		}
+		return LinkRow{Source: source, Target: target[dot+1:], Relation: relation, Anchor: ""}, true
 	}
-	target := m[1]
-	dot := strings.IndexByte(target, '.')
-	if dot < 0 {
-		return LinkRow{}, false
+	// Typed-slot fallback: a bare `<project>.<slug>` id stands in for the
+	// wikilink form when the field name names a single artifact type.
+	if typedSlotRelations[relation] && strings.IndexByte(trimmed, '.') > 0 {
+		return LinkRow{Source: source, Target: trimmed, Relation: relation, Anchor: ""}, true
 	}
-	return LinkRow{Source: source, Target: target[dot+1:], Relation: relation, Anchor: ""}, true
+	return LinkRow{}, false
 }
