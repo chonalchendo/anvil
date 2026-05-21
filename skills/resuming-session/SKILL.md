@@ -88,7 +88,7 @@ Then surface the handoff's **Objective** as the first content line — intent be
 Objective: <the one-sentence Objective from the handoff body>
 ```
 
-If the loaded handoff has no `**Objective.**` line (it predates the field, or the chain is exploratory), say so in one line — `No Objective recorded in this handoff.` — and do not invent one.
+If the loaded handoff has no `**Objective.**` line (it predates the field or is malformed), say so in one line — `No Objective recorded in this handoff.` — and do not invent one. An exploratory chain still has the line — surface its `(exploratory …)` value verbatim, don't treat it as missing.
 
 Cross-check git state. Run `git -C <repo from handoff> rev-parse --abbrev-ref HEAD`. If the current branch differs from what the handoff describes, surface a single line: `Handoff describes branch <X>; current branch is <Y> — reconcile before acting.` Do not silently overwrite — let the user decide whether to switch branches, cut a fresh worktree, or proceed regardless.
 
