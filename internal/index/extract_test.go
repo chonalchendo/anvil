@@ -122,3 +122,76 @@ func TestParseWikilink_BareID_NonTypedSlotIgnored(t *testing.T) {
 		t.Fatalf("expected 0 link rows for non-typed-slot field, got %v", got)
 	}
 }
+
+func TestLinkRowsFromBody_DistinctTargets(t *testing.T) {
+	body := "See [[issue.anvil.foo]] and [[learning.anvil.bar]] for context."
+	got := LinkRowsFromBody("anvil.src", body)
+	want := []LinkRow{
+		{Source: "anvil.src", Target: "anvil.bar", Relation: "body", Anchor: ""},
+		{Source: "anvil.src", Target: "anvil.foo", Relation: "body", Anchor: ""},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestLinkRowsFromBody_DedupWithinBody(t *testing.T) {
+	body := "[[issue.anvil.foo]] is mentioned again: [[issue.anvil.foo]]."
+	got := LinkRowsFromBody("anvil.src", body)
+	want := []LinkRow{
+		{Source: "anvil.src", Target: "anvil.foo", Relation: "body", Anchor: ""},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestLinkRowsFromBody_UnknownTypePrefixIgnored(t *testing.T) {
+	body := "See [[bogustype.anvil.foo]] which is not a known Anvil type."
+	got := LinkRowsFromBody("anvil.src", body)
+	if len(got) != 0 {
+		t.Fatalf("expected 0 link rows for unknown type prefix, got %v", got)
+	}
+}
+
+func TestLinkRowsFromBody_DeterministicOrdering(t *testing.T) {
+	// Targets appear in reverse alphabetical order in body; output must be sorted.
+	body := "[[issue.anvil.zzz]] then [[issue.anvil.aaa]]."
+	got := LinkRowsFromBody("anvil.src", body)
+	want := []LinkRow{
+		{Source: "anvil.src", Target: "anvil.aaa", Relation: "body", Anchor: ""},
+		{Source: "anvil.src", Target: "anvil.zzz", Relation: "body", Anchor: ""},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestLinkRowsFromBody_EmptyBody(t *testing.T) {
+	got := LinkRowsFromBody("anvil.src", "")
+	if len(got) != 0 {
+		t.Fatalf("expected 0 link rows for empty body, got %v", got)
+	}
+}
+
+func TestLinkRowsFromBody_AliasedLink(t *testing.T) {
+	body := "See [[issue.anvil.foo|the foo issue]] for details."
+	got := LinkRowsFromBody("anvil.src", body)
+	want := []LinkRow{
+		{Source: "anvil.src", Target: "anvil.foo", Relation: "body", Anchor: ""},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestLinkRowsFromBody_WhitespacePadded(t *testing.T) {
+	body := "See [[ issue.anvil.bar ]] for details."
+	got := LinkRowsFromBody("anvil.src", body)
+	want := []LinkRow{
+		{Source: "anvil.src", Target: "anvil.bar", Relation: "body", Anchor: ""},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
+	}
+}

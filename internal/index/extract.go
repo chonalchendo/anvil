@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/chonalchendo/anvil/internal/core"
 )
 
 // ArtifactRow is the in-memory shape of a row in the artifacts table.
@@ -19,6 +21,9 @@ type LinkRow struct {
 }
 
 var wikilinkRe = regexp.MustCompile(`^\[\[([^\]]+)\]\]$`)
+
+// bodyWikilinkRe matches wikilinks anywhere in body text (unanchored).
+var bodyWikilinkRe = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
 
 // typedSlotRelations are frontmatter field names whose value is a single typed
 // link to one specific artifact type. `anvil create plan` writes the `issue`
@@ -84,6 +89,45 @@ func LinkRowsFromFrontmatter(source string, fm map[string]any) []LinkRow {
 		if rows[i].Relation != rows[j].Relation {
 			return rows[i].Relation < rows[j].Relation
 		}
+		return rows[i].Target < rows[j].Target
+	})
+	return rows
+}
+
+// LinkRowsFromBody scans body text for `[[type.id]]` wikilinks and emits one
+// LinkRow per distinct target, with Relation "body" and Anchor "". Surrounding
+// whitespace and a trailing `|alias` are stripped before type-prefix lookup, so
+// `[[ issue.anvil.foo | Display ]]` resolves identically to `[[issue.anvil.foo]]`.
+// Targets inside `![[…]]` embeds are captured the same as plain links.
+// Tokens whose type prefix is not a known Anvil type are ignored. Output is
+// sorted by Target for deterministic comparison.
+func LinkRowsFromBody(source, body string) []LinkRow {
+	matches := bodyWikilinkRe.FindAllStringSubmatch(body, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(matches))
+	var rows []LinkRow
+	for _, m := range matches {
+		raw := strings.TrimSpace(m[1])
+		if bar := strings.IndexByte(raw, '|'); bar >= 0 {
+			raw = strings.TrimSpace(raw[:bar])
+		}
+		dot := strings.IndexByte(raw, '.')
+		if dot < 0 {
+			continue
+		}
+		prefix, id := raw[:dot], raw[dot+1:]
+		if _, err := core.ParseType(prefix); err != nil {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		rows = append(rows, LinkRow{Source: source, Target: id, Relation: "body", Anchor: ""})
+	}
+	sort.Slice(rows, func(i, j int) bool {
 		return rows[i].Target < rows[j].Target
 	})
 	return rows
