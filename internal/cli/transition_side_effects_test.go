@@ -589,3 +589,54 @@ func TestLandPRSaveFailureSurfacesRecovery(t *testing.T) {
 		t.Errorf("missing recovery hint: %s", out.String())
 	}
 }
+
+func TestClassifyPRChecks(t *testing.T) {
+	checkErr := errors.New("exit status 1")
+	cases := []struct {
+		name    string
+		out     string
+		err     error
+		wantErr bool
+	}{
+		{"all-required-pass", "all checks passing", nil, false},
+		{"no-required-checks", "no required checks reported on the 'anvil/foo' branch", checkErr, false},
+		{"required-failing", "check `tests` failed", checkErr, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := classifyPRChecks(tc.out, tc.err)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("classifyPRChecks(%q, %v) err = %v, wantErr %v", tc.out, tc.err, err, tc.wantErr)
+			}
+		})
+	}
+}
+
+// A trailing --json must be honored, not swallowed as the --land-pr value:
+// `--land-pr 42 --json` lands the PR and emits the JSON envelope.
+func TestLandPRHonorsTrailingJSONFlag(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v\n%s", err, out.String())
+	}
+	if len(s.mergeCalls) != 1 || s.mergeCalls[0] != 42 {
+		t.Errorf("merge calls = %v, want [42]", s.mergeCalls)
+	}
+	if !strings.Contains(out.String(), `"status":"transitioned"`) {
+		t.Errorf("--json not honored; got: %s", out.String())
+	}
+}
