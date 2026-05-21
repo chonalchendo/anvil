@@ -130,10 +130,22 @@ func ghPRChecksReal(num int) error {
 		return errGhUnavailable
 	}
 	cmd := exec.Command("gh", "pr", "checks", strconv.Itoa(num), "--required")
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("gh pr checks: %w: %s", err, strings.TrimSpace(string(out)))
+	out, err := cmd.CombinedOutput()
+	return classifyPRChecks(string(out), err)
+}
+
+// classifyPRChecks interprets the result of `gh pr checks --required`. gh exits
+// non-zero with "no required checks reported" when the branch configures zero
+// required checks — there is nothing to gate, so that is green, not a failure.
+// Any other non-nil err refuses the land.
+func classifyPRChecks(out string, err error) error {
+	if err == nil {
+		return nil
 	}
-	return nil
+	if strings.Contains(out, "no required checks reported") {
+		return nil
+	}
+	return fmt.Errorf("gh pr checks: %w: %s", err, strings.TrimSpace(out))
 }
 
 func ghPRMergeReal(num int) error {
