@@ -5,7 +5,7 @@ description: "Use when a PR has inline review comments to address — CodeRabbit
 
 # Responding to PR Review
 
-Your job is to drive a PR's review threads to "every comment has a reply" and CI to green, then surface the PR url back. You do **not** merge — `anvil:dispatching-issue-fleet`'s Iron Law (human owns the merge button) applies here too.
+Your job is to drive a PR's review threads to "every comment has a reply" and CI to green, then surface the PR url back. You do **not** merge — `dispatching-issue-fleet`'s Iron Law (human owns the merge button) applies here too.
 
 ## Iron Law
 
@@ -13,7 +13,7 @@ Your job is to drive a PR's review threads to "every comment has a reply" and CI
 
 ## Review-source-agnostic posture
 
-The same pipeline handles CodeRabbit, a human reviewer, and `anvil:reviewing-pr`'s fresh-subagent output. The discriminator is structural — *is this an inline thread on a hunk?* — yes → thread-reply via `gh api .../comments/<id>/replies`; no → top-level comment via `gh pr comment`.
+The same pipeline handles CodeRabbit, a human reviewer, and `reviewing-pr`'s fresh-subagent output. The discriminator is structural — *is this an inline thread on a hunk?* — yes → thread-reply via `gh api .../comments/<id>/replies`; no → top-level comment via `gh pr comment`.
 
 Reviewer identity does **not** change the loop. CodeRabbit nitpicks that cite a documented repo rule (e.g. `docs/code-design.md`'s "no helper without second use") get the same treatment as a human asking for the same fix: apply, do not skip.
 
@@ -68,7 +68,7 @@ The fallback is local-review, not zero review. Do a one-pass diff read against t
 
 ## Fleet-PR override
 
-When the PR was opened by an `anvil:dispatching-issue-fleet` subagent, **green CI is not sufficient for merge** — the review-respond loop runs even if the orchestrating user said "merge on green."
+When the PR was opened by an `dispatching-issue-fleet` subagent, **green CI is not sufficient for merge** — the review-respond loop runs even if the orchestrating user said "merge on green."
 
 **Detection heuristics** (any one is enough; err on the side of running the loop when uncertain):
 

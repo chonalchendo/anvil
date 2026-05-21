@@ -12,7 +12,7 @@
       "id": 1,
       "name": "knowledge-redirect",
       "prompt": "PRIOR SESSION CONTEXT:\n\nWe had a wide-ranging chat about Polars over the last hour. The user has been picking it up over the last few weeks. They mentioned several patterns they keep reaching for:\n- LazyFrame for any join over a few hundred MB\n- `pl.col(\"x\")` over `df[\"x\"]` for performance and to compose into expressions\n- avoiding `.apply` — almost always there's a vectorized expression\n- `pl.read_csv(..., schema_overrides=)` over inferring types twice\n- `with_columns` chains over `.assign`\n- Some gotchas: `is_null` vs `is_nan` for floats, lazy/eager join semantics, missing columns silently failing in select\n\nThere was no specific task — the user was thinking out loud about the patterns they've been internalizing.\n\nUSER'S CURRENT MESSAGE:\n\"Make this a skill. I want it loaded next time I'm working with Polars.\"",
-      "expected_output": "Skill recognizes this is knowledge-shaped (principles/gotchas, no sequence of dependent phases) and redirects to anvil:researching-domain or anvil:synthesizing-knowledge-skill. No SKILL.md is produced.",
+      "expected_output": "Skill recognizes this is knowledge-shaped (principles/gotchas, no sequence of dependent phases) and redirects to researching-domain or synthesizing-knowledge-skill. No SKILL.md is produced.",
       "files": []
     },
     {

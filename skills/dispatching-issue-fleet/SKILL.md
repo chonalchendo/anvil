@@ -27,7 +27,7 @@ The overlap check is one-line declarations plus eyeball compare. No static analy
 
 ## Phase 3 — Dispatch N subagents
 
-For each surviving candidate, fire one subagent via the Agent tool. The prompt is the orchestrator-filled template at `skills/dispatching-issue-fleet/subagent-prompt.md` — read it, fill issue-specific fields (issue id, worktree path, branch name, declared files), and send. Each subagent invokes `anvil:completing-issue` to drive its issue end-to-end through PR opened, then `anvil:responding-to-pr-review` for the CodeRabbit loop.
+For each surviving candidate, fire one subagent via the Agent tool. The prompt is the orchestrator-filled template at `skills/dispatching-issue-fleet/subagent-prompt.md` — read it, fill issue-specific fields (issue id, worktree path, branch name, declared files), and send. Each subagent invokes `completing-issue` to drive its issue end-to-end through PR opened, then `responding-to-pr-review` for the CodeRabbit loop.
 
 Dispatch all N in a single tool-use block so they run in parallel.
 
@@ -43,7 +43,7 @@ Each subagent's last line is structurally one of:
 
 ## Phase 5 — Halt at green
 
-For each PR url returned: confirm CI green and that the subagent ran the review-respond loop (via `anvil:responding-to-pr-review` — fleet-PR override forces it even on "merge on green"). Stop. Do not merge.
+For each PR url returned: confirm CI green and that the subagent ran the review-respond loop (via `responding-to-pr-review` — fleet-PR override forces it even on "merge on green"). Stop. Do not merge.
 
 Present the structured report:
 
@@ -78,7 +78,7 @@ The subagent prompt echoes this checklist verbatim in its final structured repor
 
 ## What NOT to do
 
-- Do not merge. Even on green, even with one line of CodeRabbit findings, even when the human said "merge on green" — fleet-PR override per `anvil:responding-to-pr-review` runs the loop first.
+- Do not merge. Even on green, even with one line of CodeRabbit findings, even when the human said "merge on green" — fleet-PR override per `responding-to-pr-review` runs the loop first.
 - Do not dispatch >8 subagents. Context cost on the orchestrator side outpaces the time savings past 8.
 - Do not re-dispatch a `Blocker:` return. The subagent declared inability; respect it.
 - Do not narrate the dispatch. The final report (Phase 5) is the deliverable.

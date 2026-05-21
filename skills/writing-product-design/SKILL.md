@@ -31,9 +31,9 @@ A workflow for authoring a project's product-design artifact — the top of Anvi
 
 ## When not to use
 
-- Architecture / implementation → `anvil:writing-system-design`.
-- One milestone → `anvil:defining-milestone`.
-- A discrete work item → `anvil:creating-issue`.
+- Architecture / implementation → `writing-system-design`.
+- One milestone → `defining-milestone`.
+- A discrete work item → `creating-issue`.
 - Light revisions to an existing PD → direct edit, not a re-author.
 - Brownfield carving — different activity; this skill does not handle it.
 
@@ -131,7 +131,7 @@ Draft the **Milestones** body section: titles as wikilinks `[[milestone.<project
 
 Structural links: add each wikilink to the artifact's `related` frontmatter array (the universal link slot). The milestone's child→parent link is `product_design` on the milestone side.
 
-**REQUIRED SUB-SKILL:** `anvil:writing-milestone` (a.k.a. `defining-milestone`).
+**REQUIRED SUB-SKILL:** `writing-milestone` (a.k.a. `defining-milestone`).
 
 If unavailable in v0.1, collect titles + summaries inline; wikilinks stay unresolved until the sub-skill exists.
 

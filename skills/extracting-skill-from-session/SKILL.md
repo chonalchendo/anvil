@@ -1,6 +1,6 @@
 ---
 name: extracting-skill-from-session
-description: "Use when a workflow just ran end-to-end and the user wants it captured as a reusable skill. Triggers: 'extract a skill', 'turn this into a skill'. Not for knowledge refresh — use anvil:researching."
+description: "Use when a workflow just ran end-to-end and the user wants it captured as a reusable skill. Triggers: 'extract a skill', 'turn this into a skill'. Not for knowledge refresh — use researching."
 license: MIT
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
 metadata:
@@ -35,9 +35,9 @@ The agent fires this skill from the description's trigger contract. If the user'
 
 | User intent | Right skill |
 |---|---|
-| Capture *principles* the user has been applying repeatedly | `anvil:synthesizing-knowledge-skill` (if learnings already exist in the vault) |
-| Bootstrap a knowledge skill on a topic researched but not yet practiced | `anvil:researching` |
-| Refresh an existing knowledge skill with new vault learnings | `anvil:synthesizing-knowledge-skill` |
+| Capture *principles* the user has been applying repeatedly | `synthesizing-knowledge-skill` (if learnings already exist in the vault) |
+| Bootstrap a knowledge skill on a topic researched but not yet practiced | `researching` |
+| Refresh an existing knowledge skill with new vault learnings | `synthesizing-knowledge-skill` |
 | Crystallize a workflow that just ran successfully | this skill |
 
 The shape distinction is real. Workflow skills encode a sequence with phases that depend on each other; the agent must read the body in full because the description deliberately omits the steps. Knowledge skills encode principles, patterns, and gotchas applied as judgment; the description is *pushy* because under-triggering is the failure mode.
@@ -95,7 +95,7 @@ Constraints:
 - Third person. Lead with `Use when…` or a verb-first phrase.
 - ≤250 characters practical (Claude Code listing truncation); 1024 chars hard.
 - At least one literal trigger phrase (`mentions "X"`) for explicit-invocation paths.
-- Negative triggers naming plausibly-overlapping sibling skills (always namespace-qualified: `anvil:other-skill`).
+- Negative triggers naming plausibly-overlapping sibling skills (always namespace-qualified: `other-skill`).
 - No XML angle brackets anywhere.
 
 Show the draft trigger contract to the user before writing the body:
@@ -128,12 +128,12 @@ Anvil layers three overlays on top that `superpowers:writing-skills` does not en
 
 - **Body length limits**: target ≤200 lines, hard cap ≤500. Beyond 200 lines, push reference content to `references/`. CI fails the build at 500.
 
-- **Namespace-qualified handoffs**: when the produced skill references another skill, write `**REQUIRED SUB-SKILL:** Use anvil:<name>` (or `superpowers:<name>`, etc.) rather than the bare name. The namespace prefix is mandatory; CI warns when it is missing. `superpowers:writing-skills` already teaches the `**REQUIRED SUB-SKILL:**` form; Anvil's contribution is the namespace discipline.
+- **Handoff references**: when the produced skill references another Anvil skill, write `**REQUIRED SUB-SKILL:** Use <name>` with the bare name — Anvil skills register flat, so an `anvil:` prefix resolves to `Unknown skill`. Only prefix skills from another installed plugin (`superpowers:<name>`). `superpowers:writing-skills` already teaches the `**REQUIRED SUB-SKILL:**` form.
 
 **Confidence progression.** A fresh extraction ships at `confidence: low`. One successful session is necessary but not sufficient evidence — a single run can't tell you whether you captured the right pattern, the wrong pattern phrased generically, or a pattern that won't recur. Confidence is bumped manually as evidence accumulates:
 
 - `low` → `medium`: the skill has fired on three or more real activities and produced useful results each time.
-- `medium` → `high`: the skill has been refreshed via `anvil:synthesizing-knowledge-skill` (or hand-refresh) incorporating accumulated learnings from `~/anvil-vault/20-learnings/`.
+- `medium` → `high`: the skill has been refreshed via `synthesizing-knowledge-skill` (or hand-refresh) incorporating accumulated learnings from `~/anvil-vault/20-learnings/`.
 
 Agents weight skill content by confidence during synthesis. Keeping the field honest matters.
 
@@ -156,7 +156,7 @@ Walk this checklist against the file just written. Each item cites `docs/skill-a
 3. **`description`** ≤250 characters and contains no `<` or `>`. For workflow skills, reads as triggers-only (no summary of what the skill does). (`docs/skill-authoring.md` → Description rules.)
 4. **Body line count.** Count from the line *after* the closing `---` of frontmatter to EOF (`wc -l` on that range). Warn at >200; refuse to ship at >500. (`docs/skill-authoring.md` → Body rules.)
 5. **One Iron Law maximum.** At most one ALL-CAPS imperative paragraph in the body. (`docs/skill-authoring.md` → Body rules.)
-6. **Namespace-qualified handoffs.** Every `**REQUIRED SUB-SKILL:**` line names its skill with a namespace prefix (`anvil:`, `superpowers:`, etc.). (`docs/skill-authoring.md` → Body rules.)
+6. **Handoff references.** Every `**REQUIRED SUB-SKILL:**` line names an Anvil skill by bare name; cross-plugin skills keep their namespace (`superpowers:`). (`docs/skill-authoring.md` → Body rules.)
 7. **Sibling negative triggers.** The description names plausibly-overlapping sibling skills as negative triggers. Judgment call — list the siblings you considered. (`docs/skill-authoring.md` → Description rules.)
 
 Surface the per-check results to the user:

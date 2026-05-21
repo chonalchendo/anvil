@@ -9,9 +9,9 @@ Capture is the load-bearing habit of the whole methodology. If capture has frict
 
 ## Shape test
 
-**If you can name an acceptance criterion in one breath, it's an issue, not an inbox.** Capture is for fleeting / fuzzy ideas not yet sharp enough to write an AC. Shape, not domain: a fully-shaped thought about anvil itself still routes to `anvil:writing-issue`; a half-formed thought about anything routes here.
+**If you can name an acceptance criterion in one breath, it's an issue, not an inbox.** Capture is for fleeting / fuzzy ideas not yet sharp enough to write an AC. Shape, not domain: a fully-shaped thought about anvil itself still routes to `writing-issue`; a half-formed thought about anything routes here.
 
-Wrong-choice example: user pastes a problem statement, acceptance bullets, and a milestone hint. That's an issue — hand off to `anvil:writing-issue` rather than capturing and forcing a later promote round-trip.
+Wrong-choice example: user pastes a problem statement, acceptance bullets, and a milestone hint. That's an issue — hand off to `writing-issue` rather than capturing and forcing a later promote round-trip.
 
 ## Iron Law
 
@@ -37,7 +37,7 @@ If the user pastes something that is plainly several distinct thoughts — separ
 
 ## When the user signals more than capture
 
-If a capture message also contains an invitation to engage ("capture this: refactor auth — actually, let's think about it"), do the capture first, then offer **once** to hand off to `anvil:writing-issue` on the captured inbox id. Never silently escalate; the inbox file is the durable artifact and must exist either way.
+If a capture message also contains an invitation to engage ("capture this: refactor auth — actually, let's think about it"), do the capture first, then offer **once** to hand off to `writing-issue` on the captured inbox id. Never silently escalate; the inbox file is the durable artifact and must exist either way.
 
 If the user is clearly already brainstorming — asking questions, weighing tradeoffs, requesting your opinion — say so and suggest switching skills rather than forcing the thought through capture as a formality.
 

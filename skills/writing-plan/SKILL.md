@@ -168,7 +168,7 @@ anvil show plan <plan-id> --validate --waves
 
 If it errors, fix and re-validate.
 
-**REQUIRED SUB-SKILL:** Use anvil:implementing-plan for single-agent inline execution today; `anvil build` once it lands for orchestrated execution.
+**REQUIRED SUB-SKILL:** Use implementing-plan for single-agent inline execution today; `anvil build` once it lands for orchestrated execution.
 
 ## Plan state walk
 

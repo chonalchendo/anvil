@@ -33,7 +33,7 @@ The terminal contract is retrieval: every learning must be reachable later via `
 
 - The source isn't crystallized yet (still actively researching) → keep working in the thread.
 - The output would just restate the source — distillation requires a durable claim or piece of know-how, not a summary.
-- The user wants to capture a one-off thought without taxonomy commitment → `anvil:capturing-inbox`.
+- The user wants to capture a one-off thought without taxonomy commitment → `capturing-inbox`.
 
 ---
 
@@ -190,6 +190,6 @@ Each new learning should appear in at least one such query. If a learning isn't 
 The pipeline ends here for the source. Possible next moves the user may signal:
 
 - Continue the thread (don't close it; new sessions will keep stacking).
-- Open a new thread on a follow-up subquestion → `anvil:opening-thread`.
-- Surface project work the distillation revealed → `anvil:writing-issue`.
-- Extract a methodology lesson into a skill → `anvil:extracting-skill-from-session` (orthogonal track).
+- Open a new thread on a follow-up subquestion → `opening-thread`.
+- Surface project work the distillation revealed → `writing-issue`.
+- Extract a methodology lesson into a skill → `extracting-skill-from-session` (orthogonal track).

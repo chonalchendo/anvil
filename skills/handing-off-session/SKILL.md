@@ -5,7 +5,7 @@ description: "Use at end of a working session to write a load-ready handoff into
 
 # Handing-off Session
 
-Your job is to write one tight Markdown block into the current session file that `anvil:resuming-session` will load in the next terminal. The receiving agent has zero memory of this session but has the same shell, repo, and vault. Anything they can derive from `git`, `anvil list`, or `anvil show` does **not** belong in the handoff — name the query, don't paste the output.
+Your job is to write one tight Markdown block into the current session file that `resuming-session` will load in the next terminal. The receiving agent has zero memory of this session but has the same shell, repo, and vault. Anything they can derive from `git`, `anvil list`, or `anvil show` does **not** belong in the handoff — name the query, don't paste the output.
 
 ## Iron Law
 
@@ -27,7 +27,7 @@ If the session resolved issues, also run `anvil list issue --status resolved` fi
 
 ## Brevity budget
 
-The handoff body must aim for **≤1.2 KB** (≤1 KB pointer body + ≤200 B token-reflection block). A typical dogfood-loop handoff is 600–900 B before the reflection; anything past the cap needs every paragraph to justify itself against the cuts below. `anvil:resuming-session` loads this file verbatim every session — bloat compounds across the entire dogfood loop.
+The handoff body must aim for **≤1.2 KB** (≤1 KB pointer body + ≤200 B token-reflection block). A typical dogfood-loop handoff is 600–900 B before the reflection; anything past the cap needs every paragraph to justify itself against the cuts below. `resuming-session` loads this file verbatim every session — bloat compounds across the entire dogfood loop.
 
 Section-by-section cuts to apply *before* writing, not after:
 
@@ -68,7 +68,7 @@ Working in <repo path>. <One-sentence framing: what kind of work, which project.
 
 Write the populated template into the body of the current session file at `~/anvil-vault/10-sessions/<session-id>.md` (the file the `session-start` hook created — its frontmatter already exists). Preserve the frontmatter; place the body under a `## Handoff` heading.
 
-Do **not** emit a copy-pasteable block for the user. `anvil:resuming-session` reads the body directly from the session file in the next terminal — paste is dead weight.
+Do **not** emit a copy-pasteable block for the user. `resuming-session` reads the body directly from the session file in the next terminal — paste is dead weight.
 
 Confirm the write in one line: `Handoff written to ~/anvil-vault/10-sessions/<session-id>.md.`
 
@@ -82,7 +82,7 @@ Do not offer to commit, push, or summarise further. The handoff is the deliverab
 - Implementation detail of landed PRs (the new agent runs `gh pr view <n>` or `git log -p`).
 - Enumerated candidate issue IDs from `anvil list --ready` — name the query, never the result set.
 - Restating AGENTS.md / CLAUDE.md content (it auto-loads).
-- "We learned that…" reflections — those belong in `anvil:distilling-learning`, not the handoff. **Exception:** token-cost observations (sinks + cuts) belong in the **Token reflection** section above — that satisfies the CLAUDE.md end-of-session MUST and has no other destination.
+- "We learned that…" reflections — those belong in `distilling-learning`, not the handoff. **Exception:** token-cost observations (sinks + cuts) belong in the **Token reflection** section above — that satisfies the CLAUDE.md end-of-session MUST and has no other destination.
 - TODOs the new agent should self-discover via `anvil list issue --ready`.
 
 If the temptation to include any of the above appears, replace it with the one-line query that surfaces it.

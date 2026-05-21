@@ -31,11 +31,11 @@ You enter holding:
 1. An open or in-progress issue with a `## Verification` section containing both `### Direct` and `### Indirect` entries.
 2. A worktree (or branch) dedicated to the issue, separated from the main checkout per the project's branching convention.
 
-If `## Verification` is missing either subsection or its entries are non-predicate-shaped ("feature works" rather than "command X exits 0 / output contains Y"), halt and hand back to `anvil:writing-issue`. Do not improvise checks — the issue spec is the contract.
+If `## Verification` is missing either subsection or its entries are non-predicate-shaped ("feature works" rather than "command X exits 0 / output contains Y"), halt and hand back to `writing-issue`. Do not improvise checks — the issue spec is the contract.
 
 ## Running delegated on a cheaper model
 
-For a one-off completion, the main agent can dispatch this skill to an isolated subagent on a cheaper model (e.g. Opus main → Sonnet worker) — fill and fire `dispatch-single.md`. It stops at PR-opened with no review-respond loop. The N-parallel case is `anvil:dispatching-issue-fleet`.
+For a one-off completion, the main agent can dispatch this skill to an isolated subagent on a cheaper model (e.g. Opus main → Sonnet worker) — fill and fire `dispatch-single.md`. It stops at PR-opened with no review-respond loop. The N-parallel case is `dispatching-issue-fleet`.
 
 ## Phase 0 — Claim
 
@@ -48,7 +48,7 @@ The `in-progress` transition re-runs `reproduction_anchor` for bug issues. A mis
 
 ## Phase 1 — Implement
 
-Make the minimal change satisfying every `## Acceptance criteria` entry. Stay within the issue's declared file set (or `<declared-files>` when dispatched by `anvil:dispatching-issue-fleet`). See **Scope-change protocol** below if the work outgrows declared scope.
+Make the minimal change satisfying every `## Acceptance criteria` entry. Stay within the issue's declared file set (or `<declared-files>` when dispatched by `dispatching-issue-fleet`). See **Scope-change protocol** below if the work outgrows declared scope.
 
 No refactoring "while in the area." No helpers without a second use. No defensive code for unreachable states. Defer to the project's conventions (`CLAUDE.md`, `AGENTS.md`, style guides) for project-specific hard rules.
 
@@ -104,7 +104,7 @@ Then re-run every `### Indirect` entry against the built artifact, not the dev t
 gh pr create --title "<conventional-commit summary>" --body "<one-paragraph + closes #<issue-number>>"
 ```
 
-Surface the PR url. Stop. The issue stays `in-progress`; the human transitions it to `resolved` after merge. **REQUIRED SUB-SKILL:** Use anvil:responding-to-pr-review once the code review agent reports.
+Surface the PR url. Stop. The issue stays `in-progress`; the human transitions it to `resolved` after merge. **REQUIRED SUB-SKILL:** Use responding-to-pr-review once the code review agent reports.
 
 **On verify failure (Phase 2 abort):**
 
