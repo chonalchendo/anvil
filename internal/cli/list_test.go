@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -633,5 +634,137 @@ func TestList_LearningDecision_ProjectFilter(t *testing.T) {
 				t.Errorf("expected only %q, got %v (total=%d)", tc.want, got, env.Total)
 			}
 		})
+	}
+}
+
+// writeInvalidBodyIssue plants an issue file whose body is missing the
+// ## Verification section (and its H3 subsections).
+func writeInvalidBodyIssue(t *testing.T, vault, project, slug, title string) string {
+	t.Helper()
+	id := project + "." + slug
+	path := filepath.Join(vault, "70-issues", id+".md")
+	a := &core.Artifact{
+		Path: path,
+		FrontMatter: map[string]any{
+			"type": "issue", "title": title, "description": "fixture description",
+			"created": "2026-04-29", "updated": "2026-04-29",
+			"status": "open", "project": project, "severity": "medium",
+			"tags": []any{"domain/dev-tools"},
+		},
+		// Missing ## Verification, ### Direct, ### Indirect
+		Body: "\n## Problem\np\n\n## Acceptance criteria\nac\n\n## Non-goals\nng\n\n## Links\nlinks\n",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// fullBodyIssue is a body satisfying all required sections.
+const fullBodyIssue = "\n## Problem\np\n\n## Acceptance criteria\nac\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\nd\n\n### Indirect\ni\n\n## Links\n"
+
+func TestList_InvalidBody_FiltersToFailingIssues(t *testing.T) {
+	vault := setupVault(t)
+
+	// bad: missing ## Verification block
+	badPath := writeInvalidBodyIssue(t, vault, "foo", "bad", "Bad issue")
+	_ = badPath
+
+	// good: all required sections present
+	goodPath := filepath.Join(vault, "70-issues", "foo.good.md")
+	good := &core.Artifact{
+		Path: goodPath,
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "Good issue", "description": "fixture",
+			"created": "2026-04-29", "updated": "2026-04-29",
+			"status": "open", "project": "foo", "severity": "medium",
+			"tags": []any{"domain/dev-tools"},
+		},
+		Body: fullBodyIssue,
+	}
+	if err := good.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	out, _, err := runCmd(t, cmd, "list", "issue", "--invalid-body", "--json")
+	if err != nil {
+		t.Fatalf("list --invalid-body: %v", err)
+	}
+	env := unmarshalListEnvelope(t, out)
+	if env.Total != 1 {
+		t.Fatalf("total=%d want 1 (only the bad issue)", env.Total)
+	}
+	if env.Items[0].ID != "foo.bad" {
+		t.Errorf("id=%q want foo.bad", env.Items[0].ID)
+	}
+}
+
+func TestList_InvalidBody_MissingSectionNamed(t *testing.T) {
+	vault := setupVault(t)
+	writeInvalidBodyIssue(t, vault, "foo", "bad", "Bad issue")
+
+	cmd := newRootCmd()
+	out, _, err := runCmd(t, cmd, "list", "issue", "--invalid-body", "--json")
+	if err != nil {
+		t.Fatalf("list --invalid-body: %v", err)
+	}
+
+	// Unmarshal raw to check missing_section field.
+	var raw struct {
+		Items []struct {
+			ID             string `json:"id"`
+			MissingSection string `json:"missing_section"`
+		} `json:"items"`
+	}
+	if jerr := json.Unmarshal([]byte(out), &raw); jerr != nil {
+		t.Fatalf("json unmarshal: %v\n%s", jerr, out)
+	}
+	if len(raw.Items) == 0 {
+		t.Fatal("expected at least one item")
+	}
+	ms := raw.Items[0].MissingSection
+	if !strings.Contains(ms, "Verification") {
+		t.Errorf("missing_section=%q; want it to name ## Verification", ms)
+	}
+}
+
+func TestList_InvalidBody_EmptyWhenAllValid(t *testing.T) {
+	vault := setupVault(t)
+	goodPath := filepath.Join(vault, "70-issues", "foo.good.md")
+	good := &core.Artifact{
+		Path: goodPath,
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "Good issue", "description": "fixture",
+			"created": "2026-04-29", "updated": "2026-04-29",
+			"status": "open", "project": "foo", "severity": "medium",
+			"tags": []any{"domain/dev-tools"},
+		},
+		Body: fullBodyIssue,
+	}
+	if err := good.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	out, _, err := runCmd(t, cmd, "list", "issue", "--invalid-body", "--json")
+	if err != nil {
+		t.Fatalf("list --invalid-body on valid vault: %v", err)
+	}
+	env := unmarshalListEnvelope(t, out)
+	if env.Total != 0 {
+		t.Errorf("total=%d want 0 (all issues have valid bodies)", env.Total)
+	}
+}
+
+func TestList_InvalidBody_OnlyIssue(t *testing.T) {
+	setupVault(t)
+	cmd := newRootCmd()
+	_, stderr, err := runCmd(t, cmd, "list", "learning", "--invalid-body")
+	if err == nil {
+		t.Error("expected error for --invalid-body on non-issue type")
+	}
+	if !strings.Contains(stderr, "issue") {
+		t.Errorf("error should mention supported type, got: %s", stderr)
 	}
 }
