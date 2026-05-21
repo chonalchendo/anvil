@@ -47,6 +47,8 @@ Use exactly this template. Omit a section if it has nothing real to say; do **no
 ```markdown
 Working in <repo path>. <One-sentence framing: what kind of work, which project.>
 
+**Objective.** <The overarching goal of the current session chain — the campaign these sessions steer toward, one level below the milestone. Carry forward from the handoff you loaded this session; revise only if the user redirected the work. Write "(exploratory — no fixed objective yet)" if the chain has none.>
+
 **State.** Branch `<name>` @ `<worktree path if not main checkout>`. <Clean | N files modified — name the load-bearing ones, not all of them.> Suite: <green / N failing / not run>.
 
 **Just landed.** <0–3 bullets, each: artifact id or file → why it matters for the next move. Skip if nothing landed.>
