@@ -357,7 +357,7 @@ func TestCreate_Issue_WithBody_FlagRoundTrips(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	body := "## Problem\nFrom flag.\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Links\n- none"
+	body := "## Problem\nFrom flag.\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
 	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description", "--body", body, "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v", err)
@@ -452,7 +452,7 @@ func TestCreate_Issue_BodyFile_RoundTrips(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	body := "## Problem\nFrom file.\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Links\n- none\n"
+	body := "## Problem\nFrom file.\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none\n"
 	bodyPath := filepath.Join(t.TempDir(), "issue-body.md")
 	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
@@ -485,7 +485,7 @@ func TestCreate_Issue_BodyFile_RejectsBadWikilink_RollsBack(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	body := "## Problem\nrefs [[issue.foo.ghost]] which does not exist.\n## Acceptance criteria\n- x\n## Non-goals\n- none\n## Links\n- none\n"
+	body := "## Problem\nrefs [[issue.foo.ghost]] which does not exist.\n## Acceptance criteria\n- x\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none\n"
 	bodyPath := filepath.Join(t.TempDir(), "issue-body.md")
 	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
@@ -520,7 +520,7 @@ func TestCreate_Issue_BodyStdinDash(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	cleanup := withStdin(t, "## Problem\nFrom stdin.\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Links\n- none\n")
+	cleanup := withStdin(t, "## Problem\nFrom stdin.\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none\n")
 	defer cleanup()
 
 	cmd := newRootCmd()
@@ -1619,7 +1619,7 @@ func TestCreate_Issue_BodyDrift_RefusedWithoutUpdate(t *testing.T) {
 		return cmd
 	}
 	withSections := func(intro string) string {
-		return "## Problem\n" + intro + "\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Links\n- none"
+		return "## Problem\n" + intro + "\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
 	}
 	if err := mk(withSections("original body")).Execute(); err != nil {
 		t.Fatal(err)
@@ -1795,7 +1795,7 @@ func TestCreate_DriftError_FormatsBodyTruncated(t *testing.T) {
 	t.Chdir(repo)
 
 	withSections := func(intro string) string {
-		return "## Problem\n" + intro + "\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Links\n- none"
+		return "## Problem\n" + intro + "\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
 	}
 	long := withSections(strings.Repeat("a", 200))
 	mk := func(body string) *cobra.Command {

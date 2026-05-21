@@ -19,17 +19,18 @@ import (
 const defaultListLimit = 10
 
 type listItem struct {
-	ID          string   `json:"id"`
-	Type        string   `json:"type"`
-	Title       string   `json:"title"`
-	Description string   `json:"description,omitempty"`
-	Status      string   `json:"status"`
-	Severity    string   `json:"severity,omitempty"`
-	Created     string   `json:"created,omitempty"`
-	Project     string   `json:"project,omitempty"`
-	Milestone   string   `json:"milestone,omitempty"`
-	Tags        []string `json:"tags,omitempty"`
-	Path        string   `json:"path"`
+	ID             string   `json:"id"`
+	Type           string   `json:"type"`
+	Title          string   `json:"title"`
+	Description    string   `json:"description,omitempty"`
+	Status         string   `json:"status"`
+	Severity       string   `json:"severity,omitempty"`
+	Created        string   `json:"created,omitempty"`
+	Project        string   `json:"project,omitempty"`
+	Milestone      string   `json:"milestone,omitempty"`
+	Tags           []string `json:"tags,omitempty"`
+	Path           string   `json:"path"`
+	MissingSection string   `json:"missing_section,omitempty"`
 }
 
 type listFilters struct {
@@ -39,6 +40,7 @@ type listFilters struct {
 	Severity             string
 	Milestone            string
 	Since, Until         string
+	InvalidBody          bool
 }
 
 // issueSeverityEnum mirrors schemas/issue.schema.json. Kept inline because
@@ -56,6 +58,7 @@ func newListCmd() *cobra.Command {
 		flagJSON                         bool
 		flagLimit                        int
 		flagReady, flagOrphans           bool
+		flagInvalidBody                  bool
 	)
 
 	cmd := &cobra.Command{
@@ -80,11 +83,15 @@ func newListCmd() *cobra.Command {
 					Set("value", flagSeverity).
 					Set("allowed", issueSeverityEnum))
 			}
+			if flagInvalidBody && t != core.TypeIssue {
+				return printAndReturn(cmd, errfmt.NewUnsupportedForType(string(t), []string{"issue"}))
+			}
 			if flagReady || flagOrphans {
 				return runListIndexed(cmd, t, flagReady, flagOrphans, listFilters{
 					Status: flagStatus, Project: flagProject,
 					Severity: flagSeverity, Milestone: flagMilestone,
 					Since: flagSince, Until: flagUntil,
+					InvalidBody: flagInvalidBody,
 				}, flagJSON, flagLimit)
 			}
 			v, err := core.ResolveVault()
@@ -98,6 +105,7 @@ func newListCmd() *cobra.Command {
 				Confidence: flagConfidence, Severity: flagSeverity,
 				Milestone: flagMilestone,
 				Since:     flagSince, Until: flagUntil,
+				InvalidBody: flagInvalidBody,
 			}, flagJSON, flagLimit)
 		},
 	}
@@ -116,6 +124,7 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
 	cmd.Flags().BoolVar(&flagReady, "ready", false, "filter to issues with no unresolved blockers (issue only)")
 	cmd.Flags().BoolVar(&flagOrphans, "orphans", false, "filter to artifacts with no incoming wikilinks")
+	cmd.Flags().BoolVar(&flagInvalidBody, "invalid-body", false, "filter to issues failing the body-shape gauntlet; names the first missing section per entry (issue only)")
 	return cmd
 }
 
@@ -169,11 +178,20 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 			continue
 		}
 
+		var missingSection string
+		if f.InvalidBody {
+			errs := core.ValidateIssue(a)
+			if len(errs) == 0 {
+				continue // valid body — exclude from --invalid-body results
+			}
+			missingSection = firstMissingSection(errs)
+		}
+
 		items = append(items, listItem{
 			ID: id, Type: string(t), Title: title, Description: description,
 			Status: status, Severity: severity, Created: created, Project: project,
-			Milestone: milestone,
-			Tags:      stringTags(a.FrontMatter["tags"]), Path: path,
+			Milestone: milestone, Tags: stringTags(a.FrontMatter["tags"]), Path: path,
+			MissingSection: missingSection,
 		})
 	}
 
@@ -350,6 +368,13 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 			item.Severity, _ = a.FrontMatter["severity"].(string)
 			item.Milestone = milestoneSlug(a.FrontMatter["milestone"])
 			item.Tags = stringTags(a.FrontMatter["tags"])
+			if f.InvalidBody {
+				errs := core.ValidateIssue(a)
+				if len(errs) == 0 {
+					continue // valid body — exclude from --invalid-body results
+				}
+				item.MissingSection = firstMissingSection(errs)
+			}
 		}
 		if f.Severity != "" && item.Severity != f.Severity {
 			continue
@@ -419,6 +444,22 @@ func listIDFor(t core.Type, path string) string {
 		return filepath.Base(filepath.Dir(path))
 	}
 	return strings.TrimSuffix(filepath.Base(path), ".md")
+}
+
+// firstMissingSection extracts the heading name from the first error returned
+// by ValidateIssue. The errors are formatted as
+// `issue body missing required heading "## Foo"` — extract the quoted heading.
+func firstMissingSection(errs []error) string {
+	if len(errs) == 0 {
+		return ""
+	}
+	msg := errs[0].Error()
+	start := strings.Index(msg, `"`)
+	end := strings.LastIndex(msg, `"`)
+	if start >= 0 && end > start {
+		return msg[start+1 : end]
+	}
+	return msg
 }
 
 // hasAllTags reports whether tags contains every element of want (exact match).

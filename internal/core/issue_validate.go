@@ -5,17 +5,21 @@ import (
 	"strings"
 )
 
-// RequiredIssueSections is the ordered set of H2 headings validate enforces
-// on issue body content. Exported so create can scaffold the skeleton without
-// duplicating the list.
+// RequiredIssueSections is the ordered set of headings validate enforces on
+// issue body content. H3 entries (### Direct, ### Indirect) are sub-headings
+// of ## Verification and must appear after it. Exported so create can scaffold
+// the skeleton without duplicating the list.
 var RequiredIssueSections = []string{
 	"## Problem",
 	"## Acceptance criteria",
 	"## Non-goals",
+	"## Verification",
+	"### Direct",
+	"### Indirect",
 	"## Links",
 }
 
-// ValidateIssue checks that the issue body contains the four required H2s in
+// ValidateIssue checks that the issue body contains the required headings in
 // order. Same ordered-scan algorithm as ValidateLearning.
 func ValidateIssue(a *Artifact) []error {
 	var errs []error

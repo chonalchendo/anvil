@@ -364,6 +364,37 @@ func TestValidate_GlossaryDrift(t *testing.T) {
 	}
 }
 
+func TestValidate_Issue_MissingVerification(t *testing.T) {
+	vault := setupVault(t)
+
+	// Body has all old required sections but is missing ## Verification.
+	bad := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", "anvil.missingverif.md"),
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "x", "description": "y",
+			"created": "2026-05-19", "status": "open",
+			"project": "anvil", "severity": "low",
+			"tags": []any{"domain/cli"},
+		},
+		Body: "\n## Problem\np\n\n## Acceptance criteria\nac\n\n## Non-goals\nng\n\n## Links\nlinks\n",
+	}
+	if err := bad.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"validate", vault})
+	var errOut bytes.Buffer
+	cmd.SetOut(&errOut)
+	cmd.SetErr(&errOut)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected validate to fail for missing ## Verification")
+	}
+	if !strings.Contains(errOut.String(), "Verification") {
+		t.Errorf("expected Verification in output, got %q", errOut.String())
+	}
+}
+
 func TestValidate_GlossaryDrift_EmptyGlossarySkips(t *testing.T) {
 	vault := setupVault(t)
 
@@ -375,7 +406,7 @@ func TestValidate_GlossaryDrift_EmptyGlossarySkips(t *testing.T) {
 			"project": "anvil", "severity": "low",
 			"tags": []any{"domain/drift"},
 		},
-		Body: "\n## Problem\np\n\n## Acceptance criteria\nac\n\n## Non-goals\nng\n\n## Links\nlinks\n",
+		Body: "\n## Problem\np\n\n## Acceptance criteria\nac\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\nd\n\n### Indirect\ni\n\n## Links\nlinks\n",
 	}
 	if err := drift.Save(); err != nil {
 		t.Fatal(err)
