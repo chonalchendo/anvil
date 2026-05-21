@@ -62,7 +62,7 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 			return err
 		}
 		stats.Artifacts++
-		links := LinkRowsFromFrontmatter(row.ID, a.FrontMatter)
+		links := append(LinkRowsFromFrontmatter(row.ID, a.FrontMatter), LinkRowsFromBody(row.ID, a.Body)...)
 		if err := d.ReplaceLinks(row.ID, links); err != nil {
 			return err
 		}

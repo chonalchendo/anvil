@@ -49,7 +49,8 @@ func indexAfterSave(v *core.Vault, a *core.Artifact) error {
 	if err := db.UpsertArtifact(row); err != nil {
 		return err
 	}
-	if err := db.ReplaceLinks(row.ID, index.LinkRowsFromFrontmatter(row.ID, a.FrontMatter)); err != nil {
+	links := append(index.LinkRowsFromFrontmatter(row.ID, a.FrontMatter), index.LinkRowsFromBody(row.ID, a.Body)...)
+	if err := db.ReplaceLinks(row.ID, links); err != nil {
 		return err
 	}
 
