@@ -7,6 +7,7 @@ Contract for delegating **one** issue to a subagent that runs on a cheaper model
 Fire one subagent via the Agent tool:
 
 - `model: sonnet` — the cost lever. The subagent runs Sonnet; the main agent keeps its own model. (PR #94 proved Sonnet completes a well-specified issue to a clean, CI-green PR.)
+- `effort` — **not settable here.** The Agent tool takes no per-call effort parameter (anthropics/claude-code#25669), only `model`. For non-default effort, set session `/effort <level>` before dispatching; because this is a foreground dispatch the parked main agent is unaffected in practice, so the session-wide setting effectively bites only the worker (reset `/effort` afterward). Add an `effort` dispatch parameter here once #25669 lands.
 - `subagent_type: general-purpose` — needs Bash, Read, Edit, Write, and the Skill tool (to fire `anvil:completing-issue`).
 - **Foreground**, not background — permission prompts pass through to the human. A background subagent auto-denies un-pre-approved calls (`gh pr create`, `git`, `just install`) and stalls.
 
