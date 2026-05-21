@@ -173,3 +173,25 @@ func TestLinkRowsFromBody_EmptyBody(t *testing.T) {
 		t.Fatalf("expected 0 link rows for empty body, got %v", got)
 	}
 }
+
+func TestLinkRowsFromBody_AliasedLink(t *testing.T) {
+	body := "See [[issue.anvil.foo|the foo issue]] for details."
+	got := LinkRowsFromBody("anvil.src", body)
+	want := []LinkRow{
+		{Source: "anvil.src", Target: "anvil.foo", Relation: "body", Anchor: ""},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestLinkRowsFromBody_WhitespacePadded(t *testing.T) {
+	body := "See [[ issue.anvil.bar ]] for details."
+	got := LinkRowsFromBody("anvil.src", body)
+	want := []LinkRow{
+		{Source: "anvil.src", Target: "anvil.bar", Relation: "body", Anchor: ""},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
+	}
+}
