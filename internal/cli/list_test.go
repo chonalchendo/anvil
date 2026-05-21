@@ -768,3 +768,46 @@ func TestList_InvalidBody_OnlyIssue(t *testing.T) {
 		t.Errorf("error should mention supported type, got: %s", stderr)
 	}
 }
+
+// --invalid-body composes with --ready, which runs the indexed path
+// (runListIndexed) rather than runList. This is the fleet pre-flight case the
+// feature exists for, so cover the indexed validation hook explicitly.
+func TestList_InvalidBody_ReadyIndexed(t *testing.T) {
+	vault := setupVault(t)
+
+	// Bad-body issue, no blocks edges → ready. --ready reads the index, not
+	// files, so reindex after the direct write before listing.
+	writeInvalidBodyIssue(t, vault, "foo", "bad", "Bad issue")
+	reindex := newRootCmd()
+	reindex.SetArgs([]string{"reindex"})
+	reindex.SetOut(&bytes.Buffer{})
+	reindex.SetErr(&bytes.Buffer{})
+	if err := reindex.Execute(); err != nil {
+		t.Fatalf("reindex: %v", err)
+	}
+
+	cmd := newRootCmd()
+	out, _, err := runCmd(t, cmd, "list", "issue", "--ready", "--invalid-body", "--json")
+	if err != nil {
+		t.Fatalf("list --ready --invalid-body: %v", err)
+	}
+
+	var raw struct {
+		Items []struct {
+			ID             string `json:"id"`
+			MissingSection string `json:"missing_section"`
+		} `json:"items"`
+	}
+	if jerr := json.Unmarshal([]byte(out), &raw); jerr != nil {
+		t.Fatalf("json unmarshal: %v\n%s", jerr, out)
+	}
+	if len(raw.Items) != 1 {
+		t.Fatalf("got %d items, want 1 (the bad-body issue via indexed path)\n%s", len(raw.Items), out)
+	}
+	if raw.Items[0].ID != "foo.bad" {
+		t.Errorf("id=%q want foo.bad", raw.Items[0].ID)
+	}
+	if !strings.Contains(raw.Items[0].MissingSection, "Verification") {
+		t.Errorf("missing_section=%q; want it to name ## Verification", raw.Items[0].MissingSection)
+	}
+}
