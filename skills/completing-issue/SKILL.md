@@ -10,7 +10,7 @@ metadata:
   skill_type: workflow
   side: execution
   created: 2026-05-19
-  updated: 2026-05-19
+  updated: 2026-05-21
   tags: [type/skill, activity/issue]
   diataxis: how-to
   authored_via: manual
@@ -32,6 +32,10 @@ You enter holding:
 2. A worktree (or branch) dedicated to the issue, separated from the main checkout per the project's branching convention.
 
 If `## Verification` is missing either subsection or its entries are non-predicate-shaped ("feature works" rather than "command X exits 0 / output contains Y"), halt and hand back to `anvil:writing-issue`. Do not improvise checks — the issue spec is the contract.
+
+## Running delegated on a cheaper model
+
+For a one-off completion, the main agent can dispatch this skill to an isolated subagent on a cheaper model (e.g. Opus main → Sonnet worker) — fill and fire `dispatch-single.md`. It stops at PR-opened with no review-respond loop. The N-parallel case is `anvil:dispatching-issue-fleet`.
 
 ## Phase 0 — Claim
 
