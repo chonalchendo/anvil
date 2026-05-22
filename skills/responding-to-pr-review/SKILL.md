@@ -68,7 +68,7 @@ The fallback is local-review, not zero review. Do a one-pass diff read against t
 
 ## Fleet-PR override
 
-When the PR was opened by an `dispatching-issue-fleet` subagent, **green CI is not sufficient for merge** — the review-respond loop runs even if the orchestrating user said "merge on green."
+When the PR was opened by a `dispatching-issue-fleet` subagent, **green CI is not sufficient for merge** — the review-respond loop runs even if the orchestrating user said "merge on green."
 
 **Detection heuristics** (any one is enough; err on the side of running the loop when uncertain):
 
