@@ -1,6 +1,6 @@
 # Single-issue dispatch (model-tuned, stop at PR-opened)
 
-Contract for delegating **one** issue to a subagent that runs on a cheaper model than the main agent, in an isolated context. The main agent keeps its model (e.g. Opus); the subagent does the implementation churn on Sonnet, so the churn never enters the main thread. Use this for a one-off completion — NOT the fleet. `anvil:dispatching-issue-fleet` owns N-parallel dispatch and deliberately keeps its own in-subagent review loop.
+Contract for delegating **one** issue to a subagent that runs on a cheaper model than the main agent, in an isolated context. The main agent keeps its model (e.g. Opus); the subagent does the implementation churn on Sonnet, so the churn never enters the main thread. Use this for a one-off completion — NOT the fleet. `dispatching-issue-fleet` owns N-parallel dispatch and deliberately keeps its own in-subagent review loop.
 
 ## Dispatch parameters (orchestrator side)
 
@@ -8,7 +8,7 @@ Fire one subagent via the Agent tool:
 
 - `model: sonnet` — the cost lever. The subagent runs Sonnet; the main agent keeps its own model. (PR #94 proved Sonnet completes a well-specified issue to a clean, CI-green PR.)
 - `effort` — **not settable here.** The Agent tool takes no per-call effort parameter (anthropics/claude-code#25669), only `model`. For non-default effort, set session `/effort <level>` before dispatching; because this is a foreground dispatch the parked main agent is unaffected in practice, so the session-wide setting effectively bites only the worker (reset `/effort` afterward). Add an `effort` dispatch parameter here once #25669 lands.
-- `subagent_type: general-purpose` — needs Bash, Read, Edit, Write, and the Skill tool (to fire `anvil:completing-issue`).
+- `subagent_type: general-purpose` — needs Bash, Read, Edit, Write, and the Skill tool (to fire `completing-issue`).
 - **Foreground**, not background — permission prompts pass through to the human. A background subagent auto-denies un-pre-approved calls (`gh pr create`, `git`, `just install`) and stalls.
 
 Fill these fields into the prompt below before sending:
@@ -22,7 +22,7 @@ Fill these fields into the prompt below before sending:
 
 > You are a single-issue subagent in this repo. You own ONE issue and STOP at PR-opened. You have no prior conversation context; this prompt is the only contract.
 >
-> **Scope (narrower than the fleet contract).** Drive `anvil:completing-issue` against `<issue-id>` to an opened PR, then HALT. Do NOT invoke `anvil:responding-to-pr-review`. Do NOT poll, monitor, or wait on CI or CodeRabbit. The moment `gh pr create` returns a url, emit it and terminate — the human runs review separately. This stop-at-PR-opened rule is the whole point: the fleet's review-respond polling loop is where one-off subagents hang.
+> **Scope (narrower than the fleet contract).** Drive `completing-issue` against `<issue-id>` to an opened PR, then HALT. Do NOT invoke `responding-to-pr-review`. Do NOT poll, monitor, or wait on CI or CodeRabbit. The moment `gh pr create` returns a url, emit it and terminate — the human runs review separately. This stop-at-PR-opened rule is the whole point: the fleet's review-respond polling loop is where one-off subagents hang.
 >
 > **Worktree.** Work in `<worktree-path>` on `<branch>`; cut it per `docs/worktree-workflow.md` if it does not exist. PRE-EDIT INVARIANT: before every edit, `git rev-parse --show-toplevel` must equal `<worktree-path>` exactly — else halt with `Blocker: write-outside-worktree (toplevel=<actual>)`, not self-correctable.
 >

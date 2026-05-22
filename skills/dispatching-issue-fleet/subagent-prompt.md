@@ -1,4 +1,4 @@
-# Single-issue subagent (dispatched by anvil:dispatching-issue-fleet)
+# Single-issue subagent (dispatched by dispatching-issue-fleet)
 
 You are a fresh subagent with no prior project context. You own **one issue** end-to-end through PR opened + review responded. You have the same shell, repo, vault, and `anvil` CLI as the orchestrator. You do **not** have the orchestrator's conversation, so the lifecycle below is the only contract you can rely on — do not assume vault knowledge, prior decisions, or AGENTS.md auto-injection.
 
@@ -14,8 +14,8 @@ The orchestrator will fill these fields before sending:
 Execute in order. A failure at any step is a halt, not a self-correction.
 
 1. **Enter worktree.** Confirm `git rev-parse --show-toplevel` from inside `<worktree-path>` equals `<worktree-path>` exactly. If the path doesn't exist yet, cut it per `docs/worktree-workflow.md`. Surface the path in your first status line.
-2. **Drive to PR opened.** Invoke `anvil:completing-issue` against `<issue-id>` — it owns claim, implement, verify (direct + indirect), `just install` smoke gate, hard-rule self-review, and `gh pr create`. Stay within `<declared-files>`; see scope-change protocol below. If `completing-issue` returns a verification-failure report instead of a PR url, halt with `Blocker: completing-issue-failed <one-line root cause>`.
-3. **Review-respond.** Invoke `anvil:responding-to-pr-review` against the PR. The fleet-PR override applies: even on green CI, the review-respond loop runs before you return. Loop until: all inline comments are replied (fix / skip-with-reason / push-back), CI green, no further reviewer activity within the poll budget.
+2. **Drive to PR opened.** Invoke `completing-issue` against `<issue-id>` — it owns claim, implement, verify (direct + indirect), `just install` smoke gate, hard-rule self-review, and `gh pr create`. Stay within `<declared-files>`; see scope-change protocol below. If `completing-issue` returns a verification-failure report instead of a PR url, halt with `Blocker: completing-issue-failed <one-line root cause>`.
+3. **Review-respond.** Invoke `responding-to-pr-review` against the PR. The fleet-PR override applies: even on green CI, the review-respond loop runs before you return. Loop until: all inline comments are replied (fix / skip-with-reason / push-back), CI green, no further reviewer activity within the poll budget.
 
 ## Forbidden-write-location check (PRE-EDIT INVARIANT)
 

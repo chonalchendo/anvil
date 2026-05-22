@@ -30,11 +30,11 @@ A workflow for authoring a project's system-design artifact — the architectura
 
 ## When not to use
 
-- No product-design yet → `anvil:writing-product-design` first.
-- Vision, users, scope → `anvil:writing-product-design`.
-- One milestone in detail → `anvil:defining-milestone`.
-- Implementation tasks → `anvil:creating-issue` or `anvil:planning`.
-- Documenting a *single* architectural choice (e.g., "JWT vs sessions") → that's an ADR, use `anvil:decision-making`.
+- No product-design yet → `writing-product-design` first.
+- Vision, users, scope → `writing-product-design`.
+- One milestone in detail → `defining-milestone`.
+- Implementation tasks → `creating-issue` or `planning`.
+- Documenting a *single* architectural choice (e.g., "JWT vs sessions") → that's an ADR, use `decision-making`.
 
 ## Output path
 
@@ -50,7 +50,7 @@ Each phase has an explicit user gate. Don't skip the gates. Phases 1, 4, and 7 a
 
 Confirm scope and dependency:
 - What's the project? Confirm slug from existing product-design.
-- Read the product-design at `~/anvil-vault/05-projects/{slug}/product-design.md`. **If it doesn't exist, stop.** Hand off to `anvil:writing-product-design`.
+- Read the product-design at `~/anvil-vault/05-projects/{slug}/product-design.md`. **If it doesn't exist, stop.** Hand off to `writing-product-design`.
 - Confirm destination path: `~/anvil-vault/05-projects/{slug}/system-design.md`.
 
 **Gate (load-bearing):** product-design exists and is read. Without it, Phase 4 has nothing to derive components from.
@@ -67,7 +67,7 @@ Draft body for "Architectural overview" — 1–3 paragraphs, leading with the s
 
 Draft the **Tech stack** body section: a definition list (language, framework/CLI framework, database/storage, deployment, tests) capturing the locked-in choices. Body prose, not frontmatter — schema is `additionalProperties: false`.
 
-**REQUIRED SUB-SKILL:** Use `anvil:decision-making` for any tech-stack choice that isn't already authorized by an ADR. Each choice should reference its ADR wikilink inline (the structural link goes in `authorized_by` per Phase 8).
+**REQUIRED SUB-SKILL:** Use `decision-making` for any tech-stack choice that isn't already authorized by an ADR. Each choice should reference its ADR wikilink inline (the structural link goes in `authorized_by` per Phase 8).
 
 **Gate:** user confirms each value, or marks it `TODO: decide via ADR`.
 
@@ -137,7 +137,7 @@ Examples (from anvil itself):
 
 Populate the frontmatter `authorized_by` array — wikilinks to ADRs that authorized the choices captured above. Each tech-stack decision and each load-bearing invariant should ideally trace to a `[[decision.{project}.NNNN-{slug}]]`.
 
-For v0.1 it's acceptable to have unresolved wikilinks — flag them as `TODO: capture as ADR via anvil:decision-making`.
+For v0.1 it's acceptable to have unresolved wikilinks — flag them as `TODO: capture as ADR via decision-making`.
 
 **Gate:** list confirmed, or TODO list accepted.
 
@@ -192,7 +192,7 @@ Draft the **Risks** body section. Architectural altitude: load-bearing assumptio
 
 - **Skipping Phase 1's product-design check.** Without the product design, Phase 4 has no anchor and components drift toward implementation taste rather than product fit. Stop and hand off.
 - **Soft invariants in Phase 7.** "We try to..." is not an invariant. If the user shrugs at a candidate, strip it.
-- **Tech stack without ADRs.** Phase 3 should hand off to `anvil:decision-making` for any non-trivial choice. ADR-less tech stacks rot first.
+- **Tech stack without ADRs.** Phase 3 should hand off to `decision-making` for any non-trivial choice. ADR-less tech stacks rot first.
 - **Mermaid as decoration.** Phases 5 and 6 require diagrams as core content. A system design without a context diagram is incomplete.
 - **AI-generic Why-this-shape prose.** Cite the user's own words; reference the product-design and ADRs; don't generate filler.
-- **Conflating system design with planning.** Components are responsibilities, not work items. If a section reads like a task list, it belongs in `anvil:planning`.
+- **Conflating system design with planning.** Components are responsibilities, not work items. If a section reads like a task list, it belongs in `planning`.

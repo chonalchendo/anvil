@@ -7,7 +7,7 @@ description: "Use at the start of a fresh terminal/session when the user wants t
 
 Your job is to locate the right non-empty session handoff under `~/anvil-vault/10-sessions/` (disambiguating with the user when ≥2 landed near-simultaneously), load it into the current context, and surface the session id and path so the user can audit the source.
 
-The companion **REQUIRED SIBLING:** `anvil:handing-off-session` writes the handoff at end-of-session; this skill reads it at the start of the next.
+The companion **REQUIRED SIBLING:** `handing-off-session` writes the handoff at end-of-session; this skill reads it at the start of the next.
 
 ## Iron Law
 
@@ -97,7 +97,7 @@ After surfacing, hand control back to the user (or, if the handoff names an unam
 ## What NOT to do
 
 - Do not auto-load on session start. This skill fires on explicit user invocation only — auto-loading would pollute sessions opened for unrelated work.
-- Do not merge multiple handoffs. Only the most-recent non-empty one. Stitching across sessions belongs in `anvil:distilling-learning`.
+- Do not merge multiple handoffs. Only the most-recent non-empty one. Stitching across sessions belongs in `distilling-learning`.
 - Do not summarise or paraphrase the handoff before acting on it. The handoff is the user's prompt, not raw material.
 - Do not delete or mutate empty session files. Retention belongs elsewhere (`retention_until` frontmatter + a future sweep verb).
 - Do not invent a next action when the handoff says *"Nothing to hand off; new session starts from a clean tree."* Surface that, ask the user what to work on.

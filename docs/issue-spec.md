@@ -1,6 +1,6 @@
 # Anvil Issue Body Spec
 
-Body-section contract for anvil issues. Authored by `anvil:writing-issue`; consumed by `anvil:completing-issue` and `skills/completing-issue/scripts/run-verification.sh`.
+Body-section contract for anvil issues. Authored by `writing-issue`; consumed by `completing-issue` and `skills/completing-issue/scripts/run-verification.sh`.
 
 For frontmatter, see [vault-schemas.md](vault-schemas.md#issue).
 
@@ -28,7 +28,7 @@ go test ./internal/transition -run TestClaimAtomic
 
 ### Indirect (live smoke)
 
-Live invocations against the built/installed/served artifact, proving the change works end-to-end. The check `anvil:completing-issue`'s Phase 4 build-and-install gate re-runs against the installed binary — direct passes here cannot mask install-path bugs.
+Live invocations against the built/installed/served artifact, proving the change works end-to-end. The check `completing-issue`'s Phase 4 build-and-install gate re-runs against the installed binary — direct passes here cannot mask install-path bugs.
 
 ```bash
 anvil transition issue test-fixture in-progress --owner test 2>&1 | grep -q "transitioned to in-progress"

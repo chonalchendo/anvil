@@ -71,7 +71,7 @@ Anvil's methodology is workflow-dominant. User vault skills are knowledge-domina
 - **Workflow: imperative checklist.** Numbered steps in order, validation gates between, rollback on failure. Anchors the agent's TodoWrite list.
 - **Knowledge: reference-with-principles.** Philosophy → patterns → gotchas/antipatterns. Heavy material → `references/`.
 - **User gates: own paragraph.** Verbatim quote-template + "Wait for the user's response" terminator. Visually distinct from prose so the agent doesn't blow past.
-- **Handoffs: `**REQUIRED SUB-SKILL:** Use anvil:skill-name`.** Always namespace-qualify. Never `@filename` (force-loads, burns context). Plain-language references resolve wrong intermittently (issue #1002).
+- **Handoffs: `**REQUIRED SUB-SKILL:** Use skill-name`.** Reference Anvil skills by bare name — they register flat, so an `anvil:` prefix resolves to `Unknown skill`. Prefix only skills from another installed plugin (`superpowers:<name>`). Never `@filename` (force-loads, burns context). Plain-language references resolve wrong intermittently (issue #1002).
 - **Code-fence path/command examples.** Literal-text recipes have caused Claude Code to inject malformed Write calls (issue #1042). Fences + "the agent will..." framing prevent this.
 
 ## Frontmatter rules
@@ -145,7 +145,7 @@ Runs against every PR that touches a skill:
 - Description: warn at 250 chars, fail at 1024.
 - Body: warn at 200 lines, fail at 500.
 - ALL-CAPS: warn if >1 imperative per body.
-- Handoff namespace: warn on bare references (no `anvil:`/other prefix).
+- Handoff namespace: warn on an `anvil:` prefix (Anvil skills register bare); cross-plugin refs keep their namespace (`superpowers:`).
 - Negative triggers: skills in defined sibling-groups must name each other.
 - Library smoke test: load all enabled methodology skills against a diverse prompt set; check for conflicts and context-budget overruns.
 

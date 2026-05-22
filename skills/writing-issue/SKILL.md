@@ -26,13 +26,13 @@ Workflow for taking a problem worth tracking — whether a fuzzy "should we buil
 
 **If you can name an acceptance criterion in one breath, it's an issue.** Use this skill when the entry is decisive (problem + AC + milestone hint) OR when a fuzzy thought is ready to be pressure-tested into one. Inbox-first is NOT required when the entry is already shaped — route here directly.
 
-Wrong-choice example: user is dumping a half-formed thought with no AC and no clear acceptance shape. That's an inbox item — hand off to `anvil:capturing-inbox` and resume here later via `anvil promote` if the thought sharpens.
+Wrong-choice example: user is dumping a half-formed thought with no AC and no clear acceptance shape. That's an inbox item — hand off to `capturing-inbox` and resume here later via `anvil promote` if the thought sharpens.
 
 ## Iron Law
 
 **NO ISSUE FILE LANDS WITHOUT AN EXPLICIT MILESTONE LINK.**
 
-If no milestone fits, the workflow stops at Phase 2 and offers two exits: log a `decision` artifact with `status: rejected`, or hand off to `anvil:writing-milestone` and resume here once the milestone exists. There is no `--no-milestone` escape hatch.
+If no milestone fits, the workflow stops at Phase 2 and offers two exits: log a `decision` artifact with `status: rejected`, or hand off to `writing-milestone` and resume here once the milestone exists. There is no `--no-milestone` escape hatch.
 
 ## When this skill runs
 
@@ -42,8 +42,8 @@ If no milestone fits, the workflow stops at Phase 2 and offers two exits: log a 
 
 ## When not to use
 
-- The user is dumping a thought without engagement → `anvil:capturing-inbox`.
-- You need to implement the issue → `anvil:completing-issue`.
+- The user is dumping a thought without engagement → `capturing-inbox`.
+- You need to implement the issue → `completing-issue`.
 - Editing existing issue frontmatter only (status flip, tag) → a direct `anvil set` call.
 
 ---
@@ -96,7 +96,7 @@ Compare the converged proposal (fuzzy path) or the decisive-path's stated propos
 - **No match, idea is small or orthogonal** → offer the user two exits:
   - (a) log a `decision` artifact with `status: rejected` (one paragraph: what was considered, why rejected). See "Terminal states" below for the CLI sequence.
   - (b) stop without an artifact (inbox source, if any, stays as-is for later resumption).
-- **No match, idea reshapes the system** → stop and offer to hand off to `anvil:writing-milestone`. Resume `writing-issue` after the milestone exists. **REQUIRED SUB-SKILL:** Use anvil:writing-milestone.
+- **No match, idea reshapes the system** → stop and offer to hand off to `writing-milestone`. Resume `writing-issue` after the milestone exists. **REQUIRED SUB-SKILL:** Use writing-milestone.
 
 Never skip the gate to issue creation.
 
@@ -186,7 +186,7 @@ Required body sections (enforced by `create`):
 - `## Non-goals` — from Phase 3 smallest-viable (fuzzy) or stated up front (decisive).
 - `## Verification` — operational checks in fenced bash blocks (full spec: `docs/issue-spec.md`). Two subsections, both required:
   - `### Direct` — fenced `bash` block with ≥1 line. Each line must exit 0. Typically unit/integration tests run against the dev tree.
-  - `### Indirect` — fenced `bash` block with ≥1 line. Each line must exit 0. Live invocations against the built/installed/served artifact; bake the predicate into the command (`grep -q "X"`, `jq -r .field`, `[ ... = ... ]`). `anvil:completing-issue` re-runs these against the installed binary in its Phase 4 build gate — they catch behavioral gaps the Direct checks can't see.
+  - `### Indirect` — fenced `bash` block with ≥1 line. Each line must exit 0. Live invocations against the built/installed/served artifact; bake the predicate into the command (`grep -q "X"`, `jq -r .field`, `[ ... = ... ]`). `completing-issue` re-runs these against the installed binary in its Phase 4 build gate — they catch behavioral gaps the Direct checks can't see.
 - `## Links` — to milestone, design docs, related issues. Use `[[wikilink]]` form. Targets must resolve (the file must exist) or `create` rejects.
 
 `anvil validate <path>` remains useful as a re-check after edits (e.g. after `anvil set ... acceptance --add`), but it is **not** required after `create` when the body was supplied via `--body-file` / `--body -`.
@@ -223,7 +223,7 @@ Use `anvil set ... status` only as a force-edit escape hatch when `transition` r
 
 Three exits:
 
-1. **`issue` created** — file exists, validates, milestone link set. Hand off to `anvil:completing-issue` for implementation.
+1. **`issue` created** — file exists, validates, milestone link set. Hand off to `completing-issue` for implementation.
 2. **`decision/rejected`** — user bailed mid-session. Prompt: "log this as a rejected decision?" If yes:
    ```bash
    anvil create decision --title "Considered: <X>" --json
@@ -237,7 +237,7 @@ Three exits:
 
 ## What this skill does NOT do
 
-- Does not implement the issue. That is `anvil:completing-issue`.
-- Does not create milestones inline. It hands off to `anvil:writing-milestone` and resumes after.
+- Does not implement the issue. That is `completing-issue`.
+- Does not create milestones inline. It hands off to `writing-milestone` and resumes after.
 - Does not run research. It can flag the need for it.
 - Does not persist pre-mortem or working-backwards headline. Validation tools, not specification content.

@@ -104,4 +104,4 @@ This product is delivered through these structural milestones:
 - [[milestone.anvil.m3-v0.3-educational-gate-and-workspaces]] — learning-shaping skill + gate detection, cross-repo workspace concept, external-skill porting pattern
 - [[milestone.anvil.m4-v0.4-iterate-from-real-signal]] — refinements driven by observed use; further adapters and skill ports as need arises
 
-Full milestone artifacts (one file per milestone) are deferred to a later iteration of the bootstrap, when `anvil:defining-milestone` exists. Wikilinks above are deliberately unresolved until then.
+Full milestone artifacts (one file per milestone) are deferred to a later iteration of the bootstrap, when `defining-milestone` exists. Wikilinks above are deliberately unresolved until then.

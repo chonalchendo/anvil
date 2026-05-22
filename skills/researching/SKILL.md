@@ -62,8 +62,8 @@ For standalone runs, persist zero-or-more `learning` artifacts. Count is agent j
 
 Sibling skills — name a different one if the user's intent is shaped differently:
 
-- `anvil:brainstorming` — clarifying the user's own intent before external facts matter.
-- `anvil:decision-making` — recording a chosen path with rationale, not gathering options.
-- `anvil:exploration` — poking at the local codebase or installed capabilities, not external sources.
+- `brainstorming` — clarifying the user's own intent before external facts matter.
+- `decision-making` — recording a chosen path with rationale, not gathering options.
+- `exploration` — poking at the local codebase or installed capabilities, not external sources.
 
-Composes-with (callers that invoke this as a sub-skill): `anvil:writing-product-design`, `anvil:writing-system-design`, `anvil:creating-issue`, `anvil:planning`.
+Composes-with (callers that invoke this as a sub-skill): `writing-product-design`, `writing-system-design`, `creating-issue`, `planning`.

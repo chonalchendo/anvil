@@ -5,7 +5,7 @@ description: "Use when an Anvil PR needs an independent code review and CodeRabb
 
 # Reviewing PR
 
-Your job is to dispatch a **fresh general-purpose subagent** that reviews one PR against the repo's standards, and to surface its findings so `anvil:responding-to-pr-review` can drive them to resolution. You do not review the PR yourself — independent context is half the value.
+Your job is to dispatch a **fresh general-purpose subagent** that reviews one PR against the repo's standards, and to surface its findings so `responding-to-pr-review` can drive them to resolution. You do not review the PR yourself — independent context is half the value.
 
 ## Iron Law
 
@@ -66,7 +66,7 @@ A finding without a doc citation drops one severity band. Unsourced opinions are
 Read the subagent's report and route:
 
 - **All findings ≤low and CI green** — surface "no actionable findings" to the user; the PR is ready for the human's merge decision.
-- **Any blocker/high, or actionable medium** — fire `anvil:responding-to-pr-review`. Its loop treats these the same as CodeRabbit threads (apply, skip-with-reason, or push back). Cite the subagent's report id in the top-level comment so the audit trail survives.
+- **Any blocker/high, or actionable medium** — fire `responding-to-pr-review`. Its loop treats these the same as CodeRabbit threads (apply, skip-with-reason, or push back). Cite the subagent's report id in the top-level comment so the audit trail survives.
 - **Subagent malformed return** (not the structured format above) — re-dispatch once with a tightened prompt naming the format verbatim. If the second dispatch also malforms, stop and surface a handoff-required failure to the user; log the malformation via `anvil create inbox` and wait for manual review or a later retry. Do **not** fall back to main-session review — that defeats the Iron Law.
 
 Do **not** silently drop findings the subagent surfaced. If you disagree, push back in the responding-to-pr-review loop — the audit trail matters more than the disagreement.
@@ -76,5 +76,5 @@ Do **not** silently drop findings the subagent surfaced. If you disagree, push b
 - Do not review the PR in this session. Dispatch.
 - Do not auto-fire on every PR. CodeRabbit + CI is the default review pipeline; this is a fallback.
 - Do not restate the standards docs in the dispatch prompt — name the paths, the subagent reads them.
-- Do not merge. `anvil:dispatching-issue-fleet`'s Iron Law applies — human owns the merge button.
-- Do not skip findings with "nitpick" when the finding cites a documented repo rule. Same nitpick policy as `anvil:responding-to-pr-review`.
+- Do not merge. `dispatching-issue-fleet`'s Iron Law applies — human owns the merge button.
+- Do not skip findings with "nitpick" when the finding cites a documented repo rule. Same nitpick policy as `responding-to-pr-review`.

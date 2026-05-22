@@ -30,8 +30,8 @@ Workflow for creating a milestone artifact via the `anvil` CLI. Milestones sit o
 
 ## When not to use
 
-- No design doc exists yet → use `anvil:writing-product-design` or `anvil:writing-system-design` first.
-- Work item level (a task, bug, feature) → `anvil:writing-issue`.
+- No design doc exists yet → use `writing-product-design` or `writing-system-design` first.
+- Work item level (a task, bug, feature) → `writing-issue`.
 - Editing existing milestone frontmatter only (date bump, status flip) — that's a direct `anvil set` call, not this workflow.
 
 ---
@@ -105,6 +105,6 @@ Fix any schema errors reported. Re-run until clean.
 
 ## Hand-off
 
-**REQUIRED SUB-SKILL:** Use `anvil:writing-issue`.
+**REQUIRED SUB-SKILL:** Use `writing-issue`.
 
 Next: `writing-issue` for the first issue under this milestone.

@@ -30,7 +30,7 @@ Workflow for opening a research thread — the live workspace for cross-session 
 
 ## When not to use
 
-- The user is dumping a thought without committing → `anvil:capturing-inbox`.
+- The user is dumping a thought without committing → `capturing-inbox`.
 - Project-tied research with an existing issue → research happens in plan-execution context.
 - The thread already exists and the user is resuming → no skill needed; sessions auto-bind to active thread.
 
@@ -116,8 +116,8 @@ Fix any schema errors reported. Re-run until clean.
 
 Three terminal paths. Name them in the closing message:
 
-- **`anvil:distilling-learning`** — knowledge crystallized.
-- **`anvil:writing-issue`** — project work surfaced; thread can stay open as parallel context.
+- **`distilling-learning`** — knowledge crystallized.
+- **`writing-issue`** — project work surfaced; thread can stay open as parallel context.
 - **abandon** — `anvil set thread <id> status abandoned`.
 
 Closing/pausing the thread itself is a thin `anvil set thread <id> status closed|paused`. No separate skill.
