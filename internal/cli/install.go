@@ -131,7 +131,7 @@ func newInstallSkillsCmd() *cobra.Command {
 						return fmt.Errorf("checking skills freshness: %w", err)
 					}
 					if fresh {
-						cmd.Println("anvil skills up to date at", target+" (embedded bundle); run `anvil install skills --force` to redeploy, or `just install` first if you edited skills/ on disk")
+						cmd.Println("anvil skills up to date at", target+" (embedded bundle); run `anvil install skills --force` to redeploy, or `just install` first if you edited anvil/skills/ on disk")
 						return nil
 					}
 				}
