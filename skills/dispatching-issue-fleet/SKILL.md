@@ -39,7 +39,7 @@ Read each subagent's outcome from its artifact, not its stdout line. Per worktre
 bash ~/.claude/skills/dispatching-issue-fleet/scripts/read-result.sh <worktree>
 ```
 
-- **Exit 0** — artifact parsed. The printed line is the `pr_url` (empty when null); read `.status` / `.blockers` from `<worktree>/.fleet/result.json` for the rest. `pr_opened` → proceed to Phase 5 for that PR; `blocked` / `abandoned` → record the blockers, surface to user, do not re-dispatch.
+- **Exit 0** — artifact parsed. The printed line is the `pr_url` (empty when null); read `.status` / `.blockers` from `<worktree>/.fleet/result.json` for the rest. `pr_opened` → proceed to Phase 5 for that PR; `blocked` → record the blockers, surface to user, do not re-dispatch.
 - **Non-zero** — artifact missing or unparseable. Fall back to `gh pr list --head <branch>` to discover the PR; the subagent's final stdout line is informational only, not the return.
 
 The final stdout line is no longer load-bearing: the narrative-as-final-output stall (5/5 in the 2026-05-15 fleet; also 2026-05-13/14) no longer loses a real PR, because `completing-issue` wrote the outcome to the artifact at PR-open and `read-result.sh` recovers it. If `gh pr list` also shows no PR and the work plainly did not land, re-dispatch action-only: a step-by-step plain-text prompt with **no skill wrapper**, naming the exact commit + push + PR commands. If that also produces nothing, fall back to main-session takeover.

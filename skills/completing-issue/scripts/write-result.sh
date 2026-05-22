@@ -14,19 +14,19 @@ worktree="" issue="" branch="" status="" pr_url=""
 blockers=()
 while [ $# -gt 0 ]; do
     case "$1" in
-        --worktree) worktree=$2; shift 2 ;;
-        --issue)    issue=$2;    shift 2 ;;
-        --branch)   branch=$2;   shift 2 ;;
-        --status)   status=$2;   shift 2 ;;
-        --pr-url)   pr_url=$2;   shift 2 ;;
-        --blocker)  blockers+=("$2"); shift 2 ;;
+        --worktree) worktree=${2:?--worktree requires a value}; shift 2 ;;
+        --issue)    issue=${2:?--issue requires a value};       shift 2 ;;
+        --branch)   branch=${2:?--branch requires a value};     shift 2 ;;
+        --status)   status=${2:?--status requires a value};     shift 2 ;;
+        --pr-url)   pr_url=${2:?--pr-url requires a value};     shift 2 ;;
+        --blocker)  blockers+=("${2:?--blocker requires a value}"); shift 2 ;;
         *) echo "write-result.sh: unknown argument: $1" >&2; exit 2 ;;
     esac
 done
 
 case "$status" in
-    pr_opened|blocked|abandoned) ;;
-    *) echo "write-result.sh: --status must be pr_opened|blocked|abandoned (got: ${status:-<empty>})" >&2; exit 2 ;;
+    pr_opened|blocked) ;;
+    *) echo "write-result.sh: --status must be pr_opened|blocked (got: ${status:-<empty>})" >&2; exit 2 ;;
 esac
 for f in worktree issue branch; do
     if [ -z "${!f}" ]; then echo "write-result.sh: --$f is required" >&2; exit 2; fi

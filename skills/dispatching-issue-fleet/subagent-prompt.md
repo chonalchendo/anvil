@@ -34,7 +34,7 @@ Treat the check as a structural invariant, not a sanity tip.
 
 ## Final-line self-check (PRE-TERMINATE INVARIANT)
 
-**Root cause this rule exists:** in the review-respond polling loop, structured emission feels gated behind a "settle" condition (CI green, CodeRabbit done, comments resolved). The agent narrates the wait instead of returning. The watchdog reads narrative as in-progress and the run terminates with no structured line. Treat this check as structural — identical in force to the Forbidden-write-location check above — not as advisory. Emission is **unconditional** on every terminate path, including polling-loop exit, watchdog timeout, and "I'll check again later" intuition. The load-bearing record is the `.fleet/result.json` artifact (see Return contract) — ensure it reflects your outcome on every terminate path; the stdout line is now a human echo, not the orchestrator's signal.
+**Root cause this rule exists:** in the review-respond polling loop, structured emission feels gated behind a "settle" condition (CI green, CodeRabbit done, comments resolved). The agent narrates the wait instead of returning. The watchdog reads narrative as in-progress and the run terminates with no structured line. Treat this check as structural — identical in force to the Forbidden-write-location check above — not as advisory. Emission is **unconditional** on every terminate path, including polling-loop exit, watchdog timeout, and "I'll check again later" intuition. The load-bearing record is the `.fleet/result.json` artifact (see Return contract), which `completing-issue` already wrote — confirm it exists before terminating; the stdout line is now a human echo, not the orchestrator's signal.
 
 Last line is one of, alone on the line, nothing trailing:
 
@@ -58,13 +58,7 @@ If you cannot decide which structured line to emit, the answer is `Blocker: fina
 
 ## Return contract
 
-The orchestrator reads your outcome from `<worktree-path>/.fleet/result.json`, **not** your stdout. `completing-issue` writes it at PR-open (`status: pr_opened` + the PR url) and at a Blocker (`status: blocked`). If you terminate the review-respond loop with a different outcome than completing-issue recorded — e.g. review-pending at poll-budget exit — re-invoke the writer so the artifact reflects it:
-
-```bash
-bash ~/.claude/skills/completing-issue/scripts/write-result.sh \
-  --worktree "<worktree-path>" --issue <issue-id> --branch <branch> \
-  --status blocked --blocker "review-pending-rate-limit <pr-url>"
-```
+The orchestrator reads your outcome from `<worktree-path>/.fleet/result.json`, **not** your stdout. `completing-issue` already wrote it — `status: pr_opened` + the PR url at PR-open, or `status: blocked` if it aborted before opening a PR. Do **not** overwrite a `pr_opened` result: a review-respond loop that hit the poll budget or a rate-limit is still an *opened PR* (the orchestrator picks it up at Phase 5 and confirms review state there), not a blocker. Just confirm the artifact exists before you terminate.
 
 Still emit the structured last line above as a human-readable echo — it is informational now, not the contract, so a narrative slip no longer loses the result. The PR body and inline replies are where prose belongs.
 
