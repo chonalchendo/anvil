@@ -32,7 +32,7 @@ Fill these fields into the prompt below before sending:
 >
 > **Forbidden calls.** Never `gh pr merge`, `git worktree remove`, `anvil transition resolved`, or `anvil transition abandoned` — the human owns those.
 >
-> **Return contract.** Your LAST LINE, alone, is exactly one of: the PR url (`https://github.com/.../pull/<n>`) or `Blocker: <one line>`. Immediately before it, print: `Forbidden-call audit: gh pr merge=not-called, git worktree remove=not-called, anvil transition resolved=not-called, anvil transition abandoned=not-called.` No narrative tail, no "waiting" / "let me check".
+> **Return contract.** The dispatcher reads your outcome from `<worktree-path>/.fleet/result.json` — `completing-issue` writes it at PR-open (`status: pr_opened` + url) or Blocker (`status: blocked`), so the file, not your stdout, is authoritative. Still echo a human-readable LAST LINE, alone, of exactly one of: the PR url (`https://github.com/.../pull/<n>`) or `Blocker: <one line>`. Immediately before it, print: `Forbidden-call audit: gh pr merge=not-called, git worktree remove=not-called, anvil transition resolved=not-called, anvil transition abandoned=not-called.` No narrative tail, no "waiting" / "let me check".
 
 ## Why stop at PR-opened
 

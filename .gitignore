@@ -29,3 +29,6 @@ docs/implementation_plan.md
 !.claude/settings.json
 !.claude/hooks/
 !.claude/hooks/**
+
+# Fleet subagent result artifacts (written by completing-issue, read by the orchestrator)
+.fleet/

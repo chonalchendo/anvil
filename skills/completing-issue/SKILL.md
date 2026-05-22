@@ -104,7 +104,15 @@ Then re-run every `### Indirect` entry against the built artifact, not the dev t
 gh pr create --title "<conventional-commit summary>" --body "<one-paragraph + closes #<issue-number>>"
 ```
 
-Surface the PR url. Stop. The issue stays `in-progress`; the human transitions it to `resolved` after merge. **REQUIRED SUB-SKILL:** Use responding-to-pr-review once the code review agent reports.
+Surface the PR url, then record the outcome artifact the fleet orchestrator reads — the file, not your final stdout line, is the contract a dispatched run returns (it is `.fleet/`-gitignored and never committed; harmless in a non-dispatched run):
+
+```bash
+bash ~/.claude/skills/completing-issue/scripts/write-result.sh \
+  --worktree "$(git rev-parse --show-toplevel)" --issue <id> \
+  --branch "$(git rev-parse --abbrev-ref HEAD)" --status pr_opened --pr-url <pr-url>
+```
+
+Stop. The issue stays `in-progress`; the human transitions it to `resolved` after merge. **REQUIRED SUB-SKILL:** Use responding-to-pr-review once the code review agent reports.
 
 **On verify failure (Phase 2 abort):**
 
@@ -118,6 +126,14 @@ Failed step: <Direct: <which> | Indirect: <which>>
 Last failure output: <quoted, ≤10 lines>
 What is blocked: <one sentence>
 Recommended next step: <one sentence>
+```
+
+Then record the outcome artifact so a dispatching orchestrator reads the blocker from the file, not your stdout:
+
+```bash
+bash ~/.claude/skills/completing-issue/scripts/write-result.sh \
+  --worktree "$(git rev-parse --show-toplevel)" --issue <id> \
+  --branch "$(git rev-parse --abbrev-ref HEAD)" --status blocked --blocker "<root cause>"
 ```
 
 Do NOT call `gh pr create`. Do NOT transition the issue. Leave the worktree for human review.

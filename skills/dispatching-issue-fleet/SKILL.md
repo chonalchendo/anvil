@@ -33,11 +33,16 @@ Dispatch all N in a single tool-use block so they run in parallel.
 
 ## Phase 4 — Interpret returns
 
-Each subagent's last line is structurally one of:
+Read each subagent's outcome from its artifact, not its stdout line. Per worktree:
 
-- `^https://github\.com/.+/pull/[0-9]+$` — PR url. Proceed to Phase 5 for this PR.
-- `^Blocker: .+$` — explicit blocker. Record, surface to user, do not re-dispatch.
-- Anything else — **malformed return** (narrative-as-final-output). This is the recurring 100-200 LOC stall pattern (sessions 2026-05-13, 2026-05-14, 2026-05-15 all hit it). Re-dispatch action-only: a step-by-step plain-text prompt with **no skill wrapper**, naming the exact next commit + push + PR commands. If the second dispatch also malforms, fall back to main-session takeover for that issue.
+```bash
+bash ~/.claude/skills/dispatching-issue-fleet/scripts/read-result.sh <worktree>
+```
+
+- **Exit 0** — artifact parsed. The printed line is the `pr_url` (empty when null); read `.status` / `.blockers` from `<worktree>/.fleet/result.json` for the rest. `pr_opened` → proceed to Phase 5 for that PR; `blocked` / `abandoned` → record the blockers, surface to user, do not re-dispatch.
+- **Non-zero** — artifact missing or unparseable. Fall back to `gh pr list --head <branch>` to discover the PR; the subagent's final stdout line is informational only, not the return.
+
+The final stdout line is no longer load-bearing: the narrative-as-final-output stall (5/5 in the 2026-05-15 fleet; also 2026-05-13/14) no longer loses a real PR, because `completing-issue` wrote the outcome to the artifact at PR-open and `read-result.sh` recovers it. If `gh pr list` also shows no PR and the work plainly did not land, re-dispatch action-only: a step-by-step plain-text prompt with **no skill wrapper**, naming the exact commit + push + PR commands. If that also produces nothing, fall back to main-session takeover.
 
 **Expected miss-rate: 1 in N falls back to main-session takeover.** Surface this in the final report so the human reads a stall as design-anticipated, not a tool bug.
 
