@@ -9,8 +9,8 @@ __pycache__/
 # Virtual environments
 .venv
 
-# Skill-creator eval workspaces (regenerable from skills/<name>/evals/evals.json)
-skills/*-workspace/
+# Skill-creator eval workspaces (regenerable from anvil/skills/<name>/evals/evals.json)
+anvil/skills/*-workspace/
 
 # Superpowers working artifacts (specs, plans, etc. — not committed)
 docs/superpowers/

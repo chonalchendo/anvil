@@ -15,7 +15,7 @@ func skillBody(t *testing.T, name string) string {
 	}
 	for dir := wd; dir != filepath.Dir(dir); dir = filepath.Dir(dir) {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			b, err := os.ReadFile(filepath.Join(dir, "skills", name, "SKILL.md"))
+			b, err := os.ReadFile(filepath.Join(dir, "anvil", "skills", name, "SKILL.md"))
 			if err != nil {
 				t.Fatal(err)
 			}

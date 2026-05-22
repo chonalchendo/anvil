@@ -52,7 +52,7 @@ Anvil's methodology is workflow-dominant. User vault skills are knowledge-domina
 
 ## Reading a bundled skill
 
-`anvil show skill <name>` prints the SKILL.md body for a bundled methodology skill, sourced from the binary's embedded bundle (same content `anvil install skills` deposits). Use this when smoke-testing a skill body change rather than grepping `skills/<name>/SKILL.md` directly. Skills are not vault artifacts, so the verb has no `--json`, `--body`, or incoming-links surface — output is the file, full stop.
+`anvil show skill <name>` prints the SKILL.md body for a bundled methodology skill, sourced from the binary's embedded bundle (same content `anvil install skills` deposits). Use this when smoke-testing a skill body change rather than grepping `anvil/skills/<name>/SKILL.md` directly. Skills are not vault artifacts, so the verb has no `--json`, `--body`, or incoming-links surface — output is the file, full stop.
 
 ## Description rules
 

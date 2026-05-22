@@ -12,10 +12,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/anvil/skills"
 	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
-	"github.com/chonalchendo/anvil/skills"
 )
 
 const showBodyLineCap = 500
