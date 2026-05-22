@@ -81,7 +81,7 @@ func assertNoPrescriptiveCutFields(t *testing.T, text string, cutFields []string
 // product-design schema rejects (additionalProperties: false).
 func TestSkillFrontmatterAlignment_ProductDesign(t *testing.T) {
 	root := repoRoot(t)
-	body, err := os.ReadFile(filepath.Join(root, "skills", "writing-product-design", "SKILL.md"))
+	body, err := os.ReadFile(filepath.Join(root, "anvil", "skills", "writing-product-design", "SKILL.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestSkillFrontmatterAlignment_ProductDesign(t *testing.T) {
 // skill does not direct authors to populate fields the schema rejects.
 func TestSkillFrontmatterAlignment_SystemDesign(t *testing.T) {
 	root := repoRoot(t)
-	body, err := os.ReadFile(filepath.Join(root, "skills", "writing-system-design", "SKILL.md"))
+	body, err := os.ReadFile(filepath.Join(root, "anvil", "skills", "writing-system-design", "SKILL.md"))
 	if err != nil {
 		t.Fatal(err)
 	}

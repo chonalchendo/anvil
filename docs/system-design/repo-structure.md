@@ -17,7 +17,9 @@ anvil/                          # source repo
 │   ├── telemetry/              # SQLite event store
 │   ├── installer/              # skill + template install
 │   └── templates/              # embedded text/template assets
-├── skills/                     # auto-loaded SKILL.md
+├── anvil/                      # embedded AI components, deployed by `anvil install`
+│   ├── skills/                 # auto-loaded SKILL.md bundles
+│   └── agents/                 # committed subagent definitions
 ├── schemas/                    # JSON schemas (deferred)
 ├── docs/
 ├── go.mod
