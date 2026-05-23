@@ -69,6 +69,10 @@ func newSessionListCmd() *cobra.Command {
 				return err
 			}
 			if asJSON {
+				// A plain array, not the `anvil list` {items,total,...} envelope:
+				// this is a fixed-cardinality internal feed (one row per session
+				// file, GC'd separately) that resuming-session consumes with
+				// `jq 'map(...)'` / `.[0]`. No limit or truncation hint applies.
 				return writeJSON(cmd, items)
 			}
 			w := cmd.OutOrStdout()
@@ -98,7 +102,7 @@ func newSessionHandoffCmd() *cobra.Command {
 	var flagBody, flagBodyFile string
 	cmd := &cobra.Command{
 		Use:   "handoff",
-		Short: "Write the handoff body into the current session file (refuses cross-session clobber)",
+		Short: "Write the handoff body into the current session file (refuses a file owned by another session)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			body, err := readBody(cmd, flagBody, flagBodyFile)
@@ -119,8 +123,14 @@ func newSessionHandoffCmd() *cobra.Command {
 				}
 				return fmt.Errorf("loading %s: %w", path, err)
 			}
+			// Deriving path from envSessionID is what prevents the cross-session
+			// clobber: each terminal writes only to its own <id>.md, so two live
+			// sessions never target one file. This check is the integrity backstop
+			// — it refuses a file at the derived path whose stored id disagrees
+			// (a renamed, hand-edited, or otherwise foreign file), rather than
+			// silently overwriting it.
 			if stored, _ := a.FrontMatter["session_id"].(string); stored != id {
-				return fmt.Errorf("refusing handoff: %s belongs to session %q, not current %q — write yours with the matching session live", path, stored, id)
+				return fmt.Errorf("refusing handoff: %s stores session %q, not current %q — its session_id disagrees with the resolved path", path, stored, id)
 			}
 			a.Body = body
 			if err := a.Save(); err != nil {
@@ -163,7 +173,6 @@ type sessionItem struct {
 	SessionID  string `json:"session_id"`
 	Path       string `json:"path"`
 	Title      string `json:"title,omitempty"`
-	Status     string `json:"status,omitempty"`
 	Objective  string `json:"objective,omitempty"`
 	Modified   string `json:"modified"`
 	HasHandoff bool   `json:"has_handoff"`
@@ -197,12 +206,10 @@ func collectSessions(vaultRoot string) ([]sessionItem, error) {
 			id = sid
 		}
 		title, _ := a.FrontMatter["title"].(string)
-		status, _ := a.FrontMatter["status"].(string)
 		items = append(items, sessionItem{
 			SessionID:  id,
 			Path:       path,
 			Title:      title,
-			Status:     status,
 			Objective:  parseObjective(a.Body),
 			Modified:   info.ModTime().UTC().Format(time.RFC3339),
 			HasHandoff: strings.TrimSpace(a.Body) != "",

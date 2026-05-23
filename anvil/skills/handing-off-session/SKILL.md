@@ -76,7 +76,7 @@ anvil session handoff --body - <<'EOF'
 EOF
 ```
 
-`anvil session handoff` resolves *this terminal's* session from `$CLAUDE_CODE_SESSION_ID` (no mtime guessing), preserves the frontmatter, and writes your body verbatim. It **refuses** the write when the target file's stored `session_id` differs from the current session — so a concurrent session's unconsumed handoff can never be silently clobbered. If it refuses, stop and surface the message: another session owns that file. Do not hand-edit the file or write it directly.
+`anvil session handoff` resolves *this terminal's* session from `$CLAUDE_CODE_SESSION_ID` (no mtime guessing), preserves the frontmatter, and writes your body verbatim. Because the path is derived from your own session id, each terminal writes only to its own file — that is what prevents one session from clobbering a concurrent session's unconsumed handoff. As an integrity backstop it also **refuses** the write if the file at that path stores a *different* `session_id` (a renamed or hand-edited file). If it refuses, stop and surface the message — do not hand-edit the file or write it directly.
 
 Do **not** emit a copy-pasteable block for the user. `resuming-session` reads the body from the session file in the next terminal — paste is dead weight.
 
