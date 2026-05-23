@@ -34,7 +34,7 @@ Treat the check as a structural invariant, not a sanity tip.
 
 ## Final-line self-check (PRE-TERMINATE INVARIANT)
 
-**Root cause this rule exists:** in the review-respond polling loop, structured emission feels gated behind a "settle" condition (CI green, CodeRabbit done, comments resolved). The agent narrates the wait instead of returning. The watchdog reads narrative as in-progress and the run terminates with no structured line. Treat this check as structural — identical in force to the Forbidden-write-location check above — not as advisory. Emission is **unconditional** on every terminate path, including polling-loop exit, watchdog timeout, and "I'll check again later" intuition.
+**Root cause this rule exists:** in the review-respond polling loop, structured emission feels gated behind a "settle" condition (CI green, review done, comments resolved). The agent narrates the wait instead of returning. The watchdog reads narrative as in-progress and the run terminates with no structured line. Treat this check as structural — identical in force to the Forbidden-write-location check above — not as advisory. Emission is **unconditional** on every terminate path, including polling-loop exit, watchdog timeout, and "I'll check again later" intuition.
 
 Last line is one of, alone on the line, nothing trailing:
 
@@ -48,11 +48,11 @@ There is no third option. No narrative tail. No "let me wait."
 - `Waiting for monitor events.`
 - `Waiting for CI to settle. I'll be notified when the until-loop exits.`
 - `Let me wait ~270s and check again.`
-- `CodeRabbit is still processing. Wait for the monitor.`
-- `No inline comments yet. CI in progress and CodeRabbit pending.`
+- `The review is still processing. Wait for the monitor.`
+- `No findings yet. CI in progress and review pending.`
 - `Good — <observation>. Let me <next-step>.`
 
-Any sentence whose verb is "wait", "let me", "still", "pending", or "I'll check" is narrative. If CI is still running and you've hit your poll budget, **the PR url is the return** (CI status lives on the PR). If CodeRabbit is rate-limited and you cannot respond, `Blocker: review-pending-rate-limit <pr-url>` is the return.
+Any sentence whose verb is "wait", "let me", "still", "pending", or "I'll check" is narrative. If CI is still running and you've hit your poll budget, **the PR url is the return** (CI status lives on the PR). If the review cannot complete and you cannot respond, `Blocker: review-pending <pr-url>` is the return.
 
 If you cannot decide which structured line to emit, the answer is `Blocker: final-line-self-check-failed (last-line=<what-you-almost-said>)`. That is itself a valid structured return.
 

@@ -1,6 +1,6 @@
 ---
 name: reviewing-pr
-description: "Use when an Anvil PR needs an independent code review and CodeRabbit is unavailable (rate-limited/paused) or the user invokes a self-review. Triggers: 'review this PR', 'self-review PR <n>', 'coderabbit fallback review'. NOT auto-fired."
+description: "Use to run the default independent review on an Anvil PR before merge — dispatches a fresh subagent that reviews the diff against repo standards. Triggers: 'review this PR', 'review PR <n>', 'self-review', a freshly opened PR. Fires on every PR."
 ---
 
 # Reviewing PR
@@ -13,10 +13,9 @@ Your job is to dispatch a **fresh general-purpose subagent** that reviews one PR
 
 ## When to fire
 
-- Explicit: user says "review PR <n>", "self-review", "coderabbit fallback".
-- Implicit fallback: CodeRabbit rate-limit hit (see `feedback_coderabbit_rate_limit_per_hour`), or the PR has sat past the local-review budget in `docs/worktree-workflow.md` with no CodeRabbit pass.
+This is the default independent-review gate: fire on **every PR** before merge, right after `completing-issue` opens it. Explicit triggers ("review PR <n>", "self-review") fire it directly.
 
-Do **not** fire on every PR. Deterministic checks (CI lint/format/tests, prek) cover most of CodeRabbit's data-integrity findings; this skill targets the maintainability / code-design dimensions that need judgment.
+Deterministic checks (CI lint/format/tests, prek) cover data-integrity findings; this subagent targets the maintainability / code-design dimensions that need judgment. CI green is necessary but not sufficient — the merge decision waits on this review.
 
 ## Phase 1 — Fetch PR shape
 
@@ -66,7 +65,7 @@ A finding without a doc citation drops one severity band. Unsourced opinions are
 Read the subagent's report and route:
 
 - **All findings ≤low and CI green** — surface "no actionable findings" to the user; the PR is ready for the human's merge decision.
-- **Any blocker/high, or actionable medium** — fire `responding-to-pr-review`, handing it **the structured report (Phase 3 findings) and the subagent id**. These findings are thread-less, so its loop drives each through apply / skip-with-reason / push-back exactly as it does CodeRabbit threads — a blocker gets implemented, not summarized. The subagent id keys the post-resolution summary so the audit trail survives the handoff.
+- **Any blocker/high, or actionable medium** — fire `responding-to-pr-review`, handing it **the structured report (Phase 3 findings) and the subagent id**. These findings are thread-less, so its loop drives each through apply / skip-with-reason / push-back exactly as it does a human reviewer's inline threads — a blocker gets implemented, not summarized. The subagent id keys the post-resolution summary so the audit trail survives the handoff.
 - **Subagent malformed return** (not the structured format above) — re-dispatch once with a tightened prompt naming the format verbatim. If the second dispatch also malforms, stop and surface a handoff-required failure to the user; log the malformation via `anvil create inbox` and wait for manual review or a later retry. Do **not** fall back to main-session review — that defeats the Iron Law.
 
 Do **not** silently drop findings the subagent surfaced. If you disagree, push back in the responding-to-pr-review loop — the audit trail matters more than the disagreement.
@@ -74,7 +73,7 @@ Do **not** silently drop findings the subagent surfaced. If you disagree, push b
 ## What NOT to do
 
 - Do not review the PR in this session. Dispatch.
-- Do not auto-fire on every PR. CodeRabbit + CI is the default review pipeline; this is a fallback.
+- Do not skip the review because CI is green. CI is necessary, not sufficient; the merge decision waits on this review pass.
 - Do not restate the standards docs in the dispatch prompt — name the paths, the subagent reads them.
 - Do not merge. `dispatching-issue-fleet`'s Iron Law applies — human owns the merge button.
 - Do not skip findings with "nitpick" when the finding cites a documented repo rule. Same nitpick policy as `responding-to-pr-review`.

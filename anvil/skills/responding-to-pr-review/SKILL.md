@@ -1,6 +1,6 @@
 ---
 name: responding-to-pr-review
-description: "Use when a PR has inline review comments to address — CodeRabbit, a human reviewer, or reviewing-pr's output. Triggers: 'respond to the review', 'address coderabbit', 'reply to inline comments', 'babysit PR <n>'."
+description: "Use when a PR has review findings to address — a reviewing-pr subagent report or a human reviewer's inline comments. Triggers: 'respond to the review', 'address the findings', 'reply to inline comments', 'babysit PR <n>'."
 ---
 
 # Responding to PR Review
@@ -13,14 +13,14 @@ Your job is to drive every review finding — inline thread or thread-less repor
 
 ## Review-source-agnostic posture
 
-The same pipeline handles CodeRabbit, a human reviewer, and `reviewing-pr`'s fresh-subagent output. Findings arrive in one of two shapes:
+The same pipeline handles `reviewing-pr`'s fresh-subagent report and a human reviewer's inline comments. Findings arrive in one of two shapes:
 
-- **Inline thread on a hunk** (CodeRabbit, human) — reply via `gh api .../comments/<id>/replies`.
-- **Thread-less structured report** (a `reviewing-pr` subagent's Phase 3 findings, handed in-hand) — no GH thread exists to reply on.
+- **Thread-less structured report** (a `reviewing-pr` subagent's Phase 3 findings, handed in-hand) — the default source; no GH thread exists to reply on.
+- **Inline thread on a hunk** (a human reviewer) — reply via `gh api .../comments/<id>/replies`.
 
 The shape decides only *where the reply lands*, never *whether the finding is evaluated*. Every finding — threaded or thread-less — runs Phase 2's apply / skip-with-reason / push-back. A thread-less blocker gets implemented, not summarized. Routing thread-less findings to a top-level `gh pr comment` *instead of* Phase 2 is the silent-drop this skill forbids; the only legitimate top-level comment is the Phase 3 summary posted *after* each finding is resolved.
 
-Reviewer identity does **not** change the loop. CodeRabbit nitpicks that cite a documented repo rule (e.g. `docs/code-design.md`'s "no helper without second use") get the same treatment as a human asking for the same fix: apply, do not skip.
+Reviewer identity does **not** change the loop. A finding that cites a documented repo rule (e.g. `docs/code-design.md`'s "no helper without second use") gets the same treatment whether the subagent or a human raised it: apply, do not skip.
 
 ## Phase 1 — Collect findings
 
@@ -37,13 +37,13 @@ If there are zero inline comments AND no thread-less report was handed in AND CI
 
 ## Phase 2 — Evaluate
 
-Defer evaluation discipline to `superpowers:receiving-code-review`. Per finding — inline thread or thread-less report entry alike — decide one of:
+Evaluate each finding on technical merit for *this* codebase: verify the claim against the code before implementing, and push back with reasoning where it is wrong rather than performing agreement. Per finding — inline thread or thread-less report entry alike — decide one of:
 
 - **Fix.** Implement, commit, push. The commit SHA is the audit record (Phase 3 chooses the channel).
 - **Skip with reason.** Record the reason. Examples: "out of scope for this PR — tracked in `<issue-id>`", "intentional per `docs/<...>`".
 - **Push back.** State the disagreement with rationale. The reviewer either updates or the human resolves it.
 
-**Nitpick policy:** if a nitpick cites a documented repo rule, **apply** the fix. Do not skip with "nitpick". Memory entry `feedback_coderabbit_read_inline_before_merge` is the rationale — SUCCESS status is non-blocking, not no-findings.
+**Nitpick policy:** if a finding flagged as a nit cites a documented repo rule, **apply** the fix. Do not skip with "nitpick" — a low-severity band is not a no-finding.
 
 ## Phase 3 — Record per finding
 
@@ -77,15 +77,9 @@ Branch on `state`:
 - `merged` or `closed` — done; surface the PR url and return.
 - `review_blocked` — re-fetch inline comments and loop Phase 2-3.
 - `ci_failed` — investigate the failed check, fix, push, then re-invoke the poller.
-- `timeout` — surface to the user; fall back to local-review per the rate-limit fallback below.
+- `timeout` — surface to the user; a human reviewer that never lands is their call, not an infinite poll.
 
-Default timeout (900 s / 15 min) aligns with the CodeRabbit rate-limit-fallback policy.
-
-## Rate-limit fallback
-
-CodeRabbit caps per user per hour. If a batched-PR session burns the cap and a PR sits without a CodeRabbit pass beyond the budget, merge on **local-review + CI-green**. Memory entry `feedback_coderabbit_rate_limit_per_hour` records the cap-shape; 5-PR batches reliably hit it.
-
-The fallback is local-review, not zero review. Do a one-pass diff read against the hard-rules list before declaring green.
+The default 900 s / 15 min timeout is a poll budget, not a merge deadline.
 
 ## Fleet-PR override
 
@@ -99,19 +93,19 @@ When the PR was opened by a `dispatching-issue-fleet` subagent, **green CI is no
 
 **Rationale (evidence at filing time):**
 
-- PR #37 — single-callsite helper extraction (`listBundledSkills`) shipped by a fleet subagent; CodeRabbit flagged it as a "no helper without second use" violation. Green CI hid it.
+- PR #37 — single-callsite helper extraction (`listBundledSkills`) shipped by a fleet subagent; flagged as a "no helper without second use" violation. Green CI hid it.
 - PR #60 — same helper-extraction shape, second occurrence in the 2026-05-15 batch. Same green-CI miss.
-- PR #61 — `--remove 1 --remove 1` against `["1","x"]` index-fall-through correctness bug. CodeRabbit caught it and suggested the exact patch. Green CI ran the wrong test.
+- PR #61 — `--remove 1 --remove 1` against `["1","x"]` index-fall-through correctness bug. An independent review pass caught it and suggested the exact patch. Green CI ran the wrong test.
 
 The override is a workflow-shape constraint keyed off the dispatching skill, not the user's intent.
 
 ## Halt at green
 
-After every thread has a reply AND CI is green on the latest SHA AND no new reviewer activity within the poll budget: stop. Surface the PR url. The human merges.
+After every finding has an outcome AND CI is green on the latest SHA AND no new reviewer activity within the poll budget: stop. Surface the PR url. The human merges.
 
 ## What NOT to do
 
 - Do not merge. Even on green. Even if the user said "merge on green" and this isn't a fleet PR — confirm intent first.
 - Do not skip with "nitpick" when the nit cites a documented repo rule (see Phase 2 nitpick policy).
-- Do not paraphrase CodeRabbit's findings in the reply. Cite the SHA; the diff speaks.
-- Do not loop past the poll budget without surfacing to the user. A reviewer that never lands is a signal to fall back to local-review, not infinite poll.
+- Do not paraphrase the reviewer's findings in the reply. Cite the SHA; the diff speaks.
+- Do not loop past the poll budget without surfacing to the user. A human reviewer that never lands is a signal to surface to the user, not infinite poll.
