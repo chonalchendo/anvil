@@ -41,24 +41,32 @@ The subagent prompt names the standards by path and instructs the subagent to re
 
 Do not restate any of these in the dispatch prompt. The subagent reads them directly. Restating burns context and drifts from source.
 
+### Goal validation
+
+Beyond reading the standards docs, the dispatch prompt carries one explicit task — the standards are necessary but not sufficient, and a clean diff can still fail to deliver the issue it closes. Instruct the subagent to resolve the PR's linked issue — from the PR body's issue reference or the branch slug — and run `anvil show issue <id> --json` to read its `goal:`, the one-sentence terminal predicate. It judges whether the diff plainly achieves that goal and reports a shortfall as a Phase 3 finding — **blocker** when the goal is plainly unmet. When the issue also carries `acceptance[]` (an optional prose aid post-`goal:`), check each criterion too. Name the lookup; do not paste the goal or ACs into the dispatch prompt (the subagent fetches them — same context discipline as the standards docs).
+
+`## Verification` is the binary gate `completing-issue` already ran; this step adds the judgment `goal:` needs and a binary check cannot give.
+
+If no linked issue resolves, the subagent records that it could not and skips goal-validation rather than inventing a target.
+
 ## Phase 3 — Findings contract
 
 The subagent returns a structured report with one entry per finding:
 
 ```text
 [<severity>] <path>:<line> — <one-line claim>
-  Cite: <doc path or CLAUDE.md rule>
+  Cite: <doc path, CLAUDE.md rule, or the issue's goal/acceptance criterion>
   Suggest: <concrete patch or "surface to author">
 ```
 
 Severity bands (the subagent applies these; this skill interprets them downstream):
 
-- **blocker** — correctness bug, security issue, or hard-rule violation that would land a regression. Always fix before merge.
+- **blocker** — correctness bug, security issue, hard-rule violation that would land a regression, or the issue's goal the diff plainly fails to achieve. Always fix before merge.
 - **high** — design smell with a named doc citation (e.g. "helper extracted for one callsite" → `code-design.md`). Default: fix.
 - **medium** — quality nit with a citation. Default: fix if cheap, surface if it requires judgment.
 - **low** — style/taste, no doc citation. Default: surface, do not fix.
 
-A finding without a doc citation drops one severity band. Unsourced opinions are low at best.
+A finding without a citation — doc, rule, or the issue's goal/AC — drops one severity band. Unsourced opinions are low at best.
 
 ## Phase 4 — Interpret findings
 
