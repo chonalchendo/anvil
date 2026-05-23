@@ -13,8 +13,8 @@ func TestCreate_NearDuplicate_Surfaces_PriorIssue_JSON(t *testing.T) {
 	t.Chdir(repo)
 
 	for _, args := range [][]string{
-		{"create", "issue", "--title", "Improve foo bar baz", "--description", "first", "--tags", "domain/dev-tools", "--allow-new-facet=domain"},
-		{"create", "issue", "--title", "Improve foo bar", "--description", "near dup", "--tags", "domain/dev-tools", "--json"},
+		{"create", "issue", "--title", "Improve foo bar baz", "--description", "first", "--goal", "foo bar baz is improved", "--tags", "domain/dev-tools", "--allow-new-facet=domain"},
+		{"create", "issue", "--title", "Improve foo bar", "--description", "near dup", "--goal", "foo bar is improved", "--tags", "domain/dev-tools", "--json"},
 	} {
 		cmd := newRootCmd()
 		cmd.SetArgs(args)
@@ -49,8 +49,8 @@ func TestCreate_NearDuplicate_Surfaces_PriorIssue_Text(t *testing.T) {
 	t.Chdir(repo)
 
 	for _, args := range [][]string{
-		{"create", "issue", "--title", "Improve foo bar baz", "--description", "first", "--tags", "domain/dev-tools", "--allow-new-facet=domain"},
-		{"create", "issue", "--title", "Improve foo bar", "--description", "near dup", "--tags", "domain/dev-tools"},
+		{"create", "issue", "--title", "Improve foo bar baz", "--description", "first", "--goal", "foo bar baz is improved", "--tags", "domain/dev-tools", "--allow-new-facet=domain"},
+		{"create", "issue", "--title", "Improve foo bar", "--description", "near dup", "--goal", "foo bar is improved", "--tags", "domain/dev-tools"},
 	} {
 		cmd := newRootCmd()
 		cmd.SetArgs(args)
@@ -79,8 +79,8 @@ func TestCreate_NearDuplicate_ForceNew_SkipsCheck(t *testing.T) {
 	t.Chdir(repo)
 
 	for _, args := range [][]string{
-		{"create", "issue", "--title", "Improve foo bar baz", "--description", "first", "--tags", "domain/dev-tools", "--allow-new-facet=domain"},
-		{"create", "issue", "--title", "Improve foo bar", "--description", "near dup", "--tags", "domain/dev-tools", "--force-new"},
+		{"create", "issue", "--title", "Improve foo bar baz", "--description", "first", "--goal", "foo bar baz is improved", "--tags", "domain/dev-tools", "--allow-new-facet=domain"},
+		{"create", "issue", "--title", "Improve foo bar", "--description", "near dup", "--goal", "foo bar is improved", "--tags", "domain/dev-tools", "--force-new"},
 	} {
 		cmd := newRootCmd()
 		cmd.SetArgs(args)
@@ -103,8 +103,8 @@ func TestCreate_NearDuplicate_NoMatch_NoWarning(t *testing.T) {
 	t.Chdir(repo)
 
 	for _, args := range [][]string{
-		{"create", "issue", "--title", "Improve foo bar baz", "--description", "first", "--tags", "domain/dev-tools", "--allow-new-facet=domain"},
-		{"create", "issue", "--title", "Totally unrelated thing", "--description", "no overlap", "--tags", "domain/dev-tools"},
+		{"create", "issue", "--title", "Improve foo bar baz", "--description", "first", "--goal", "foo bar baz is improved", "--tags", "domain/dev-tools", "--allow-new-facet=domain"},
+		{"create", "issue", "--title", "Totally unrelated thing", "--description", "no overlap", "--goal", "totally unrelated thing is done", "--tags", "domain/dev-tools"},
 	} {
 		cmd := newRootCmd()
 		cmd.SetArgs(args)

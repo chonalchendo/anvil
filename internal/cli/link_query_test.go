@@ -15,9 +15,11 @@ func TestLinkFromReturnsOutgoingEdges(t *testing.T) {
 	execCmd(t, "init", vault)
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "a", "--description", "a",
+		"--goal", "a is done",
 		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "b", "--description", "b",
+		"--goal", "b is done",
 		"--tags", "domain/dev-tools")
 	execCmd(t, "link", "issue", "demo.a", "issue", "demo.b")
 
@@ -39,9 +41,11 @@ func TestLinkToReturnsIncomingEdges(t *testing.T) {
 	execCmd(t, "init", vault)
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "a", "--description", "a",
+		"--goal", "a is done",
 		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "b", "--description", "b",
+		"--goal", "b is done",
 		"--tags", "domain/dev-tools")
 	execCmd(t, "link", "issue", "demo.a", "issue", "demo.b")
 
@@ -91,6 +95,7 @@ func TestLinkDriftFlagsSlugMismatch(t *testing.T) {
 	// One drift pair: plan slug `pre-parse` links to issue `with-pre-parse`.
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "x", "--description", "x",
+		"--goal", "x is done",
 		"--slug", "with-pre-parse",
 		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
 	execCmd(t, "create", "plan",
@@ -102,6 +107,7 @@ func TestLinkDriftFlagsSlugMismatch(t *testing.T) {
 	// One clean pair: plan slug matches issue slug exactly.
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "z", "--description", "z",
+		"--goal", "z is done",
 		"--slug", "aligned",
 		"--tags", "domain/dev-tools")
 	execCmd(t, "create", "plan",

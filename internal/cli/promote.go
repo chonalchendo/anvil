@@ -170,9 +170,11 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 
 	title, _ := inbox.FrontMatter["title"].(string)
 	created := time.Now().UTC().Format("2006-01-02")
-	// Spine targets require a non-empty description; reuse the inbox title as
-	// the one-liner so promote stays a single-step operation.
-	data := templateData{Title: title, Description: title, Created: created, Tags: flagTags}
+	// Spine targets require a non-empty description, and issues now require a
+	// non-empty goal; reuse the inbox title for both so promote stays a
+	// single-step operation. The author refines goal via `anvil set` once the
+	// stub exists. Goal is ignored by non-issue templates.
+	data := templateData{Title: title, Description: title, Goal: title, Created: created, Tags: flagTags}
 	idInputs := core.IDInputs{Title: title}
 
 	if target == core.TypeIssue {

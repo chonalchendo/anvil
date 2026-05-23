@@ -145,6 +145,19 @@ func newTransitionCmd() *cobra.Command {
 				}
 			}
 
+			// Backfill-on-claim: refuse issue → in-progress unless goal: is set.
+			// The back-catalogue predates the field; this lazily forces a
+			// one-sentence terminal predicate at claim time rather than via a
+			// sweep. --force is the escape hatch, matching the anchor gate below.
+			if t == core.TypeIssue && to == "in-progress" && !force {
+				if goal, _ := a.FrontMatter["goal"].(string); strings.TrimSpace(goal) == "" {
+					e := errfmt.NewStructured("missing_goal").
+						Set("issue", id).
+						Set("fix_hint", "set a one-sentence goal before claiming: anvil set issue "+id+` goal "<what done means>"`)
+					return printAndReturn(cmd, e)
+				}
+			}
+
 			// Refuse issue → in-progress when the recorded reproduction_anchor
 			// no longer matches observed output. Grandfathers issues that have
 			// no anchor.

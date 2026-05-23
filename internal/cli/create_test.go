@@ -39,7 +39,7 @@ func TestCreate_DescriptionTooLong_NamesSpineRule(t *testing.T) {
 
 	long := strings.Repeat("x", 125)
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "T", "--description", long})
+	cmd.SetArgs([]string{"create", "issue", "--title", "T", "--description", long, "--goal", "goal"})
 	var errBuf bytes.Buffer
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&errBuf)
@@ -63,7 +63,7 @@ func TestCreate_Issue_WritesValidFile(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "Fix login bug", "--description", "test description", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "Fix login bug", "--description", "test description", "--goal", "login bug is fixed", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -212,7 +212,7 @@ func TestCreate_JSON_ReturnsIDAndPath(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description", "--json", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description", "--goal", "goal", "--json", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -358,7 +358,7 @@ func TestCreate_Issue_WithBody_FlagRoundTrips(t *testing.T) {
 
 	cmd := newRootCmd()
 	body := "## Problem\nFrom flag.\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
-	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description", "--body", body, "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description", "--goal", "goal", "--body", body, "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -378,7 +378,7 @@ func TestCreate_Issue_ScaffoldsH2(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "scaffold test", "--description", "x", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "scaffold test", "--description", "x", "--goal", "scaffold is tested", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -437,7 +437,7 @@ func TestCreate_Issue_ExplicitEmptyBody_RejectsWithMissingSections(t *testing.T)
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "no scaffold", "--description", "x", "--tags", "domain/dev-tools", "--allow-new-facet=domain", "--body", ""})
+	cmd.SetArgs([]string{"create", "issue", "--title", "no scaffold", "--description", "x", "--goal", "goal", "--tags", "domain/dev-tools", "--allow-new-facet=domain", "--body", ""})
 	if err := cmd.Execute(); !errors.Is(err, ErrSchemaInvalid) {
 		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
 	}
@@ -463,6 +463,7 @@ func TestCreate_Issue_BodyFile_RoundTrips(t *testing.T) {
 		"create", "issue",
 		"--title", "from-body-file",
 		"--description", "test",
+		"--goal", "goal",
 		"--body-file", bodyPath,
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
@@ -496,6 +497,7 @@ func TestCreate_Issue_BodyFile_RejectsBadWikilink_RollsBack(t *testing.T) {
 		"create", "issue",
 		"--title", "bad-link",
 		"--description", "test",
+		"--goal", "goal",
 		"--body-file", bodyPath,
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
@@ -528,6 +530,7 @@ func TestCreate_Issue_BodyStdinDash(t *testing.T) {
 		"create", "issue",
 		"--title", "from-stdin-dash",
 		"--description", "test",
+		"--goal", "goal",
 		"--body", "-",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
@@ -559,6 +562,7 @@ func TestCreate_BodyFlagAndBodyFile_Conflict(t *testing.T) {
 		"create", "issue",
 		"--title", "x",
 		"--description", "d",
+		"--goal", "goal",
 		"--body", "literal",
 		"--body-file", bodyPath,
 		"--tags", "domain/dev-tools",
@@ -1401,6 +1405,7 @@ func TestCreate_Issue_RejectsUnknownDomain(t *testing.T) {
 		"create", "issue",
 		"--title", "Fix X",
 		"--description", "y",
+		"--goal", "X is fixed",
 		"--tags", "domain/quantum-physics",
 	})
 	var out, errOut bytes.Buffer
@@ -1429,6 +1434,7 @@ func TestCreate_Issue_AllowNewFacetSucceeds(t *testing.T) {
 		"create", "issue",
 		"--title", "Fix X",
 		"--description", "y",
+		"--goal", "X is fixed",
 		"--tags", "domain/quantum-physics",
 		"--allow-new-facet=domain",
 	})
@@ -1448,7 +1454,7 @@ func TestCreate_Issue_SuggestsContainmentMatch(t *testing.T) {
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
 		"create", "issue", "--title", "seed",
-		"--description", "y", "--tags", "domain/dbt", "--allow-new-facet=domain",
+		"--description", "y", "--goal", "goal", "--tags", "domain/dbt", "--allow-new-facet=domain",
 	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
@@ -1457,7 +1463,7 @@ func TestCreate_Issue_SuggestsContainmentMatch(t *testing.T) {
 	cmd2 := newRootCmd()
 	cmd2.SetArgs([]string{
 		"create", "issue", "--title", "Other",
-		"--description", "y", "--tags", "domain/dbt-testing",
+		"--description", "y", "--goal", "goal", "--tags", "domain/dbt-testing",
 	})
 	var errOut bytes.Buffer
 	cmd2.SetErr(&errOut)
@@ -1479,6 +1485,7 @@ func TestCreate_Issue_Idempotent_ReturnsAlreadyExists(t *testing.T) {
 		"create", "issue",
 		"--title", "Fix login bug",
 		"--description", "test description",
+		"--goal", "login bug is fixed",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 		"--json",
@@ -1549,6 +1556,7 @@ func TestCreate_Issue_DriftRefusedWithoutUpdate(t *testing.T) {
 			"create", "issue",
 			"--title", "Fix login bug",
 			"--description", desc,
+			"--goal", "login bug is fixed",
 			"--tags", "domain/dev-tools",
 			"--allow-new-facet=domain",
 		})
@@ -1587,6 +1595,7 @@ func TestCreate_Issue_TagReorder_NoDrift(t *testing.T) {
 			"create", "issue",
 			"--title", "Fix login bug",
 			"--description", "d",
+			"--goal", "login bug is fixed",
 			"--tags", tags,
 			"--allow-new-facet=domain",
 		})
@@ -1612,6 +1621,7 @@ func TestCreate_Issue_BodyDrift_RefusedWithoutUpdate(t *testing.T) {
 			"create", "issue",
 			"--title", "Fix login bug",
 			"--description", "d",
+			"--goal", "login bug is fixed",
 			"--body", body,
 			"--tags", "domain/dev-tools",
 			"--allow-new-facet=domain",
@@ -1641,6 +1651,7 @@ func TestCreate_Issue_UpdateRewritesOnDrift(t *testing.T) {
 		"create", "issue",
 		"--title", "Fix login bug",
 		"--description", "first",
+		"--goal", "login bug is fixed",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 	})
@@ -1656,6 +1667,7 @@ func TestCreate_Issue_UpdateRewritesOnDrift(t *testing.T) {
 		"create", "issue",
 		"--title", "Fix login bug",
 		"--description", "second",
+		"--goal", "login bug is fixed",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 		"--update",
@@ -1693,6 +1705,7 @@ func TestCreate_Issue_UpdateWithoutDrift_NoRewrite(t *testing.T) {
 		"create", "issue",
 		"--title", "Fix login bug",
 		"--description", "same",
+		"--goal", "login bug is fixed",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 	}
@@ -1734,6 +1747,7 @@ func TestCreate_DriftError_FormatsScalar(t *testing.T) {
 			"create", "issue",
 			"--title", "Fix login bug",
 			"--description", desc,
+			"--goal", "login bug is fixed",
 			"--tags", "domain/dev-tools",
 			"--allow-new-facet=domain",
 		})
@@ -1776,6 +1790,7 @@ func TestCreate_DriftError_FormatsTagsArray(t *testing.T) {
 			"create", "issue",
 			"--title", "Fix login bug",
 			"--description", "d",
+			"--goal", "login bug is fixed",
 			"--tags", tags,
 			"--allow-new-facet=domain",
 		})
@@ -1804,6 +1819,7 @@ func TestCreate_DriftError_FormatsBodyTruncated(t *testing.T) {
 			"create", "issue",
 			"--title", "Fix login bug",
 			"--description", "d",
+			"--goal", "login bug is fixed",
 			"--body", body,
 			"--tags", "domain/dev-tools",
 			"--allow-new-facet=domain",
@@ -1959,7 +1975,7 @@ func TestCreate_Issue_FreshVault_MissingFacet_OneShotHint(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "y"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "y", "--goal", "goal"})
 	var errOut bytes.Buffer
 	cmd.SetOut(&errOut)
 	cmd.SetErr(&errOut)
@@ -1993,6 +2009,7 @@ func TestCreate_JSON_SchemaInvalid_EmitsViolationsEnvelope(t *testing.T) {
 	// (min 1 chars / pattern ^[^\n]+$) — same shape as the issue's repro.
 	cmd.SetArgs([]string{
 		"create", "issue", "--title", "x",
+		"--goal", "goal",
 		"--tags", "domain/methodology", "--allow-new-facet=domain", "--json",
 	})
 	var out, errOut bytes.Buffer
@@ -2088,7 +2105,7 @@ func TestCreate_Issue_StructuredErrorHead_CodeFieldExpectedOnSameLine(t *testing
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "y"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "y", "--goal", "goal"})
 	var errOut bytes.Buffer
 	cmd.SetOut(&errOut)
 	cmd.SetErr(&errOut)

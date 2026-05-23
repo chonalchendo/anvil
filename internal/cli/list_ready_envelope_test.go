@@ -17,6 +17,7 @@ func TestListReadyJSON_IncludesTitleAndSeverity(t *testing.T) {
 		"--project", "demo",
 		"--title", "fix login flake",
 		"--description", "login intermittently fails",
+		"--goal", "login flake is fixed",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 	)
@@ -56,6 +57,7 @@ func TestListReadyJSON_TotalIsUnboundedMatchCount(t *testing.T) {
 			"--project", "demo",
 			"--title", title,
 			"--description", "desc",
+			"--goal", "goal",
 			"--tags", "domain/dev-tools",
 			"--allow-new-facet=domain",
 		)

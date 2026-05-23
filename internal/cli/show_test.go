@@ -20,7 +20,7 @@ func writeFixtureIssue(t *testing.T, vault, project, slug, title string) string 
 		FrontMatter: map[string]any{
 			"type": "issue", "title": title, "description": "fixture description", "created": "2026-04-29",
 			"updated": "2026-04-29", "status": "open", "project": project, "severity": "medium",
-			"tags": []any{"domain/dev-tools"},
+			"tags": []any{"domain/dev-tools"}, "goal": "fixture goal is done",
 		},
 		Body: "## Context\n\nfixture body.\n",
 	}
@@ -369,6 +369,7 @@ func TestShowValidate_Issue_DanglingMilestone(t *testing.T) {
 			"status": "open", "project": "foo", "severity": "low",
 			"tags":      []any{"domain/dev-tools"},
 			"milestone": "[[milestone.foo.ghost]]",
+			"goal":      "x is done",
 		},
 	}
 	if err := a.Save(); err != nil {
@@ -454,6 +455,7 @@ func TestShowValidate_StdoutVsStderr(t *testing.T) {
 			"status": "open", "project": "foo", "severity": "low",
 			"tags":      []any{"domain/dev-tools"},
 			"milestone": "[[milestone.foo.ghost]]",
+			"goal":      "x is done",
 		},
 	}
 	if err := a.Save(); err != nil {
@@ -490,6 +492,7 @@ func TestShowValidate_JSON(t *testing.T) {
 			"status": "open", "project": "foo", "severity": "low",
 			"tags":      []any{"domain/dev-tools"},
 			"milestone": "[[milestone.foo.ghost]]",
+			"goal":      "x is done",
 		},
 	}
 	if err := a.Save(); err != nil {
@@ -539,9 +542,11 @@ func TestShow_IncomingEdges(t *testing.T) {
 	execCmd(t, "init", vault)
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "Source issue", "--description", "src",
+		"--goal", "source is done",
 		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "Target issue", "--description", "tgt",
+		"--goal", "target is done",
 		"--tags", "domain/dev-tools")
 	execCmd(t, "link", "issue", "demo.source-issue", "issue", "demo.target-issue")
 
@@ -582,9 +587,11 @@ func TestShow_NoIncomingFlagSuppresses(t *testing.T) {
 	execCmd(t, "init", vault)
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "A", "--description", "a",
+		"--goal", "a is done",
 		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "B", "--description", "b",
+		"--goal", "b is done",
 		"--tags", "domain/dev-tools")
 	execCmd(t, "link", "issue", "demo.a", "issue", "demo.b")
 
@@ -663,6 +670,7 @@ func TestShow_NoIncomingEdgesRendersCleanly(t *testing.T) {
 	execCmd(t, "init", vault)
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "Lonely", "--description", "lonely",
+		"--goal", "lonely is done",
 		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
 
 	text := execCmd(t, "show", "issue", "demo.lonely", "--no-body")

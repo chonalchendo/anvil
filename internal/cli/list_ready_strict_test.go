@@ -17,12 +17,15 @@ func TestListReadyStrictExcludesBlockedAndBlockerTargets(t *testing.T) {
 	execCmd(t, "init", vault)
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "alpha", "--description", "alpha desc",
+		"--goal", "alpha is done",
 		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "bravo", "--description", "bravo desc",
+		"--goal", "bravo is done",
 		"--tags", "domain/dev-tools")
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "charlie", "--description", "charlie desc",
+		"--goal", "charlie is done",
 		"--tags", "domain/dev-tools")
 	execCmd(t, "set", "issue", "demo.bravo", "depends_on", "--add", "[[issue.demo.charlie]]")
 
@@ -58,9 +61,11 @@ func TestListReadyStrictRecoversWhenBlockerResolves(t *testing.T) {
 	execCmd(t, "init", vault)
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "bravo", "--description", "bravo desc",
+		"--goal", "bravo is done",
 		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "charlie", "--description", "charlie desc",
+		"--goal", "charlie is done",
 		"--tags", "domain/dev-tools")
 	execCmd(t, "set", "issue", "demo.bravo", "depends_on", "--add", "[[issue.demo.charlie]]")
 	execCmd(t, "transition", "issue", "demo.charlie", "in-progress", "--owner", "claude")

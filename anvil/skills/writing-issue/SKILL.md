@@ -24,9 +24,9 @@ Workflow for taking a problem worth tracking — whether a fuzzy "should we buil
 
 ## Shape test
 
-**If you can name an acceptance criterion in one breath, it's an issue.** Use this skill when the entry is decisive (problem + AC + milestone hint) OR when a fuzzy thought is ready to be pressure-tested into one. Inbox-first is NOT required when the entry is already shaped — route here directly.
+**If you can name the goal — a one-sentence definition of done — in one breath, it's an issue.** Use this skill when the entry is decisive (problem + goal + milestone hint) OR when a fuzzy thought is ready to be pressure-tested into one. Inbox-first is NOT required when the entry is already shaped — route here directly.
 
-Wrong-choice example: user is dumping a half-formed thought with no AC and no clear acceptance shape. That's an inbox item — hand off to `capturing-inbox` and resume here later via `anvil promote` if the thought sharpens.
+Wrong-choice example: user is dumping a half-formed thought with no nameable goal and no clear definition of done. That's an inbox item — hand off to `capturing-inbox` and resume here later via `anvil promote` if the thought sharpens.
 
 ## Iron Law
 
@@ -65,7 +65,7 @@ Classify the user's first message before doing anything else. The classification
 
 - **Decisive** when the message contains *all three* of:
   - a problem statement (one sentence describing what is broken or missing),
-  - at least one acceptance criterion (testable condition for done),
+  - a goal — a one-sentence terminal predicate naming what "done" means,
   - a milestone reference — either an explicit id, or a phrase the agent can map to exactly one existing milestone in `~/anvil-vault/85-milestones/` (filtered by `project` frontmatter) without further user input. If two or more milestones could plausibly match, treat as fuzzy.
 - **Fuzzy** otherwise — including "should we build X", "I've been thinking about Y", "is this worth doing", or any message missing one of the three signals.
 - **Tie-break:** when in doubt, run convergence. Misclassifying decisive→fuzzy costs one extra round-trip; misclassifying fuzzy→decisive ships a thin issue.
@@ -130,15 +130,14 @@ Pick the closest existing value if one fits; only invent a new one if no existin
 
 When promoting an inbox item, pass `--tags` on the `anvil promote <id> --as issue` call after consulting the same list.
 
+Compose the **goal** first: one sentence, ≤120 chars, naming what "done" means — the issue's terminal predicate. It is required (`--goal`) and gates the claim later. Keep it a predicate ("inbox no longer drops items on concurrent writes"), not a task list.
+
 Author the body up front and pass it to `create` via `--body-file` (or `--body -` for piped stdin). `create` validates the frontmatter AND body (required H2s, wikilink targets) and rolls back the write on failure — no separate `anvil validate` step. The `## Verification` block uses fenced bash; see `docs/issue-spec.md` for the full format spec.
 
 ````bash
 cat > /tmp/issue-body.md <<'EOF'
 ## Problem
 <one paragraph from convergence (fuzzy) or the stated problem (decisive)>
-
-## Acceptance criteria
-- <testable criterion 1>
 
 ## Non-goals
 - <from Phase 3 smallest-viable or stated up front>
@@ -159,8 +158,10 @@ cat > /tmp/issue-body.md <<'EOF'
 - [[milestone.<project>.<slug>]]
 EOF
 
-anvil create issue --title "<title>" --tags domain/<x> --body-file /tmp/issue-body.md --json
+anvil create issue --title "<title>" --goal "<one-sentence definition of done>" --tags domain/<x> --body-file /tmp/issue-body.md --json
 ````
+
+An optional `## Acceptance criteria` prose checklist may follow `## Problem` when an unambiguous bulleted list aids the implementer — but it is no longer required, and the binary gate is `## Verification`, not AC.
 
 Capture `id` and `path` from the JSON output. The file lands at `~/anvil-vault/70-issues/<project>.<slug>.md`.
 
@@ -171,7 +172,7 @@ anvil set issue <id> milestone "[[milestone.<project>.<slug>]]"
 anvil set issue <id> severity <low|medium|high|critical>
 ```
 
-For `acceptance[]`, run one `--add` per criterion:
+`acceptance[]` is **optional**. Add bullets only when a prose checklist genuinely aids the implementer beyond `goal:` + `## Verification`; most issues need none. When you do, run one `--add` per criterion:
 
 ```bash
 anvil set issue <id> acceptance --add "<criterion>"
@@ -182,7 +183,6 @@ Positional values on array fields error with `field_is_array`; use `--add VALUE`
 Required body sections (enforced by `create`):
 
 - `## Problem` — one paragraph from convergence (fuzzy) or the stated problem (decisive).
-- `## Acceptance criteria` — bulleted, each testable without ambiguity.
 - `## Non-goals` — from Phase 3 smallest-viable (fuzzy) or stated up front (decisive).
 - `## Verification` — operational checks in fenced bash blocks (full spec: `docs/issue-spec.md`). Two subsections, both required:
   - `### Direct` — fenced `bash` block with ≥1 line. Each line must exit 0. Typically unit/integration tests run against the dev tree.

@@ -216,12 +216,44 @@ func TestValidate_Issue_NewShape(t *testing.T) {
 	fm := map[string]any{
 		"type": "issue", "title": "Fix inbox", "description": "x", "created": "2026-04-29",
 		"status": "open", "project": "anvil", "severity": "medium",
+		"goal":       "inbox no longer drops items",
 		"tags":       []any{"domain/dev-tools"},
 		"milestone":  "[[milestone.anvil.cli-substrate]]",
 		"acceptance": []any{"Bug reproduces no longer"},
 	}
 	if err := Validate("issue", fm); err != nil {
 		t.Fatalf("expected valid: %v", err)
+	}
+}
+
+func TestValidate_Issue_Goal(t *testing.T) {
+	base := map[string]any{
+		"type": "issue", "title": "x", "description": "x", "created": "2026-04-29",
+		"status": "open", "project": "anvil", "severity": "low",
+		"tags": []any{"domain/dev-tools"},
+	}
+	cases := []struct {
+		name    string
+		goal    any
+		wantErr bool
+	}{
+		{"missing", nil, true},
+		{"empty", "", true},
+		{"single_char", "x", false},
+		{"exactly_120", strings.Repeat("a", 120), false},
+		{"121", strings.Repeat("a", 121), true},
+		{"newline", "line1\nline2", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fm := maps.Clone(base)
+			if c.goal != nil {
+				fm["goal"] = c.goal
+			}
+			if err := Validate("issue", fm); (err != nil) != c.wantErr {
+				t.Fatalf("goal=%v got err=%v wantErr=%v", c.goal, err, c.wantErr)
+			}
+		})
 	}
 }
 
@@ -616,7 +648,7 @@ func TestValidate_Description_Bounds(t *testing.T) {
 	base := map[string]any{
 		"type": "issue", "title": "x", "created": "2026-05-05",
 		"status": "open", "project": "p", "severity": "low",
-		"tags": []any{"domain/dev-tools"},
+		"goal": "x", "tags": []any{"domain/dev-tools"},
 	}
 	cases := []struct {
 		name    string
@@ -645,7 +677,7 @@ func TestValidate_Issue_RequiresDomainTag(t *testing.T) {
 	base := map[string]any{
 		"type": "issue", "title": "x", "description": "x",
 		"created": "2026-05-06", "status": "open",
-		"project": "anvil", "severity": "low",
+		"project": "anvil", "severity": "low", "goal": "x",
 	}
 
 	t.Run("rejects empty tags", func(t *testing.T) {
@@ -733,7 +765,7 @@ func TestValidate_Plan_RejectsBadEffort(t *testing.T) {
 func TestIssue_ReproductionAnchorValid(t *testing.T) {
 	fm := map[string]any{
 		"type": "issue", "title": "x", "description": "x", "created": "2026-05-16",
-		"status": "open", "project": "anvil", "severity": "low",
+		"status": "open", "project": "anvil", "severity": "low", "goal": "x",
 		"tags": []any{"domain/methodology"},
 		"reproduction_anchor": map[string]any{
 			"command":  "echo hello",

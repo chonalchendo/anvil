@@ -89,9 +89,21 @@ func TestValidateIssue_NoLeadingNewline_AllSectionsPresent(t *testing.T) {
 	// the pos-advance path.
 	a := &Artifact{
 		FrontMatter: map[string]any{"type": "issue"},
-		Body:        "## Problem## Acceptance criteria## Non-goals## Verification### Direct### Indirect## Links\n",
+		Body:        "## Problem## Non-goals## Verification### Direct### Indirect## Links\n",
 	}
 	if errs := ValidateIssue(a); len(errs) != 0 {
 		t.Errorf("all headings present — expected no errors, got: %v", errs)
+	}
+}
+
+func TestValidateIssue_NoAcceptanceCriteria_Valid(t *testing.T) {
+	// `## Acceptance criteria` is demoted to an optional prose checklist: a
+	// body omitting it must still validate.
+	a := &Artifact{
+		FrontMatter: map[string]any{"type": "issue"},
+		Body:        "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\nd\n\n### Indirect\ni\n\n## Links\n",
+	}
+	if errs := ValidateIssue(a); len(errs) != 0 {
+		t.Errorf("AC is optional — expected no errors, got: %v", errs)
 	}
 }

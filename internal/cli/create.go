@@ -32,6 +32,10 @@ var validSessionSources = []string{"claude-code", "chatgpt", "claude-web", "curs
 // before any template rendering or facet walk, with a single focused error.
 const maxDescriptionChars = 120
 
+// maxGoalChars bounds an issue's `goal:` — the one-sentence terminal predicate.
+// Same cap as description: it is a spine field, not a place for prose.
+const maxGoalChars = 120
+
 // templateData holds all variables that frontmatter templates may reference.
 // Fields unused by a given type are left at their zero values; templates guard
 // conditional fields with {{- if .X }}.
@@ -39,6 +43,7 @@ type templateData struct {
 	Title            string
 	Created          string
 	Description      string
+	Goal             string
 	Project          string
 	SuggestedType    string
 	SuggestedProject string
@@ -60,6 +65,7 @@ func newCreateCmd() *cobra.Command {
 	var (
 		flagTitle            string
 		flagDescription      string
+		flagGoal             string
 		flagProject          string
 		flagTopic            string
 		flagSuggestedType    string
@@ -224,6 +230,13 @@ func newCreateCmd() *cobra.Command {
 
 			// Per-type mandatory flag checks.
 			switch t {
+			case core.TypeIssue:
+				if strings.TrimSpace(flagGoal) == "" {
+					return fmt.Errorf("--goal is required for issue: a one-sentence terminal predicate (what 'done' means)")
+				}
+				if n := utf8.RuneCountInString(flagGoal); n > maxGoalChars {
+					return fmt.Errorf("--goal too long: %d chars (max %d); goal is a one-sentence predicate, not docs — tighten it", n, maxGoalChars)
+				}
 			case core.TypePlan:
 				if flagIssue == "" {
 					return fmt.Errorf("--issue is required for plan")
@@ -325,6 +338,7 @@ func newCreateCmd() *cobra.Command {
 				Title:            flagTitle,
 				Created:          created,
 				Description:      flagDescription,
+				Goal:             flagGoal,
 				Project:          project,
 				SuggestedType:    flagSuggestedType,
 				SuggestedProject: flagSuggestedProject,
@@ -455,6 +469,7 @@ func newCreateCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&flagTitle, "title", "", "artifact title (required)")
 	cmd.Flags().StringVar(&flagDescription, "description", "", fmt.Sprintf("one-line summary (max %d chars, required for spine types)", maxDescriptionChars))
+	cmd.Flags().StringVar(&flagGoal, "goal", "", fmt.Sprintf("issue terminal predicate, one sentence (max %d chars, required for issue)", maxGoalChars))
 	cmd.Flags().StringVar(&flagProject, "project", "", "project slug (overrides auto-detected; supported on: "+strings.Join(core.TypesSupportingProject(), ", ")+"; inbox aliases to --suggested-project)")
 	cmd.Flags().StringVar(&flagTopic, "topic", "", "decision topic slug (required for decision)")
 	cmd.Flags().StringVar(&flagSuggestedType, "suggested-type", "", "suggested type (inbox only)")

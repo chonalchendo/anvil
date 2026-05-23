@@ -23,6 +23,7 @@ func writeIssueWithAnchor(t *testing.T, vault, id, anchorCmd, expected string) {
 type: issue
 title: "x"
 description: "x"
+goal: "x is done"
 created: 2026-05-16
 status: open
 project: anvil

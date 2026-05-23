@@ -9,9 +9,9 @@ Capture is the load-bearing habit of the whole methodology. If capture has frict
 
 ## Shape test
 
-**If you can name an acceptance criterion in one breath, it's an issue, not an inbox.** Capture is for fleeting / fuzzy ideas not yet sharp enough to write an AC. Shape, not domain: a fully-shaped thought about anvil itself still routes to `writing-issue`; a half-formed thought about anything routes here.
+**If you can name the goal — a one-sentence definition of done — in one breath, it's an issue, not an inbox.** Capture is for fleeting / fuzzy ideas not yet sharp enough to state a goal. Shape, not domain: a fully-shaped thought about anvil itself still routes to `writing-issue`; a half-formed thought about anything routes here.
 
-Wrong-choice example: user pastes a problem statement, acceptance bullets, and a milestone hint. That's an issue — hand off to `writing-issue` rather than capturing and forcing a later promote round-trip.
+Wrong-choice example: user pastes a problem statement, a one-sentence goal, and a milestone hint. That's an issue — hand off to `writing-issue` rather than capturing and forcing a later promote round-trip.
 
 ## Iron Law
 
