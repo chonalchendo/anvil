@@ -17,6 +17,7 @@ func createDemoIssue(t *testing.T) {
 		"--project", "demo",
 		"--title", "foo",
 		"--description", "foo desc",
+		"--goal", "foo is done",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 	)
@@ -141,6 +142,7 @@ func TestTransitionPlanToLocked_RejectsPlaceholderPlan(t *testing.T) {
 	t.Chdir(repo)
 
 	execCmd(t, "create", "issue", "--title", "I", "--description", "d",
+		"--goal", "I is done",
 		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
 	execCmd(t, "create", "plan", "--title", "P", "--description", "d",
 		"--issue", "[[issue.demo.i]]", "--tags", "domain/dev-tools",
@@ -189,6 +191,7 @@ func TestTransitionPlanToLocked_AcceptsRealVerify(t *testing.T) {
 	t.Chdir(repo)
 
 	execCmd(t, "create", "issue", "--title", "I", "--description", "d",
+		"--goal", "I is done",
 		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
 	execCmd(t, "create", "plan", "--title", "P", "--description", "d",
 		"--issue", "[[issue.demo.i]]", "--tags", "domain/dev-tools",

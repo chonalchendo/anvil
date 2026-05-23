@@ -20,7 +20,7 @@ func TestValidate_GoodVault(t *testing.T) {
 
 	// Add one valid issue.
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "good", "--description", "test description", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "good", "--description", "test description", "--goal", "good is done", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestValidate_SingleFile_HappyPath(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "good", "--description", "test description", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
+	cmd.SetArgs([]string{"create", "issue", "--title", "good", "--description", "test description", "--goal", "good is done", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -323,6 +323,7 @@ func TestValidate_GlossaryDrift(t *testing.T) {
 		Path: filepath.Join(vault, "70-issues", "anvil.drift.md"),
 		FrontMatter: map[string]any{
 			"type": "issue", "title": "x", "description": "y",
+			"goal":    "x is done",
 			"created": "2026-05-14", "status": "open",
 			"project": "anvil", "severity": "low",
 			"tags": []any{"domain/drift"},
@@ -402,6 +403,7 @@ func TestValidate_GlossaryDrift_EmptyGlossarySkips(t *testing.T) {
 		Path: filepath.Join(vault, "70-issues", "anvil.drift.md"),
 		FrontMatter: map[string]any{
 			"type": "issue", "title": "x", "description": "y",
+			"goal":    "x is done",
 			"created": "2026-05-14", "status": "open",
 			"project": "anvil", "severity": "low",
 			"tags": []any{"domain/drift"},

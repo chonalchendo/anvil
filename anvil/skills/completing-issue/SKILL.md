@@ -44,11 +44,13 @@ anvil show issue <id>
 anvil transition issue <id> in-progress --owner <your-name>
 ```
 
-The `in-progress` transition re-runs `reproduction_anchor` for bug issues. A mismatch means the bug is stale or already fixed — surface and stop; do not paper over with `--force`.
+Read the issue's `goal:` — its one-sentence terminal predicate — and hold it as orientation for everything below: `## Verification` is the binary gate, `goal:` is what the change is *for*.
+
+The `in-progress` transition re-runs `reproduction_anchor` for bug issues, and refuses the claim unless `goal:` is set (backfill-on-claim for the pre-`goal` back-catalogue). A mismatch means the bug is stale or already fixed — surface and stop; do not paper over with `--force`.
 
 ## Phase 1 — Implement
 
-Make the minimal change satisfying every `## Acceptance criteria` entry. Stay within the issue's declared file set (or `<declared-files>` when dispatched by `dispatching-issue-fleet`). See **Scope-change protocol** below if the work outgrows declared scope.
+Make the minimal change that achieves the issue's `goal:` and passes every `## Verification` check (`## Acceptance criteria`, when present, is a prose aid — not the gate). Stay within the issue's declared file set (or `<declared-files>` when dispatched by `dispatching-issue-fleet`). See **Scope-change protocol** below if the work outgrows declared scope.
 
 No refactoring "while in the area." No helpers without a second use. No defensive code for unreachable states. Defer to the project's conventions (`CLAUDE.md`, `AGENTS.md`, style guides) for project-specific hard rules.
 

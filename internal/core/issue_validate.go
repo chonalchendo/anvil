@@ -9,9 +9,12 @@ import (
 // issue body content. H3 entries (### Direct, ### Indirect) are sub-headings
 // of ## Verification and must appear after it. Exported so create can scaffold
 // the skeleton without duplicating the list.
+// `## Acceptance criteria` is deliberately absent: the issue's terminal
+// predicate now lives in the `goal:` frontmatter field and the test-list in
+// `## Verification`, so AC is an optional prose checklist, not a required
+// heading. See docs/issue-spec.md.
 var RequiredIssueSections = []string{
 	"## Problem",
-	"## Acceptance criteria",
 	"## Non-goals",
 	"## Verification",
 	"### Direct",

@@ -20,7 +20,7 @@ func writeFixtureIssueWithLinks(t *testing.T, vault, project, slug, title string
 		"type": "issue", "title": title, "description": "fixture description",
 		"created": "2026-04-29", "updated": "2026-04-29",
 		"status": "open", "project": project, "severity": "medium",
-		"tags": []any{"domain/dev-tools"},
+		"tags": []any{"domain/dev-tools"}, "goal": "fixture goal is done",
 	}
 	if len(related) > 0 {
 		raw := make([]any, len(related))

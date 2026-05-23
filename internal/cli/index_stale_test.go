@@ -33,6 +33,7 @@ func TestCreateAbsorbsExternalDriftWithoutManualReindex(t *testing.T) {
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "fresh",
 		"--description", "fresh desc",
+		"--goal", "fresh is done",
 		"--tags", "domain/dev-tools")
 
 	if _, err := os.Stat(filepath.Join(vault, "70-issues", "demo.fresh.md")); err != nil {
@@ -57,6 +58,7 @@ func TestCreateUpdateAbsorbsExternalDriftWithoutManualReindex(t *testing.T) {
 	execCmd(t, "create", "issue",
 		"--project", "demo", "--title", "foo",
 		"--description", "rewritten desc",
+		"--goal", "foo is done",
 		"--tags", "domain/dev-tools", "--update")
 
 	got, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md"))
@@ -84,6 +86,7 @@ func TestTwoCreatesInOneProcessSucceedWithoutManualReindex(t *testing.T) {
 		"create", "issue",
 		"--project", "demo", "--title", "one",
 		"--description", "first issue",
+		"--goal", "one is done",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 	})
@@ -110,6 +113,7 @@ func TestTwoCreatesInOneProcessSucceedWithoutManualReindex(t *testing.T) {
 		"create", "issue",
 		"--project", "demo", "--title", "two",
 		"--description", "second issue",
+		"--goal", "two is done",
 		"--tags", "domain/dev-tools",
 	})
 	var out2 bytes.Buffer

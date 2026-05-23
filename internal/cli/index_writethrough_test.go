@@ -43,6 +43,7 @@ func TestCreateWritesThroughToIndex(t *testing.T) {
 		"--project", "demo",
 		"--title", "foo",
 		"--description", "foo desc",
+		"--goal", "foo is done",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 	)
@@ -64,6 +65,7 @@ func TestSetStatusWritesThroughToIndex(t *testing.T) {
 		"--project", "demo",
 		"--title", "foo",
 		"--description", "foo desc",
+		"--goal", "foo is done",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 	)
@@ -86,6 +88,7 @@ func TestLinkWritesThroughToIndex(t *testing.T) {
 		"--project", "demo",
 		"--title", "foo",
 		"--description", "foo desc",
+		"--goal", "foo is done",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 	)
@@ -113,6 +116,7 @@ func TestExternalEditAbsorbedOnNextWrite(t *testing.T) {
 		"--project", "demo",
 		"--title", "foo",
 		"--description", "foo desc",
+		"--goal", "foo is done",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 	)

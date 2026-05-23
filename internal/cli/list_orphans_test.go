@@ -16,6 +16,7 @@ func TestListOrphansReturnsArtifactsWithNoIncomingLinks(t *testing.T) {
 		"--project", "demo",
 		"--title", "lonely",
 		"--description", "lonely desc",
+		"--goal", "lonely is done",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 	)
@@ -24,6 +25,7 @@ func TestListOrphansReturnsArtifactsWithNoIncomingLinks(t *testing.T) {
 		"--project", "demo",
 		"--title", "popular",
 		"--description", "popular desc",
+		"--goal", "popular is done",
 		"--tags", "domain/dev-tools",
 	)
 	// Linker: source of a link → orphan (no incoming).
@@ -31,6 +33,7 @@ func TestListOrphansReturnsArtifactsWithNoIncomingLinks(t *testing.T) {
 		"--project", "demo",
 		"--title", "linker",
 		"--description", "linker desc",
+		"--goal", "linker is done",
 		"--tags", "domain/dev-tools",
 	)
 	execCmd(t, "link", "issue", "demo.linker", "issue", "demo.popular")

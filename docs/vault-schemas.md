@@ -113,13 +113,16 @@ Cut entirely: `target_date`, `horizon`, `ordinal`, `predecessors`, `successors`,
 
 ```yaml
 type: issue
+goal: <one sentence>       # required, ≤120 chars: the terminal predicate (what "done" means)
 project: <slug>
 status: open | in-progress | resolved | abandoned
 severity: low | medium | high | critical
 milestone: "[[milestone.<project>.<slug>]]"
 owner: <string>            # set by `anvil transition ... --owner <name>`; persists across the issue lifecycle
-acceptance: ["criterion", ...]
+acceptance: ["criterion", ...]   # optional prose checklist; the binary gate is ## Verification
 ```
+
+`goal:` is required and gated at claim time: `anvil transition issue <id> in-progress` refuses unless it is set (backfill-on-claim for the pre-`goal` back-catalogue; `--force` bypasses). `acceptance[]` is optional — its two former jobs now belong to `goal:` (terminal predicate) and `## Verification` (test-list).
 
 **Severity rubric** (blast-radius × workaround-cost):
 

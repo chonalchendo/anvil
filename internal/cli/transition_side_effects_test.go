@@ -500,6 +500,7 @@ func TestCutWorktreeRejectedWhenIDLacksDot(t *testing.T) {
 type: issue
 title: x
 description: x
+goal: x is done
 created: 2026-05-19
 status: open
 project: ""

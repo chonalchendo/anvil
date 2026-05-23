@@ -2,17 +2,20 @@
 
 Body-section contract for anvil issues. Authored by `writing-issue`; consumed by `completing-issue` and `skills/completing-issue/scripts/run-verification.sh`.
 
-For frontmatter, see [vault-schemas.md](vault-schemas.md#issue).
+For frontmatter, see [vault-schemas.md](vault-schemas.md#issue). The issue's terminal predicate lives in the required `goal:` frontmatter field — one sentence, ≤120 chars, naming what "done" means. The body sections below carry the detail.
 
 ## Required body sections
 
 - `## Problem` — one paragraph. What is broken or missing.
-- `## Acceptance criteria` — bulleted. Each testable without ambiguity.
 - `## Non-goals` — bulleted. What is explicitly out of scope.
 - `## Verification` — operational checks; both subsections below required.
 - `## Links` — `[[wikilink]]` form. Targets must resolve.
 
 `anvil create issue` rejects a body missing any required H2.
+
+## Optional: `## Acceptance criteria`
+
+A prose checklist, if useful. **Not required** — `goal:` owns the terminal predicate and `## Verification` owns the runnable test-list, so AC no longer carries a unique job. Include it only when an unambiguous bulleted list aids the implementer; otherwise omit it.
 
 ## `## Verification` format
 
