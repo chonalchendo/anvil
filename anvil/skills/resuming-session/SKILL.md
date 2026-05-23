@@ -15,58 +15,45 @@ The companion **REQUIRED SIBLING:** `handing-off-session` writes the handoff at 
 
 ## Phase 1 — Locate candidate handoff(s) in the recency window
 
-Walk session files newest-first by mtime (UUID filenames carry no order). Skip files that are frontmatter-only — `session-start` creates a stub before any handoff is written. A non-empty handoff has content after the second `---` delimiter.
+`anvil session list --json` enumerates session files newest-first, each carrying `{session_id, path, modified, has_handoff, objective, title}`. Stubs that `session-start` created but no handoff was written into report `has_handoff: false`; the current terminal's own fresh stub is one of these, so it falls out naturally.
 
-Collect every non-empty handoff whose mtime is within `600` seconds (10 min) of the newest non-empty handoff's mtime. Stop at the first gap > 600 s. This is the *ambiguity window* — handoffs landing this close together can collide silently on a pure newest-by-mtime pick (cross-repo and, more dangerously, intra-repo).
+Collect every handoff whose `modified` is within `600` seconds (10 min) of the newest handoff's `modified`. This is the *ambiguity window* — handoffs landing this close together can collide silently on a pure newest-first pick (cross-repo and, more dangerously, intra-repo).
 
 ```bash
-walked=0
-window_sec=600
-candidates=()
-newest_mtime=""
-# \ls bypasses shell aliases (eza, exa, etc.) that mangle plain `ls` output.
-for f in $(\ls -t ~/anvil-vault/10-sessions/*.md 2>/dev/null); do
-  if ! awk 'BEGIN{c=0} /^---$/{c++;next} c>=2 && NF{e=1;exit} END{exit !e}' "$f"; then
-    walked=$((walked + 1))
-    continue
-  fi
-  m=$(stat -f %m "$f" 2>/dev/null || stat -c %Y "$f")  # darwin || linux
-  if [ -z "$newest_mtime" ]; then
-    newest_mtime=$m
-    candidates+=("$f")
-  elif [ $((newest_mtime - m)) -le $window_sec ]; then
-    candidates+=("$f")
-  else
-    break
-  fi
-done
-echo "candidates=${#candidates[@]} walked=$walked"
+s=$(anvil session list --json)
+walked=$(echo "$s" | jq '([.[].has_handoff] | index(true)) // length')   # leading stubs before the first handoff
+newest=$(echo "$s" | jq -r 'map(select(.has_handoff))[0].modified // empty')
+candidates=$(echo "$s" | jq --arg n "$newest" '
+  ($n | fromdateiso8601) as $nt
+  | map(select(.has_handoff and ($nt - (.modified | fromdateiso8601)) <= 600))')
+echo "candidates=$(echo "$candidates" | jq length) walked=$walked"
+echo "$candidates" | jq -r '.[] | "\(.session_id[0:8])  \(.modified)  \(.objective // .title)"'
 ```
 
-If `candidates` is empty, no non-empty handoff exists anywhere under `10-sessions/`. Stop. Tell the user verbatim: *"No prior handoff found under ~/anvil-vault/10-sessions/. Start fresh."* Do not invent context.
+If `newest` is empty, no handoff exists anywhere under `10-sessions/`. Stop. Tell the user verbatim: *"No prior handoff found under ~/anvil-vault/10-sessions/. Start fresh."* Do not invent context.
 
-If `candidates` has exactly one entry, that file is the chosen handoff — proceed to Phase 2 silently.
+If `candidates` has exactly one entry, that is the chosen handoff — proceed to Phase 2 silently.
 
-If `candidates` has two or more entries, **disambiguate before loading**. For each candidate, extract the session id from the filename and render a preview: the first non-blank, non-heading body line (`awk` matcher `c>=2 && NF && !/^#/`), truncated to ~80 chars. This pulls the substantive opener (typically `Working in <repo>. ...`) rather than the `## Handoff` heading. Format:
+If `candidates` has two or more entries, **disambiguate before loading**. The preview line per candidate is its `objective` (falling back to `title` for pre-Objective handoffs):
 
 ```text
 Multiple recent handoffs in the ambiguity window:
-  1) <id-short>  <HH:MM>  <first substantive body line>
-  2) <id-short>  <HH:MM>  <first substantive body line>
+  1) <id-short>  <HH:MM>  <objective or title>
+  2) <id-short>  <HH:MM>  <objective or title>
   ...
 Which one?
 ```
 
-Use `AskUserQuestion` (or equivalent) with one option per candidate. The list is newest-first; if the user picks the top entry they confirm what newest-by-mtime would have picked, but they do so explicitly. Do not auto-pick on the user's behalf.
+Use `AskUserQuestion` (or equivalent) with one option per candidate. The list is newest-first; if the user picks the top entry they confirm what newest-first would have picked, but they do so explicitly. Do not auto-pick on the user's behalf.
 
-Remember `walked` for Phase 3.
+Remember the chosen candidate's `session_id`/`path` and `walked` for Phases 2–3.
 
 ## Phase 2 — Load the handoff body
 
-Extract the session id from the filename (`<id>.md`) and read the body via the read-side verb:
+Read the chosen candidate's body via the read-side verb, using its `session_id` from Phase 1:
 
 ```bash
-anvil show session <id> --body
+anvil show session <session_id> --body
 ```
 
 Read the output in full. The body is the user's instructions for this session — treat it as such.
