@@ -54,11 +54,23 @@ After all threads have a reply, post a top-level summary:
 gh pr comment <n> --body "Addressed N threads as of <SHA>: <k> fixes, <m> skips-with-reason, <p> push-backs. <one-line residual delta if any>."
 ```
 
-## Phase 4 — Poll for CI and follow-up review
+## Phase 4 — Wait for CI and follow-up review
 
-Respect the poll budget in `docs/worktree-workflow.md`. Default poll-every-30min eats the prompt cache; prefer event-driven re-entry. When a check is mid-flight and you must poll, use ~270s intervals (stays inside the 5-minute cache TTL).
+Instead of polling in-agent (which replays full conversation context on every iteration), invoke the out-of-band poller **once** and act on its result:
 
-Wait for CI to settle on the new SHA, then re-fetch comments — reviewers may add follow-ups. Loop Phase 2-3 until the PR has a stable green state with every thread replied.
+```bash
+bash ~/.claude/skills/completing-issue/scripts/wait-for-pr.sh --pr <n> [--repo owner/repo] [--timeout 900]
+# blocks until: merged | closed | review_blocked | ci_failed | timeout
+# emits one JSON: {state, merged, ci_conclusion, review_blockers_count, timed_out}
+```
+
+Branch on `state`:
+- `merged` or `closed` — done; surface the PR url and return.
+- `review_blocked` — re-fetch inline comments and loop Phase 2-3.
+- `ci_failed` — investigate the failed check, fix, push, then re-invoke the poller.
+- `timeout` — surface to the user; fall back to local-review per the rate-limit fallback below.
+
+Default timeout (900 s / 15 min) aligns with the CodeRabbit rate-limit-fallback policy.
 
 ## Rate-limit fallback
 
