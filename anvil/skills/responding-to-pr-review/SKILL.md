@@ -1,6 +1,6 @@
 ---
 name: responding-to-pr-review
-description: "Use when a PR has review findings to address — a reviewing-pr subagent report or a human reviewer's inline comments. Triggers: 'respond to the review', 'address the findings', 'reply to inline comments', 'babysit PR <n>'."
+description: "Use when a PR has review findings to address — a reviewing-pr subagent report or a human reviewer's inline comments. Triggers: 'respond to the review', 'address the findings', 'reply to inline comments', 'babysit PR 42'."
 ---
 
 # Responding to PR Review

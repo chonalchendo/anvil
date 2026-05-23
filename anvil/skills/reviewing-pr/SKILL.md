@@ -1,6 +1,6 @@
 ---
 name: reviewing-pr
-description: "Use to run the default independent review on an Anvil PR before merge — dispatches a fresh subagent that reviews the diff against repo standards. Triggers: 'review this PR', 'review PR <n>', 'self-review', a freshly opened PR. Fires on every PR."
+description: "Use to gate every Anvil PR before merge with an independent review. Triggers: 'review this PR', 'review PR 42', 'self-review', or a freshly opened PR."
 ---
 
 # Reviewing PR
