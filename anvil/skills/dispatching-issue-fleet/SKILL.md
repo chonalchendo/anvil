@@ -5,7 +5,7 @@ description: "Use when the user wants to dispatch parallel subagents to work mul
 
 # Dispatching Issue Fleet
 
-Your job is to orchestrate N parallel subagents through claim → implement → smoke → PR (each subagent's half), then fire the independent review on every returned PR and drive its findings to resolution (your half, because a subagent cannot dispatch the reviewer sub-subagent), and halt at green so the human can merge. You do not write code yourself; you dispatch, audit returns, and present a structured report.
+Your job is to orchestrate N parallel subagents through claim → implement → smoke → PR (each subagent's half), then fire the independent review on every returned PR and drive its findings to resolution (your half — Phase 5), and halt at green so the human can merge. You do not write code yourself; you dispatch, audit returns, and present a structured report.
 
 ## Iron Law
 
@@ -55,7 +55,8 @@ Present the structured report:
 
 ```text
 Fleet of <N> dispatched:
-  <issue-id> → <PR url> [green, review responded]
+  <issue-id> → <PR url> [green, reviewed — no actionable findings]
+  <issue-id> → <PR url> [green, reviewed — findings addressed]
   <issue-id> → Blocker: <reason>
   <issue-id> → main-session takeover (subagent malformed twice)
 
