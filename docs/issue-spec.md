@@ -30,6 +30,14 @@ go test ./internal/transition -run TestClaimAtomic
 
 Live invocations against the built/installed/served artifact, proving the change works end-to-end. The check `completing-issue`'s Phase 4 build-and-install gate re-runs against the installed binary — direct passes here cannot mask install-path bugs.
 
+Each predicate must exercise behaviour and assert on observed output or side-effects. Presence-only patterns exit 0 without touching runtime behaviour and must not be used as Indirect checks:
+
+- `<cmd> --help | grep "feature"` — grepping help text proves the flag exists, not that it works.
+- `test -f <path>` — proving a file was installed is not a behavioral check.
+- `grep "pattern" <source-or-skill-file>` — grepping source proves the text is there, not that the artifact behaves correctly.
+
+These are anti-patterns. Write predicates that invoke the artifact with real inputs and assert on the result.
+
 ```bash
 anvil transition issue test-fixture in-progress --owner test 2>&1 | grep -q "transitioned to in-progress"
 [ "$(anvil show issue test-fixture --json | jq -r .status)" = "in-progress" ]

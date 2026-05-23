@@ -96,6 +96,8 @@ If the project stamps the built artifact with a version or commit sha, verify th
 
 Then re-run every `### Indirect` entry against the built artifact, not the dev tree. A passing dev-tree verify and a failing built-artifact verify means the install/build path is broken — fix before opening the PR.
 
+An Indirect block whose predicates only assert presence (`--help | grep`, `test -f`, grepping source/skill files) does not satisfy "actually works" — those checks exit 0 even when the artifact is broken. If you encounter such an issue, halt and note it in the failure report; do not treat a presence-only Indirect pass as behavioral verification.
+
 ## Phase 5 — Open PR or report failure
 
 **On verify + build-gate success:**
