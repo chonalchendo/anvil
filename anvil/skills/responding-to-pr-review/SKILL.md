@@ -33,7 +33,7 @@ gh api repos/<o>/<r>/pulls/<n>/comments \
 gh pr checks <n>                                            # CI state
 ```
 
-If there are zero inline comments AND no thread-less report was handed in AND CI is green AND the PR was not opened by a dispatched subagent (see fleet-PR override below): the review-respond loop is no-op. Surface that and return.
+If there are zero inline comments AND no thread-less report was handed in AND CI is green: the review-respond loop is no-op. Surface that and return.
 
 ## Phase 2 — Evaluate
 
@@ -81,31 +81,13 @@ Branch on `state`:
 
 The default 900 s / 15 min timeout is a poll budget, not a merge deadline.
 
-## Fleet-PR override
-
-When the PR was opened by a `dispatching-issue-fleet` subagent, **green CI is not sufficient for merge** — the review-respond loop runs even if the orchestrating user said "merge on green."
-
-**Detection heuristics** (any one is enough; err on the side of running the loop when uncertain):
-
-- Branch prefix `anvil/<slug>`.
-- PR body contains the orchestrator's structured marker.
-- The orchestrator's report names this PR.
-
-**Rationale (evidence at filing time):**
-
-- PR #37 — single-callsite helper extraction (`listBundledSkills`) shipped by a fleet subagent; flagged as a "no helper without second use" violation. Green CI hid it.
-- PR #60 — same helper-extraction shape, second occurrence in the 2026-05-15 batch. Same green-CI miss.
-- PR #61 — `--remove 1 --remove 1` against `["1","x"]` index-fall-through correctness bug. An independent review pass caught it and suggested the exact patch. Green CI ran the wrong test.
-
-The override is a workflow-shape constraint keyed off the dispatching skill, not the user's intent.
-
 ## Halt at green
 
 After every finding has an outcome AND CI is green on the latest SHA AND no new reviewer activity within the poll budget: stop. Surface the PR url. The human merges.
 
 ## What NOT to do
 
-- Do not merge. Even on green. Even if the user said "merge on green" and this isn't a fleet PR — confirm intent first.
+- Do not merge. Even on green. Even if the user said "merge on green" — confirm intent first.
 - Do not skip with "nitpick" when the nit cites a documented repo rule (see Phase 2 nitpick policy).
 - Do not paraphrase the reviewer's findings in the reply. Cite the SHA; the diff speaks.
 - Do not loop past the poll budget without surfacing to the user. A human reviewer that never lands is a signal to surface to the user, not infinite poll.

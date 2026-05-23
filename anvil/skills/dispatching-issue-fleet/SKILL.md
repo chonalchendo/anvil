@@ -5,7 +5,7 @@ description: "Use when the user wants to dispatch parallel subagents to work mul
 
 # Dispatching Issue Fleet
 
-Your job is to orchestrate N parallel subagents through the full per-issue lifecycle — claim, implement, smoke, PR, review-respond — and halt at green so the human can merge. You do not write code yourself; you dispatch, audit returns, and present a structured report.
+Your job is to orchestrate N parallel subagents through claim → implement → smoke → PR (each subagent's half), then fire the independent review on every returned PR and drive its findings to resolution (your half — Phase 5), and halt at green so the human can merge. You do not write code yourself; you dispatch, audit returns, and present a structured report.
 
 ## Iron Law
 
@@ -27,7 +27,7 @@ The overlap check is one-line declarations plus eyeball compare. No static analy
 
 ## Phase 3 — Dispatch N subagents
 
-For each surviving candidate, fire one subagent via the Agent tool. The prompt is the orchestrator-filled template at `skills/dispatching-issue-fleet/subagent-prompt.md` — read it, fill issue-specific fields (issue id, worktree path, branch name, declared files), and send. Each subagent invokes `completing-issue` to drive its issue end-to-end through PR opened, then `responding-to-pr-review` for the review-respond loop.
+For each surviving candidate, fire one subagent via the Agent tool. The prompt is the orchestrator-filled template at `skills/dispatching-issue-fleet/subagent-prompt.md` — read it, fill issue-specific fields (issue id, worktree path, branch name, declared files), and send. Each subagent invokes `completing-issue` to drive its issue through PR opened and **stops there** — it does not run `reviewing-pr` or `responding-to-pr-review`. A subagent cannot dispatch the reviewer sub-subagent, so review is the orchestrator's job (Phase 5).
 
 Dispatch all N in a single tool-use block so they run in parallel.
 
@@ -41,15 +41,22 @@ Each subagent's last line is structurally one of:
 
 **Expected miss-rate: 1 in N falls back to main-session takeover.** Surface this in the final report so the human reads a stall as design-anticipated, not a tool bug.
 
-## Phase 5 — Halt at green
+## Phase 5 — Review each PR, then halt at green
 
-For each PR url returned: confirm CI green and that the subagent ran the review-respond loop (via `responding-to-pr-review` — fleet-PR override forces it even on "merge on green"). Stop. Do not merge.
+For each PR url returned, in turn:
+
+1. **Fire the independent review.** Run `reviewing-pr` against the PR. It dispatches a fresh reviewer subagent (one level down from you — the same topology as the single-PR path) and returns structured findings. This is the only independent review source post-CodeRabbit; the fleet worker can't fire it (a subagent can't dispatch a sub-subagent), which is why it runs here.
+2. **Route findings — fleet override.** `reviewing-pr` Phase 4 would fire `responding-to-pr-review` in-session; on the fleet path you do **not** — the fixes live in a worktree you are not in, and you don't write code. Take its findings and route them yourself:
+   - All findings ≤low + CI green → the PR is ready for the human's merge decision.
+   - Any blocker/high/actionable-medium → **dispatch a fresh worker into the PR's worktree**, tasked with `responding-to-pr-review` against the handed findings (the structured report + reviewer subagent id). It honors the same worktree invariant, return contract, and forbidden-call audit as `subagent-prompt.md`; interpret its return exactly as in Phase 4.
+3. **Halt.** Confirm CI green. Do not merge.
 
 Present the structured report:
 
 ```text
 Fleet of <N> dispatched:
-  <issue-id> → <PR url> [green, review responded]
+  <issue-id> → <PR url> [green, reviewed — no actionable findings]
+  <issue-id> → <PR url> [green, reviewed — findings addressed]
   <issue-id> → Blocker: <reason>
   <issue-id> → main-session takeover (subagent malformed twice)
 
@@ -78,7 +85,7 @@ The subagent prompt echoes this checklist verbatim in its final structured repor
 
 ## What NOT to do
 
-- Do not merge. Even on green, even with one line of review findings, even when the human said "merge on green" — fleet-PR override per `responding-to-pr-review` runs the loop first.
+- Do not merge. Even on green, even with one line of review findings, even when the human said "merge on green" — the Phase 5 review pass runs first.
 - Do not dispatch >8 subagents. Context cost on the orchestrator side outpaces the time savings past 8.
 - Do not re-dispatch a `Blocker:` return. The subagent declared inability; respect it.
 - Do not narrate the dispatch. The final report (Phase 5) is the deliverable.
