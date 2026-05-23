@@ -27,7 +27,7 @@ The overlap check is one-line declarations plus eyeball compare. No static analy
 
 ## Phase 3 — Dispatch N subagents
 
-For each surviving candidate, fire one subagent via the Agent tool. The prompt is the orchestrator-filled template at `skills/dispatching-issue-fleet/subagent-prompt.md` — read it, fill issue-specific fields (issue id, worktree path, branch name, declared files), and send. Each subagent invokes `completing-issue` to drive its issue end-to-end through PR opened, then `responding-to-pr-review` for the CodeRabbit loop.
+For each surviving candidate, fire one subagent via the Agent tool. The prompt is the orchestrator-filled template at `skills/dispatching-issue-fleet/subagent-prompt.md` — read it, fill issue-specific fields (issue id, worktree path, branch name, declared files), and send. Each subagent invokes `completing-issue` to drive its issue end-to-end through PR opened, then `responding-to-pr-review` for the review-respond loop.
 
 Dispatch all N in a single tool-use block so they run in parallel.
 
@@ -78,7 +78,7 @@ The subagent prompt echoes this checklist verbatim in its final structured repor
 
 ## What NOT to do
 
-- Do not merge. Even on green, even with one line of CodeRabbit findings, even when the human said "merge on green" — fleet-PR override per `responding-to-pr-review` runs the loop first.
+- Do not merge. Even on green, even with one line of review findings, even when the human said "merge on green" — fleet-PR override per `responding-to-pr-review` runs the loop first.
 - Do not dispatch >8 subagents. Context cost on the orchestrator side outpaces the time savings past 8.
 - Do not re-dispatch a `Blocker:` return. The subagent declared inability; respect it.
 - Do not narrate the dispatch. The final report (Phase 5) is the deliverable.

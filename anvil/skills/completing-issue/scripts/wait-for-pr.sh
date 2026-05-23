@@ -6,7 +6,7 @@
 # Terminal states:
 #   merged              — PR was merged
 #   closed              — PR closed without merge
-#   review_blocked      — unresolved review threads exist (CodeRabbit or human)
+#   review_blocked      — unresolved review threads exist (human reviewer)
 #   ci_failed           — at least one required CI check failed
 #   timeout             — configurable limit reached with no terminal state
 #
@@ -15,7 +15,7 @@ set -euo pipefail
 
 # Defaults
 POLL_INTERVAL=30
-TIMEOUT=900  # 15 minutes — aligns with CodeRabbit rate-limit-fallback policy
+TIMEOUT=900  # 15 minutes — poll budget for CI + any async human review
 PR_NUMBER=""
 REPO=""
 
@@ -132,8 +132,8 @@ while true; do
     fi
 
     # Unresolved review threads (the accurate "blocking review" signal): catches
-    # CodeRabbit's COMMENTED + inline reviews, which a CHANGES_REQUESTED-state
-    # count misses, and ignores stale never-dismissed reviews.
+    # COMMENTED + inline reviews, which a CHANGES_REQUESTED-state count misses,
+    # and ignores stale never-dismissed reviews.
     review_blockers=$(gh api graphql -f query='
         query($owner:String!, $repo:String!, $pr:Int!) {
           repository(owner:$owner, name:$repo) {

@@ -9,7 +9,7 @@ git -C ~/Development/anvil worktree add ~/Development/anvil-worktrees/<slug> -b 
 cd ~/Development/anvil-worktrees/<slug>
 ```
 
-Never `git checkout -b` or commit directly on `master` — parallel sessions collide, CodeRabbit gets no review pass, work accumulates unreviewed.
+Never `git checkout -b` or commit directly on `master` — parallel sessions collide, no review pass happens, work accumulates unreviewed.
 
 ## Post-merge cleanup (sequence matters)
 
@@ -38,10 +38,10 @@ Unit tests assert *some* string appears in output; they don't assert it's runnab
 
 Do not poll PRs on a fixed interval — each wakeup past the 300 s prompt-cache window pays a full context reload.
 
-- If the user said something equivalent to "monitor until merge" / "wait for it to land" / "babysit the PR", treat that as standing approval: once CodeRabbit + CI are green and the PR is mergeable, run the [Post-merge cleanup](#post-merge-cleanup-sequence-matters) sequence without a further prompt.
+- If the user said something equivalent to "monitor until merge" / "wait for it to land" / "babysit the PR", treat that as standing approval: once the review + CI are green and the PR is mergeable, run the [Post-merge cleanup](#post-merge-cleanup-sequence-matters) sequence without a further prompt.
 - Otherwise: schedule **at most one** wakeup (≥ 2 h), check once, then stop and surface "awaiting your call" rather than looping.
 - Exception: a blocking CI job expected to finish in ≤ 5 min may be checked immediately once without a scheduled wakeup.
 
 ## Workflow Summary
 
-Cut worktree → implement + commit → smoke-test gate → `gh pr create` → wait for CodeRabbit + user approval → remove worktree → `gh pr merge --delete-branch` (order matters — see [Post-merge cleanup](#post-merge-cleanup-sequence-matters)). CodeRabbit catches what unit tests miss — part of the verification budget, not optional.
+Cut worktree → implement + commit → smoke-test gate → `gh pr create` → `reviewing-pr` (subagent review) + CI → user approval → remove worktree → `gh pr merge --delete-branch` (order matters — see [Post-merge cleanup](#post-merge-cleanup-sequence-matters)). The independent review catches what unit tests miss — part of the verification budget, not optional.
