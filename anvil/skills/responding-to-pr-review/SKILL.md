@@ -59,7 +59,7 @@ gh pr comment <n> --body "Addressed N threads as of <SHA>: <k> fixes, <m> skips-
 Instead of polling in-agent (which replays full conversation context on every iteration), invoke the out-of-band poller **once** and act on its result:
 
 ```bash
-scripts/wait-for-pr.sh --pr <n> [--repo owner/repo] [--timeout 900]
+bash ~/.claude/skills/completing-issue/scripts/wait-for-pr.sh --pr <n> [--repo owner/repo] [--timeout 900]
 # blocks until: merged | closed | review_blocked | ci_failed | timeout
 # emits one JSON: {state, merged, ci_conclusion, review_blockers_count, timed_out}
 ```

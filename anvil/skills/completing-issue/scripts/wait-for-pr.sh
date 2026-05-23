@@ -6,7 +6,7 @@
 # Terminal states:
 #   merged              — PR was merged
 #   closed              — PR closed without merge
-#   review_blocked      — blocking review comments exist (CodeRabbit or human)
+#   review_blocked      — unresolved review threads exist (CodeRabbit or human)
 #   ci_failed           — at least one required CI check failed
 #   timeout             — configurable limit reached with no terminal state
 #
@@ -35,7 +35,7 @@ Output fields (JSON):
   state                merged | closed | review_blocked | ci_failed | timeout
   merged               true | false
   ci_conclusion        success | failure | pending | skipped | null
-  review_blockers_count number of open blocking review threads
+  review_blockers_count number of unresolved review threads
   timed_out            true | false
 EOF
     exit 1
@@ -56,6 +56,10 @@ if [[ -z "$PR_NUMBER" ]]; then
     echo "Error: --pr is required" >&2
     usage
 fi
+# Caller-supplied numerics feed arithmetic under set -e; a bad value would exit
+# silently, so reject it with a usable message instead.
+[[ "$TIMEOUT" =~ ^[0-9]+$ ]] || { echo "Error: --timeout must be integer seconds" >&2; exit 1; }
+[[ "$POLL_INTERVAL" =~ ^[0-9]+$ ]] || { echo "Error: --interval must be integer seconds" >&2; exit 1; }
 
 # Resolve repo from git remote when not supplied.
 if [[ -z "$REPO" ]]; then
@@ -64,6 +68,8 @@ if [[ -z "$REPO" ]]; then
         exit 1
     }
 fi
+OWNER="${REPO%%/*}"
+REPO_NAME="${REPO##*/}"
 
 emit() {
     local state="$1" merged="$2" ci_conclusion="$3" review_blockers="$4" timed_out="$5"
@@ -72,20 +78,24 @@ emit() {
 }
 
 deadline=$(( $(date +%s) + TIMEOUT ))
+# Last-known values, emitted if the loop times out before a fresh poll completes.
+ci_conclusion="null"
+review_blockers=0
 
 while true; do
-    now=$(date +%s)
+    if [[ "$(date +%s)" -ge "$deadline" ]]; then
+        emit "timeout" "false" "$ci_conclusion" "$review_blockers" "true"
+        exit 0
+    fi
 
-    # Fetch PR state in one call.
-    pr_json=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" \
-        --jq '{state: .state, merged: .merged, draft: .draft}' 2>/dev/null) || {
+    # One fetch yields state, merged, and the head SHA used for the CI lookup.
+    pr_fields=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" \
+        --jq '"\(.state)\t\(.merged)\t\(.head.sha)"' 2>/dev/null) || {
         echo "Warning: gh api call failed; retrying in ${POLL_INTERVAL}s" >&2
         sleep "$POLL_INTERVAL"
         continue
     }
-
-    pr_state=$(printf '%s' "$pr_json" | grep '"state"' | grep -oE '"[^"]+"' | tail -1 | tr -d '"')
-    pr_merged=$(printf '%s' "$pr_json" | grep '"merged"' | grep -oE '(true|false)' | head -1)
+    IFS=$'\t' read -r pr_state pr_merged head_sha <<< "$pr_fields"
 
     # Terminal: merged.
     if [[ "$pr_merged" == "true" ]]; then
@@ -99,21 +109,16 @@ while true; do
         exit 0
     fi
 
-    # Check CI status on the PR's head SHA.
-    head_sha=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '.head.sha' 2>/dev/null) || true
-
+    # CI status on the head SHA: any failure wins; success only when nothing pends.
     ci_conclusion="null"
     if [[ -n "$head_sha" ]]; then
-        # Combine check-runs and commit statuses; pick the worst conclusion.
         checks_json=$(gh api "repos/${REPO}/commits/${head_sha}/check-runs" \
             --jq '[.check_runs[] | select(.conclusion != null) | .conclusion]' 2>/dev/null) || checks_json="[]"
 
         if printf '%s' "$checks_json" | grep -q '"failure"\|"timed_out"\|"startup_failure"'; then
-            ci_conclusion='"failure"'
-            emit "ci_failed" "false" "$ci_conclusion" "0" "false"
+            emit "ci_failed" "false" '"failure"' "0" "false"
             exit 0
         elif printf '%s' "$checks_json" | grep -q '"success"'; then
-            # Only mark success if no runs are still pending.
             pending=$(gh api "repos/${REPO}/commits/${head_sha}/check-runs" \
                 --jq '[.check_runs[] | select(.status == "in_progress" or .status == "queued")] | length' 2>/dev/null) || pending=0
             if [[ "$pending" == "0" ]]; then
@@ -126,34 +131,30 @@ while true; do
         fi
     fi
 
-    # Check for blocking review comments (unresolved threads with changes-requested or
-    # inline comments from active reviewers — use the review list for changes_requested).
-    review_blockers=0
-    reviews_json=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/reviews" \
-        --jq '[.[] | select(.state == "CHANGES_REQUESTED")] | length' 2>/dev/null) || reviews_json=0
-    review_blockers="$reviews_json"
+    # Unresolved review threads (the accurate "blocking review" signal): catches
+    # CodeRabbit's COMMENTED + inline reviews, which a CHANGES_REQUESTED-state
+    # count misses, and ignores stale never-dismissed reviews.
+    review_blockers=$(gh api graphql -f query='
+        query($owner:String!, $repo:String!, $pr:Int!) {
+          repository(owner:$owner, name:$repo) {
+            pullRequest(number:$pr) {
+              reviewThreads(first:100) { nodes { isResolved } }
+            }
+          }
+        }' -F owner="$OWNER" -F repo="$REPO_NAME" -F pr="$PR_NUMBER" \
+        --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)] | length' 2>/dev/null) || review_blockers=0
 
     if [[ "$review_blockers" -gt 0 ]]; then
         emit "review_blocked" "false" "$ci_conclusion" "$review_blockers" "false"
         exit 0
     fi
 
-    # Check timeout before sleeping.
-    if [[ "$now" -ge "$deadline" ]]; then
-        emit "timeout" "false" "$ci_conclusion" "$review_blockers" "true"
-        exit 0
-    fi
-
-    remaining=$(( deadline - now ))
-    if [[ "$remaining" -lt "$POLL_INTERVAL" ]]; then
+    remaining=$(( deadline - $(date +%s) ))
+    if [[ "$remaining" -le 0 ]]; then
+        continue  # deadline passed mid-poll; top-of-loop check emits timeout
+    elif [[ "$remaining" -lt "$POLL_INTERVAL" ]]; then
         sleep "$remaining"
     else
         sleep "$POLL_INTERVAL"
-    fi
-
-    # Final timeout check after sleep.
-    if [[ $(date +%s) -ge "$deadline" ]]; then
-        emit "timeout" "false" "$ci_conclusion" "$review_blockers" "true"
-        exit 0
     fi
 done

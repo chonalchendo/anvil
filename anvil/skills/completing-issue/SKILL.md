@@ -109,7 +109,7 @@ Surface the PR url. Stop. The issue stays `in-progress`; the human transitions i
 When a responding-to-pr-review loop needs to wait for CI or a reviewer pass, invoke the out-of-band poller **once** instead of polling in-agent:
 
 ```bash
-scripts/wait-for-pr.sh --pr <n> [--repo owner/repo] [--timeout 900]
+bash ~/.claude/skills/completing-issue/scripts/wait-for-pr.sh --pr <n> [--repo owner/repo] [--timeout 900]
 # emits one JSON result on terminal state: state, merged, ci_conclusion, review_blockers_count, timed_out
 ```
 
