@@ -30,10 +30,22 @@ go test ./internal/transition -run TestClaimAtomic
 
 Live invocations against the built/installed/served artifact, proving the change works end-to-end. The check `completing-issue`'s Phase 4 build-and-install gate re-runs against the installed binary — direct passes here cannot mask install-path bugs.
 
+Each predicate must exercise behaviour and assert on observed output or side-effects. Presence-only patterns exit 0 without touching runtime behaviour and must not be used as Indirect checks:
+
+- `<cmd> --help | grep "feature"` — grepping help text proves the flag exists, not that it works.
+- `test -f <path>` — proving a file was installed is not a behavioral check.
+- `grep "pattern" <source-or-skill-file>` — grepping source proves the text is there, not that the artifact behaves correctly.
+
+These are anti-patterns. Write predicates that invoke the artifact with real inputs and assert on the result.
+
+**Worked example.** The `wait-for-pr.sh` issue used `scripts/wait-for-pr.sh --help | grep` as its Indirect check. That predicate passed even though `go:embed` had stripped the exec bit — so the installed script was non-executable (`permission denied`). Only `bash scripts/wait-for-pr.sh ... | jq -e` would have caught it because it actually runs the script. The rule: if the installed artifact is a shell script, invoke it (via `bash <script> ...`) and assert on its output; do not grep its help text or its source.
+
 ```bash
 anvil transition issue test-fixture in-progress --owner test 2>&1 | grep -q "transitioned to in-progress"
 [ "$(anvil show issue test-fixture --json | jq -r .status)" = "in-progress" ]
 ```
+
+**Doc/skill-only changes.** When the change is purely a doc or skill update with no invocable binary artifact, assert on the rendered/installed content rather than the source tree: `anvil show skill <name> | grep -q "..."` exercises the install path (see `docs/skill-authoring.md`). Grepping the SKILL.md source file directly is still an anti-pattern — it skips the install step where the content could differ.
 
 ## Parsing rules
 
