@@ -66,7 +66,7 @@ A finding without a doc citation drops one severity band. Unsourced opinions are
 Read the subagent's report and route:
 
 - **All findings ≤low and CI green** — surface "no actionable findings" to the user; the PR is ready for the human's merge decision.
-- **Any blocker/high, or actionable medium** — fire `responding-to-pr-review`. Its loop treats these the same as CodeRabbit threads (apply, skip-with-reason, or push back). Cite the subagent's report id in the top-level comment so the audit trail survives.
+- **Any blocker/high, or actionable medium** — fire `responding-to-pr-review`, handing it **the structured report (Phase 3 findings) and the subagent id**. These findings are thread-less, so its loop drives each through apply / skip-with-reason / push-back exactly as it does CodeRabbit threads — a blocker gets implemented, not summarized. The subagent id keys the post-resolution summary so the audit trail survives the handoff.
 - **Subagent malformed return** (not the structured format above) — re-dispatch once with a tightened prompt naming the format verbatim. If the second dispatch also malforms, stop and surface a handoff-required failure to the user; log the malformation via `anvil create inbox` and wait for manual review or a later retry. Do **not** fall back to main-session review — that defeats the Iron Law.
 
 Do **not** silently drop findings the subagent surfaced. If you disagree, push back in the responding-to-pr-review loop — the audit trail matters more than the disagreement.

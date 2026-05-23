@@ -5,19 +5,26 @@ description: "Use when a PR has inline review comments to address — CodeRabbit
 
 # Responding to PR Review
 
-Your job is to drive a PR's review threads to "every comment has a reply" and CI to green, then surface the PR url back. You do **not** merge — `dispatching-issue-fleet`'s Iron Law (human owns the merge button) applies here too.
+Your job is to drive every review finding — inline thread or thread-less report — to an outcome (fix / skip / push-back) and CI to green, then surface the PR url back. You do **not** merge — `dispatching-issue-fleet`'s Iron Law (human owns the merge button) applies here too.
 
 ## Iron Law
 
-**Every inline comment receives a reply — fix, skip-with-reason, or push-back. No silent drops.** A reply is the audit trail; a missing reply is a hidden disagreement.
+**Every finding gets an outcome — fix, skip-with-reason, or push-back. No silent drops.** For an inline comment the outcome is a thread reply; for a thread-less report finding it is a commit SHA or a line in the post-resolution summary. A missing outcome is a hidden disagreement.
 
 ## Review-source-agnostic posture
 
-The same pipeline handles CodeRabbit, a human reviewer, and `reviewing-pr`'s fresh-subagent output. The discriminator is structural — *is this an inline thread on a hunk?* — yes → thread-reply via `gh api .../comments/<id>/replies`; no → top-level comment via `gh pr comment`.
+The same pipeline handles CodeRabbit, a human reviewer, and `reviewing-pr`'s fresh-subagent output. Findings arrive in one of two shapes:
+
+- **Inline thread on a hunk** (CodeRabbit, human) — reply via `gh api .../comments/<id>/replies`.
+- **Thread-less structured report** (a `reviewing-pr` subagent's Phase 3 findings, handed in-hand) — no GH thread exists to reply on.
+
+The shape decides only *where the reply lands*, never *whether the finding is evaluated*. Every finding — threaded or thread-less — runs Phase 2's apply / skip-with-reason / push-back. A thread-less blocker gets implemented, not summarized. Routing thread-less findings to a top-level `gh pr comment` *instead of* Phase 2 is the silent-drop this skill forbids; the only legitimate top-level comment is the Phase 3 summary posted *after* each finding is resolved.
 
 Reviewer identity does **not** change the loop. CodeRabbit nitpicks that cite a documented repo rule (e.g. `docs/code-design.md`'s "no helper without second use") get the same treatment as a human asking for the same fix: apply, do not skip.
 
-## Phase 1 — Fetch
+## Phase 1 — Collect findings
+
+Inline threads come from the API. A `reviewing-pr` report comes in-hand from that skill's Phase 4 handoff (the structured report + subagent id) — there is nothing to fetch for it.
 
 ```bash
 gh pr view <n>                                              # status, branch, mergeability
@@ -26,32 +33,34 @@ gh api repos/<o>/<r>/pulls/<n>/comments \
 gh pr checks <n>                                            # CI state
 ```
 
-If there are zero inline comments AND CI is green AND the PR was not opened by a dispatched subagent (see fleet-PR override below): the review-respond loop is no-op. Surface that and return.
+If there are zero inline comments AND no thread-less report was handed in AND CI is green AND the PR was not opened by a dispatched subagent (see fleet-PR override below): the review-respond loop is no-op. Surface that and return.
 
 ## Phase 2 — Evaluate
 
-Defer evaluation discipline to `superpowers:receiving-code-review`. Per thread, decide one of:
+Defer evaluation discipline to `superpowers:receiving-code-review`. Per finding — inline thread or thread-less report entry alike — decide one of:
 
-- **Fix.** Implement, commit, push. Cite the commit SHA in the reply.
-- **Skip with reason.** Reply with the reason in the thread. Examples: "out of scope for this PR — tracked in `<issue-id>`", "intentional per `docs/<...>`".
-- **Push back.** Reply disagreeing, with rationale. The reviewer either updates or the human resolves it.
+- **Fix.** Implement, commit, push. The commit SHA is the audit record (Phase 3 chooses the channel).
+- **Skip with reason.** Record the reason. Examples: "out of scope for this PR — tracked in `<issue-id>`", "intentional per `docs/<...>`".
+- **Push back.** State the disagreement with rationale. The reviewer either updates or the human resolves it.
 
 **Nitpick policy:** if a nitpick cites a documented repo rule, **apply** the fix. Do not skip with "nitpick". Memory entry `feedback_coderabbit_read_inline_before_merge` is the rationale — SUCCESS status is non-blocking, not no-findings.
 
-## Phase 3 — Apply / push back per thread
+## Phase 3 — Record per finding
 
-For each thread that takes a fix:
+For each finding that takes a fix:
 
 1. Edit, commit with a focused message, push.
 2. Capture the new commit SHA.
-3. Reply on the thread: `gh api -X POST repos/<o>/<r>/pulls/<n>/comments/<thread-id>/replies -f body="Fixed in <SHA>: <one-line rationale>"`.
+3. If the finding has an inline thread, reply on it: `gh api -X POST repos/<o>/<r>/pulls/<n>/comments/<thread-id>/replies -f body="Fixed in <SHA>: <one-line rationale>"`.
 
-For skip-with-reason or push-back, reply with the rationale only — no commit needed.
+For skip-with-reason or push-back on a threaded finding, reply with the rationale only — no commit needed.
 
-After all threads have a reply, post a top-level summary:
+**Thread-less findings have no thread to reply on.** A fix's audit record is its commit SHA; a skip or push-back is recorded in the post-resolution summary below, keyed to the `reviewing-pr` report id. Do not open a top-level comment to *carry* a thread-less finding through evaluation — that is the silent-drop. The summary records outcomes only *after* Phase 2 has decided each one.
+
+After every finding has an outcome, post the top-level summary:
 
 ```bash
-gh pr comment <n> --body "Addressed N threads as of <SHA>: <k> fixes, <m> skips-with-reason, <p> push-backs. <one-line residual delta if any>."
+gh pr comment <n> --body "Addressed N findings as of <SHA> (report <reviewing-pr-id> + threads): <k> fixes, <m> skips-with-reason, <p> push-backs. <one-line residual delta if any>."
 ```
 
 ## Phase 4 — Wait for CI and follow-up review
