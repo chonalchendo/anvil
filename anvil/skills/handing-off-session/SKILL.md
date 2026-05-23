@@ -66,11 +66,19 @@ Working in <repo path>. <One-sentence framing: what kind of work, which project.
 
 ## Phase 3 — Write into the session file and stop
 
-Write the populated template into the body of the current session file at `~/anvil-vault/10-sessions/<session-id>.md` (the file the `session-start` hook created — its frontmatter already exists). Preserve the frontmatter; place the body under a `## Handoff` heading.
+Pipe the populated template — opened by a `## Handoff` heading — to `anvil session handoff`:
 
-Do **not** emit a copy-pasteable block for the user. `resuming-session` reads the body directly from the session file in the next terminal — paste is dead weight.
+```bash
+anvil session handoff --body - <<'EOF'
+## Handoff
 
-Confirm the write in one line: `Handoff written to ~/anvil-vault/10-sessions/<session-id>.md.`
+<populated template>
+EOF
+```
+
+`anvil session handoff` resolves *this terminal's* session from `$CLAUDE_CODE_SESSION_ID` (no mtime guessing), preserves the frontmatter, and writes your body verbatim. Because the path is derived from your own session id, each terminal writes only to its own file — that is what prevents one session from clobbering a concurrent session's unconsumed handoff. As an integrity backstop it also **refuses** the write if the file at that path stores a *different* `session_id` (a renamed or hand-edited file). If it refuses, stop and surface the message — do not hand-edit the file or write it directly.
+
+Do **not** emit a copy-pasteable block for the user. `resuming-session` reads the body from the session file in the next terminal — paste is dead weight.
 
 Do not offer to commit, push, or summarise further. The handoff is the deliverable.
 

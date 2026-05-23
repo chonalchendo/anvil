@@ -86,6 +86,7 @@ func newRootCmd() *cobra.Command {
 		newTransitionCmd(),
 		newRenameCmd(),
 		newFleetCmd(),
+		newSessionCmd(),
 	)
 	return cmd
 }
