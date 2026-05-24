@@ -43,11 +43,11 @@ Canonical destination: `~/anvil-vault/05-projects/<project>/product-design.md`. 
 
 ## The phases
 
-Seven phases, each with an explicit user gate. Don't skip them — gates are the load-bearing part. Each is an iteration loop; expect 1–2 reframes per phase. The quick-reference table below is the index; load the procedure when you start the walk.
+Eight phases, each with an explicit user gate. Don't skip them — gates are the load-bearing part. Each is an iteration loop; expect 1–2 reframes per phase. The quick-reference table below is the index; load the procedure when you start the walk.
 
 **REQUIRED REFERENCE:** Use skills/writing-product-design/references/phases.md
 
-The reference owns the per-phase procedure (drafting instructions, prompts, gates) for all seven phases through serialize-and-save.
+The reference owns the per-phase procedure (drafting instructions, prompts, gates) for all eight phases through serialize-and-save.
 
 ## Quick reference
 
