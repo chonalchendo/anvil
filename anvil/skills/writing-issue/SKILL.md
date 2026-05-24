@@ -118,6 +118,19 @@ If a frame surfaces an unknown that needs evidence (a dependency, a competitor b
 
 ## Phase 4 — Author the issue (always)
 
+### Classify the kind (drives body content)
+
+Classify the issue into exactly one kind before composing the body — it decides what the body must carry. Each kind has different load-bearing content, and forcing the wrong shape (e.g. a `reproduction_anchor` on a feature) is a category error.
+
+- **bug** — something concrete is broken today and a command reproduces it.
+- **feature** — a new capability; nothing exists to reproduce yet.
+- **refactor** — an internal shape change behind a held invariant.
+- **docs** — a documentation gap for a named audience.
+
+**REQUIRED REFERENCE:** Use skills/writing-issue/references/<kind>.md
+
+The reference owns the kind-specific body shape (and, for bugs, the `reproduction_anchor`). The phases above and the CLI mechanics below are kind-agnostic.
+
 Before calling the CLI, **propose severity using the rubric** above, then confirm with the user. The agent does the first-pass classification rather than defaulting to `medium`; severity is required by the schema and gates triage queries.
 
 List the existing `domain/` taxonomy so you reuse a value the user has already introduced rather than coining a near-duplicate:
@@ -190,15 +203,6 @@ Required body sections (enforced by `create`):
 - `## Links` — to milestone, design docs, related issues. Use `[[wikilink]]` form. Targets must resolve (the file must exist) or `create` rejects.
 
 `anvil validate <path>` remains useful as a re-check after edits (e.g. after `anvil set ... acceptance --add`), but it is **not** required after `create` when the body was supplied via `--body-file` / `--body -`.
-
-**Reproduction anchor — bug issues only.** Author `reproduction_anchor` only when the issue is a **bug**: something concrete is broken today and a shell command reproduces the failure. **Skip the anchor** for feature, refactor, doc, or design-shaping issues — there is no failure mode to reproduce, and forcing one is a category error.
-
-Shape (bug case): `command` (shell-runnable invocation that reproduces the gap), `expected` (literal output or `sha:<hex>` digest). When an agent later runs `anvil transition issue <id> in-progress`, anvil re-runs the command and refuses the claim if the output no longer matches. Two escape hatches if the gate misfires:
-
-- `--force` — bypass the check and claim anyway (use when the anchor itself is broken but the issue is real).
-- `--no-longer-reproduces` — confirm the mismatch and close the issue directly as `resolved` with the diff captured in the audit trail.
-
-Anchor authoring stays optional. Bug issues without an anchor, and all non-bug issues, transition normally (grandfather rule).
 
 ---
 
