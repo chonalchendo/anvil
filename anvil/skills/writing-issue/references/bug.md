@@ -1,5 +1,7 @@
 # Bug issue — body guidance
 
+**Goal:** a predicate naming the fixed state — the broken behaviour no longer occurs (e.g. "inbox no longer drops items on concurrent writes"). Not "fix the inbox bug" (a task).
+
 Lead `## Problem` with observed-vs-expected: what the path does now versus what it should do, plus the repro environment.
 
 ## Reproduction anchor
