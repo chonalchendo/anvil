@@ -53,6 +53,22 @@ When your changes create orphans:
 
 **The test: every changed line should trace directly to the user's request.**
 
+## Hard-Rule Self-Checks
+
+The `AGENTS.md` Hard Rules are assertions; these are the falsifiable questions that test them mid-change. A "yes" (or a "can't tell") means the rule is at risk — stop and fix before the diff grows.
+
+- **No helper without a second use** → Does this helper have exactly one caller? Would inlining it lose anything but a name?
+- **No abstraction without need** → Is there a behavior-preserving version with fewer concepts, branches, or layers? Must a reader hold new indirection in their head to trace the change?
+- **No defensive code for unreachable states** → Does this guard fire only on a state the types already forbid? Is it silencing a crash instead of fixing the cause?
+- **No comments explaining *what*** → Does this comment restate what the line below plainly does? Would deleting it lose a *why*?
+- **Context is scarce** → Does this field/section/rule change an agent decision or a CLI/index query? If removed, would any reader behave differently?
+
+A "would a senior engineer call this overcomplicated?" yes is itself a failed check.
+
+## Encode Lessons in Structure
+
+When you would write the same instruction or correction a second time, encode it as a lint rule, schema constraint, CLI check, or script — not more prose. A rule a tool enforces never decays; a rule in a doc is re-litigated every session. This is why repeated friction against a CLI surface aggregates into a redesign (`@AGENTS.md` → Evaluating work) rather than five reminder lines, and why `anvil validate` owns invariants that comments used to assert.
+
 ## Goal-Driven Execution
 
 Define success criteria. Loop until verified.

@@ -49,6 +49,10 @@ Beyond reading the standards docs, the dispatch prompt carries one explicit task
 
 If no linked issue resolves, the subagent records that it could not and skips goal-validation rather than inventing a target.
 
+### Structural simplification
+
+The standards docs catch rule violations; they miss working-but-needlessly-complex code that breaks no documented rule — a diff can be correct, CI-green, and still a tangle. Instruct the subagent to also ask, per meaningful change: is there a behavior-preserving reframing that deletes whole branches, helpers, or layers? Does an added abstraction earn its keep, or is it a pass-through? Did a cohesive module get more coupled or stateful? A simplification finding that cites a Hard Rule (`no abstraction without need`, `no helper without a second use`, `context is scarce`) is a cited finding — **high**, not a taste nit. Scope the suggestion to naming the simpler shape; a reviewer flags it, it does not authorize a refactor beyond the PR's goal.
+
 ## Phase 3 — Findings contract
 
 The subagent returns a structured report with one entry per finding:
@@ -76,7 +80,7 @@ Read the subagent's report and route:
 - **Any blocker/high, or actionable medium** — fire `responding-to-pr-review`, handing it **the structured report (Phase 3 findings) and the subagent id**. These findings are thread-less, so its loop drives each through apply / skip-with-reason / push-back exactly as it does a human reviewer's inline threads — a blocker gets implemented, not summarized. The subagent id keys the post-resolution summary so the audit trail survives the handoff.
 - **Subagent malformed return** (not the structured format above) — re-dispatch once with a tightened prompt naming the format verbatim. If the second dispatch also malforms, stop and surface a handoff-required failure to the user; log the malformation via `anvil create inbox` and wait for manual review or a later retry. Do **not** fall back to main-session review — that defeats the Iron Law.
 
-Do **not** silently drop findings the subagent surfaced. If you disagree, push back in the responding-to-pr-review loop — the audit trail matters more than the disagreement.
+Do **not** silently drop findings the subagent surfaced. A finding you judge wrong or out-of-scope goes in an explicit **Dismissed** bucket in the report you surface — the finding plus a one-line reason — kept visible so the human can override; disagreement is recorded, not erased. Findings you act on route through the responding-to-pr-review loop. The audit trail matters more than the disagreement.
 
 ## What NOT to do
 
