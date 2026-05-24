@@ -56,6 +56,11 @@ run_section() {
     while IFS= read -r -d '' block; do
         n=$((n + 1))
         preview=$(printf '%s\n' "$block" | grep -vE '^[[:space:]]*(#|$)' | head -1)
+        if [ -z "$preview" ]; then
+            echo "FAIL [$label#$n] block has no executable command (empty or all comments)"
+            fails=$((fails + 1))
+            continue
+        fi
         # Redirect stdin from /dev/null so a command that reads stdin (e.g. an
         # anvil verb probing for piped body input) doesn't consume the
         # process-substitution stream feeding this while-read loop.

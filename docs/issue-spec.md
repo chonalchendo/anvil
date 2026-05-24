@@ -52,7 +52,7 @@ anvil transition issue test-fixture in-progress --owner test 2>&1 | grep -q "tra
 
 ## Parsing rules
 
-- Each `` ```bash `` block is one check: its lines run together as a single script, so state set on one line (`out=$(cmd)`) is visible to the next. Exit code of the block = exit code of its last command; 0 = PASS, non-zero = FAIL.
+- Each `` ```bash `` block is one check: its lines run together as a single script, so state set on one line (`out=$(cmd)`) is visible to the next. Exit code of the block = exit code of its last command; 0 = PASS, non-zero = FAIL. Put the load-bearing assertion last (an earlier line's non-zero exit is not the block's verdict), or split genuinely independent assertions into separate blocks — each block is its own check.
 - Comments and blank lines run as part of the script — they are not stripped, so heredocs stay intact.
 - Multiple `` ```bash `` blocks in the same subsection are separate checks, run in order. State is **not** shared across blocks.
 - The block opener must be exactly `` ```bash `` (with no trailing chars); other fence languages are not parsed as checks. A block's own content may contain nested `` ``` `` fences (e.g. a heredoc holding a mini issue doc) — fence depth is tracked, so only the outermost opener starts a check.
