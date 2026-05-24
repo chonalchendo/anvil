@@ -70,6 +70,7 @@ Outcomes:
 - **Any fail** → fix using the failure output as context, increment the cycle counter, restart Phase 2 from step 1.
 - **5 cycles fail** → Phase 5 (failure report).
 - **Same wall hit twice** → Phase 5 early. Agent judgment: more iterations on the same context won't unblock.
+- **Signal unclean** (flaky, environment-dependent — a genuine attempt yields neither a deterministic pass nor a deterministic fail) → Phase 5 as `INCONCLUSIVE`. Do not soften an unclean or negative result into a PASS to open the PR; report the verdict honestly and leave the PR unopened.
 
 A Direct pass with an Indirect fail is the precise gap this skill exists to catch. Treat it as a regular fail; iterate.
 
@@ -119,13 +120,14 @@ bash ~/.claude/skills/completing-issue/scripts/wait-for-pr.sh --pr <n> [--repo o
 
 In-agent polling burns tokens on every LLM iteration; a single `wait-for-pr.sh` call blocks out-of-band and returns exactly when action is needed.
 
-**On verify failure (Phase 2 abort):**
+**On verify failure or inconclusive signal (Phase 2 abort):**
 
 Print a structured report to the terminal:
 
 ```text
 Issue <id>: verification did not converge after <N> cycles.
 
+Verdict: <FAILED | INCONCLUSIVE>
 Root cause: <one sentence>
 Failed step: <Direct: <which> | Indirect: <which>>
 Last failure output: <quoted, ≤10 lines>

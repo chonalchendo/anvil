@@ -53,6 +53,20 @@ When your changes create orphans:
 
 **The test: every changed line should trace directly to the user's request.**
 
+## Hard-Rule Self-Checks
+
+The vaguest `AGENTS.md` Hard Rules need a falsifiable test, not just an assertion. Apply these mid-change; a "yes" (or a "can't tell") means the rule is at risk — stop before the diff grows.
+
+- **No abstraction without need** → Is there a behavior-preserving version with fewer concepts, branches, or layers? Must a reader hold new indirection in their head to trace the change?
+- **Context is scarce** → Does this field/section/rule change an agent decision or a CLI/index query? If removed, would any reader behave differently?
+- **No defensive code for unreachable states** → Does this guard fire only on a state the types already forbid, or silence a crash instead of fixing its cause?
+
+The remaining Hard Rules (helper, comment, dependency, `fmt.Println`) are binary on their face — read them in `AGENTS.md`.
+
+## Encode Lessons in Structure
+
+When you would write the same instruction a second time, encode it as a lint rule, schema constraint, or CLI check — not more prose. A rule a tool enforces never decays; a rule in a doc is re-litigated every session. `anvil validate` owning frontmatter invariants is the pattern; friction aggregating into a surface redesign (`@AGENTS.md` → Evaluating work) is the same move at the methodology level.
+
 ## Goal-Driven Execution
 
 Define success criteria. Loop until verified.

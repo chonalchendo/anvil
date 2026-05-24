@@ -35,6 +35,8 @@ Every task runs in a worktree and lands via PR. Never commit directly on `master
 
 For any activity with a corresponding skill, fire the skill — not the raw CLI. Mechanical verbs — `anvil reindex`, `anvil link --to`, `anvil where`, `anvil list`, `anvil show`, `anvil validate`, `anvil tags list` — fine to call directly. If reaching for `anvil create <type>` and the type has a skill, stop and fire the skill instead.
 
+Firing a skill means executing its phases, not citing it. A skill (or a principle) named in your reasoning with no concrete action tracing back to its steps is the tell that you skipped the body — re-read it before continuing.
+
 ## Evaluating work
 
 Anvil is its own primary user. Friction surfaces here — no side logs, no external trackers. **But friction is signal, not work.** Most observations should not become individual issues. Three principles govern what gets worked on:
