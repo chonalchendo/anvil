@@ -3,6 +3,11 @@
 # fenced-bash blocks from an anvil issue (markdown on stdin) and emit a compact
 # PASS/FAIL summary. Exits 0 if every check passes, 1 otherwise.
 #
+# Each ```bash block runs as ONE script: its lines share state, so the natural
+# idiom — capture output once, then assert on it across several lines — works.
+# The unit of PASS/FAIL is the block, not the line. Blocks run in the cwd the
+# runner is invoked from, so invoke it from the worktree under test.
+#
 # Usage:
 #   anvil show issue <id> | bash run-verification.sh
 #
@@ -12,46 +17,67 @@ set -uo pipefail
 
 input=$(cat)
 
-extract_block() {
-    # Args: subsection label (e.g. "Direct", "Indirect").
-    # Prints each non-empty, non-comment shell line found inside fenced bash
-    # blocks under the matching ### header, until the next ### or ## header.
+# Emit each top-level ```bash block under the given ### subsection as a NUL-
+# delimited script. Fence depth is tracked so a block may itself contain nested
+# ``` fences and ##/### headers (e.g. a heredoc carrying a mini issue doc)
+# without the inner markers being mistaken for structure: an info-string fence
+# (```lang) opens a level, a bare ``` closes one, and only the outermost
+# ```bash opener starts a captured check.
+extract_blocks() {
     local label=$1
-    echo "$input" | awk -v label="$label" '
-        $0 ~ "^### " label { in_section = 1; next }
-        /^### / && in_section { in_section = 0; in_block = 0 }
-        /^## /  && in_section { in_section = 0; in_block = 0 }
-        in_section && /^```bash[[:space:]]*$/ { in_block = 1; next }
-        in_section && /^```/ && in_block { in_block = 0; next }
-        in_section && in_block && !/^[[:space:]]*$/ && !/^[[:space:]]*#/ { print }
+    printf '%s\n' "$input" | awk -v label="$label" '
+        /^```/ {
+            if ($0 ~ /^```[A-Za-z]/) {
+                if (insec && depth == 0 && $0 ~ /^```bash[[:space:]]*$/) {
+                    inblock = 1; depth = 1; buf = ""; next
+                }
+                depth++
+                if (inblock) buf = buf $0 "\n"
+                next
+            }
+            if (inblock && depth == 1) {
+                printf "%s%c", buf, 0
+                inblock = 0; depth = 0; next
+            }
+            if (depth > 0) depth--
+            if (inblock) buf = buf $0 "\n"
+            next
+        }
+        depth == 0 && $0 ~ ("^### " label "([^A-Za-z]|$)") { insec = 1; next }
+        depth == 0 && insec && /^### / { insec = 0; next }
+        depth == 0 && insec && /^## /  { insec = 0; next }
+        inblock { buf = buf $0 "\n" }
     '
 }
 
 run_section() {
     local label=$1
-    local cmds
-    cmds=$(extract_block "$label")
-
-    if [ -z "$cmds" ]; then
-        echo "FAIL ### $label has no executable shell commands"
-        return 1
-    fi
-
-    local n=0 fails=0 rc
-    while IFS= read -r cmd; do
+    local n=0 fails=0 rc output preview
+    while IFS= read -r -d '' block; do
         n=$((n + 1))
-        # Redirect bash -c stdin from /dev/null so commands that read stdin
-        # (e.g. anvil verbs that probe for piped body input) don't consume
-        # the heredoc feeding this while-read loop and silently drop later checks.
-        if output=$(bash -c "$cmd" </dev/null 2>&1); then
-            echo "PASS [$label#$n] $cmd"
+        preview=$(printf '%s\n' "$block" | grep -vE '^[[:space:]]*(#|$)' | head -1)
+        if [ -z "$preview" ]; then
+            echo "FAIL [$label#$n] block has no executable command (empty or all comments)"
+            fails=$((fails + 1))
+            continue
+        fi
+        # Redirect stdin from /dev/null so a command that reads stdin (e.g. an
+        # anvil verb probing for piped body input) doesn't consume the
+        # process-substitution stream feeding this while-read loop.
+        if output=$(bash -c "$block" </dev/null 2>&1); then
+            echo "PASS [$label#$n] $preview"
         else
             rc=$?
-            echo "FAIL [$label#$n] $cmd (exit $rc)"
-            echo "$output" | head -10 | sed 's/^/    /'
+            echo "FAIL [$label#$n] $preview (exit $rc)"
+            printf '%s\n' "$output" | head -10 | sed 's/^/    /'
             fails=$((fails + 1))
         fi
-    done <<< "$cmds"
+    done < <(extract_blocks "$label")
+
+    if [ "$n" -eq 0 ]; then
+        echo "FAIL ### $label has no executable \`\`\`bash block"
+        return 1
+    fi
     return $fails
 }
 

@@ -52,11 +52,12 @@ anvil transition issue test-fixture in-progress --owner test 2>&1 | grep -q "tra
 
 ## Parsing rules
 
-- Each line inside a `` ```bash `` … `` ``` `` block is one check. Run via `bash -c`; exit 0 = PASS, non-zero = FAIL.
-- Lines starting with `#` and blank lines are ignored.
-- Multiple fenced blocks in the same subsection are concatenated in order.
-- The fence opener must be exactly `` ```bash `` (with no trailing chars); other fence languages are not parsed as checks.
-- A subsection with no executable lines is a validation failure — author at least one check or remove the subsection (and accept the validation reject from `anvil create issue`).
+- Each `` ```bash `` block is one check: its lines run together as a single script, so state set on one line (`out=$(cmd)`) is visible to the next. Exit code of the block = exit code of its last command; 0 = PASS, non-zero = FAIL. Put the load-bearing assertion last (an earlier line's non-zero exit is not the block's verdict), or split genuinely independent assertions into separate blocks — each block is its own check.
+- Comments and blank lines run as part of the script — they are not stripped, so heredocs stay intact.
+- Multiple `` ```bash `` blocks in the same subsection are separate checks, run in order. State is **not** shared across blocks.
+- The block opener must be exactly `` ```bash `` (with no trailing chars); other fence languages are not parsed as checks. A block's own content may contain nested `` ``` `` fences (e.g. a heredoc holding a mini issue doc) — fence depth is tracked, so only the outermost opener starts a check.
+- Blocks run in the cwd the runner is invoked from — the worktree under test. Do **not** `cd` to an absolute main-checkout path; anchor with `$(git rev-parse --show-toplevel)` if you need the repo root.
+- A subsection with no `` ```bash `` block is a validation failure — author at least one check or remove the subsection (and accept the validation reject from `anvil create issue`).
 
 ## Why both subsections
 
