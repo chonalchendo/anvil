@@ -204,8 +204,6 @@ Required body sections (enforced by `create`):
 
 `anvil validate <path>` remains useful as a re-check after edits (e.g. after `anvil set ... acceptance --add`), but it is **not** required after `create` when the body was supplied via `--body-file` / `--body -`.
 
-For `reproduction_anchor` (bug issues only) and the rest of the kind-specific body shape, follow the reference loaded at the start of this phase (`references/<kind>.md`).
-
 ---
 
 ## Working the issue (state machine)
