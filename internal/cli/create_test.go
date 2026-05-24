@@ -2123,3 +2123,38 @@ func TestCreate_Issue_StructuredErrorHead_CodeFieldExpectedOnSameLine(t *testing
 		t.Errorf("expected subordinate `  path: ...` line, got:\n%s", got)
 	}
 }
+
+// Regression: a single create violating BOTH a facet rule (no tags) and a
+// body-heading rule (body lacks the required sections) must report BOTH classes
+// in one invocation rather than short-circuiting at the first failing layer —
+// the author pays one round-trip, not one per layer. Mirrors the issue's repro.
+func TestCreate_Learning_OneShot_ReportsFacetAndBodyClasses(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "learning", "--title", "zz-validation-probe", "--body", "no headings"})
+	var errOut bytes.Buffer
+	cmd.SetOut(&errOut)
+	cmd.SetErr(&errOut)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected schema-invalid on missing facet + missing body headings")
+	}
+	got := errOut.String()
+	if !strings.Contains(got, "missing_required_facet") {
+		t.Errorf("frontmatter-facet class missing from the combined block:\n%s", got)
+	}
+	if !strings.Contains(got, "TL;DR") {
+		t.Errorf("body-heading class (## TL;DR) missing from the SAME block:\n%s", got)
+	}
+	// Validation precedes the write, so nothing lands on disk on failure.
+	entries, readErr := os.ReadDir(filepath.Join(vault, "20-learnings"))
+	if readErr != nil {
+		t.Fatalf("reading learnings dir: %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected no file written on validation failure, got %d", len(entries))
+	}
+}

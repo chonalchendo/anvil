@@ -302,9 +302,9 @@ func newCreateCmd() *cobra.Command {
 			var body string
 			// userAuthoredBody flags whether the agent supplied body content
 			// (via --body, --body-file, --body -, piped stdin, or --from). When
-			// true, post-write validation runs body checks (section shape +
-			// wikilink resolution). When false, the body is a CLI-generated
-			// stub and only the frontmatter is validated.
+			// true, validation runs body checks (section shape + wikilink
+			// resolution). When false, the body is a CLI-generated stub and only
+			// the frontmatter is validated.
 			var userAuthoredBody bool
 			if inputFM != nil {
 				body = inputBody
@@ -384,15 +384,12 @@ func newCreateCmd() *cobra.Command {
 					if !flagUpdate {
 						return formatDriftError(cmd, id, drift, fm, existing.FrontMatter, body, existing.Body)
 					}
-					// --update path: preserve `created`, then re-run schema + facet
-					// checks against the new fm, and re-run plan-validate after save.
+					// --update path: preserve `created`, then re-validate the new
+					// fm + body in one pass before overwriting.
 					if c, ok := existing.FrontMatter["created"]; ok {
 						fm["created"] = c
 					}
-					if err := schema.Validate(string(t), fm); err != nil {
-						return renderSchemaErr(cmd, v, path, err, flagJSON)
-					}
-					if err := runFacetCheck(cmd, v, path, fm, flagAllowNewFacet, flagJSON); err != nil {
+					if err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON); err != nil {
 						return err
 					}
 					originalBytes, rerr := os.ReadFile(path)
@@ -402,12 +399,6 @@ func newCreateCmd() *cobra.Command {
 					a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
 					if err := a.Save(); err != nil {
 						return fmt.Errorf("saving artifact: %w", err)
-					}
-					if err := postCreateValidate(cmd, v, t, path, a, userAuthoredBody, flagJSON); err != nil {
-						if werr := os.WriteFile(path, originalBytes, 0o644); werr != nil {
-							return errors.Join(err, fmt.Errorf("rolling back %s to prior contents: %w", path, werr))
-						}
-						return err
 					}
 					if err := indexAfterSave(v, a); err != nil {
 						indexErr := fmt.Errorf("indexing %s: %w", id, err)
@@ -422,11 +413,7 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			if err := schema.Validate(string(t), fm); err != nil {
-				return renderSchemaErr(cmd, v, path, err, flagJSON)
-			}
-
-			if err := runFacetCheck(cmd, v, path, fm, flagAllowNewFacet, flagJSON); err != nil {
+			if err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON); err != nil {
 				return err
 			}
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -443,13 +430,6 @@ func newCreateCmd() *cobra.Command {
 			a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("saving artifact: %w", err)
-			}
-
-			if err := postCreateValidate(cmd, v, t, path, a, userAuthoredBody, flagJSON); err != nil {
-				if rerr := os.Remove(path); rerr != nil {
-					return errors.Join(err, fmt.Errorf("rolling back: removing %s: %w", path, rerr))
-				}
-				return err
 			}
 
 			if err := indexAfterSave(v, a); err != nil {
@@ -791,15 +771,22 @@ func truncateBody(s string) string {
 	return fmt.Sprintf("%q…", s[:80])
 }
 
-func runFacetCheck(cmd *cobra.Command, v *core.Vault, path string, fm map[string]any, allowNewFacet []string, asJSON bool) error {
+// validateBeforeCreate runs every create-time validation layer against the
+// in-memory artifact and emits all violations in one block: schema frontmatter
+// (including missing-facet patterns and required scalars), facet novelty, and —
+// when authoredBody — body required-headings plus wikilink resolution. Walking
+// every layer instead of short-circuiting at the first failure lets a single
+// create surface every blocking class, so the author pays one round-trip, not
+// one per layer.
+//
+// Returns ErrSchemaInvalid (after emitting the violations block) when any layer
+// fails, a usage error for an unknown --allow-new-facet name, or nil when the
+// artifact is clean and safe to write.
+func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path string, fm map[string]any, body string, authoredBody bool, allowNewFacet []string, asJSON bool) error {
 	for _, f := range allowNewFacet {
 		if !facets.Has(f) {
 			return formatEnumError("--allow-new-facet", f, facets.Names(), "")
 		}
-	}
-	allowed := map[string]bool{}
-	for _, f := range allowNewFacet {
-		allowed[f] = true
 	}
 	values, skipped, gErr := facets.CollectValues(v.Root)
 	if gErr != nil {
@@ -808,6 +795,19 @@ func runFacetCheck(cmd *cobra.Command, v *core.Vault, path string, fm map[string
 	for _, p := range skipped {
 		cmd.PrintErrln("warn: skipped corrupt artifact during facet walk: " + p)
 	}
+
+	var failures []*errfmt.ValidationError
+
+	if err := schema.Validate(string(t), fm); err != nil {
+		errs := schemaErrToValidationErrors(path, err)
+		augmentFacetErrors(errs, values)
+		failures = append(failures, errs...)
+	}
+
+	allowed := make(map[string]bool, len(allowNewFacet))
+	for _, f := range allowNewFacet {
+		allowed[f] = true
+	}
 	tagsRaw, _ := fm["tags"].([]any)
 	tagsStr := make([]string, 0, len(tagsRaw))
 	for _, raw := range tagsRaw {
@@ -815,14 +815,34 @@ func runFacetCheck(cmd *cobra.Command, v *core.Vault, path string, fm map[string
 			tagsStr = append(tagsStr, s)
 		}
 	}
-	if errs := facets.Check(values, tagsStr, allowed); len(errs) > 0 {
-		for _, e := range errs {
-			e.Path = path
-		}
-		emitValidationErrors(cmd, asJSON, errs)
-		return ErrSchemaInvalid
+	for _, e := range facets.Check(values, tagsStr, allowed) {
+		e.Path = path
+		failures = append(failures, e)
 	}
-	return nil
+
+	if authoredBody {
+		a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
+		switch t {
+		case core.TypeIssue:
+			for _, vErr := range core.ValidateIssue(a) {
+				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+			}
+		case core.TypeLearning:
+			for _, vErr := range core.ValidateLearning(a, nil) {
+				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+			}
+		}
+		for _, link := range core.ResolveBodyLinks(v, body) {
+			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "body", fmt.Sprintf("unresolved wikilink [[%s]]", link.Target)).
+				WithFix("create the target artifact or remove the wikilink"))
+		}
+	}
+
+	if len(failures) == 0 {
+		return nil
+	}
+	emitValidationErrors(cmd, asJSON, failures)
+	return ErrSchemaInvalid
 }
 
 func emitSessionJSON(cmd *cobra.Command, id, path, activeThread string) error {
@@ -871,42 +891,4 @@ func normaliseDates(fm map[string]any) {
 			fm[k] = t.UTC().Format("2006-01-02")
 		}
 	}
-}
-
-// postCreateValidate runs the same checks as `anvil validate <path>` against
-// the just-saved artifact, plus body-wikilink resolution when the agent
-// supplied body content. Frontmatter checks always run; body-section and
-// body-link checks only run when authoredBody is true so empty-stub creates
-// (the bootstrap path) still succeed.
-//
-// On any failure the caller rolls back the file write.
-func postCreateValidate(cmd *cobra.Command, v *core.Vault, t core.Type, path string, a *core.Artifact, authoredBody, asJSON bool) error {
-	var failures []*errfmt.ValidationError
-
-	if err := schema.Validate(string(t), a.FrontMatter); err != nil {
-		failures = append(failures, schemaErrToValidationErrors(path, err)...)
-	}
-
-	if authoredBody {
-		switch t {
-		case core.TypeIssue:
-			for _, vErr := range core.ValidateIssue(a) {
-				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
-			}
-		case core.TypeLearning:
-			for _, vErr := range core.ValidateLearning(a, nil) {
-				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
-			}
-		}
-		for _, link := range core.ResolveBodyLinks(v, a.Body) {
-			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "body", fmt.Sprintf("unresolved wikilink [[%s]]", link.Target)).
-				WithFix("create the target artifact or remove the wikilink"))
-		}
-	}
-
-	if len(failures) == 0 {
-		return nil
-	}
-	emitValidationErrors(cmd, asJSON, failures)
-	return ErrSchemaInvalid
 }
