@@ -21,6 +21,12 @@ repos:
         language: system
         types: [go]
         pass_filenames: false
+      - id: go-file-length
+        name: go file length (max 500 non-test lines)
+        entry: bash -c 'max=500; rc=0; for f in "$@"; do n=$(wc -l < "$f"); if [ "$n" -gt "$max" ]; then echo "$f has $n lines (over $max) — split into focused files in the same package"; rc=1; fi; done; exit $rc' --
+        language: system
+        types: [go]
+        exclude: '_test\.go$'
       - id: anvil-validate
         name: anvil validate (fresh-vault smoke)
         entry: bash -c 'tmp=$(mktemp -d) && go run ./cmd/anvil init "$tmp" >/dev/null && go run ./cmd/anvil validate "$tmp"'
