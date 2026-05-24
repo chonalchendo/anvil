@@ -220,3 +220,17 @@ func TestLinkRowsFromBody_FencedOnlyNoRows(t *testing.T) {
 		t.Fatalf("expected 0 link rows for fenced-only wikilink, got %v", got)
 	}
 }
+
+// TestLinkRowsFromBody_TwoFencedBlocksProseInBetween exercises the non-greedy
+// [\s\S]*? in fencedBlockRe: the first closing fence must not consume the
+// second fenced block, and only the prose wikilink between them survives.
+func TestLinkRowsFromBody_TwoFencedBlocksProseInBetween(t *testing.T) {
+	body := "```bash\necho [[issue.anvil.ghost1]]\n```\n\nSee [[issue.anvil.real]] for context.\n\n```go\nfmt.Println([[issue.anvil.ghost2]])\n```\n"
+	got := LinkRowsFromBody("anvil.src", body)
+	want := []LinkRow{
+		{Source: "anvil.src", Target: "anvil.real", Relation: "body", Anchor: ""},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
+	}
+}

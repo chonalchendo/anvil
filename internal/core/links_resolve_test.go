@@ -137,3 +137,18 @@ func TestResolveBodyLinks_ProseWikilinkStillValidated(t *testing.T) {
 		t.Errorf("got %v, want %v", got, want)
 	}
 }
+
+// TestResolveBodyLinks_TwoFencedBlocksProseInBetween exercises the non-greedy
+// [\s\S]*? in fencedBlockRe: the first closing fence must not consume the
+// second fenced block, so only the prose wikilink between them is validated.
+func TestResolveBodyLinks_TwoFencedBlocksProseInBetween(t *testing.T) {
+	v := newScaffolded(t)
+	writeBlankIssue(t, v, "anvil.real")
+	body := "```bash\necho [[issue.anvil.ghost1]]\n```\n\nSee [[issue.anvil.real]] for context.\n\n```go\nfmt.Println([[issue.anvil.ghost2]])\n```\n"
+	got := ResolveBodyLinks(v, body)
+	// Only the prose link is scanned; ghost1 and ghost2 are inside fenced blocks.
+	// anvil.real resolves, so no unresolved links expected.
+	if len(got) != 0 {
+		t.Errorf("expected 0 unresolved, got %v", got)
+	}
+}
