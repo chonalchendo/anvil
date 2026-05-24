@@ -18,6 +18,10 @@ type UnresolvedLink struct {
 
 var wikilinkRe = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
 
+// fencedBlockRe matches a triple-backtick fenced code block so its content
+// can be stripped before wikilink scanning — same pattern as index.stripFencedBlocks.
+var fencedBlockRe = regexp.MustCompile("(?m)^```[^\n]*\n[\\s\\S]*?^```[ \t]*$")
+
 // ResolveLinks walks fm and returns every wikilink (`[[type.id]]`) whose
 // target file is missing from v. Tokens whose type prefix is not a known
 // Anvil type are ignored — they are treated as non-vault references.
@@ -86,7 +90,7 @@ func checkWikilinkTarget(v *Vault, field, target string) (UnresolvedLink, bool) 
 // walks free-form markdown instead of typed frontmatter slots — duplicate
 // targets in the body are reported once. Field is "body" for every entry.
 func ResolveBodyLinks(v *Vault, body string) []UnresolvedLink {
-	matches := wikilinkRe.FindAllStringSubmatch(body, -1)
+	matches := wikilinkRe.FindAllStringSubmatch(fencedBlockRe.ReplaceAllString(body, "```\n```"), -1)
 	if matches == nil {
 		return nil
 	}

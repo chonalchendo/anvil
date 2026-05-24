@@ -111,3 +111,29 @@ func TestResolveLinks_Stable(t *testing.T) {
 		t.Errorf("non-deterministic: %v vs %v", a, b)
 	}
 }
+
+// TestResolveBodyLinks_FencedWikilinkSkipped asserts that a wikilink inside a
+// fenced code block is not flagged as unresolved — it is illustrative text,
+// not a live vault reference.
+func TestResolveBodyLinks_FencedWikilinkSkipped(t *testing.T) {
+	v := newScaffolded(t)
+	writeBlankIssue(t, v, "anvil.real")
+	body := "Prose link: [[issue.anvil.real]].\n\n```bash\necho [[issue.anvil.ghost]]\n```\n"
+	got := ResolveBodyLinks(v, body)
+	// The fenced ghost link must not appear; the prose link resolves.
+	if len(got) != 0 {
+		t.Errorf("expected 0 unresolved, got %v", got)
+	}
+}
+
+// TestResolveBodyLinks_ProseWikilinkStillValidated asserts that an unresolved
+// wikilink in prose (not inside a fence) is still reported as unresolved.
+func TestResolveBodyLinks_ProseWikilinkStillValidated(t *testing.T) {
+	v := newScaffolded(t)
+	body := "See [[issue.anvil.ghost]] for context.\n"
+	got := ResolveBodyLinks(v, body)
+	want := []UnresolvedLink{{Field: "body", Target: "issue.anvil.ghost"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}

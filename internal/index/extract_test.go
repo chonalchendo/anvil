@@ -195,3 +195,28 @@ func TestLinkRowsFromBody_WhitespacePadded(t *testing.T) {
 		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
 	}
 }
+
+// TestLinkRowsFromBody_FencedWikilinkSkipped asserts that a wikilink inside a
+// fenced code block is NOT emitted as a link row — it is illustrative text,
+// not a live vault reference.
+func TestLinkRowsFromBody_FencedWikilinkSkipped(t *testing.T) {
+	body := "Prose wikilink: [[issue.anvil.real]].\n\n```bash\necho [[issue.anvil.ghost]]\n```\n"
+	got := LinkRowsFromBody("anvil.src", body)
+	// Only the prose link should appear; the fenced one must be absent.
+	want := []LinkRow{
+		{Source: "anvil.src", Target: "anvil.real", Relation: "body", Anchor: ""},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestLinkRowsFromBody_FencedOnlyNoRows asserts that a body containing only a
+// fenced wikilink produces no rows at all.
+func TestLinkRowsFromBody_FencedOnlyNoRows(t *testing.T) {
+	body := "```\n[[issue.anvil.ghost]]\n```\n"
+	got := LinkRowsFromBody("anvil.src", body)
+	if len(got) != 0 {
+		t.Fatalf("expected 0 link rows for fenced-only wikilink, got %v", got)
+	}
+}

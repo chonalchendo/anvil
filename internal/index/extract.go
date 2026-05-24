@@ -25,6 +25,21 @@ var wikilinkRe = regexp.MustCompile(`^\[\[([^\]]+)\]\]$`)
 // bodyWikilinkRe matches wikilinks anywhere in body text (unanchored).
 var bodyWikilinkRe = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
 
+// fencedBlockRe matches a triple-backtick fenced code block (opening fence,
+// any content, closing fence) including the fence lines themselves. The
+// non-greedy [\s\S]*? prevents the first closing fence from consuming
+// subsequent fenced blocks.
+var fencedBlockRe = regexp.MustCompile("(?m)^```[^\n]*\n[\\s\\S]*?^```[ \t]*$")
+
+// stripFencedBlocks replaces the content of every triple-backtick fenced code
+// block with an empty placeholder, so that wikilink scanners won't mistake
+// illustrative [[links]] inside code samples for live vault references.
+// Only standard triple-backtick fences are stripped; tilde fences and
+// indented code blocks are out of scope per the issue non-goals.
+func stripFencedBlocks(body string) string {
+	return fencedBlockRe.ReplaceAllString(body, "```\n```")
+}
+
 // typedSlotRelations are frontmatter field names whose value is a single typed
 // link to one specific artifact type. `anvil create plan` writes the `issue`
 // slot as a bare id (e.g. `issue: anvil.foo`) rather than wikilink form, so
@@ -102,7 +117,7 @@ func LinkRowsFromFrontmatter(source string, fm map[string]any) []LinkRow {
 // Tokens whose type prefix is not a known Anvil type are ignored. Output is
 // sorted by Target for deterministic comparison.
 func LinkRowsFromBody(source, body string) []LinkRow {
-	matches := bodyWikilinkRe.FindAllStringSubmatch(body, -1)
+	matches := bodyWikilinkRe.FindAllStringSubmatch(stripFencedBlocks(body), -1)
 	if len(matches) == 0 {
 		return nil
 	}
