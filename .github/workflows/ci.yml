@@ -26,6 +26,19 @@ jobs:
       - name: golangci-lint
         run: go tool -modfile=tool.go.mod golangci-lint run ./...
 
+      - name: Go file length
+        run: |
+          max=500
+          fail=0
+          while IFS= read -r f; do
+            n=$(wc -l < "$f")
+            if [ "$n" -gt "$max" ]; then
+              echo "::error file=$f::$f is $n lines (max $max for non-test Go files) — split into focused files in the same package"
+              fail=1
+            fi
+          done < <(git ls-files '*.go' ':(exclude)*_test.go')
+          exit $fail
+
       - name: go vet
         run: go vet ./...
 

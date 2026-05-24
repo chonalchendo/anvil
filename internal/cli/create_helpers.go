@@ -1,0 +1,57 @@
+package cli
+
+import (
+	"strings"
+
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
+	"github.com/chonalchendo/anvil/internal/core"
+)
+
+// slugFromIssueLink extracts the slug component from an issue wikilink of
+// the form `[[issue.<project>.<slug>]]`. Returns false when the link doesn't
+// match the shape or its project disagrees with the plan's project — both
+// signal the caller's `--issue` is malformed; falling back to title-derived
+// slug surfaces that to the user via the create flow's normal validation.
+func slugFromIssueLink(link, project string) (string, bool) {
+	s := strings.TrimSpace(link)
+	if !strings.HasPrefix(s, "[[") || !strings.HasSuffix(s, "]]") {
+		return "", false
+	}
+	body := s[2 : len(s)-2]
+	const prefix = "issue."
+	if !strings.HasPrefix(body, prefix) {
+		return "", false
+	}
+	rest := body[len(prefix):]
+	dot := strings.IndexByte(rest, '.')
+	if dot < 0 || rest[:dot] != project {
+		return "", false
+	}
+	return rest[dot+1:], true
+}
+
+// invalidSlugError wraps a ValidateSlug failure with a structured code so
+// agents can dispatch on `invalid_slug` instead of parsing the text. Falls
+// through unchanged when slug is empty (the caller's error wasn't a slug
+// validation failure).
+func invalidSlugError(slug string, cause error) error {
+	if slug == "" {
+		return cause
+	}
+	return errfmt.NewInvalidSlug(slug, cause)
+}
+
+func createLongDescription() string {
+	names := make([]string, 0, len(core.AllTypes))
+	for _, t := range core.AllTypes {
+		names = append(names, string(t))
+	}
+	return "Create a new vault artifact.\n\n" +
+		"Supported types: " + strings.Join(names, ", ") + "\n\n" +
+		"Body authoring: pass --body <literal>, --body-file <path>, or --body - " +
+		"(reads stdin). The full artifact lands in one call — no follow-up edit.\n\n" +
+		"Validation: create always validates the frontmatter it just wrote. " +
+		"When --body / --body-file / --body - / --from supplies a body, body " +
+		"sections and wikilink targets are validated too; a failure rolls back " +
+		"the write. Running 'anvil validate <path>' afterward is unnecessary."
+}

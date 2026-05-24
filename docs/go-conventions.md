@@ -30,6 +30,10 @@ Idioms and rules for Go code in the Anvil orchestrator.
 - Use functional options (`func WithTimeout(d time.Duration) Option`) only when ≥3 optional params accumulate; otherwise a struct literal is fine.
 - Boolean parameters get keyword-style call sites via struct fields, not positional booleans.
 
+## File length
+
+- Non-test `.go` files are capped at **500 lines**, enforced by CI and the `go-file-length` pre-commit hook (`*_test.go` is exempt — table-driven tests legitimately run long). A file approaching the cap is the signal to split by concern into sibling files in the same package — no API change, just `feature.go` + `feature_session.go` + `feature_drift.go`. Do not raise the cap to fit a sprawling file; decompose it. This is `encode-lessons-in-structure` (`@docs/guardrails.md`): the rule lives in a gate, not a review reminder.
+
 ## Logging & output
 
 - Structured logging via `log/slog`. `lmittmann/tint` for terminal output; JSON handler for debug-file output. Combine via `samber/slog-multi`.
