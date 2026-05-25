@@ -24,6 +24,7 @@
     "severity":     { "enum": ["low", "medium", "high", "critical"] },
     "milestone":    { "type": "string", "minLength": 1 },
     "owner":        { "type": "string", "minLength": 1 },
+    "claim_session": { "type": "string", "minLength": 1 },
     "acceptance":   { "type": "array", "items": { "type": "string" } },
     "related":      { "type": "array", "items": { "type": "string" } },
     "external_links": { "type": "array", "items": { "type": "string", "minLength": 1 } },

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -43,6 +44,15 @@ func newTransitionCmd() *cobra.Command {
 
 			from, _ := a.FrontMatter["status"].(string)
 			if from == to {
+				// A re-claim of an already-in-progress issue lands here. Same
+				// session (or no session id on either side) is idempotent; a
+				// different session under the same owner is refused unless
+				// --force, so two parallel sessions can't both adopt the claim.
+				if t == core.TypeIssue && to == "in-progress" && !force {
+					if err := claimConflict(a, id, os.Getenv(envSessionID)); err != nil {
+						return printAndReturn(cmd, err)
+					}
+				}
 				return emitTransitionJSON(cmd, asJSON, transitionResult{
 					ID: id, Path: path, From: from, To: to, Status: "already_in_state",
 				})
@@ -210,6 +220,14 @@ func newTransitionCmd() *cobra.Command {
 			a.FrontMatter["status"] = to
 			if owner != "" {
 				a.FrontMatter["owner"] = owner
+			}
+			// Stamp the claiming session so a later same-owner claim from a
+			// different session can be refused. Omitted outside a Claude session
+			// (env unset) — there is no identity to record.
+			if t == core.TypeIssue && to == "in-progress" {
+				if sid := os.Getenv(envSessionID); sid != "" {
+					a.FrontMatter["claim_session"] = sid
+				}
 			}
 			a.FrontMatter["updated"] = time.Now().UTC().Format("2006-01-02")
 
