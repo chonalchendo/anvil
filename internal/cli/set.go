@@ -23,6 +23,8 @@ func newSetCmd() *cobra.Command {
 		flagRemSet        bool
 		flagAllowNewFacet []string
 		flagJSON          bool
+		flagCommand       string
+		flagExpected      string
 	)
 
 	cmd := &cobra.Command{
@@ -165,7 +167,25 @@ func newSetCmd() *cobra.Command {
 				}
 
 			case schema.KindObject:
-				return fmt.Errorf("%q is an object; edit the file directly", field)
+				// reproduction_anchor is the only object field with a CLI authoring path.
+				// --command is required; --expected defaults to empty string (records
+				// the command without asserting output, useful during initial triage).
+				if field != "reproduction_anchor" {
+					return fmt.Errorf("%q is an object; edit the file directly", field)
+				}
+				if !cmd.Flags().Changed("command") {
+					return fmt.Errorf("reproduction_anchor requires --command (and optionally --expected)")
+				}
+				if len(values) > 0 {
+					return fmt.Errorf("reproduction_anchor does not accept positional values; use --command and --expected")
+				}
+				anchor := map[string]any{
+					"command":  flagCommand,
+					"expected": flagExpected,
+				}
+				result.From = prev
+				result.To = anchor
+				a.FrontMatter[field] = anchor
 
 			case schema.KindUnknown:
 				if flagAddSet || flagRemSet {
@@ -245,6 +265,8 @@ func newSetCmd() *cobra.Command {
 	cmd.Flags().StringArrayVar(&flagRemove, "remove", nil, "remove a value from an array field; matches exact value, falls back to 0-based index (repeatable)")
 	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet(s) to suppress novelty gate for (tags only)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
+	cmd.Flags().StringVar(&flagCommand, "command", "", "shell command for reproduction_anchor")
+	cmd.Flags().StringVar(&flagExpected, "expected", "", "expected stdout for reproduction_anchor (empty = not asserted)")
 	cmd.PreRunE = func(c *cobra.Command, _ []string) error {
 		flagAddSet = c.Flags().Changed("add")
 		flagRemSet = c.Flags().Changed("remove")

@@ -8,6 +8,8 @@ Lead `## Problem` with observed-vs-expected: what the path does now versus what 
 
 Author `reproduction_anchor` for a bug — the claim-time gate that proves the bug still exists when a future agent picks it up.
 
+Author via: `anvil set issue <id> reproduction_anchor --command '<cmd>' --expected '<literal-or-sha>'`
+
 Shape: `command` (shell-runnable invocation that reproduces the gap), `expected` (literal output or `sha:<hex>` digest). When an agent later runs `anvil transition issue <id> in-progress`, anvil re-runs the command and refuses the claim if the output no longer matches. Two escape hatches if the gate misfires:
 
 - `--force` — bypass the check and claim anyway (use when the anchor itself is broken but the issue is real).

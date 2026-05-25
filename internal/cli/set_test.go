@@ -575,6 +575,115 @@ func TestSet_Tags_AllowNewFacetAccepts(t *testing.T) {
 // `missing_required_facet` (actionable: name the facet, suggest the fix),
 // not the raw schema diagnostic citing /tags/0 and a pattern mismatch on the
 // surviving tag.
+func TestSet_ReproductionAnchor_Sets(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "reproduction_anchor", "--command", "anvil --version", "--expected", "sha:deadbeef"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("set reproduction_anchor: %v\n%s", err, out.String())
+	}
+
+	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	anchor, ok := a.FrontMatter["reproduction_anchor"].(map[string]any)
+	if !ok {
+		t.Fatalf("reproduction_anchor not a map: %T", a.FrontMatter["reproduction_anchor"])
+	}
+	if anchor["command"] != "anvil --version" {
+		t.Errorf("command = %v", anchor["command"])
+	}
+	if anchor["expected"] != "sha:deadbeef" {
+		t.Errorf("expected = %v", anchor["expected"])
+	}
+}
+
+func TestSet_ReproductionAnchor_EmptyExpected(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "reproduction_anchor", "--command", "true"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("set reproduction_anchor without --expected: %v\n%s", err, out.String())
+	}
+
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	anchor, ok := a.FrontMatter["reproduction_anchor"].(map[string]any)
+	if !ok {
+		t.Fatalf("reproduction_anchor not a map")
+	}
+	if anchor["command"] != "true" {
+		t.Errorf("command = %v", anchor["command"])
+	}
+}
+
+func TestSet_ReproductionAnchor_MissingCommand_Errors(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "reproduction_anchor"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error when --command is missing")
+	}
+	if !strings.Contains(err.Error(), "--command") {
+		t.Errorf("error should mention --command, got: %v", err)
+	}
+}
+
+func TestSet_ReproductionAnchor_PositionalValue_Errors(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "reproduction_anchor", "somevalue", "--command", "true"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for positional value on reproduction_anchor")
+	}
+	if !strings.Contains(err.Error(), "positional") {
+		t.Errorf("error should mention positional, got: %v", err)
+	}
+}
+
+func TestSet_OtherObjectField_StillErrors(t *testing.T) {
+	// plan.verification is a KindObject field with no CLI authoring path.
+	// The guard at set.go:173-174 must reject it with the "edit the file
+	// directly" message, not route it through the reproduction_anchor handler.
+	vault := setupVault(t)
+	writeFixturePlan(t, vault, "foo", "p1", "P1")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "plan", "foo.p1", "verification", "somevalue"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error: object field without CLI authoring path")
+	}
+	if !strings.Contains(err.Error(), "edit the file directly") {
+		t.Errorf("expected 'edit the file directly' error, got: %v", err)
+	}
+}
+
 func TestSet_Tags_RemoveLastRequiredFacet_ReportsMissingFacet(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
