@@ -7,16 +7,16 @@
 # and print plainly elsewhere.
 set -euo pipefail
 
-max_body=500 warn_body=200 max_desc=1024 warn_desc=250
+max_file=500 warn_file=200 max_desc=1024 warn_desc=250
 fail=0
 
 while IFS= read -r f; do
-  n=$(wc -l <"$f")
-  if [ "$n" -gt "$max_body" ]; then
-    echo "::error file=$f::body is $n lines (max $max_body) — extract to references/ or split"
+  n=$(wc -l <"$f" | tr -d '[:space:]')
+  if [ "$n" -gt "$max_file" ]; then
+    echo "::error file=$f::SKILL.md is $n lines (max $max_file, whole file) — extract to references/ or split"
     fail=1
-  elif [ "$n" -gt "$warn_body" ]; then
-    echo "::warning file=$f::body is $n lines (over the $warn_body target) — consider extracting to references/"
+  elif [ "$n" -gt "$warn_file" ]; then
+    echo "::warning file=$f::SKILL.md is $n lines (over the $warn_file target, whole file) — consider extracting to references/"
   fi
 
   desc=$(sed -n 's/^description:[[:space:]]*//p' "$f" | head -1)

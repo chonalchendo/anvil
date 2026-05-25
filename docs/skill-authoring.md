@@ -140,7 +140,7 @@ Borrowed from Superpowers' `brainstorming` (decision-tree visual for ideation). 
 
 `.github/check-skills.sh` runs in CI and the pre-commit hook (shared script, so the two can't drift) over `anvil/skills/*/SKILL.md`:
 
-- **Body length** — fail over 500 lines, warn over 200 (`wc -l`). Over target → extract to `references/`.
+- **File length** — fail over 500 lines, warn over 200 (whole-file `wc -l`, frontmatter included). Over target → extract to `references/`.
 - **Description length** — fail over 1024 chars, warn over 250 (Claude Code truncates skill listings at 250).
 
 Left to authoring discipline (and Claude Code's own import validation), not gated here: the frontmatter key allow-list + name regex, the no-XML-brackets rule above (shipped descriptions use `<id>`/`<source>` placeholders that import accepts, so it is not mechanically gated), one-ALL-CAPS-per-body, and sibling negative-triggers.

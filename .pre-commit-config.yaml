@@ -28,7 +28,7 @@ repos:
         types: [go]
         exclude: '_test\.go$'
       - id: skill-lint
-        name: SKILL.md lint (body + description caps)
+        name: SKILL.md lint (length + description caps)
         entry: ./.github/check-skills.sh
         language: system
         files: '^anvil/skills/.*/SKILL\.md$'
