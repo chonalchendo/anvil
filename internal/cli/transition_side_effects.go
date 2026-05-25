@@ -27,6 +27,26 @@ var (
 	userHomeFn          = os.UserHomeDir
 )
 
+// claimConflict reports whether claiming `a` (issue → in-progress) collides with
+// an existing claim held by a different session under the same owner. It returns
+// a Structured refusal when the issue already records a `claim_session` that
+// disagrees with the invoking session, naming the holder so the agent can see
+// which session to coordinate with. A claim from the same session, an unclaimed
+// issue, or an invocation outside a Claude session (no CLAUDE_CODE_SESSION_ID)
+// is not a conflict — session-keyed exclusivity only applies when both the
+// holder and the claimant carry a session id.
+func claimConflict(a *core.Artifact, id, currentSession string) error {
+	held, _ := a.FrontMatter["claim_session"].(string)
+	if held == "" || currentSession == "" || held == currentSession {
+		return nil
+	}
+	return errfmt.NewStructured("claim_held_by_other_session").
+		Set("issue", id).
+		Set("holding_session", held).
+		Set("this_session", currentSession).
+		Set("fix_hint", "another session is already working this issue; coordinate or rerun with --force to take over the claim")
+}
+
 func projectFromArtifact(a *core.Artifact, id string) string {
 	if p, _ := a.FrontMatter["project"].(string); p != "" {
 		return p

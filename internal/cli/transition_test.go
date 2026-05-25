@@ -115,6 +115,112 @@ func TestTransitionReverseRequiresReason(t *testing.T) {
 	}
 }
 
+func TestTransitionClaimRecordsSession(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	t.Setenv(envSessionID, "session-a")
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	a, err := core.LoadArtifact(filepath.Join(vault, core.TypeIssue.Dir(), "demo.foo.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := a.FrontMatter["claim_session"].(string); got != "session-a" {
+		t.Fatalf("claim_session = %q, want session-a", got)
+	}
+
+	// A recorded claim_session must survive validate (additionalProperties:false).
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"validate", vault})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("validate rejected claim_session: %v\n%s", err, out.String())
+	}
+}
+
+func TestTransitionReclaimSameSessionIsIdempotent(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	t.Setenv(envSessionID, "session-a")
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+	out := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--json")
+	if !strings.Contains(out, `"already_in_state"`) {
+		t.Fatalf("same-session re-claim: expected already_in_state, got %s", out)
+	}
+}
+
+func TestTransitionReclaimDifferentSessionRefused(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	t.Setenv(envSessionID, "session-a")
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	// A different session under the same owner is refused, naming the holder.
+	t.Setenv(envSessionID, "session-b")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("different-session re-claim should be refused; output: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "claim_held_by_other_session") || !strings.Contains(out.String(), "session-a") {
+		t.Fatalf("refusal must name the holding session; output: %s", out.String())
+	}
+
+	// --force overrides the refusal.
+	out.Reset()
+	cmd = newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--force", "--json"})
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("--force should override the refusal: %v\n%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "already_in_state") {
+		t.Fatalf("forced re-claim should report already_in_state; output: %s", out.String())
+	}
+}
+
+func TestTransitionForceTakeoverTransfersClaimSession(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	t.Setenv(envSessionID, "session-a")
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	// session-b takes over with --force.
+	t.Setenv(envSessionID, "session-b")
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--force")
+
+	// claim_session must now equal session-b (genuine takeover, not a no-op).
+	a, err := core.LoadArtifact(filepath.Join(vault, core.TypeIssue.Dir(), "demo.foo.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := a.FrontMatter["claim_session"].(string); got != "session-b" {
+		t.Fatalf("claim_session = %q after --force takeover, want session-b", got)
+	}
+
+	// session-b can now re-claim idempotently without --force.
+	out := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--json")
+	if !strings.Contains(out, `"already_in_state"`) {
+		t.Fatalf("new holder re-claim: expected already_in_state, got %s", out)
+	}
+}
+
 func TestTransitionOwnerSurvivesValidate(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)

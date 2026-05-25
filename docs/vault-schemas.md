@@ -119,6 +119,7 @@ status: open | in-progress | resolved | abandoned
 severity: low | medium | high | critical
 milestone: "[[milestone.<project>.<slug>]]"
 owner: <string>            # set by `anvil transition ... --owner <name>`; persists across the issue lifecycle
+claim_session: <string>    # set by `anvil transition ... in-progress`; session-keyed claim lock; --force transfers it
 acceptance: ["criterion", ...]   # optional prose checklist; the binary gate is ## Verification
 ```
 
