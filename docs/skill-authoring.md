@@ -138,15 +138,11 @@ Borrowed from Superpowers' `brainstorming` (decision-tree visual for ideation). 
 
 ## CI validation
 
-Runs against every PR that touches a skill:
+`.github/check-skills.sh` runs in CI and the pre-commit hook (shared script, so the two can't drift) over `anvil/skills/*/SKILL.md`:
 
-- `quick_validate.py` (Anthropic): frontmatter shape, name regex, description length, no XML brackets.
-- `check-jsonschema` against skill metadata schema: Anvil-specific `metadata` fields.
-- Description: warn at 250 chars, fail at 1024.
-- Body: warn at 200 lines, fail at 500.
-- ALL-CAPS: warn if >1 imperative per body.
-- Handoff namespace: warn on an `anvil:` prefix (Anvil skills register bare); cross-plugin refs keep their namespace (`superpowers:`).
-- Negative triggers: skills in defined sibling-groups must name each other.
-- Library smoke test: load all enabled methodology skills against a diverse prompt set; check for conflicts and context-budget overruns.
+- **Body length** — fail over 500 lines, warn over 200 (`wc -l`). Over target → extract to `references/`.
+- **Description length** — fail over 1024 chars, warn over 250 (Claude Code truncates skill listings at 250).
 
-Smoke test is load-bearing in principle: individual skills can validate cleanly but interact badly when co-loaded. Deferred to v0.2+; v0.1 relies on hand-vetted bundling of the methodology skills.
+Left to authoring discipline (and Claude Code's own import validation), not gated here: the frontmatter key allow-list + name regex, the no-XML-brackets rule above (shipped descriptions use `<id>`/`<source>` placeholders that import accepts, so it is not mechanically gated), one-ALL-CAPS-per-body, and sibling negative-triggers.
+
+A co-load library smoke test — load all methodology skills against a diverse prompt set, check for trigger conflicts and context-budget overruns — is deferred to v0.2+: individual skills can validate cleanly yet interact badly when co-loaded, so v0.1 relies on hand-vetted bundling.

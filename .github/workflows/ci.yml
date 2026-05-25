@@ -39,6 +39,9 @@ jobs:
           done < <(git ls-files '*.go' ':(exclude)*_test.go')
           exit $fail
 
+      - name: SKILL.md lint
+        run: ./.github/check-skills.sh
+
       - name: go vet
         run: go vet ./...
 
