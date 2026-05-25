@@ -48,9 +48,23 @@ func newTransitionCmd() *cobra.Command {
 				// session (or no session id on either side) is idempotent; a
 				// different session under the same owner is refused unless
 				// --force, so two parallel sessions can't both adopt the claim.
-				if t == core.TypeIssue && to == "in-progress" && !force {
-					if err := claimConflict(a, id, os.Getenv(envSessionID)); err != nil {
-						return printAndReturn(cmd, err)
+				if t == core.TypeIssue && to == "in-progress" {
+					if !force {
+						if err := claimConflict(a, id, os.Getenv(envSessionID)); err != nil {
+							return printAndReturn(cmd, err)
+						}
+					} else if sid := os.Getenv(envSessionID); sid != "" {
+						// --force takeover: transfer the claim to the current session
+						// so the "take over the claim" hint is truthful and the new
+						// session can subsequently re-claim idempotently.
+						a.FrontMatter["claim_session"] = sid
+						a.FrontMatter["updated"] = time.Now().UTC().Format("2006-01-02")
+						if err := a.Save(); err != nil {
+							return fmt.Errorf("saving claim takeover: %w", err)
+						}
+						if err := indexAfterSave(v, a); err != nil {
+							return err
+						}
 					}
 				}
 				return emitTransitionJSON(cmd, asJSON, transitionResult{

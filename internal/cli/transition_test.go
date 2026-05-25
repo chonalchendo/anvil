@@ -193,6 +193,34 @@ func TestTransitionReclaimDifferentSessionRefused(t *testing.T) {
 	}
 }
 
+func TestTransitionForceTakeoverTransfersClaimSession(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	t.Setenv(envSessionID, "session-a")
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	// session-b takes over with --force.
+	t.Setenv(envSessionID, "session-b")
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--force")
+
+	// claim_session must now equal session-b (genuine takeover, not a no-op).
+	a, err := core.LoadArtifact(filepath.Join(vault, core.TypeIssue.Dir(), "demo.foo.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := a.FrontMatter["claim_session"].(string); got != "session-b" {
+		t.Fatalf("claim_session = %q after --force takeover, want session-b", got)
+	}
+
+	// session-b can now re-claim idempotently without --force.
+	out := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--json")
+	if !strings.Contains(out, `"already_in_state"`) {
+		t.Fatalf("new holder re-claim: expected already_in_state, got %s", out)
+	}
+}
+
 func TestTransitionOwnerSurvivesValidate(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
