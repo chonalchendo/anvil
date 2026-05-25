@@ -1,6 +1,6 @@
 ---
 name: reviewing-pr
-description: "Use to gate every Anvil PR before merge with an independent review. Triggers: 'review this PR', 'review PR 42', 'self-review', or a freshly opened PR."
+description: "Use to gate every PR before merge with an independent review. Triggers: 'review this PR', 'review PR 42', 'self-review', or a freshly opened PR."
 ---
 
 # Reviewing PR
@@ -30,16 +30,12 @@ If the diff is >800 LOC or touches >10 files, surface the size to the user befor
 
 Fire one Agent-tool call with `subagent_type=general-purpose`. The subagent gets the PR number, branch, and the rubric below. It does **not** get this session's conversation.
 
-The subagent prompt names the standards by path and instructs the subagent to read them as needed:
+The subagent reads **this project's own** standards — never a hardcoded doc path. The same skill ships into a Go repo, a Python repo, or any other; the entry point is always `CLAUDE.md`:
 
-- `CLAUDE.md` — hard rules section (no helper without second use, no abstraction without need, no defensive code, no whole-file Read >150 lines without grepping).
-- `docs/code-design.md` — module/API shape, refactor discipline.
-- `docs/go-conventions.md` — imports, error handling, `log/slog`, `cmd.Println`/`cmd.PrintErrln`.
-- `docs/agent-cli-principles.md` — only when the PR touches an `anvil` verb.
-- `docs/skill-authoring.md` — only when the PR touches `skills/*/SKILL.md`.
-- `docs/test-conventions.md` — only when the PR touches `*_test.go`.
+- Instruct the subagent to read `CLAUDE.md` (and `AGENTS.md` if present) first — its hard-rules section, then the convention docs it indexes (code design, language conventions, CLI/API principles, test conventions, skill authoring — whichever this project defines).
+- Scope the read to the diff: follow CLAUDE.md's index to the docs governing the files the PR touches (the test-convention doc when it touches tests, the skill-authoring doc when it touches skill files), not the whole tree.
 
-Do not restate any of these in the dispatch prompt. The subagent reads them directly. Restating burns context and drifts from source.
+Do not name `docs/<x>.md` paths or restate their content in the dispatch prompt — hardcoding one repo's layout dangles in every other, and restating burns context and drifts from source. Name the entry point (`CLAUDE.md`); the subagent follows its index.
 
 ### Goal validation
 
@@ -52,6 +48,10 @@ If no linked issue resolves, the subagent records that it could not and skips go
 ### Structural simplification
 
 The standards docs catch rule violations; they miss working-but-needlessly-complex code that breaks no documented rule — a diff can be correct, CI-green, and still a tangle. Instruct the subagent to also ask, per meaningful change: is there a behavior-preserving reframing that deletes whole branches, helpers, or layers? Does an added abstraction earn its keep, or is it a pass-through? Did a cohesive module get more coupled or stateful? A simplification finding that cites a Hard Rule (`no abstraction without need`, `no helper without a second use`, `context is scarce`) is a cited finding — **high**, not a taste nit. Scope the suggestion to naming the simpler shape; a reviewer flags it, it does not authorize a refactor beyond the PR's goal.
+
+### Documentation staleness
+
+A diff can be correct and still leave the project's docs lying. Instruct the subagent to check, per change that alters an observable contract — a CLI flag or command name, a path, an output shape, a config key, a documented default or behaviour — whether the matching documentation moved with it: `README`, `CLAUDE.md`/`AGENTS.md`, the project's `docs/`, and any skill body that describes the changed surface. Documentation that now contradicts shipped behaviour is a cited finding — **high** (cite the stale `file:line` against the diff). A doc that needs updating but does not yet contradict behaviour is **medium**. Scope this to docs whose subject the diff actually touches — it is not a request to audit the whole doc tree.
 
 ## Phase 3 — Findings contract
 
@@ -66,7 +66,7 @@ The subagent returns a structured report with one entry per finding:
 Severity bands (the subagent applies these; this skill interprets them downstream):
 
 - **blocker** — correctness bug, security issue, hard-rule violation that would land a regression, or the issue's goal the diff plainly fails to achieve. Always fix before merge.
-- **high** — design smell with a named doc citation (e.g. "helper extracted for one callsite" → `code-design.md`). Default: fix.
+- **high** — design smell or stale-doc finding with a named citation (e.g. "helper extracted for one callsite" → the project's code-design rule). Default: fix.
 - **medium** — quality nit with a citation. Default: fix if cheap, surface if it requires judgment.
 - **low** — style/taste, no doc citation. Default: surface, do not fix.
 
@@ -86,6 +86,6 @@ Do **not** silently drop findings the subagent surfaced. A finding you judge wro
 
 - Do not review the PR in this session. Dispatch.
 - Do not skip the review because CI is green. CI is necessary, not sufficient; the merge decision waits on this review pass.
-- Do not restate the standards docs in the dispatch prompt — name the paths, the subagent reads them.
+- Do not restate or hardcode doc paths in the dispatch prompt — name the entry point (`CLAUDE.md`), the subagent follows its index to this project's standards.
 - Do not merge. `dispatching-issue-fleet`'s Iron Law applies — human owns the merge button.
 - Do not skip findings with "nitpick" when the finding cites a documented repo rule. Same nitpick policy as `responding-to-pr-review`.
