@@ -664,23 +664,23 @@ func TestSet_ReproductionAnchor_PositionalValue_Errors(t *testing.T) {
 }
 
 func TestSet_OtherObjectField_StillErrors(t *testing.T) {
-	// Non-reproduction_anchor object fields must still require hand-editing.
-	// Use an ad-hoc unknown field to exercise the KindUnknown path is not
-	// mistakenly routed through the anchor handler; a known object field from
-	// another type is not available here, so we confirm the anchor guard
-	// works by checking reproduction_anchor with the wrong type name is still
-	// rejected (issue schema is the only one with reproduction_anchor).
+	// plan.verification is a KindObject field with no CLI authoring path.
+	// The guard at set.go:173-174 must reject it with the "edit the file
+	// directly" message, not route it through the reproduction_anchor handler.
 	vault := setupVault(t)
-	writeFixtureIssue(t, vault, "foo", "a", "A")
+	writeFixturePlan(t, vault, "foo", "p1", "P1")
 
-	// Calling set on a known issue object field without --command must error.
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "foo.a", "reproduction_anchor"})
+	cmd.SetArgs([]string{"set", "plan", "foo.p1", "verification", "somevalue"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatal("expected error: reproduction_anchor without --command")
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error: object field without CLI authoring path")
+	}
+	if !strings.Contains(err.Error(), "edit the file directly") {
+		t.Errorf("expected 'edit the file directly' error, got: %v", err)
 	}
 }
 
