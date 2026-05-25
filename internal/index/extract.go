@@ -102,7 +102,7 @@ func LinkRowsFromFrontmatter(source string, fm map[string]any) []LinkRow {
 // Tokens whose type prefix is not a known Anvil type are ignored. Output is
 // sorted by Target for deterministic comparison.
 func LinkRowsFromBody(source, body string) []LinkRow {
-	matches := bodyWikilinkRe.FindAllStringSubmatch(body, -1)
+	matches := bodyWikilinkRe.FindAllStringSubmatch(core.StripFencedBlocks(body), -1)
 	if len(matches) == 0 {
 		return nil
 	}

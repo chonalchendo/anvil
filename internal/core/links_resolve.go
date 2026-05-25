@@ -18,6 +18,21 @@ type UnresolvedLink struct {
 
 var wikilinkRe = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
 
+// fencedBlockRe matches a triple-backtick fenced code block (opening fence,
+// any content, closing fence) including the fence lines themselves. The
+// non-greedy [\s\S]*? prevents the first closing fence from consuming
+// subsequent fenced blocks.
+var fencedBlockRe = regexp.MustCompile("(?m)^```[^\n]*\n[\\s\\S]*?^```[ \t]*$")
+
+// StripFencedBlocks replaces the content of every triple-backtick fenced code
+// block with an empty placeholder, so that wikilink scanners won't mistake
+// illustrative [[links]] inside code samples for live vault references.
+// Only standard triple-backtick fences are stripped; tilde fences and
+// indented code blocks are out of scope per the issue non-goals.
+func StripFencedBlocks(body string) string {
+	return fencedBlockRe.ReplaceAllString(body, "```\n```")
+}
+
 // ResolveLinks walks fm and returns every wikilink (`[[type.id]]`) whose
 // target file is missing from v. Tokens whose type prefix is not a known
 // Anvil type are ignored — they are treated as non-vault references.
@@ -86,7 +101,7 @@ func checkWikilinkTarget(v *Vault, field, target string) (UnresolvedLink, bool) 
 // walks free-form markdown instead of typed frontmatter slots — duplicate
 // targets in the body are reported once. Field is "body" for every entry.
 func ResolveBodyLinks(v *Vault, body string) []UnresolvedLink {
-	matches := wikilinkRe.FindAllStringSubmatch(body, -1)
+	matches := wikilinkRe.FindAllStringSubmatch(StripFencedBlocks(body), -1)
 	if matches == nil {
 		return nil
 	}
