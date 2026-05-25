@@ -5,7 +5,8 @@ Applies to every task in the anvil repo — non-negotiable.
 ## Cutting a Worktree
 
 ```bash
-git -C ~/Development/anvil worktree add ~/Development/anvil-worktrees/<slug> -b anvil/<slug>
+git -C ~/Development/anvil fetch origin
+git -C ~/Development/anvil worktree add ~/Development/anvil-worktrees/<slug> -b anvil/<slug> origin/master
 cd ~/Development/anvil-worktrees/<slug>
 ```
 

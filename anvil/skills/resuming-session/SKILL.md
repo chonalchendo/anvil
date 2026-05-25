@@ -77,7 +77,9 @@ Objective: <the one-sentence Objective from the handoff body>
 
 If the loaded handoff has no `**Objective.**` line (it predates the field or is malformed), say so in one line — `No Objective recorded in this handoff.` — and do not invent one. An exploratory chain still has the line — surface its `(exploratory …)` value verbatim, don't treat it as missing.
 
-Cross-check git state. Run `git -C <repo from handoff> rev-parse --abbrev-ref HEAD`. If the current branch differs from what the handoff describes, surface a single line: `Handoff describes branch <X>; current branch is <Y> — reconcile before acting.` Do not silently overwrite — let the user decide whether to switch branches, cut a fresh worktree, or proceed regardless.
+Cross-check git state. Run `git -C <repo from handoff> fetch origin` (silent; keeps the ancestry check honest when local is behind), then `git -C <repo from handoff> rev-parse --abbrev-ref HEAD`. If the current branch differs from what the handoff describes, surface a single line: `Handoff describes branch <X>; current branch is <Y> — reconcile before acting.` Do not silently overwrite — let the user decide whether to switch branches, cut a fresh worktree, or proceed regardless.
+
+When checking whether a SHA from the handoff is reachable, compare against `origin/<branch>` (post-fetch), not just the local ref — so "local is behind origin" is distinguished from "squashed/diverged".
 
 After surfacing, hand control back to the user (or, if the handoff names an unambiguous next action and the user already invoked you with intent to continue, proceed with that next action).
 
