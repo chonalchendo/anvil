@@ -40,7 +40,7 @@ Keep a running log of each friction point: the command run, what you expected, w
 
 ## Phase 3 — Probe the CLI surface
 
-Beyond the happy path, poke the verbs a new user leans on: `anvil list --json`, `anvil show`, `anvil where`, `anvil link --to`, `anvil tags list`, `anvil validate`, `anvil reindex`. Try the obvious wrong inputs (missing flags, bad ids) and judge whether each error message *teaches* or *stumps*. Log frictions the same way.
+Map the surface from the tool, not from memory — and treat gaps in that self-description as findings. Enumerate the full verb set with `anvil --help`, then walk each verb via `anvil <verb> --help` and read each skill body via `anvil show skill <name>`; that live list is your coverage map, so it stays current as the CLI grows. For the verbs a new user leans on, try the obvious wrong inputs too (missing flags, bad ids). At each step judge whether the `--help` text and the error message *teach* or *stump*, and log frictions the same way.
 
 ## Phase 4 — File findings (Iron Law applies)
 
