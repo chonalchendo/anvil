@@ -11,6 +11,15 @@ Exercise a project end-to-end the way a real user or operator would — not to s
 
 **NO ISSUE WITHOUT A REPRODUCTION.** Every filed issue embeds the exact failing command or step and the observed-vs-expected delta. Friction you cannot reduce to a re-runnable reproduction goes in the report as an observation, not the tracker. Speculative risks, "might-be-nice," and one-off paper-cuts are aggregated and reported — not filed.
 
+## Autonomous mode (unattended runs)
+
+When the invocation declares an unattended run — a `/loop`-driven overnight self-test, or a caller stating no human is watching — drive every phase to its end and **defer all human judgment to the morning PR review**. Never pause for a confirmation: make the bounded decision and move on.
+
+Quality gates do **not** relax — the Iron Law, each issue's `## Verification`, and the independent PR review all still run. Autonomy auto-answers *confirmations*, never *gates*, and **stops at review-green for the human's morning merge — never auto-merge.** What changes:
+
+- **Phase 4:** propagate the mode — tell `writing-issue` the run is unattended so its severity, convergence, and milestone confirms auto-resolve (see its *Autonomous mode* section). A finding with no nameable goal or no fitting milestone becomes an `inbox` item, not a forced issue.
+- **Phase 5 (the fan-out):** skip "confirm scope before dispatching" and dispatch the **`anvil-issue-worker` agent** (`subagent_type: anvil-issue-worker`) once per auto-fixable id — a foreground subagent, preloaded with `completing-issue`, that runs the fix to PR-opened on a cheaper model and returns the PR url or a `Blocker:` line (contract: `anvil/agents/anvil-issue-worker.md`). The orchestrator stays on its model and fires them in parallel; never run the fixes inline — that serialises the loop and floods orchestrator context until it degrades. Then run `reviewing-pr` on each returned PR to drive it to review-green: the orchestrator owns review, since a subagent cannot dispatch the reviewer sub-subagent. A worker that returns a scope-change `Blocker` is recorded and skipped; the morning PR review is the merge gate.
+
 ## Phase 0 — Orient (discover, do not assume)
 
 Read the project's entry-point docs — `CLAUDE.md`, `AGENTS.md`, `README`, the task runner (`justfile`/`Makefile`), and whatever `docs/` they index. Extract, in the project's own terms:
