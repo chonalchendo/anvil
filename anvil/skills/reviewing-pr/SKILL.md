@@ -53,6 +53,10 @@ The standards docs catch rule violations; they miss working-but-needlessly-compl
 
 A diff can be correct and still leave the project's docs lying. Instruct the subagent to check, per change that alters an observable contract — a CLI flag or command name, a path, an output shape, a config key, a documented default or behaviour — whether the matching documentation moved with it: `README`, `CLAUDE.md`/`AGENTS.md`, the project's `docs/`, and any skill body that describes the changed surface. Documentation that now contradicts shipped behaviour is a cited finding — **high** (cite the stale `file:line` against the diff). A doc that needs updating but does not yet contradict behaviour is **medium**. Scope this to docs whose subject the diff actually touches — it is not a request to audit the whole doc tree.
 
+### Regression provenance
+
+A correctness or behavioural defect the subagent finds needs provenance before severity — a defect the diff *introduces* is the author's to fix here; one it merely *surfaces* (a latent bug the change exposed) or *carries forward* (pre-existing, in code the diff did not touch) is real but usually outside this PR's scope. Instruct the subagent to establish this with `git blame` on the offending lines and `git log -S<symbol>`/`-G<regex>` over the touched paths, classifying each defect as **introduced by**, **made visible by**, or **carried forward by** the diff. It attaches a confidence — `clear`, `likely`, or `unknown` — and reports `unknown` when blame is ambiguous rather than inventing a cause. A defect the diff introduces is a **blocker**; a made-visible or carried-forward one is surfaced with its provenance at a severity matching its scope, not silently folded into the author's burden.
+
 ## Phase 3 — Findings contract
 
 The subagent returns a structured report with one entry per finding:
@@ -60,6 +64,7 @@ The subagent returns a structured report with one entry per finding:
 ```text
 [<severity>] <path>:<line> — <one-line claim>
   Cite: <doc path, CLAUDE.md rule, or the issue's goal/acceptance criterion>
+  Provenance: <introduced | made-visible | carried-forward, confidence clear|likely|unknown — correctness/regression findings only>
   Suggest: <concrete patch or "surface to author">
 ```
 
