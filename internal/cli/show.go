@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/anvil/skills"
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
@@ -187,7 +188,15 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, 
 	if includeIncoming {
 		incoming, err := loadIncomingEdges(v, id)
 		if err != nil {
-			return err
+			// A stale index must not suppress the body — emit the warning to
+			// stderr and degrade gracefully (no incoming section) so the body
+			// still reaches stdout.
+			var s *errfmt.Structured
+			if errors.As(err, &s) && s.Code == "index_stale" {
+				cmd.PrintErrln(err)
+			} else {
+				return err
+			}
 		}
 		out.Incoming = incoming
 	}
@@ -230,8 +239,6 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, 
 func loadIncomingEdges(v *core.Vault, id string) (map[string][]incomingEdge, error) {
 	db, err := indexForRead(v)
 	if err != nil {
-		// Surface stale-index errors so callers see the same actionable hint
-		// as `anvil link --to` and `anvil list`. Other errors propagate too.
 		return nil, err
 	}
 	defer db.Close()

@@ -702,6 +702,35 @@ func TestShow_Skill(t *testing.T) {
 	}
 }
 
+// TestShow_IssueStaleIndexDoesNotSuppressBody: a stale vault index must not
+// prevent the body from reaching stdout — the staleness warning belongs on
+// stderr, the body on stdout.
+func TestShow_IssueStaleIndexDoesNotSuppressBody(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	// init + create seeds the index (indexAfterSave runs on create).
+	execCmd(t, "init", vault)
+	execCmd(t, "create", "issue",
+		"--project", "foo", "--title", "bar", "--description", "desc",
+		"--goal", "goal is done", "--tags", "domain/cli", "--allow-new-facet=domain")
+	// Now mark the vault stale so indexForRead returns ErrIndexStale.
+	markVaultExternallyStale(t, vault, "foo.external.md")
+
+	cmd := newRootCmd()
+	out, errOut, err := runCmd(t, cmd, "show", "issue", "foo.bar")
+	if err != nil {
+		t.Fatalf("show issue with stale index should not error; got: %v\nstdout: %s\nstderr: %s", err, out, errOut)
+	}
+	// Body must reach stdout.
+	if !strings.Contains(out, "## Verification") {
+		t.Errorf("body missing from stdout with stale index\nstdout: %s", out)
+	}
+	// Stale warning must reach stderr, not swallowed.
+	if !strings.Contains(errOut, "index_stale") {
+		t.Errorf("stale warning missing from stderr\nstderr: %s", errOut)
+	}
+}
+
 // TestShow_SkillUnknown surfaces the available skill list so agents can
 // self-correct from a typo without needing to grep the repo.
 func TestShow_SkillUnknown(t *testing.T) {
