@@ -18,7 +18,7 @@ When the invocation declares an unattended run — a `/loop`-driven overnight se
 Quality gates do **not** relax — the Iron Law, each issue's `## Verification`, and the independent PR review all still run. Autonomy auto-answers *confirmations*, never *gates*, and **ends at PR-opened — never auto-merge.** What changes:
 
 - **Phase 4:** propagate the mode — tell `writing-issue` the run is unattended so its severity, convergence, and milestone confirms auto-resolve (see its *Autonomous mode* section). A finding with no nameable goal or no fitting milestone becomes an `inbox` item, not a forced issue.
-- **Phase 5:** skip "confirm scope before dispatching" — fire a `completing-issue` worker per auto-fixable id directly; the morning PR review is the scope gate. A worker hitting a scope-change files a blocker and skips (see its *Autonomous mode* section), leaving that issue filed.
+- **Phase 5:** skip "confirm scope before dispatching" — fire a `completing-issue` worker per auto-fixable id directly; the morning PR review is the scope gate. A worker hitting a scope-change files a blocker and skips (see its *Autonomous mode* section), leaving that issue `in-progress` for the morning review.
 
 ## Phase 0 — Orient (discover, do not assume)
 
