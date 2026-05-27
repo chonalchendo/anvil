@@ -40,7 +40,7 @@ Map the project's command/entry surface from the tool, not from memory — gaps 
 
 File findings into the **real** tracker, not the sandbox. If your sandbox redirected state via an env var or flag, drop it and confirm you are pointed back at the real project *before* filing — a forgotten override would file findings into the throwaway state you are about to discard.
 
-For each logged friction that reduces to a re-runnable reproduction, file it via the project's issue workflow (discovered in Phase 0), labelled with this skill's own provenance tag `activity/self-test` — applied through whatever tracker the project uses — so the run's findings are retrievable as one batch. Before filing, **dedup**: scan existing issues and the current batch — fold a repeat into the existing issue, and aggregate repeated paper-cuts against one surface into a single issue, not five. Honor the project's rule for *which* tracker or project a finding belongs to (a methodology-tool gripe may belong to the tool's repo, not the product's).
+For each logged friction that reduces to a re-runnable reproduction, file it via the project's issue workflow (discovered in Phase 0), labelled with this skill's own provenance tag `activity/self-test` — applied through whatever tracker the project uses — so the run's findings are retrievable as one batch. On an anvil tracker the tag is facet-novel on first use: register it once with `anvil tags add activity/self-test --desc "..."` so filings validate (passing only `--allow-new-facet=activity` lets `create` through but leaves later `validate` failing). Before filing, **dedup**: scan existing issues and the current batch — fold a repeat into the existing issue, and aggregate repeated paper-cuts against one surface into a single issue, not five. Honor the project's rule for *which* tracker or project a finding belongs to (a methodology-tool gripe may belong to the tool's repo, not the product's).
 
 **REQUIRED SUB-SKILL:** Use writing-issue for each filed finding (or the project's own named issue-authoring skill if it differs).
 
@@ -48,18 +48,18 @@ Then tear down the sandbox.
 
 ## Phase 5 — Resolve the clear wins
 
-Filing is not the finish line — an unworked backlog is its own friction. Hand the **auto-fixable subset** of the batch to the fleet, and *only* that subset:
+Filing is not the finish line — an unworked backlog is its own friction. From the batch, pick the **auto-fixable subset** and dispatch a worker per finding; leave the rest filed.
 
 - **Auto-fixable** — a `bug` with a small, unambiguous fix, **in this repo**, already carrying a goal + verification. It resolves to a review-green PR with no human design call.
-- **Leave filed** — design/refactor findings and aggregated paper-cuts (an auto-PR would pre-commit a direction the maintainer should decide first), and anything belonging to *another* repo (e.g. a methodology-tool gripe filed against the tool, unfixable from here).
+- **Leave filed** — design/refactor findings and aggregated paper-cuts (an auto-PR would pre-commit a direction the maintainer should decide first), and anything belonging to *another* repo (a methodology-tool gripe filed against the tool is unfixable from here).
 
 ```bash
-anvil list issue --tag activity/self-test --status open --json   # triage the batch; pick the auto-fixable bug ids
+anvil list issue --tag activity/self-test --status open --json   # triage; pick the auto-fixable bug ids
 ```
 
-The fleet claims → fixes → live-smokes → opens one review-green PR per issue in parallel worktrees, and leaves any issue it cannot converge still filed — so the hard ones correctly stay as issues. The human owns the merge button.
+Fire the worker on each auto-fixable id: it claims → fixes → live-smokes → opens one review-green PR (and can run on a cheaper subagent). A worker that cannot converge leaves its issue filed — so the hard ones correctly stay as issues. The human owns the merge button. For a larger batch the fleet parallelises workers, but note it selects the project's `--ready` set rather than a curated id list, so confirm scope before dispatching.
 
-**REQUIRED SUB-SKILL:** Use dispatching-issue-fleet for the auto-fixable subset (main session only — a subagent cannot fan out its own workers).
+**REQUIRED SUB-SKILL:** Use completing-issue per auto-fixable bug (main session only — a subagent cannot fan out its own workers); dispatching-issue-fleet is the batch alternative when its ready-set matches the chosen subset.
 
 ## Phase 6 — Report
 
