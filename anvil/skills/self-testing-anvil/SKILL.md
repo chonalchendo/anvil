@@ -34,7 +34,7 @@ Exercise the greenfield loop in order, as a real user. Where a skill exists for 
 2. **System design** — `writing-system-design`.
 3. **Milestone** — `writing-milestone` with a closed acceptance criterion.
 4. **Issue** — `writing-issue`: author one issue end-to-end (goal, severity, verification, milestone link).
-5. **Completion** — `completing-issue` far enough to exercise the claim → verify path. You need not open a real PR; stop at the build/verify gate.
+5. **Completion** — `completing-issue` far enough to exercise the claim → verify path. A throwaway project has no repo to PR against, so stop at the verify gate.
 
 Keep a running log of each friction point: the command run, what you expected, what happened.
 
@@ -44,7 +44,14 @@ Beyond the happy path, poke the verbs a new user leans on: `anvil list --json`, 
 
 ## Phase 4 — File findings (Iron Law applies)
 
-For each logged friction that reduces to a re-runnable reproduction, file it against the **real** vault via `writing-issue`, tagged `activity/self-test` so the run's findings are retrievable as one batch:
+Findings go to the **real** vault, not the throwaway. Drop the override and confirm *before* filing anything — a forgotten env var would file findings into the throwaway you are about to delete in this same phase, silently losing them:
+
+```bash
+unset ANVIL_VAULT
+anvil where   # confirm this points at the real vault, not the self-test sandbox
+```
+
+Then, for each logged friction that reduces to a re-runnable reproduction, file it via `writing-issue`, tagged `activity/self-test` so the run's findings are retrievable as one batch:
 
 ```bash
 anvil list issue --tags activity/self-test --json   # the batch this run contributes to
