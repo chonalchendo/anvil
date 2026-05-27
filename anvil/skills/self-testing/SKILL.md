@@ -46,12 +46,28 @@ For each logged friction that reduces to a re-runnable reproduction, file it via
 
 Then tear down the sandbox.
 
-## Phase 5 — Report
+## Phase 5 — Resolve the clear wins
+
+Filing is not the finish line — an unworked backlog is its own friction. Hand the **auto-fixable subset** of the batch to the fleet, and *only* that subset:
+
+- **Auto-fixable** — a `bug` with a small, unambiguous fix, **in this repo**, already carrying a goal + verification. It resolves to a review-green PR with no human design call.
+- **Leave filed** — design/refactor findings and aggregated paper-cuts (an auto-PR would pre-commit a direction the maintainer should decide first), and anything belonging to *another* repo (e.g. a methodology-tool gripe filed against the tool, unfixable from here).
+
+```bash
+anvil list issue --tag activity/self-test --status open --json   # triage the batch; pick the auto-fixable bug ids
+```
+
+The fleet claims → fixes → live-smokes → opens one review-green PR per issue in parallel worktrees, and leaves any issue it cannot converge still filed — so the hard ones correctly stay as issues. The human owns the merge button.
+
+**REQUIRED SUB-SKILL:** Use dispatching-issue-fleet for the auto-fixable subset (main session only — a subagent cannot fan out its own workers).
+
+## Phase 6 — Report
 
 Output a concise closeout in chat (not a tracked artifact):
 
 - **Exercised** — which flows/commands you drove, against which sandbox.
-- **Filed** — each issue id + one-line title + severity, tagged `activity/self-test`.
+- **Dispatched** — bug issues handed to the fleet: id + the PR each opened, for your review.
+- **Filed, left for you** — design/cross-repo/aggregated findings filed but not auto-fixed, each with why.
 - **Observed, not filed** — friction without a clean reproduction, plus paper-cuts you aggregated — each with a one-line reason (a conscious-rejection list, not silence).
 - **Clean** — surfaces that worked end-to-end with no friction.
 
