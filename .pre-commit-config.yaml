@@ -27,6 +27,12 @@ repos:
         language: system
         types: [go]
         exclude: '_test\.go$'
+      - id: skill-lint
+        name: SKILL.md lint (length + description caps)
+        entry: ./.github/check-skills.sh
+        language: system
+        files: '^anvil/skills/.*/SKILL\.md$'
+        pass_filenames: false
       - id: anvil-validate
         name: anvil validate (fresh-vault smoke)
         entry: bash -c 'tmp=$(mktemp -d) && go run ./cmd/anvil init "$tmp" >/dev/null && go run ./cmd/anvil validate "$tmp"'
