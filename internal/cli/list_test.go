@@ -365,18 +365,18 @@ func TestList_ProjectFlag_RejectedForUnsupportedTypes(t *testing.T) {
 	for _, typ := range []string{"inbox", "session", "sweep", "thread"} {
 		t.Run(typ, func(t *testing.T) {
 			cmd := newRootCmd()
-			_, errOut, err := runCmd(t, cmd, "list", typ, "--project", "anvil")
-			if err == nil {
-				t.Fatalf("expected error for --project on %s, got nil", typ)
+			stdout, _, err := runCmd(t, cmd, "list", typ, "--project", "anvil", "--json")
+			if err != nil {
+				t.Fatalf("expected nil with --json for %s, got: %v", typ, err)
 			}
-			if !strings.Contains(errOut, "unsupported_flag_for_type") {
-				t.Errorf("stderr missing code: %q", errOut)
+			if !strings.Contains(stdout, "unsupported_flag_for_type") {
+				t.Errorf("stdout missing code: %q", stdout)
 			}
-			if !strings.Contains(errOut, `"flag":"project"`) {
-				t.Errorf("stderr missing flag field: %q", errOut)
+			if !strings.Contains(stdout, `"flag":"project"`) {
+				t.Errorf("stdout missing flag field: %q", stdout)
 			}
-			if !strings.Contains(errOut, `"suggest"`) {
-				t.Errorf("stderr missing suggest field: %q", errOut)
+			if !strings.Contains(stdout, `"suggest"`) {
+				t.Errorf("stdout missing suggest field: %q", stdout)
 			}
 		})
 	}
@@ -448,18 +448,18 @@ func TestList_SeverityFilter(t *testing.T) {
 
 	t.Run("rejects unknown value", func(t *testing.T) {
 		cmd := newRootCmd()
-		_, errOut, err := runCmd(t, cmd, "list", "issue", "--severity", "spicy")
-		if err == nil {
-			t.Fatal("expected error for unknown severity, got nil")
+		stdout, _, err := runCmd(t, cmd, "list", "issue", "--severity", "spicy", "--json")
+		if err != nil {
+			t.Fatalf("expected nil with --json, got: %v", err)
 		}
-		if !strings.Contains(errOut, "bad_flag_value") {
-			t.Errorf("stderr missing code: %q", errOut)
+		if !strings.Contains(stdout, "bad_flag_value") {
+			t.Errorf("stdout missing code: %q", stdout)
 		}
-		if !strings.Contains(errOut, `"flag":"severity"`) {
-			t.Errorf("stderr missing flag field: %q", errOut)
+		if !strings.Contains(stdout, `"flag":"severity"`) {
+			t.Errorf("stdout missing flag field: %q", stdout)
 		}
-		if !strings.Contains(errOut, `"allowed":["low","medium","high","critical"]`) {
-			t.Errorf("stderr missing allowed enum: %q", errOut)
+		if !strings.Contains(stdout, `"allowed":["low","medium","high","critical"]`) {
+			t.Errorf("stdout missing allowed enum: %q", stdout)
 		}
 	})
 }
@@ -760,12 +760,12 @@ func TestList_InvalidBody_EmptyWhenAllValid(t *testing.T) {
 func TestList_InvalidBody_OnlyIssue(t *testing.T) {
 	setupVault(t)
 	cmd := newRootCmd()
-	_, stderr, err := runCmd(t, cmd, "list", "learning", "--invalid-body")
-	if err == nil {
-		t.Error("expected error for --invalid-body on non-issue type")
+	stdout, _, err := runCmd(t, cmd, "list", "learning", "--invalid-body", "--json")
+	if err != nil {
+		t.Errorf("expected nil with --json, got: %v", err)
 	}
-	if !strings.Contains(stderr, "issue") {
-		t.Errorf("error should mention supported type, got: %s", stderr)
+	if !strings.Contains(stdout, "issue") {
+		t.Errorf("error should mention supported type in JSON stdout, got: %s", stdout)
 	}
 }
 

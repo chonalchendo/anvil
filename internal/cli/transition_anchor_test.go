@@ -240,20 +240,19 @@ func TestTransition_InProgress_AnchorTimeoutSurfacesAsError(t *testing.T) {
 	writeIssueWithAnchor(t, vault, "anvil.bad", "/no/such/binary/anywhere", "expected")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "anvil.bad", "in-progress", "--owner", "x"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected hard error for unrunnable anchor command; output: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "anvil.bad", "in-progress", "--owner", "x", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
 	// /bin/sh -c on a missing binary still returns an ExitError (sh prints to
 	// stderr and exits 127). That's the documented match-semantics path:
 	// empty stdout vs non-empty expected → anchor_mismatch. So this case
 	// validates the ExitError fall-through still produces a mismatch refusal.
-	combined := out.String()
-	if !strings.Contains(combined, "anchor_mismatch") {
-		t.Errorf("expected mismatch refusal on missing binary (sh exits 127); got: %s", combined)
+	if !strings.Contains(stdout.String(), "anchor_mismatch") {
+		t.Errorf("expected mismatch refusal on missing binary (sh exits 127); got: %s", stdout.String())
 	}
 }
 

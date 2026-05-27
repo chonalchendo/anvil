@@ -37,15 +37,14 @@ func TestListReadyRejectedForNonIssueType(t *testing.T) {
 	execCmd(t, "init", vault)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"list", "milestone", "--ready"})
+	cmd.SetArgs([]string{"list", "milestone", "--ready", "--json"})
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected unsupported_for_type; out: %s err: %s", stdout.String(), stderr.String())
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	combined := stdout.String() + stderr.String()
-	if !strings.Contains(combined, "unsupported_for_type") {
-		t.Fatalf("expected unsupported_for_type code; got: %s", combined)
+	if !strings.Contains(stdout.String(), "unsupported_for_type") {
+		t.Fatalf("expected unsupported_for_type code; got: %s", stdout.String())
 	}
 }

@@ -50,14 +50,14 @@ func TestTransitionResolvedRefusesWhenOpenPR(t *testing.T) {
 	})
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected refusal; output: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	got := out.String()
+	got := stdout.String()
 	if !strings.Contains(got, "open_pr_blocks_resolve") {
 		t.Errorf("missing error code: %s", got)
 	}

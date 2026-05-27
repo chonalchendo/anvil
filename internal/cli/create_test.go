@@ -169,18 +169,18 @@ func TestCreate_ProjectFlag_RejectedForUnsupportedTypes(t *testing.T) {
 			t.Chdir(t.TempDir())
 
 			cmd := newRootCmd()
-			_, errOut, err := runCmd(t, cmd, "create", typ, "--title", "x", "--project", "verifytest")
-			if err == nil {
-				t.Fatalf("expected error for --project on %s, got nil", typ)
+			stdout, _, err := runCmd(t, cmd, "create", typ, "--title", "x", "--project", "verifytest", "--json")
+			if err != nil {
+				t.Fatalf("expected nil with --json for %s, got: %v", typ, err)
 			}
-			if !strings.Contains(errOut, "unsupported_flag_for_type") {
-				t.Errorf("stderr missing code: %q", errOut)
+			if !strings.Contains(stdout, "unsupported_flag_for_type") {
+				t.Errorf("stdout missing code: %q", stdout)
 			}
-			if !strings.Contains(errOut, `"flag":"project"`) {
-				t.Errorf("stderr missing flag field: %q", errOut)
+			if !strings.Contains(stdout, `"flag":"project"`) {
+				t.Errorf("stdout missing flag field: %q", stdout)
 			}
-			if !strings.Contains(errOut, `"suggest"`) {
-				t.Errorf("stderr missing suggest field: %q", errOut)
+			if !strings.Contains(stdout, `"suggest"`) {
+				t.Errorf("stdout missing suggest field: %q", stdout)
 			}
 		})
 	}
