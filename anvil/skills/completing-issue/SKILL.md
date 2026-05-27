@@ -147,7 +147,7 @@ Scope-change: <metric>=<observed> vs <declared> — <one-line cause>
 
 Do not silently scope down (cut a quieter version) or up (touch sibling files). The human decides: split the issue, expand scope, or abort.
 
-**Autonomous mode (unattended runs):** when running unattended, never block on a human for a scope-change. Dispatched as a single-issue worker, emit it as the worker's `Blocker:` return line and halt — the orchestrator records and skips it. Running inline in an autonomous orchestrator, file a blocker instead (an `inbox` item, or a `blocks` issue when a milestone fits), leave the issue `in-progress`, note it in the report, and continue. Verification non-convergence already reports rather than hangs (Phase 5). Every other gate — `## Verification`, the build-and-install gate, the independent review — still runs; never auto-merge.
+**Autonomous mode (unattended runs):** when running unattended, never block on a human for a scope-change. Dispatched as the `anvil-issue-worker` agent, emit it as the worker's `Blocker:` return line and halt — the orchestrator records and skips it. Running inline in an autonomous orchestrator, file a blocker instead (an `inbox` item, or a `blocks` issue when a milestone fits), leave the issue `in-progress`, note it in the report, and continue. Verification non-convergence already reports rather than hangs (Phase 5). Every other gate — `## Verification`, the build-and-install gate, the independent review — still runs; never auto-merge.
 
 ## Forbidden calls
 
