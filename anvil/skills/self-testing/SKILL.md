@@ -18,7 +18,7 @@ Read the project's entry-point docs — `CLAUDE.md`, `AGENTS.md`, `README`, the 
 - **Core loop** — the primary end-to-end flow a user/operator runs (a CLI pipeline, a request path, an ingest→transform→serve chain, a methodology loop). This is your main test target.
 - **How to exercise it for real** — the commands/entrypoints, and the project's bar for a *real* end-to-end check versus a fixture/mock that proves nothing. Honor that bar.
 - **Sandbox** — how to run against throwaway state (a tmp catalog/db, a scratch dir, a throwaway vault) so the self-test never corrupts real data. If the docs name no isolation mechanism, that gap is itself a finding.
-- **Issue workflow** — how this project files issues (which tracker or skill, which project slug, tag conventions), so findings land where the maintainer will see them.
+- **Issue workflow** — how this project files issues (which tracker or issue-authoring skill, which project slug), so findings land where the maintainer will see them.
 
 If the docs don't answer one of these, note it — a project a new user can't orient in from its own docs has a real onboarding gap.
 
@@ -40,7 +40,7 @@ Map the project's command/entry surface from the tool, not from memory — gaps 
 
 File findings into the **real** tracker, not the sandbox. If your sandbox redirected state via an env var or flag, drop it and confirm you are pointed back at the real project *before* filing — a forgotten override would file findings into the throwaway state you are about to discard.
 
-For each logged friction that reduces to a re-runnable reproduction, file it via the project's issue workflow (discovered in Phase 0), tagged `activity/self-test` so the run's findings are retrievable as one batch. Before filing, **dedup**: scan existing issues and the current batch — fold a repeat into the existing issue, and aggregate repeated paper-cuts against one surface into a single issue, not five. Honor the project's rule for *which* tracker or project a finding belongs to (a methodology-tool gripe may belong to the tool's repo, not the product's).
+For each logged friction that reduces to a re-runnable reproduction, file it via the project's issue workflow (discovered in Phase 0), labelled with this skill's own provenance tag `activity/self-test` — applied through whatever tracker the project uses — so the run's findings are retrievable as one batch. Before filing, **dedup**: scan existing issues and the current batch — fold a repeat into the existing issue, and aggregate repeated paper-cuts against one surface into a single issue, not five. Honor the project's rule for *which* tracker or project a finding belongs to (a methodology-tool gripe may belong to the tool's repo, not the product's).
 
 **REQUIRED SUB-SKILL:** Use writing-issue for each filed finding (or the project's own named issue-authoring skill if it differs).
 
