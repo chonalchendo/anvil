@@ -331,10 +331,16 @@ func emitTransitionJSON(cmd *cobra.Command, asJSON bool, r transitionResult) err
 	return nil
 }
 
-// printAndReturn renders the structured error to stderr and returns it for
-// cobra's exit-code path.
+// printAndReturn honors --json like the success path: when set, the JSON
+// envelope goes to stdout and we return nil so fang doesn't also render the
+// human block; when unset, we return the error and let fang render it.
+// GetBool returns false for callers that never registered --json, so the
+// human-only path is preserved for list/plan/tags callers.
 func printAndReturn(cmd *cobra.Command, err error) error {
-	b, _ := json.Marshal(err)
-	cmd.PrintErrln(string(b))
+	if asJSON, _ := cmd.Flags().GetBool("json"); asJSON {
+		b, _ := json.Marshal(err)
+		fmt.Fprintln(cmd.OutOrStdout(), string(b))
+		return nil
+	}
 	return err
 }

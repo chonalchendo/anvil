@@ -208,15 +208,15 @@ func TestCutWorktreeBranchAtWrongPathRefuses(t *testing.T) {
 	s.listEntries["demo/foo"] = worktreeInfo{path: "/somewhere/else"}
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected refusal; got: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(out.String(), "cut_worktree_failed") {
-		t.Errorf("missing error code: %s", out.String())
+	if !strings.Contains(stdout.String(), "cut_worktree_failed") {
+		t.Errorf("missing error code: %s", stdout.String())
 	}
 	a := loadIssueDoc(t, vault, "demo.foo")
 	if a.FrontMatter["status"] != "open" {
@@ -234,15 +234,15 @@ func TestCutWorktreeAddFailureRefusesTransition(t *testing.T) {
 	s.addErr = errors.New("fatal: invalid reference")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected refusal; got: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(out.String(), "cut_worktree_failed") {
-		t.Errorf("missing error code: %s", out.String())
+	if !strings.Contains(stdout.String(), "cut_worktree_failed") {
+		t.Errorf("missing error code: %s", stdout.String())
 	}
 	a := loadIssueDoc(t, vault, "demo.foo")
 	if a.FrontMatter["status"] != "open" {
@@ -259,15 +259,15 @@ func TestCutWorktreeRejectedOnWrongEdge(t *testing.T) {
 
 	stubSideFX(t)
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--cut-worktree"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected refusal; got: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--cut-worktree", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(out.String(), "invalid_flag_for_transition") {
-		t.Errorf("missing error code: %s", out.String())
+	if !strings.Contains(stdout.String(), "invalid_flag_for_transition") {
+		t.Errorf("missing error code: %s", stdout.String())
 	}
 }
 
@@ -281,16 +281,16 @@ func TestWorktreeOverrideWithoutCutFlagRejected(t *testing.T) {
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{
 		"transition", "issue", "demo.foo", "in-progress",
-		"--owner", "claude", "--worktree", "/tmp/wt",
+		"--owner", "claude", "--worktree", "/tmp/wt", "--json",
 	})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected refusal; got: %s", out.String())
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(out.String(), "invalid_flag_for_transition") {
-		t.Errorf("missing error code: %s", out.String())
+	if !strings.Contains(stdout.String(), "invalid_flag_for_transition") {
+		t.Errorf("missing error code: %s", stdout.String())
 	}
 }
 
@@ -338,15 +338,15 @@ func TestLandPRRefusesWhenNotMergeable(t *testing.T) {
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"CONFLICTING","mergeStateStatus":"DIRTY"}`)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected refusal; got: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(out.String(), "land_pr_not_mergeable") {
-		t.Errorf("missing error code: %s", out.String())
+	if !strings.Contains(stdout.String(), "land_pr_not_mergeable") {
+		t.Errorf("missing error code: %s", stdout.String())
 	}
 	if len(s.mergeCalls) != 0 {
 		t.Errorf("merge should not have been called: %v", s.mergeCalls)
@@ -369,15 +369,15 @@ func TestLandPRRefusesWhenCINotGreen(t *testing.T) {
 	s.checksErr = errors.New("check `tests` failed")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected refusal; got: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(out.String(), "land_pr_ci_not_green") {
-		t.Errorf("missing error code: %s", out.String())
+	if !strings.Contains(stdout.String(), "land_pr_ci_not_green") {
+		t.Errorf("missing error code: %s", stdout.String())
 	}
 	if len(s.mergeCalls) != 0 {
 		t.Errorf("merge should not have been called: %v", s.mergeCalls)
@@ -396,15 +396,15 @@ func TestLandPRRefusesWhenFinalStateNotMerged(t *testing.T) {
 	s.viewByField["state"] = []byte(`{"state":"OPEN"}`)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected refusal; got: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(out.String(), "land_pr_state_not_merged") {
-		t.Errorf("missing error code: %s", out.String())
+	if !strings.Contains(stdout.String(), "land_pr_state_not_merged") {
+		t.Errorf("missing error code: %s", stdout.String())
 	}
 	a := loadIssueDoc(t, vault, "demo.foo")
 	if a.FrontMatter["status"] != "in-progress" {
@@ -420,15 +420,15 @@ func TestLandPRRejectedOnWrongEdge(t *testing.T) {
 
 	stubSideFX(t)
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--land-pr", "1"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected refusal; got: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--land-pr", "1", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(out.String(), "invalid_flag_for_transition") {
-		t.Errorf("missing error code: %s", out.String())
+	if !strings.Contains(stdout.String(), "invalid_flag_for_transition") {
+		t.Errorf("missing error code: %s", stdout.String())
 	}
 }
 
@@ -441,15 +441,15 @@ func TestLandPRConflictsWithForce(t *testing.T) {
 
 	stubSideFX(t)
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "1", "--force"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected refusal; got: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "1", "--force", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(out.String(), "flags_conflict") {
-		t.Errorf("missing error code: %s", out.String())
+	if !strings.Contains(stdout.String(), "flags_conflict") {
+		t.Errorf("missing error code: %s", stdout.String())
 	}
 }
 
@@ -471,15 +471,15 @@ func TestLandPRRefusesWhenWorktreeRemoveFails(t *testing.T) {
 	s.removeErr = errors.New("uncommitted changes in worktree")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected refusal; got: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(out.String(), "land_pr_worktree_remove_failed") {
-		t.Errorf("missing error code: %s", out.String())
+	if !strings.Contains(stdout.String(), "land_pr_worktree_remove_failed") {
+		t.Errorf("missing error code: %s", stdout.String())
 	}
 	if len(s.mergeCalls) != 0 {
 		t.Errorf("merge should not have been called: %v", s.mergeCalls)
@@ -516,15 +516,15 @@ body
 
 	stubSideFX(t)
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "nodot", "in-progress", "--owner", "claude", "--cut-worktree"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected refusal; got: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "nodot", "in-progress", "--owner", "claude", "--cut-worktree", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(out.String(), "cut_worktree_path_failed") {
-		t.Errorf("missing error code: %s", out.String())
+	if !strings.Contains(stdout.String(), "cut_worktree_path_failed") {
+		t.Errorf("missing error code: %s", stdout.String())
 	}
 }
 
@@ -538,15 +538,15 @@ func TestCutWorktreeRefusesWhenHomeLookupFails(t *testing.T) {
 	s.homeErr = errors.New("HOME not set")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected refusal; got: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(out.String(), "cut_worktree_path_failed") {
-		t.Errorf("missing error code: %s", out.String())
+	if !strings.Contains(stdout.String(), "cut_worktree_path_failed") {
+		t.Errorf("missing error code: %s", stdout.String())
 	}
 	a := loadIssueDoc(t, vault, "demo.foo")
 	if a.FrontMatter["status"] != "open" {
@@ -575,19 +575,18 @@ func TestLandPRSaveFailureSurfacesRecovery(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(issuePath, 0o644) })
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatalf("expected save-failed error after merge; got: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(out.String(), "land_pr_succeeded_save_failed") {
-		t.Errorf("missing structured code: %s", out.String())
+	if !strings.Contains(stdout.String(), "land_pr_succeeded_save_failed") {
+		t.Errorf("missing structured code: %s", stdout.String())
 	}
-	if !strings.Contains(out.String(), "anvil set issue demo.foo status resolved") {
-		t.Errorf("missing recovery hint: %s", out.String())
+	if !strings.Contains(stdout.String(), "anvil set issue demo.foo status resolved") {
+		t.Errorf("missing recovery hint: %s", stdout.String())
 	}
 }
 

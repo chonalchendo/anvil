@@ -65,16 +65,47 @@ func TestTransitionIllegalReturnsErr(t *testing.T) {
 	execCmd(t, "init", vault)
 	createDemoIssue(t)
 
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--json"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected illegal_transition error; output: %s", out.String())
+	// Without --json: error surfaces on stderr via fang; stdout is empty.
+	c := newRootCmd()
+	c.SetArgs([]string{"transition", "issue", "demo.foo", "resolved"})
+	var stdout, stderr bytes.Buffer
+	c.SetOut(&stdout)
+	c.SetErr(&stderr)
+	if err := c.Execute(); err == nil {
+		t.Fatalf("expected illegal_transition error; stderr: %s", stderr.String())
 	}
-	if !strings.Contains(out.String(), "illegal_transition") {
-		t.Fatalf("expected error code in output: %s", out.String())
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout must be empty without --json, got: %s", stdout.String())
+	}
+	if strings.Contains(stderr.String(), `{"code"`) {
+		t.Fatalf("stderr must not contain JSON without --json, got: %s", stderr.String())
+	}
+}
+
+func TestTransitionIllegalJSON(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	// With --json: JSON envelope on stdout, stderr empty, no error returned.
+	c := newRootCmd()
+	c.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--json"})
+	var stdout, stderr bytes.Buffer
+	c.SetOut(&stdout)
+	c.SetErr(&stderr)
+	if err := c.Execute(); err != nil {
+		t.Fatalf("unexpected error with --json: %v", err)
+	}
+	var env map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(stdout.String())), &env); err != nil {
+		t.Fatalf("stdout must be valid JSON with --json; stdout=%q stderr=%q err=%v", stdout.String(), stderr.String(), err)
+	}
+	if env["code"] != "illegal_transition" {
+		t.Fatalf("expected code=illegal_transition, got: %v", env)
+	}
+	if strings.Contains(stderr.String(), `{"code"`) {
+		t.Fatalf("stderr must not contain JSON with --json, got: %s", stderr.String())
 	}
 }
 
@@ -85,15 +116,15 @@ func TestTransitionMissingRequiredFlag(t *testing.T) {
 	createDemoIssue(t)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected transition_flag_required; output: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(out.String(), "owner") {
-		t.Fatalf("expected `owner` mentioned: %s", out.String())
+	if !strings.Contains(stdout.String(), "owner") {
+		t.Fatalf("expected `owner` mentioned in JSON stdout: %s", stdout.String())
 	}
 }
 
@@ -165,24 +196,25 @@ func TestTransitionReclaimDifferentSessionRefused(t *testing.T) {
 	createDemoIssue(t)
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
-	// A different session under the same owner is refused, naming the holder.
+	// A different session under the same owner is refused; with --json the
+	// envelope lands on stdout naming the holding session.
 	t.Setenv(envSessionID, "session-b")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("different-session re-claim should be refused; output: %s", out.String())
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(out.String(), "claim_held_by_other_session") || !strings.Contains(out.String(), "session-a") {
-		t.Fatalf("refusal must name the holding session; output: %s", out.String())
+	if !strings.Contains(stdout.String(), "claim_held_by_other_session") || !strings.Contains(stdout.String(), "session-a") {
+		t.Fatalf("refusal must name the holding session; stdout: %s", stdout.String())
 	}
 
 	// --force overrides the refusal.
-	out.Reset()
 	cmd = newRootCmd()
 	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--force", "--json"})
+	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
 	if err := cmd.Execute(); err != nil {
@@ -365,19 +397,20 @@ func TestTransitionIllegalLeavesDiskUnchanged(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "resolved")
 
 	// resolved → in-progress is not in the transitions table.
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude"})
-	var buf bytes.Buffer
-	cmd.SetOut(&buf)
-	cmd.SetErr(&buf)
-	if err := cmd.Execute(); err == nil {
-		t.Fatalf("expected illegal_transition error; output: %s", buf.String())
+	// Use --json so the error envelope lands on stdout for inspection.
+	c := newRootCmd()
+	c.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--json"})
+	var stdout, stderr bytes.Buffer
+	c.SetOut(&stdout)
+	c.SetErr(&stderr)
+	if err := c.Execute(); err != nil {
+		t.Fatalf("expected nil error with --json; err: %v stderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(buf.String(), "illegal_transition") {
-		t.Errorf("output should mention illegal_transition: %s", buf.String())
+	if !strings.Contains(stdout.String(), "illegal_transition") {
+		t.Errorf("stdout should mention illegal_transition: %s stdout=%s stderr=%s", "", stdout.String(), stderr.String())
 	}
-	if !strings.Contains(buf.String(), "anvil set") {
-		t.Errorf("output should point at `anvil set` escape hatch: %s", buf.String())
+	if !strings.Contains(stdout.String(), "anvil set") {
+		t.Errorf("stdout should point at `anvil set` escape hatch: stdout=%s", stdout.String())
 	}
 
 	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "demo.foo.md"))
