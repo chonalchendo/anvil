@@ -1,6 +1,6 @@
 ---
 name: distilling-learning
-description: "Use when the user says 'let's distill', 'wrap this up into a learning', or 'extract what we learned from <source>'. Produces tagged learnings (diataxis + confidence + facets). Not for active research; single mid-session claim → recording-learning."
+description: "Use to persist one or more learnings: 'let's distill', 'extract what we learned from <source>', or a mid-session claim — 'record this learning', 'save this finding', 'this works/doesn't'. Not active research or fleeting thoughts (capturing-inbox)."
 license: MIT
 allowed-tools: [Bash, Read, Edit]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -28,19 +28,19 @@ The terminal contract is retrieval: every learning must be reachable later via `
 
 - The user explicitly commits to distilling: "let's distill", "wrap this up into a learning", "extract what we learned from <source>".
 - A source artifact exists and is named: a thread, a completed plan, a transcript, or a free reflection.
+- A single concrete claim crystallised mid-session and the user wants it persisted now: a verified diagnosis, an observed contract, a "this works / this doesn't" result. Triggers: "record this learning", "save this finding". The source is the live session itself.
 
 ## When not to use
 
 - The source isn't crystallized yet (still actively researching) → keep working in the thread.
 - The output would just restate the source — distillation requires a durable claim or piece of know-how, not a summary.
-- A single concrete claim crystallised mid-session and the user wants it persisted now → `recording-learning`.
 - A fleeting, unverified thought without taxonomy commitment → `capturing-inbox`.
 
 ---
 
 ## Phase 1 — Identify the source
 
-Confirm one of the following with the user, then read the relevant files:
+A named external artifact is **optional**. When the claim crystallised in-session, the source is the live conversation (the **Reflection** row) — no thread, plan, or transcript is required. Otherwise confirm one of the following with the user, then read the relevant files:
 
 | Source kind | What to read |
 |---|---|
