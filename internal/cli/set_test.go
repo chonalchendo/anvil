@@ -253,6 +253,7 @@ func TestSet_MilestoneSystemDesign_RoundTrip(t *testing.T) {
 		FrontMatter: map[string]any{
 			"type": "milestone", "title": "CLI substrate", "description": "fixture description", "created": "2026-04-29",
 			"updated": "2026-04-29", "status": "planned", "project": "anvil",
+			"goal": "CLI substrate ships and all attached issues are resolved",
 			"kind": "scoped",
 		},
 	}

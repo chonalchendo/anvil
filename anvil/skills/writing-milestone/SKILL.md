@@ -57,10 +57,11 @@ Confirm with the user which design doc to derive from (product or system, or bot
 Draft the following before calling the CLI:
 
 - **title** — one line; verb-noun ("Ship X", "Validate Y", "Deliver Z").
+- **goal** — one sentence, ≤120 chars: the terminal predicate (what "done" means for this milestone), mirroring how issues carry a `goal`. Required by the schema; `anvil create milestone` fails without it.
 - **kind** — `scoped` (the default — discrete shippable bundle with acceptance criteria) or `bucket` (rolling-findings tracker; `acceptance` stays `[]`). Pick `bucket` only for friction-collection milestones; everything else is `scoped`.
 - **acceptance** — testable conditions for "done"; each must be checkable without ambiguity. Required substance for `kind: scoped`; warn the user before leaving it empty.
 
-**Gate:** user confirms title, kind, and acceptance criteria.
+**Gate:** user confirms title, goal, kind, and acceptance criteria.
 
 ---
 
@@ -69,6 +70,7 @@ Draft the following before calling the CLI:
 ```bash
 anvil create milestone \
   --title "<title>" \
+  --goal "<terminal predicate>" \
   --json
 ```
 

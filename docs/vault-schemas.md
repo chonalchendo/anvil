@@ -94,6 +94,7 @@ Body absorbs: tech stack, key invariants, risks, boundary diagrams, revisions. M
 
 ```yaml
 type: milestone
+goal: <one sentence>       # required, ≤120 chars: terminal predicate (what "done" means)
 project: <slug>
 status: planned | in-progress | done | abandoned
 kind: scoped | bucket

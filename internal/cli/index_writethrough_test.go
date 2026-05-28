@@ -96,6 +96,7 @@ func TestLinkWritesThroughToIndex(t *testing.T) {
 		"--project", "demo",
 		"--title", "m1",
 		"--description", "m1 desc",
+		"--goal", "m1 ships and all attached issues are resolved",
 	)
 	execCmd(t, "link", "issue", "demo.foo", "milestone", "demo.m1")
 
