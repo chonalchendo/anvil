@@ -87,12 +87,19 @@ func newListCmd() *cobra.Command {
 				return printAndReturn(cmd, errfmt.NewUnsupportedForType(string(t), []string{"issue"}))
 			}
 			if flagReady || flagOrphans {
+				// --ready/--orphans list an actionable queue; default to
+				// unlimited so callers see the full set without knowing to
+				// raise --limit. An explicit --limit still caps the result.
+				limit := flagLimit
+				if !cmd.Flags().Changed("limit") {
+					limit = 0
+				}
 				return runListIndexed(cmd, t, flagReady, flagOrphans, listFilters{
 					Status: flagStatus, Project: flagProject,
 					Severity: flagSeverity, Milestone: flagMilestone,
 					Since: flagSince, Until: flagUntil,
 					InvalidBody: flagInvalidBody,
-				}, flagJSON, flagLimit)
+				}, flagJSON, limit)
 			}
 			v, err := core.ResolveVault()
 			if err != nil {
