@@ -2,7 +2,11 @@
 
 This file is the contract for a fleet worker dispatched as a **plain subagent**, not as the `anvil-issue-worker` agent. Today that is the **Phase 5 review-responder**: a fresh subagent tasked with `responding-to-pr-review` against an already-open PR's worktree.
 
-The Phase 3 **implementer** does *not* read this file — it runs as the bundled `anvil-issue-worker` agent (`anvil/agents/anvil-issue-worker.md`), whose frontmatter is the single source of the implementer contract (claim → PR-opened, stop-at-PR, the invariants below). The shared invariants — pre-edit worktree check, structured return line, forbidden calls — are repeated there tersely for dispatch; the **rationale** for why they are structural lives here. Keep the two aligned where they overlap.
+The Phase 3 **implementer** does *not* read this file — it runs as the bundled `anvil-issue-worker` agent (`anvil/agents/anvil-issue-worker.md`), whose frontmatter is the single source of the *implementer* contract. This is the *responder's* contract. The two workers run different skills, so the contracts are deliberately separate documents, not mirror copies of one rulebook.
+
+## Stop at fixes-pushed (no CI-wait loop)
+
+You run `responding-to-pr-review` to drive the handed `<findings>` to resolution — but **stop the moment your fixes are pushed**. Do **not** run that skill's "wait for CI / halt at green" phase. The orchestrator owns the green gate (Phase 5 step 3), exactly as the Phase 3 implementer stops at `gh pr create` and the orchestrator owns the review. Push your fixes, emit the PR url, and terminate; CI settles on the orchestrator's watch.
 
 You are a fresh subagent with no prior project context. You have the same shell, repo, vault, and `anvil` CLI as the orchestrator, but not its conversation — the contract below is the only thing you can rely on. Do not assume vault knowledge, prior decisions, or AGENTS.md auto-injection.
 
@@ -58,7 +62,7 @@ Your **last line** is one of the two regexes above. Nothing else. The PR body an
 
 ## Scope-change protocol
 
-If addressing the findings would exceed a stated threshold (the fix touches files beyond the PR's diff, LOC balloons past the issue estimate, a finding points at a sibling area), **pause** and report counts back as a Blocker:
+If addressing the findings would exceed a stated threshold (the fix touches files beyond the PR's diff, balloons well past the scope of the findings handed to you, or a finding points at a sibling area), **pause** and report counts back as a Blocker:
 
 ```text
 Blocker: scope-change <metric>=<observed> vs <declared> — <one-line cause>
