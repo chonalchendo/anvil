@@ -50,3 +50,31 @@ func TestInit_WritesSchemasIntoVault(t *testing.T) {
 		}
 	}
 }
+
+func TestInit_GitBacksVault(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("ANVIL_VAULT", dir)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"init"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
+		t.Errorf("vault not git-backed: .git missing: %v", err)
+	}
+}
+
+func TestInit_GitIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("ANVIL_VAULT", dir)
+	for range 2 {
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"init"})
+		if err := cmd.Execute(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
+		t.Errorf("vault not git-backed after second init: %v", err)
+	}
+}
