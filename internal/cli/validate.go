@@ -26,7 +26,7 @@ func newValidateCmd() *cobra.Command {
 		Use:     "validate [path]",
 		Short:   "Validate vault frontmatter against schemas",
 		Args:    cobra.MaximumNArgs(1),
-		Example: "  anvil validate\n  anvil validate --json\n  anvil validate /path/to/vault",
+		Example: "  anvil validate\n  anvil validate --json\n  anvil validate /path/to/vault\n  anvil validate skill",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var root, singleFile string
 			if len(args) == 1 {
@@ -100,6 +100,7 @@ func newValidateCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON array of structured errors")
+	cmd.AddCommand(newValidateSkillCmd())
 	return cmd
 }
 

@@ -142,6 +142,7 @@ Borrowed from Superpowers' `brainstorming` (decision-tree visual for ideation). 
 
 - **File length** — fail over 500 lines, warn over 200 (whole-file `wc -l`, frontmatter included). Over target → extract to `references/`.
 - **Description length** — fail over 1024 chars, warn over 250 (Claude Code truncates skill listings at 250).
+- **Schema alignment** — `anvil validate skill` scans each authoring skill's SKILL.md for prescriptive frontmatter directives (`Capture frontmatter \`field\``, etc.) and fails with `skill_schema_drift` if a directed field is absent from its target type's schema. The check only sees directives written with a recognized prefix (`Capture`/`Populate`/`Add to frontmatter \`field\``, `frontmatter field \`field\``); phrase frontmatter directives that way so they're scanned. Run after editing a writing-* skill or after changing a schema's `properties`.
 
 Left to authoring discipline (and Claude Code's own import validation), not gated here: the frontmatter key allow-list + name regex, the no-XML-brackets rule above (shipped descriptions use `<id>`/`<source>` placeholders that import accepts, so it is not mechanically gated), one-ALL-CAPS-per-body, and sibling negative-triggers.
 
