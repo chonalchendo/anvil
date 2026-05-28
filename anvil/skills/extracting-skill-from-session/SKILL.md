@@ -149,15 +149,15 @@ Write the SKILL.md to that path. If the user is contributing the skill back to A
 
 ### 6. Validate before declaring done
 
-Walk this checklist against the file just written. Each item cites `docs/skill-authoring.md` as the rule source — do not restate rules here. Report each as `ok`, `warn`, or `fail`.
+Walk this checklist against the file just written. Report each as `ok`, `warn`, or `fail`.
 
-1. **Frontmatter parses as YAML** and uses only allow-listed top-level keys: `name`, `description`, `license`, `allowed-tools`, `metadata`, `compatibility`. (`docs/skill-authoring.md` → Frontmatter rules.)
-2. **`name`** matches `^[a-z0-9-]+$`, ≤64 characters, no consecutive/leading/trailing hyphens, not `claude` or `anthropic`. (`docs/skill-authoring.md` → Frontmatter rules.)
-3. **`description`** ≤250 characters and contains no `<` or `>`. For workflow skills, reads as triggers-only (no summary of what the skill does). (`docs/skill-authoring.md` → Description rules.)
-4. **Body line count.** Count from the line *after* the closing `---` of frontmatter to EOF (`wc -l` on that range). Warn at >200; refuse to ship at >500. (`docs/skill-authoring.md` → Body rules.)
-5. **One Iron Law maximum.** At most one ALL-CAPS imperative paragraph in the body. (`docs/skill-authoring.md` → Body rules.)
-6. **Handoff references.** Every `**REQUIRED SUB-SKILL:**` line names an Anvil skill by bare name; cross-plugin skills keep their namespace (`superpowers:`). (`docs/skill-authoring.md` → Body rules.)
-7. **Sibling negative triggers.** The description names plausibly-overlapping sibling skills as negative triggers. Judgment call — list the siblings you considered. (`docs/skill-authoring.md` → Description rules.)
+1. **Frontmatter parses as YAML** and uses only allow-listed top-level keys: `name`, `description`, `license`, `allowed-tools`, `metadata`, `compatibility`.
+2. **`name`** matches `^[a-z0-9-]+$`, ≤64 characters, no consecutive/leading/trailing hyphens, not `claude` or `anthropic`.
+3. **`description`** ≤250 characters and contains no `<` or `>`. For workflow skills, reads as triggers-only (no summary of what the skill does).
+4. **Body line count.** Count from the line *after* the closing `---` of frontmatter to EOF (`wc -l` on that range). Warn at >200; refuse to ship at >500.
+5. **One Iron Law maximum.** At most one ALL-CAPS imperative paragraph in the body.
+6. **Handoff references.** Every `**REQUIRED SUB-SKILL:**` line names an Anvil skill by bare name; cross-plugin skills keep their namespace (`superpowers:`).
+7. **Sibling negative triggers.** The description names plausibly-overlapping sibling skills as negative triggers. Judgment call — list the siblings you considered.
 
 Surface the per-check results to the user:
 

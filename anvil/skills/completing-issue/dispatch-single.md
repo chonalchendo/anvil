@@ -13,7 +13,7 @@ Fire one **foreground** subagent via the Agent tool with `subagent_type: anvil-i
 Fill these per-call values into the dispatch prompt — the agent file carries the rest:
 
 - `<issue-id>` — the anvil issue the worker owns.
-- `<worktree-path>` — absolute path the worker edits in; cut it per `docs/worktree-workflow.md` if absent.
+- `<worktree-path>` — absolute path the worker edits in; cut it per your project's worktree convention (see your `CLAUDE.md`) if absent.
 - `<branch>` — the branch the worktree is on (e.g. `anvil/<slug>`).
 - `<declared-files>` — best estimate of the files the issue touches; the worker grep-confirms and fires a scope-change Blocker if reality exceeds it.
 

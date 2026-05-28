@@ -155,7 +155,7 @@ When promoting an inbox item, pass `--tags` on the `anvil promote <id> --as issu
 
 Compose the **goal** first: one sentence, ≤120 chars, naming what "done" means — the issue's terminal predicate. It is required (`--goal`) and gates the claim later. Keep it a predicate ("inbox no longer drops items on concurrent writes"), not a task list.
 
-Author the body up front and pass it to `create` via `--body-file` (or `--body -` for piped stdin). `create` validates the frontmatter AND body (required H2s, wikilink targets) and rolls back the write on failure — no separate `anvil validate` step. The `## Verification` block uses fenced bash; see `docs/issue-spec.md` for the full format spec.
+Author the body up front and pass it to `create` via `--body-file` (or `--body -` for piped stdin). `create` validates the frontmatter AND body (required H2s, wikilink targets) and rolls back the write on failure — no separate `anvil validate` step. The `## Verification` block uses fenced bash; the format is specified below.
 
 ````bash
 cat > /tmp/issue-body.md <<'EOF'
@@ -207,9 +207,9 @@ Required body sections (enforced by `create`):
 
 - `## Problem` — one paragraph from convergence (fuzzy) or the stated problem (decisive).
 - `## Non-goals` — from Phase 3 smallest-viable (fuzzy) or stated up front (decisive).
-- `## Verification` — operational checks in fenced bash blocks (full spec: `docs/issue-spec.md`). Two subsections, both required:
+- `## Verification` — operational checks in fenced bash blocks. Two subsections, both required:
   - `### Direct` — fenced `bash` block with ≥1 line. Each line must exit 0. Typically unit/integration tests run against the dev tree.
-  - `### Indirect` — fenced `bash` block with ≥1 line. Each line must exit 0. Live invocations against the built/installed/served artifact; bake the predicate into the command (`grep -q "X"`, `jq -r .field`, `[ ... = ... ]`). `completing-issue` re-runs these against the installed binary in its Phase 4 build gate — they catch behavioral gaps the Direct checks can't see. Each predicate must exercise behaviour and assert on observed output or side-effects — presence-only anti-patterns and the doc/skill-only carve-out are enumerated in `docs/issue-spec.md#indirect-live-smoke`.
+  - `### Indirect` — fenced `bash` block with ≥1 line. Each line must exit 0. Live invocations against the built/installed/served artifact; bake the predicate into the command (`grep -q "X"`, `jq -r .field`, `[ ... = ... ]`). `completing-issue` re-runs these against the installed binary in its Phase 4 build gate — they catch behavioral gaps the Direct checks can't see. Each predicate must exercise behaviour and assert on observed output or side-effects — presence-only checks (grepping source files) do not count.
 - `## Links` — to milestone, design docs, related issues. Use `[[wikilink]]` form. Targets must resolve (the file must exist) or `create` rejects.
 
 `anvil validate <path>` remains useful as a re-check after edits (e.g. after `anvil set ... acceptance --add`), but it is **not** required after `create` when the body was supplied via `--body-file` / `--body -`.

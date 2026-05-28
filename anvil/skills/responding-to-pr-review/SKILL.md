@@ -20,7 +20,7 @@ The same pipeline handles `reviewing-pr`'s fresh-subagent report and a human rev
 
 The shape decides only *where the reply lands*, never *whether the finding is evaluated*. Every finding — threaded or thread-less — runs Phase 2's apply / skip-with-reason / push-back. A thread-less blocker gets implemented, not summarized. Routing thread-less findings to a top-level `gh pr comment` *instead of* Phase 2 is the silent-drop this skill forbids; the only legitimate top-level comment is the Phase 3 summary posted *after* each finding is resolved.
 
-Reviewer identity does **not** change the loop. A finding that cites a documented repo rule (e.g. `docs/code-design.md`'s "no helper without second use") gets the same treatment whether the subagent or a human raised it: apply, do not skip.
+Reviewer identity does **not** change the loop. A finding that cites a documented repo rule (e.g. "no helper without second use" from the project's code-design guide) gets the same treatment whether the subagent or a human raised it: apply, do not skip.
 
 ## Phase 1 — Collect findings
 

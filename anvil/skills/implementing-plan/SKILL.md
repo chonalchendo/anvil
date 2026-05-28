@@ -31,7 +31,7 @@ Defer to `anvil build` when:
 
 Branched work runs in a dedicated worktree, not the parent checkout. Parallel sessions sharing one checkout collide on branch switches and bleed working-tree state across issues.
 
-Cut per `@docs/worktree-workflow.md` (or `superpowers:using-git-worktrees` outside this repo). Surface the worktree path back to the user on claim so they (and any parallel session) see where the work lives:
+Cut per your project's worktree convention (see your `CLAUDE.md`, or `superpowers:using-git-worktrees` if available). Surface the worktree path back to the user on claim so they (and any parallel session) see where the work lives:
 
 ```text
 Claimed <issue-id>. Working in <worktree-path> on branch <branch>.

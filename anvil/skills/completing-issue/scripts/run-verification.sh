@@ -11,7 +11,7 @@
 # Usage:
 #   anvil show issue <id> | bash run-verification.sh
 #
-# Format reference: docs/issue-spec.md
+# Format: see writing-issue SKILL.md → ## Verification body section.
 
 set -uo pipefail
 
