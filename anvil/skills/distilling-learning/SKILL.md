@@ -1,6 +1,6 @@
 ---
 name: distilling-learning
-description: "Use when the user says 'let's distill', 'wrap this up into a learning', or 'extract what we learned from <source>'. Produces N tagged learnings (diataxis + confidence + facets). Not for active research or one-off thoughts."
+description: "Use when the user says 'let's distill', 'wrap this up into a learning', or 'extract what we learned from <source>'. Produces tagged learnings (diataxis + confidence + facets). Not for active research; single mid-session claim → recording-learning."
 license: MIT
 allowed-tools: [Bash, Read, Edit]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -33,7 +33,8 @@ The terminal contract is retrieval: every learning must be reachable later via `
 
 - The source isn't crystallized yet (still actively researching) → keep working in the thread.
 - The output would just restate the source — distillation requires a durable claim or piece of know-how, not a summary.
-- The user wants to capture a one-off thought without taxonomy commitment → `capturing-inbox`.
+- A single concrete claim crystallised mid-session and the user wants it persisted now → `recording-learning`.
+- A fleeting, unverified thought without taxonomy commitment → `capturing-inbox`.
 
 ---
 
@@ -57,7 +58,7 @@ anvil list session --tag thread/<id>   # if thread source, find linked sessions
 
 ## Phase 2 — Decide cardinality
 
-N learnings per pass, not 1. Each learning crystallizes **one** claim or **one** piece of know-how. Two related claims become two learnings — never bundle.
+Each learning crystallizes **one** claim or **one** piece of know-how. Two related claims become two learnings — never bundle.
 
 Draft a list of candidate learnings. For each, pick:
 
