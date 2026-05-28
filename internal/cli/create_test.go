@@ -152,7 +152,7 @@ func TestCreateMilestone_NoOrdinal(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate", "--description", "test description"})
+	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate", "--description", "test description", "--goal", "CLI substrate ships and all attached issues are resolved"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -985,7 +985,7 @@ func TestCreateMilestone_SeedsAcceptanceSlot(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate", "--description", "test description"})
+	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate", "--description", "test description", "--goal", "CLI substrate ships and all attached issues are resolved"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}

@@ -202,7 +202,7 @@ func newCreateCmd() *cobra.Command {
 						n, maxDescriptionChars,
 					))
 				}
-				if t == core.TypeIssue && strings.TrimSpace(flagGoal) != "" {
+				if (t == core.TypeIssue || t == core.TypeMilestone) && strings.TrimSpace(flagGoal) != "" {
 					if n := utf8.RuneCountInString(flagGoal); n > maxGoalChars {
 						capErrs = append(capErrs, fmt.Errorf(
 							"--goal too long: %d chars (max %d); goal is a one-sentence predicate, not docs — tighten it",
@@ -246,6 +246,10 @@ func newCreateCmd() *cobra.Command {
 			case core.TypeIssue:
 				if strings.TrimSpace(flagGoal) == "" {
 					return fmt.Errorf("--goal is required for issue: a one-sentence terminal predicate (what 'done' means)")
+				}
+			case core.TypeMilestone:
+				if strings.TrimSpace(flagGoal) == "" {
+					return fmt.Errorf("--goal is required for milestone: a one-sentence terminal predicate (what 'done' means)")
 				}
 			case core.TypePlan:
 				if flagIssue == "" {
@@ -459,7 +463,7 @@ func newCreateCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&flagTitle, "title", "", "artifact title (required)")
 	cmd.Flags().StringVar(&flagDescription, "description", "", fmt.Sprintf("one-line summary (max %d chars, required for spine types)", maxDescriptionChars))
-	cmd.Flags().StringVar(&flagGoal, "goal", "", fmt.Sprintf("issue terminal predicate, one sentence (max %d chars, required for issue)", maxGoalChars))
+	cmd.Flags().StringVar(&flagGoal, "goal", "", fmt.Sprintf("terminal predicate, one sentence (max %d chars, required for issue and milestone)", maxGoalChars))
 	cmd.Flags().StringVar(&flagProject, "project", "", "project slug (overrides auto-detected; supported on: "+strings.Join(core.TypesSupportingProject(), ", ")+"; inbox aliases to --suggested-project)")
 	cmd.Flags().StringVar(&flagTopic, "topic", "", "decision topic slug (required for decision)")
 	cmd.Flags().StringVar(&flagSuggestedType, "suggested-type", "", "suggested type (inbox only)")

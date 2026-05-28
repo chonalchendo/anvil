@@ -138,6 +138,7 @@ func TestValidate_Milestone_NewShape(t *testing.T) {
 	fm := map[string]any{
 		"type": "milestone", "title": "M3", "description": "x", "created": "2026-04-29",
 		"status": "planned", "project": "anvil",
+		"goal":           "M3 ships and all attached issues are resolved",
 		"kind":           "scoped",
 		"product_design": "[[product-design.anvil]]",
 		"system_design":  "[[system-design.anvil]]",
@@ -167,6 +168,7 @@ func TestValidate_Milestone_KindScopedAcceptsEmptyAcceptance(t *testing.T) {
 	fm := map[string]any{
 		"type": "milestone", "title": "M", "description": "x",
 		"created": "2026-04-29", "status": "planned", "project": "anvil",
+		"goal":       "M ships with all issues resolved",
 		"kind":       "scoped",
 		"acceptance": []any{},
 	}
@@ -179,6 +181,7 @@ func TestValidate_Milestone_KindBucketAllowsEmptyAcceptance(t *testing.T) {
 	fm := map[string]any{
 		"type": "milestone", "title": "M", "description": "x",
 		"created": "2026-04-29", "status": "planned", "project": "anvil",
+		"goal":       "M ships with all issues resolved",
 		"kind":       "bucket",
 		"acceptance": []any{},
 	}
@@ -191,11 +194,43 @@ func TestValidate_Milestone_RejectsUnknownKind(t *testing.T) {
 	fm := map[string]any{
 		"type": "milestone", "title": "M", "description": "x",
 		"created": "2026-04-29", "status": "planned", "project": "anvil",
+		"goal":       "M ships with all issues resolved",
 		"kind":       "epic",
 		"acceptance": []any{"done"},
 	}
 	if err := Validate("milestone", fm); err == nil {
 		t.Error("expected rejection: kind enum")
+	}
+}
+
+func TestValidate_Milestone_Goal(t *testing.T) {
+	base := map[string]any{
+		"type": "milestone", "title": "M", "description": "x",
+		"created": "2026-04-29", "status": "planned", "project": "anvil",
+		"kind": "scoped",
+	}
+	cases := []struct {
+		name    string
+		goal    any
+		wantErr bool
+	}{
+		{"missing", nil, true},
+		{"empty", "", true},
+		{"single_char", "x", false},
+		{"exactly_120", strings.Repeat("a", 120), false},
+		{"121", strings.Repeat("a", 121), true},
+		{"newline", "line1\nline2", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fm := maps.Clone(base)
+			if c.goal != nil {
+				fm["goal"] = c.goal
+			}
+			if err := Validate("milestone", fm); (err != nil) != c.wantErr {
+				t.Fatalf("goal=%v got err=%v wantErr=%v", c.goal, err, c.wantErr)
+			}
+		})
 	}
 }
 
