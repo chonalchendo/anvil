@@ -85,6 +85,36 @@ func TestCreate_AllCappedFieldViolations_ReportedTogether(t *testing.T) {
 	}
 }
 
+// TestCreate_NonIssueCappedField_ChecksBeforeProjectResolution pins the cap
+// check ahead of vault/project resolution for non-issue types. A milestone with
+// an over-cap --description run outside any project must surface the cap error,
+// not the "requires a project" error — otherwise the author cannot see the cap
+// overage until they first satisfy an unrelated resolution step. Regression
+// guard for the ordering that masked the cap for milestone/decision/plan/sweep.
+func TestCreate_NonIssueCappedField_ChecksBeforeProjectResolution(t *testing.T) {
+	setupVault(t)
+	// No --project and a non-git cwd: ResolveProject would fail with ErrNoProject.
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	longDesc := strings.Repeat("x", 130)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "milestone", "--title", "T", "--description", longDesc})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected error for over-length description")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "description too long") {
+		t.Errorf("cap error must fast-fail before project resolution; got %q", msg)
+	}
+	if strings.Contains(msg, "requires a project") {
+		t.Errorf("project-resolution error masked the cap error: %q", msg)
+	}
+}
+
 func TestCreate_Issue_WritesValidFile(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
