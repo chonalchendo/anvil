@@ -85,34 +85,3 @@ func TestValidateSkillCmd_JSON(t *testing.T) {
 		t.Errorf("expected JSON array, got: %s", out.String())
 	}
 }
-
-// scanForDrift is a testable extraction of checkSkillAlignment's inner loop,
-// allowing unit-level injection of a synthetic skill body without rebuilding
-// the embedded FS.
-func scanForDrift(skillName, typeName, body string, allowed map[string]struct{}) []*skillDrift {
-	var drifts []*skillDrift
-	for _, prefix := range prescriptivePrefixes {
-		idx := 0
-		for {
-			pos := strings.Index(body[idx:], prefix)
-			if pos < 0 {
-				break
-			}
-			pos += idx
-			after := body[pos+len(prefix)-1:]
-			m := backtickFieldRE.FindString(after)
-			if m != "" {
-				field := strings.Trim(m, "`")
-				if _, ok := allowed[field]; !ok {
-					drifts = append(drifts, &skillDrift{
-						Skill: skillName,
-						Type:  typeName,
-						Field: field,
-					})
-				}
-			}
-			idx = pos + len(prefix)
-		}
-	}
-	return drifts
-}

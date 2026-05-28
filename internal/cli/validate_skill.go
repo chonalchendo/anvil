@@ -131,18 +131,23 @@ func checkSkillAlignment(skillName, typeName string) ([]*skillDrift, error) {
 	if err != nil {
 		return nil, err
 	}
+	return scanForDrift(skillName, typeName, string(body), allowed), nil
+}
 
+// scanForDrift walks body for prescriptive frontmatter directives and returns
+// one skillDrift per field absent from allowed. Separated from
+// checkSkillAlignment's FS read so tests can drive it with synthetic bodies.
+func scanForDrift(skillName, typeName, body string, allowed map[string]struct{}) []*skillDrift {
 	var drifts []*skillDrift
-	text := string(body)
 	for _, prefix := range prescriptivePrefixes {
 		idx := 0
 		for {
-			pos := strings.Index(text[idx:], prefix)
+			pos := strings.Index(body[idx:], prefix)
 			if pos < 0 {
 				break
 			}
 			pos += idx
-			after := text[pos+len(prefix)-1:] // -1 to include the opening backtick
+			after := body[pos+len(prefix)-1:] // -1 to include the opening backtick
 			m := backtickFieldRE.FindString(after)
 			if m != "" {
 				field := strings.Trim(m, "`")
@@ -157,7 +162,7 @@ func checkSkillAlignment(skillName, typeName string) ([]*skillDrift, error) {
 			idx = pos + len(prefix)
 		}
 	}
-	return drifts, nil
+	return drifts
 }
 
 // schemaProperties returns the set of property names defined in the JSON
