@@ -189,13 +189,6 @@ func newCreateCmd() *cobra.Command {
 				return fmt.Errorf("--title is required for %s", t)
 			}
 
-			if n := utf8.RuneCountInString(flagDescription); n > maxDescriptionChars {
-				return fmt.Errorf(
-					"--description too long: %d chars (max %d); description is spine index/preview text, not docs — re-summarise to fit the cap rather than raise it",
-					n, maxDescriptionChars,
-				)
-			}
-
 			v, err := core.ResolveVault()
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
@@ -219,15 +212,52 @@ func newCreateCmd() *cobra.Command {
 				project = p.Slug
 			}
 
-			// Per-type mandatory flag checks.
+			// Per-type mandatory flag checks. For issues, collect all capped-field
+			// violations together so the author sees every overage in one rejection
+			// rather than one per resubmit. Description is checked first (always);
+			// goal length is checked only when goal is present (required separately).
 			switch t {
 			case core.TypeIssue:
 				if strings.TrimSpace(flagGoal) == "" {
+					// Description length takes precedence: if description is also
+					// over cap, surface it before the missing-goal error so the
+					// author can fix both in one pass.
+					if n := utf8.RuneCountInString(flagDescription); n > maxDescriptionChars {
+						return fmt.Errorf(
+							"--description too long: %d chars (max %d); description is spine index/preview text, not docs — re-summarise to fit the cap rather than raise it",
+							n, maxDescriptionChars,
+						)
+					}
 					return fmt.Errorf("--goal is required for issue: a one-sentence terminal predicate (what 'done' means)")
 				}
-				if n := utf8.RuneCountInString(flagGoal); n > maxGoalChars {
-					return fmt.Errorf("--goal too long: %d chars (max %d); goal is a one-sentence predicate, not docs — tighten it", n, maxGoalChars)
+				// Goal is present; collect all cap violations and report together.
+				var capErrs []error
+				if n := utf8.RuneCountInString(flagDescription); n > maxDescriptionChars {
+					capErrs = append(capErrs, fmt.Errorf(
+						"--description too long: %d chars (max %d); description is spine index/preview text, not docs — re-summarise to fit the cap rather than raise it",
+						n, maxDescriptionChars,
+					))
 				}
+				if n := utf8.RuneCountInString(flagGoal); n > maxGoalChars {
+					capErrs = append(capErrs, fmt.Errorf(
+						"--goal too long: %d chars (max %d); goal is a one-sentence predicate, not docs — tighten it",
+						n, maxGoalChars,
+					))
+				}
+				if err := errors.Join(capErrs...); err != nil {
+					return err
+				}
+			default:
+				if n := utf8.RuneCountInString(flagDescription); n > maxDescriptionChars {
+					return fmt.Errorf(
+						"--description too long: %d chars (max %d); description is spine index/preview text, not docs — re-summarise to fit the cap rather than raise it",
+						n, maxDescriptionChars,
+					)
+				}
+			}
+
+			// Per-type required-flag checks (non-issue types).
+			switch t {
 			case core.TypePlan:
 				if flagIssue == "" {
 					return fmt.Errorf("--issue is required for plan")

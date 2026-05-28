@@ -56,6 +56,35 @@ func TestCreate_DescriptionTooLong_NamesSpineRule(t *testing.T) {
 	}
 }
 
+// TestCreate_AllCappedFieldViolations_ReportedTogether asserts that when both
+// --description and --goal exceed their 120-char caps, a single invocation
+// surfaces both violations rather than stopping at the first. This eliminates
+// the trim-resubmit loop the issue describes.
+func TestCreate_AllCappedFieldViolations_ReportedTogether(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	longDesc := strings.Repeat("x", 130)
+	longGoal := strings.Repeat("y", 130)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue", "--title", "T", "--description", longDesc, "--goal", longGoal})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected error for over-length description and goal")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "description") {
+		t.Errorf("error must mention description: %q", msg)
+	}
+	if !strings.Contains(msg, "goal") {
+		t.Errorf("error must mention goal: %q", msg)
+	}
+}
+
 func TestCreate_Issue_WritesValidFile(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
