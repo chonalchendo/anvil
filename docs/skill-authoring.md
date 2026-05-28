@@ -21,32 +21,28 @@ A SKILL.md is a **trigger contract** (description) + **deferred reference** (bod
 
 Workflow descriptions that summarize cause the agent to follow the description and skip the body. Knowledge descriptions under-trigger by default — they need expansive *when* coverage.
 
-Anvil's methodology mapped:
+Anvil's methodology mapped (`anvil list skill` for the live set):
 
 | Skill | Side | Type |
 |---|---|---|
-| `using-anvil` | meta | knowledge |
-| `writing-skills` | meta | knowledge |
 | `extracting-skill-from-session` | meta | workflow |
-| `synthesizing-knowledge-skill` | meta | workflow |
 | `researching` | meta | workflow |
 | `writing-product-design` | design | workflow |
 | `writing-system-design` | design | workflow |
-| `defining-milestone` | design | workflow |
+| `writing-milestone` | design | workflow |
+| `writing-plan` | design | workflow |
 | `capturing-inbox` | execution | workflow |
-| `creating-issue` | execution | workflow |
-| `planning` | execution | workflow |
-| `human-review` | execution | workflow |
-| `systematic-debugging` | execution | workflow |
-| `learning-shaping` | execution | workflow |
-| `capturing-learnings` | execution | workflow |
-| `re-entry` | execution | workflow |
-| `pausing-work` | execution | workflow |
-| `refactoring` | execution | workflow |
-| `exploration` | execution | workflow |
-| `decision-making` | execution | workflow |
-| `sweep` | execution | workflow |
-| `upgrades` | execution | workflow |
+| `writing-issue` | execution | workflow |
+| `completing-issue` | execution | workflow |
+| `dispatching-issue-fleet` | execution | workflow |
+| `implementing-plan` | execution | workflow |
+| `reviewing-pr` | execution | workflow |
+| `responding-to-pr-review` | execution | workflow |
+| `distilling-learning` | execution | workflow |
+| `opening-thread` | session | workflow |
+| `resuming-session` | session | workflow |
+| `handing-off-session` | session | workflow |
+| `self-testing` | meta | workflow |
 
 Anvil's methodology is workflow-dominant. User vault skills are knowledge-dominant (library/tool/domain expertise).
 
