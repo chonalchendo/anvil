@@ -244,7 +244,7 @@ Three exits:
    anvil set decision <id> status rejected
    anvil set decision <id> date <today>
    ```
-   Decision file lands at `~/anvil-vault/30-decisions/<topic>.<NNNN>-<slug>.md` (MADR-conformant per `docs/system-design/knowledge-base.md`). Body is one paragraph: what was considered, why rejected. If no, no artifact.
+   Decision file lands at `~/anvil-vault/30-decisions/<topic>.<NNNN>-<slug>.md` (MADR-conformant; see your project's decision-doc conventions). Body is one paragraph: what was considered, why rejected. If no, no artifact.
 3. **Paused** — user wants to think more. No artifact. If the source was an inbox item, it stays as-is for later resumption.
 
 ---
