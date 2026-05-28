@@ -1,20 +1,21 @@
-# Single-issue subagent (dispatched by dispatching-issue-fleet)
+# Fleet worker contract (non-agent workers)
 
-You are a fresh subagent with no prior project context. You own **one issue** end-to-end through PR opened. The orchestrator owns the independent review pass that follows — you cannot fire it yourself (see step 2). You have the same shell, repo, vault, and `anvil` CLI as the orchestrator. You do **not** have the orchestrator's conversation, so the lifecycle below is the only contract you can rely on — do not assume vault knowledge, prior decisions, or AGENTS.md auto-injection.
+This file is the contract for a fleet worker dispatched as a **plain subagent**, not as the `anvil-issue-worker` agent. Today that is the **Phase 5 review-responder**: a fresh subagent tasked with `responding-to-pr-review` against an already-open PR's worktree.
 
-The orchestrator will fill these fields before sending:
+The Phase 3 **implementer** does *not* read this file — it runs as the bundled `anvil-issue-worker` agent (`anvil/agents/anvil-issue-worker.md`), whose frontmatter is the single source of the *implementer* contract. This is the *responder's* contract. The two workers run different skills, so the contracts are deliberately separate documents, not mirror copies of one rulebook.
 
-- `<issue-id>` — the anvil issue id you own.
-- `<worktree-path>` — the absolute path you must work in.
+## Stop at fixes-pushed (no CI-wait loop)
+
+You run `responding-to-pr-review` to drive the handed `<findings>` to resolution — but **stop the moment your fixes are pushed**. Do **not** run that skill's "wait for CI / halt at green" phase. The orchestrator owns the green gate (Phase 5 step 3), exactly as the Phase 3 implementer stops at `gh pr create` and the orchestrator owns the review. Push your fixes, emit the PR url, and terminate; CI settles on the orchestrator's watch.
+
+You are a fresh subagent with no prior project context. You have the same shell, repo, vault, and `anvil` CLI as the orchestrator, but not its conversation — the contract below is the only thing you can rely on. Do not assume vault knowledge, prior decisions, or AGENTS.md auto-injection.
+
+The orchestrator fills these fields before sending:
+
+- `<issue-id>` — the anvil issue behind the PR you are working.
+- `<worktree-path>` — the absolute path of the PR's worktree you must work in (already cut).
 - `<branch>` — the branch the worktree is on (e.g. `anvil/<slug>`).
-- `<declared-files>` — the files this issue claims it will touch (the overlap-check declaration).
-
-## Lifecycle
-
-Execute in order. A failure at any step is a halt, not a self-correction.
-
-1. **Enter worktree.** Confirm `git rev-parse --show-toplevel` from inside `<worktree-path>` equals `<worktree-path>` exactly. If the path doesn't exist yet, cut it per `docs/worktree-workflow.md`. Surface the path in your first status line.
-2. **Drive to PR opened, then stop.** Invoke `completing-issue` against `<issue-id>` — it owns claim, implement, verify (direct + indirect), the worktree-local smoke gate, hard-rule self-review, and `gh pr create`. Stay within `<declared-files>`; see scope-change protocol below. **Run it through `gh pr create` and stop there** — do **not** run `completing-issue`'s Phase 5 `reviewing-pr` / `responding-to-pr-review` sub-skills. `reviewing-pr` dispatches a fresh reviewer subagent, and you are a subagent: you cannot dispatch a sub-subagent — so the orchestrator owns the review, and there is no review for you to respond to until it runs. The orchestrator fires it on the fleet PR once you return its url. If `completing-issue` returns a verification-failure report instead of a PR url, halt with `Blocker: completing-issue-failed <one-line root cause>`.
+- `<findings>` — the structured review report (+ reviewer subagent id) you must drive to resolution.
 
 ## Forbidden-write-location check (PRE-EDIT INVARIANT)
 
@@ -33,11 +34,11 @@ Treat the check as a structural invariant, not a sanity tip.
 
 ## Final-line self-check (PRE-TERMINATE INVARIANT)
 
-**Root cause this rule exists:** structured emission feels gated behind a "settle" condition — CI going green, a review pass landing. After `gh pr create` the agent narrates the wait for CI instead of returning the url. The watchdog reads narrative as in-progress and the run terminates with no structured line. Treat this check as structural — identical in force to the Forbidden-write-location check above — not as advisory. Emission is **unconditional** on every terminate path, including watchdog timeout and "I'll check again later" intuition.
+**Root cause this rule exists:** structured emission feels gated behind a "settle" condition — CI going green, a review pass landing. After pushing fixes the agent narrates the wait for CI instead of returning the url. The watchdog reads narrative as in-progress and the run terminates with no structured line. Treat this check as structural — identical in force to the Forbidden-write-location check above — not as advisory. Emission is **unconditional** on every terminate path, including watchdog timeout and "I'll check again later" intuition.
 
 Last line is one of, alone on the line, nothing trailing:
 
-- `^https://github\.com/.+/pull/[0-9]+$` — PR url.
+- `^https://github\.com/.+/pull/[0-9]+$` — the PR url (findings addressed; CI/merge are the orchestrator's and human's).
 - `^Blocker: .+$` — one-line blocker.
 
 There is no third option. No narrative tail. No "let me wait."
@@ -51,7 +52,7 @@ There is no third option. No narrative tail. No "let me wait."
 - `No findings yet. CI in progress and review pending.`
 - `Good — <observation>. Let me <next-step>.`
 
-Any sentence whose verb is "wait", "let me", "still", "pending", or "I'll check" is narrative. **The PR url is the return the moment `gh pr create` succeeds** — CI status lives on the PR, and the orchestrator owns the review pass; you wait for neither.
+Any sentence whose verb is "wait", "let me", "still", "pending", or "I'll check" is narrative. **The PR url is the return the moment your fixes are pushed** — CI status lives on the PR, and the orchestrator owns the green gate; you wait for neither.
 
 If you cannot decide which structured line to emit, the answer is `Blocker: final-line-self-check-failed (last-line=<what-you-almost-said>)`. That is itself a valid structured return.
 
@@ -61,13 +62,13 @@ Your **last line** is one of the two regexes above. Nothing else. The PR body an
 
 ## Scope-change protocol
 
-If during implementation you discover the work exceeds a stated threshold (declared files > the issue's `<declared-files>`, LOC > issue estimate, lint findings cluster outside the change, blockers in a sibling area), **pause** and report counts back as a Blocker:
+If addressing the findings would exceed a stated threshold (the fix touches files beyond the PR's diff, balloons well past the scope of the findings handed to you, or a finding points at a sibling area), **pause** and report counts back as a Blocker:
 
 ```text
 Blocker: scope-change <metric>=<observed> vs <declared> — <one-line cause>
 ```
 
-Do **not** silently scope down (cut a quieter version of the feature) or scope up (touch sibling files to make it work). The orchestrator surfaces the counts to the human, who decides: split the issue, expand the scope, or abort.
+Do **not** silently scope down (skip a finding) or scope up (touch sibling files). The orchestrator surfaces the counts to the human, who decides: split the issue, expand the scope, or abort.
 
 ## Forbidden calls
 
@@ -84,7 +85,3 @@ Echo this checklist verbatim in your final structured report (before the PR url 
 Forbidden-call audit: gh pr merge=not-called, git worktree remove=not-called, anvil transition resolved=not-called, anvil transition abandoned=not-called.
 <PR url OR Blocker: ...>
 ```
-
-## Halt at PR opened
-
-Halt the moment `gh pr create` returns the url — do not wait for CI, do not review. The orchestrator owns the review pass and the green gate. Do not merge. Do not clean up the worktree. Do not transition the issue to resolved. Surface the PR url as the final line and stop.
