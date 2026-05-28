@@ -27,9 +27,13 @@ The overlap check is one-line declarations plus eyeball compare. No static analy
 
 ## Phase 3 — Dispatch N subagents
 
-For each surviving candidate, fire one subagent via the Agent tool. The prompt is the orchestrator-filled template at `skills/dispatching-issue-fleet/subagent-prompt.md` — read it, fill issue-specific fields (issue id, worktree path, branch name, declared files), and send. Each subagent invokes `completing-issue` to drive its issue through PR opened and **stops there** — it does not run `reviewing-pr` or `responding-to-pr-review`. A subagent cannot dispatch the reviewer sub-subagent, so review is the orchestrator's job (Phase 5).
+For each surviving candidate, fire one subagent via the Agent tool with `subagent_type: anvil-issue-worker` — the bundled, cost-tuned worker (`anvil/agents/anvil-issue-worker.md`: runs on a cheaper model than the orchestrator, `completing-issue` preloaded). The agent file **is** the worker contract — claim → implement → smoke → `gh pr create`, stop-at-PR with no review loop, pre-edit worktree invariant, scope-change Blocker, forbidden-call audit, structured return line — so you do not re-state it per call. Fill only the per-call values into the dispatch prompt body:
 
-Dispatch all N in a single tool-use block so they run in parallel.
+> Complete anvil issue `<issue-id>`. Worktree: `<worktree-path>` on branch `<branch>`. Declared files (estimate, grep to confirm): `<declared-files>`.
+
+A worker stops at PR opened — it cannot dispatch the reviewer sub-subagent, so review is the orchestrator's job (Phase 5).
+
+Dispatch all N in a single tool-use block so they run in parallel. **Restart caveat:** the Agent tool enumerates `subagent_type` values at session start, so a freshly installed or edited `anvil-issue-worker` (via `just install` && `anvil install agents`) is not dispatchable until the next restart. If dispatch errors with "Agent type not found", restart the session once, then retry.
 
 ## Phase 4 — Interpret returns
 
@@ -48,7 +52,7 @@ For each PR url returned, in turn:
 1. **Fire the independent review.** Run `reviewing-pr` against the PR. It dispatches a fresh reviewer subagent (one level down from you — the same topology as the single-PR path) and returns structured findings. This is the only independent review source post-CodeRabbit; the fleet worker can't fire it (a subagent can't dispatch a sub-subagent), which is why it runs here.
 2. **Route findings — fleet override.** `reviewing-pr` Phase 4 would fire `responding-to-pr-review` in-session; on the fleet path you do **not** — the fixes live in a worktree you are not in, and you don't write code. Take its findings and route them yourself:
    - All findings ≤low + CI green → the PR is ready for the human's merge decision.
-   - Any blocker/high/actionable-medium → **dispatch a fresh worker into the PR's worktree**, tasked with `responding-to-pr-review` against the handed findings (the structured report + reviewer subagent id). It honors the same worktree invariant, return contract, and forbidden-call audit as `subagent-prompt.md`; interpret its return exactly as in Phase 4.
+   - Any blocker/high/actionable-medium → **dispatch a fresh worker into the PR's worktree**, tasked with `responding-to-pr-review` against the handed findings (the structured report + reviewer subagent id). This worker is a plain subagent (not the `anvil-issue-worker` agent — wrong skill); its contract is `subagent-prompt.md` (worktree invariant, return contract, forbidden-call audit). Interpret its return exactly as in Phase 4.
 3. **Halt.** Confirm CI green. Do not merge.
 
 Present the structured report:
