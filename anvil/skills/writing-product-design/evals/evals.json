@@ -17,7 +17,7 @@
     {
       "id": 1,
       "name": "brownfield-deflect",
-      "prompt": "I've already got a design doc for my project at ~/projects/looper/docs/design.md — it's about 800 lines, written over the last few weeks. I want a product-design.md carved out of it: vision, users, success, milestones — basically the top of the design hierarchy. Pull it out of the existing doc and put it in the right spot.",
+      "prompt": "I've already got a design doc for my project at ~/projects/looper/looper-design.md — it's about 800 lines, written over the last few weeks. I want a product-design.md carved out of it: vision, users, success, milestones — basically the top of the design hierarchy. Pull it out of the existing doc and put it in the right spot.",
       "expected_output": "Skill recognizes this is brownfield carving (lifting product-design content out of an existing doc) — explicitly declines or redirects rather than spinning up the 6-phase greenfield workflow. The skill itself states this case is not handled. Behavior should not begin Phase 1 elicitation as if greenfield.",
       "files": [],
       "expectations": [

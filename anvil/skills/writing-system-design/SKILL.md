@@ -38,7 +38,7 @@ A workflow for authoring a project's system-design artifact — the architectura
 
 ## Output path
 
-Canonical destination: `~/anvil-vault/05-projects/{project}/system-design.md`. Vault-only — never committed to the project's source repo. Schema lives in [vault-schemas.md](../../docs/vault-schemas.md) under the `system-design` section.
+Canonical destination: `~/anvil-vault/05-projects/{project}/system-design.md`. Vault-only — never committed to the project's source repo. The `system-design` frontmatter schema is spelled out inline in the Phase 11 hand-check (`references/phases.md`); run `anvil validate <path>` to confirm conformance against your project's schema.
 
 Surface this path at Phase 1 so the user can flag any constraint up front.
 

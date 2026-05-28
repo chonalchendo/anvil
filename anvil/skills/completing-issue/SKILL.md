@@ -56,7 +56,7 @@ No refactoring "while in the area." No helpers without a second use. No defensiv
 
 ## Phase 2 — Verify (max 5 cycles)
 
-Run the bundled verification runner against the issue. It parses `## Verification → ### Direct` then `### Indirect` (fenced bash blocks; full spec at `docs/issue-spec.md`), runs each block as one script (lines share state), and emits a compact `PASS [Direct#N] <preview>` / `FAIL [Direct#N] <preview>` summary with up to 10 lines of failure output per fail.
+Run the bundled verification runner against the issue. It parses `## Verification → ### Direct` then `### Indirect` (fenced bash blocks), runs each block as one script (lines share state), and emits a compact `PASS [Direct#N] <preview>` / `FAIL [Direct#N] <preview>` summary with up to 10 lines of failure output per fail.
 
 ```bash
 anvil show issue <id> | bash ~/.claude/skills/completing-issue/scripts/run-verification.sh
