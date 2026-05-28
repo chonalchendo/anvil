@@ -100,6 +100,7 @@ func newValidateCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON array of structured errors")
+	cmd.AddCommand(newValidateSkillCmd())
 	return cmd
 }
 
