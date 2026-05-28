@@ -21,7 +21,7 @@ A SKILL.md is a **trigger contract** (description) + **deferred reference** (bod
 
 Workflow descriptions that summarize cause the agent to follow the description and skip the body. Knowledge descriptions under-trigger by default — they need expansive *when* coverage.
 
-Anvil's methodology mapped (`anvil list skill` for the live set):
+Anvil's methodology mapped (`ls anvil/skills/` or `anvil show skill <name>` for the live set):
 
 | Skill | Side | Type |
 |---|---|---|
