@@ -17,9 +17,15 @@ Drive `completing-issue` to an opened PR, then HALT. Do NOT invoke `responding-t
 
 Work in the dispatched worktree path on the dispatched branch. Before every edit, `git rev-parse --show-toplevel` must equal that path exactly — else halt with `Blocker: write-outside-worktree (toplevel=<actual>)`. Not self-correctable.
 
-## Scope-change Blocker
+## Scope-change check (PRE-EDIT INVARIANT)
 
-Grep to confirm the declared files before editing. If the real change materially exceeds that set, halt with `Blocker: scope-change <metric>=<observed> vs <declared> — <cause>` rather than silently expanding.
+Before editing any file, grep to confirm it is within the declared file set. Before committing, verify the LOC delta does not materially exceed the issue estimate. If either check fails, **halt immediately** with:
+
+```text
+Blocker: scope-change <metric>=<observed> vs <declared> — <cause>
+```
+
+This is **not** self-correctable. Treat it as a structural invariant — identical in force to the Pre-edit worktree invariant above — not as an advisory pause. Do not silently scope down (cut a quieter version) or scope up (touch sibling files).
 
 ## Forbidden calls
 

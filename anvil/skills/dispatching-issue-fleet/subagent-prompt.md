@@ -60,15 +60,17 @@ If you cannot decide which structured line to emit, the answer is `Blocker: fina
 
 Your **last line** is one of the two regexes above. Nothing else. The PR body and inline replies are where prose belongs — not the orchestrator return.
 
-## Scope-change protocol
+## Scope-change check (PRE-EDIT INVARIANT)
 
-If addressing the findings would exceed a stated threshold (the fix touches files beyond the PR's diff, balloons well past the scope of the findings handed to you, or a finding points at a sibling area), **pause** and report counts back as a Blocker:
+Before editing any file, verify that the file is within the PR's existing diff set. Before writing any significant block, verify that the total change does not balloon well past the scope of the findings handed to you. If either check fails, **halt immediately** with:
 
 ```text
 Blocker: scope-change <metric>=<observed> vs <declared> — <one-line cause>
 ```
 
-Do **not** silently scope down (skip a finding) or scope up (touch sibling files). The orchestrator surfaces the counts to the human, who decides: split the issue, expand the scope, or abort.
+This is **not** self-correctable. Do **not** silently scope down (skip a finding) or scope up (touch sibling files). The orchestrator surfaces the counts to the human, who decides: split the issue, expand the scope, or abort.
+
+Treat this check as a structural invariant — identical in force to the Forbidden-write-location check above — not as an advisory pause. A finding that points at a sibling area outside the PR's diff is a scope-change Blocker, not a silent skip.
 
 ## Forbidden calls
 
