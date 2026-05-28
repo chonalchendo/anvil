@@ -60,6 +60,13 @@ func newInstallHooksCmd() *cobra.Command {
 				} else {
 					cmd.Println("no matching SessionStart hook in", path)
 				}
+				suppChanged, err := installer.RemoveReminderSuppression(path)
+				if err != nil {
+					return fmt.Errorf("removing reminder suppression: %w", err)
+				}
+				if suppChanged {
+					cmd.Println("removed reminder suppression settings from", path)
+				}
 				return nil
 			}
 			changed, err := installer.MergeSessionStartHook(path, sessionStartHookCommand)
@@ -70,6 +77,13 @@ func newInstallHooksCmd() *cobra.Command {
 				cmd.Println("installed SessionStart hook in", path)
 			} else {
 				cmd.Println("SessionStart hook already installed in", path)
+			}
+			suppChanged, err := installer.MergeReminderSuppression(path)
+			if err != nil {
+				return fmt.Errorf("installing reminder suppression: %w", err)
+			}
+			if suppChanged {
+				cmd.Println("installed reminder suppression settings in", path)
 			}
 			return nil
 		},
