@@ -1,3 +1,6 @@
+# Built binaries — `just build` / `just install-local` write a worktree-local copy here
+/bin/
+
 # Python-generated files
 __pycache__/
 *.py[oc]

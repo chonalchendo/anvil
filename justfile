@@ -57,6 +57,47 @@ install:
     echo "installed: $gobin"
     echo "(if your shell has a stale 'anvil' path cached, run: hash -r)"
 
+# Install a version-stamped binary into THIS worktree's ./bin, NOT the shared
+# global $(go env GOPATH)/bin. The smoke-test gate invokes ./bin/anvil by path,
+# so parallel worktrees install to distinct files and never clobber each other —
+# unlike `install`, which targets one global path and races when
+# `dispatching-issue-fleet` runs workers concurrently. No PATH-shadow check is
+# needed because the gate calls ./bin/anvil explicitly. `-a` and `-ldflags`
+# carry the same rationale as `install` above.
+install-local:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    sha="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+        version="dev-${sha}-dirty"
+    else
+        version="dev-${sha}"
+    fi
+    mkdir -p bin
+    GOBIN="$PWD/bin" go install -a -ldflags "-X github.com/chonalchendo/anvil/internal/cli.Version=${version}" ./cmd/anvil
+    echo "installed: $PWD/bin/anvil"
+
+# Regression test for the worktree-local install isolation. Two concurrent
+# installs to distinct GOBIN targets with distinct version stamps must each keep
+# their own stamp — the property `install-local` relies on to keep parallel fleet
+# workers from clobbering one shared binary. Exits non-zero on any cross-stamp.
+test-install-race:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    pkg=github.com/chonalchendo/anvil/internal/cli
+    d1="$(mktemp -d)"; d2="$(mktemp -d)"
+    trap 'rm -rf "$d1" "$d2"' EXIT
+    ( GOBIN="$d1" go install -ldflags "-X $pkg.Version=raceprobe-A" ./cmd/anvil ) &
+    ( GOBIN="$d2" go install -ldflags "-X $pkg.Version=raceprobe-B" ./cmd/anvil ) &
+    wait
+    va="$("$d1/anvil" --version)"; vb="$("$d2/anvil" --version)"
+    if echo "$va" | grep -q raceprobe-A && echo "$vb" | grep -q raceprobe-B; then
+        echo "install-race: isolated (distinct GOBIN targets keep distinct stamps)"
+    else
+        echo "install-race: CLOBBER (A=$va B=$vb)" >&2
+        exit 1
+    fi
+
 # Validate vault frontmatter against schemas.
 validate vault="":
     @if [ -z "{{vault}}" ]; then go run ./cmd/anvil validate; else go run ./cmd/anvil validate {{vault}}; fi
