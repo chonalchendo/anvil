@@ -274,27 +274,34 @@ func TestList_SinceFilter(t *testing.T) {
 	}
 }
 
-func TestList_TruncationHintOnStderr(t *testing.T) {
+func TestList_TruncationHintOnStdout(t *testing.T) {
 	newTestVaultWithIssues(t, 15)
 	cmd := newRootCmd()
-	_, errOut, err := runCmd(t, cmd, "list", "issue", "--limit", "5")
+	out, _, err := runCmd(t, cmd, "list", "issue", "--limit", "5")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(errOut, "showing 5 of 15") {
-		t.Errorf("expected truncation hint, got %q", errOut)
+	if !strings.Contains(out, "showing 5 of 15") {
+		t.Errorf("expected truncation hint on stdout, got %q", out)
 	}
 }
 
 func TestList_NoHintWhenComplete(t *testing.T) {
 	newTestVaultWithIssues(t, 3)
 	cmd := newRootCmd()
-	_, errOut, err := runCmd(t, cmd, "list", "issue")
+	out, _, err := runCmd(t, cmd, "list", "issue")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if errOut != "" {
-		t.Errorf("expected empty stderr, got %q", errOut)
+	// Only data lines (id\tstatus\tmilestone\ttitle) — no footer when uncapped.
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "showing ") {
+			t.Errorf("unexpected truncation hint in stdout: %q", line)
+		}
 	}
 }
 

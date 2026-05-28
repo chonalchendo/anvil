@@ -272,8 +272,10 @@ func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool, t co
 	if t == core.TypeIssue {
 		suggestions = append(suggestions, "--milestone")
 	}
+	// Truncation cue on stdout so piped consumers see it without merging
+	// stderr. An uncapped result emits nothing (TruncationHint returns "").
 	if hint := output.TruncationHint("most recent", returned, total, suggestions); hint != "" {
-		cmd.PrintErrln(hint)
+		fmt.Fprintln(w, hint)
 	}
 	return nil
 }
