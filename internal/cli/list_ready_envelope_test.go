@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -43,6 +44,45 @@ func TestListReadyJSON_IncludesTitleAndSeverity(t *testing.T) {
 	}
 	if got.Severity != "high" {
 		t.Errorf("severity = %q, want %q", got.Severity, "high")
+	}
+}
+
+// --ready without --limit must return all ready issues, not just 10.
+// The default cap of 10 is intentional for general list but wrong for the
+// actionable ready queue — agents pick from it and invisible issues look blocked.
+func TestListReadyJSON_DefaultLimitIsUnbounded(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	for i := range 12 {
+		execCmd(t, "create", "issue",
+			"--project", "demo",
+			"--title", fmt.Sprintf("issue %d", i),
+			"--description", "desc",
+			"--goal", "goal",
+			"--tags", "domain/dev-tools",
+			"--allow-new-facet=domain",
+		)
+	}
+
+	out := execCmd(t, "list", "issue", "--ready", "--json")
+	var env struct {
+		Items     []map[string]any `json:"items"`
+		Total     int              `json:"total"`
+		Returned  int              `json:"returned"`
+		Truncated bool             `json:"truncated"`
+	}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
+		t.Fatalf("json: %v\nout: %s", err, out)
+	}
+	if env.Total != 12 {
+		t.Errorf("total = %d, want 12", env.Total)
+	}
+	if env.Returned != 12 {
+		t.Errorf("returned = %d, want 12 (default --ready must not cap at 10)", env.Returned)
+	}
+	if env.Truncated {
+		t.Errorf("truncated = true, want false when all items returned")
 	}
 }
 

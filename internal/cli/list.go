@@ -63,7 +63,7 @@ func newListCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:     "list <type>",
-		Short:   "List vault artifacts (default: 10 most recent)",
+		Short:   "List vault artifacts (default: 10 most recent; --ready/--orphans: unlimited)",
 		Args:    cobra.ExactArgs(1),
 		Example: "  anvil list issue --status open\n  anvil list plan --since 2026-05-01 --limit 25\n  anvil list decision --json",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -87,12 +87,19 @@ func newListCmd() *cobra.Command {
 				return printAndReturn(cmd, errfmt.NewUnsupportedForType(string(t), []string{"issue"}))
 			}
 			if flagReady || flagOrphans {
+				// --ready/--orphans list an actionable queue; default to
+				// unlimited so callers see the full set without knowing to
+				// raise --limit. An explicit --limit still caps the result.
+				limit := flagLimit
+				if !cmd.Flags().Changed("limit") {
+					limit = 0
+				}
 				return runListIndexed(cmd, t, flagReady, flagOrphans, listFilters{
 					Status: flagStatus, Project: flagProject,
 					Severity: flagSeverity, Milestone: flagMilestone,
 					Since: flagSince, Until: flagUntil,
 					InvalidBody: flagInvalidBody,
-				}, flagJSON, flagLimit)
+				}, flagJSON, limit)
 			}
 			v, err := core.ResolveVault()
 			if err != nil {
@@ -120,7 +127,7 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "filter by milestone slug (exact match, e.g. anvil.v0-1-polish-dogfood-findings; issue only)")
 	cmd.Flags().StringVar(&flagSince, "since", "", "include only artifacts created on or after YYYY-MM-DD")
 	cmd.Flags().StringVar(&flagUntil, "until", "", "include only artifacts created on or before YYYY-MM-DD")
-	cmd.Flags().IntVar(&flagLimit, "limit", defaultListLimit, "maximum results to return (default 10)")
+	cmd.Flags().IntVar(&flagLimit, "limit", defaultListLimit, "maximum results to return (default 10; --ready/--orphans default to unlimited)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
 	cmd.Flags().BoolVar(&flagReady, "ready", false, "filter to issues with no unresolved blockers (issue only)")
 	cmd.Flags().BoolVar(&flagOrphans, "orphans", false, "filter to artifacts with no incoming wikilinks")
