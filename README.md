@@ -21,23 +21,27 @@ Your project repos stay clean: no Anvil-specific files by default.
 
 Anvil is the successor to [mantle](https://github.com/chonalchendo/mantle). Mantle worked but accumulated complexity — 30+ slash commands, heavy compiled context, Claude-only lock-in. Anvil keeps the load-bearing parts (lifecycle skills, vault, telemetry) and trades the orchestrator-heavy approach for a skill-based one that travels with you across projects rather than being scaffolded into each repo.
 
-## Install
+## Getting started
 
-Install the binary with Go:
+Anvil is alpha and not yet released, so install from source. You'll need [Go](https://go.dev/dl/), [`just`](https://github.com/casey/just), and [Claude Code](https://claude.com/claude-code).
 
-    go install github.com/chonalchendo/anvil/cmd/anvil@latest
+```bash
+# 1. Build and install a version-stamped binary into $(go env GOPATH)/bin
+git clone https://github.com/chonalchendo/anvil.git
+cd anvil
+just install
+anvil --version          # confirm it's on your PATH (run `hash -r` if your shell cached an old one)
 
-This drops `anvil` into `$(go env GOPATH)/bin` — make sure that directory is on your `$PATH`. Verify with `anvil --version`.
+# 2. Scaffold a vault and wire Anvil into Claude Code
+anvil init               # scaffold a vault (defaults to ~/anvil-vault)
+anvil install skills     # bundled skills → Claude Code
+anvil install agents     # bundled subagents (e.g. the issue-fleet worker)
+anvil install hooks      # bind each session to the active thread
+```
 
-Then scaffold a vault and wire Anvil into Claude Code:
+Skills and agents are discovered at session start, so **restart Claude Code** afterward. In a fresh session the available-skills list should include Anvil's skills (`writing-issue`, `completing-issue`, `capturing-inbox`, …) — bare, with no `anvil:` prefix. Pass `--uninstall` to any `install` command to remove it.
 
-    anvil init              # scaffold a vault (defaults to ~/anvil-vault)
-    anvil install skills    # make the bundled skills available to Claude Code
-    anvil install hooks     # bind each session to the active thread
-
-Pass `--uninstall` to either `install` command to remove it.
-
-Skills are discovered at session start, so **restart Claude Code** after `anvil install skills`. In a fresh session the available-skills list should include Anvil's skills (`writing-issue`, `completing-issue`, `capturing-inbox`, …), appearing bare without an `anvil:` prefix.
+> Once released, `go install github.com/chonalchendo/anvil/cmd/anvil@latest` will be the one-line path. Build from source with `just install` (not `go install ./cmd/anvil`) — the recipe stamps the version and checks for a stale binary shadowing your `$PATH`.
 
 ## Design & conventions
 
