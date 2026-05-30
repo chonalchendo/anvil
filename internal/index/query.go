@@ -94,7 +94,7 @@ func (d *DB) queryWithFilters(base string, f QueryFilters, args []any) ([]Artifa
 	if err != nil {
 		return nil, err
 	}
-	defer rs.Close()
+	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
 	var out []ArtifactRow
 	for rs.Next() {
 		var r ArtifactRow
@@ -137,7 +137,7 @@ ORDER BY l.source, l.target`
 	if err != nil {
 		return nil, err
 	}
-	defer rs.Close()
+	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
 	var out []LinkRow
 	for rs.Next() {
 		var r LinkRow
@@ -158,7 +158,7 @@ WHERE a.id IS NULL ORDER BY l.source, l.target`
 	if err != nil {
 		return nil, err
 	}
-	defer rs.Close()
+	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
 	var out []LinkRow
 	for rs.Next() {
 		var r LinkRow
@@ -175,7 +175,7 @@ func (d *DB) linkQuery(q, arg string) ([]LinkRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rs.Close()
+	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
 	var out []LinkRow
 	for rs.Next() {
 		var r LinkRow

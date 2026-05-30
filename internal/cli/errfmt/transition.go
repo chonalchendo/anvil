@@ -27,7 +27,7 @@ func NewIllegalTransition(typ, id, from, to string, next []string) *Structured {
 	if typ == "issue" && from == "open" && to == "resolved" {
 		seq := fmt.Sprintf("anvil transition issue %s in-progress --owner <name> && anvil transition issue %s resolved", id, id)
 		s.Set("sequence_hint", seq).
-			Set("sequence_note", "claim records ownership and in-progress duration before resolution; force-edit skips this audit trail")
+			Set("sequence_note", "claim records ownership and in-progress duration before resolution; force-edit skips this audit trail") //nolint:errcheck // builder method; error surfaced via final Err() call
 	}
 	return s
 }

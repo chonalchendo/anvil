@@ -40,7 +40,7 @@ func newInitCmd() *cobra.Command {
 					return fmt.Errorf("read %s: %w", e.Name(), err)
 				}
 				target := filepath.Join(v.SchemasDir(), e.Name())
-				if err := os.WriteFile(target, b, 0o644); err != nil {
+				if err := os.WriteFile(target, b, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 					return fmt.Errorf("write %s: %w", target, err)
 				}
 			}

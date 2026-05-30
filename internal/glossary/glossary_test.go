@@ -30,7 +30,7 @@ const sample = `# Vault Glossary
 func TestLoad_ParsesFacetsAndDefinitions(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "glossary.md")
-	if err := os.WriteFile(path, []byte(sample), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(sample), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 

@@ -66,11 +66,11 @@ func TestLinkUnresolvedReturnsDanglingEdges(t *testing.T) {
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
 	// Manually write an issue whose milestone wikilink points at a missing id.
-	if err := os.MkdirAll(filepath.Join(vault, "70-issues"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(vault, "70-issues"), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	body := "---\ntype: issue\nid: demo.foo\nstatus: open\nmilestone: \"[[milestone.demo.gone]]\"\n---\n\n"
-	if err := os.WriteFile(filepath.Join(vault, "70-issues", "demo.foo.md"), []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(vault, "70-issues", "demo.foo.md"), []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	execCmd(t, "reindex")

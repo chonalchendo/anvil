@@ -13,7 +13,7 @@ func loadAndError(t *testing.T, frontmatter string) string {
 	t.Helper()
 	p := filepath.Join(t.TempDir(), "bad.md")
 	body := "---\n" + frontmatter + "---\n\nbody\n"
-	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(p, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	_, err := LoadArtifact(p)

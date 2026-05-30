@@ -56,7 +56,7 @@ func writePlanFile(t *testing.T, body string) string {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "ANV-142-streaming-token-counter.md")
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	return path
@@ -177,7 +177,7 @@ tasks:
 
 ` + strings.Repeat("body. ", 60) + `
 `
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	p, err := LoadPlan(path)
@@ -219,7 +219,7 @@ tasks:
 
 ` + strings.Repeat("body. ", 60) + `
 `
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	p, err := LoadPlan(path)
@@ -250,7 +250,7 @@ func TestPlanLoad_CorruptFrontmatterDoesNotLeakStdlib(t *testing.T) {
 	corrupt := "---\ntype: issue\nid: test.corrupt\ntitle: test corrupt\ntags:\n  - `bad-token\n---\nBody\n"
 	dir := t.TempDir()
 	path := filepath.Join(dir, "corrupt.md")
-	if err := os.WriteFile(path, []byte(corrupt), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(corrupt), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -322,7 +322,7 @@ tasks:
 
 ` + strings.Repeat("body. ", 60) + `
 `
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	p, err := LoadPlan(path)

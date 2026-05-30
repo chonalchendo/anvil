@@ -13,7 +13,7 @@ import (
 // system-design) to <vault>/05-projects/<project>/<type>.md.
 func writeFixtureSingleton(t *testing.T, vault, project string, typ core.Type, title string) string {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Join(vault, "05-projects", project), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(vault, "05-projects", project), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	path := filepath.Join(vault, "05-projects", project, string(typ)+".md")
@@ -127,7 +127,7 @@ func TestShow_SystemDesign_ResolvesByProject(t *testing.T) {
 func TestValidate_DetectsBadSingleton(t *testing.T) {
 	vault := setupVault(t)
 	// Plant a singleton with invalid status — should be caught by validate.
-	if err := os.MkdirAll(filepath.Join(vault, "05-projects", "foo"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(vault, "05-projects", "foo"), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	bad := &core.Artifact{

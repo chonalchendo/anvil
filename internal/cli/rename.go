@@ -109,7 +109,7 @@ rename always takes effect first.`,
 			if err != nil {
 				return fmt.Errorf("opening index: %w", err)
 			}
-			defer db.Close()
+			defer db.Close() //nolint:errcheck // close in defer; error not actionable
 			if _, err := db.Reindex(v.Root); err != nil {
 				cmd.PrintErrf("WARN: reindex after rename failed: %v\n", err)
 			}
@@ -133,7 +133,7 @@ rename always takes effect first.`,
 				if path == newPath {
 					return nil
 				}
-				b, rerr := os.ReadFile(path)
+				b, rerr := os.ReadFile(path) //nolint:gosec // G304: path is a descendant of v.Root yielded by filepath.WalkDir
 				if rerr != nil {
 					skipped = append(skipped, path)
 					return nil //nolint:nilerr // best-effort rewrite; unreadable files surface via skipped[]
@@ -148,7 +148,7 @@ rename always takes effect first.`,
 					mode = fi.Mode().Perm()
 				}
 				updated := strings.ReplaceAll(content, oldWikilink, newWikilink)
-				if werr := os.WriteFile(path, []byte(updated), mode); werr != nil {
+				if werr := os.WriteFile(path, []byte(updated), mode); werr != nil { //nolint:gosec // G304: path is a descendant of v.Root yielded by filepath.WalkDir; mode preserved from the existing file
 					skipped = append(skipped, path)
 					return nil //nolint:nilerr // best-effort rewrite; unwritable files surface via skipped[]
 				}

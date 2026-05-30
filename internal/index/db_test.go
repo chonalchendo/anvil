@@ -13,7 +13,7 @@ func TestOpenCreatesSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
 	for _, table := range []string{"artifacts", "links", "meta"} {
 		var name string
@@ -32,11 +32,11 @@ func TestOpenIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first Open: %v", err)
 	}
-	db1.Close()
+	db1.Close() //nolint:errcheck,gosec // close in defer; error not actionable
 
 	db2, err := Open(path)
 	if err != nil {
 		t.Fatalf("second Open: %v", err)
 	}
-	db2.Close()
+	db2.Close() //nolint:errcheck,gosec // close in defer; error not actionable
 }

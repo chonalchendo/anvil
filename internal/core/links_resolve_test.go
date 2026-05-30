@@ -11,10 +11,10 @@ import (
 func writeBlankIssue(t *testing.T, v *Vault, id string) {
 	t.Helper()
 	p := filepath.Join(v.Root, TypeIssue.Dir(), id+".md")
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(p, []byte("---\ntype: issue\n---\n"), 0o644); err != nil {
+	if err := os.WriteFile(p, []byte("---\ntype: issue\n---\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 }
@@ -27,8 +27,8 @@ func TestResolveLinks_AllPresent(t *testing.T) {
 		"related":   []any{"[[issue.anvil.x]]"},
 	}
 	mp := filepath.Join(v.Root, TypeMilestone.Dir(), "anvil.cli-substrate.md")
-	_ = os.MkdirAll(filepath.Dir(mp), 0o755)
-	_ = os.WriteFile(mp, []byte("---\ntype: milestone\n---\n"), 0o644)
+	_ = os.MkdirAll(filepath.Dir(mp), 0o755)                           //nolint:gosec // 0755 is correct for directories that must be traversable
+	_ = os.WriteFile(mp, []byte("---\ntype: milestone\n---\n"), 0o644) //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 
 	got := ResolveLinks(v, fm)
 	if len(got) != 0 {

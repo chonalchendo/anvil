@@ -29,11 +29,11 @@ func TestReindexEmptyVault(t *testing.T) {
 func TestReindexJSONShape(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
-	if err := os.MkdirAll(filepath.Join(vault, "70-issues"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(vault, "70-issues"), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	body := "---\ntype: issue\nid: a\nstatus: open\n---\nbody\n"
-	if err := os.WriteFile(filepath.Join(vault, "70-issues", "a.md"), []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(vault, "70-issues", "a.md"), []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -62,7 +62,7 @@ func TestReindexWarnsOnStub(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	stubPath := filepath.Join(vault, "issue.burgh.fake.md")
-	if err := os.WriteFile(stubPath, []byte{}, 0o644); err != nil {
+	if err := os.WriteFile(stubPath, []byte{}, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -90,20 +90,20 @@ func TestReindexPruneStubs(t *testing.T) {
 	t.Setenv("ANVIL_VAULT", vault)
 
 	emptyStub := filepath.Join(vault, "issue.burgh.empty.md")
-	if err := os.WriteFile(emptyStub, []byte{}, 0o644); err != nil {
+	if err := os.WriteFile(emptyStub, []byte{}, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	// Non-zero stub: name matches but file has content. Must NOT be deleted.
 	contentStub := filepath.Join(vault, "plan.anvil.content.md")
-	if err := os.WriteFile(contentStub, []byte("user typed something here"), 0o644); err != nil {
+	if err := os.WriteFile(contentStub, []byte("user typed something here"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	// Real artifact in canonical dir. Must NOT be touched.
-	if err := os.MkdirAll(filepath.Join(vault, "70-issues"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(vault, "70-issues"), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	realArtifact := filepath.Join(vault, "70-issues", "anvil.real.md")
-	if err := os.WriteFile(realArtifact, []byte("---\ntype: issue\n---\n"), 0o644); err != nil {
+	if err := os.WriteFile(realArtifact, []byte("---\ntype: issue\n---\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -133,7 +133,7 @@ func TestReindexPruneStubs(t *testing.T) {
 func TestReindexPruneStubsJSON(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
-	if err := os.WriteFile(filepath.Join(vault, "issue.x.md"), []byte{}, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(vault, "issue.x.md"), []byte{}, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 

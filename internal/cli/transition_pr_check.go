@@ -30,7 +30,7 @@ func ghPRListReal(branch string) (string, error) {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return "", errGhUnavailable
 	}
-	out, err := exec.Command("gh", "pr", "list",
+	out, err := exec.Command("gh", "pr", "list", //nolint:gosec // binary path resolved from trusted sources; not user input
 		"--head", branch,
 		"--state", "open",
 		"--json", "url,number,headRefName",
@@ -170,7 +170,7 @@ func linkedPlanSlugs(v *core.Vault, id string) ([]string, string) {
 	if err != nil {
 		return nil, fmt.Sprintf("plan-link discovery skipped: index unreadable (%v)", err)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
 	rows, err := db.LinksTo(id)
 	if err != nil {

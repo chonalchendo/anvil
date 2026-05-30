@@ -191,7 +191,7 @@ func runLinkQuery(cmd *cobra.Command, fromID, toID string, unresolved, drift, as
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
 	if drift {
 		return runLinkDrift(cmd, db, asJSON)

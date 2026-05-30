@@ -76,7 +76,7 @@ func RemoveSessionStartHook(settingsPath, command string) (bool, error) {
 }
 
 func loadSettings(path string) (map[string]any, error) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return map[string]any{}, nil
@@ -101,7 +101,7 @@ func writeSettings(path string, m map[string]any) error {
 	if err != nil {
 		return fmt.Errorf("marshal settings: %w", err)
 	}
-	if err := os.WriteFile(path, append(b, '\n'), 0o644); err != nil {
+	if err := os.WriteFile(path, append(b, '\n'), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil

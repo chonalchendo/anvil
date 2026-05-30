@@ -31,7 +31,7 @@ func openIndex(t *testing.T, vault string) *index.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { db.Close() })
+	t.Cleanup(func() { db.Close() }) //nolint:errcheck,gosec // close in defer; error not actionable
 	return db
 }
 
@@ -124,7 +124,7 @@ func TestExternalEditAbsorbedOnNextWrite(t *testing.T) {
 
 	// External edit: write a new file directly to vault, bypassing the index.
 	// Then bump the vault root's mtime so CheckFreshness sees the change.
-	if err := os.WriteFile(filepath.Join(vault, "70-issues", "demo.bar.md"),
+	if err := os.WriteFile(filepath.Join(vault, "70-issues", "demo.bar.md"), //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		[]byte("---\ntype: issue\nid: demo.bar\nstatus: open\n---\n\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

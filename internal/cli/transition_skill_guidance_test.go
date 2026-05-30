@@ -15,7 +15,7 @@ func skillBody(t *testing.T, name string) string {
 	}
 	for dir := wd; dir != filepath.Dir(dir); dir = filepath.Dir(dir) {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			b, err := os.ReadFile(filepath.Join(dir, "anvil", "skills", name, "SKILL.md"))
+			b, err := os.ReadFile(filepath.Join(dir, "anvil", "skills", name, "SKILL.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
 			if err != nil {
 				t.Fatal(err)
 			}

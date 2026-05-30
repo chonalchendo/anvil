@@ -25,7 +25,7 @@ func TestRoot_AutoRefreshesStaleSkills(t *testing.T) {
 	}
 
 	hashPath := filepath.Join(skillsRoot, ".anvil-skills-hash")
-	if err := os.WriteFile(hashPath, []byte("stale"), 0o644); err != nil {
+	if err := os.WriteFile(hashPath, []byte("stale"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatalf("corrupt hash: %v", err)
 	}
 
@@ -37,7 +37,7 @@ func TestRoot_AutoRefreshesStaleSkills(t *testing.T) {
 		t.Errorf("expected refresh notice on stderr, got:\n%s", errOut)
 	}
 
-	data, err := os.ReadFile(hashPath)
+	data, err := os.ReadFile(hashPath) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestAutoRefreshNonSymlinkQuiet(t *testing.T) {
 		t.Fatalf("install skills: %v", err)
 	}
 	// Force drift so RefreshSkillsIfStale runs.
-	if err := os.WriteFile(filepath.Join(skillsRoot, ".anvil-skills-hash"), []byte("stale"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillsRoot, ".anvil-skills-hash"), []byte("stale"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatalf("corrupt hash: %v", err)
 	}
 	// Replace a materialised symlink with a regular non-anvil dir at the
@@ -85,7 +85,7 @@ func TestAutoRefreshNonSymlinkQuiet(t *testing.T) {
 	if err := os.RemoveAll(foreign); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(foreign, 0o755); err != nil {
+	if err := os.MkdirAll(foreign, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 

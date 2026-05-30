@@ -72,7 +72,7 @@ func TestTransitionResolvedRefusesWhenOpenPR(t *testing.T) {
 	}
 
 	// Disk state must remain in-progress — the refusal aborts before write.
-	body, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md"))
+	body, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestTransitionResolvedForceOverridesAndLogsAudit(t *testing.T) {
 
 	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--force", "--reason", "merged out-of-band")
 
-	body, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md"))
+	body, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,7 @@ func TestTransitionResolvedSucceedsWhenNoOpenPR(t *testing.T) {
 	})
 
 	execCmd(t, "transition", "issue", "demo.foo", "resolved")
-	body, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md"))
+	body, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ tasks: []
 
 body
 `
-	if err := os.WriteFile(planPath, []byte(planBody), 0o644); err != nil {
+	if err := os.WriteFile(planPath, []byte(planBody), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	execCmd(t, "reindex")
@@ -281,7 +281,7 @@ tasks: []
 
 body
 `
-	if err := os.WriteFile(planPath, []byte(planBody), 0o644); err != nil {
+	if err := os.WriteFile(planPath, []byte(planBody), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	execCmd(t, "reindex")

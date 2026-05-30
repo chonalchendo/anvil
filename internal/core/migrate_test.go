@@ -30,7 +30,7 @@ risks: ["R1"]
 ## Body
 `
 	path := filepath.Join(v.Root, "85-milestones", "anvil.m3.md")
-	if err := os.WriteFile(path, []byte(old), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(old), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -73,16 +73,16 @@ objectives: ["A"]
 ## Body
 `
 	path := filepath.Join(v.Root, "85-milestones", "anvil.m3.md")
-	os.WriteFile(path, []byte(old), 0o644)
+	os.WriteFile(path, []byte(old), 0o644) //nolint:errcheck,gosec // test setup; failure caught by subsequent assertion
 
 	if err := MigrateVault(v); err != nil {
 		t.Fatal(err)
 	}
-	first, _ := os.ReadFile(path)
+	first, _ := os.ReadFile(path) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err := MigrateVault(v); err != nil {
 		t.Fatal(err)
 	}
-	second, _ := os.ReadFile(path)
+	second, _ := os.ReadFile(path) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if string(first) != string(second) {
 		t.Errorf("not idempotent — second pass changed content")
 	}

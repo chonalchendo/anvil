@@ -137,7 +137,7 @@ func TestRename_Issue_RewritesInboundWikilinks(t *testing.T) {
 
 	// Linker file should now reference the new wikilink.
 	linkerPath := filepath.Join(vault, "70-issues", "foo.linker.md")
-	b, err := os.ReadFile(linkerPath)
+	b, err := os.ReadFile(linkerPath) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}

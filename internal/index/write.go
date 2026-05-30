@@ -42,7 +42,7 @@ func (d *DB) DeleteArtifact(id string) error {
 	if err != nil {
 		return fmt.Errorf("begin: %w", err)
 	}
-	defer tx.Rollback()
+	defer tx.Rollback() //nolint:errcheck // rollback after successful commit returns ErrTxDone; error not actionable
 	if _, err := tx.Exec(`DELETE FROM links WHERE source = ?`, id); err != nil {
 		return fmt.Errorf("delete links from %s: %w", id, err)
 	}
@@ -59,7 +59,7 @@ func (d *DB) ReplaceLinks(source string, rows []LinkRow) error {
 	if err != nil {
 		return fmt.Errorf("begin: %w", err)
 	}
-	defer tx.Rollback()
+	defer tx.Rollback() //nolint:errcheck // rollback after successful commit returns ErrTxDone; error not actionable
 	if _, err := tx.Exec(`DELETE FROM links WHERE source = ?`, source); err != nil {
 		return fmt.Errorf("clear links: %w", err)
 	}

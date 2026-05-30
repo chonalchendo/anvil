@@ -64,7 +64,7 @@ func TestNextID_IssueIncrementsByProject(t *testing.T) {
 	if id != "foo.bar" {
 		t.Errorf("got %q, want foo.bar", id)
 	}
-	if err := os.WriteFile(filepath.Join(v.Root, "70-issues", "foo.bar.md"), []byte(""), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(v.Root, "70-issues", "foo.bar.md"), []byte(""), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	id, err = NextID(v, TypeIssue, IDInputs{Title: "bar", Project: "foo"})
@@ -107,7 +107,7 @@ func TestNextID_Decision_AutoIncrementsTopic(t *testing.T) {
 	if id != "auth.0001-use-jwt" {
 		t.Errorf("got %q, want auth.0001-use-jwt", id)
 	}
-	if err := os.WriteFile(filepath.Join(v.Root, "30-decisions", "auth.0001-use-jwt.md"), []byte(""), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(v.Root, "30-decisions", "auth.0001-use-jwt.md"), []byte(""), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	id, _ = NextID(v, TypeDecision, IDInputs{Title: "rotate keys", Topic: "auth"})
@@ -118,7 +118,7 @@ func TestNextID_Decision_AutoIncrementsTopic(t *testing.T) {
 
 func TestNextID_Decision_TopicScoped(t *testing.T) {
 	v := newScaffolded(t)
-	if err := os.WriteFile(filepath.Join(v.Root, "30-decisions", "auth.0001-x.md"), []byte(""), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(v.Root, "30-decisions", "auth.0001-x.md"), []byte(""), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	id, err := NextID(v, TypeDecision, IDInputs{Title: "schema", Topic: "data"})
@@ -219,5 +219,5 @@ func TestNextID_FallsBackToSuffixOnCollision(t *testing.T) {
 }
 
 func writeStub(path string) error {
-	return os.WriteFile(path, []byte("---\ntitle: x\n---\n"), 0o644)
+	return os.WriteFile(path, []byte("---\ntitle: x\n---\n"), 0o644) //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 }

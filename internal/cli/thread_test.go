@@ -15,7 +15,7 @@ func setupThreadEnv(t *testing.T) string {
 	vault := setupVault(t)
 	t.Setenv("ANVIL_STATE_DIR", t.TempDir())
 	dir := filepath.Join(vault, "60-threads")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	content := `---
@@ -28,7 +28,7 @@ diataxis: explanation
 tags: [type/thread]
 ---
 `
-	if err := os.WriteFile(filepath.Join(dir, "research-ducklake.md"), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "research-ducklake.md"), []byte(content), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	return vault

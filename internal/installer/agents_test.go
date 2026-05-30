@@ -48,11 +48,11 @@ func TestInstallAgents_IdempotentNoOp(t *testing.T) {
 
 func TestInstallAgents_RefusesDivergentWithoutForce(t *testing.T) {
 	target := filepath.Join(t.TempDir(), "agents")
-	if err := os.MkdirAll(target, 0o755); err != nil {
+	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	dst := filepath.Join(target, "anvil-issue-worker.md")
-	if err := os.WriteFile(dst, []byte("user-edited\n"), 0o644); err != nil {
+	if err := os.WriteFile(dst, []byte("user-edited\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -75,7 +75,7 @@ func TestRemoveAgents_LeavesForeignContent(t *testing.T) {
 		t.Fatalf("install: %v", err)
 	}
 	foreign := filepath.Join(target, "user-agent.md")
-	if err := os.WriteFile(foreign, []byte("mine\n"), 0o644); err != nil {
+	if err := os.WriteFile(foreign, []byte("mine\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -96,13 +96,13 @@ func TestRemoveAgents_LeavesForeignContent(t *testing.T) {
 
 func TestRemoveAgents_LeavesDivergentSameName(t *testing.T) {
 	target := filepath.Join(t.TempDir(), "agents")
-	if err := os.MkdirAll(target, 0o755); err != nil {
+	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	// A user-edited file sharing an anvil agent's name must survive removal —
 	// RemoveAgents only deletes content that still matches the embedded copy.
 	dst := filepath.Join(target, "anvil-issue-worker.md")
-	if err := os.WriteFile(dst, []byte("user-customised\n"), 0o644); err != nil {
+	if err := os.WriteFile(dst, []byte("user-customised\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 

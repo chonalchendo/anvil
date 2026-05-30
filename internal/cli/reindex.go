@@ -40,7 +40,7 @@ populated after the fact, and removing them would be destructive.`,
 			if err != nil {
 				return err
 			}
-			defer db.Close()
+			defer db.Close() //nolint:errcheck // close in defer; error not actionable
 			stats, err := db.Reindex(v.Root)
 			if err != nil {
 				return err

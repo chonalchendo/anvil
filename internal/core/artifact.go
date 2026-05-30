@@ -28,7 +28,7 @@ const fmDelim = "---"
 
 // LoadArtifact reads path and splits YAML frontmatter from the body.
 func LoadArtifact(path string) (*Artifact, error) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (a *Artifact) Save() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(a.Path, b, 0o644)
+	return os.WriteFile(a.Path, b, 0o644) //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 }
 
 // Marshal returns the on-disk byte representation of a (frontmatter delimited

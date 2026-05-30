@@ -344,7 +344,7 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
 	qf := index.QueryFilters{
 		Status: f.Status, Project: f.Project,

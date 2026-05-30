@@ -46,10 +46,10 @@ func InstallSkills(srcFS fs.FS, materialiseDir, target string, useCopy, force bo
 	if err := writeFSTree(srcFS, materialiseDir); err != nil {
 		return false, err
 	}
-	if err := os.WriteFile(filepath.Join(materialiseDir, skillsHashFile), []byte(hash), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(materialiseDir, skillsHashFile), []byte(hash), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		return false, fmt.Errorf("write skills hash: %w", err)
 	}
-	if err := os.MkdirAll(target, 0o755); err != nil {
+	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		return false, fmt.Errorf("mkdir target %s: %w", target, err)
 	}
 
@@ -210,7 +210,7 @@ func SkillsAreFresh(srcFS fs.FS, materialiseDir string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("hash skills: %w", err)
 	}
-	onDisk, err := os.ReadFile(filepath.Join(materialiseDir, skillsHashFile))
+	onDisk, err := os.ReadFile(filepath.Join(materialiseDir, skillsHashFile)) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
@@ -291,7 +291,7 @@ func installSkillCopy(src, dst string, force bool) (bool, error) {
 	if err := writeFSTree(os.DirFS(src), dst); err != nil {
 		return false, err
 	}
-	if err := os.WriteFile(filepath.Join(dst, skillMarker), nil, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dst, skillMarker), nil, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		return false, fmt.Errorf("write skill marker: %w", err)
 	}
 	return true, nil
@@ -460,7 +460,7 @@ func writeFSTree(srcFS fs.FS, dst string) error {
 	if err := os.RemoveAll(dst); err != nil {
 		return fmt.Errorf("clear %s: %w", dst, err)
 	}
-	if err := os.MkdirAll(dst, 0o755); err != nil {
+	if err := os.MkdirAll(dst, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		return fmt.Errorf("mkdir %s: %w", dst, err)
 	}
 	return fs.WalkDir(srcFS, ".", func(path string, d fs.DirEntry, err error) error {
@@ -472,16 +472,16 @@ func writeFSTree(srcFS fs.FS, dst string) error {
 		}
 		out := filepath.Join(dst, path)
 		if d.IsDir() {
-			return os.MkdirAll(out, 0o755)
+			return os.MkdirAll(out, 0o755) //nolint:gosec // 0755 is correct for directories that must be traversable
 		}
 		data, err := fs.ReadFile(srcFS, path)
 		if err != nil {
 			return fmt.Errorf("read %s: %w", path, err)
 		}
-		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 			return err
 		}
-		if err := os.WriteFile(out, data, 0o644); err != nil {
+		if err := os.WriteFile(out, data, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 			return fmt.Errorf("write %s: %w", out, err)
 		}
 		return nil

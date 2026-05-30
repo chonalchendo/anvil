@@ -243,7 +243,7 @@ func TestSet_MilestoneSystemDesign_RoundTrip(t *testing.T) {
 	vault := setupVault(t)
 	// Write a minimal valid milestone fixture matching the new schema.
 	mPath := filepath.Join(vault, "85-milestones", "anvil.cli-substrate.md")
-	if err := os.MkdirAll(filepath.Dir(mPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(mPath), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	a := &core.Artifact{
@@ -277,10 +277,10 @@ func TestSetPlan_StatusLocked_ValidatesFirst(t *testing.T) {
 		t.Fatal(err)
 	}
 	dst := filepath.Join(vault, "80-plans", "ANV-142-streaming-token-counter.md")
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(dst, src, 0o644); err != nil {
+	if err := os.WriteFile(dst, src, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 

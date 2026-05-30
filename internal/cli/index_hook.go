@@ -20,7 +20,7 @@ func indexAfterSave(v *core.Vault, a *core.Artifact) error {
 	if err != nil {
 		return fmt.Errorf("opening index: %w", err)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
 	// Skip the file we just wrote — its mtime is by definition newer than
 	// the previous stamp, but it's a write we initiated, not external drift.
@@ -71,14 +71,14 @@ func indexForRead(v *core.Vault) (*index.DB, error) {
 		switch {
 		case errors.Is(err, index.ErrLastReindexUnset):
 			if _, err := db.Reindex(v.Root); err != nil {
-				db.Close()
+				db.Close() //nolint:errcheck,gosec // close in defer; error not actionable
 				return nil, fmt.Errorf("bootstrap reindex: %w", err)
 			}
 		case errors.Is(err, index.ErrIndexStale):
-			db.Close()
+			db.Close() //nolint:errcheck,gosec // close in defer; error not actionable
 			return nil, errfmt.NewIndexStale()
 		default:
-			db.Close()
+			db.Close() //nolint:errcheck,gosec // close in defer; error not actionable
 			return nil, fmt.Errorf("freshness check: %w", err)
 		}
 	}

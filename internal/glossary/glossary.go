@@ -44,7 +44,7 @@ func New() *Glossary {
 
 // Load parses path. If path does not exist, returns an empty Glossary, nil.
 func Load(path string) (*Glossary, error) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if errors.Is(err, os.ErrNotExist) {
 		return New(), nil
 	}
@@ -139,7 +139,7 @@ func (g *Glossary) Definition(term string) (string, bool) {
 
 // Save writes g to path in canonical form, creating the parent directory.
 func (g *Glossary) Save(path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		return fmt.Errorf("mkdir: %w", err)
 	}
 	var b bytes.Buffer
@@ -155,7 +155,7 @@ func (g *Glossary) Save(path string) error {
 	for _, e := range g.definitions {
 		fmt.Fprintf(&b, "- **%s** — %s\n", e.Key, e.Desc)
 	}
-	return os.WriteFile(path, b.Bytes(), 0o644)
+	return os.WriteFile(path, b.Bytes(), 0o644) //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 }
 
 // SplitTag splits a "<facet>/<name>" tag. Returns ok=false if the shape is wrong

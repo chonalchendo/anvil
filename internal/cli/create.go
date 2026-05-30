@@ -135,7 +135,7 @@ func newCreateCmd() *cobra.Command {
 					}
 					content = b
 				} else {
-					b, err := os.ReadFile(flagFrom)
+					b, err := os.ReadFile(flagFrom) //nolint:gosec // G304: flagFrom is the --from flag; reading a path the invoking user supplied is the command's purpose
 					if err != nil {
 						return fmt.Errorf("read %s: %w", flagFrom, err)
 					}
@@ -406,7 +406,7 @@ func newCreateCmd() *cobra.Command {
 					if err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON); err != nil {
 						return err
 					}
-					originalBytes, rerr := os.ReadFile(path)
+					originalBytes, rerr := os.ReadFile(path) //nolint:gosec // path is test-controlled or application-managed; not user input
 					if rerr != nil {
 						return fmt.Errorf("reading existing artifact for rollback: %w", rerr)
 					}
@@ -416,7 +416,7 @@ func newCreateCmd() *cobra.Command {
 					}
 					if err := indexAfterSave(v, a); err != nil {
 						indexErr := fmt.Errorf("indexing %s: %w", id, err)
-						if werr := os.WriteFile(path, originalBytes, 0o644); werr != nil {
+						if werr := os.WriteFile(path, originalBytes, 0o644); werr != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 							return errors.Join(indexErr, fmt.Errorf("rolling back %s to prior contents: %w", path, werr))
 						}
 						return indexErr
@@ -430,7 +430,7 @@ func newCreateCmd() *cobra.Command {
 			if err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON); err != nil {
 				return err
 			}
-			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 				return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 			}
 

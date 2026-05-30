@@ -241,7 +241,7 @@ func loadIncomingEdges(v *core.Vault, id string) (map[string][]incomingEdge, err
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
 	rows, err := db.LinksTo(id)
 	if err != nil {

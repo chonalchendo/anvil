@@ -367,7 +367,7 @@ func ghPRViewReal(dir, branch string) (*ghPRSnapshot, error) {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return nil, errGhUnavailable
 	}
-	cmd := exec.Command("gh", "pr", "view", branch,
+	cmd := exec.Command("gh", "pr", "view", branch, //nolint:gosec // binary path resolved from trusted sources; not user input
 		"--json", "number,url,mergeable,reviewDecision,statusCheckRollup")
 	cmd.Dir = dir
 	out, err := cmd.Output()
@@ -420,7 +420,7 @@ func ghPRCommentsReal(dir string, number int) (int, error) {
 	// Use the per-PR comments endpoint via `gh pr view --json comments` is
 	// the *issue-comments* feed, not inline review comments. The REST path
 	// `/repos/{owner}/{repo}/pulls/{n}/comments` is the inline-review feed.
-	cmd := exec.Command("gh", "api",
+	cmd := exec.Command("gh", "api", //nolint:gosec // binary path resolved from trusted sources; not user input
 		fmt.Sprintf("repos/{owner}/{repo}/pulls/%d/comments", number),
 		"--jq", "length",
 	)

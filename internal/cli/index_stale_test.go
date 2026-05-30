@@ -13,7 +13,7 @@ import (
 // dir mtime so CheckFreshness reports index_stale on the next read.
 func markVaultExternallyStale(t *testing.T, vault, name string) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(vault, "70-issues", name),
+	if err := os.WriteFile(filepath.Join(vault, "70-issues", name), //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		[]byte("---\ntype: issue\nid: demo.external\nstatus: open\n---\n\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestCreateUpdateAbsorbsExternalDriftWithoutManualReindex(t *testing.T) {
 		"--goal", "foo is done",
 		"--tags", "domain/dev-tools", "--update")
 
-	got, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md"))
+	got, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestTwoCreatesInOneProcessSucceedWithoutManualReindex(t *testing.T) {
 
 	// Plant an external edit between the two creates to force the stale
 	// path; without auto-reindex this would error with [index_stale].
-	if err := os.WriteFile(filepath.Join(vault, "70-issues", "demo.external.md"),
+	if err := os.WriteFile(filepath.Join(vault, "70-issues", "demo.external.md"), //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		[]byte("---\ntype: issue\nid: demo.external\nstatus: open\n---\n\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestListReadyReturnsIndexStaleWhenVaultEditedExternally(t *testing.T) {
 	createDemoIssue(t)
 
 	// External edit + bump dir mtime so CheckFreshness sees drift.
-	if err := os.WriteFile(filepath.Join(vault, "70-issues", "demo.bar.md"),
+	if err := os.WriteFile(filepath.Join(vault, "70-issues", "demo.bar.md"), //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		[]byte("---\ntype: issue\nid: demo.bar\nstatus: open\n---\n\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

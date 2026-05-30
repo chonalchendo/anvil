@@ -366,7 +366,7 @@ Real task body. This body has to be at least 200 characters long for the plan
 validator to accept it, so we write a few sentences explaining the work the
 agent would do. Add the type in a.go, RED test in a_test.go, run verify.
 `
-	if err := os.WriteFile(planPath, []byte(realPlan), 0o644); err != nil {
+	if err := os.WriteFile(planPath, []byte(realPlan), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	execCmd(t, "reindex")
@@ -512,7 +512,7 @@ func TestTransitionReverseAppendsAuditLine(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "resolved")
 	execCmd(t, "transition", "issue", "demo.foo", "open", "--reason", "regression found")
 
-	body, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md"))
+	body, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}

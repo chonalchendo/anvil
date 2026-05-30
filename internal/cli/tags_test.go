@@ -19,11 +19,11 @@ import (
 func writeArtifact(t *testing.T, root, rel string, fm string) {
 	t.Helper()
 	full := filepath.Join(root, rel)
-	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	body := "---\n" + fm + "---\n\n# body\n"
-	if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(full, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 }
@@ -330,10 +330,10 @@ func TestTagsDefine_KnownAndMissing(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	body := "# Vault Glossary\n\n## Tags\n\n## Definitions\n- **thread** — live workspace\n"
 	path := glossary.Path(vault)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
