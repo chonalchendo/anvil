@@ -145,6 +145,75 @@ func TestCreate_Issue_WritesValidFile(t *testing.T) {
 	}
 }
 
+// TestCreate_Issue_DeriveDescription checks that omitting --description
+// succeeds and the created artifact carries description == title, mirroring
+// promote's stub behaviour. An explicit --description override wins.
+func TestCreate_Issue_DeriveDescription(t *testing.T) {
+	t.Run("omitted derives from title", func(t *testing.T) {
+		vault := setupVault(t)
+		repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+		t.Setenv("HOME", t.TempDir())
+		t.Chdir(repo)
+
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"create", "issue", "--title", "Derive desc probe", "--goal", "probe goal", "--tags", "domain/cli", "--allow-new-facet=domain"})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("create issue without --description: %v\nstdout: %s", err, out.String())
+		}
+
+		path := filepath.Join(vault, "70-issues", "foo.derive-desc-probe.md")
+		a, err := core.LoadArtifact(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := a.FrontMatter["description"]; got != "Derive desc probe" {
+			t.Errorf("description = %q, want %q", got, "Derive desc probe")
+		}
+	})
+
+	t.Run("explicit description wins", func(t *testing.T) {
+		vault := setupVault(t)
+		repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+		t.Setenv("HOME", t.TempDir())
+		t.Chdir(repo)
+
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"create", "issue", "--title", "Explicit desc probe", "--description", "explicit override", "--goal", "override goal", "--tags", "domain/cli", "--allow-new-facet=domain"})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("create issue with explicit --description: %v\nstdout: %s", err, out.String())
+		}
+		path := filepath.Join(vault, "70-issues", "foo.explicit-desc-probe.md")
+		a, err := core.LoadArtifact(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := a.FrontMatter["description"]; got != "explicit override" {
+			t.Errorf("explicit description = %q, want %q", got, "explicit override")
+		}
+	})
+}
+
+// TestCreate_Milestone_DeriveDescription checks the same derive behaviour for
+// milestone, which also hard-requires description in the schema.
+func TestCreate_Milestone_DeriveDescription(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "milestone", "--title", "Milestone derive probe", "--goal", "milestone done"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create milestone without --description: %v\nstdout: %s", err, out.String())
+	}
+}
+
 func TestCreateMilestone_NoOrdinal(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
@@ -2054,9 +2123,11 @@ func TestCreate_Issue_FreshVault_MissingFacet_OneShotHint(t *testing.T) {
 	}
 }
 
-// --json failure must carry the same constraint_violation payload (field,
-// got, expected) the non-JSON path prints, in a stable envelope so agents
-// can re-issue without re-running without --json to read the human block.
+// --json failure must carry a constraint_violation payload in a stable envelope
+// so agents can re-issue without re-running without --json to read the human
+// block. Triggers via an unknown facet tag (domain/methodology on a fresh vault
+// without --allow-new-facet) so the validation fires at validateBeforeCreate
+// rather than at the CLI pre-check layer.
 func TestCreate_JSON_SchemaInvalid_EmitsViolationsEnvelope(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
@@ -2064,12 +2135,13 @@ func TestCreate_JSON_SchemaInvalid_EmitsViolationsEnvelope(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	// Missing --description triggers the constraint_violation block
-	// (min 1 chars / pattern ^[^\n]+$) — same shape as the issue's repro.
+	// Unknown facet value on a fresh vault (no --allow-new-facet) triggers the
+	// unknown_facet_value violation through validateBeforeCreate, producing the
+	// schema_invalid JSON envelope. --description is now derived from --title.
 	cmd.SetArgs([]string{
 		"create", "issue", "--title", "x",
 		"--goal", "goal",
-		"--tags", "domain/methodology", "--allow-new-facet=domain", "--json",
+		"--tags", "domain/methodology", "--json",
 	})
 	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
@@ -2093,24 +2165,17 @@ func TestCreate_JSON_SchemaInvalid_EmitsViolationsEnvelope(t *testing.T) {
 	if env.Error != "schema_invalid" {
 		t.Errorf("envelope.error = %q, want schema_invalid", env.Error)
 	}
-	// Both the min-length and pattern checks fire on `description`; the
-	// envelope must surface both rows with `expected` populated so an agent
-	// can read either to know how to satisfy the field.
-	var withGot, withExpected int
+	// The unknown facet-value violation must surface a tags row so an agent
+	// can read the fix hint.
+	var found bool
 	for _, v := range env.Violations {
-		if v.Code != "constraint_violation" || v.Field != "description" {
-			continue
-		}
-		if v.Got != "" {
-			withGot++
-		}
-		if v.Expected != nil {
-			withExpected++
+		if v.Field == "tags" {
+			found = true
+			break
 		}
 	}
-	if withGot == 0 || withExpected < 2 {
-		t.Errorf("description violations missing got/expected detail (withGot=%d, withExpected=%d): %+v",
-			withGot, withExpected, env.Violations)
+	if !found {
+		t.Errorf("expected a tags violation in envelope: %+v", env.Violations)
 	}
 }
 

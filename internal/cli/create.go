@@ -268,6 +268,13 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
+			// Derive description from title when omitted for spine types that
+			// require it, mirroring promote's single-step stub behaviour (see
+			// promote.go: Description: title). The author refines via anvil set.
+			if flagDescription == "" && (t == core.TypeIssue || t == core.TypeMilestone) {
+				flagDescription = flagTitle
+			}
+
 			// Plan default slug derives from the linked issue's slug, not the
 			// plan's own title. Same-slug pairing makes drift between linked
 			// artifacts a typo, not the default. --slug still wins; pass it to
@@ -462,7 +469,7 @@ func newCreateCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&flagTitle, "title", "", "artifact title (required)")
-	cmd.Flags().StringVar(&flagDescription, "description", "", fmt.Sprintf("one-line summary (max %d chars, required for spine types)", maxDescriptionChars))
+	cmd.Flags().StringVar(&flagDescription, "description", "", fmt.Sprintf("one-line summary (max %d chars); defaults to --title for issue and milestone when omitted", maxDescriptionChars))
 	cmd.Flags().StringVar(&flagGoal, "goal", "", fmt.Sprintf("terminal predicate, one sentence (max %d chars, required for issue and milestone)", maxGoalChars))
 	cmd.Flags().StringVar(&flagProject, "project", "", "project slug (overrides auto-detected; supported on: "+strings.Join(core.TypesSupportingProject(), ", ")+"; inbox aliases to --suggested-project)")
 	cmd.Flags().StringVar(&flagTopic, "topic", "", "decision topic slug (required for decision)")
