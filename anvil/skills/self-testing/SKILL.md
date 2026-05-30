@@ -66,9 +66,9 @@ Filing is not the finish line — an unworked backlog is its own friction. From 
 anvil list issue --tag activity/self-test --status open --json   # triage; pick the auto-fixable bug ids
 ```
 
-Fire the worker on each auto-fixable id: it claims → fixes → live-smokes → opens one review-green PR (and can run on a cheaper subagent). A worker that cannot converge leaves its issue filed — so the hard ones correctly stay as issues. The human owns the merge button. For a larger batch the fleet parallelises workers, but note it selects the project's `--ready` set rather than a curated id list, so confirm scope before dispatching.
+Fire the worker on each auto-fixable id: it claims → fixes → live-smokes → opens one review-green PR (and can run on a cheaper subagent). A worker that cannot converge leaves its issue filed — so the hard ones correctly stay as issues. The human owns the merge button. For a larger batch the fleet parallelises workers — hand it the gated subset as `--ids <id>...` so it dispatches exactly that set.
 
-**REQUIRED SUB-SKILL:** Use completing-issue per auto-fixable bug (main session only — a subagent cannot fan out its own workers); dispatching-issue-fleet is the batch alternative when its ready-set matches the chosen subset.
+**REQUIRED SUB-SKILL:** Use completing-issue per auto-fixable bug (main session only — a subagent cannot fan out its own workers); dispatching-issue-fleet is the batch alternative — pass the chosen subset as `--ids`.
 
 ## Phase 6 — Report
 
