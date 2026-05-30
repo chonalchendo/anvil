@@ -40,7 +40,7 @@ populated after the fact, and removing them would be destructive.`,
 			if err != nil {
 				return err
 			}
-			defer db.Close()
+			defer db.Close() //nolint:errcheck // close in defer; error not actionable
 			stats, err := db.Reindex(v.Root)
 			if err != nil {
 				return err
@@ -79,10 +79,10 @@ populated after the fact, and removing them would be destructive.`,
 					"pruned":      stubFilenames(pruned),
 				}
 				b, _ := json.Marshal(payload)
-				fmt.Fprintln(cmd.OutOrStdout(), string(b))
+				fmt.Fprintln(cmd.OutOrStdout(), string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
 				return nil
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "reindexed: %d artifacts, %d links (%dms)\n", stats.Artifacts, stats.Links, stats.DurationMS)
+			fmt.Fprintf(cmd.OutOrStdout(), "reindexed: %d artifacts, %d links (%dms)\n", stats.Artifacts, stats.Links, stats.DurationMS) //nolint:errcheck // cobra writer methods ignore write errors by design
 			if pruneStubs && len(pruned) > 0 {
 				cmd.PrintErrf("pruned %d 0-byte stub(s); %d non-empty stub(s) kept\n", len(pruned), len(kept))
 			}

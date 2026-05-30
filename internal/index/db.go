@@ -48,7 +48,7 @@ func DBPath(vaultRoot string) string {
 // Open opens (or creates) the DB at path, ensuring the parent directory
 // exists and the schema is applied. Idempotent.
 func Open(path string) (*DB, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		return nil, fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 	}
 	s, err := sql.Open("sqlite", path)
@@ -56,7 +56,7 @@ func Open(path string) (*DB, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 	if _, err := s.Exec(schema); err != nil {
-		s.Close()
+		s.Close() //nolint:errcheck,gosec // close in defer; error not actionable
 		return nil, fmt.Errorf("apply schema: %w", err)
 	}
 	return &DB{sql: s, path: path}, nil

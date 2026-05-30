@@ -44,7 +44,7 @@ func TestInstallSkills_FlatPerSkillSymlinks(t *testing.T) {
 		}
 	}
 
-	body, err := os.ReadFile(filepath.Join(target, "capturing-inbox", "SKILL.md"))
+	body, err := os.ReadFile(filepath.Join(target, "capturing-inbox", "SKILL.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatalf("read SKILL.md via symlink: %v", err)
 	}
@@ -58,10 +58,10 @@ func TestInstallSkills_CleansUpLegacyNestedInstall(t *testing.T) {
 	target := filepath.Join(t.TempDir(), "claude-skills")
 
 	legacy := filepath.Join(target, "anvil")
-	if err := os.MkdirAll(legacy, 0o755); err != nil {
+	if err := os.MkdirAll(legacy, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(legacy, ".anvil-skills-hash"), []byte("old"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(legacy, ".anvil-skills-hash"), []byte("old"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -78,10 +78,10 @@ func TestInstallSkills_PreservesForeignAnvilDir(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
 	target := filepath.Join(t.TempDir(), "claude-skills")
 
-	if err := os.MkdirAll(filepath.Join(target, "anvil"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(target, "anvil"), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(target, "anvil", "user.md"), []byte("user content"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(target, "anvil", "user.md"), []byte("user content"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -112,7 +112,7 @@ func TestInstallSkills_IdempotentFlat(t *testing.T) {
 func TestInstallSkills_ReplacesWrongSymlink(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
 	target := filepath.Join(t.TempDir(), "claude-skills")
-	if err := os.MkdirAll(target, 0o755); err != nil {
+	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	other := t.TempDir()
@@ -137,10 +137,10 @@ func TestInstallSkills_ReplacesWrongSymlink(t *testing.T) {
 func TestInstallSkills_RefusesNonSymlinkAtSkillName(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
 	target := filepath.Join(t.TempDir(), "claude-skills")
-	if err := os.MkdirAll(filepath.Join(target, "capturing-inbox"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(target, "capturing-inbox"), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(target, "capturing-inbox", "user.md"), []byte("user"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(target, "capturing-inbox", "user.md"), []byte("user"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -164,10 +164,10 @@ func TestInstallSkills_RefusesNonAnvilDirNamesForceCommand(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
 	target := filepath.Join(t.TempDir(), "claude-skills")
 	foreign := filepath.Join(target, "capturing-inbox")
-	if err := os.MkdirAll(foreign, 0o755); err != nil {
+	if err := os.MkdirAll(foreign, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(foreign, "user.md"), []byte("user"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(foreign, "user.md"), []byte("user"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -197,10 +197,10 @@ func TestInstallSkills_RefusesNonAnvilDirNamesForceCommand(t *testing.T) {
 func TestInstallSkills_ForceOverwritesNonSymlink(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
 	target := filepath.Join(t.TempDir(), "claude-skills")
-	if err := os.MkdirAll(filepath.Join(target, "capturing-inbox"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(target, "capturing-inbox"), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(target, "capturing-inbox", "user.md"), []byte("user"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(target, "capturing-inbox", "user.md"), []byte("user"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -226,10 +226,10 @@ func TestInstallSkills_ForceOverwritesNonAnvilDir(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
 	target := filepath.Join(t.TempDir(), "claude-skills")
 	foreign := filepath.Join(target, "capturing-inbox")
-	if err := os.MkdirAll(foreign, 0o755); err != nil {
+	if err := os.MkdirAll(foreign, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(foreign, "user.md"), []byte("user"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(foreign, "user.md"), []byte("user"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -267,7 +267,7 @@ func TestInstallSkills_FlatCopyMode(t *testing.T) {
 			t.Errorf("%s should be a dir, not a symlink, in --copy mode", name)
 		}
 	}
-	body, err := os.ReadFile(filepath.Join(target, "writing-issue", "references", "heavy.md"))
+	body, err := os.ReadFile(filepath.Join(target, "writing-issue", "references", "heavy.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,10 +329,10 @@ func TestRemoveSkills_PreservesForeignSibling(t *testing.T) {
 	}
 
 	foreign := filepath.Join(target, "other-vendor-skill")
-	if err := os.MkdirAll(foreign, 0o755); err != nil {
+	if err := os.MkdirAll(foreign, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(foreign, "SKILL.md"), []byte("foreign"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(foreign, "SKILL.md"), []byte("foreign"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -348,10 +348,10 @@ func TestRemoveSkills_RemovesLegacyNested(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
 	target := filepath.Join(t.TempDir(), "claude-skills")
 	legacy := filepath.Join(target, "anvil")
-	if err := os.MkdirAll(legacy, 0o755); err != nil {
+	if err := os.MkdirAll(legacy, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(legacy, ".anvil-skills-hash"), []byte("old"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(legacy, ".anvil-skills-hash"), []byte("old"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -381,7 +381,7 @@ func TestInstallSkills_WritesHashFile(t *testing.T) {
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false, false); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(mat, skillsHashFile))
+	data, err := os.ReadFile(filepath.Join(mat, skillsHashFile)) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatalf("read hash file: %v", err)
 	}
@@ -428,10 +428,10 @@ func TestRefreshSkillsIfStale_RefreshesWhenContentDrifts(t *testing.T) {
 	}
 
 	skill := filepath.Join(mat, "capturing-inbox", "SKILL.md")
-	if err := os.WriteFile(skill, []byte("drifted\n"), 0o644); err != nil {
+	if err := os.WriteFile(skill, []byte("drifted\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(mat, skillsHashFile), []byte("stale-hash"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(mat, skillsHashFile), []byte("stale-hash"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -443,7 +443,7 @@ func TestRefreshSkillsIfStale_RefreshesWhenContentDrifts(t *testing.T) {
 		t.Fatal("drifted materialiseDir should refresh")
 	}
 
-	body, err := os.ReadFile(skill)
+	body, err := os.ReadFile(skill) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -479,7 +479,7 @@ func TestRefreshSkillsIfStale_RefreshesWhenHashFileMissing(t *testing.T) {
 func TestInstallSkills_PrunesOrphanedSymlinks(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
 	target := filepath.Join(t.TempDir(), "claude-skills")
-	if err := os.MkdirAll(target, 0o755); err != nil {
+	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	// Plant an orphaned symlink that points into mat (anvil-owned) but whose
@@ -503,7 +503,7 @@ func TestInstallSkills_PrunesOrphanedSymlinks(t *testing.T) {
 func TestInstallSkills_ReconcilePreservesForeignOrphan(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
 	target := filepath.Join(t.TempDir(), "claude-skills")
-	if err := os.MkdirAll(target, 0o755); err != nil {
+	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	// A symlink pointing somewhere other than mat is foreign — leave it alone.
@@ -527,7 +527,7 @@ func TestRefreshSkillsIfStale_PreservesCopyMode(t *testing.T) {
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, true, false); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(mat, skillsHashFile), []byte("stale"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(mat, skillsHashFile), []byte("stale"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	refreshed, err := RefreshSkillsIfStale(fakeSkillsFS(), mat, target)
@@ -544,7 +544,7 @@ func TestRefreshSkillsIfStale_PreservesCopyMode(t *testing.T) {
 	if info.Mode()&os.ModeSymlink != 0 {
 		t.Error("per-skill child should remain a directory after refresh in copy mode")
 	}
-	body, err := os.ReadFile(filepath.Join(target, "capturing-inbox", "SKILL.md"))
+	body, err := os.ReadFile(filepath.Join(target, "capturing-inbox", "SKILL.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}

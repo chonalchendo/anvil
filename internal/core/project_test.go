@@ -14,7 +14,7 @@ func gitInit(t *testing.T, dir, remote string) {
 		{"init", "-q"},
 		{"remote", "add", "origin", remote},
 	} {
-		c := exec.Command("git", args...)
+		c := exec.Command("git", args...) //nolint:gosec // binary path resolved from trusted sources; not user input
 		c.Dir = dir
 		if out, err := c.CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v: %s", args, err, out)
@@ -90,7 +90,7 @@ func TestSwitchProject_WritesPointer(t *testing.T) {
 	if err := SwitchProject("foo"); err != nil {
 		t.Fatal(err)
 	}
-	b, err := os.ReadFile(filepath.Join(home, ".anvil", "current-project"))
+	b, err := os.ReadFile(filepath.Join(home, ".anvil", "current-project")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,12 +131,12 @@ func TestListProjects(t *testing.T) {
 	dir1 := t.TempDir()
 	gitInit(t, dir1, "git@github.com:acme/a.git")
 	t.Chdir(dir1)
-	AdoptProject("a")
+	AdoptProject("a") //nolint:errcheck,gosec // error not actionable
 
 	dir2 := t.TempDir()
 	gitInit(t, dir2, "git@github.com:acme/b.git")
 	t.Chdir(dir2)
-	AdoptProject("b")
+	AdoptProject("b") //nolint:errcheck,gosec // error not actionable
 
 	projects, err := ListProjects()
 	if err != nil {

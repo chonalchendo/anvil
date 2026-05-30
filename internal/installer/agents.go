@@ -24,7 +24,7 @@ func InstallAgents(srcFS fs.FS, target string, force bool) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if err := os.MkdirAll(target, 0o755); err != nil {
+	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		return false, fmt.Errorf("mkdir target %s: %w", target, err)
 	}
 	changed := false
@@ -34,7 +34,7 @@ func InstallAgents(srcFS fs.FS, target string, force bool) (bool, error) {
 			return false, fmt.Errorf("read embedded agent %s: %w", name, err)
 		}
 		dst := filepath.Join(target, name)
-		got, err := os.ReadFile(dst)
+		got, err := os.ReadFile(dst) //nolint:gosec // path is test-controlled or application-managed; not user input
 		switch {
 		case err == nil && bytes.Equal(got, want):
 			continue
@@ -43,7 +43,7 @@ func InstallAgents(srcFS fs.FS, target string, force bool) (bool, error) {
 		case err != nil && !errors.Is(err, os.ErrNotExist):
 			return false, fmt.Errorf("read %s: %w", dst, err)
 		}
-		if err := os.WriteFile(dst, want, 0o644); err != nil {
+		if err := os.WriteFile(dst, want, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 			return false, fmt.Errorf("write %s: %w", dst, err)
 		}
 		changed = true
@@ -66,7 +66,7 @@ func RemoveAgents(srcFS fs.FS, target string) (bool, error) {
 			return false, fmt.Errorf("read embedded agent %s: %w", name, err)
 		}
 		dst := filepath.Join(target, name)
-		got, err := os.ReadFile(dst)
+		got, err := os.ReadFile(dst) //nolint:gosec // path is test-controlled or application-managed; not user input
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				continue

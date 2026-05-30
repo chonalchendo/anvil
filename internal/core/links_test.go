@@ -9,11 +9,11 @@ import (
 func mustWriteIssue(t *testing.T, v *Vault, id string) {
 	t.Helper()
 	path := filepath.Join(v.Root, "70-issues", id+".md")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	body := "---\ntype: issue\ntitle: x\ncreated: 2026-04-29\nstatus: open\nproject: anvil\nseverity: low\n---\n"
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 }

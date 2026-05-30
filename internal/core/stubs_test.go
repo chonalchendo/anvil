@@ -11,10 +11,10 @@ func TestFindStubs(t *testing.T) {
 	vault := t.TempDir()
 	mustWrite := func(rel string, body string) {
 		full := filepath.Join(vault, rel)
-		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+		if err := os.WriteFile(full, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 			t.Fatal(err)
 		}
 	}

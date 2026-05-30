@@ -14,7 +14,7 @@ func setupSwap(t *testing.T) (oldPath, newPath string, newContent []byte) {
 	dir := t.TempDir()
 	oldPath = filepath.Join(dir, "old.md")
 	newPath = filepath.Join(dir, "new.md")
-	if err := os.WriteFile(oldPath, []byte("OLD\n"), 0o644); err != nil {
+	if err := os.WriteFile(oldPath, []byte("OLD\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	return oldPath, newPath, []byte("NEW\n")
@@ -47,7 +47,7 @@ func TestAtomicSwap_HappyPath(t *testing.T) {
 
 	assertExactlyOne(t, newPath, oldPath, newPath+".tmp", oldPath+".bak")
 
-	got, err := os.ReadFile(newPath)
+	got, err := os.ReadFile(newPath) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestAtomicSwap_FailAfterTempWrite_OldIntact(t *testing.T) {
 
 	// Old must still be intact, new must not exist, no intermediates.
 	assertExactlyOne(t, oldPath, newPath, newPath+".tmp", oldPath+".bak")
-	got, err := os.ReadFile(oldPath)
+	got, err := os.ReadFile(oldPath) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestAtomicSwap_FailAfterOldToBak_RollsBack(t *testing.T) {
 
 	// Rollback should have restored oldPath; new should not exist; no intermediates.
 	assertExactlyOne(t, oldPath, newPath, newPath+".tmp", oldPath+".bak")
-	got, err := os.ReadFile(oldPath)
+	got, err := os.ReadFile(oldPath) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestAtomicSwap_FailAfterTempToNew_NewStateCorrect(t *testing.T) {
 	if _, serr := os.Stat(oldPath); serr == nil {
 		t.Errorf("oldPath %s should not exist after temp→new", oldPath)
 	}
-	got, rerr := os.ReadFile(newPath)
+	got, rerr := os.ReadFile(newPath) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if rerr != nil {
 		t.Fatalf("newPath missing: %v", rerr)
 	}

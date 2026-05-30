@@ -16,15 +16,15 @@ import (
 func copyPlanFixture(t *testing.T, vault, name string) string {
 	t.Helper()
 	src := filepath.Join("testdata", name)
-	data, err := os.ReadFile(src)
+	data, err := os.ReadFile(src) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
 	dst := filepath.Join(vault, core.TypePlan.Dir(), "ANV-142-streaming-token-counter.md")
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(dst, data, 0o644); err != nil {
+	if err := os.WriteFile(dst, data, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	return dst
@@ -165,15 +165,15 @@ func TestShowPlan_Task_JSON(t *testing.T) {
 func TestShow_PlanTaskTerseByDefault(t *testing.T) {
 	vault := setupVault(t)
 	src := filepath.Join("testdata", "plan_terse_default.md")
-	data, err := os.ReadFile(src)
+	data, err := os.ReadFile(src) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
 	dst := filepath.Join(vault, core.TypePlan.Dir(), "ANV-999-terse-default.md")
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(dst, data, 0o644); err != nil {
+	if err := os.WriteFile(dst, data, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 

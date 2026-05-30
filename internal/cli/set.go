@@ -288,16 +288,16 @@ type setResult struct {
 func emitSetResult(cmd *cobra.Command, asJSON bool, r setResult) error {
 	if asJSON {
 		b, _ := json.Marshal(r)
-		fmt.Fprintln(cmd.OutOrStdout(), string(b))
+		fmt.Fprintln(cmd.OutOrStdout(), string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
 		return nil
 	}
 	switch r.Status {
 	case "added":
-		fmt.Fprintf(cmd.OutOrStdout(), "%s: %s + %s\n", r.ID, r.Field, formatSetValue(r.Value))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s: %s + %s\n", r.ID, r.Field, formatSetValue(r.Value)) //nolint:errcheck // cobra writer methods ignore write errors by design
 	case "removed":
-		fmt.Fprintf(cmd.OutOrStdout(), "%s: %s − %s\n", r.ID, r.Field, formatSetValue(r.Value))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s: %s − %s\n", r.ID, r.Field, formatSetValue(r.Value)) //nolint:errcheck // cobra writer methods ignore write errors by design
 	default:
-		fmt.Fprintf(cmd.OutOrStdout(), "%s: %s %s → %s\n", r.ID, r.Field, formatSetValue(r.From), formatSetValue(r.To))
+		fmt.Fprintf(cmd.OutOrStdout(), "%s: %s %s → %s\n", r.ID, r.Field, formatSetValue(r.From), formatSetValue(r.To)) //nolint:errcheck // cobra writer methods ignore write errors by design
 	}
 	return nil
 }

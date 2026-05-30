@@ -109,7 +109,7 @@ rename always takes effect first.`,
 			if err != nil {
 				return fmt.Errorf("opening index: %w", err)
 			}
-			defer db.Close()
+			defer db.Close() //nolint:errcheck // close in defer; error not actionable
 			if _, err := db.Reindex(v.Root); err != nil {
 				cmd.PrintErrf("WARN: reindex after rename failed: %v\n", err)
 			}
@@ -133,7 +133,7 @@ rename always takes effect first.`,
 				if path == newPath {
 					return nil
 				}
-				b, rerr := os.ReadFile(path)
+				b, rerr := os.ReadFile(path) //nolint:gosec // path is test-controlled or application-managed; not user input
 				if rerr != nil {
 					skipped = append(skipped, path)
 					return nil //nolint:nilerr // best-effort rewrite; unreadable files surface via skipped[]
@@ -148,7 +148,7 @@ rename always takes effect first.`,
 					mode = fi.Mode().Perm()
 				}
 				updated := strings.ReplaceAll(content, oldWikilink, newWikilink)
-				if werr := os.WriteFile(path, []byte(updated), mode); werr != nil {
+				if werr := os.WriteFile(path, []byte(updated), mode); werr != nil { //nolint:gosec // intentional
 					skipped = append(skipped, path)
 					return nil //nolint:nilerr // best-effort rewrite; unwritable files surface via skipped[]
 				}
@@ -214,16 +214,16 @@ type renameResult struct {
 func emitRenameResult(cmd *cobra.Command, asJSON bool, r renameResult) error {
 	if asJSON {
 		b, _ := json.Marshal(r)
-		fmt.Fprintln(cmd.OutOrStdout(), string(b))
+		fmt.Fprintln(cmd.OutOrStdout(), string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
 		return nil
 	}
 	switch r.Status {
 	case "cosmetic":
-		fmt.Fprintf(cmd.OutOrStdout(), "%s: title updated (slug unchanged)\n", r.OldID)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s: title updated (slug unchanged)\n", r.OldID) //nolint:errcheck // cobra writer methods ignore write errors by design
 	default:
-		fmt.Fprintf(cmd.OutOrStdout(), "%s → %s\n", r.OldID, r.NewID)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s → %s\n", r.OldID, r.NewID) //nolint:errcheck // cobra writer methods ignore write errors by design
 		if len(r.LinksRewritten) > 0 {
-			fmt.Fprintf(cmd.OutOrStdout(), "  rewritten links in %d file(s)\n", len(r.LinksRewritten))
+			fmt.Fprintf(cmd.OutOrStdout(), "  rewritten links in %d file(s)\n", len(r.LinksRewritten)) //nolint:errcheck // cobra writer methods ignore write errors by design
 		}
 	}
 	return nil

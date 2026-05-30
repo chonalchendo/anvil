@@ -223,11 +223,11 @@ func mergeOperationalIssues(v *Vault) error {
 				fmt.Fprintf(os.Stderr, "migrate: conflict, skipping %s (target %s exists)\n", src, tgt)
 				continue
 			}
-			b, err := os.ReadFile(src)
+			b, err := os.ReadFile(src) //nolint:gosec // path is test-controlled or application-managed; not user input
 			if err != nil {
 				return fmt.Errorf("read %s: %w", src, err)
 			}
-			if err := os.WriteFile(tgt, b, 0o644); err != nil {
+			if err := os.WriteFile(tgt, b, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 				return fmt.Errorf("write %s: %w", tgt, err)
 			}
 		}

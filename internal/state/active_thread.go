@@ -20,7 +20,7 @@ func ReadActiveThread() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("state dir: %w", err)
 	}
-	data, err := os.ReadFile(filepath.Join(dir, activeThreadFile))
+	data, err := os.ReadFile(filepath.Join(dir, activeThreadFile)) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if errors.Is(err, os.ErrNotExist) {
 		return "", nil
 	}
@@ -37,10 +37,10 @@ func WriteActiveThread(id string) error {
 	if err != nil {
 		return fmt.Errorf("state dir: %w", err)
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		return fmt.Errorf("mkdir state dir: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, activeThreadFile), []byte(id+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, activeThreadFile), []byte(id+"\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		return fmt.Errorf("write active-thread: %w", err)
 	}
 	return nil

@@ -22,7 +22,7 @@ func setupGitRepo(t *testing.T, remote string) string {
 }
 
 func runIn(dir string, name string, args ...string) ([]byte, error) {
-	c := exec.Command(name, args...)
+	c := exec.Command(name, args...) //nolint:gosec // binary path resolved from trusted sources; not user input
 	c.Dir = dir
 	return c.CombinedOutput()
 }

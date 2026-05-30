@@ -55,7 +55,7 @@ func (v *Vault) Scaffold() error {
 		return errors.New("vault root unset")
 	}
 	for _, d := range VaultDirs {
-		if err := os.MkdirAll(filepath.Join(v.Root, d), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(v.Root, d), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 			return fmt.Errorf("mkdir %s: %w", d, err)
 		}
 	}

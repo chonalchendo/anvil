@@ -61,7 +61,7 @@ func SwitchProject(slug string) error {
 		return fmt.Errorf("switch: slug %q not adopted: %w", slug, err)
 	}
 	ptr := filepath.Join(home, ".anvil", "current-project")
-	if err := os.WriteFile(ptr, []byte(slug+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(ptr, []byte(slug+"\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		return fmt.Errorf("switch: writing pointer: %w", err)
 	}
 	return nil
@@ -86,7 +86,7 @@ func ListProjects() ([]Project, error) {
 		if !e.IsDir() {
 			continue
 		}
-		b, err := os.ReadFile(filepath.Join(base, e.Name(), ".binding"))
+		b, err := os.ReadFile(filepath.Join(base, e.Name(), ".binding")) //nolint:gosec // path is test-controlled or application-managed; not user input
 		if err != nil {
 			continue
 		}
@@ -102,13 +102,13 @@ func readCurrentProjectPointer() (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	b, err := os.ReadFile(filepath.Join(home, ".anvil", "current-project"))
+	b, err := os.ReadFile(filepath.Join(home, ".anvil", "current-project")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		return nil, err
 	}
 	slug := strings.TrimSpace(string(b))
 	binding := filepath.Join(home, ".anvil", "projects", slug, ".binding")
-	rb, err := os.ReadFile(binding)
+	rb, err := os.ReadFile(binding) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		return nil, fmt.Errorf("current-project %q has no binding: %w", slug, err)
 	}
@@ -126,10 +126,10 @@ func AdoptProject(slug string) error {
 		return fmt.Errorf("adopt: resolving home: %w", err)
 	}
 	dir := filepath.Join(home, ".anvil", "projects", slug)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		return fmt.Errorf("adopt: mkdir %s: %w", dir, err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, ".binding"), []byte(root+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, ".binding"), []byte(root+"\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		return fmt.Errorf("adopt: write binding: %w", err)
 	}
 	return nil
@@ -167,7 +167,7 @@ func projectFromSlug(slug string) (*Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	b, err := os.ReadFile(filepath.Join(home, ".anvil", "projects", slug, ".binding"))
+	b, err := os.ReadFile(filepath.Join(home, ".anvil", "projects", slug, ".binding")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		return nil, err
 	}
@@ -188,7 +188,7 @@ func readAdoptedBinding(root string) (*Project, error) {
 		if !e.IsDir() {
 			continue
 		}
-		b, err := os.ReadFile(filepath.Join(base, e.Name(), ".binding"))
+		b, err := os.ReadFile(filepath.Join(base, e.Name(), ".binding")) //nolint:gosec // path is test-controlled or application-managed; not user input
 		if err != nil {
 			continue
 		}

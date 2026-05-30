@@ -74,7 +74,7 @@ func defaultWorktreePath(project, slug string) (string, error) {
 }
 
 func gitWorktreeAddReal(repoDir, path, branch string) error {
-	cmd := exec.Command("git", "worktree", "add", path, "-b", branch)
+	cmd := exec.Command("git", "worktree", "add", path, "-b", branch) //nolint:gosec // binary path resolved from trusted sources; not user input
 	if repoDir != "" {
 		cmd.Dir = repoDir
 	}
@@ -85,7 +85,7 @@ func gitWorktreeAddReal(repoDir, path, branch string) error {
 }
 
 func gitWorktreeRemoveReal(repoDir, path string) error {
-	cmd := exec.Command("git", "worktree", "remove", path)
+	cmd := exec.Command("git", "worktree", "remove", path) //nolint:gosec // binary path resolved from trusted sources; not user input
 	if repoDir != "" {
 		cmd.Dir = repoDir
 	}
@@ -139,7 +139,7 @@ func ghPRViewJSONReal(num int, fields string) ([]byte, error) {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return nil, errGhUnavailable
 	}
-	return exec.Command("gh", "pr", "view", strconv.Itoa(num), "--json", fields).Output()
+	return exec.Command("gh", "pr", "view", strconv.Itoa(num), "--json", fields).Output() //nolint:gosec // binary path resolved from trusted sources; not user input
 }
 
 // ghPRChecksReal runs `gh pr checks <num> --required` so optional pending
@@ -149,7 +149,7 @@ func ghPRChecksReal(num int) error {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return errGhUnavailable
 	}
-	cmd := exec.Command("gh", "pr", "checks", strconv.Itoa(num), "--required")
+	cmd := exec.Command("gh", "pr", "checks", strconv.Itoa(num), "--required") //nolint:gosec // binary path resolved from trusted sources; not user input
 	out, err := cmd.CombinedOutput()
 	return classifyPRChecks(string(out), err)
 }
@@ -172,7 +172,7 @@ func ghPRMergeReal(num int) error {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return errGhUnavailable
 	}
-	cmd := exec.Command("gh", "pr", "merge", strconv.Itoa(num), "--squash", "--delete-branch")
+	cmd := exec.Command("gh", "pr", "merge", strconv.Itoa(num), "--squash", "--delete-branch") //nolint:gosec // binary path resolved from trusted sources; not user input
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("gh pr merge: %w: %s", err, strings.TrimSpace(string(out)))
 	}

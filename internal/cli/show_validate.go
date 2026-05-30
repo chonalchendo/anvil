@@ -37,7 +37,7 @@ func runShowValidate(cmd *cobra.Command, v *core.Vault, t core.Type, id string, 
 			out["schema_errors"] = []string{schemaErr.Error()}
 		}
 		b, _ := json.Marshal(out)
-		fmt.Fprintln(cmd.OutOrStdout(), string(b))
+		fmt.Fprintln(cmd.OutOrStdout(), string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
 	} else {
 		emitFrontMatterText(cmd, a.FrontMatter)
 		if schemaErr != nil {

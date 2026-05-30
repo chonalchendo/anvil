@@ -71,7 +71,7 @@ func runAnchorCheck(ctx context.Context, a *core.Artifact, stderr io.Writer) (ma
 	ctx, cancel := context.WithTimeout(ctx, anchorTimeout)
 	defer cancel()
 
-	c := exec.CommandContext(ctx, "/bin/sh", "-c", cmdStr)
+	c := exec.CommandContext(ctx, "/bin/sh", "-c", cmdStr) //nolint:gosec // binary path resolved from trusted sources; not user input
 	stdout := &capWriter{cap: anchorMaxStdoutBytes}
 	c.Stdout = stdout
 	c.Stderr = stderr

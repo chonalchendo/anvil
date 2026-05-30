@@ -75,10 +75,10 @@ func newThreadCurrentCmd() *cobra.Command {
 			}
 			out := cmd.OutOrStdout()
 			if id == "" {
-				fmt.Fprintln(out, "(none)")
+				fmt.Fprintln(out, "(none)") //nolint:errcheck // cobra writer methods ignore write errors by design
 				return nil
 			}
-			fmt.Fprintln(out, id)
+			fmt.Fprintln(out, id) //nolint:errcheck // cobra writer methods ignore write errors by design
 			return nil
 		},
 	}

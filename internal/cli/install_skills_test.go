@@ -101,10 +101,10 @@ func TestInstall_Skills_CleansUpLegacyNestedInstall(t *testing.T) {
 	t.Setenv("ANVIL_SKILLS_DIR", skillsDir)
 
 	legacy := filepath.Join(claudeDir, "skills", "anvil")
-	if err := os.MkdirAll(legacy, 0o755); err != nil {
+	if err := os.MkdirAll(legacy, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(legacy, ".anvil-skills-hash"), []byte("old"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(legacy, ".anvil-skills-hash"), []byte("old"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -192,10 +192,10 @@ func TestInstall_Skills_ForceOverwritesForeignDir(t *testing.T) {
 	t.Setenv("ANVIL_SKILLS_DIR", skillsDir)
 
 	foreign := filepath.Join(claudeDir, "skills", "capturing-inbox")
-	if err := os.MkdirAll(foreign, 0o755); err != nil {
+	if err := os.MkdirAll(foreign, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(foreign, "user.md"), []byte("user"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(foreign, "user.md"), []byte("user"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -236,7 +236,7 @@ func TestInstall_Skills_RefreshesOnContentDrift(t *testing.T) {
 		t.Fatalf("first install: %v", err)
 	}
 	// Simulate a rebuilt binary whose embed differs from the recorded hash.
-	if err := os.WriteFile(filepath.Join(skillsDir, ".anvil-skills-hash"), []byte("stale"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillsDir, ".anvil-skills-hash"), []byte("stale"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	second := newRootCmd()

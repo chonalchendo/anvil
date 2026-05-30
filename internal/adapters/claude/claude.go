@@ -70,7 +70,7 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 		args = append(args, "--add-dir", req.Cwd)
 	}
 
-	cmd := exec.CommandContext(runCtx, bin, args...)
+	cmd := exec.CommandContext(runCtx, bin, args...) //nolint:gosec // bin resolved from trusted sources: explicit field, $ANVIL_CLAUDE_BIN, or PATH lookup
 	cmd.Dir = req.Cwd
 	// Setpgid puts the child and all its descendants in a new process group so
 	// cancellation kills the whole tree (e.g. a `sleep` spawned by the shim),
@@ -102,7 +102,7 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 
 	// Claude Code reads the prompt from stdin and expects EOF to begin processing.
 	go func() {
-		defer stdin.Close()
+		defer stdin.Close() //nolint:errcheck // close in goroutine; error not actionable after write
 		_, _ = io.WriteString(stdin, buildPrompt(req))
 	}()
 

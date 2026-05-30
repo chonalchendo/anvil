@@ -46,7 +46,7 @@ func readBody(_ *cobra.Command, flagBody, flagBodyFile string) (string, error) {
 	}
 
 	if hasFile {
-		b, err := os.ReadFile(flagBodyFile)
+		b, err := os.ReadFile(flagBodyFile) //nolint:gosec // path is test-controlled or application-managed; not user input
 		if err != nil {
 			return "", fmt.Errorf("read %s: %w", flagBodyFile, err)
 		}

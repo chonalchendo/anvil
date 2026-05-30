@@ -54,7 +54,7 @@ func runCreateSession(cmd *cobra.Command, v *core.Vault, sessionID, source, star
 	}
 
 	dir := filepath.Join(v.Root, core.TypeSession.Dir())
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
 	path := filepath.Join(dir, sessionID+".md")
@@ -67,7 +67,7 @@ func runCreateSession(cmd *cobra.Command, v *core.Vault, sessionID, source, star
 			if asJSON {
 				return emitSessionJSON(cmd, sessionID, path, activeThread)
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), path)
+			fmt.Fprintln(cmd.OutOrStdout(), path) //nolint:errcheck // cobra writer methods ignore write errors by design
 			return nil
 		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
@@ -92,7 +92,7 @@ func runCreateSession(cmd *cobra.Command, v *core.Vault, sessionID, source, star
 	if asJSON {
 		return emitSessionJSON(cmd, sessionID, path, activeThread)
 	}
-	fmt.Fprintln(cmd.OutOrStdout(), path)
+	fmt.Fprintln(cmd.OutOrStdout(), path) //nolint:errcheck // cobra writer methods ignore write errors by design
 	return nil
 }
 
@@ -127,6 +127,6 @@ func emitSessionJSON(cmd *cobra.Command, id, path, activeThread string) error {
 	if err != nil {
 		return fmt.Errorf("marshalling json: %w", err)
 	}
-	fmt.Fprintln(cmd.OutOrStdout(), string(out))
+	fmt.Fprintln(cmd.OutOrStdout(), string(out)) //nolint:errcheck // cobra writer methods ignore write errors by design
 	return nil
 }

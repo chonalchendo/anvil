@@ -95,10 +95,10 @@ func emitPromoteOutput(cmd *cobra.Command, asJSON bool, o promoteOutput, textLin
 	out := cmd.OutOrStdout()
 	if asJSON {
 		b, _ := json.Marshal(o)
-		fmt.Fprintln(out, string(b))
+		fmt.Fprintln(out, string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
 		return nil
 	}
-	fmt.Fprintln(out, textLine)
+	fmt.Fprintln(out, textLine) //nolint:errcheck // cobra writer methods ignore write errors by design
 	return nil
 }
 
@@ -214,7 +214,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	}
 
 	dir := filepath.Join(v.Root, target.Dir())
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
 	targetPath := filepath.Join(dir, targetID+".md")

@@ -36,7 +36,7 @@ func TestArtifact_RoundTrip(t *testing.T) {
 func TestLoadArtifact_NoFrontmatter_Errors(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "raw.md")
-	if err := os.WriteFile(p, []byte("no frontmatter here\n"), 0o644); err != nil {
+	if err := os.WriteFile(p, []byte("no frontmatter here\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	if _, err := LoadArtifact(p); err == nil {

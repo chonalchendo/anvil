@@ -25,7 +25,7 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 	if err != nil {
 		return ReindexStats{}, fmt.Errorf("begin: %w", err)
 	}
-	defer tx.Rollback()
+	defer tx.Rollback() //nolint:errcheck // rollback after successful commit returns ErrTxDone; error not actionable
 	if _, err := tx.Exec(`DELETE FROM links`); err != nil {
 		return ReindexStats{}, fmt.Errorf("clear links: %w", err)
 	}

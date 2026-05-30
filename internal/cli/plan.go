@@ -39,7 +39,7 @@ func runShowPlan(cmd *cobra.Command, v *core.Vault, id string, validate, waves b
 			cmd.PrintErrln(err)
 			return err
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), "ok")
+		fmt.Fprintln(cmd.OutOrStdout(), "ok") //nolint:errcheck // cobra writer methods ignore write errors by design
 		return nil
 	}
 
@@ -73,7 +73,7 @@ func renderWaves(cmd *cobra.Command, p *core.Plan, waves [][]int) {
 		}
 	}
 	b.WriteString("```\n")
-	fmt.Fprint(cmd.OutOrStdout(), b.String())
+	fmt.Fprint(cmd.OutOrStdout(), b.String()) //nolint:errcheck // cobra writer methods ignore write errors by design
 }
 
 func escapeMermaid(s string) string {
@@ -148,7 +148,7 @@ func runShowPlanTask(cmd *cobra.Command, v *core.Vault, id, taskID string, asJSO
 	w := cmd.OutOrStdout()
 	if asJSON {
 		b, _ := json.Marshal(out)
-		fmt.Fprintln(w, string(b))
+		fmt.Fprintln(w, string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
 		return nil
 	}
 
@@ -159,14 +159,14 @@ func runShowPlanTask(cmd *cobra.Command, v *core.Vault, id, taskID string, asJSO
 func emitTaskText(cmd *cobra.Command, t *core.Task, includeBody bool) {
 	w := cmd.OutOrStdout()
 	enc, _ := json.MarshalIndent(newTaskView(t), "", "  ")
-	fmt.Fprintln(w, "---")
-	fmt.Fprintln(w, string(enc))
-	fmt.Fprintln(w, "---")
+	fmt.Fprintln(w, "---")       //nolint:errcheck // cobra writer methods ignore write errors by design
+	fmt.Fprintln(w, string(enc)) //nolint:errcheck // cobra writer methods ignore write errors by design
+	fmt.Fprintln(w, "---")       //nolint:errcheck // cobra writer methods ignore write errors by design
 	if includeBody {
 		body := strings.TrimPrefix(t.Body, "## Task: "+t.ID)
 		body = strings.TrimLeft(body, "\n")
-		fmt.Fprintln(w, "## Task:", t.ID)
-		fmt.Fprintln(w)
-		fmt.Fprint(w, body)
+		fmt.Fprintln(w, "## Task:", t.ID) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintln(w)                   //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprint(w, body)               //nolint:errcheck // cobra writer methods ignore write errors by design
 	}
 }

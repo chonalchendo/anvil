@@ -13,11 +13,11 @@ func writeArtifact(t *testing.T, path, fm string) {
 
 func writeArtifactBody(t *testing.T, path, fm, body string) {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	content := "---\n" + fm + "---\n\n" + body + "\n"
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 }
@@ -33,7 +33,7 @@ func TestReindexPopulatesArtifactsAndLinks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
 	stats, err := db.Reindex(vault)
 	if err != nil {
@@ -65,7 +65,7 @@ func TestReindexIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
 	if _, err := db.Reindex(vault); err != nil {
 		t.Fatal(err)
@@ -108,7 +108,7 @@ func TestReindexBodyWikilinks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
 	if _, err := db.Reindex(vault); err != nil {
 		t.Fatalf("Reindex: %v", err)

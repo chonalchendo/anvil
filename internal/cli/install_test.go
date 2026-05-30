@@ -21,7 +21,7 @@ func TestInstall_Hooks_RespectsClaudeConfigDir(t *testing.T) {
 		t.Fatalf("install hooks: %v", err)
 	}
 
-	b, err := os.ReadFile(filepath.Join(dir, "settings.json"))
+	b, err := os.ReadFile(filepath.Join(dir, "settings.json")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatalf("read settings.json: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestInstall_Hooks_FallsBackToHome(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
-	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 
@@ -74,7 +74,7 @@ func TestInstall_Hooks_Idempotent(t *testing.T) {
 		}
 	}
 
-	b, _ := os.ReadFile(filepath.Join(dir, "settings.json"))
+	b, _ := os.ReadFile(filepath.Join(dir, "settings.json")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	var got map[string]any
 	_ = json.Unmarshal(b, &got)
 	ss := got["hooks"].(map[string]any)["SessionStart"].([]any)
@@ -102,7 +102,7 @@ func TestInstall_Hooks_Uninstall(t *testing.T) {
 		t.Fatalf("uninstall: %v", err)
 	}
 
-	b, _ := os.ReadFile(filepath.Join(dir, "settings.json"))
+	b, _ := os.ReadFile(filepath.Join(dir, "settings.json")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	var got map[string]any
 	_ = json.Unmarshal(b, &got)
 	hooks, _ := got["hooks"].(map[string]any)

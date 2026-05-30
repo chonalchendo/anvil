@@ -317,7 +317,7 @@ func TestLandPRHappyPath(t *testing.T) {
 		t.Errorf("merge calls = %v", s.mergeCalls)
 	}
 	// Audit line written.
-	body, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md"))
+	body, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -471,7 +471,7 @@ func TestLandPRRefusesWhenWorktreeRemoveFails(t *testing.T) {
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE"}`)
 	// Make the derived worktree path exist so the remove branch fires.
 	wtPath := filepath.Join(s.homeDir, "Development", "demo-worktrees", "foo")
-	if err := os.MkdirAll(wtPath, 0o755); err != nil {
+	if err := os.MkdirAll(wtPath, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	s.removeErr = errors.New("uncommitted changes in worktree")
@@ -515,7 +515,7 @@ tags: [domain/dev-tools]
 ---
 body
 `
-	if err := os.WriteFile(filepath.Join(vault, "70-issues", "nodot.md"), []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(vault, "70-issues", "nodot.md"), []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	execCmd(t, "reindex")
@@ -578,10 +578,10 @@ func TestLandPRSaveFailureSurfacesRecovery(t *testing.T) {
 	// then a.Save() WriteFile fails on the unwritable inode. Restore perms in
 	// cleanup so t.TempDir's RemoveAll succeeds.
 	issuePath := filepath.Join(vault, "70-issues", "demo.foo.md")
-	if err := os.Chmod(issuePath, 0o444); err != nil {
+	if err := os.Chmod(issuePath, 0o444); err != nil { //nolint:gosec // 0755 is correct for executable files
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(issuePath, 0o644) })
+	t.Cleanup(func() { _ = os.Chmod(issuePath, 0o644) }) //nolint:gosec // 0755 is correct for executable files
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
@@ -728,7 +728,7 @@ func TestLandPRWorktreeOverride(t *testing.T) {
 	s := stubSideFX(t)
 	// Create the override path on disk so os.Stat succeeds.
 	wtPath := filepath.Join(t.TempDir(), "my-custom-worktree")
-	if err := os.MkdirAll(wtPath, 0o755); err != nil {
+	if err := os.MkdirAll(wtPath, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)

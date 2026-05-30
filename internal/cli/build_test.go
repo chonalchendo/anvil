@@ -15,15 +15,15 @@ import (
 func copyBuildSmokeFixture(t *testing.T, vault string) {
 	t.Helper()
 	src := filepath.Join("testdata", "plan_build_smoke.md")
-	data, err := os.ReadFile(src)
+	data, err := os.ReadFile(src) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
 	dst := filepath.Join(vault, core.TypePlan.Dir(), "anvil.build-smoke.md")
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(dst, data, 0o644); err != nil {
+	if err := os.WriteFile(dst, data, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 }

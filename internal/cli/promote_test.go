@@ -214,7 +214,7 @@ func TestPromote_Discard(t *testing.T) {
 
 	add := newRootCmd()
 	add.SetArgs([]string{"create", "inbox", "--title", "x"})
-	add.Execute()
+	add.Execute() //nolint:errcheck,gosec // cobra Execute returns error already handled by test assertions
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
@@ -251,7 +251,7 @@ func TestPromote_RequiresAsFlag(t *testing.T) {
 
 	add := newRootCmd()
 	add.SetArgs([]string{"create", "inbox", "--title", "x", "--suggested-type", "issue"})
-	add.Execute()
+	add.Execute() //nolint:errcheck,gosec // cobra Execute returns error already handled by test assertions
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
@@ -277,7 +277,7 @@ func TestPromote_InvalidAsValue(t *testing.T) {
 
 	add := newRootCmd()
 	add.SetArgs([]string{"create", "inbox", "--title", "x"})
-	add.Execute()
+	add.Execute() //nolint:errcheck,gosec // cobra Execute returns error already handled by test assertions
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
@@ -306,7 +306,7 @@ func TestPromote_DiscardIdempotent(t *testing.T) {
 
 	add := newRootCmd()
 	add.SetArgs([]string{"create", "inbox", "--title", "x"})
-	add.Execute()
+	add.Execute() //nolint:errcheck,gosec // cobra Execute returns error already handled by test assertions
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
@@ -335,7 +335,7 @@ func TestPromote_MismatchedAs(t *testing.T) {
 
 	add := newRootCmd()
 	add.SetArgs([]string{"create", "inbox", "--title", "x"})
-	add.Execute()
+	add.Execute() //nolint:errcheck,gosec // cobra Execute returns error already handled by test assertions
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
@@ -370,13 +370,13 @@ func TestPromote_OnDropped(t *testing.T) {
 
 	add := newRootCmd()
 	add.SetArgs([]string{"create", "inbox", "--title", "x"})
-	add.Execute()
+	add.Execute() //nolint:errcheck,gosec // cobra Execute returns error already handled by test assertions
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
 	first := newRootCmd()
 	first.SetArgs([]string{"promote", id, "--as", "discard"})
-	first.Execute()
+	first.Execute() //nolint:errcheck,gosec // cobra Execute returns error already handled by test assertions
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"promote", id, "--as", "issue"})
@@ -399,13 +399,13 @@ func TestPromote_DiscardOnPromoted(t *testing.T) {
 
 	add := newRootCmd()
 	add.SetArgs([]string{"create", "inbox", "--title", "x"})
-	add.Execute()
+	add.Execute() //nolint:errcheck,gosec // cobra Execute returns error already handled by test assertions
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
 	first := newRootCmd()
 	first.SetArgs([]string{"promote", id, "--as", "thread", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
-	first.Execute()
+	first.Execute() //nolint:errcheck,gosec // cobra Execute returns error already handled by test assertions
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"promote", id, "--as", "discard"})
@@ -449,7 +449,7 @@ func TestPromote_JSON_AlreadyPromoted(t *testing.T) {
 
 	add := newRootCmd()
 	add.SetArgs([]string{"create", "inbox", "--title", "x"})
-	add.Execute()
+	add.Execute() //nolint:errcheck,gosec // cobra Execute returns error already handled by test assertions
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
@@ -470,7 +470,7 @@ func TestPromote_JSON_Discarded(t *testing.T) {
 
 	add := newRootCmd()
 	add.SetArgs([]string{"create", "inbox", "--title", "x"})
-	add.Execute()
+	add.Execute() //nolint:errcheck,gosec // cobra Execute returns error already handled by test assertions
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
@@ -490,7 +490,7 @@ func TestPromote_JSON_AlreadyDiscarded(t *testing.T) {
 
 	add := newRootCmd()
 	add.SetArgs([]string{"create", "inbox", "--title", "x"})
-	add.Execute()
+	add.Execute() //nolint:errcheck,gosec // cobra Execute returns error already handled by test assertions
 	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
 	id := strings.TrimSuffix(entries[0].Name(), ".md")
 
@@ -552,7 +552,7 @@ func TestPromote_PreExistingTargetGetsSuffix(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	threadsDir := filepath.Join(vault, "60-threads")
-	if err := os.MkdirAll(threadsDir, 0o755); err != nil {
+	if err := os.MkdirAll(threadsDir, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	preExistingPath := filepath.Join(threadsDir, "collide.md")

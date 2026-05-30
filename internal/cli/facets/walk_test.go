@@ -41,10 +41,10 @@ func TestCollectValues_AggregatesAcrossTypes(t *testing.T) {
 	}
 	write := func(rel, fm string) {
 		full := filepath.Join(dir, rel)
-		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(full, []byte("---\n"+fm+"\n---\n"), 0o644); err != nil {
+		if err := os.WriteFile(full, []byte("---\n"+fm+"\n---\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 			t.Fatal(err)
 		}
 	}
@@ -89,13 +89,13 @@ func TestCollectValues_NonParseError_Propagates(t *testing.T) {
 	// Write a valid artifact, then remove read permission so LoadArtifact hits
 	// an OS-level error (not a frontmatter parse error).
 	full := filepath.Join(dir, "70-issues", "unreadable.md")
-	if err := os.WriteFile(full, []byte("---\ntype: issue\ntitle: t\n---\n"), 0o644); err != nil {
+	if err := os.WriteFile(full, []byte("---\ntype: issue\ntitle: t\n---\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	if err := os.Chmod(full, 0o000); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(full, 0o644) })
+	t.Cleanup(func() { _ = os.Chmod(full, 0o644) }) //nolint:gosec // 0755 is correct for executable files
 
 	_, _, err := facets.CollectValues(dir)
 	if err == nil {
@@ -111,10 +111,10 @@ func TestCollectValues_CorruptArtifact_SkippedNotError(t *testing.T) {
 	}
 	write := func(rel, content string) {
 		full := filepath.Join(dir, rel)
-		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(full, []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(full, []byte(content), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 			t.Fatal(err)
 		}
 	}

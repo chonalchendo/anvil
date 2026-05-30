@@ -163,16 +163,16 @@ func fillRowFromWorktree(row *fleetRow) {
 func emitFleetTable(cmd *cobra.Command, rows []fleetRow) error {
 	w := cmd.OutOrStdout()
 	if len(rows) == 0 {
-		fmt.Fprintln(w, "no in-progress issues")
+		fmt.Fprintln(w, "no in-progress issues") //nolint:errcheck // cobra writer methods ignore write errors by design
 		return nil
 	}
-	fmt.Fprintln(w, "ID\tOWNER\tBRANCH\tPR\tMERGEABLE\tCI\tREVIEW\tINLINE")
+	fmt.Fprintln(w, "ID\tOWNER\tBRANCH\tPR\tMERGEABLE\tCI\tREVIEW\tINLINE") //nolint:errcheck // cobra writer methods ignore write errors by design
 	for _, r := range rows {
 		pr := "—"
 		if r.PRNumber > 0 {
 			pr = fmt.Sprintf("#%d", r.PRNumber)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n",
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", //nolint:errcheck // cobra writer methods ignore write errors by design
 			r.ID, dashIfEmpty(r.Owner), dashIfEmpty(r.Branch),
 			pr, dashIfEmpty(r.PRMergeable), dashIfEmpty(r.CIConclusion),
 			dashIfEmpty(r.ReviewerState), r.OpenInlineComments,
@@ -367,7 +367,7 @@ func ghPRViewReal(dir, branch string) (*ghPRSnapshot, error) {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return nil, errGhUnavailable
 	}
-	cmd := exec.Command("gh", "pr", "view", branch,
+	cmd := exec.Command("gh", "pr", "view", branch, //nolint:gosec // binary path resolved from trusted sources; not user input
 		"--json", "number,url,mergeable,reviewDecision,statusCheckRollup")
 	cmd.Dir = dir
 	out, err := cmd.Output()
@@ -420,7 +420,7 @@ func ghPRCommentsReal(dir string, number int) (int, error) {
 	// Use the per-PR comments endpoint via `gh pr view --json comments` is
 	// the *issue-comments* feed, not inline review comments. The REST path
 	// `/repos/{owner}/{repo}/pulls/{n}/comments` is the inline-review feed.
-	cmd := exec.Command("gh", "api",
+	cmd := exec.Command("gh", "api", //nolint:gosec // binary path resolved from trusted sources; not user input
 		fmt.Sprintf("repos/{owner}/{repo}/pulls/%d/comments", number),
 		"--jq", "length",
 	)

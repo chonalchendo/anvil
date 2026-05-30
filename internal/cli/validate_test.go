@@ -286,7 +286,7 @@ func TestValidate_TextMode_BlocksSeparated(t *testing.T) {
 			"project": "foo", "severity": "low",
 		},
 	}
-	bad1.Save()
+	bad1.Save() //nolint:errcheck,gosec // test helper; intentionally saving invalid artifact for validation test
 	bad2 := &core.Artifact{
 		Path: filepath.Join(vault, "70-issues", "foo.b.md"),
 		FrontMatter: map[string]any{
@@ -295,7 +295,7 @@ func TestValidate_TextMode_BlocksSeparated(t *testing.T) {
 			"project": "foo", "severity": "yikes",
 		},
 	}
-	bad2.Save()
+	bad2.Save() //nolint:errcheck,gosec // test helper; intentionally saving invalid artifact for validation test
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"validate", vault})
 	var out, errOut bytes.Buffer

@@ -80,7 +80,7 @@ func atomicSwap(oldPath, newPath string, content []byte) error {
 // writeFileSync writes data to path with fsync, ensuring durability before
 // the subsequent rename. Mirrors os.WriteFile but adds the fsync step.
 func writeFileSync(path string, data []byte, mode os.FileMode) error {
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		return err
 	}

@@ -34,14 +34,14 @@ tags: [domain/methodology]
 body
 `, anchorBlock)
 	path := filepath.Join(vault, "70-issues", id+".md")
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 }
 
 func readIssueRaw(t *testing.T, vault, id string) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join(vault, "70-issues", id+".md"))
+	b, err := os.ReadFile(filepath.Join(vault, "70-issues", id+".md")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}

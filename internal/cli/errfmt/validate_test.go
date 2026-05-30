@@ -17,7 +17,7 @@ func TestBuildValidationError_EnumViolation(t *testing.T) {
 
 	b, _ := json.Marshal(got)
 	var parsed map[string]any
-	json.Unmarshal(b, &parsed)
+	json.Unmarshal(b, &parsed) //nolint:errcheck,gosec // test helper; failure is caught by subsequent assertion
 	want := map[string]any{
 		"code": "enum_violation", "path": "p.md", "field": "status", "got": "raw-input",
 		"expected": []any{"raw", "promoted", "discarded"},

@@ -513,7 +513,7 @@ func TestCreate_Issue_BodyFile_RoundTrips(t *testing.T) {
 
 	body := "## Problem\nFrom file.\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none\n"
 	bodyPath := filepath.Join(t.TempDir(), "issue-body.md")
-	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -547,7 +547,7 @@ func TestCreate_Issue_BodyFile_RejectsBadWikilink_RollsBack(t *testing.T) {
 
 	body := "## Problem\nrefs [[issue.foo.ghost]] which does not exist.\n## Acceptance criteria\n- x\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none\n"
 	bodyPath := filepath.Join(t.TempDir(), "issue-body.md")
-	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil {
+	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 
@@ -613,7 +613,7 @@ func TestCreate_BodyFlagAndBodyFile_Conflict(t *testing.T) {
 	t.Chdir(repo)
 
 	bodyPath := filepath.Join(t.TempDir(), "b.md")
-	if err := os.WriteFile(bodyPath, []byte("x"), 0o644); err != nil {
+	if err := os.WriteFile(bodyPath, []byte("x"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	cmd := newRootCmd()
@@ -731,7 +731,7 @@ func TestCreatePlan_From_FileRoundTripsTasksAndBody(t *testing.T) {
 	t.Chdir(repo)
 
 	input := filepath.Join(t.TempDir(), "plan.md")
-	if err := os.WriteFile(input, []byte(planFromInput), 0o644); err != nil {
+	if err := os.WriteFile(input, []byte(planFromInput), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatalf("write input: %v", err)
 	}
 
@@ -803,7 +803,7 @@ func TestCreatePlan_From_RejectsOnNonPlan(t *testing.T) {
 	t.Chdir(repo)
 
 	input := filepath.Join(t.TempDir(), "x.md")
-	if err := os.WriteFile(input, []byte(planFromInput), 0o644); err != nil {
+	if err := os.WriteFile(input, []byte(planFromInput), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatalf("write input: %v", err)
 	}
 
@@ -824,7 +824,7 @@ func TestCreatePlan_From_MutexWithBody(t *testing.T) {
 	t.Chdir(repo)
 
 	input := filepath.Join(t.TempDir(), "x.md")
-	if err := os.WriteFile(input, []byte(planFromInput), 0o644); err != nil {
+	if err := os.WriteFile(input, []byte(planFromInput), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatalf("write input: %v", err)
 	}
 
@@ -859,7 +859,7 @@ severity: high
 body
 `
 	input := filepath.Join(t.TempDir(), "issue.md")
-	if err := os.WriteFile(input, []byte(issueArtifact), 0o644); err != nil {
+	if err := os.WriteFile(input, []byte(issueArtifact), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatalf("write input: %v", err)
 	}
 
@@ -909,7 +909,7 @@ tasks:
 ---
 `
 	input := filepath.Join(t.TempDir(), "fm.md")
-	if err := os.WriteFile(input, []byte(frontmatterOnly), 0o644); err != nil {
+	if err := os.WriteFile(input, []byte(frontmatterOnly), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatalf("write input: %v", err)
 	}
 
@@ -944,7 +944,7 @@ func TestCreatePlan_From_CLIFlagsOverrideFileFields(t *testing.T) {
 	t.Chdir(repo)
 
 	input := filepath.Join(t.TempDir(), "plan.md")
-	if err := os.WriteFile(input, []byte(planFromInput), 0o644); err != nil {
+	if err := os.WriteFile(input, []byte(planFromInput), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatalf("write input: %v", err)
 	}
 
@@ -1282,7 +1282,7 @@ func TestCreateSession_IdempotentOnReRun(t *testing.T) {
 		t.Fatalf("first: %v", err)
 	}
 	path := filepath.Join(vault, "10-sessions", fakeSessionUUID+".md")
-	c1, _ := os.ReadFile(path)
+	c1, _ := os.ReadFile(path) //nolint:gosec // path is test-controlled or application-managed; not user input
 
 	second := newRootCmd()
 	second.SetArgs([]string{
@@ -1293,7 +1293,7 @@ func TestCreateSession_IdempotentOnReRun(t *testing.T) {
 	if err := second.Execute(); err != nil {
 		t.Fatalf("second: %v", err)
 	}
-	c2, _ := os.ReadFile(path)
+	c2, _ := os.ReadFile(path) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if string(c1) != string(c2) {
 		t.Errorf("file rewritten on idempotent re-run")
 	}

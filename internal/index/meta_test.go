@@ -37,12 +37,12 @@ func TestCheckFreshnessReturnsErrIndexStaleWhenVaultNewer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
 	if err := db.SetLastReindex(time.Now().Add(-1 * time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(vault, "touch.md"), []byte("x"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(vault, "touch.md"), []byte("x"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	now := time.Now()
@@ -67,7 +67,7 @@ func TestCheckFreshnessOKWhenDBNewer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 	if err := db.SetLastReindex(time.Now()); err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ func TestCheckFreshnessOKWhenDBNewer(t *testing.T) {
 func TestCheckFreshnessReturnsErrIndexStaleWhenExistingFileEdited(t *testing.T) {
 	vault := t.TempDir()
 	old := time.Now().Add(-1 * time.Hour)
-	if err := os.WriteFile(filepath.Join(vault, "a.md"), []byte("v1"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(vault, "a.md"), []byte("v1"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	if err := os.Chtimes(filepath.Join(vault, "a.md"), old, old); err != nil {
@@ -97,7 +97,7 @@ func TestCheckFreshnessReturnsErrIndexStaleWhenExistingFileEdited(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 	if err := db.SetLastReindex(time.Now().Add(-30 * time.Minute)); err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +105,7 @@ func TestCheckFreshnessReturnsErrIndexStaleWhenExistingFileEdited(t *testing.T) 
 	// Edit the existing file (content change) without touching the vault dir
 	// directly, then explicitly hold the dir mtime steady to simulate the
 	// APFS/ext4 behaviour where a content-only edit doesn't propagate.
-	if err := os.WriteFile(filepath.Join(vault, "a.md"), []byte("v2 longer content"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(vault, "a.md"), []byte("v2 longer content"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	if err := os.Chtimes(vault, old, old); err != nil {

@@ -217,15 +217,15 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, 
 		if err != nil {
 			return fmt.Errorf("marshaling show output: %w", err)
 		}
-		fmt.Fprintln(w, string(b))
+		fmt.Fprintln(w, string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
 		return nil
 	}
 
 	emitFrontMatterText(cmd, a.FrontMatter)
 	emitIncomingText(cmd, out.Incoming)
 	if includeBody && out.Body != nil {
-		fmt.Fprintln(w, "---")
-		fmt.Fprint(w, *out.Body)
+		fmt.Fprintln(w, "---")   //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprint(w, *out.Body) //nolint:errcheck // cobra writer methods ignore write errors by design
 	}
 	return nil
 }
@@ -241,7 +241,7 @@ func loadIncomingEdges(v *core.Vault, id string) (map[string][]incomingEdge, err
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
 	rows, err := db.LinksTo(id)
 	if err != nil {
@@ -291,14 +291,14 @@ func emitIncomingText(cmd *cobra.Command, incoming map[string][]incomingEdge) {
 		types = append(types, k)
 	}
 	sort.Strings(types)
-	fmt.Fprintln(w, "Incoming links:")
+	fmt.Fprintln(w, "Incoming links:") //nolint:errcheck // cobra writer methods ignore write errors by design
 	for _, typ := range types {
-		fmt.Fprintf(w, "  %s:\n", typ)
+		fmt.Fprintf(w, "  %s:\n", typ) //nolint:errcheck // cobra writer methods ignore write errors by design
 		for _, e := range incoming[typ] {
 			if e.Title != "" {
-				fmt.Fprintf(w, "    - %s — %s\n", e.ID, e.Title)
+				fmt.Fprintf(w, "    - %s — %s\n", e.ID, e.Title) //nolint:errcheck // cobra writer methods ignore write errors by design
 			} else {
-				fmt.Fprintf(w, "    - %s\n", e.ID)
+				fmt.Fprintf(w, "    - %s\n", e.ID) //nolint:errcheck // cobra writer methods ignore write errors by design
 			}
 		}
 	}
@@ -339,14 +339,14 @@ func runShowSkill(cmd *cobra.Command, name string) error {
 		}
 		return fmt.Errorf("reading skill %q: %w", name, err)
 	}
-	fmt.Fprint(cmd.OutOrStdout(), string(data))
+	fmt.Fprint(cmd.OutOrStdout(), string(data)) //nolint:errcheck // cobra writer methods ignore write errors by design
 	return nil
 }
 
 func emitFrontMatterText(cmd *cobra.Command, fm map[string]any) {
 	w := cmd.OutOrStdout()
-	fmt.Fprintln(w, "---")
+	fmt.Fprintln(w, "---") //nolint:errcheck // cobra writer methods ignore write errors by design
 	enc, _ := json.MarshalIndent(fm, "", "  ")
-	fmt.Fprintln(w, string(enc))
-	fmt.Fprintln(w, "---")
+	fmt.Fprintln(w, string(enc)) //nolint:errcheck // cobra writer methods ignore write errors by design
+	fmt.Fprintln(w, "---")       //nolint:errcheck // cobra writer methods ignore write errors by design
 }

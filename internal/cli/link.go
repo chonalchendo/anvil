@@ -61,7 +61,7 @@ func newLinkCmd() *cobra.Command {
 				if err := indexAfterSave(v, a); err != nil {
 					return err
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "linked %s.%s → %s\n", src, srcID, externalURI)
+				fmt.Fprintf(cmd.OutOrStdout(), "linked %s.%s → %s\n", src, srcID, externalURI) //nolint:errcheck // cobra writer methods ignore write errors by design
 				return nil
 			}
 
@@ -92,7 +92,7 @@ func newLinkCmd() *cobra.Command {
 			if err := indexAfterSave(v, a); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "linked %s.%s → %s.%s\n", src, srcID, tgt, tgtID)
+			fmt.Fprintf(cmd.OutOrStdout(), "linked %s.%s → %s.%s\n", src, srcID, tgt, tgtID) //nolint:errcheck // cobra writer methods ignore write errors by design
 			return nil
 		},
 	}
@@ -139,11 +139,11 @@ func runLinkDrift(cmd *cobra.Command, db *index.DB, asJSON bool) error {
 	}
 	if asJSON {
 		b, _ := json.Marshal(out)
-		fmt.Fprintln(cmd.OutOrStdout(), string(b))
+		fmt.Fprintln(cmd.OutOrStdout(), string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
 		return nil
 	}
 	for _, r := range out {
-		fmt.Fprintf(cmd.OutOrStdout(), "drift %s (%s) -> %s (%s)\n",
+		fmt.Fprintf(cmd.OutOrStdout(), "drift %s (%s) -> %s (%s)\n", //nolint:errcheck // cobra writer methods ignore write errors by design
 			r.Source, r.SourceSlug, r.Target, r.TargetSlug)
 	}
 	return nil
@@ -191,7 +191,7 @@ func runLinkQuery(cmd *cobra.Command, fromID, toID string, unresolved, drift, as
 	if err != nil {
 		return err
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
 	if drift {
 		return runLinkDrift(cmd, db, asJSON)
@@ -223,11 +223,11 @@ func runLinkQuery(cmd *cobra.Command, fromID, toID string, unresolved, drift, as
 	}
 	if asJSON {
 		b, _ := json.Marshal(out)
-		fmt.Fprintln(cmd.OutOrStdout(), string(b))
+		fmt.Fprintln(cmd.OutOrStdout(), string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
 		return nil
 	}
 	for _, r := range out {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s -> %s\n", r.Relation, r.Source, r.Target)
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s -> %s\n", r.Relation, r.Source, r.Target) //nolint:errcheck // cobra writer methods ignore write errors by design
 	}
 	return nil
 }
