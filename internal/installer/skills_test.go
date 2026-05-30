@@ -473,6 +473,54 @@ func TestRefreshSkillsIfStale_RefreshesWhenHashFileMissing(t *testing.T) {
 	}
 }
 
+// TestInstallSkills_PrunesOrphanedSymlinks verifies that a symlink pointing into
+// materialiseDir that is absent from the current bundle is removed on the next
+// install — the core reconciliation gap this fix closes.
+func TestInstallSkills_PrunesOrphanedSymlinks(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	target := filepath.Join(t.TempDir(), "claude-skills")
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Plant an orphaned symlink that points into mat (anvil-owned) but whose
+	// name is absent from the current bundle.
+	orphan := filepath.Join(target, "recording-learning")
+	if err := os.Symlink(filepath.Join(mat, "recording-learning"), orphan); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false, false); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	if _, err := os.Lstat(orphan); !os.IsNotExist(err) {
+		t.Errorf("orphaned anvil-owned symlink should be pruned; lstat err = %v", err)
+	}
+}
+
+// TestInstallSkills_ReconcilePreservesForeignOrphan confirms that a symlink
+// pointing outside materialiseDir is never removed during pruning.
+func TestInstallSkills_ReconcilePreservesForeignOrphan(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	target := filepath.Join(t.TempDir(), "claude-skills")
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A symlink pointing somewhere other than mat is foreign — leave it alone.
+	foreign := filepath.Join(target, "some-other-skill")
+	if err := os.Symlink("/tmp/other-vendor", foreign); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false, false); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	if _, err := os.Lstat(foreign); err != nil {
+		t.Errorf("foreign symlink should be preserved: %v", err)
+	}
+}
+
 func TestRefreshSkillsIfStale_PreservesCopyMode(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
 	target := filepath.Join(t.TempDir(), "claude-skills")
