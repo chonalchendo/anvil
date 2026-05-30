@@ -64,7 +64,7 @@ func newListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list <type>",
 		Short:   "List vault artifacts (default: 10 most recent; --ready/--orphans: unlimited)",
-		Args:    cobra.ExactArgs(1),
+		Args:    namedArgs("anvil list <type>", []string{"<type>"}, 1),
 		Example: "  anvil list issue --status open\n  anvil list plan --since 2026-05-01 --limit 25\n  anvil list decision --json",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t, err := core.ParseType(args[0])
