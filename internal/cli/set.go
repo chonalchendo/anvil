@@ -17,7 +17,7 @@ import (
 
 func newSetCmd() *cobra.Command {
 	var (
-		flagAdd           []string
+		flagAdd           bool
 		flagRemove        []string
 		flagAddSet        bool
 		flagRemSet        bool
@@ -28,7 +28,7 @@ func newSetCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "set <type> <id> <field> <value>...",
+		Use:   "set <type> <id> <field> [<value>...]",
 		Short: "Set a frontmatter field on a vault artifact",
 		Args:  cobra.MinimumNArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -55,8 +55,8 @@ func newSetCmd() *cobra.Command {
 			if flagAddSet && flagRemSet {
 				return fmt.Errorf("--add and --remove are mutually exclusive")
 			}
-			if (flagAddSet || flagRemSet) && len(values) > 0 {
-				return fmt.Errorf("positional values cannot be combined with --add or --remove")
+			if flagRemSet && len(values) > 0 {
+				return fmt.Errorf("positional values cannot be combined with --remove")
 			}
 
 			kind, err := schema.FieldKind(string(t), field)
@@ -82,13 +82,16 @@ func newSetCmd() *cobra.Command {
 
 			case schema.KindArray:
 				switch {
-				case flagAddSet:
+				case flagAddSet || len(values) > 0:
+					if len(values) == 0 {
+						return fmt.Errorf("--add requires at least one positional value, e.g. anvil set %s %s %s --add foo bar", args[0], args[1], field)
+					}
 					existing := arrayValue(a.FrontMatter[field])
 					before := append([]any(nil), existing...)
-					next := make([]any, len(existing), len(existing)+len(flagAdd))
+					next := make([]any, len(existing), len(existing)+len(values))
 					copy(next, existing)
-					added := make([]any, 0, len(flagAdd))
-					for _, v := range flagAdd {
+					added := make([]any, 0, len(values))
+					for _, v := range values {
 						next = append(next, v)
 						added = append(added, v)
 					}
@@ -152,16 +155,12 @@ func newSetCmd() *cobra.Command {
 					result.Value = singleOrSlice(removed)
 					result.Status = "removed"
 				default:
-					sample := "VALUE"
-					if len(values) > 0 {
-						sample = values[0]
-					}
 					return fmt.Errorf(
-						"field %q is an array (field_is_array); positional values are not accepted — use --add or --remove\n"+
-							"  corrected: anvil set %s %s %s --add %q\n"+
-							"             anvil set %s %s %s --remove VALUE_OR_INDEX",
+						"field %q is an array (field_is_array); use --add <value>... or --remove <value|index>\n"+
+							"  append:  anvil set %s %s %s <value>... [--add]\n"+
+							"  remove:  anvil set %s %s %s --remove VALUE_OR_INDEX",
 						field,
-						args[0], args[1], field, sample,
+						args[0], args[1], field,
 						args[0], args[1], field,
 					)
 				}
@@ -261,7 +260,7 @@ func newSetCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringArrayVar(&flagAdd, "add", nil, "append a value to an array field (repeatable)")
+	cmd.Flags().BoolVar(&flagAdd, "add", false, "signal append intent for an array field; values come from positional <value>... args")
 	cmd.Flags().StringArrayVar(&flagRemove, "remove", nil, "remove a value from an array field; matches exact value, falls back to 0-based index (repeatable)")
 	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet(s) to suppress novelty gate for (tags only)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
