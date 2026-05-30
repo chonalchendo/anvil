@@ -11,13 +11,21 @@ Your job is to orchestrate N parallel subagents through claim → implement → 
 
 **The human owns the merge button. The orchestrator and its subagents never call `gh pr merge`, `git worktree remove`, or `anvil transition resolved`.** Post-green cleanup is the human's, period. A subagent that calls any of these is a halt — surface the violation, do not paper over it.
 
-## Phase 1 — Pick the ready set
+## Phase 1 — Pick the work set
+
+Two modes, resolved from the invocation arguments:
+
+**Curated id list (preferred when the caller has already triaged):** if the invocation supplies an explicit id list — e.g. `--ids issue-a issue-b issue-c` or an inline JSON array — use those ids directly as the candidate set, skipping the `anvil list` query. Verify each id resolves (`anvil show issue <id>`) and is not already `resolved` or `in-progress` by another owner; drop any that don't. This is the path a triaged subset (e.g. from `self-testing`'s Phase 5 gate) should use so the curated work is not discarded and re-picked.
+
+**Default ready set (fallback when no id list is given):**
 
 ```bash
 anvil list issue --ready --project <p> --status open --json
 ```
 
-Take the first `--max N` candidates (skill argument; default `--max 5`, range 1–8). `--max` and `--allow-overlap` are parsed from the user's invocation arguments, **not** CLI flags — there is no `anvil fleet` verb.
+Take the first `--max N` candidates.
+
+In both modes, `--max` (default `5`, range 1–8) and `--allow-overlap` are parsed from the invocation arguments, **not** CLI flags — there is no `anvil fleet` verb.
 
 ## Phase 2 — Pre-dispatch overlap check (declare-then-check)
 
