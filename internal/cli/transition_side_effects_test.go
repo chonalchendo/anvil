@@ -304,6 +304,9 @@ func TestLandPRHappyPath(t *testing.T) {
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	// Provide a worktree for the PR's head branch so removal proceeds.
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
 
@@ -394,6 +397,9 @@ func TestLandPRRefusesWhenFinalStateNotMerged(t *testing.T) {
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE"}`)
 	s.viewByField["state"] = []byte(`{"state":"OPEN"}`)
+	// Provide a worktree so removal proceeds before the state check.
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
@@ -564,6 +570,9 @@ func TestLandPRSaveFailureSurfacesRecovery(t *testing.T) {
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE"}`)
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	// Provide a worktree so removal proceeds before the save-failure path.
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	// Make the issue file read-only after load succeeds: LoadArtifact reads,
 	// then a.Save() WriteFile fails on the unwritable inode. Restore perms in
@@ -624,6 +633,9 @@ func TestLandPRHonorsTrailingJSONFlag(t *testing.T) {
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	// Provide a worktree so removal proceeds.
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
@@ -638,5 +650,96 @@ func TestLandPRHonorsTrailingJSONFlag(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), `"status":"transitioned"`) {
 		t.Errorf("--json not honored; got: %s", out.String())
+	}
+}
+
+// TestLandPRDetectsWorktreeViaHeadBranch verifies that when the default
+// worktree path does not exist, landPR falls back to the live worktree list
+// keyed by the PR's headRefName — the fleet case where the worktree was cut
+// at a non-issue-slug path.
+func TestLandPRDetectsWorktreeViaHeadBranch(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	// homeDir has no Development/demo-worktrees/foo directory, so os.Stat will
+	// fail and the code must fall back to the worktree list.
+	s.homeDir = t.TempDir()
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	// PR branch points to a worktree at a custom slug (fleet scenario).
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/fleet-custom-slug"}`)
+	s.listEntries["anvil/fleet-custom-slug"] = worktreeInfo{path: "/worktrees/fleet-custom-slug"}
+
+	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
+
+	if len(s.mergeCalls) != 1 || s.mergeCalls[0] != 42 {
+		t.Errorf("merge calls = %v, want [42]", s.mergeCalls)
+	}
+	if len(s.removeCalls) != 1 || s.removeCalls[0].Path != "/worktrees/fleet-custom-slug" {
+		t.Errorf("remove calls = %v, want [{/repo /worktrees/fleet-custom-slug}]", s.removeCalls)
+	}
+}
+
+// TestLandPRErrorsWhenNoWorktreeFound verifies that --land-pr returns
+// land_pr_worktree_missing and does not merge when no worktree is found via
+// either the default path or the live worktree list.
+func TestLandPRErrorsWhenNoWorktreeFound(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	s.homeDir = t.TempDir() // no worktree directory on disk
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// headRefName returns a branch with no matching worktree entry.
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/no-worktree-branch"}`)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "land_pr_worktree_missing") {
+		t.Errorf("expected land_pr_worktree_missing, got: %s", stdout.String())
+	}
+	if len(s.mergeCalls) != 0 {
+		t.Errorf("merge must not be called when worktree is missing: %v", s.mergeCalls)
+	}
+}
+
+// TestLandPRWorktreeOverride verifies that --worktree is honored by --land-pr
+// to supply the worktree path directly.
+func TestLandPRWorktreeOverride(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	// Create the override path on disk so os.Stat succeeds.
+	wtPath := filepath.Join(t.TempDir(), "my-custom-worktree")
+	if err := os.MkdirAll(wtPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+
+	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--worktree", wtPath)
+
+	if len(s.mergeCalls) != 1 || s.mergeCalls[0] != 42 {
+		t.Errorf("merge calls = %v, want [42]", s.mergeCalls)
+	}
+	if len(s.removeCalls) != 1 || s.removeCalls[0].Path != wtPath {
+		t.Errorf("remove calls = %v, want path %s", s.removeCalls, wtPath)
 	}
 }

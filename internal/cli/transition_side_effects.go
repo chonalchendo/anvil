@@ -211,10 +211,15 @@ func doCutWorktree(a *core.Artifact, id, pathOverride, branchOverride string) er
 	return nil
 }
 
-// doLandPR derives the worktree path from the issue and runs landPR. Path
-// derivation is a hard error: the audit line claims "worktree removed" and we
-// refuse to lie if we can't compute the location.
-func doLandPR(a *core.Artifact, id string, prNum int) error {
+// doLandPR derives the worktree path from the issue and runs landPR. When
+// worktreeOverride is non-empty it is used directly; otherwise the path is
+// derived from the issue slug. Path derivation is a hard error: the audit line
+// claims "worktree removed" and we refuse to lie if we can't compute the
+// location.
+func doLandPR(a *core.Artifact, id string, prNum int, worktreeOverride string) error {
+	if worktreeOverride != "" {
+		return landPR(prNum, worktreeOverride)
+	}
 	project := projectFromArtifact(a, id)
 	slug := slugFromIssueID(id)
 	if project == "" || slug == "" {
@@ -233,6 +238,13 @@ func doLandPR(a *core.Artifact, id string, prNum int) error {
 // error keyed on the failing gate. Order matches docs/worktree-workflow.md:
 // the worktree must be removed before `gh pr merge --delete-branch` will land
 // the branch delete (gh refuses the delete while a worktree references it).
+//
+// Worktree resolution: if worktreePath exists on disk it is used directly. If
+// not, landPR falls back to the live worktree list keyed by the PR's head
+// branch — covering the common fleet case where the worktree was cut at a
+// non-default slug. If neither path resolves to a real worktree, landPR
+// returns land_pr_worktree_missing before merging rather than silently
+// skipping removal and letting --delete-branch fail mid-flight.
 func landPR(num int, worktreePath string) error {
 	type mergeState struct {
 		Mergeable        string `json:"mergeable"`
@@ -255,19 +267,48 @@ func landPR(num int, worktreePath string) error {
 	if err := ghPRChecksFn(num); err != nil {
 		return errfmt.NewStructured("land_pr_ci_not_green").Set("pr", num).Set("error", err.Error())
 	}
+	// Resolve the actual worktree path: try the explicit/default path first,
+	// then fall back to the live worktree list keyed by the PR's head branch.
+	resolved := ""
 	if worktreePath != "" {
 		if _, ferr := os.Stat(worktreePath); ferr == nil {
-			root, rerr := gitMainRootFn()
-			if rerr != nil {
-				return errfmt.NewStructured("land_pr_main_worktree_lookup_failed").Set("error", rerr.Error())
-			}
-			if err := gitWorktreeRemoveFn(root, worktreePath); err != nil {
-				return errfmt.NewStructured("land_pr_worktree_remove_failed").
-					Set("pr", num).
-					Set("path", worktreePath).
-					Set("error", err.Error())
+			resolved = worktreePath
+		}
+	}
+	if resolved == "" {
+		// Derive worktree from PR's head branch via the live worktree list.
+		type headRef struct {
+			HeadRefName string `json:"headRefName"`
+		}
+		var ref headRef
+		if raw, rerr := ghPRViewJSONFn(num, "headRefName"); rerr == nil {
+			_ = json.Unmarshal(raw, &ref)
+		}
+		if ref.HeadRefName != "" {
+			if worktrees, lerr := gitWorktreeListFn(); lerr == nil {
+				if info, ok := worktrees[ref.HeadRefName]; ok {
+					resolved = info.path
+				}
 			}
 		}
+	}
+	if resolved == "" {
+		// No worktree found via either path: error before merging so the
+		// caller can supply --worktree and retry without a half-complete state.
+		return errfmt.NewStructured("land_pr_worktree_missing").
+			Set("pr", num).
+			Set("tried_path", worktreePath).
+			Set("fix_hint", "pass --worktree <path> to point --land-pr at the actual worktree, or remove it manually then retry")
+	}
+	root, rerr := gitMainRootFn()
+	if rerr != nil {
+		return errfmt.NewStructured("land_pr_main_worktree_lookup_failed").Set("error", rerr.Error())
+	}
+	if err := gitWorktreeRemoveFn(root, resolved); err != nil {
+		return errfmt.NewStructured("land_pr_worktree_remove_failed").
+			Set("pr", num).
+			Set("path", resolved).
+			Set("error", err.Error())
 	}
 	if err := ghPRMergeFn(num); err != nil {
 		return errfmt.NewStructured("land_pr_merge_failed").Set("pr", num).Set("error", err.Error())

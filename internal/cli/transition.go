@@ -77,10 +77,15 @@ func newTransitionCmd() *cobra.Command {
 					Set("flag", "--cut-worktree").
 					Set("applies_to", "transition issue <id> in-progress"))
 			}
-			if (worktreeOverride != "" || branchOverride != "") && !cutWorktree {
+			if branchOverride != "" && !cutWorktree {
 				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
-					Set("flag", "--worktree/--branch").
+					Set("flag", "--branch").
 					Set("applies_to", "use only with --cut-worktree"))
+			}
+			if worktreeOverride != "" && !cutWorktree && landPRNum == 0 {
+				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
+					Set("flag", "--worktree").
+					Set("applies_to", "use only with --cut-worktree or --land-pr"))
 			}
 			if landPRNum != 0 {
 				if t != core.TypeIssue || to != "resolved" {
@@ -207,7 +212,7 @@ func newTransitionCmd() *cobra.Command {
 			}
 
 			if landPRNum != 0 {
-				if err := doLandPR(a, id, landPRNum); err != nil {
+				if err := doLandPR(a, id, landPRNum, worktreeOverride); err != nil {
 					return printAndReturn(cmd, err)
 				}
 			}
