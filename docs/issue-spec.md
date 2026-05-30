@@ -63,7 +63,7 @@ anvil transition issue test-fixture in-progress --owner test 2>&1 | grep -q "tra
 
 When an issue renames a symbol, table, layer, or identifier across a multi-package or multi-workspace repo, narrow single-package greps silently miss cross-package reference breaks and retired-name leaks.
 
-**Scope repo-wide, not to the renamed package.** A grep scoped to `renamed-pkg/models` will miss callers in sibling workspaces. Use `git grep` or `grep -r` from the repo root, or pipe through `find . -name '*.go'` — anything that spans every workspace:
+**Scope repo-wide, not to the renamed package.** A grep scoped to `renamed-pkg/models` will miss callers in sibling workspaces. Use `git grep` (repo-root-relative; anchor the cwd as the Parsing-rules note above) or `grep -r`, or pipe through `find . -name '*.go'` — anything that spans every workspace:
 
 ```bash
 # wrong: only covers one package
@@ -76,15 +76,15 @@ git grep -r "OldName" -- '*.go'
 **Account for names that survive the rename.** A retired spelling can remain valid in a surviving layer. Blanket-forbidding a token (`grep -rq "normalised"` exits non-zero if found) will flag correct surviving usages. Instead, assert that the old name is absent only where it should be absent, and that the canonical surviving usage exists where it should exist:
 
 ```bash
-# wrong: forbids the token globally even if a layer still uses it legitimately
+# wrong: forbids the token globally even where a layer still uses it legitimately
 ! git grep -q "normalised" -- '*.go'
 
-# right: forbid it in the renamed package only, and confirm the surviving layer still carries it
-! git grep -q "OldName" -- renamed-pkg/
+# right: forbid it only where it was retired, and confirm it survives where it is still correct
+! git grep -q "normalised" -- renamed-pkg/
 git grep -q "normalised" -- surviving-layer/
 ```
 
-The pattern: retired names → absent from the packages they were retired in; still-valid names → present in the layers where they are correct. Verify both halves.
+Pair every absence check with a positive existence check: `! git grep -q "X" -- pkg/` also passes vacuously when `pkg/` is mistyped or empty — the exact false-green this section warns against.
 
 ## Why both subsections
 
