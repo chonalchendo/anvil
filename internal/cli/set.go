@@ -30,7 +30,7 @@ func newSetCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set <type> <id> <field> [<value>...]",
 		Short: "Set a frontmatter field on a vault artifact",
-		Args:  cobra.MinimumNArgs(3),
+		Args:  namedArgs("anvil set <type> <id> <field> [<value>...]", []string{"<type>", "<id>", "<field>"}, 3, -1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t, err := core.ParseType(args[0])
 			if err != nil {

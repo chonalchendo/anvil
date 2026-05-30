@@ -83,7 +83,7 @@ func newCreateCmd() *cobra.Command {
 		Use:   "create <type>",
 		Short: "Create a new vault artifact",
 		Long:  createLongDescription(),
-		Args:  cobra.ExactArgs(1),
+		Args:  namedArgs("anvil create <type>", []string{"<type>"}, 1, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t, err := core.ParseType(args[0])
 			if err != nil {
