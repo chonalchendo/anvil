@@ -59,6 +59,33 @@ anvil transition issue test-fixture in-progress --owner test 2>&1 | grep -q "tra
 - Blocks run in the cwd the runner is invoked from — the worktree under test. Do **not** `cd` to an absolute main-checkout path; anchor with `$(git rev-parse --show-toplevel)` if you need the repo root.
 - A subsection with no `` ```bash `` block is a validation failure — author at least one check or remove the subsection (and accept the validation reject from `anvil create issue`).
 
+## Rename / migration verification
+
+When an issue renames a symbol, table, layer, or identifier across a multi-package or multi-workspace repo, narrow single-package greps silently miss cross-package reference breaks and retired-name leaks.
+
+**Scope repo-wide, not to the renamed package.** A grep scoped to `renamed-pkg/models` will miss callers in sibling workspaces. Use `git grep` (repo-root-relative; anchor the cwd as the Parsing-rules note above) or `grep -r`, or pipe through `find . -name '*.go'` — anything that spans every workspace:
+
+```bash
+# wrong: only covers one package
+grep -r "OldName" burgh-data/models
+
+# right: cross-package / repo-wide
+git grep -r "OldName" -- '*.go'
+```
+
+**Account for names that survive the rename.** A retired spelling can remain valid in a surviving layer. Blanket-forbidding a token (`grep -rq "normalised"` exits non-zero if found) will flag correct surviving usages. Instead, assert that the old name is absent only where it should be absent, and that the canonical surviving usage exists where it should exist:
+
+```bash
+# wrong: forbids the token globally even where a layer still uses it legitimately
+! git grep -q "normalised" -- '*.go'
+
+# right: forbid it only where it was retired, and confirm it survives where it is still correct
+! git grep -q "normalised" -- renamed-pkg/
+git grep -q "normalised" -- surviving-layer/
+```
+
+Pair every absence check with a positive existence check: `! git grep -q "X" -- pkg/` also passes vacuously when `pkg/` is mistyped or empty — the exact false-green this section warns against.
+
 ## Why both subsections
 
 Direct ("tests pass") can stay green while the feature is broken end-to-end — install path bug, wiring error, missing migration, regression in an adjacent verb. Indirect closes that gap by running the actual product, not the test harness. Refusing to author the indirect check is how regressions land in merged PRs.
