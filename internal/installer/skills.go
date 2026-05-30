@@ -75,6 +75,13 @@ func InstallSkills(srcFS fs.FS, materialiseDir, target string, useCopy, force bo
 			changed = true
 		}
 	}
+	pruned, err := pruneOrphanedSkills(materialiseDir, target, names)
+	if err != nil {
+		return false, err
+	}
+	if pruned {
+		changed = true
+	}
 	return changed, nil
 }
 
@@ -319,6 +326,57 @@ func removeOneSkill(materialiseDir, target, name string) (bool, error) {
 		return false, fmt.Errorf("remove %s: %w", dst, err)
 	}
 	return true, nil
+}
+
+// PruneOrphanedSkills removes anvil-owned symlinks in target that are absent
+// from the current bundle in srcFS. Foreign entries and non-anvil-owned
+// symlinks are never touched. It is safe to call when InstallSkills was
+// skipped (e.g. bundle hash is fresh) — the prune reconciles target to match
+// the current bundle regardless.
+func PruneOrphanedSkills(srcFS fs.FS, materialiseDir, target string) (bool, error) {
+	names, err := listSkillNames(srcFS)
+	if err != nil {
+		return false, err
+	}
+	return pruneOrphanedSkills(materialiseDir, target, names)
+}
+
+// pruneOrphanedSkills removes anvil-owned symlinks in target that are absent
+// from the current bundle (names). Foreign entries and non-anvil-owned symlinks
+// are never touched.
+func pruneOrphanedSkills(materialiseDir, target string, names []string) (bool, error) {
+	entries, err := os.ReadDir(target)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("read target dir %s: %w", target, err)
+	}
+	current := make(map[string]struct{}, len(names))
+	for _, n := range names {
+		current[n] = struct{}{}
+	}
+	changed := false
+	for _, e := range entries {
+		if _, ok := current[e.Name()]; ok {
+			continue
+		}
+		if e.Type()&os.ModeSymlink == 0 {
+			continue
+		}
+		linkTarget, err := os.Readlink(filepath.Join(target, e.Name()))
+		if err != nil {
+			return false, fmt.Errorf("readlink %s: %w", e.Name(), err)
+		}
+		if !ownsSymlinkTarget(linkTarget, materialiseDir) {
+			continue
+		}
+		if err := os.Remove(filepath.Join(target, e.Name())); err != nil {
+			return false, fmt.Errorf("remove orphaned symlink %s: %w", e.Name(), err)
+		}
+		changed = true
+	}
+	return changed, nil
 }
 
 func ownsSymlinkTarget(linkTarget, materialiseDir string) bool {

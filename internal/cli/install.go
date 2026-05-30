@@ -131,6 +131,12 @@ func newInstallSkillsCmd() *cobra.Command {
 						return fmt.Errorf("checking skills freshness: %w", err)
 					}
 					if fresh {
+						// Bundle content is current, but orphaned symlinks from
+						// removed skills may still exist — prune them even though
+						// we skip the full install.
+						if _, err := installer.PruneOrphanedSkills(skills.FS, mat, target); err != nil {
+							return fmt.Errorf("pruning orphaned skills: %w", err)
+						}
 						cmd.Println("anvil skills up to date at", target+" (embedded bundle); run `anvil install skills --force` to redeploy, or `just install` first if you edited anvil/skills/ on disk")
 						return nil
 					}
