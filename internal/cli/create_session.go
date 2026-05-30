@@ -67,7 +67,7 @@ func runCreateSession(cmd *cobra.Command, v *core.Vault, sessionID, source, star
 			if asJSON {
 				return emitSessionJSON(cmd, sessionID, path, activeThread)
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), path) //nolint:errcheck // cobra writer methods ignore write errors by design
+			fmt.Fprintln(cmd.OutOrStdout(), path)
 			return nil
 		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
@@ -92,7 +92,7 @@ func runCreateSession(cmd *cobra.Command, v *core.Vault, sessionID, source, star
 	if asJSON {
 		return emitSessionJSON(cmd, sessionID, path, activeThread)
 	}
-	fmt.Fprintln(cmd.OutOrStdout(), path) //nolint:errcheck // cobra writer methods ignore write errors by design
+	fmt.Fprintln(cmd.OutOrStdout(), path)
 	return nil
 }
 
@@ -127,6 +127,6 @@ func emitSessionJSON(cmd *cobra.Command, id, path, activeThread string) error {
 	if err != nil {
 		return fmt.Errorf("marshalling json: %w", err)
 	}
-	fmt.Fprintln(cmd.OutOrStdout(), string(out)) //nolint:errcheck // cobra writer methods ignore write errors by design
+	fmt.Fprintln(cmd.OutOrStdout(), string(out))
 	return nil
 }

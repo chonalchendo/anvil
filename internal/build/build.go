@@ -220,7 +220,7 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 	oc.Outcome = classify(ctx, res, err)
 	oc.Err = err
 	if oc.Outcome != "success" && oc.Outcome != "skipped_dry_run" && oc.Result.Diagnostic != "" {
-		fmt.Fprintf(opts.Stderr, "task %s [%s]: %s\n", oc.TaskID, oc.Outcome, oc.Result.Diagnostic) //nolint:errcheck // diagnostic write to stderr; error not actionable
+		fmt.Fprintf(opts.Stderr, "task %s [%s]: %s\n", oc.TaskID, oc.Outcome, oc.Result.Diagnostic)
 	}
 	return oc
 }

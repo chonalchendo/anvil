@@ -163,16 +163,16 @@ func fillRowFromWorktree(row *fleetRow) {
 func emitFleetTable(cmd *cobra.Command, rows []fleetRow) error {
 	w := cmd.OutOrStdout()
 	if len(rows) == 0 {
-		fmt.Fprintln(w, "no in-progress issues") //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintln(w, "no in-progress issues")
 		return nil
 	}
-	fmt.Fprintln(w, "ID\tOWNER\tBRANCH\tPR\tMERGEABLE\tCI\tREVIEW\tINLINE") //nolint:errcheck // cobra writer methods ignore write errors by design
+	fmt.Fprintln(w, "ID\tOWNER\tBRANCH\tPR\tMERGEABLE\tCI\tREVIEW\tINLINE")
 	for _, r := range rows {
 		pr := "—"
 		if r.PRNumber > 0 {
 			pr = fmt.Sprintf("#%d", r.PRNumber)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n", //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n",
 			r.ID, dashIfEmpty(r.Owner), dashIfEmpty(r.Branch),
 			pr, dashIfEmpty(r.PRMergeable), dashIfEmpty(r.CIConclusion),
 			dashIfEmpty(r.ReviewerState), r.OpenInlineComments,

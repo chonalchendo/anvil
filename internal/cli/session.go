@@ -45,7 +45,7 @@ func newSessionCurrentCmd() *cobra.Command {
 			if asJSON {
 				return writeJSON(cmd, map[string]string{"session_id": id, "path": path})
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\n", id, path) //nolint:errcheck // cobra writer methods ignore write errors by design
+			fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\n", id, path)
 			return nil
 		},
 	}
@@ -77,7 +77,7 @@ func newSessionListCmd() *cobra.Command {
 			}
 			w := cmd.OutOrStdout()
 			if len(items) == 0 {
-				fmt.Fprintln(w, "(no sessions)") //nolint:errcheck // cobra writer methods ignore write errors by design
+				fmt.Fprintln(w, "(no sessions)")
 				return nil
 			}
 			for _, it := range items {
@@ -89,7 +89,7 @@ func newSessionListCmd() *cobra.Command {
 				if len(short) > 8 {
 					short = short[:8]
 				}
-				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", short, it.Modified, kind, firstNonEmpty(it.Objective, it.Title)) //nolint:errcheck // cobra writer methods ignore write errors by design
+				fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", short, it.Modified, kind, firstNonEmpty(it.Objective, it.Title))
 			}
 			return nil
 		},
@@ -143,7 +143,7 @@ func newSessionHandoffCmd() *cobra.Command {
 			if err := indexAfterSave(v, a); err != nil {
 				return fmt.Errorf("reindexing %s: %w", id, err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Handoff written to %s\n", path) //nolint:errcheck // cobra writer methods ignore write errors by design
+			fmt.Fprintf(cmd.OutOrStdout(), "Handoff written to %s\n", path)
 			return nil
 		},
 	}
@@ -240,6 +240,6 @@ func writeJSON(cmd *cobra.Command, v any) error {
 	if err != nil {
 		return fmt.Errorf("marshalling json: %w", err)
 	}
-	fmt.Fprintln(cmd.OutOrStdout(), string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
+	fmt.Fprintln(cmd.OutOrStdout(), string(b))
 	return nil
 }

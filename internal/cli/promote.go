@@ -95,10 +95,10 @@ func emitPromoteOutput(cmd *cobra.Command, asJSON bool, o promoteOutput, textLin
 	out := cmd.OutOrStdout()
 	if asJSON {
 		b, _ := json.Marshal(o)
-		fmt.Fprintln(out, string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintln(out, string(b))
 		return nil
 	}
-	fmt.Fprintln(out, textLine) //nolint:errcheck // cobra writer methods ignore write errors by design
+	fmt.Fprintln(out, textLine)
 	return nil
 }
 

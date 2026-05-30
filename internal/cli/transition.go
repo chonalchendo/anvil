@@ -325,14 +325,14 @@ type transitionResult struct {
 func emitTransitionJSON(cmd *cobra.Command, asJSON bool, r transitionResult) error {
 	if asJSON {
 		b, _ := json.Marshal(r)
-		fmt.Fprintln(cmd.OutOrStdout(), string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintln(cmd.OutOrStdout(), string(b))
 		return nil
 	}
 	if r.Status == "already_in_state" {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s already in state %s\n", r.ID, r.To) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintf(cmd.OutOrStdout(), "%s already in state %s\n", r.ID, r.To)
 		return nil
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "%s: %s → %s\n", r.ID, r.From, r.To) //nolint:errcheck // cobra writer methods ignore write errors by design
+	fmt.Fprintf(cmd.OutOrStdout(), "%s: %s → %s\n", r.ID, r.From, r.To)
 	return nil
 }
 
@@ -344,7 +344,7 @@ func emitTransitionJSON(cmd *cobra.Command, asJSON bool, r transitionResult) err
 func printAndReturn(cmd *cobra.Command, err error) error {
 	if asJSON, _ := cmd.Flags().GetBool("json"); asJSON {
 		b, _ := json.Marshal(err)
-		fmt.Fprintln(cmd.OutOrStdout(), string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintln(cmd.OutOrStdout(), string(b))
 		return nil
 	}
 	return err

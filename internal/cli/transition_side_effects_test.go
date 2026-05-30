@@ -578,10 +578,10 @@ func TestLandPRSaveFailureSurfacesRecovery(t *testing.T) {
 	// then a.Save() WriteFile fails on the unwritable inode. Restore perms in
 	// cleanup so t.TempDir's RemoveAll succeeds.
 	issuePath := filepath.Join(vault, "70-issues", "demo.foo.md")
-	if err := os.Chmod(issuePath, 0o444); err != nil { //nolint:gosec // 0755 is correct for executable files
+	if err := os.Chmod(issuePath, 0o444); err != nil { //nolint:gosec // 0444 makes the markdown issue fixture read-only so a.Save() WriteFile fails
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(issuePath, 0o644) }) //nolint:gosec // 0755 is correct for executable files
+	t.Cleanup(func() { _ = os.Chmod(issuePath, 0o644) }) //nolint:gosec // 0644 restores writability of the markdown fixture so t.TempDir cleanup can remove it
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})

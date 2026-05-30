@@ -28,12 +28,12 @@ func newWhereCmd() *cobra.Command {
 				}
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(out)
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), "vault:", v.Root) //nolint:errcheck // cobra writer methods ignore write errors by design
+			fmt.Fprintln(cmd.OutOrStdout(), "vault:", v.Root)
 			if perr == nil {
-				fmt.Fprintln(cmd.OutOrStdout(), "project:", p.Slug)      //nolint:errcheck // cobra writer methods ignore write errors by design
-				fmt.Fprintln(cmd.OutOrStdout(), "project_root:", p.Root) //nolint:errcheck // cobra writer methods ignore write errors by design
+				fmt.Fprintln(cmd.OutOrStdout(), "project:", p.Slug)
+				fmt.Fprintln(cmd.OutOrStdout(), "project_root:", p.Root)
 			} else {
-				fmt.Fprintln(cmd.ErrOrStderr(), "project: <none>") //nolint:errcheck // cobra writer methods ignore write errors by design
+				fmt.Fprintln(cmd.ErrOrStderr(), "project: <none>")
 			}
 			return nil
 		},

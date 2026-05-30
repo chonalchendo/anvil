@@ -217,15 +217,15 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, 
 		if err != nil {
 			return fmt.Errorf("marshaling show output: %w", err)
 		}
-		fmt.Fprintln(w, string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintln(w, string(b))
 		return nil
 	}
 
 	emitFrontMatterText(cmd, a.FrontMatter)
 	emitIncomingText(cmd, out.Incoming)
 	if includeBody && out.Body != nil {
-		fmt.Fprintln(w, "---")   //nolint:errcheck // cobra writer methods ignore write errors by design
-		fmt.Fprint(w, *out.Body) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintln(w, "---")
+		fmt.Fprint(w, *out.Body)
 	}
 	return nil
 }
@@ -291,14 +291,14 @@ func emitIncomingText(cmd *cobra.Command, incoming map[string][]incomingEdge) {
 		types = append(types, k)
 	}
 	sort.Strings(types)
-	fmt.Fprintln(w, "Incoming links:") //nolint:errcheck // cobra writer methods ignore write errors by design
+	fmt.Fprintln(w, "Incoming links:")
 	for _, typ := range types {
-		fmt.Fprintf(w, "  %s:\n", typ) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintf(w, "  %s:\n", typ)
 		for _, e := range incoming[typ] {
 			if e.Title != "" {
-				fmt.Fprintf(w, "    - %s — %s\n", e.ID, e.Title) //nolint:errcheck // cobra writer methods ignore write errors by design
+				fmt.Fprintf(w, "    - %s — %s\n", e.ID, e.Title)
 			} else {
-				fmt.Fprintf(w, "    - %s\n", e.ID) //nolint:errcheck // cobra writer methods ignore write errors by design
+				fmt.Fprintf(w, "    - %s\n", e.ID)
 			}
 		}
 	}
@@ -339,14 +339,14 @@ func runShowSkill(cmd *cobra.Command, name string) error {
 		}
 		return fmt.Errorf("reading skill %q: %w", name, err)
 	}
-	fmt.Fprint(cmd.OutOrStdout(), string(data)) //nolint:errcheck // cobra writer methods ignore write errors by design
+	fmt.Fprint(cmd.OutOrStdout(), string(data))
 	return nil
 }
 
 func emitFrontMatterText(cmd *cobra.Command, fm map[string]any) {
 	w := cmd.OutOrStdout()
-	fmt.Fprintln(w, "---") //nolint:errcheck // cobra writer methods ignore write errors by design
+	fmt.Fprintln(w, "---")
 	enc, _ := json.MarshalIndent(fm, "", "  ")
-	fmt.Fprintln(w, string(enc)) //nolint:errcheck // cobra writer methods ignore write errors by design
-	fmt.Fprintln(w, "---")       //nolint:errcheck // cobra writer methods ignore write errors by design
+	fmt.Fprintln(w, string(enc))
+	fmt.Fprintln(w, "---")
 }

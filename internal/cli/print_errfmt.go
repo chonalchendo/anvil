@@ -113,7 +113,7 @@ func printValidationErrorsJSON(cmd *cobra.Command, errs []*errfmt.ValidationErro
 	// cobra's cmd.Println falls back to stderr; route through OutOrStdout so
 	// the envelope lands on stdout next to the success envelopes — agents
 	// parse one stream for both outcomes.
-	fmt.Fprintln(cmd.OutOrStdout(), string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
+	fmt.Fprintln(cmd.OutOrStdout(), string(b))
 }
 
 // emitValidationErrors is the dispatch helper: JSON envelope when asJSON, the

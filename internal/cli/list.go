@@ -263,7 +263,7 @@ func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool, t co
 		if milestone == "" {
 			milestone = "—"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", item.ID, item.Status, milestone, firstNonEmpty(item.Description, item.Title)) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", item.ID, item.Status, milestone, firstNonEmpty(item.Description, item.Title))
 	}
 	suggestions := []string{"--since/--until", "--status", "--tag"}
 	if t.SupportsProject() {

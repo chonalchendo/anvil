@@ -14,6 +14,14 @@ linters:
     - misspell
     - nilerr
     - revive
+  settings:
+    errcheck:
+      # Cobra/fmt writes to cmd.OutOrStdout()/cmd.ErrOrStderr() can't recover from a
+      # write error mid-command; ignoring them is the framework's own convention.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
   exclusions:
     paths:
       - bin

@@ -71,7 +71,7 @@ func runAnchorCheck(ctx context.Context, a *core.Artifact, stderr io.Writer) (ma
 	ctx, cancel := context.WithTimeout(ctx, anchorTimeout)
 	defer cancel()
 
-	c := exec.CommandContext(ctx, "/bin/sh", "-c", cmdStr) //nolint:gosec // binary path resolved from trusted sources; not user input
+	c := exec.CommandContext(ctx, "/bin/sh", "-c", cmdStr) //nolint:gosec // G204: runs reproduction_anchor.command verbatim by design; anchors are author-trusted vault content, bounded by anchorTimeout
 	stdout := &capWriter{cap: anchorMaxStdoutBytes}
 	c.Stdout = stdout
 	c.Stderr = stderr

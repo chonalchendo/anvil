@@ -56,7 +56,7 @@ func Open(path string) (*DB, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 	if _, err := s.Exec(schema); err != nil {
-		s.Close() //nolint:errcheck,gosec // close in defer; error not actionable
+		s.Close() //nolint:errcheck,gosec // cleanup before returning the schema error; close error not actionable
 		return nil, fmt.Errorf("apply schema: %w", err)
 	}
 	return &DB{sql: s, path: path}, nil

@@ -88,7 +88,7 @@ func newValidateCmd() *cobra.Command {
 					failures = []*errfmt.ValidationError{}
 				}
 				b, _ := json.Marshal(failures)
-				fmt.Fprintln(cmd.OutOrStdout(), string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
+				fmt.Fprintln(cmd.OutOrStdout(), string(b))
 			} else {
 				printValidationErrors(cmd, failures)
 			}

@@ -73,7 +73,7 @@ func newValidateSkillCmd() *cobra.Command {
 
 			if asJSON {
 				b, _ := json.Marshal(driftJSON(drifts))
-				fmt.Fprintln(cmd.OutOrStdout(), string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
+				fmt.Fprintln(cmd.OutOrStdout(), string(b))
 			} else {
 				for _, d := range drifts {
 					cmd.PrintErrln(d.String())

@@ -39,7 +39,7 @@ func newProjectCurrentCmd() *cobra.Command {
 					"root": p.Root,
 				})
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%s\n%s\n", p.Slug, p.Root) //nolint:errcheck // cobra writer methods ignore write errors by design
+			fmt.Fprintf(cmd.OutOrStdout(), "%s\n%s\n", p.Slug, p.Root)
 			return nil
 		},
 	}
@@ -65,11 +65,11 @@ func newProjectListCmd() *cobra.Command {
 					out = append(out, map[string]string{"slug": p.Slug, "root": p.Root})
 				}
 				b, _ := json.Marshal(out)
-				fmt.Fprintln(w, string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
+				fmt.Fprintln(w, string(b))
 				return nil
 			}
 			for _, p := range projects {
-				fmt.Fprintf(w, "%s\t%s\n", p.Slug, p.Root) //nolint:errcheck // cobra writer methods ignore write errors by design
+				fmt.Fprintf(w, "%s\t%s\n", p.Slug, p.Root)
 			}
 			return nil
 		},

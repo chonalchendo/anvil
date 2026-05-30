@@ -95,7 +95,7 @@ func TestCollectValues_NonParseError_Propagates(t *testing.T) {
 	if err := os.Chmod(full, 0o000); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(full, 0o644) }) //nolint:gosec // 0755 is correct for executable files
+	t.Cleanup(func() { _ = os.Chmod(full, 0o644) }) //nolint:gosec // 0644 restores readability of the markdown fixture so t.TempDir cleanup can remove it
 
 	_, _, err := facets.CollectValues(dir)
 	if err == nil {

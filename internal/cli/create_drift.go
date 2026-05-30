@@ -33,19 +33,19 @@ func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status c
 			payload["warnings"] = ws
 		}
 		out, _ := json.Marshal(payload)
-		fmt.Fprintln(cmd.OutOrStdout(), string(out)) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintln(cmd.OutOrStdout(), string(out))
 		return nil
 	}
 	switch status {
 	case statusCreated:
-		fmt.Fprintln(cmd.OutOrStdout(), "created: "+path) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintln(cmd.OutOrStdout(), "created: "+path)
 	case statusAlreadyExists:
-		fmt.Fprintln(cmd.OutOrStdout(), "already_exists: "+path) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintln(cmd.OutOrStdout(), "already_exists: "+path)
 	case statusUpdated:
-		fmt.Fprintln(cmd.OutOrStdout(), "updated: "+path) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintln(cmd.OutOrStdout(), "updated: "+path)
 	}
 	for _, w := range warnings {
-		fmt.Fprintln(cmd.ErrOrStderr(), "warning: similar artifact exists: "+w+" (pass --force-new to skip)") //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintln(cmd.ErrOrStderr(), "warning: similar artifact exists: "+w+" (pass --force-new to skip)")
 	}
 	return nil
 }

@@ -61,7 +61,7 @@ func newLinkCmd() *cobra.Command {
 				if err := indexAfterSave(v, a); err != nil {
 					return err
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "linked %s.%s → %s\n", src, srcID, externalURI) //nolint:errcheck // cobra writer methods ignore write errors by design
+				fmt.Fprintf(cmd.OutOrStdout(), "linked %s.%s → %s\n", src, srcID, externalURI)
 				return nil
 			}
 
@@ -92,7 +92,7 @@ func newLinkCmd() *cobra.Command {
 			if err := indexAfterSave(v, a); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "linked %s.%s → %s.%s\n", src, srcID, tgt, tgtID) //nolint:errcheck // cobra writer methods ignore write errors by design
+			fmt.Fprintf(cmd.OutOrStdout(), "linked %s.%s → %s.%s\n", src, srcID, tgt, tgtID)
 			return nil
 		},
 	}
@@ -139,11 +139,11 @@ func runLinkDrift(cmd *cobra.Command, db *index.DB, asJSON bool) error {
 	}
 	if asJSON {
 		b, _ := json.Marshal(out)
-		fmt.Fprintln(cmd.OutOrStdout(), string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintln(cmd.OutOrStdout(), string(b))
 		return nil
 	}
 	for _, r := range out {
-		fmt.Fprintf(cmd.OutOrStdout(), "drift %s (%s) -> %s (%s)\n", //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintf(cmd.OutOrStdout(), "drift %s (%s) -> %s (%s)\n",
 			r.Source, r.SourceSlug, r.Target, r.TargetSlug)
 	}
 	return nil
@@ -223,11 +223,11 @@ func runLinkQuery(cmd *cobra.Command, fromID, toID string, unresolved, drift, as
 	}
 	if asJSON {
 		b, _ := json.Marshal(out)
-		fmt.Fprintln(cmd.OutOrStdout(), string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintln(cmd.OutOrStdout(), string(b))
 		return nil
 	}
 	for _, r := range out {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s -> %s\n", r.Relation, r.Source, r.Target) //nolint:errcheck // cobra writer methods ignore write errors by design
+		fmt.Fprintf(cmd.OutOrStdout(), "%s %s -> %s\n", r.Relation, r.Source, r.Target)
 	}
 	return nil
 }

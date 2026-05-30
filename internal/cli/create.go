@@ -135,7 +135,7 @@ func newCreateCmd() *cobra.Command {
 					}
 					content = b
 				} else {
-					b, err := os.ReadFile(flagFrom) //nolint:gosec // path is test-controlled or application-managed; not user input
+					b, err := os.ReadFile(flagFrom) //nolint:gosec // G304: flagFrom is the --from flag; reading a path the invoking user supplied is the command's purpose
 					if err != nil {
 						return fmt.Errorf("read %s: %w", flagFrom, err)
 					}

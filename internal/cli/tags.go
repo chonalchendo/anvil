@@ -99,16 +99,16 @@ func newTagsListCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				fmt.Fprintln(out, string(b)) //nolint:errcheck // cobra writer methods ignore write errors by design
+				fmt.Fprintln(out, string(b))
 			} else {
 				for _, r := range rows {
 					switch {
 					case flagSource == "defined":
-						fmt.Fprintln(out, r.Tag) //nolint:errcheck // cobra writer methods ignore write errors by design
+						fmt.Fprintln(out, r.Tag)
 					case flagSource == "used" && glossaryLoaded && !r.Defined:
-						fmt.Fprintf(out, "%d\t%s (undefined)\n", r.Count, r.Tag) //nolint:errcheck // cobra writer methods ignore write errors by design
+						fmt.Fprintf(out, "%d\t%s (undefined)\n", r.Count, r.Tag)
 					default:
-						fmt.Fprintf(out, "%d\t%s\n", r.Count, r.Tag) //nolint:errcheck // cobra writer methods ignore write errors by design
+						fmt.Fprintf(out, "%d\t%s\n", r.Count, r.Tag)
 					}
 				}
 			}
@@ -334,7 +334,7 @@ func newTagsAddCmd() *cobra.Command {
 			}
 			existing, hadIt := g.FindTagDesc(tag)
 			if hadIt && existing == flagDesc {
-				fmt.Fprintln(cmd.OutOrStdout(), path) //nolint:errcheck // cobra writer methods ignore write errors by design
+				fmt.Fprintln(cmd.OutOrStdout(), path)
 				return nil
 			}
 			if hadIt && !flagUpdate {
@@ -352,7 +352,7 @@ func newTagsAddCmd() *cobra.Command {
 			if err := g.Save(path); err != nil {
 				return fmt.Errorf("saving glossary: %w", err)
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), path) //nolint:errcheck // cobra writer methods ignore write errors by design
+			fmt.Fprintln(cmd.OutOrStdout(), path)
 			return nil
 		},
 	}
@@ -379,7 +379,7 @@ func newTagsDefineCmd() *cobra.Command {
 			if !ok {
 				return fmt.Errorf("term %q not in glossary", args[0])
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), def) //nolint:errcheck // cobra writer methods ignore write errors by design
+			fmt.Fprintln(cmd.OutOrStdout(), def)
 			return nil
 		},
 	}
