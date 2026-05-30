@@ -70,7 +70,7 @@ func TestSet_PrintsConfirmation_ArrayAdd(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "x"})
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "x", "--add"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -87,7 +87,7 @@ func TestSet_PrintsConfirmation_ArrayRemove(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	addCmd := newRootCmd()
-	addCmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "x"})
+	addCmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "x"})
 	addCmd.SetOut(&bytes.Buffer{})
 	addCmd.SetErr(&bytes.Buffer{})
 	if err := addCmd.Execute(); err != nil {
@@ -111,7 +111,7 @@ func TestSet_JSONEnvelope_ArrayAdd(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "x", "--json"})
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "x", "--json"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -170,44 +170,42 @@ func TestSet_InvalidEnum_ReturnsSchemaInvalid(t *testing.T) {
 	}
 }
 
-func TestSet_ArrayPositional_Errors(t *testing.T) {
+// Positional values on array fields are treated as implicit appends; no --add flag required.
+func TestSet_ArrayPositional_Appends(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "criterion"})
-	var errOut bytes.Buffer
-	cmd.SetErr(&errOut)
-	cmd.SetOut(&errOut)
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatal("expected error for positional value on array field")
-	}
-	if !strings.Contains(err.Error(), "field_is_array") {
-		t.Errorf("expected field_is_array token, got %q", err.Error())
-	}
-	if !strings.Contains(err.Error(), "--add") {
-		t.Errorf("expected error to mention --add: %q", err.Error())
+	var out bytes.Buffer
+	cmd.SetErr(&out)
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected success for positional value on array field: %v\n%s", err, out.String())
 	}
 	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
-	if _, present := a.FrontMatter["acceptance"]; present {
-		t.Errorf("acceptance must not be written after error, got %v", a.FrontMatter["acceptance"])
+	got, _ := a.FrontMatter["acceptance"].([]any)
+	if len(got) != 1 || got[0] != "criterion" {
+		t.Errorf("acceptance = %v, want [criterion]", got)
 	}
 }
 
-func TestSet_TagsPositional_Errors(t *testing.T) {
+// Positional values on array fields work for tags too; facet validation still applies.
+func TestSet_TagsPositional_Appends(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	cmd := newRootCmd()
+	// Fixture already has [domain/dev-tools]; appending the same value via positional form.
 	cmd.SetArgs([]string{"set", "issue", "foo.a", "tags", "domain/dev-tools"})
-	var errOut bytes.Buffer
-	cmd.SetErr(&errOut)
-	cmd.SetOut(&errOut)
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatal("expected error for positional value on tags (array)")
+	var out bytes.Buffer
+	cmd.SetErr(&out)
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected success for positional value on tags: %v\n%s", err, out.String())
 	}
-	if !strings.Contains(err.Error(), "field_is_array") {
-		t.Errorf("expected field_is_array token, got %q", err.Error())
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	got, _ := a.FrontMatter["tags"].([]any)
+	if len(got) < 1 {
+		t.Errorf("tags = %v, expected at least 1", got)
 	}
 }
 
@@ -322,9 +320,9 @@ func TestSet_ArrayAdd_Appends(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	for _, v := range []string{"x", "y", "z"} {
 		c := newRootCmd()
-		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", v})
+		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", v})
 		if err := c.Execute(); err != nil {
-			t.Fatalf("--add %s: %v", v, err)
+			t.Fatalf("positional %s: %v", v, err)
 		}
 	}
 	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
@@ -334,14 +332,12 @@ func TestSet_ArrayAdd_Appends(t *testing.T) {
 	}
 }
 
-// Repeated --add flags in a single invocation must each append; previously the
-// last value silently overwrote the prior ones because flagAdd was a scalar
-// StringVar that only retained the most recent occurrence.
-func TestSet_ArrayAdd_RepeatedFlags_AppendsAll(t *testing.T) {
+// Multiple positional values in a single invocation must all be appended.
+func TestSet_ArrayAdd_MultiplePositionals_AppendsAll(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	c := newRootCmd()
-	c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "x", "--add", "y", "--add", "z"})
+	c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "x", "y", "z"})
 	var out bytes.Buffer
 	c.SetOut(&out)
 	c.SetErr(&out)
@@ -363,7 +359,7 @@ func TestSet_ArrayRemove_RepeatedFlags_RemovesAll(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	for _, v := range []string{"x", "y", "z"} {
 		c := newRootCmd()
-		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", v})
+		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", v})
 		if err := c.Execute(); err != nil {
 			t.Fatalf("--add %s: %v", v, err)
 		}
@@ -388,7 +384,7 @@ func TestSet_ArrayRemove_DuplicateStringTarget_Errors(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	for _, v := range []string{"x", "y"} {
 		c := newRootCmd()
-		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", v})
+		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", v})
 		if err := c.Execute(); err != nil {
 			t.Fatalf("--add %s: %v", v, err)
 		}
@@ -413,7 +409,7 @@ func TestSet_ArrayRemove_Index(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	for _, v := range []string{"x", "y", "z"} {
 		c := newRootCmd()
-		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", v})
+		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", v})
 		if err := c.Execute(); err != nil {
 			t.Fatalf("--add %s: %v", v, err)
 		}
@@ -434,7 +430,7 @@ func TestSet_ArrayRemove_OOB_Errors(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	c1 := newRootCmd()
-	c1.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "x"})
+	c1.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "x"})
 	_ = c1.Execute()
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--remove", "5"})
@@ -451,7 +447,7 @@ func TestSet_ArrayRemove_ByValue(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	for _, v := range []string{"x", "y", "z"} {
 		c := newRootCmd()
-		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", v})
+		c.SetArgs([]string{"set", "issue", "foo.a", "acceptance", v})
 		if err := c.Execute(); err != nil {
 			t.Fatalf("--add %s: %v", v, err)
 		}
@@ -472,9 +468,9 @@ func TestSet_ArrayRemove_UnknownValue_CleanError(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	c1 := newRootCmd()
-	c1.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "x"})
+	c1.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "x"})
 	if err := c1.Execute(); err != nil {
-		t.Fatalf("seed --add failed: %v", err)
+		t.Fatalf("seed append failed: %v", err)
 	}
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--remove", "domain/skills"})
@@ -497,7 +493,7 @@ func TestSet_AddAndRemove_Together_Errors(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "--add", "x", "--remove", "0"})
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "x", "--add", "--remove", "0"})
 	var stderr bytes.Buffer
 	cmd.SetErr(&stderr)
 	cmd.SetOut(&stderr)
@@ -510,7 +506,7 @@ func TestSet_AddOnScalar_Errors(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "--add", "open"})
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "open", "--add"})
 	var stderr bytes.Buffer
 	cmd.SetErr(&stderr)
 	cmd.SetOut(&stderr)
@@ -550,7 +546,7 @@ func TestSet_Tags_RejectsUnknownFacetValue(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "foo.a", "tags", "--add", "domain/quantum-physics"})
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "tags", "domain/quantum-physics"})
 	var errOut bytes.Buffer
 	cmd.SetErr(&errOut)
 	cmd.SetOut(&errOut)
@@ -566,7 +562,7 @@ func TestSet_Tags_AllowNewFacetAccepts(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "foo.a", "tags", "--add", "domain/quantum-physics", "--allow-new-facet=domain"})
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "tags", "domain/quantum-physics", "--allow-new-facet=domain"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("expected success: %v", err)
 	}
