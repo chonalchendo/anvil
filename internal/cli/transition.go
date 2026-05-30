@@ -77,10 +77,15 @@ func newTransitionCmd() *cobra.Command {
 					Set("flag", "--cut-worktree").
 					Set("applies_to", "transition issue <id> in-progress"))
 			}
-			if (worktreeOverride != "" || branchOverride != "") && !cutWorktree {
+			if branchOverride != "" && !cutWorktree {
 				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
-					Set("flag", "--worktree/--branch").
+					Set("flag", "--branch").
 					Set("applies_to", "use only with --cut-worktree"))
+			}
+			if worktreeOverride != "" && !cutWorktree && landPRNum == 0 {
+				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
+					Set("flag", "--worktree").
+					Set("applies_to", "use only with --cut-worktree or --land-pr"))
 			}
 			if landPRNum != 0 {
 				if t != core.TypeIssue || to != "resolved" {
@@ -207,7 +212,7 @@ func newTransitionCmd() *cobra.Command {
 			}
 
 			if landPRNum != 0 {
-				if err := doLandPR(a, id, landPRNum); err != nil {
+				if err := doLandPR(a, id, landPRNum, worktreeOverride); err != nil {
 					return printAndReturn(cmd, err)
 				}
 			}
@@ -301,7 +306,7 @@ func newTransitionCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&force, "force", false, "override the open-PR refusal on issue → resolved (audit-logged)")
 	cmd.Flags().BoolVar(&noLongerReproduces, "no-longer-reproduces", false, "on a mismatching reproduction_anchor, close the issue as resolved with the diff captured (mutually exclusive with --force)")
 	cmd.Flags().BoolVar(&cutWorktree, "cut-worktree", false, "create the conventional worktree+branch before transitioning (issue → in-progress only)")
-	cmd.Flags().StringVar(&worktreeOverride, "worktree", "", "override the derived worktree path (used with --cut-worktree)")
+	cmd.Flags().StringVar(&worktreeOverride, "worktree", "", "override the derived worktree path (used with --cut-worktree or --land-pr)")
 	cmd.Flags().StringVar(&branchOverride, "branch", "", "override the derived branch name (used with --cut-worktree)")
 	cmd.Flags().IntVar(&landPRNum, "land-pr", 0, "PR number to land: verify-mergeable + CI-green, remove worktree, squash-merge and delete branch, verify MERGED, then transition (issue → resolved only)")
 	return cmd
