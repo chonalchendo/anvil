@@ -84,7 +84,7 @@ func newSetCmd() *cobra.Command {
 				switch {
 				case flagAddSet || len(values) > 0:
 					if len(values) == 0 {
-						return fmt.Errorf("--add requires at least one positional value: anvil set %s %s %s --add <value>...", args[0], args[1], field)
+						return fmt.Errorf("--add requires at least one positional value, e.g. anvil set %s %s %s --add foo bar", args[0], args[1], field)
 					}
 					existing := arrayValue(a.FrontMatter[field])
 					before := append([]any(nil), existing...)
