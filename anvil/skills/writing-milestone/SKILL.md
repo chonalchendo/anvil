@@ -70,6 +70,7 @@ Draft the following before calling the CLI:
 ```bash
 anvil create milestone \
   --title "<title>" \
+  --description "<one-line preview>" \
   --goal "<terminal predicate>" \
   --json
 ```

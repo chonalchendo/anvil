@@ -181,7 +181,7 @@ cat > /tmp/issue-body.md <<'EOF'
 - [[milestone.<project>.<slug>]]
 EOF
 
-anvil create issue --title "<title>" --goal "<one-sentence definition of done>" --tags domain/<x> --body-file /tmp/issue-body.md --json
+anvil create issue --title "<title>" --description "<one-line preview>" --goal "<one-sentence definition of done>" --tags domain/<x> --body-file /tmp/issue-body.md --json
 ````
 
 An optional `## Acceptance criteria` prose checklist may follow `## Problem` when an unambiguous bulleted list aids the implementer — but it is no longer required, and the binary gate is `## Verification`, not AC.
