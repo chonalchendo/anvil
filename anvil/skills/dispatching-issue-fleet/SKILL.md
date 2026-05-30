@@ -25,7 +25,7 @@ anvil list issue --ready --project <p> --status open --json
 
 Take the first `--max N` candidates.
 
-In both modes, `--max` (default `5`, range 1–8) and `--allow-overlap` are parsed from the invocation arguments, **not** CLI flags — there is no `anvil fleet` verb.
+In both modes, `--max` (default `5`, range 1–8) and `--allow-overlap` are parsed from the invocation arguments, **not** CLI flags — there is no `anvil fleet` verb. A curated `--ids` list is exempt from `--max` (the caller already triaged), so every supplied id dispatches.
 
 ## Phase 2 — Pre-dispatch overlap check (declare-then-check)
 
