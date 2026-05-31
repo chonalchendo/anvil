@@ -162,6 +162,46 @@ func TestResolveBodyLinks_PlaceholderWikilinkLiteral(t *testing.T) {
 	}
 }
 
+// TestResolveLinks_SingletonDesignDocPresent asserts that a valid
+// [[product-design.<project>]] or [[system-design.<project>]] wikilink resolves
+// correctly. Singletons live at 05-projects/<project>/<type>.md, not at
+// <dir>/<id>.md, so the resolver must use the singleton path.
+func TestResolveLinks_SingletonDesignDocPresent(t *testing.T) {
+	v := newScaffolded(t)
+	project := "burgh"
+	for _, typ := range []Type{TypeProductDesign, TypeSystemDesign} {
+		p := typ.Path(v.Root, project, "")
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("---\ntype: "+string(typ)+"\n---\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+			t.Fatal(err)
+		}
+	}
+	fm := map[string]any{
+		"product_design": "[[product-design.burgh]]",
+		"system_design":  "[[system-design.burgh]]",
+	}
+	got := ResolveLinks(v, fm)
+	if len(got) != 0 {
+		t.Errorf("expected 0 unresolved design-doc links, got %v", got)
+	}
+}
+
+// TestResolveLinks_SingletonDesignDocMissing asserts that a dangling
+// [[product-design.<project>]] wikilink (no file present) is still reported.
+func TestResolveLinks_SingletonDesignDocMissing(t *testing.T) {
+	v := newScaffolded(t)
+	fm := map[string]any{
+		"product_design": "[[product-design.ghost]]",
+	}
+	got := ResolveLinks(v, fm)
+	want := []UnresolvedLink{{Field: "product_design", Target: "product-design.ghost"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
 // TestResolveBodyLinks_TwoFencedBlocksProseInBetween exercises the non-greedy
 // [\s\S]*? in fencedBlockRe: the first closing fence must not consume the
 // second fenced block, so only the prose wikilink between them is validated.
