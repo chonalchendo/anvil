@@ -61,6 +61,7 @@ func newSessionCurrentCmd() *cobra.Command {
 
 func newSessionListCmd() *cobra.Command {
 	var asJSON bool
+	var flagProject string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List session files with handoff metadata, newest first",
@@ -70,7 +71,7 @@ func newSessionListCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			items, err := collectSessions(v.Root)
+			items, err := collectSessions(v.Root, flagProject)
 			if err != nil {
 				return err
 			}
@@ -101,11 +102,12 @@ func newSessionListCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON array of session items (bare array, not the list envelope)")
+	cmd.Flags().StringVar(&flagProject, "project", "", "filter to sessions whose project matches this value")
 	return cmd
 }
 
 func newSessionHandoffCmd() *cobra.Command {
-	var flagBody, flagBodyFile string
+	var flagBody, flagBodyFile, flagProject string
 	cmd := &cobra.Command{
 		Use:   "handoff",
 		Short: "Write the handoff body into the current session file (refuses a file owned by another session)",
@@ -138,6 +140,9 @@ func newSessionHandoffCmd() *cobra.Command {
 			if stored, _ := a.FrontMatter["session_id"].(string); stored != id {
 				return fmt.Errorf("refusing handoff: %s stores session %q, not current %q — its session_id disagrees with the resolved path", path, stored, id)
 			}
+			if flagProject != "" {
+				a.FrontMatter["project"] = flagProject
+			}
 			a.Body = body
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("saving handoff: %w", err)
@@ -155,6 +160,7 @@ func newSessionHandoffCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&flagBody, "body", "", "handoff body (literal, or - for stdin)")
 	cmd.Flags().StringVar(&flagBodyFile, "body-file", "", "read handoff body from a file")
+	cmd.Flags().StringVar(&flagProject, "project", "", "stamp this project name onto the session file at handoff time")
 	return cmd
 }
 
@@ -180,7 +186,7 @@ func newSessionShowCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			items, err := collectSessions(v.Root)
+			items, err := collectSessions(v.Root, "")
 			if err != nil {
 				return err
 			}
@@ -253,6 +259,7 @@ type resumeOutput struct {
 	SessionID  string        `json:"session_id"`
 	Path       string        `json:"path"`
 	Objective  string        `json:"objective,omitempty"`
+	Project    string        `json:"project,omitempty"`
 	Body       string        `json:"body"`
 	Walked     int           `json:"walked"`
 	Candidates []sessionItem `json:"candidates,omitempty"`
@@ -262,6 +269,7 @@ const resumeAmbiguityWindowSecs = 600
 
 func newSessionResumeCmd() *cobra.Command {
 	var flagJSON bool
+	var flagProject string
 	cmd := &cobra.Command{
 		Use:   "resume",
 		Short: "Return the most-recent handoff, disambiguating when ≥2 landed within the 10-min ambiguity window",
@@ -271,7 +279,7 @@ func newSessionResumeCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			items, err := collectSessions(v.Root)
+			items, err := collectSessions(v.Root, flagProject)
 			if err != nil {
 				return err
 			}
@@ -287,6 +295,14 @@ func newSessionResumeCmd() *cobra.Command {
 				}
 			}
 			if firstHandoffIdx == -1 {
+				// When scoped to a project with --json, return an empty result
+				// so callers can test for absence without error-handling the exit code.
+				if flagJSON && flagProject != "" {
+					return writeJSON(cmd, resumeOutput{Walked: walked, Candidates: []sessionItem{}})
+				}
+				if flagProject != "" {
+					return fmt.Errorf("no prior handoff found for project %q", flagProject)
+				}
 				return fmt.Errorf("no prior handoff found — no session file under the vault has a non-empty body")
 			}
 
@@ -339,6 +355,7 @@ func newSessionResumeCmd() *cobra.Command {
 				SessionID: chosen.SessionID,
 				Path:      chosen.Path,
 				Objective: chosen.Objective,
+				Project:   chosen.Project,
 				Body:      a.Body,
 				Walked:    walked,
 			}
@@ -350,6 +367,7 @@ func newSessionResumeCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON object")
+	cmd.Flags().StringVar(&flagProject, "project", "", "filter candidates to sessions whose project matches this value")
 	return cmd
 }
 
@@ -375,11 +393,15 @@ type sessionItem struct {
 	Path       string `json:"path"`
 	Title      string `json:"title,omitempty"`
 	Objective  string `json:"objective,omitempty"`
+	Project    string `json:"project,omitempty"`
 	Modified   string `json:"modified"`
 	HasHandoff bool   `json:"has_handoff"`
 }
 
-func collectSessions(vaultRoot string) ([]sessionItem, error) {
+// collectSessions returns session items from the vault, newest-first.
+// When filterProject is non-empty only sessions whose project frontmatter
+// matches are returned.
+func collectSessions(vaultRoot, filterProject string) ([]sessionItem, error) {
 	dir := filepath.Join(vaultRoot, core.TypeSession.Dir())
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -407,11 +429,16 @@ func collectSessions(vaultRoot string) ([]sessionItem, error) {
 			id = sid
 		}
 		title, _ := a.FrontMatter["title"].(string)
+		project, _ := a.FrontMatter["project"].(string)
+		if filterProject != "" && project != filterProject {
+			continue
+		}
 		items = append(items, sessionItem{
 			SessionID:  id,
 			Path:       path,
 			Title:      title,
 			Objective:  parseObjective(a.Body),
+			Project:    project,
 			Modified:   info.ModTime().UTC().Format(time.RFC3339),
 			HasHandoff: strings.TrimSpace(a.Body) != "",
 		})

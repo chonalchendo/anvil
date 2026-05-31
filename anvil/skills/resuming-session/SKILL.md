@@ -15,7 +15,7 @@ The companion **REQUIRED SIBLING:** `handing-off-session` writes the handoff at 
 
 ## Phase 1 — Locate candidate handoff(s) in the recency window
 
-`anvil session resume --json` applies the 10-min ambiguity window, walks past empty stubs, and returns in one call:
+`anvil session resume --json` applies the 10-min ambiguity window, walks past empty stubs, and returns in one call. When the user specifies a project (e.g. "resume session for anvil"), add `--project <p>` to scope candidates to that project only:
 
 - **Single candidate** → `{session_id, path, objective, body, walked}` — proceed to Phase 3 directly with the loaded body.
 - **Multiple candidates** → `{walked, candidates: [...]}` with `body` empty — the verb surfaces the list for you. Disambiguate before loading:
