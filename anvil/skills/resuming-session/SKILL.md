@@ -15,26 +15,10 @@ The companion **REQUIRED SIBLING:** `handing-off-session` writes the handoff at 
 
 ## Phase 1 — Locate candidate handoff(s) in the recency window
 
-`anvil session list --json` enumerates session files newest-first, each carrying `{session_id, path, modified, has_handoff, objective, title}`. Stubs that `session-start` created but no handoff was written into report `has_handoff: false`; the current terminal's own fresh stub is one of these, so it falls out naturally.
+`anvil session resume --json` applies the 10-min ambiguity window, walks past empty stubs, and returns in one call:
 
-Collect every handoff whose `modified` is within `600` seconds (10 min) of the newest handoff's `modified`. This is the *ambiguity window* — handoffs landing this close together can collide silently on a pure newest-first pick (cross-repo and, more dangerously, intra-repo).
-
-```bash
-s=$(anvil session list --json)
-walked=$(echo "$s" | jq '([.[].has_handoff] | index(true)) // length')   # leading stubs before the first handoff
-newest=$(echo "$s" | jq -r 'map(select(.has_handoff))[0].modified // empty')
-candidates=$(echo "$s" | jq --arg n "$newest" '
-  ($n | fromdateiso8601) as $nt
-  | map(select(.has_handoff and ($nt - (.modified | fromdateiso8601)) <= 600))')
-echo "candidates=$(echo "$candidates" | jq length) walked=$walked"
-echo "$candidates" | jq -r '.[] | "\(.session_id[0:8])  \(.modified)  \(.objective // .title)"'
-```
-
-If `newest` is empty, no handoff exists anywhere under `10-sessions/`. Stop. Tell the user verbatim: *"No prior handoff found under ~/anvil-vault/10-sessions/. Start fresh."* Do not invent context.
-
-If `candidates` has exactly one entry, that is the chosen handoff — proceed to Phase 2 silently.
-
-If `candidates` has two or more entries, **disambiguate before loading**. The preview line per candidate is its `objective` (falling back to `title` for pre-Objective handoffs):
+- **Single candidate** → `{session_id, path, objective, body, walked}` — proceed to Phase 3 directly with the loaded body.
+- **Multiple candidates** → `{walked, candidates: [...]}` with `body` empty — the verb surfaces the list for you. Disambiguate before loading:
 
 ```text
 Multiple recent handoffs in the ambiguity window:
@@ -44,16 +28,18 @@ Multiple recent handoffs in the ambiguity window:
 Which one?
 ```
 
-Use `AskUserQuestion` (or equivalent) with one option per candidate. The list is newest-first; if the user picks the top entry they confirm what newest-first would have picked, but they do so explicitly. Do not auto-pick on the user's behalf.
+Use `AskUserQuestion` (or equivalent) with one option per candidate. Do not auto-pick on the user's behalf.
 
-Remember the chosen candidate's `session_id`/`path` and `walked` for Phases 2–3.
+If the command errors ("no prior handoff found"), stop. Tell the user verbatim: *"No prior handoff found under ~/anvil-vault/10-sessions/. Start fresh."* Do not invent context.
 
-## Phase 2 — Load the handoff body
+Remember `session_id`, `path`, and `walked` for Phase 3.
 
-Read the chosen candidate's body via the read-side verb, using its `session_id` from Phase 1:
+## Phase 2 — Load the handoff body (disambiguation path only)
+
+When Phase 1 returned multiple candidates and the user has chosen one, load the chosen body:
 
 ```bash
-anvil show session <session_id> --body
+anvil session show <session_id> --body
 ```
 
 Read the output in full. The body is the user's instructions for this session — treat it as such.
