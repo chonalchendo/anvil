@@ -14,14 +14,8 @@ func TestListReadyJSON_IncludesTitleAndSeverity(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	execCmd(t, "create", "issue",
-		"--project", "demo",
-		"--title", "fix login flake",
-		"--description", "login intermittently fails",
-		"--goal", "login flake is fixed",
-		"--tags", "domain/dev-tools",
-		"--allow-new-facet=domain",
-	)
+	writeFixtureIssueDated(t, vault, "demo", "fix-login-flake", "fix login flake", "2026-01-01")
+	execCmd(t, "reindex")
 	execCmd(t, "set", "issue", "demo.fix-login-flake", "severity", "high")
 
 	out := execCmd(t, "list", "issue", "--ready", "--json")

@@ -305,6 +305,14 @@ func newCreateCmd() *cobra.Command {
 					return invalidSlugError(slugDefault, err)
 				}
 				id = allocated
+			// Issues use a per-project atomic counter: <project>.NNNN.<slug>.md.
+			case t == core.TypeIssue:
+				allocated, allocPath, err := core.AllocateIssueID(v, project, flagTitle, slugDefault)
+				if err != nil {
+					return invalidSlugError(slugDefault, err)
+				}
+				id = allocated
+				path = allocPath
 			case t.AllocatesID():
 				base, err := core.DeterministicID(t, core.IDInputs{
 					Title:   flagTitle,
@@ -318,7 +326,9 @@ func newCreateCmd() *cobra.Command {
 			default:
 				id = string(t)
 			}
-			path = t.Path(v.Root, project, id)
+			if path == "" {
+				path = t.Path(v.Root, project, id)
+			}
 
 			var body string
 			// userAuthoredBody flags whether the agent supplied body content

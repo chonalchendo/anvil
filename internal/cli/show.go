@@ -64,6 +64,16 @@ func newShowCmd() *cobra.Command {
 					}
 				}
 			}
+			// Bare ordinal: "0042" → resolve to the full ID by scanning the
+			// project's issues directory. Requires project context from the cwd.
+			if t == core.TypeIssue && core.IsOrdinalOnly(args[1]) {
+				p, err := core.ResolveProject()
+				if err == nil {
+					if resolved, ok := core.ResolveIssueOrdinal(v, p.Slug, args[1]); ok {
+						args[1] = resolved
+					}
+				}
+			}
 			if flagBody && flagNoBody {
 				return fmt.Errorf("--body and --no-body are mutually exclusive")
 			}

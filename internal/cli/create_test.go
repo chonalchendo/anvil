@@ -116,22 +116,23 @@ func TestCreate_NonIssueCappedField_ChecksBeforeProjectResolution(t *testing.T) 
 }
 
 func TestCreate_Issue_WritesValidFile(t *testing.T) {
-	vault := setupVault(t)
+	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "Fix login bug", "--description", "test description", "--goal", "login bug is fixed", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("create issue: %v\nstdout: %s", err, out.String())
-	}
-
-	path := filepath.Join(vault, "70-issues", "foo.fix-login-bug.md")
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("expected file at %s", path)
+	path := createIssueGetPath(t,
+		"create", "issue",
+		"--title", "Fix login bug",
+		"--description", "test description",
+		"--goal", "login bug is fixed",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	)
+	// Numbered filename: <project>.NNNN.<slug>.md
+	base := filepath.Base(path)
+	if matched, _ := filepath.Match("foo.[0-9][0-9][0-9][0-9].fix-login-bug.md", base); !matched {
+		t.Errorf("unexpected filename %q: want foo.NNNN.fix-login-bug.md", base)
 	}
 	a, err := core.LoadArtifact(path)
 	if err != nil {
@@ -150,20 +151,18 @@ func TestCreate_Issue_WritesValidFile(t *testing.T) {
 // promote's stub behaviour. An explicit --description override wins.
 func TestCreate_Issue_DeriveDescription(t *testing.T) {
 	t.Run("omitted derives from title", func(t *testing.T) {
-		vault := setupVault(t)
+		setupVault(t)
 		repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 		t.Setenv("HOME", t.TempDir())
 		t.Chdir(repo)
 
-		cmd := newRootCmd()
-		cmd.SetArgs([]string{"create", "issue", "--title", "Derive desc probe", "--goal", "probe goal", "--tags", "domain/cli", "--allow-new-facet=domain"})
-		var out bytes.Buffer
-		cmd.SetOut(&out)
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("create issue without --description: %v\nstdout: %s", err, out.String())
-		}
-
-		path := filepath.Join(vault, "70-issues", "foo.derive-desc-probe.md")
+		path := createIssueGetPath(t,
+			"create", "issue",
+			"--title", "Derive desc probe",
+			"--goal", "probe goal",
+			"--tags", "domain/cli",
+			"--allow-new-facet=domain",
+		)
 		a, err := core.LoadArtifact(path)
 		if err != nil {
 			t.Fatal(err)
@@ -174,19 +173,19 @@ func TestCreate_Issue_DeriveDescription(t *testing.T) {
 	})
 
 	t.Run("explicit description wins", func(t *testing.T) {
-		vault := setupVault(t)
+		setupVault(t)
 		repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 		t.Setenv("HOME", t.TempDir())
 		t.Chdir(repo)
 
-		cmd := newRootCmd()
-		cmd.SetArgs([]string{"create", "issue", "--title", "Explicit desc probe", "--description", "explicit override", "--goal", "override goal", "--tags", "domain/cli", "--allow-new-facet=domain"})
-		var out bytes.Buffer
-		cmd.SetOut(&out)
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("create issue with explicit --description: %v\nstdout: %s", err, out.String())
-		}
-		path := filepath.Join(vault, "70-issues", "foo.explicit-desc-probe.md")
+		path := createIssueGetPath(t,
+			"create", "issue",
+			"--title", "Explicit desc probe",
+			"--description", "explicit override",
+			"--goal", "override goal",
+			"--tags", "domain/cli",
+			"--allow-new-facet=domain",
+		)
 		a, err := core.LoadArtifact(path)
 		if err != nil {
 			t.Fatal(err)
@@ -350,8 +349,9 @@ func TestCreate_JSON_ReturnsIDAndPath(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
 	}
-	if got["id"] != "foo.x" {
-		t.Errorf("id = %q", got["id"])
+	// Numbered format: foo.NNNN.x
+	if !strings.HasPrefix(got["id"], "foo.") || !strings.HasSuffix(got["id"], ".x") {
+		t.Errorf("id = %q, want foo.NNNN.x", got["id"])
 	}
 	if !strings.HasPrefix(got["path"], vault) {
 		t.Errorf("path = %q, expected under %q", got["path"], vault)
@@ -479,18 +479,22 @@ func TestCreate_Learning_WritesValidFile(t *testing.T) {
 }
 
 func TestCreate_Issue_WithBody_FlagRoundTrips(t *testing.T) {
-	vault := setupVault(t)
+	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	cmd := newRootCmd()
 	body := "## Problem\nFrom flag.\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
-	cmd.SetArgs([]string{"create", "issue", "--title", "x", "--description", "test description", "--goal", "goal", "--body", body, "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.x.md"))
+	path := createIssueGetPath(t,
+		"create", "issue",
+		"--title", "x",
+		"--description", "test description",
+		"--goal", "goal",
+		"--body", body,
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	)
+	a, err := core.LoadArtifact(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -500,17 +504,20 @@ func TestCreate_Issue_WithBody_FlagRoundTrips(t *testing.T) {
 }
 
 func TestCreate_Issue_ScaffoldsH2(t *testing.T) {
-	vault := setupVault(t)
+	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "scaffold test", "--description", "x", "--goal", "scaffold is tested", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.scaffold-test.md"))
+	path := createIssueGetPath(t,
+		"create", "issue",
+		"--title", "scaffold test",
+		"--description", "x",
+		"--goal", "scaffold is tested",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	)
+	a, err := core.LoadArtifact(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -575,7 +582,7 @@ func TestCreate_Issue_ExplicitEmptyBody_RejectsWithMissingSections(t *testing.T)
 }
 
 func TestCreate_Issue_BodyFile_RoundTrips(t *testing.T) {
-	vault := setupVault(t)
+	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
@@ -586,8 +593,7 @@ func TestCreate_Issue_BodyFile_RoundTrips(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{
+	path := createIssueGetPath(t,
 		"create", "issue",
 		"--title", "from-body-file",
 		"--description", "test",
@@ -595,11 +601,8 @@ func TestCreate_Issue_BodyFile_RoundTrips(t *testing.T) {
 		"--body-file", bodyPath,
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
-	})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.from-body-file.md"))
+	)
+	a, err := core.LoadArtifact(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -645,7 +648,7 @@ func TestCreate_Issue_BodyFile_RejectsBadWikilink_RollsBack(t *testing.T) {
 }
 
 func TestCreate_Issue_BodyStdinDash(t *testing.T) {
-	vault := setupVault(t)
+	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
@@ -654,6 +657,8 @@ func TestCreate_Issue_BodyStdinDash(t *testing.T) {
 	defer cleanup()
 
 	cmd := newRootCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
 	cmd.SetArgs([]string{
 		"create", "issue",
 		"--title", "from-stdin-dash",
@@ -662,11 +667,16 @@ func TestCreate_Issue_BodyStdinDash(t *testing.T) {
 		"--body", "-",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
+		"--json",
 	})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.from-stdin-dash.md"))
+	var result map[string]string
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		t.Fatalf("parse json: %v\nout: %s", err, out.String())
+	}
+	a, err := core.LoadArtifact(result["path"])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1603,8 +1613,11 @@ func TestCreate_Issue_SuggestsContainmentMatch(t *testing.T) {
 	}
 }
 
-func TestCreate_Issue_Idempotent_ReturnsAlreadyExists(t *testing.T) {
-	vault := setupVault(t)
+// TestCreate_Issue_NumberedFormat verifies that create issue emits the
+// <project>.NNNN.<slug>.md format and that each invocation allocates the
+// next ordinal (no idempotency — numbered issues are always new).
+func TestCreate_Issue_NumberedFormat(t *testing.T) {
+	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
@@ -1626,65 +1639,68 @@ func TestCreate_Issue_Idempotent_ReturnsAlreadyExists(t *testing.T) {
 	if err := cmd1.Execute(); err != nil {
 		t.Fatalf("first create: %v", err)
 	}
-	var first map[string]string
+	var first map[string]any
 	if err := json.Unmarshal(out1.Bytes(), &first); err != nil {
 		t.Fatal(err)
 	}
 	if first["status"] != "created" {
 		t.Errorf("first status = %q want created", first["status"])
 	}
-
-	path := filepath.Join(vault, "70-issues", "foo.fix-login-bug.md")
-	statBefore, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
+	firstPath, _ := first["path"].(string)
+	if matched, _ := filepath.Match("foo.[0-9][0-9][0-9][0-9].fix-login-bug.md", filepath.Base(firstPath)); !matched {
+		t.Errorf("unexpected filename %q: want foo.NNNN.fix-login-bug.md", filepath.Base(firstPath))
 	}
 
+	// A distinct issue (different title → different slug) gets the next ordinal.
+	distinct := []string{
+		"create", "issue",
+		"--title", "Fix logout bug",
+		"--description", "test description",
+		"--goal", "logout bug is fixed",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+		"--json",
+	}
 	cmd2 := newRootCmd()
-	cmd2.SetArgs(args)
+	cmd2.SetArgs(distinct)
 	var out2 bytes.Buffer
 	cmd2.SetOut(&out2)
 	if err := cmd2.Execute(); err != nil {
 		t.Fatalf("second create: %v", err)
 	}
-	var second map[string]string
+	var second map[string]any
 	if err := json.Unmarshal(out2.Bytes(), &second); err != nil {
 		t.Fatal(err)
 	}
-	if second["status"] != "already_exists" {
-		t.Errorf("second status = %q want already_exists", second["status"])
+	if second["status"] != "created" {
+		t.Errorf("second status = %q want created", second["status"])
 	}
-	if second["path"] != first["path"] {
-		t.Errorf("path drifted: %q vs %q", second["path"], first["path"])
-	}
-
-	// no -2 sibling
-	if _, err := os.Stat(filepath.Join(vault, "70-issues", "foo.fix-login-bug-2.md")); !os.IsNotExist(err) {
-		t.Errorf("unexpected -2 sibling: err=%v", err)
-	}
-
-	statAfter, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !statBefore.ModTime().Equal(statAfter.ModTime()) {
-		t.Errorf("mtime changed on idempotent re-run")
+	secondPath, _ := second["path"].(string)
+	if matched, _ := filepath.Match("foo.0002.fix-logout-bug.md", filepath.Base(secondPath)); !matched {
+		t.Errorf("distinct issue should mint ordinal 0002: got %q", filepath.Base(secondPath))
 	}
 }
 
+// TestCreate_Issue_DriftRefusedWithoutUpdate exercises the drift sentinel on the
+// plan (deterministic-slug) create path; the issue path is covered by the
+// TestCreate_DriftError_* and TestCreate_Issue_BodyDrift_* tests.
 func TestCreate_Issue_DriftRefusedWithoutUpdate(t *testing.T) {
-	setupVault(t)
+	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
+	// Pre-seed an issue so we can link a plan to it.
+	issuePath := writeFixtureIssueDated(t, vault, "foo", "fix-login-bug", "Fix login bug", "2026-01-01")
+	issueID := strings.TrimSuffix(filepath.Base(issuePath), ".md")
+
 	mk := func(desc string) *cobra.Command {
 		cmd := newRootCmd()
 		cmd.SetArgs([]string{
-			"create", "issue",
+			"create", "plan",
+			"--issue", "[[issue." + issueID + "]]",
 			"--title", "Fix login bug",
 			"--description", desc,
-			"--goal", "login bug is fixed",
 			"--tags", "domain/dev-tools",
 			"--allow-new-facet=domain",
 		})
@@ -1737,65 +1753,87 @@ func TestCreate_Issue_TagReorder_NoDrift(t *testing.T) {
 	}
 }
 
+// A re-create with the same slug but a different body is refused as drift
+// without --update (agent-cli-principles §6); with --update it rewrites the
+// existing numbered file in place rather than minting a new ordinal.
 func TestCreate_Issue_BodyDrift_RefusedWithoutUpdate(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	mk := func(body string) *cobra.Command {
-		cmd := newRootCmd()
-		cmd.SetArgs([]string{
-			"create", "issue",
-			"--title", "Fix login bug",
-			"--description", "d",
-			"--goal", "login bug is fixed",
-			"--body", body,
-			"--tags", "domain/dev-tools",
-			"--allow-new-facet=domain",
-		})
-		return cmd
-	}
 	withSections := func(intro string) string {
 		return "## Problem\n" + intro + "\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
 	}
-	if err := mk(withSections("original body")).Execute(); err != nil {
-		t.Fatal(err)
+	base := []string{
+		"create", "issue",
+		"--title", "Fix login bug",
+		"--description", "d",
+		"--goal", "login bug is fixed",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
 	}
-	err := mk(withSections("different body")).Execute()
-	if !errors.Is(err, ErrCreateDrift) {
+	path1 := createIssueGetPath(t, append(append([]string{}, base...), "--body", withSections("original body"))...)
+
+	// Same slug, different body, no --update → drift refused.
+	cmd := newRootCmd()
+	cmd.SetArgs(append(append([]string{}, base...), "--body", withSections("different body")))
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected drift error on changed body without --update")
+	} else if !errors.Is(err, ErrCreateDrift) {
 		t.Errorf("err = %v, want ErrCreateDrift", err)
+	}
+
+	// With --update the existing numbered file is rewritten in place.
+	path2 := createIssueGetPath(t, append(append([]string{}, base...), "--body", withSections("different body"), "--update")...)
+	if path1 != path2 {
+		t.Errorf("--update should rewrite the same file; got %q then %q", path1, path2)
+	}
+	got, _ := core.LoadArtifact(path2)
+	if !strings.Contains(got.Body, "different body") {
+		t.Errorf("body not rewritten on --update: %q", got.Body)
 	}
 }
 
+// TestCreate_Issue_UpdateRewritesOnDrift covers the --update rewrite path on the
+// plan (deterministic-slug) create; the issue --update path is covered by
+// TestCreate_Issue_BodyDrift_RefusedWithoutUpdate.
 func TestCreate_Issue_UpdateRewritesOnDrift(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
+	// Pre-seed an issue to link the plan to.
+	issuePath := writeFixtureIssueDated(t, vault, "foo", "fix-login-bug", "Fix login bug", "2026-01-01")
+	issueID := strings.TrimSuffix(filepath.Base(issuePath), ".md")
+
 	cmd1 := newRootCmd()
+	cmd1.SetOut(new(bytes.Buffer))
 	cmd1.SetArgs([]string{
-		"create", "issue",
+		"create", "plan",
+		"--issue", "[[issue." + issueID + "]]",
 		"--title", "Fix login bug",
 		"--description", "first",
-		"--goal", "login bug is fixed",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 	})
 	if err := cmd1.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(vault, "70-issues", "foo.fix-login-bug.md")
+	path := filepath.Join(vault, "80-plans", "foo.fix-login-bug.md")
 	first, _ := core.LoadArtifact(path)
 	originalCreated := first.FrontMatter["created"]
 
 	cmd2 := newRootCmd()
 	cmd2.SetArgs([]string{
-		"create", "issue",
+		"create", "plan",
+		"--issue", "[[issue." + issueID + "]]",
 		"--title", "Fix login bug",
 		"--description", "second",
-		"--goal", "login bug is fixed",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 		"--update",
@@ -1823,8 +1861,10 @@ func TestCreate_Issue_UpdateRewritesOnDrift(t *testing.T) {
 	}
 }
 
+// Re-running create issue with identical fields is a no-op: already_exists, no
+// rewrite of the numbered file (agent-cli-principles §6).
 func TestCreate_Issue_UpdateWithoutDrift_NoRewrite(t *testing.T) {
-	vault := setupVault(t)
+	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
@@ -1837,12 +1877,7 @@ func TestCreate_Issue_UpdateWithoutDrift_NoRewrite(t *testing.T) {
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 	}
-	cmd1 := newRootCmd()
-	cmd1.SetArgs(args)
-	if err := cmd1.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(vault, "70-issues", "foo.fix-login-bug.md")
+	path := createIssueGetPath(t, append(append([]string{}, args...), "--json")...)
 	statBefore, _ := os.Stat(path)
 
 	cmd2 := newRootCmd()

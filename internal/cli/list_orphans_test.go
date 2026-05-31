@@ -11,31 +11,11 @@ func TestListOrphansReturnsArtifactsWithNoIncomingLinks(t *testing.T) {
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
 
-	// Lonely: no incoming or outgoing links → orphan.
-	execCmd(t, "create", "issue",
-		"--project", "demo",
-		"--title", "lonely",
-		"--description", "lonely desc",
-		"--goal", "lonely is done",
-		"--tags", "domain/dev-tools",
-		"--allow-new-facet=domain",
-	)
-	// Popular: target of a link → NOT orphan.
-	execCmd(t, "create", "issue",
-		"--project", "demo",
-		"--title", "popular",
-		"--description", "popular desc",
-		"--goal", "popular is done",
-		"--tags", "domain/dev-tools",
-	)
-	// Linker: source of a link → orphan (no incoming).
-	execCmd(t, "create", "issue",
-		"--project", "demo",
-		"--title", "linker",
-		"--description", "linker desc",
-		"--goal", "linker is done",
-		"--tags", "domain/dev-tools",
-	)
+	// Use legacy-format fixture files for stable IDs.
+	writeFixtureIssueDated(t, vault, "demo", "lonely", "lonely", "2026-01-01")
+	writeFixtureIssueDated(t, vault, "demo", "popular", "popular", "2026-01-02")
+	writeFixtureIssueDated(t, vault, "demo", "linker", "linker", "2026-01-03")
+	execCmd(t, "reindex")
 	execCmd(t, "link", "issue", "demo.linker", "issue", "demo.popular")
 
 	out := execCmd(t, "list", "issue", "--orphans", "--json")

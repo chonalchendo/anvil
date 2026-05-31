@@ -15,18 +15,10 @@ func TestListReadyStrictExcludesBlockedAndBlockerTargets(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "alpha", "--description", "alpha desc",
-		"--goal", "alpha is done",
-		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "bravo", "--description", "bravo desc",
-		"--goal", "bravo is done",
-		"--tags", "domain/dev-tools")
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "charlie", "--description", "charlie desc",
-		"--goal", "charlie is done",
-		"--tags", "domain/dev-tools")
+	writeFixtureIssueDated(t, vault, "demo", "alpha", "alpha", "2026-01-01")
+	writeFixtureIssueDated(t, vault, "demo", "bravo", "bravo", "2026-01-02")
+	writeFixtureIssueDated(t, vault, "demo", "charlie", "charlie", "2026-01-03")
+	execCmd(t, "reindex")
 	execCmd(t, "set", "issue", "demo.bravo", "depends_on", "--add", "[[issue.demo.charlie]]")
 
 	out := execCmd(t, "list", "issue", "--ready", "--json")
@@ -59,14 +51,9 @@ func TestListReadyStrictRecoversWhenBlockerResolves(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "bravo", "--description", "bravo desc",
-		"--goal", "bravo is done",
-		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "charlie", "--description", "charlie desc",
-		"--goal", "charlie is done",
-		"--tags", "domain/dev-tools")
+	writeFixtureIssueDated(t, vault, "demo", "bravo", "bravo", "2026-01-01")
+	writeFixtureIssueDated(t, vault, "demo", "charlie", "charlie", "2026-01-02")
+	execCmd(t, "reindex")
 	execCmd(t, "set", "issue", "demo.bravo", "depends_on", "--add", "[[issue.demo.charlie]]")
 	execCmd(t, "transition", "issue", "demo.charlie", "in-progress", "--owner", "claude")
 	execCmd(t, "transition", "issue", "demo.charlie", "resolved")

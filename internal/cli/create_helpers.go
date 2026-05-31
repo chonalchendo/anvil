@@ -8,7 +8,8 @@ import (
 )
 
 // slugFromIssueLink extracts the slug component from an issue wikilink of
-// the form `[[issue.<project>.<slug>]]`. Returns false when the link doesn't
+// the form `[[issue.<project>.<slug>]]` or the numbered form
+// `[[issue.<project>.NNNN.<slug>]]`. Returns false when the link doesn't
 // match the shape or its project disagrees with the plan's project — both
 // signal the caller's `--issue` is malformed; falling back to title-derived
 // slug surfaces that to the user via the create flow's normal validation.
@@ -27,7 +28,14 @@ func slugFromIssueLink(link, project string) (string, bool) {
 	if dot < 0 || rest[:dot] != project {
 		return "", false
 	}
-	return rest[dot+1:], true
+	remainder := rest[dot+1:]
+	// Numbered format: <ordinal>.<slug> — strip the ordinal segment.
+	if core.IsOrdinalOnly(strings.SplitN(remainder, ".", 2)[0]) {
+		if dot2 := strings.IndexByte(remainder, '.'); dot2 >= 0 {
+			remainder = remainder[dot2+1:]
+		}
+	}
+	return remainder, true
 }
 
 // invalidSlugError wraps a ValidateSlug failure with a structured code so

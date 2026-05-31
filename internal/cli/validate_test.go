@@ -83,7 +83,7 @@ func TestValidate_SingleFile_HappyPath(t *testing.T) {
 	}
 
 	val := newRootCmd()
-	val.SetArgs([]string{"validate", filepath.Join(vault, "70-issues", "foo.good.md")})
+	val.SetArgs([]string{"validate", filepath.Join(vault, "70-issues", "foo.0001.good.md")})
 	var out bytes.Buffer
 	val.SetOut(&out)
 	val.SetErr(&out)

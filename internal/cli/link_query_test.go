@@ -13,14 +13,9 @@ func TestLinkFromReturnsOutgoingEdges(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "a", "--description", "a",
-		"--goal", "a is done",
-		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "b", "--description", "b",
-		"--goal", "b is done",
-		"--tags", "domain/dev-tools")
+	writeFixtureIssueDated(t, vault, "demo", "a", "a", "2026-01-01")
+	writeFixtureIssueDated(t, vault, "demo", "b", "b", "2026-01-02")
+	execCmd(t, "reindex")
 	execCmd(t, "link", "issue", "demo.a", "issue", "demo.b")
 
 	out := execCmd(t, "link", "--from", "demo.a", "--json")
@@ -39,14 +34,9 @@ func TestLinkToReturnsIncomingEdges(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "a", "--description", "a",
-		"--goal", "a is done",
-		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "b", "--description", "b",
-		"--goal", "b is done",
-		"--tags", "domain/dev-tools")
+	writeFixtureIssueDated(t, vault, "demo", "a", "a", "2026-01-01")
+	writeFixtureIssueDated(t, vault, "demo", "b", "b", "2026-01-02")
+	execCmd(t, "reindex")
 	execCmd(t, "link", "issue", "demo.a", "issue", "demo.b")
 
 	out := execCmd(t, "link", "--to", "demo.b", "--json")
@@ -93,23 +83,17 @@ func TestLinkDriftFlagsSlugMismatch(t *testing.T) {
 	execCmd(t, "init", vault)
 
 	// One drift pair: plan slug `pre-parse` links to issue `with-pre-parse`.
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "x", "--description", "x",
-		"--goal", "x is done",
-		"--slug", "with-pre-parse",
-		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
+	// Use legacy-format fixture files so the wikilinks use stable IDs.
+	writeFixtureIssueDated(t, vault, "demo", "with-pre-parse", "x", "2026-01-01")
+	writeFixtureIssueDated(t, vault, "demo", "aligned", "z", "2026-01-02")
+	execCmd(t, "reindex")
 	execCmd(t, "create", "plan",
 		"--project", "demo", "--title", "y", "--description", "y",
 		"--slug", "pre-parse",
 		"--issue", "[[issue.demo.with-pre-parse]]",
-		"--tags", "domain/dev-tools")
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
 
 	// One clean pair: plan slug matches issue slug exactly.
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "z", "--description", "z",
-		"--goal", "z is done",
-		"--slug", "aligned",
-		"--tags", "domain/dev-tools")
 	execCmd(t, "create", "plan",
 		"--project", "demo", "--title", "w", "--description", "w",
 		"--issue", "[[issue.demo.aligned]]",

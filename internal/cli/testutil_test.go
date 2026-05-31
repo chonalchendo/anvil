@@ -136,6 +136,35 @@ func newTestVaultWithMixedInbox(t *testing.T) string {
 	return vault
 }
 
+// createIssueGetPath runs `create issue` with the given args plus `--json` and
+// returns the path of the created file. Fails the test if create fails or the
+// JSON doesn't contain a path.
+func createIssueGetPath(t *testing.T, args ...string) string {
+	t.Helper()
+	cmd := newRootCmd()
+	args = append(args, "--json")
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs(args)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create issue: %v\nout: %s", err, out.String())
+	}
+	var result map[string]string
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		t.Fatalf("parse create json: %v\nout: %s", err, out.String())
+	}
+	p, ok := result["path"]
+	if !ok || p == "" {
+		t.Fatalf("create result missing path:\n%s", out.String())
+	}
+	return p
+}
+
+// fixtureIssueBody is a schema-valid issue body (all required H2s) that also
+// carries the "## Context" heading and "fixture body" text some show tests
+// assert on, so fixtures survive `validate`.
+const fixtureIssueBody = "## Problem\n\nfixture body.\n\n## Context\n\nfixture body.\n\n## Non-goals\n\n- none\n\n## Verification\n\n### Direct\n\njust test\n\n### Indirect\n\nsmoke\n\n## Links\n\n- none\n"
+
 func writeFixtureIssueDated(t *testing.T, vault, project, slug, title, created string) string {
 	t.Helper()
 	id := project + "." + slug
@@ -148,7 +177,7 @@ func writeFixtureIssueDated(t *testing.T, vault, project, slug, title, created s
 			"status": "open", "project": project, "severity": "medium",
 			"tags": []any{"domain/dev-tools"}, "goal": "fixture goal is done",
 		},
-		Body: "## Context\n\nfixture body.\n",
+		Body: fixtureIssueBody,
 	}
 	if err := a.Save(); err != nil {
 		t.Fatal(err)

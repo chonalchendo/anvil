@@ -541,14 +541,9 @@ func TestShow_IncomingEdges(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "Source issue", "--description", "src",
-		"--goal", "source is done",
-		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "Target issue", "--description", "tgt",
-		"--goal", "target is done",
-		"--tags", "domain/dev-tools")
+	writeFixtureIssueDated(t, vault, "demo", "source-issue", "Source issue", "2026-01-01")
+	writeFixtureIssueDated(t, vault, "demo", "target-issue", "Target issue", "2026-01-02")
+	execCmd(t, "reindex")
 	execCmd(t, "link", "issue", "demo.source-issue", "issue", "demo.target-issue")
 
 	// JSON shape: incoming.<type> -> [{id, title}]
@@ -586,14 +581,9 @@ func TestShow_NoIncomingFlagSuppresses(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "A", "--description", "a",
-		"--goal", "a is done",
-		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "B", "--description", "b",
-		"--goal", "b is done",
-		"--tags", "domain/dev-tools")
+	writeFixtureIssueDated(t, vault, "demo", "a", "A", "2026-01-01")
+	writeFixtureIssueDated(t, vault, "demo", "b", "B", "2026-01-02")
+	execCmd(t, "reindex")
 	execCmd(t, "link", "issue", "demo.a", "issue", "demo.b")
 
 	out := execCmd(t, "show", "issue", "demo.b", "--no-incoming", "--json", "--no-body")
@@ -669,10 +659,8 @@ func TestShow_NoIncomingEdgesRendersCleanly(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	execCmd(t, "create", "issue",
-		"--project", "demo", "--title", "Lonely", "--description", "lonely",
-		"--goal", "lonely is done",
-		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
+	writeFixtureIssueDated(t, vault, "demo", "lonely", "Lonely", "2026-01-01")
+	execCmd(t, "reindex")
 
 	text := execCmd(t, "show", "issue", "demo.lonely", "--no-body")
 	if strings.Contains(text, "Incoming links:") {
@@ -709,11 +697,9 @@ func TestShow_Skill(t *testing.T) {
 func TestShow_IssueStaleIndexDoesNotSuppressBody(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
-	// init + create seeds the index (indexAfterSave runs on create).
 	execCmd(t, "init", vault)
-	execCmd(t, "create", "issue",
-		"--project", "foo", "--title", "bar", "--description", "desc",
-		"--goal", "goal is done", "--tags", "domain/cli", "--allow-new-facet=domain")
+	writeFixtureIssueDated(t, vault, "foo", "bar", "bar", "2026-01-01")
+	execCmd(t, "reindex")
 	// Now mark the vault stale so indexForRead returns ErrIndexStale.
 	markVaultExternallyStale(t, vault, "foo.external.md")
 
@@ -723,7 +709,7 @@ func TestShow_IssueStaleIndexDoesNotSuppressBody(t *testing.T) {
 		t.Fatalf("show issue with stale index should not error; got: %v\nstdout: %s\nstderr: %s", err, out, errOut)
 	}
 	// Body must reach stdout.
-	if !strings.Contains(out, "## Verification") {
+	if !strings.Contains(out, "## Context") {
 		t.Errorf("body missing from stdout with stale index\nstdout: %s", out)
 	}
 	// Stale warning must reach stderr, not swallowed.
@@ -746,5 +732,43 @@ func TestShow_SkillUnknown(t *testing.T) {
 	}
 	if !strings.Contains(msg, "capturing-inbox") {
 		t.Errorf("error should list available skills, got: %s", msg)
+	}
+}
+
+// show issue <NNNN> resolves a bare ordinal to the full numbered id within the
+// current project; leading zeros are not required ("1" resolves "0001").
+func TestShow_Issue_ByOrdinal(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	path := createIssueGetPath(t,
+		"create", "issue",
+		"--title", "Resolve me by ordinal",
+		"--description", "d",
+		"--goal", "g",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	)
+	id := strings.TrimSuffix(filepath.Base(path), ".md")
+	if !strings.HasPrefix(id, "foo.0001.") {
+		t.Fatalf("expected first issue at ordinal 0001, got %q", id)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"show", "issue", "1", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("show issue 1: %v\n%s", err, out.String())
+	}
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("parse: %v\n%s", err, out.String())
+	}
+	if got["id"] != id {
+		t.Errorf("show issue 1 resolved to %v, want %q", got["id"], id)
 	}
 }

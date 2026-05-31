@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,6 +10,11 @@ import (
 
 	"github.com/chonalchendo/anvil/internal/index"
 )
+
+func jsonUnmarshal(t *testing.T, s string, v any) error {
+	t.Helper()
+	return json.Unmarshal([]byte(s), v)
+}
 
 // execCmd creates a fresh root command, runs it with args, and returns stdout+stderr.
 // Fails the test if the command returns an error.
@@ -39,18 +45,26 @@ func TestCreateWritesThroughToIndex(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	execCmd(t, "create", "issue",
+
+	// Use create issue with --json to capture the allocated numbered ID.
+	out := execCmd(t, "create", "issue",
 		"--project", "demo",
 		"--title", "foo",
 		"--description", "foo desc",
 		"--goal", "foo is done",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
+		"--json",
 	)
+	var result map[string]any
+	if err := jsonUnmarshal(t, out, &result); err != nil {
+		t.Fatal(err)
+	}
+	id, _ := result["id"].(string)
 
-	row, err := openIndex(t, vault).GetArtifact("demo.foo")
+	row, err := openIndex(t, vault).GetArtifact(id)
 	if err != nil {
-		t.Fatalf("expected demo.foo in index: %v", err)
+		t.Fatalf("expected %s in index: %v", id, err)
 	}
 	if row.Type != "issue" {
 		t.Fatalf("type: %q", row.Type)
@@ -61,14 +75,8 @@ func TestSetStatusWritesThroughToIndex(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	execCmd(t, "create", "issue",
-		"--project", "demo",
-		"--title", "foo",
-		"--description", "foo desc",
-		"--goal", "foo is done",
-		"--tags", "domain/dev-tools",
-		"--allow-new-facet=domain",
-	)
+	writeFixtureIssueDated(t, vault, "demo", "foo", "foo", "2026-01-01")
+	execCmd(t, "reindex")
 	execCmd(t, "set", "issue", "demo.foo", "status", "in-progress")
 
 	row, err := openIndex(t, vault).GetArtifact("demo.foo")
@@ -84,14 +92,8 @@ func TestLinkWritesThroughToIndex(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	execCmd(t, "create", "issue",
-		"--project", "demo",
-		"--title", "foo",
-		"--description", "foo desc",
-		"--goal", "foo is done",
-		"--tags", "domain/dev-tools",
-		"--allow-new-facet=domain",
-	)
+	writeFixtureIssueDated(t, vault, "demo", "foo", "foo", "2026-01-01")
+	execCmd(t, "reindex")
 	execCmd(t, "create", "milestone",
 		"--project", "demo",
 		"--title", "m1",
@@ -113,14 +115,8 @@ func TestExternalEditAbsorbedOnNextWrite(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	execCmd(t, "create", "issue",
-		"--project", "demo",
-		"--title", "foo",
-		"--description", "foo desc",
-		"--goal", "foo is done",
-		"--tags", "domain/dev-tools",
-		"--allow-new-facet=domain",
-	)
+	writeFixtureIssueDated(t, vault, "demo", "foo", "foo", "2026-01-01")
+	execCmd(t, "reindex")
 
 	// External edit: write a new file directly to vault, bypassing the index.
 	// Then bump the vault root's mtime so CheckFreshness sees the change.

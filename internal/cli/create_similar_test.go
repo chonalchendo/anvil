@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -36,8 +37,10 @@ func TestCreate_NearDuplicate_Surfaces_PriorIssue_JSON(t *testing.T) {
 			t.Fatalf("warnings = %v, want 1 entry surfacing the prior id", got["warnings"])
 		}
 		w, _ := warnings[0].(map[string]any)
-		if w["id"] != "foo.improve-foo-bar-baz" {
-			t.Errorf("warning id = %v, want foo.improve-foo-bar-baz", w["id"])
+		// Numbered format: foo.NNNN.improve-foo-bar-baz
+		wid, _ := w["id"].(string)
+		if !strings.HasPrefix(wid, "foo.") || !strings.Contains(wid, "improve-foo-bar-baz") {
+			t.Errorf("warning id = %v, want foo.NNNN.improve-foo-bar-baz", w["id"])
 		}
 	}
 }
@@ -63,7 +66,7 @@ func TestCreate_NearDuplicate_Surfaces_PriorIssue_Text(t *testing.T) {
 		if args[2] != "Improve foo bar" {
 			continue
 		}
-		if !bytesContains(errBuf.Bytes(), []byte("foo.improve-foo-bar-baz")) {
+		if !bytesContains(errBuf.Bytes(), []byte("improve-foo-bar-baz")) {
 			t.Errorf("stderr missing prior id; got: %s", errBuf.String())
 		}
 		if !bytesContains(errBuf.Bytes(), []byte("similar")) {
