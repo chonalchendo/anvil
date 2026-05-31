@@ -283,12 +283,12 @@ User-authored. Anthropic spec at top level + Anvil `metadata:` block. Out of CLI
 
 ## IDs and naming
 
-Slug-based across all artifacts. Wikilink form: `<type>.<project>.<slug>`; filename: `<project>.<slug>.md` within the type folder.
+Slug-based across most artifacts. Wikilink form: `<type>.<project>.<slug>`; filename: `<project>.<slug>.md` within the type folder. **Issues** carry a per-project ordinal: id `<project>.NNNN.<slug>`, filename `<project>.NNNN.<slug>.md` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Legacy long-slug issue files (no ordinal) still resolve.
 
 Examples:
 
 - `[[milestone.anvil.cli-substrate]]` → `85-milestones/anvil.cli-substrate.md`
-- `[[issue.anvil.fix-inbox-suggested-type]]` → `70-issues/anvil.fix-inbox-suggested-type.md`
+- `[[issue.anvil.0042.fix-inbox-suggested-type]]` → `70-issues/anvil.0042.fix-inbox-suggested-type.md`
 - `[[plan.anvil.streaming-token-counter]]` → `80-plans/anvil.streaming-token-counter.md`
 - `[[decision.anvil.0001-go-rewrite]]` → `30-decisions/anvil.0001-go-rewrite.md`
 

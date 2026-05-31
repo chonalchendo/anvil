@@ -221,3 +221,76 @@ func TestNextID_FallsBackToSuffixOnCollision(t *testing.T) {
 func writeStub(path string) error {
 	return os.WriteFile(path, []byte("---\ntitle: x\n---\n"), 0o644) //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 }
+
+func TestAllocateIssueID_OrdinalAndIdempotency(t *testing.T) {
+	v := newScaffolded(t)
+	// AllocateIssueID removes its probe file, so callers persist the real file;
+	// mirror that here so later scans see prior allocations.
+	persist := func(path string) {
+		if err := os.WriteFile(path, []byte(""), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+			t.Fatal(err)
+		}
+	}
+
+	id1, path1, err := AllocateIssueID(v, "foo", "Fix the bug", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id1 != "foo.0001.fix-the-bug" {
+		t.Errorf("first allocation = %q, want foo.0001.fix-the-bug", id1)
+	}
+	persist(path1)
+
+	// A distinct slug gets the next ordinal.
+	id2, path2, _ := AllocateIssueID(v, "foo", "Another thing", "")
+	if id2 != "foo.0002.another-thing" {
+		t.Errorf("distinct slug = %q, want foo.0002.another-thing", id2)
+	}
+	persist(path2)
+
+	// Same slug → idempotent: resolves to the existing id/path, no new ordinal.
+	idDup, pathDup, _ := AllocateIssueID(v, "foo", "Fix the bug", "")
+	if idDup != id1 || pathDup != path1 {
+		t.Errorf("same-slug re-allocation = (%q,%q), want existing (%q,%q)", idDup, pathDup, id1, path1)
+	}
+
+	// Ordinals are per-project: a different project starts at 0001.
+	idBar, _, _ := AllocateIssueID(v, "bar", "Hello", "")
+	if idBar != "bar.0001.hello" {
+		t.Errorf("per-project ordinal = %q, want bar.0001.hello", idBar)
+	}
+}
+
+func TestNextIssueOrdinal_GapAndLegacyMix(t *testing.T) {
+	v := newScaffolded(t)
+	dir := filepath.Join(v.Root, TypeIssue.Dir())
+	for _, name := range []string{"foo.legacy-untouched.md", "foo.0001.a.md", "foo.0005.b.md", "bar.0009.c.md"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(""), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+			t.Fatal(err)
+		}
+	}
+	// Legacy (no ordinal) ignored; other projects ignored; max(0001,0005)+1 = 6.
+	got, err := nextIssueOrdinal(v, "foo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != 6 {
+		t.Errorf("nextIssueOrdinal(foo) = %d, want 6", got)
+	}
+}
+
+func TestSlugifyIssue_CapsAt40OnHyphenBoundary(t *testing.T) {
+	if got := slugifyIssue("Short title"); got != "short-title" {
+		t.Errorf("short slug = %q, want short-title", got)
+	}
+	got := slugifyIssue("this is a very long issue title that definitely exceeds forty characters")
+	if len(got) > 40 {
+		t.Errorf("len = %d, want <= 40: %q", len(got), got)
+	}
+	if strings.HasSuffix(got, "-") {
+		t.Errorf("slug ends mid-break with trailing hyphen: %q", got)
+	}
+	if !strings.HasPrefix(Slugify("this is a very long issue title that definitely exceeds forty characters"), got) {
+		t.Errorf("capped slug %q is not a hyphen-boundary prefix of the full slug", got)
+	}
+}
