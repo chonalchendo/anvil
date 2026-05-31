@@ -3,6 +3,7 @@ package index
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 )
@@ -445,6 +446,71 @@ func TestIncrementalUnparseableEditEqualsFull(t *testing.T) {
 	// The stale row must be gone, matching the full rebuild's omission.
 	if _, err := db.GetArtifact("a"); err == nil {
 		t.Error("artifact a should be purged after edit into unparseable frontmatter")
+	}
+}
+
+// snapshotLinks returns every link row as sorted "source|target|relation|anchor"
+// strings, for byte-identical comparison between index code paths.
+func snapshotLinks(t *testing.T, db *DB) []string {
+	t.Helper()
+	rows, err := db.sql.Query(`SELECT source||'|'||target||'|'||relation||'|'||anchor FROM links ORDER BY 1`)
+	if err != nil {
+		t.Fatalf("query links: %v", err)
+	}
+	defer rows.Close() //nolint:errcheck // close in defer; error not actionable
+	var out []string
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			t.Fatalf("scan link: %v", err)
+		}
+		out = append(out, s)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows: %v", err)
+	}
+	return out
+}
+
+// TestIncrementalDuplicateIdEqualsFull reconstructs the live-vault condition from
+// anvil.0016: two files derive the SAME id (one via frontmatter `id:`, one via
+// path stem) in different directories with different links. The artifacts table
+// is keyed by id, so the incremental walk perpetually re-extracts whichever
+// colliding path is not currently stored — diverging from full's deterministic
+// last-writer-wins and toggling the links table every pass. The fix detects the
+// collision and falls back to a full rebuild; this guards both invariants the
+// count-only sibling tests miss: byte-identical link rows AND stability across
+// two consecutive incremental passes (the toggle).
+func TestIncrementalDuplicateIdEqualsFull(t *testing.T) {
+	vault := t.TempDir()
+	// Issue derives id "dup" from its stem and links out to a milestone.
+	writeArtifactBody(t, filepath.Join(vault, "70-issues", "dup.md"),
+		"type: issue\nstatus: open\nmilestone: \"[[milestone.m1]]\"\n", "see [[issue.other]]")
+	// Plan declares id "dup" in frontmatter and self-references, so a full rebuild
+	// (which visits 80-plans after 70-issues) lands the plan's self-links.
+	writeArtifactBody(t, filepath.Join(vault, "80-plans", "dup.md"),
+		"type: plan\nid: dup\nstatus: open\nissue: dup\n", "self ref [[plan.dup]]")
+
+	db, err := Open(DBPath(vault))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
+
+	if _, err := db.ReindexFull(vault); err != nil {
+		t.Fatal(err)
+	}
+	wantLinks := snapshotLinks(t, db)
+
+	// Two consecutive incremental passes must each equal the full rebuild — the
+	// first proves no divergence, the second proves no per-run toggle.
+	for pass := 1; pass <= 2; pass++ {
+		if _, err := db.Reindex(vault); err != nil {
+			t.Fatalf("incremental pass %d: %v", pass, err)
+		}
+		if got := snapshotLinks(t, db); !slices.Equal(got, wantLinks) {
+			t.Errorf("incremental pass %d links diverge from full:\n got=%v\nwant=%v", pass, got, wantLinks)
+		}
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"time"
@@ -92,6 +93,21 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		if err != nil {
 			d.purgeStaleRowFor(path, indexed)
 			continue
+		}
+		// Duplicate-id collision: this changed file's id is already indexed at a
+		// different path that is STILL on disk. The artifacts table is keyed by
+		// id and holds one path per id, so the incremental walk can never see
+		// both files as "known" — it re-extracts whichever colliding path isn't
+		// currently stored and flips the row every pass, diverging from full's
+		// deterministic last-writer-wins. A full rebuild is the only resolution
+		// that is byte-identical to full and stable across runs. (Distinct from
+		// a rename, where the prior path is absent from disk; handled by upsert.)
+		if prior, ok := indexed[row.ID]; ok && prior != path {
+			if _, stillOnDisk := onDisk[prior]; stillOnDisk {
+				slog.Warn("duplicate artifact id across files; falling back to full reindex",
+					"id", row.ID, "paths", []string{prior, path})
+				return d.ReindexFull(vaultRoot)
+			}
 		}
 		if err := d.UpsertArtifact(row); err != nil {
 			return ReindexStats{}, err
