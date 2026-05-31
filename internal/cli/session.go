@@ -255,6 +255,12 @@ func newSessionShowCmd() *cobra.Command {
 }
 
 // resumeOutput is the JSON envelope for `anvil session resume`.
+//
+// NoHandoff is the explicit no-match signal: present (true) only when a
+// --project scope matched no handoff. It distinguishes that empty-but-success
+// case from a populated single-candidate hit, which always carries a non-empty
+// SessionID/Path. resuming-session branches on it to stop rather than load an
+// empty body.
 type resumeOutput struct {
 	SessionID  string        `json:"session_id"`
 	Path       string        `json:"path"`
@@ -262,6 +268,7 @@ type resumeOutput struct {
 	Project    string        `json:"project,omitempty"`
 	Body       string        `json:"body"`
 	Walked     int           `json:"walked"`
+	NoHandoff  bool          `json:"no_handoff,omitempty"`
 	Candidates []sessionItem `json:"candidates,omitempty"`
 }
 
@@ -273,7 +280,14 @@ func newSessionResumeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "resume",
 		Short: "Return the most-recent handoff, disambiguating when ≥2 landed within the 10-min ambiguity window",
-		Args:  cobra.NoArgs,
+		Long: `Return the most-recent handoff, disambiguating when ≥2 landed within the 10-min ambiguity window.
+
+--json emits one of four envelope shapes:
+  single   {session_id, path, objective, project, body, walked}  — one handoff; load body
+  multi    {walked, candidates: [...]}                           — ≥2 in window; disambiguate, body empty
+  no-match {walked, no_handoff: true}                            — --project matched nothing (exit 0)
+  error    (exit 1)                                              — no handoff anywhere (unscoped)`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
 			if err != nil {
@@ -295,10 +309,12 @@ func newSessionResumeCmd() *cobra.Command {
 				}
 			}
 			if firstHandoffIdx == -1 {
-				// When scoped to a project with --json, return an empty result
-				// so callers can test for absence without error-handling the exit code.
+				// Scoped to a project with --json: no-match is exit 0 with an
+				// explicit no_handoff signal, so callers branch on the payload
+				// rather than error-handling the exit code or guessing from
+				// empty strings.
 				if flagJSON && flagProject != "" {
-					return writeJSON(cmd, resumeOutput{Walked: walked, Candidates: []sessionItem{}})
+					return writeJSON(cmd, resumeOutput{Walked: walked, NoHandoff: true})
 				}
 				if flagProject != "" {
 					return fmt.Errorf("no prior handoff found for project %q", flagProject)

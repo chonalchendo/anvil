@@ -17,6 +17,7 @@ The companion **REQUIRED SIBLING:** `handing-off-session` writes the handoff at 
 
 `anvil session resume --json` applies the 10-min ambiguity window, walks past empty stubs, and returns in one call. When the user specifies a project (e.g. "resume session for anvil"), add `--project <p>` to scope candidates to that project only:
 
+- **No match** → `{walked, no_handoff: true}` (only when `--project` matched no handoff) — stop. Tell the user: *"No handoff found for project `<p>`. Start fresh."* Do not load the empty body. `no_handoff` is the explicit signal; a populated single-candidate hit always carries a non-empty `session_id`, so never treat `{session_id: ""}` as a candidate.
 - **Single candidate** → `{session_id, path, objective, body, walked}` — proceed to Phase 3 directly with the loaded body.
 - **Multiple candidates** → `{walked, candidates: [...]}` with `body` empty — the verb surfaces the list for you. Disambiguate before loading:
 
