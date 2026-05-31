@@ -168,3 +168,118 @@ func TestSessionHandoff_EmptyBody_Errors(t *testing.T) {
 		t.Fatal("expected error for empty handoff body")
 	}
 }
+
+func TestSessionShow_Body_PrintsHandoffBody(t *testing.T) {
+	vault := setupVault(t)
+	body := "## Handoff\n\n**Objective.** finish the work\n"
+	writeSessionFixture(t, vault, "sid-abc", "sid-abc", "Test Session", body)
+
+	out, _, err := runCmd(t, newRootCmd(), "session", "show", "sid-abc", "--body")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "**Objective.** finish the work") {
+		t.Errorf("body output missing expected content: %q", out)
+	}
+}
+
+func TestSessionShow_JSON_IncludesBodyField(t *testing.T) {
+	vault := setupVault(t)
+	body := "## Handoff\n\n**Objective.** ship the feature\n"
+	writeSessionFixture(t, vault, "sid-xyz", "sid-xyz", "JSON Session", body)
+
+	out, _, err := runCmd(t, newRootCmd(), "session", "show", "sid-xyz", "--json", "--body")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var got sessionShowOutput
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if got.SessionID != "sid-xyz" {
+		t.Errorf("session_id = %q, want sid-xyz", got.SessionID)
+	}
+	if got.Body == nil || !strings.Contains(*got.Body, "ship the feature") {
+		t.Errorf("body field missing or incorrect: %v", got.Body)
+	}
+}
+
+func TestSessionShow_UnknownID_ActionableError(t *testing.T) {
+	setupVault(t)
+	_, stderr, err := runCmd(t, newRootCmd(), "session", "show", "not-a-real-id")
+	if err == nil {
+		t.Fatal("expected error for unknown session_id")
+	}
+	// The error must name the field "session_id" (agent-cli principle #5)
+	combined := stderr + err.Error()
+	if !strings.Contains(strings.ToLower(combined), "session_id") {
+		t.Errorf("error should name the session_id field; got: %q", combined)
+	}
+}
+
+func TestSessionResume_JSON_ReturnsSingleHandoff(t *testing.T) {
+	vault := setupVault(t)
+	body := "## Handoff\n\n**Objective.** continue the campaign\n"
+	writeSessionFixture(t, vault, "resume-1", "resume-1", "Resume Session", body)
+	// stub — no handoff
+	writeSessionFixture(t, vault, "resume-2", "resume-2", "Stub Session", "")
+
+	out, _, err := runCmd(t, newRootCmd(), "session", "resume", "--json")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var got resumeOutput
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if got.SessionID == "" {
+		t.Error("session_id should be non-empty")
+	}
+	if got.Body == "" {
+		t.Error("body should be non-empty")
+	}
+	if !strings.Contains(got.Body, "continue the campaign") {
+		t.Errorf("body missing expected content: %q", got.Body)
+	}
+}
+
+func TestSessionResume_NoHandoff_Errors(t *testing.T) {
+	vault := setupVault(t)
+	// Only stubs — no handoffs
+	writeSessionFixture(t, vault, "stub-1", "stub-1", "Stub 1", "")
+
+	_, _, err := runCmd(t, newRootCmd(), "session", "resume", "--json")
+	if err == nil {
+		t.Fatal("expected error when no handoff exists")
+	}
+}
+
+func TestSessionResume_AmbiguityWindow_ReturnsCandidates(t *testing.T) {
+	vault := setupVault(t)
+	body := "## Handoff\n\n**Objective.** campaign A\n"
+	body2 := "## Handoff\n\n**Objective.** campaign B\n"
+	p1 := writeSessionFixture(t, vault, "amb-1", "amb-1", "Session A", body)
+	p2 := writeSessionFixture(t, vault, "amb-2", "amb-2", "Session B", body2)
+
+	// Pin both mtimes to be within 10 minutes of each other
+	now := time.Now()
+	if err := os.Chtimes(p1, now, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(p2, now.Add(-time.Minute), now.Add(-time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+
+	out, _, err := runCmd(t, newRootCmd(), "session", "resume", "--json")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var got resumeOutput
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	// With two candidates in window, candidates list is returned for caller disambiguation
+	if len(got.Candidates) < 2 {
+		t.Errorf("expected ≥2 candidates in ambiguity window, got %d", len(got.Candidates))
+	}
+}
