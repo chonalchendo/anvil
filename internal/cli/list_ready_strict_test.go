@@ -6,12 +6,13 @@ import (
 	"testing"
 )
 
-// TestListReadyStrictExcludesBlockedAndBlockerTargets exercises the full
-// readiness rule once the issue schema permits `depends_on`. With three
-// issues — alpha (no edges), bravo (depends_on charlie), charlie (open) —
-// only alpha is in the random-pickup pool: bravo is blocked by charlie, and
-// charlie is excluded because someone (bravo) is already depending on it.
-func TestListReadyStrictExcludesBlockedAndBlockerTargets(t *testing.T) {
+// TestListReadySurfacesUnblockedPrereqExcludesBlockedDependent exercises the
+// full readiness rule with three issues: alpha (no edges), bravo (depends_on
+// charlie), charlie (open, no outgoing blockers). Under the fleet model agents
+// pick issues at random; the prerequisite (charlie) must surface first so any
+// agent can clear it — withholding it would stall bravo indefinitely. Bravo
+// stays excluded because its own depends_on is unresolved.
+func TestListReadySurfacesUnblockedPrereqExcludesBlockedDependent(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
@@ -40,8 +41,8 @@ func TestListReadyStrictExcludesBlockedAndBlockerTargets(t *testing.T) {
 	if got["demo.bravo"] {
 		t.Errorf("demo.bravo has unresolved depends_on, should not be ready: %v", env.Items)
 	}
-	if got["demo.charlie"] {
-		t.Errorf("demo.charlie is target of an open depends_on, should not be ready: %v", env.Items)
+	if !got["demo.charlie"] {
+		t.Errorf("demo.charlie is an unblocked prerequisite, should be ready: %v", env.Items)
 	}
 }
 
