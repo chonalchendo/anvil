@@ -10,6 +10,13 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
+// isTerminalIssue reports whether a row should be excluded from the index.
+// Resolved and abandoned issues have completed their lifecycle; excluding them
+// at index time keeps the working set lean without removing on-disk history.
+func isTerminalIssue(row ArtifactRow) bool {
+	return row.Type == "issue" && (row.Status == "resolved" || row.Status == "abandoned")
+}
+
 // ReindexStats summarises a Reindex call.
 type ReindexStats struct {
 	Artifacts  int
@@ -57,6 +64,9 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		row, err := ArtifactRowFromFrontmatter(a.FrontMatter, path)
 		if err != nil {
 			return nil //nolint:nilerr // reindex is best-effort; malformed frontmatter is skipped
+		}
+		if isTerminalIssue(row) {
+			return nil
 		}
 		if err := d.UpsertArtifact(row); err != nil {
 			return err

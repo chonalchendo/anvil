@@ -93,6 +93,49 @@ func TestReindexIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestReindexExcludesTerminalIssues(t *testing.T) {
+	vault := t.TempDir()
+	// Active issues stay in.
+	writeArtifact(t, filepath.Join(vault, "70-issues", "a.open.md"),
+		"type: issue\nid: a.open\nstatus: open\n")
+	writeArtifact(t, filepath.Join(vault, "70-issues", "a.inprogress.md"),
+		"type: issue\nid: a.inprogress\nstatus: in-progress\n")
+	// Terminal issues must be excluded.
+	writeArtifact(t, filepath.Join(vault, "70-issues", "a.resolved.md"),
+		"type: issue\nid: a.resolved\nstatus: resolved\n")
+	writeArtifact(t, filepath.Join(vault, "70-issues", "a.abandoned.md"),
+		"type: issue\nid: a.abandoned\nstatus: abandoned\n")
+	// Non-issue artifacts with terminal-sounding statuses are not excluded.
+	writeArtifact(t, filepath.Join(vault, "85-milestones", "m.done.md"),
+		"type: milestone\nid: m.done\nstatus: resolved\n")
+
+	db, err := Open(DBPath(vault))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
+
+	stats, err := db.Reindex(vault)
+	if err != nil {
+		t.Fatalf("Reindex: %v", err)
+	}
+	// open + in-progress issues + resolved milestone = 3
+	if stats.Artifacts != 3 {
+		t.Fatalf("artifacts: got %d want 3 (open+in-progress issues and resolved milestone)", stats.Artifacts)
+	}
+
+	for _, id := range []string{"a.open", "a.inprogress", "m.done"} {
+		if _, err := db.GetArtifact(id); err != nil {
+			t.Errorf("expected %s present: %v", id, err)
+		}
+	}
+	for _, id := range []string{"a.resolved", "a.abandoned"} {
+		if _, err := db.GetArtifact(id); err == nil {
+			t.Errorf("expected %s absent from index, but found it", id)
+		}
+	}
+}
+
 func TestReindexBodyWikilinks(t *testing.T) {
 	vault := t.TempDir()
 	// Issue whose body references two other artifacts via wikilinks.
