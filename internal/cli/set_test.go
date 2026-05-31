@@ -239,6 +239,23 @@ func TestSet_IssueMilestone_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestSet_IssueMilestone_BareIDNormalised asserts that a bare project.slug id is
+// stored as the canonical [[milestone.project.slug]] wikilink, so the issue
+// remains reachable under --milestone filters and graph edges.
+func TestSet_IssueMilestone_BareIDNormalised(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "anvil", "x", "X")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "anvil.x", "milestone", "anvil.cli-substrate"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "anvil.x.md"))
+	if got, _ := a.FrontMatter["milestone"].(string); got != "[[milestone.anvil.cli-substrate]]" {
+		t.Errorf("got %q, want %q", got, "[[milestone.anvil.cli-substrate]]")
+	}
+}
+
 func TestSet_MilestoneSystemDesign_RoundTrip(t *testing.T) {
 	vault := setupVault(t)
 	// Write a minimal valid milestone fixture matching the new schema.
