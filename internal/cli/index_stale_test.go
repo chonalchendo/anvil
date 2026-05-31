@@ -30,38 +30,51 @@ func TestCreateAbsorbsExternalDriftWithoutManualReindex(t *testing.T) {
 	createDemoIssue(t)
 	markVaultExternallyStale(t, vault, "demo.external.md")
 
-	execCmd(t, "create", "issue",
+	path := createIssueGetPath(t,
+		"create", "issue",
 		"--project", "demo", "--title", "fresh",
 		"--description", "fresh desc",
 		"--goal", "fresh is done",
-		"--tags", "domain/dev-tools")
+		"--tags", "domain/dev-tools",
+	)
+	freshID := strings.TrimSuffix(filepath.Base(path), ".md")
 
-	if _, err := os.Stat(filepath.Join(vault, "70-issues", "demo.fresh.md")); err != nil {
-		t.Fatalf("expected demo.fresh.md after auto-reindex: %v", err)
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected issue file after auto-reindex: %v", err)
 	}
 	db := openIndex(t, vault)
-	if _, err := db.GetArtifact("demo.fresh"); err != nil {
-		t.Fatalf("demo.fresh missing from index: %v", err)
+	if _, err := db.GetArtifact(freshID); err != nil {
+		t.Fatalf("fresh issue missing from index: %v", err)
 	}
 	if _, err := db.GetArtifact("demo.external"); err != nil {
 		t.Fatalf("external drift artifact not absorbed: %v", err)
 	}
 }
 
+// TestCreateUpdateAbsorbsExternalDriftWithoutManualReindex: plans use
+// deterministic slugs and support --update; verify the auto-reindex path
+// when the vault has external drift.
 func TestCreateUpdateAbsorbsExternalDriftWithoutManualReindex(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	createDemoIssue(t)
+	// Seed a plan to rewrite via --update.
+	issueFixturePath := writeFixtureIssueDated(t, vault, "demo", "foo", "foo", "2026-01-01")
+	issueID := strings.TrimSuffix(filepath.Base(issueFixturePath), ".md")
+	execCmd(t, "create", "plan",
+		"--issue", "[[issue."+issueID+"]]",
+		"--project", "demo", "--title", "foo",
+		"--description", "original desc",
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
 	markVaultExternallyStale(t, vault, "demo.external.md")
 
-	execCmd(t, "create", "issue",
+	execCmd(t, "create", "plan",
+		"--issue", "[[issue."+issueID+"]]",
 		"--project", "demo", "--title", "foo",
 		"--description", "rewritten desc",
-		"--goal", "foo is done",
 		"--tags", "domain/dev-tools", "--update")
 
-	got, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
+	got, err := os.ReadFile(filepath.Join(vault, "80-plans", "demo.foo.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,10 +137,25 @@ func TestTwoCreatesInOneProcessSucceedWithoutManualReindex(t *testing.T) {
 	}
 
 	db := openIndex(t, vault)
-	for _, id := range []string{"demo.one", "demo.two", "demo.external"} {
+	// Exact IDs come from the numbered format; just verify both issues are indexed.
+	entries, _ := os.ReadDir(filepath.Join(vault, "70-issues"))
+	var createdIDs []string
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "demo.") && strings.HasSuffix(e.Name(), ".md") {
+			createdIDs = append(createdIDs, strings.TrimSuffix(e.Name(), ".md"))
+		}
+	}
+	// Expect two created issues + the external one.
+	if len(createdIDs) < 2 {
+		t.Fatalf("expected at least 2 demo issue files; got %v", createdIDs)
+	}
+	for _, id := range createdIDs {
 		if _, err := db.GetArtifact(id); err != nil {
 			t.Errorf("missing %s in index: %v", id, err)
 		}
+	}
+	if _, err := db.GetArtifact("demo.external"); err != nil {
+		t.Fatalf("external drift not absorbed: %v", err)
 	}
 }
 

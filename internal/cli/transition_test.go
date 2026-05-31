@@ -11,16 +11,17 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
+// createDemoIssue writes a legacy-format fixture issue demo.foo directly so
+// tests that depend on the stable ID "demo.foo" continue to work regardless of
+// the numbered-filename scheme applied to `create issue`.
 func createDemoIssue(t *testing.T) {
 	t.Helper()
-	execCmd(t, "create", "issue",
-		"--project", "demo",
-		"--title", "foo",
-		"--description", "foo desc",
-		"--goal", "foo is done",
-		"--tags", "domain/dev-tools",
-		"--allow-new-facet=domain",
-	)
+	vault := os.Getenv("ANVIL_VAULT")
+	writeFixtureIssueDated(t, vault, "demo", "foo", "foo", "2026-01-01")
+	// Fixtures are written directly via Artifact.Save (no write-through), so
+	// refresh the index to match — callers expect a fresh index, as they got
+	// when this helper went through `create`.
+	execCmd(t, "reindex")
 }
 
 func TestTransitionHappyPathWritesFrontmatter(t *testing.T) {

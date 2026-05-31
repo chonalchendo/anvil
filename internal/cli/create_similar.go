@@ -58,11 +58,18 @@ func findNearDuplicates(v *core.Vault, t core.Type, project, candidateID string)
 
 // slugFromID strips the type-specific prefix from id, returning the
 // title-derived slug component used for similarity comparison.
+// For numbered issues (<project>.NNNN.<slug>) the ordinal segment is also
+// stripped so similarity is measured on the slug alone.
 func slugFromID(t core.Type, id string) string {
 	switch t {
 	case core.TypeIssue, core.TypePlan, core.TypeMilestone:
 		if i := strings.IndexByte(id, '.'); i >= 0 {
-			return id[i+1:]
+			rest := id[i+1:]
+			// Numbered issue: strip leading ordinal segment (all-digit token).
+			if j := strings.IndexByte(rest, '.'); j >= 0 && core.IsOrdinalOnly(rest[:j]) {
+				rest = rest[j+1:]
+			}
+			return rest
 		}
 	}
 	return id

@@ -7,8 +7,34 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
+// resolveCreateIDPath allocates the id and on-disk path for a new artifact.
+// Issues use a per-project atomic ordinal (<project>.NNNN.<slug>) and resolve
+// their own path; decisions allocate a topic-scoped ordinal; everything else
+// is the slug-keyed DeterministicID. Path defaults to the type's slug-based
+// location unless the allocator already resolved it (issues).
+func resolveCreateIDPath(v *core.Vault, t core.Type, project, title, topic, slug string) (id, path string, err error) {
+	switch {
+	case t == core.TypeDecision:
+		id, err = core.NextID(v, t, core.IDInputs{Title: title, Project: project, Topic: topic, Slug: slug})
+	case t == core.TypeIssue:
+		id, path, err = core.AllocateIssueID(v, project, title, slug)
+	case t.AllocatesID():
+		id, err = core.DeterministicID(t, core.IDInputs{Title: title, Project: project, Slug: slug})
+	default:
+		id = string(t)
+	}
+	if err != nil {
+		return "", "", invalidSlugError(slug, err)
+	}
+	if path == "" {
+		path = t.Path(v.Root, project, id)
+	}
+	return id, path, nil
+}
+
 // slugFromIssueLink extracts the slug component from an issue wikilink of
-// the form `[[issue.<project>.<slug>]]`. Returns false when the link doesn't
+// the form `[[issue.<project>.<slug>]]` or the numbered form
+// `[[issue.<project>.NNNN.<slug>]]`. Returns false when the link doesn't
 // match the shape or its project disagrees with the plan's project — both
 // signal the caller's `--issue` is malformed; falling back to title-derived
 // slug surfaces that to the user via the create flow's normal validation.
@@ -27,7 +53,14 @@ func slugFromIssueLink(link, project string) (string, bool) {
 	if dot < 0 || rest[:dot] != project {
 		return "", false
 	}
-	return rest[dot+1:], true
+	remainder := rest[dot+1:]
+	// Numbered format: <ordinal>.<slug> — strip the ordinal segment.
+	if core.IsOrdinalOnly(strings.SplitN(remainder, ".", 2)[0]) {
+		if dot2 := strings.IndexByte(remainder, '.'); dot2 >= 0 {
+			remainder = remainder[dot2+1:]
+		}
+	}
+	return remainder, true
 }
 
 // invalidSlugError wraps a ValidateSlug failure with a structured code so

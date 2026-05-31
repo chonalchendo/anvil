@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -63,6 +64,166 @@ func Slugify(s string) string {
 		slug = strings.TrimRight(slug[:60], "-")
 	}
 	return slug
+}
+
+// slugifyIssue applies Slugify and then truncates the result to 40 chars,
+// breaking at the last "-" so the slug doesn't end mid-word. Used only for
+// numbered issue filenames where the ordinal already provides uniqueness.
+func slugifyIssue(s string) string {
+	slug := Slugify(s)
+	const maxSlugLen = 40
+	if len(slug) <= maxSlugLen {
+		return slug
+	}
+	cut := slug[:maxSlugLen]
+	if i := strings.LastIndexByte(cut, '-'); i > 0 {
+		cut = cut[:i]
+	}
+	return cut
+}
+
+// numberedIssueRe matches <project>.NNNN.<slug>.md — used by ordinal scan.
+var numberedIssueRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*\.([0-9]+)\.[a-z0-9][a-z0-9-]*\.md$`)
+
+// nextIssueOrdinal scans the issues directory for files matching
+// <project>.NNNN.<slug>.md and returns max(ordinal)+1 scoped to that project.
+func nextIssueOrdinal(v *Vault, project string) (int, error) {
+	dir := filepath.Join(v.Root, TypeIssue.Dir())
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 1, nil
+		}
+		return 0, fmt.Errorf("reading issues dir: %w", err)
+	}
+	prefix := project + "."
+	highest := 0
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		m := numberedIssueRe.FindStringSubmatch(name)
+		if m == nil {
+			continue
+		}
+		n, err := strconv.Atoi(m[1])
+		if err != nil {
+			continue
+		}
+		if n > highest {
+			highest = n
+		}
+	}
+	return highest + 1, nil
+}
+
+// AllocateIssueID allocates the next numbered issue ID for project using an
+// atomic O_CREAT|O_EXCL probe on the target path, retrying on EEXIST. The
+// file created by the probe is immediately removed; the caller writes the real
+// content via the normal create path. Returns the ID string
+// (<project>.NNNN.<slug>) and the resolved path.
+//
+// Slug is derived from title via slugifyIssue unless slugOverride is non-empty,
+// in which case slugOverride (already validated) is used directly.
+func AllocateIssueID(v *Vault, project, title, slugOverride string) (id, path string, err error) {
+	slug := slugOverride
+	if slug == "" {
+		slug = slugifyIssue(title)
+	} else if err := ValidateSlug(slug); err != nil {
+		return "", "", err
+	}
+	if slug == "" {
+		return "", "", fmt.Errorf("title required (produced empty slug)")
+	}
+	dir := filepath.Join(v.Root, TypeIssue.Dir())
+	// Idempotency (agent-cli-principles §6): a re-create with the same slug
+	// resolves to the existing issue so the caller's drift check runs (no-op /
+	// drift error / --update) rather than minting a duplicate under a fresh
+	// ordinal. Only a genuinely-new slug allocates a new ordinal below.
+	if existingID, existingPath, found := findIssueBySlug(v, project, slug); found {
+		return existingID, existingPath, nil
+	}
+	for attempt := 0; attempt < 20; attempt++ {
+		ordinal, err := nextIssueOrdinal(v, project)
+		if err != nil {
+			return "", "", err
+		}
+		candidate := fmt.Sprintf("%s.%04d.%s", project, ordinal, slug)
+		candidatePath := filepath.Join(dir, candidate+".md")
+		f, err := os.OpenFile(candidatePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644) //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		if err == nil {
+			// Probe succeeded; remove placeholder so the real content write can proceed.
+			_ = f.Close()
+			if rerr := os.Remove(candidatePath); rerr != nil {
+				return "", "", fmt.Errorf("removing probe file %s: %w", candidatePath, rerr)
+			}
+			return candidate, candidatePath, nil
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return "", "", fmt.Errorf("probing %s: %w", candidatePath, err)
+		}
+		// EEXIST: another writer landed between the scan and the probe; retry.
+	}
+	return "", "", fmt.Errorf("unable to allocate numbered issue ID after 20 attempts")
+}
+
+// findIssueBySlug returns the ID (without .md) and path of an existing
+// <project>.NNNN.<slug>.md whose slug matches exactly, scoped to project.
+// Returns ("", "", false) when none exists. Slug is unique per project under
+// the numbered scheme, so at most one file matches.
+func findIssueBySlug(v *Vault, project, slug string) (id, path string, found bool) {
+	dir := filepath.Join(v.Root, TypeIssue.Dir())
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", "", false
+	}
+	prefix := project + "."
+	suffix := "." + slug + ".md"
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
+			continue
+		}
+		ordinal := name[len(prefix) : len(name)-len(suffix)]
+		if ordinal != "" && ordinalOnlyRe.MatchString(ordinal) {
+			return strings.TrimSuffix(name, ".md"), filepath.Join(dir, name), true
+		}
+	}
+	return "", "", false
+}
+
+// ordinalOnlyRe matches a string that is only digits — a bare ordinal like "0042".
+var ordinalOnlyRe = regexp.MustCompile(`^[0-9]+$`)
+
+// IsOrdinalOnly reports whether s is a bare issue ordinal (all digits, no dots).
+func IsOrdinalOnly(s string) bool { return ordinalOnlyRe.MatchString(s) }
+
+// ResolveIssueOrdinal scans the issues directory for a file matching
+// <project>.NNNN.<slug>.md where NNNN == ordinal, and returns the full ID
+// (without the .md extension). Returns ("", false) when no match is found.
+// project must already be resolved by the caller.
+func ResolveIssueOrdinal(v *Vault, project, ordinal string) (string, bool) {
+	if !ordinalOnlyRe.MatchString(ordinal) {
+		return "", false
+	}
+	n, err := strconv.Atoi(ordinal)
+	if err != nil {
+		return "", false
+	}
+	prefix := fmt.Sprintf("%s.%04d.", project, n)
+	dir := filepath.Join(v.Root, TypeIssue.Dir())
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", false
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasPrefix(name, prefix) && strings.HasSuffix(name, ".md") {
+			return strings.TrimSuffix(name, ".md"), true
+		}
+	}
+	return "", false
 }
 
 // IDInputs carries optional fields used by some artifact types.

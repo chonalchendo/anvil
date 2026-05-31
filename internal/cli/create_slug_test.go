@@ -9,9 +9,8 @@ import (
 )
 
 func TestCreate_SlugFlag_OverridesTitleDerivation(t *testing.T) {
-	vault := setupVault(t)
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{
+	setupVault(t)
+	path := createIssueGetPath(t,
 		"create", "issue",
 		"--project", "demo",
 		"--title", "Investigate the very long auto-derived slug that would be cut",
@@ -20,16 +19,11 @@ func TestCreate_SlugFlag_OverridesTitleDerivation(t *testing.T) {
 		"--slug", "custom-slug",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
-	})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("create: %v\n%s", err, out.String())
-	}
-	path := filepath.Join(vault, "70-issues", "demo.custom-slug.md")
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("expected file at %s: %v", path, err)
+	)
+	// Numbered format with --slug: demo.NNNN.custom-slug.md
+	base := filepath.Base(path)
+	if matched, _ := filepath.Match("demo.[0-9][0-9][0-9][0-9].custom-slug.md", base); !matched {
+		t.Errorf("unexpected filename %q: want demo.NNNN.custom-slug.md", base)
 	}
 }
 
@@ -58,7 +52,14 @@ func TestCreate_SlugFlag_RejectsInvalidSlug(t *testing.T) {
 	}
 }
 
-func TestCreate_SlugFlag_IdempotentOnReRun(t *testing.T) {
+// TestCreate_SlugFlag_IssueAlwaysNewOrdinal verifies that each create issue call
+// allocates a new ordinal even when --slug is constant. Issues use numbered
+// filenames; there is no "already_exists" response for issues.
+// A numbered issue's slug is its idempotency key (agent-cli-principles §6):
+// re-creating the same slug with identical content is a no-op, while a
+// genuinely-new slug gets the next ordinal. Distinct issues are disambiguated
+// by an explicit distinct --slug, not by minting duplicate same-slug ordinals.
+func TestCreate_SlugFlag_IssueIdempotentBySlug(t *testing.T) {
 	setupVault(t)
 	args := []string{
 		"create", "issue",
@@ -80,14 +81,37 @@ func TestCreate_SlugFlag_IdempotentOnReRun(t *testing.T) {
 	if !strings.Contains(out1, `"status":"created"`) {
 		t.Errorf("first run status not 'created': %s", out1)
 	}
+	if !strings.Contains(out1, `demo.0001.stable-slug`) {
+		t.Errorf("first run id missing expected numbered format: %s", out1)
+	}
 
+	// Same slug + identical content → idempotent no-op, same id.
 	cmd2 := newRootCmd()
 	out2, _, err := runCmd(t, cmd2, args...)
 	if err != nil {
 		t.Fatalf("second create: %v\n%s", err, out2)
 	}
 	if !strings.Contains(out2, `"status":"already_exists"`) {
-		t.Errorf("second run status not 'already_exists': %s", out2)
+		t.Errorf("second run with identical slug should be a no-op (already_exists): %s", out2)
+	}
+	if !strings.Contains(out2, `demo.0001.stable-slug`) {
+		t.Errorf("second run should resolve to the existing id, not a new ordinal: %s", out2)
+	}
+
+	// A distinct slug gets the next ordinal.
+	other := append([]string{}, args...)
+	for i, a := range other {
+		if a == "stable-slug" {
+			other[i] = "other-slug"
+		}
+	}
+	cmd3 := newRootCmd()
+	out3, _, err := runCmd(t, cmd3, other...)
+	if err != nil {
+		t.Fatalf("third create: %v\n%s", err, out3)
+	}
+	if !strings.Contains(out3, `"status":"created"`) || !strings.Contains(out3, `demo.0002.other-slug`) {
+		t.Errorf("distinct slug should mint ordinal 0002: %s", out3)
 	}
 }
 
