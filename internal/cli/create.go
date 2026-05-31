@@ -77,6 +77,8 @@ func newCreateCmd() *cobra.Command {
 		flagTags             []string
 		flagAllowNewFacet    []string
 		flagForceNew         bool
+		flagSeverity         string
+		flagMilestone        string
 	)
 
 	cmd := &cobra.Command{
@@ -354,6 +356,18 @@ func newCreateCmd() *cobra.Command {
 				}
 				fm["tags"] = anyTags
 			}
+			if flagSeverity != "" && t == core.TypeIssue {
+				fm["severity"] = flagSeverity
+			}
+			// Normalise bare slug to canonical wikilink form so the issue stays
+			// reachable under --milestone filters and index edges.
+			if flagMilestone != "" && t == core.TypeIssue {
+				ms := flagMilestone
+				if !strings.HasPrefix(ms, "[[") {
+					ms = "[[milestone." + ms + "]]"
+				}
+				fm["milestone"] = ms
+			}
 
 			// Overlay --from frontmatter onto the template-rendered fm. Identity
 			// fields stay CLI/template-owned; CLI-controllable fields were already
@@ -463,6 +477,8 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&flagTags, "tags", nil, "comma-separated tag list (e.g. domain/dbt,activity/testing)")
 	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet to suppress novelty gate for (repeatable: domain|activity|pattern)")
 	cmd.Flags().BoolVar(&flagForceNew, "force-new", false, "skip the near-duplicate similarity check")
+	cmd.Flags().StringVar(&flagSeverity, "severity", "", "issue severity (low|medium|high|critical; issue only)")
+	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "milestone slug or wikilink to assign (issue only)")
 
 	return cmd
 }
