@@ -68,6 +68,7 @@ Anvil's methodology is workflow-dominant. User vault skills are knowledge-domina
 - **Knowledge: reference-with-principles.** Philosophy → patterns → gotchas/antipatterns. Heavy material → `references/`.
 - **User gates: own paragraph.** Verbatim quote-template + "Wait for the user's response" terminator. Visually distinct from prose so the agent doesn't blow past.
 - **Handoffs: `**REQUIRED SUB-SKILL:** Use skill-name`.** Reference Anvil skills by bare name — they register flat, so an `anvil:` prefix resolves to `Unknown skill`. Prefix only skills from another installed plugin (`superpowers:<name>`). Never `@filename` (force-loads, burns context). Plain-language references resolve wrong intermittently (issue #1002).
+- **On-demand body: `**REQUIRED REFERENCE:** Use skills/<name>/references/<mode>.md`.** Points at a `references/` file in the same skill directory. The agent loads it when that mode/kind is needed; the always-on SKILL.md stays lean. Use when a skill branches by kind (e.g. bug vs feature) or mode (e.g. fast vs deep) and each branch carries enough content to push the body over the 200-line target. Differs from `REQUIRED SUB-SKILL` in that it loads a file, not a skill — no trigger contract, no frontmatter, no registration; just a markdown body the agent reads inline.
 - **Code-fence path/command examples.** Literal-text recipes have caused Claude Code to inject malformed Write calls (issue #1042). Fences + "the agent will..." framing prevent this.
 
 ## Frontmatter rules
