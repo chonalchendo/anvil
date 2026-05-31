@@ -116,6 +116,7 @@ When a responding-to-pr-review loop needs to wait for CI or a reviewer pass, inv
 ```bash
 bash ~/.claude/skills/completing-issue/scripts/wait-for-pr.sh --pr <n> [--repo owner/repo] [--timeout 900]
 # emits one JSON result on terminal state: state, merged, ci_conclusion, review_blockers_count, timed_out
+# state: merged | closed | ci_passed | review_blocked | ci_failed | timeout — branch handling is in responding-to-pr-review Phase 4
 ```
 
 In-agent polling burns tokens on every LLM iteration; a single `wait-for-pr.sh` call blocks out-of-band and returns exactly when action is needed.
