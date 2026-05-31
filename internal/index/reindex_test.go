@@ -214,9 +214,10 @@ func TestIncrementalDeletePurgesRows(t *testing.T) {
 	}
 
 	// Verify initial state: 2 artifacts, 1 link from a.
-	var ac, lc int
-	db.sql.QueryRow(`SELECT COUNT(*) FROM artifacts`).Scan(&ac) //nolint:errcheck // test assertion; fatal below
-	db.sql.QueryRow(`SELECT COUNT(*) FROM links`).Scan(&lc)     //nolint:errcheck // test assertion; fatal below
+	ac, lc, err := db.countArtifactsAndLinks()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if ac != 2 || lc != 1 {
 		t.Fatalf("initial state: artifacts=%d links=%d, want 2/1", ac, lc)
 	}
@@ -332,6 +333,118 @@ func TestIncrementalEqualsFullRebuild(t *testing.T) {
 	}
 	if row.Status != "in-progress" {
 		t.Errorf("a.status: got %q want in-progress", row.Status)
+	}
+}
+
+// TestIncrementalRenamePreservedMtimeEqualsFull verifies the binding invariant
+// against a rename that preserves mtime (`mv` does). The delete loop purges the
+// old path; the new path is ModTime ≤ stamp, so it is caught only because it is
+// not a known stored path. Regression guard for the dropped-artifact bug.
+func TestIncrementalRenamePreservedMtimeEqualsFull(t *testing.T) {
+	vault := t.TempDir()
+	dir := filepath.Join(vault, "70-issues")
+	oldPath := filepath.Join(dir, "a.md")
+	newPath := filepath.Join(dir, "a-renamed.md")
+
+	// id lives in frontmatter, so it survives the rename (path-independent).
+	writeArtifact(t, oldPath,
+		"type: issue\nid: a\nstatus: open\nmilestone: \"[[milestone.m1]]\"\n")
+
+	db, err := Open(DBPath(vault))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
+
+	if _, err := db.ReindexFull(vault); err != nil {
+		t.Fatal(err)
+	}
+
+	// Rename preserving mtime: read the file's current mtime, move it, restore.
+	info, err := os.Stat(oldPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(oldPath, newPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(newPath, info.ModTime(), info.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+
+	incStats, err := db.Reindex(vault)
+	if err != nil {
+		t.Fatalf("incremental Reindex after rename: %v", err)
+	}
+	fullStats, err := db.ReindexFull(vault)
+	if err != nil {
+		t.Fatalf("ReindexFull: %v", err)
+	}
+	if incStats.Artifacts != fullStats.Artifacts {
+		t.Errorf("artifact count mismatch after rename: incremental=%d full=%d", incStats.Artifacts, fullStats.Artifacts)
+	}
+	if incStats.Links != fullStats.Links {
+		t.Errorf("link count mismatch after rename: incremental=%d full=%d", incStats.Links, fullStats.Links)
+	}
+	// The artifact must survive at its new path, not be dropped.
+	row, err := db.GetArtifact("a")
+	if err != nil {
+		t.Fatalf("GetArtifact a after rename: %v", err)
+	}
+	if row.Path != newPath {
+		t.Errorf("a.path: got %q want %q", row.Path, newPath)
+	}
+}
+
+// TestIncrementalUnparseableEditEqualsFull verifies the binding invariant when a
+// previously-valid file is edited into unparseable frontmatter: a full rebuild
+// omits it, so incremental must drop the prior row rather than leave it stale.
+func TestIncrementalUnparseableEditEqualsFull(t *testing.T) {
+	vault := t.TempDir()
+	dir := filepath.Join(vault, "70-issues")
+	pathA := filepath.Join(dir, "a.md")
+
+	writeArtifact(t, pathA,
+		"type: issue\nid: a\nstatus: open\nmilestone: \"[[milestone.m1]]\"\n")
+
+	db, err := Open(DBPath(vault))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
+
+	if _, err := db.ReindexFull(vault); err != nil {
+		t.Fatal(err)
+	}
+
+	// Overwrite a with malformed YAML frontmatter and bump mtime so the
+	// incremental pass sees it as changed.
+	future := time.Now().Add(2 * time.Second)
+	bad := "---\ntype: issue\nid: a\n  bad: : indent\n: nope\n---\n\nbody\n"
+	if err := os.WriteFile(pathA, []byte(bad), 0o644); err != nil { //nolint:gosec // 0644 is correct for data files
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(pathA, future, future); err != nil {
+		t.Fatal(err)
+	}
+
+	incStats, err := db.Reindex(vault)
+	if err != nil {
+		t.Fatalf("incremental Reindex after unparseable edit: %v", err)
+	}
+	fullStats, err := db.ReindexFull(vault)
+	if err != nil {
+		t.Fatalf("ReindexFull: %v", err)
+	}
+	if incStats.Artifacts != fullStats.Artifacts {
+		t.Errorf("artifact count mismatch after unparseable edit: incremental=%d full=%d", incStats.Artifacts, fullStats.Artifacts)
+	}
+	if incStats.Links != fullStats.Links {
+		t.Errorf("link count mismatch after unparseable edit: incremental=%d full=%d", incStats.Links, fullStats.Links)
+	}
+	// The stale row must be gone, matching the full rebuild's omission.
+	if _, err := db.GetArtifact("a"); err == nil {
+		t.Error("artifact a should be purged after edit into unparseable frontmatter")
 	}
 }
 

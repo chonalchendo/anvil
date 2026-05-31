@@ -30,9 +30,24 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		return ReindexStats{}, fmt.Errorf("get last reindex: %w", err)
 	}
 
+	// Capture the start BEFORE the walk and stamp THAT value (not a post-pass
+	// time.Now()): any file edited during the pass must re-qualify next run.
+	// A post-pass stamp would mark such an edit as ModTime ≤ stamp and skip it.
 	start := time.Now()
 
-	// Walk vault: collect current paths and detect changed/added files.
+	indexed, err := d.allArtifactPaths()
+	if err != nil {
+		return ReindexStats{}, err
+	}
+	storedPaths := make(map[string]struct{}, len(indexed))
+	for _, path := range indexed {
+		storedPaths[path] = struct{}{}
+	}
+
+	// Walk vault: collect current paths and the re-extract set. A file qualifies
+	// when its mtime is newer than the stamp (edited) OR its path is not a known
+	// stored path (added, or renamed-with-preserved-mtime — mv keeps mtime, so
+	// the new path is otherwise ModTime ≤ stamp and would be missed).
 	var changed []string
 	onDisk := make(map[string]struct{})
 
@@ -54,7 +69,8 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		if ierr != nil {
 			return ierr
 		}
-		if info.ModTime().After(stamp) {
+		_, known := storedPaths[path]
+		if info.ModTime().After(stamp) || !known {
 			changed = append(changed, path)
 		}
 		return nil
@@ -63,28 +79,19 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		return ReindexStats{}, fmt.Errorf("walk: %w", walkErr)
 	}
 
-	// Purge artifacts whose backing file has been deleted.
-	indexed, err := d.allArtifactPaths()
-	if err != nil {
-		return ReindexStats{}, err
-	}
-	for id, path := range indexed {
-		if _, ok := onDisk[path]; !ok {
-			if derr := d.DeleteArtifact(id); derr != nil {
-				return ReindexStats{}, fmt.Errorf("delete stale artifact %s: %w", id, derr)
-			}
-		}
-	}
-
-	// Re-extract changed/added files.
+	// Re-extract changed/added/renamed files FIRST. A rename re-extracts the new
+	// path, upserting the (path-independent) id onto its new path; the stale
+	// old-path row is then purged below by the on-disk path check.
 	for _, path := range changed {
 		a, err := core.LoadArtifact(path)
 		if err != nil {
-			continue //nolint:nilerr // incremental is best-effort; unparseable files are skipped
+			d.purgeStaleRowFor(path, indexed)
+			continue
 		}
 		row, err := ArtifactRowFromFrontmatter(a.FrontMatter, path)
 		if err != nil {
-			continue //nolint:nilerr // incremental is best-effort; malformed frontmatter is skipped
+			d.purgeStaleRowFor(path, indexed)
+			continue
 		}
 		if err := d.UpsertArtifact(row); err != nil {
 			return ReindexStats{}, err
@@ -95,7 +102,23 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		}
 	}
 
-	if err := d.SetLastReindex(time.Now()); err != nil {
+	// Purge artifacts whose CURRENT stored path is absent from disk. Re-querying
+	// after the re-extract above means a renamed id (now pointing at its new,
+	// on-disk path) is not purged, while a genuine deletion (or a rename's stale
+	// old-path row) is.
+	current, err := d.allArtifactPaths()
+	if err != nil {
+		return ReindexStats{}, err
+	}
+	for id, path := range current {
+		if _, ok := onDisk[path]; !ok {
+			if derr := d.DeleteArtifact(id); derr != nil {
+				return ReindexStats{}, fmt.Errorf("delete stale artifact %s: %w", id, derr)
+			}
+		}
+	}
+
+	if err := d.SetLastReindex(start); err != nil {
 		return ReindexStats{}, err
 	}
 
@@ -177,6 +200,23 @@ func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 		Links:      links,
 		DurationMS: time.Since(start).Milliseconds(),
 	}, nil
+}
+
+// purgeStaleRowFor drops the indexed row whose stored path equals path, used
+// when a previously-valid file is edited into unparseable/malformed frontmatter.
+// A full rebuild silently omits such a file; incremental must match by dropping
+// the prior row rather than leaving it stale (the file stays on disk, so the
+// deleted-file purge would never reach it). No-op if path was never indexed
+// (a brand-new file that is unparseable was never a valid row).
+func (d *DB) purgeStaleRowFor(path string, indexed map[string]string) {
+	for id, p := range indexed {
+		if p == path {
+			// Best-effort: a delete failure here surfaces on the next full
+			// rebuild; it does not corrupt the index.
+			_ = d.DeleteArtifact(id) //nolint:errcheck // best-effort stale-row purge; see comment
+			return
+		}
+	}
 }
 
 // allArtifactPaths returns a map from artifact id to its stored file path.
