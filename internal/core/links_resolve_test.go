@@ -138,6 +138,30 @@ func TestResolveBodyLinks_ProseWikilinkStillValidated(t *testing.T) {
 	}
 }
 
+// TestResolveBodyLinks_PlaceholderWikilinkLiteral asserts that a [[...]] whose
+// inner target contains id-illegal chars (<, >, or whitespace) is treated as
+// literal text and not flagged as an unresolved link. Such targets can never be
+// real artifact ids, so they are documentation placeholders, not live links.
+func TestResolveBodyLinks_PlaceholderWikilinkLiteral(t *testing.T) {
+	v := newScaffolded(t)
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"angle bracket metavar", "Illustration: [[milestone.<project>.<slug>]] is a placeholder."},
+		{"space in target", "See [[some thing with spaces]] here."},
+		{"leading angle bracket", "Use [[<type>.<project>.<id>]] syntax."},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ResolveBodyLinks(v, tc.body)
+			if len(got) != 0 {
+				t.Errorf("expected 0 unresolved for placeholder wikilink, got %v", got)
+			}
+		})
+	}
+}
+
 // TestResolveBodyLinks_TwoFencedBlocksProseInBetween exercises the non-greedy
 // [\s\S]*? in fencedBlockRe: the first closing fence must not consume the
 // second fenced block, so only the prose wikilink between them is validated.

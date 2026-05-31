@@ -80,6 +80,12 @@ func checkWikilink(v *Vault, field, s string) (UnresolvedLink, bool) {
 }
 
 func checkWikilinkTarget(v *Vault, field, target string) (UnresolvedLink, bool) {
+	// A target containing id-illegal chars (<, >, or whitespace) is a
+	// documentation placeholder — it can never be a real artifact id, so
+	// treat it as literal text rather than a resolvable link.
+	if strings.ContainsAny(target, "<> \t\n") {
+		return UnresolvedLink{}, false
+	}
 	dot := strings.IndexByte(target, '.')
 	if dot < 0 {
 		return UnresolvedLink{}, false
