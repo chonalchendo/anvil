@@ -94,7 +94,7 @@ func newSessionListCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON array")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON array of session items (bare array, not the list envelope)")
 	return cmd
 }
 
