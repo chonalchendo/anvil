@@ -79,6 +79,7 @@ func newCreateCmd() *cobra.Command {
 		flagForceNew         bool
 		flagSeverity         string
 		flagMilestone        string
+		flagAcceptance       []string
 	)
 
 	cmd := &cobra.Command{
@@ -359,14 +360,15 @@ func newCreateCmd() *cobra.Command {
 			if flagSeverity != "" && t == core.TypeIssue {
 				fm["severity"] = flagSeverity
 			}
-			// Normalise bare slug to canonical wikilink form so the issue stays
-			// reachable under --milestone filters and index edges.
 			if flagMilestone != "" && t == core.TypeIssue {
-				ms := flagMilestone
-				if !strings.HasPrefix(ms, "[[") {
-					ms = "[[milestone." + ms + "]]"
+				fm["milestone"] = normalizeMilestone(flagMilestone)
+			}
+			if len(flagAcceptance) > 0 && t == core.TypeIssue {
+				anyAcc := make([]any, len(flagAcceptance))
+				for i, s := range flagAcceptance {
+					anyAcc[i] = s
 				}
-				fm["milestone"] = ms
+				fm["acceptance"] = anyAcc
 			}
 
 			// Overlay --from frontmatter onto the template-rendered fm. Identity
@@ -376,7 +378,8 @@ func newCreateCmd() *cobra.Command {
 			for k, v := range inputFM {
 				switch k {
 				case "type", "id", "slug", "created", "updated", "status", "plan_version",
-					"title", "description", "project", "issue", "tags":
+					"title", "description", "project", "issue", "tags",
+					"severity", "milestone", "acceptance":
 					continue
 				}
 				fm[k] = v
@@ -479,6 +482,7 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagForceNew, "force-new", false, "skip the near-duplicate similarity check")
 	cmd.Flags().StringVar(&flagSeverity, "severity", "", "issue severity (low|medium|high|critical; issue only)")
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "milestone slug or wikilink to assign (issue only)")
+	cmd.Flags().StringArrayVar(&flagAcceptance, "acceptance", nil, "acceptance criterion to add (repeatable; issue only)")
 
 	return cmd
 }

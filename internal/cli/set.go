@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -78,10 +77,8 @@ func newSetCmd() *cobra.Command {
 					return fmt.Errorf("%q is a scalar; expected exactly 1 value, got %d", field, len(values))
 				}
 				v := values[0]
-				// Normalise a bare project.slug id to the canonical wikilink form so the
-				// issue stays reachable under --milestone filters and graph edges.
-				if field == "milestone" && !strings.HasPrefix(v, "[[") {
-					v = "[[milestone." + v + "]]"
+				if field == "milestone" {
+					v = normalizeMilestone(v)
 				}
 				a.FrontMatter[field] = v
 				result.From = prev

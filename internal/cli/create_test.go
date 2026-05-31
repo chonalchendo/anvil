@@ -2317,3 +2317,140 @@ func TestCreate_Learning_OneShot_ReportsFacetAndBodyClasses(t *testing.T) {
 		t.Errorf("expected no file written on validation failure, got %d", len(entries))
 	}
 }
+
+// TestCreateIssue_SeverityFlag verifies --severity writes the correct value to
+// the issue frontmatter and the artifact passes schema validation.
+func TestCreateIssue_SeverityFlag(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	for _, sev := range []string{"low", "medium", "high", "critical"} {
+		t.Run(sev, func(t *testing.T) {
+			cmd := newRootCmd()
+			cmd.SetArgs([]string{
+				"create", "issue",
+				"--title", "severity test " + sev,
+				"--goal", "done",
+				"--tags", "domain/dev-tools",
+				"--allow-new-facet=domain",
+				"--severity", sev,
+			})
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("create: %v", err)
+			}
+			entries, _ := os.ReadDir(filepath.Join(vault, "70-issues"))
+			if len(entries) == 0 {
+				t.Fatal("no issue file created")
+			}
+			var found bool
+			for _, e := range entries {
+				a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", e.Name()))
+				if err != nil {
+					continue
+				}
+				if a.FrontMatter["severity"] == sev {
+					found = true
+					if err := schema.Validate("issue", a.FrontMatter); err != nil {
+						t.Errorf("frontmatter fails schema: %v", err)
+					}
+					break
+				}
+			}
+			if !found {
+				t.Errorf("severity %q not found in any issue frontmatter", sev)
+			}
+		})
+	}
+}
+
+// TestCreateIssue_MilestoneFlag verifies --milestone writes a canonical wikilink
+// and that a bare slug is normalized to the [[milestone.<slug>]] form.
+func TestCreateIssue_MilestoneFlag(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{"anvil.v0-1-polish", "[[milestone.anvil.v0-1-polish]]"},
+		{"[[milestone.anvil.v0-1-polish]]", "[[milestone.anvil.v0-1-polish]]"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.input, func(t *testing.T) {
+			cmd := newRootCmd()
+			cmd.SetArgs([]string{
+				"create", "issue",
+				"--title", "milestone test " + tc.input,
+				"--goal", "done",
+				"--tags", "domain/dev-tools",
+				"--allow-new-facet=domain",
+				"--milestone", tc.input,
+			})
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("create: %v", err)
+			}
+			entries, _ := os.ReadDir(filepath.Join(vault, "70-issues"))
+			if len(entries) == 0 {
+				t.Fatal("no issue file created")
+			}
+			var got string
+			for _, e := range entries {
+				a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", e.Name()))
+				if m, ok := a.FrontMatter["milestone"].(string); ok && m == tc.want {
+					got = m
+					break
+				}
+			}
+			if got != tc.want {
+				t.Errorf("milestone = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestCreateIssue_AcceptanceFlag verifies repeatable --acceptance populates the
+// acceptance array in issue frontmatter.
+func TestCreateIssue_AcceptanceFlag(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "issue",
+		"--title", "acceptance test",
+		"--goal", "done",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+		"--acceptance", "criterion one",
+		"--acceptance", "criterion two",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	entries, _ := os.ReadDir(filepath.Join(vault, "70-issues"))
+	if len(entries) == 0 {
+		t.Fatal("no issue file created")
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", entries[0].Name()))
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	acc, ok := a.FrontMatter["acceptance"].([]any)
+	if !ok {
+		t.Fatalf("acceptance missing or wrong type: %#v", a.FrontMatter["acceptance"])
+	}
+	if len(acc) != 2 || acc[0] != "criterion one" || acc[1] != "criterion two" {
+		t.Errorf("acceptance = %v, want [criterion one, criterion two]", acc)
+	}
+	if err := schema.Validate("issue", a.FrontMatter); err != nil {
+		t.Errorf("frontmatter fails schema: %v", err)
+	}
+}

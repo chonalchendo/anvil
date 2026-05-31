@@ -25,6 +25,9 @@ func newPromoteCmd() *cobra.Command {
 		flagProjectLocal  string
 		flagSeverity      string
 		flagMilestone     string
+		flagAcceptance    []string
+		flagBody          string
+		flagBodyFile      string
 	)
 
 	cmd := &cobra.Command{
@@ -68,7 +71,7 @@ func newPromoteCmd() *cobra.Command {
 			case "discard":
 				return discardInbox(cmd, v, a, id, flagJSON)
 			default:
-				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON, flagTags, flagAllowNewFacet, flagProjectLocal, flagSeverity, flagMilestone)
+				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON, flagTags, flagAllowNewFacet, flagProjectLocal, flagSeverity, flagMilestone, flagAcceptance, flagBody, flagBodyFile)
 			}
 		},
 	}
@@ -80,6 +83,9 @@ func newPromoteCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagProjectLocal, "project", "", "project slug for the promoted issue (overrides inbox suggested_project and resolver)")
 	cmd.Flags().StringVar(&flagSeverity, "severity", "", "issue severity (low|medium|high|critical; issue only)")
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "milestone slug or wikilink to assign (issue only)")
+	cmd.Flags().StringArrayVar(&flagAcceptance, "acceptance", nil, "acceptance criterion to add (repeatable; issue only)")
+	cmd.Flags().StringVar(&flagBody, "body", "", "body content for the promoted artifact (literal, or '-' to read stdin; issue only)")
+	cmd.Flags().StringVar(&flagBodyFile, "body-file", "", "read body from <path> (issue only; mutually exclusive with --body)")
 	_ = cmd.MarkFlagRequired("as")
 	return cmd
 }
@@ -150,7 +156,7 @@ func formatEnumError(field, got string, valid []string, exampleCmd string) error
 // promoteToTyped writes the target artifact, then flips the inbox row to
 // status: promoted with provenance fields. Issue is the only target that
 // resolves a project; the others ignore the project field.
-func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type, asJSON bool, flagTags, flagAllowNewFacet []string, projectOverride, flagSeverity, flagMilestone string) error {
+func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type, asJSON bool, flagTags, flagAllowNewFacet []string, projectOverride, flagSeverity, flagMilestone string, flagAcceptance []string, flagBody, flagBodyFile string) error {
 	status, _ := inbox.FrontMatter["status"].(string)
 	switch status {
 	case "promoted":
@@ -222,14 +228,26 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	if flagSeverity != "" && target == core.TypeIssue {
 		fm["severity"] = flagSeverity
 	}
-	// Normalise bare slug to canonical wikilink form so the issue stays
-	// reachable under --milestone filters and index edges.
 	if flagMilestone != "" && target == core.TypeIssue {
-		ms := flagMilestone
-		if !strings.HasPrefix(ms, "[[") {
-			ms = "[[milestone." + ms + "]]"
+		fm["milestone"] = normalizeMilestone(flagMilestone)
+	}
+	if len(flagAcceptance) > 0 && target == core.TypeIssue {
+		anyAcc := make([]any, len(flagAcceptance))
+		for i, s := range flagAcceptance {
+			anyAcc[i] = s
 		}
-		fm["milestone"] = ms
+		fm["acceptance"] = anyAcc
+	}
+
+	// --body / --body-file override the inbox body for issue targets so callers
+	// can land a complete artifact in one call without a follow-up `set` round-trip.
+	body := inbox.Body
+	if target == core.TypeIssue && (flagBody != "" || flagBodyFile != "") {
+		b, err := readBody(cmd, flagBody, flagBodyFile)
+		if err != nil {
+			return err
+		}
+		body = b
 	}
 
 	dir := filepath.Join(v.Root, target.Dir())
@@ -271,7 +289,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		emitValidationErrors(cmd, asJSON, errs)
 		return ErrSchemaInvalid
 	}
-	tgtArt := &core.Artifact{Path: targetPath, FrontMatter: fm, Body: inbox.Body}
+	tgtArt := &core.Artifact{Path: targetPath, FrontMatter: fm, Body: body}
 	if err := tgtArt.Save(); err != nil {
 		return fmt.Errorf("saving %s: %w", target, err)
 	}
