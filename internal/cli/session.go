@@ -280,7 +280,14 @@ func newSessionResumeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "resume",
 		Short: "Return the most-recent handoff, disambiguating when ≥2 landed within the 10-min ambiguity window",
-		Args:  cobra.NoArgs,
+		Long: `Return the most-recent handoff, disambiguating when ≥2 landed within the 10-min ambiguity window.
+
+--json emits one of four envelope shapes:
+  single   {session_id, path, objective, project, body, walked}  — one handoff; load body
+  multi    {walked, candidates: [...]}                           — ≥2 in window; disambiguate, body empty
+  no-match {walked, no_handoff: true}                            — --project matched nothing (exit 0)
+  error    (exit 1)                                              — no handoff anywhere (unscoped)`,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
 			if err != nil {
