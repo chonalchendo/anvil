@@ -3,10 +3,11 @@
 # fenced-bash blocks from an anvil issue (markdown on stdin) and emit a compact
 # PASS/FAIL summary. Exits 0 if every check passes, 1 otherwise.
 #
-# Each ```bash block runs as ONE script: its lines share state, so the natural
-# idiom — capture output once, then assert on it across several lines — works.
-# The unit of PASS/FAIL is the block, not the line. Blocks run in the cwd the
-# runner is invoked from, so invoke it from the worktree under test.
+# Each ```bash block runs as ONE script under `set -e`: its lines share state,
+# so the natural idiom — capture output once, then assert on it across several
+# lines — works, while ANY failing line fails the block (not just the last).
+# Blocks run in the cwd the runner is invoked from, so invoke it from the
+# worktree under test.
 #
 # Usage:
 #   anvil show issue <id> | bash run-verification.sh
@@ -61,10 +62,12 @@ run_section() {
             fails=$((fails + 1))
             continue
         fi
-        # Redirect stdin from /dev/null so a command that reads stdin (e.g. an
-        # anvil verb probing for piped body input) doesn't consume the
+        # -e so ANY failing line fails the block, not just the last: a block
+        # ending in cleanup (`… || true`) must not mask an earlier assertion's
+        # failure. Redirect stdin from /dev/null so a command that reads stdin
+        # (e.g. an anvil verb probing for piped body input) doesn't consume the
         # process-substitution stream feeding this while-read loop.
-        if output=$(bash -c "$block" </dev/null 2>&1); then
+        if output=$(bash -ec "$block" </dev/null 2>&1); then
             echo "PASS [$label#$n] $preview"
         else
             rc=$?
