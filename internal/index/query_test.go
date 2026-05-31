@@ -27,7 +27,7 @@ func seedReadinessFixture(t *testing.T) *DB {
 	return db
 }
 
-func TestListReadyExcludesIssuesWithOpenBlockers(t *testing.T) {
+func TestListReadySurfacesUnblockedPrereqButExcludesBlockedDependents(t *testing.T) {
 	db := seedReadinessFixture(t)
 	got, err := db.ListReady("issue", QueryFilters{})
 	if err != nil {
@@ -37,9 +37,23 @@ func TestListReadyExcludesIssuesWithOpenBlockers(t *testing.T) {
 	for _, r := range got {
 		ids = append(ids, r.ID)
 	}
-	want := []string{"a", "b"}
+	// blocker-open is the target of c's depends_on edge; it has no open blockers of
+	// its own so it must surface as ready (highest-priority prerequisite work).
+	// c depends on blocker-open and is therefore still blocked — must stay excluded.
+	want := []string{"a", "b", "blocker-open"}
 	if diff := cmp.Diff(want, ids, cmpopts.SortSlices(func(x, y string) bool { return x < y })); diff != "" {
 		t.Fatalf("ready ids mismatch (-want +got):\n%s", diff)
+	}
+	// Pin both halves: prereq present, blocked dependent absent.
+	idSet := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		idSet[id] = true
+	}
+	if !idSet["blocker-open"] {
+		t.Error("blocker-open (unblocked prereq) must be ready")
+	}
+	if idSet["c"] {
+		t.Error("c (blocked dependent) must not be ready")
 	}
 }
 
