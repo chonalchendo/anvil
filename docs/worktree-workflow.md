@@ -29,9 +29,10 @@ Before `gh pr create` or claiming done, drive the change through the installed b
 
 1. `just install-local` — builds a version-stamped binary into this worktree's `./bin/anvil` (`GOBIN=$PWD/bin`), **not** the shared global `$(go env GOPATH)/bin`. Parallel worktrees therefore install to distinct files and never clobber each other — required because `dispatching-issue-fleet` runs workers concurrently and a shared global target makes the version cross-check below flake (`just install`, the global interactive install, races here). Invoke the gate's binary as `./bin/anvil`; no PATH-shadow check is needed since you call it by path.
 2. Cross-check `./bin/anvil --version` ends in the short sha of `git rev-parse --short HEAD` (with a `-dirty` suffix if the tree has uncommitted changes). `install-local` injects the sha via `-ldflags` so worktree builds stamp correctly — Go's `buildvcs` drops VCS metadata for worktrees (golang/go#58300), so `./bin/anvil --version` reporting bare `dev` means the build bypassed `install-local`.
-3. Invoke the new verb (`./bin/anvil <verb>`), re-trigger the changed error, or read the new skill phase end-to-end.
-4. Compare output against acceptance criteria.
-5. Any failure (broken commands in error hints, schema-inconsistent JSON, oversized output, blank fields) is a regression — fix before resolving.
+3. `just lint` — runs `golangci-lint` with the same ruleset CI uses. A lint failure here is a CI failure; fix before opening the PR. (Stale lint cache from a removed worktree can block this — run `golangci-lint cache clean` if lint exits with a spurious cache error.)
+4. Invoke the new verb (`./bin/anvil <verb>`), re-trigger the changed error, or read the new skill phase end-to-end.
+5. Compare output against acceptance criteria.
+6. Any failure (broken commands in error hints, schema-inconsistent JSON, oversized output, blank fields) is a regression — fix before resolving.
 
 Unit tests assert *some* string appears in output; they don't assert it's runnable, schema-consistent, or usable on 40 KB real-vault artifacts. Only live invocation catches that.
 
