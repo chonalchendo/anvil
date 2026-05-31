@@ -296,3 +296,53 @@ func TestTransition_InProgress_ForceAndNoLongerReproducesMutuallyExclusive(t *te
 		t.Fatalf("expected error when both --force and --no-longer-reproduces are passed; output: %s", out.String())
 	}
 }
+
+// TestTransition_InProgress_EchoTrailingNewlineMatches exercises the trailing-
+// newline fix: `echo hello` always appends \n, so the old exact-equality
+// comparison (got == expected) would reject a bare --expected "hello". The
+// TrimSuffix normalisation must make them match. This test FAILS against the
+// pre-fix code and is the regression guard for the fix.
+func TestTransition_InProgress_EchoTrailingNewlineMatches(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	// `echo hello` emits "hello\n"; expected records the bare string "hello".
+	writeIssueWithAnchor(t, vault, "anvil.echo", "echo hello", "hello")
+
+	execCmd(t, "transition", "issue", "anvil.echo", "in-progress", "--owner", "x")
+
+	if !strings.Contains(readIssueRaw(t, vault, "anvil.echo"), "status: in-progress") {
+		t.Errorf("expected echo-based anchor (trailing \\n) to match bare expected string")
+	}
+}
+
+// TestTransition_InProgress_MultiLineOutputMismatchRefuses confirms that
+// TrimSuffix normalization does not over-broaden: an anchor whose stdout
+// contains an embedded newline (two distinct lines) must still refuse when the
+// expected value is only the first line. Only the single trailing \n is stripped.
+func TestTransition_InProgress_MultiLineOutputMismatchRefuses(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	// `printf "hello\nworld\n"` produces "hello\nworld\n"; expected is "hello".
+	// After TrimSuffix the got becomes "hello\nworld" (trailing \n stripped) —
+	// still not equal to "hello", so the gate must refuse.
+	writeIssueWithAnchor(t, vault, "anvil.multiline", `printf "hello\nworld\n"`, "hello")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "anvil.multiline", "in-progress", "--owner", "x"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected anchor_mismatch for multi-line output vs single-line expected; output: %s", out.String())
+	}
+	combined := out.String() + "\n" + err.Error()
+	if !strings.Contains(combined, "anchor_mismatch") {
+		t.Errorf("error must carry anchor_mismatch code: %s", combined)
+	}
+	if !strings.Contains(readIssueRaw(t, vault, "anvil.multiline"), "status: open") {
+		t.Errorf("status should remain open after refused transition")
+	}
+}

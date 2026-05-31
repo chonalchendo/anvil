@@ -10,6 +10,7 @@ import (
 	"io"
 	"os/exec"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/chonalchendo/anvil/internal/core"
@@ -106,7 +107,9 @@ func runAnchorCheck(ctx context.Context, a *core.Artifact, stderr io.Writer) (ma
 		}
 		return false, cmdStr, fmt.Sprintf("--- expected\n+++ actual (sha256)\n-%s\n+%s\n", expected, gotDigest), nil
 	}
-	if got == expected {
+	// Strip at most one trailing newline from each side: echo-based commands
+	// always append \n but authors record the bare string in --expected.
+	if strings.TrimSuffix(got, "\n") == strings.TrimSuffix(expected, "\n") {
 		return true, cmdStr, "", nil
 	}
 	return false, cmdStr, fmt.Sprintf("--- expected\n+++ actual\n-%q\n+%q\n", expected, got), nil
