@@ -6,7 +6,18 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 )
+
+// simulateBinaryRebuild overrides binaryMtime for the duration of the test to
+// return a time one hour in the future, simulating a binary rebuilt after the
+// deploy stamp was written.
+func simulateBinaryRebuild(t *testing.T) {
+	t.Helper()
+	orig := binaryMtime
+	binaryMtime = func() (time.Time, error) { return time.Now().Add(time.Hour), nil }
+	t.Cleanup(func() { binaryMtime = orig })
+}
 
 func fakeSkillsFS() fstest.MapFS {
 	return fstest.MapFS{
@@ -426,6 +437,9 @@ func TestRefreshSkillsIfStale_RefreshesWhenContentDrifts(t *testing.T) {
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false, false); err != nil {
 		t.Fatal(err)
 	}
+	// Simulate the binary being rebuilt after the install so the version guard
+	// allows the refresh to proceed.
+	simulateBinaryRebuild(t)
 
 	skill := filepath.Join(mat, "capturing-inbox", "SKILL.md")
 	if err := os.WriteFile(skill, []byte("drifted\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
@@ -458,6 +472,8 @@ func TestRefreshSkillsIfStale_RefreshesWhenHashFileMissing(t *testing.T) {
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false, false); err != nil {
 		t.Fatal(err)
 	}
+	// Simulate the binary being rebuilt so the version guard allows the refresh.
+	simulateBinaryRebuild(t)
 	if err := os.Remove(filepath.Join(mat, skillsHashFile)); err != nil {
 		t.Fatal(err)
 	}
@@ -527,6 +543,8 @@ func TestRefreshSkillsIfStale_PreservesCopyMode(t *testing.T) {
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, true, false); err != nil {
 		t.Fatal(err)
 	}
+	// Simulate the binary being rebuilt so the version guard allows the refresh.
+	simulateBinaryRebuild(t)
 	if err := os.WriteFile(filepath.Join(mat, skillsHashFile), []byte("stale"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
