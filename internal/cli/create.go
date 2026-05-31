@@ -287,47 +287,9 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			var (
-				id   string
-				path string
-			)
-			switch {
-			// Decisions allocate an ordinal by scanning the vault, so they cannot
-			// use DeterministicID's slug-only path.
-			case t == core.TypeDecision:
-				allocated, err := core.NextID(v, t, core.IDInputs{
-					Title:   flagTitle,
-					Project: project,
-					Topic:   flagTopic,
-					Slug:    slugDefault,
-				})
-				if err != nil {
-					return invalidSlugError(slugDefault, err)
-				}
-				id = allocated
-			// Issues use a per-project atomic counter: <project>.NNNN.<slug>.md.
-			case t == core.TypeIssue:
-				allocated, allocPath, err := core.AllocateIssueID(v, project, flagTitle, slugDefault)
-				if err != nil {
-					return invalidSlugError(slugDefault, err)
-				}
-				id = allocated
-				path = allocPath
-			case t.AllocatesID():
-				base, err := core.DeterministicID(t, core.IDInputs{
-					Title:   flagTitle,
-					Project: project,
-					Slug:    slugDefault,
-				})
-				if err != nil {
-					return invalidSlugError(slugDefault, err)
-				}
-				id = base
-			default:
-				id = string(t)
-			}
-			if path == "" {
-				path = t.Path(v.Root, project, id)
+			id, path, err := resolveCreateIDPath(v, t, project, flagTitle, flagTopic, slugDefault)
+			if err != nil {
+				return err
 			}
 
 			var body string
