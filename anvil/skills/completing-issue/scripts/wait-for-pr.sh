@@ -6,6 +6,7 @@
 # Terminal states:
 #   merged              — PR was merged
 #   closed              — PR closed without merge
+#   ci_passed           — CI green, no review blockers; PR is ready for human merge
 #   review_blocked      — unresolved review threads exist (human reviewer)
 #   ci_failed           — at least one required CI check failed
 #   timeout             — configurable limit reached with no terminal state
@@ -32,7 +33,7 @@ Options:
   --interval <seconds> Poll interval in seconds (default: 30)
 
 Output fields (JSON):
-  state                merged | closed | review_blocked | ci_failed | timeout
+  state                merged | closed | ci_passed | review_blocked | ci_failed | timeout
   merged               true | false
   ci_conclusion        success | failure | pending | skipped | null
   review_blockers_count number of unresolved review threads
@@ -146,6 +147,12 @@ while true; do
 
     if [[ "$review_blockers" -gt 0 ]]; then
         emit "review_blocked" "false" "$ci_conclusion" "$review_blockers" "false"
+        exit 0
+    fi
+
+    # Terminal: CI green and no review blockers — PR is ready for human merge.
+    if [[ "$ci_conclusion" == '"success"' ]]; then
+        emit "ci_passed" "false" '"success"' "0" "false"
         exit 0
     fi
 
