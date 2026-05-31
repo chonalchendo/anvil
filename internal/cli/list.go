@@ -128,7 +128,7 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagSince, "since", "", "include only artifacts created on or after YYYY-MM-DD")
 	cmd.Flags().StringVar(&flagUntil, "until", "", "include only artifacts created on or before YYYY-MM-DD")
 	cmd.Flags().IntVar(&flagLimit, "limit", defaultListLimit, "maximum results to return (default 10; --ready/--orphans default to unlimited)")
-	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
+	cmd.Flags().BoolVar(&flagJSON, "json", false, `emit JSON envelope: {"items":[...],"total":<int>,"returned":<int>,"truncated":<bool>}`)
 	cmd.Flags().BoolVar(&flagReady, "ready", false, "filter to issues with no unresolved blockers (issue only)")
 	cmd.Flags().BoolVar(&flagOrphans, "orphans", false, "filter to artifacts with no incoming wikilinks")
 	cmd.Flags().BoolVar(&flagInvalidBody, "invalid-body", false, "filter to issues failing the body-shape gauntlet; names the first missing section per entry (issue only)")
