@@ -1,6 +1,7 @@
 package index
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"path/filepath"
@@ -17,9 +18,125 @@ type ReindexStats struct {
 	DurationMS int64
 }
 
-// Reindex tears down both tables and walks the vault to repopulate them.
-// Stamps the last-reindex time on success.
+// Reindex re-processes only files whose mtime is newer than the stored
+// last_reindex stamp, leaving unchanged rows intact. Falls back to ReindexFull
+// when the stamp is absent (first run). Stamps last_reindex on success.
 func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
+	stamp, err := d.GetLastReindex()
+	if errors.Is(err, ErrLastReindexUnset) {
+		return d.ReindexFull(vaultRoot)
+	}
+	if err != nil {
+		return ReindexStats{}, fmt.Errorf("get last reindex: %w", err)
+	}
+
+	// Capture the start BEFORE the walk and stamp THAT value (not a post-pass
+	// time.Now()): any file edited during the pass must re-qualify next run.
+	// A post-pass stamp would mark such an edit as ModTime ≤ stamp and skip it.
+	start := time.Now()
+
+	indexed, err := d.allArtifactPaths()
+	if err != nil {
+		return ReindexStats{}, err
+	}
+	storedPaths := make(map[string]struct{}, len(indexed))
+	for _, path := range indexed {
+		storedPaths[path] = struct{}{}
+	}
+
+	// Walk vault: collect current paths and the re-extract set. A file qualifies
+	// when its mtime is newer than the stamp (edited) OR its path is not a known
+	// stored path (added, or renamed-with-preserved-mtime — mv keeps mtime, so
+	// the new path is otherwise ModTime ≤ stamp and would be missed).
+	var changed []string
+	onDisk := make(map[string]struct{})
+
+	walkErr := filepath.WalkDir(vaultRoot, func(path string, dEntry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if dEntry.IsDir() {
+			if dEntry.Name() == ".anvil" || strings.HasPrefix(dEntry.Name(), ".") && path != vaultRoot {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+		onDisk[path] = struct{}{}
+		info, ierr := dEntry.Info()
+		if ierr != nil {
+			return ierr
+		}
+		_, known := storedPaths[path]
+		if info.ModTime().After(stamp) || !known {
+			changed = append(changed, path)
+		}
+		return nil
+	})
+	if walkErr != nil {
+		return ReindexStats{}, fmt.Errorf("walk: %w", walkErr)
+	}
+
+	// Re-extract changed/added/renamed files FIRST. A rename re-extracts the new
+	// path, upserting the (path-independent) id onto its new path; the stale
+	// old-path row is then purged below by the on-disk path check.
+	for _, path := range changed {
+		a, err := core.LoadArtifact(path)
+		if err != nil {
+			d.purgeStaleRowFor(path, indexed)
+			continue
+		}
+		row, err := ArtifactRowFromFrontmatter(a.FrontMatter, path)
+		if err != nil {
+			d.purgeStaleRowFor(path, indexed)
+			continue
+		}
+		if err := d.UpsertArtifact(row); err != nil {
+			return ReindexStats{}, err
+		}
+		links := append(LinkRowsFromFrontmatter(row.ID, a.FrontMatter), LinkRowsFromBody(row.ID, a.Body)...)
+		if err := d.ReplaceLinks(row.ID, links); err != nil {
+			return ReindexStats{}, err
+		}
+	}
+
+	// Purge artifacts whose CURRENT stored path is absent from disk. Re-querying
+	// after the re-extract above means a renamed id (now pointing at its new,
+	// on-disk path) is not purged, while a genuine deletion (or a rename's stale
+	// old-path row) is.
+	current, err := d.allArtifactPaths()
+	if err != nil {
+		return ReindexStats{}, err
+	}
+	for id, path := range current {
+		if _, ok := onDisk[path]; !ok {
+			if derr := d.DeleteArtifact(id); derr != nil {
+				return ReindexStats{}, fmt.Errorf("delete stale artifact %s: %w", id, derr)
+			}
+		}
+	}
+
+	if err := d.SetLastReindex(start); err != nil {
+		return ReindexStats{}, err
+	}
+
+	// Report totals from DB so the count is byte-identical to a full rebuild.
+	artifacts, links, err := d.countArtifactsAndLinks()
+	if err != nil {
+		return ReindexStats{}, err
+	}
+	return ReindexStats{
+		Artifacts:  artifacts,
+		Links:      links,
+		DurationMS: time.Since(start).Milliseconds(),
+	}, nil
+}
+
+// ReindexFull tears down both tables and walks the vault to repopulate them.
+// Stamps the last-reindex time on success. Use Reindex for the common case.
+func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 	start := time.Now()
 	tx, err := d.sql.Begin()
 	if err != nil {
@@ -36,7 +153,6 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		return ReindexStats{}, fmt.Errorf("commit clear: %w", err)
 	}
 
-	var stats ReindexStats
 	walkErr := filepath.WalkDir(vaultRoot, func(path string, dEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -61,12 +177,10 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		if err := d.UpsertArtifact(row); err != nil {
 			return err
 		}
-		stats.Artifacts++
 		links := append(LinkRowsFromFrontmatter(row.ID, a.FrontMatter), LinkRowsFromBody(row.ID, a.Body)...)
 		if err := d.ReplaceLinks(row.ID, links); err != nil {
 			return err
 		}
-		stats.Links += len(links)
 		return nil
 	})
 	if walkErr != nil {
@@ -75,6 +189,61 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 	if err := d.SetLastReindex(time.Now()); err != nil {
 		return ReindexStats{}, err
 	}
-	stats.DurationMS = time.Since(start).Milliseconds()
-	return stats, nil
+	// Report from DB so duplicate IDs (same id in multiple files) don't
+	// inflate the counter beyond the actual row count.
+	artifacts, links, err := d.countArtifactsAndLinks()
+	if err != nil {
+		return ReindexStats{}, err
+	}
+	return ReindexStats{
+		Artifacts:  artifacts,
+		Links:      links,
+		DurationMS: time.Since(start).Milliseconds(),
+	}, nil
+}
+
+// purgeStaleRowFor drops the indexed row whose stored path equals path, used
+// when a previously-valid file is edited into unparseable/malformed frontmatter.
+// A full rebuild silently omits such a file; incremental must match by dropping
+// the prior row rather than leaving it stale (the file stays on disk, so the
+// deleted-file purge would never reach it). No-op if path was never indexed
+// (a brand-new file that is unparseable was never a valid row).
+func (d *DB) purgeStaleRowFor(path string, indexed map[string]string) {
+	for id, p := range indexed {
+		if p == path {
+			// Best-effort: a delete failure here surfaces on the next full
+			// rebuild; it does not corrupt the index.
+			_ = d.DeleteArtifact(id) //nolint:errcheck // best-effort stale-row purge; see comment
+			return
+		}
+	}
+}
+
+// allArtifactPaths returns a map from artifact id to its stored file path.
+func (d *DB) allArtifactPaths() (map[string]string, error) {
+	rows, err := d.sql.Query(`SELECT id, path FROM artifacts`)
+	if err != nil {
+		return nil, fmt.Errorf("query artifact paths: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck // close in defer; error not actionable
+	m := make(map[string]string)
+	for rows.Next() {
+		var id, path string
+		if err := rows.Scan(&id, &path); err != nil {
+			return nil, fmt.Errorf("scan artifact path: %w", err)
+		}
+		m[id] = path
+	}
+	return m, rows.Err()
+}
+
+// countArtifactsAndLinks returns the current row counts from both tables.
+func (d *DB) countArtifactsAndLinks() (artifacts, links int, err error) {
+	if err = d.sql.QueryRow(`SELECT COUNT(*) FROM artifacts`).Scan(&artifacts); err != nil {
+		return 0, 0, fmt.Errorf("count artifacts: %w", err)
+	}
+	if err = d.sql.QueryRow(`SELECT COUNT(*) FROM links`).Scan(&links); err != nil {
+		return 0, 0, fmt.Errorf("count links: %w", err)
+	}
+	return artifacts, links, nil
 }

@@ -14,10 +14,15 @@ import (
 func newReindexCmd() *cobra.Command {
 	var asJSON bool
 	var pruneStubs bool
+	var full bool
 	cmd := &cobra.Command{
 		Use:   "reindex",
 		Short: "Rebuild .anvil/vault.db from the vault on disk",
 		Long: `Rebuild .anvil/vault.db from the vault on disk.
+
+By default reindex is incremental: only files newer than the last_reindex stamp
+are re-parsed, leaving unchanged rows in place. Pass --full to force a teardown
+and full walk (useful as a consistency escape hatch).
 
 Detects stray "<type>.*.md" files at the vault root (typically created by
 Obsidian wikilink clicks that resolve to missing artifacts) and emits a WARN
@@ -28,6 +33,7 @@ With --prune-stubs, 0-byte stubs are deleted. Non-zero stubs are reported but
 never deleted: they may hold user-authored content the wikilink-creation flow
 populated after the fact, and removing them would be destructive.`,
 		Example: `  anvil reindex
+  anvil reindex --full
   anvil reindex --json
   anvil reindex --prune-stubs`,
 		Args: cobra.NoArgs,
@@ -41,7 +47,12 @@ populated after the fact, and removing them would be destructive.`,
 				return err
 			}
 			defer db.Close() //nolint:errcheck // close in defer; error not actionable
-			stats, err := db.Reindex(v.Root)
+			var stats index.ReindexStats
+			if full {
+				stats, err = db.ReindexFull(v.Root)
+			} else {
+				stats, err = db.Reindex(v.Root)
+			}
 			if err != nil {
 				return err
 			}
@@ -90,6 +101,7 @@ populated after the fact, and removing them would be destructive.`,
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON output")
+	cmd.Flags().BoolVar(&full, "full", false, "force a full teardown+rebuild instead of incremental")
 	cmd.Flags().BoolVar(&pruneStubs, "prune-stubs", false, "delete 0-byte stray <type>.*.md files at vault root (non-empty stubs are kept and warned about)")
 	return cmd
 }
