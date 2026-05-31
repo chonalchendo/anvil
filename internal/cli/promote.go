@@ -23,6 +23,11 @@ func newPromoteCmd() *cobra.Command {
 		flagTags          []string
 		flagAllowNewFacet []string
 		flagProjectLocal  string
+		flagSeverity      string
+		flagMilestone     string
+		flagAcceptance    []string
+		flagBody          string
+		flagBodyFile      string
 	)
 
 	cmd := &cobra.Command{
@@ -66,7 +71,7 @@ func newPromoteCmd() *cobra.Command {
 			case "discard":
 				return discardInbox(cmd, v, a, id, flagJSON)
 			default:
-				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON, flagTags, flagAllowNewFacet, flagProjectLocal)
+				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON, flagTags, flagAllowNewFacet, flagProjectLocal, flagSeverity, flagMilestone, flagAcceptance, flagBody, flagBodyFile)
 			}
 		},
 	}
@@ -76,15 +81,23 @@ func newPromoteCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&flagTags, "tags", nil, "tags to seed on promoted artifact")
 	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet(s) to suppress novelty gate for")
 	cmd.Flags().StringVar(&flagProjectLocal, "project", "", "project slug for the promoted issue (overrides inbox suggested_project and resolver)")
+	cmd.Flags().StringVar(&flagSeverity, "severity", "", "issue severity (low|medium|high|critical; issue only)")
+	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "milestone slug or wikilink to assign (issue only)")
+	cmd.Flags().StringArrayVar(&flagAcceptance, "acceptance", nil, "acceptance criterion to add (repeatable; issue only)")
+	cmd.Flags().StringVar(&flagBody, "body", "", "body content for the promoted artifact (literal, or '-' to read stdin; issue only)")
+	cmd.Flags().StringVar(&flagBodyFile, "body-file", "", "read body from <path> (issue only; mutually exclusive with --body)")
 	_ = cmd.MarkFlagRequired("as")
 	return cmd
 }
 
-// promoteOutput is the stable JSON shape for `promote --json`. Discard
-// variants leave TargetID, TargetType, Path nil so the JSON emits explicit
-// nulls.
+// promoteOutput is the stable JSON shape for `promote --json`. For promoted
+// targets, ID holds the new artifact's id and SourceID holds the inbox entry
+// that was consumed; this lets callers pipe `.id` into subsequent commands
+// without extracting `.target_id`. Discard variants leave TargetID, TargetType,
+// Path, and SourceID nil so the JSON emits explicit nulls for those fields.
 type promoteOutput struct {
 	ID         string  `json:"id"`
+	SourceID   *string `json:"source_id,omitempty"`
 	TargetID   *string `json:"target_id"`
 	TargetType *string `json:"target_type"`
 	Status     string  `json:"status"`
@@ -143,17 +156,17 @@ func formatEnumError(field, got string, valid []string, exampleCmd string) error
 // promoteToTyped writes the target artifact, then flips the inbox row to
 // status: promoted with provenance fields. Issue is the only target that
 // resolves a project; the others ignore the project field.
-func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type, asJSON bool, flagTags, flagAllowNewFacet []string, projectOverride string) error {
+func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type, asJSON bool, flagTags, flagAllowNewFacet []string, projectOverride, flagSeverity, flagMilestone string, flagAcceptance []string, flagBody, flagBodyFile string) error {
 	status, _ := inbox.FrontMatter["status"].(string)
 	switch status {
 	case "promoted":
 		recordedType, _ := inbox.FrontMatter["promoted_type"].(string)
 		recordedTo := promotedToBareID(inbox.FrontMatter["promoted_to"])
 		if recordedType == string(target) {
-			tt, ti := recordedType, recordedTo
+			tt, ti, si := recordedType, recordedTo, inboxID
 			return emitPromoteOutput(cmd, asJSON,
 				promoteOutput{
-					ID: inboxID, TargetID: &ti, TargetType: &tt,
+					ID: recordedTo, SourceID: &si, TargetID: &ti, TargetType: &tt,
 					Status: "already_promoted",
 					Path:   ptrIfNonEmpty(filepath.Join(v.Root, target.Dir(), recordedTo+".md")),
 				},
@@ -212,6 +225,30 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		}
 		fm["tags"] = anyTags
 	}
+	if flagSeverity != "" && target == core.TypeIssue {
+		fm["severity"] = flagSeverity
+	}
+	if flagMilestone != "" && target == core.TypeIssue {
+		fm["milestone"] = normalizeMilestone(flagMilestone)
+	}
+	if len(flagAcceptance) > 0 && target == core.TypeIssue {
+		anyAcc := make([]any, len(flagAcceptance))
+		for i, s := range flagAcceptance {
+			anyAcc[i] = s
+		}
+		fm["acceptance"] = anyAcc
+	}
+
+	// --body / --body-file override the inbox body for issue targets so callers
+	// can land a complete artifact in one call without a follow-up `set` round-trip.
+	body := inbox.Body
+	if target == core.TypeIssue && (flagBody != "" || flagBodyFile != "") {
+		b, err := readBody(cmd, flagBody, flagBodyFile)
+		if err != nil {
+			return err
+		}
+		body = b
+	}
 
 	dir := filepath.Join(v.Root, target.Dir())
 	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
@@ -252,7 +289,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		emitValidationErrors(cmd, asJSON, errs)
 		return ErrSchemaInvalid
 	}
-	tgtArt := &core.Artifact{Path: targetPath, FrontMatter: fm, Body: inbox.Body}
+	tgtArt := &core.Artifact{Path: targetPath, FrontMatter: fm, Body: body}
 	if err := tgtArt.Save(); err != nil {
 		return fmt.Errorf("saving %s: %w", target, err)
 	}
@@ -276,9 +313,10 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 
 	tt := string(target)
 	ti := targetID
+	si := inboxID
 	return emitPromoteOutput(cmd, asJSON,
 		promoteOutput{
-			ID: inboxID, TargetID: &ti, TargetType: &tt,
+			ID: targetID, SourceID: &si, TargetID: &ti, TargetType: &tt,
 			Status: "promoted",
 			Path:   &targetPath,
 		},

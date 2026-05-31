@@ -77,6 +77,9 @@ func newCreateCmd() *cobra.Command {
 		flagTags             []string
 		flagAllowNewFacet    []string
 		flagForceNew         bool
+		flagSeverity         string
+		flagMilestone        string
+		flagAcceptance       []string
 	)
 
 	cmd := &cobra.Command{
@@ -354,6 +357,19 @@ func newCreateCmd() *cobra.Command {
 				}
 				fm["tags"] = anyTags
 			}
+			if flagSeverity != "" && t == core.TypeIssue {
+				fm["severity"] = flagSeverity
+			}
+			if flagMilestone != "" && t == core.TypeIssue {
+				fm["milestone"] = normalizeMilestone(flagMilestone)
+			}
+			if len(flagAcceptance) > 0 && t == core.TypeIssue {
+				anyAcc := make([]any, len(flagAcceptance))
+				for i, s := range flagAcceptance {
+					anyAcc[i] = s
+				}
+				fm["acceptance"] = anyAcc
+			}
 
 			// Overlay --from frontmatter onto the template-rendered fm. Identity
 			// fields stay CLI/template-owned; CLI-controllable fields were already
@@ -362,7 +378,8 @@ func newCreateCmd() *cobra.Command {
 			for k, v := range inputFM {
 				switch k {
 				case "type", "id", "slug", "created", "updated", "status", "plan_version",
-					"title", "description", "project", "issue", "tags":
+					"title", "description", "project", "issue", "tags",
+					"severity", "milestone", "acceptance":
 					continue
 				}
 				fm[k] = v
@@ -463,6 +480,9 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&flagTags, "tags", nil, "comma-separated tag list (e.g. domain/dbt,activity/testing)")
 	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet to suppress novelty gate for (repeatable: domain|activity|pattern)")
 	cmd.Flags().BoolVar(&flagForceNew, "force-new", false, "skip the near-duplicate similarity check")
+	cmd.Flags().StringVar(&flagSeverity, "severity", "", "issue severity (low|medium|high|critical; issue only)")
+	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "milestone slug or wikilink to assign (issue only)")
+	cmd.Flags().StringArrayVar(&flagAcceptance, "acceptance", nil, "acceptance criterion to add (repeatable; issue only)")
 
 	return cmd
 }

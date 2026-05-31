@@ -74,6 +74,17 @@ func invalidSlugError(slug string, cause error) error {
 	return errfmt.NewInvalidSlug(slug, cause)
 }
 
+// normalizeMilestone converts a bare slug (e.g. "anvil.v0-1-polish-dogfood-findings")
+// to the canonical wikilink form ("[[milestone.anvil.v0-1-polish-dogfood-findings]]")
+// so the issue stays reachable under --milestone filters and index edges.
+// Already-wrapped values pass through unchanged.
+func normalizeMilestone(s string) string {
+	if strings.HasPrefix(s, "[[") {
+		return s
+	}
+	return "[[milestone." + s + "]]"
+}
+
 func createLongDescription() string {
 	names := make([]string, 0, len(core.AllTypes))
 	for _, t := range core.AllTypes {

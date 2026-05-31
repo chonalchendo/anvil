@@ -637,3 +637,204 @@ func TestPromote_Issue_RequiresTags(t *testing.T) {
 		t.Fatalf("expected success: %v", err)
 	}
 }
+
+// promoteIssueResult is a superset of promoteJSONResult with source_id.
+type promoteIssueResult struct {
+	ID         string  `json:"id"`
+	SourceID   *string `json:"source_id"`
+	TargetID   *string `json:"target_id"`
+	TargetType *string `json:"target_type"`
+	Status     string  `json:"status"`
+	Path       *string `json:"path"`
+}
+
+func runPromoteIssueJSON(t *testing.T, args ...string) promoteIssueResult {
+	t.Helper()
+	cmd := newRootCmd()
+	cmd.SetArgs(append([]string{"promote"}, args...))
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("promote %v: %v", args, err)
+	}
+	var r promoteIssueResult
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out.String())), &r); err != nil {
+		t.Fatalf("unmarshal %q: %v", out.String(), err)
+	}
+	return r
+}
+
+// TestPromote_Issue_SeverityFlag verifies --severity writes high into the
+// promoted issue's frontmatter. Mirrors the issue's Indirect verification block.
+func TestPromote_Issue_SeverityFlag(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	var buf bytes.Buffer
+	add := newRootCmd()
+	add.SetArgs([]string{"create", "inbox", "--title", "promote me", "--json"})
+	add.SetOut(&buf)
+	if err := add.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var inboxResult struct{ ID string }
+	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &inboxResult); err != nil {
+		t.Fatalf("parse inbox json: %v", err)
+	}
+
+	r := runPromoteIssueJSON(t, inboxResult.ID, "--as", "issue", "--json",
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain",
+		"--severity", "high",
+	)
+	if r.Status != "promoted" {
+		t.Fatalf("status = %q, want promoted", r.Status)
+	}
+	// .id == promoted artifact id, not inbox id.
+	if r.ID == inboxResult.ID {
+		t.Errorf("id should be the new issue id, not the inbox id %q", inboxResult.ID)
+	}
+	// source_id == inbox id.
+	if r.SourceID == nil || *r.SourceID != inboxResult.ID {
+		t.Errorf("source_id = %v, want %q", r.SourceID, inboxResult.ID)
+	}
+	// target_id == same as id.
+	if r.TargetID == nil || *r.TargetID != r.ID {
+		t.Errorf("target_id = %v, want %q", r.TargetID, r.ID)
+	}
+
+	if r.Path == nil {
+		t.Fatal("path is nil")
+	}
+	a, err := core.LoadArtifact(*r.Path)
+	if err != nil {
+		t.Fatalf("load promoted: %v", err)
+	}
+	if got := a.FrontMatter["severity"]; got != "high" {
+		t.Errorf("severity = %v, want high", got)
+	}
+	_ = vault
+}
+
+// TestPromote_Issue_MilestoneFlag verifies --milestone normalizes bare slugs to
+// wikilink form in the promoted issue's frontmatter.
+func TestPromote_Issue_MilestoneFlag(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	var buf bytes.Buffer
+	add := newRootCmd()
+	add.SetArgs([]string{"create", "inbox", "--title", "promote milestone", "--json"})
+	add.SetOut(&buf)
+	if err := add.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var inboxResult struct{ ID string }
+	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &inboxResult); err != nil {
+		t.Fatalf("parse inbox json: %v", err)
+	}
+
+	// Pass bare slug; expect wikilink normalization.
+	r := runPromoteIssueJSON(t, inboxResult.ID, "--as", "issue", "--json",
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain",
+		"--milestone", "anvil.v0-1-polish",
+	)
+	if r.Path == nil {
+		t.Fatal("path is nil")
+	}
+	a, err := core.LoadArtifact(*r.Path)
+	if err != nil {
+		t.Fatalf("load promoted: %v", err)
+	}
+	got, _ := a.FrontMatter["milestone"].(string)
+	if got != "[[milestone.anvil.v0-1-polish]]" {
+		t.Errorf("milestone = %q, want [[milestone.anvil.v0-1-polish]]", got)
+	}
+	_ = vault
+}
+
+// TestPromote_Issue_AcceptanceFlag verifies repeatable --acceptance populates the
+// acceptance array in the promoted issue's frontmatter.
+func TestPromote_Issue_AcceptanceFlag(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	var buf bytes.Buffer
+	add := newRootCmd()
+	add.SetArgs([]string{"create", "inbox", "--title", "promote acceptance", "--json"})
+	add.SetOut(&buf)
+	if err := add.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var inboxResult struct{ ID string }
+	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &inboxResult); err != nil {
+		t.Fatalf("parse inbox json: %v", err)
+	}
+
+	r := runPromoteIssueJSON(t, inboxResult.ID, "--as", "issue", "--json",
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain",
+		"--acceptance", "first criterion",
+		"--acceptance", "second criterion",
+	)
+	if r.Path == nil {
+		t.Fatal("path is nil")
+	}
+	a, err := core.LoadArtifact(*r.Path)
+	if err != nil {
+		t.Fatalf("load promoted: %v", err)
+	}
+	acc, ok := a.FrontMatter["acceptance"].([]any)
+	if !ok {
+		t.Fatalf("acceptance missing or wrong type: %#v", a.FrontMatter["acceptance"])
+	}
+	if len(acc) != 2 || acc[0] != "first criterion" || acc[1] != "second criterion" {
+		t.Errorf("acceptance = %v, want [first criterion, second criterion]", acc)
+	}
+	_ = vault
+}
+
+// TestPromote_JSON_IDIsTargetID pins that .id == new artifact id and
+// .source_id == inbox id in the promote --json envelope. This is the envelope
+// contract change from the PR: callers pipe .id directly.
+func TestPromote_JSON_IDIsTargetID(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	var buf bytes.Buffer
+	add := newRootCmd()
+	add.SetArgs([]string{"create", "inbox", "--title", "envelope check", "--json"})
+	add.SetOut(&buf)
+	if err := add.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var inboxResult struct{ ID string }
+	if err := json.Unmarshal([]byte(strings.TrimSpace(buf.String())), &inboxResult); err != nil {
+		t.Fatalf("parse inbox json: %v", err)
+	}
+
+	r := runPromoteIssueJSON(t, inboxResult.ID, "--as", "issue", "--json",
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain",
+	)
+	// .id must be the new issue id, not the inbox id.
+	if r.ID == inboxResult.ID {
+		t.Errorf("envelope .id = %q equals inbox id; expected new issue id", r.ID)
+	}
+	// .source_id must be the inbox id.
+	if r.SourceID == nil || *r.SourceID != inboxResult.ID {
+		t.Errorf("source_id = %v, want %q", r.SourceID, inboxResult.ID)
+	}
+	// .target_id must equal .id.
+	if r.TargetID == nil || *r.TargetID != r.ID {
+		t.Errorf("target_id = %v, want %q (same as .id)", r.TargetID, r.ID)
+	}
+	if r.Status != "promoted" {
+		t.Errorf("status = %q, want promoted", r.Status)
+	}
+}
