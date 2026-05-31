@@ -8,12 +8,34 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // skillsHashFile marks the materialised skills tree with the hash of the
 // embedded source FS so future invocations can detect drift.
 const skillsHashFile = ".anvil-skills-hash"
+
+// skillsDeployStampFile records the binary's mtime at install time so the
+// auto-refresh path can detect whether the current binary was rebuilt after
+// the last install and thus has the right to overwrite the installed bundle.
+const skillsDeployStampFile = ".anvil-skills-deploy-stamp"
+
+// binaryMtime returns the modification time of the running executable.
+// Overridable in tests to simulate different binary ages without filesystem
+// manipulation.
+var binaryMtime = func() (time.Time, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return time.Time{}, fmt.Errorf("executable: %w", err)
+	}
+	info, err := os.Stat(exe)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("stat executable: %w", err)
+	}
+	return info.ModTime(), nil
+}
 
 // skillMarker is dropped inside each per-skill directory in --copy mode so
 // uninstall and refresh can recognise anvil-owned content vs. user content
@@ -48,6 +70,15 @@ func InstallSkills(srcFS fs.FS, materialiseDir, target string, useCopy, force bo
 	}
 	if err := os.WriteFile(filepath.Join(materialiseDir, skillsHashFile), []byte(hash), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		return false, fmt.Errorf("write skills hash: %w", err)
+	}
+	// Record the deploying binary's mtime as a provenance stamp so auto-refresh
+	// can distinguish "this binary was rebuilt" (stamp < binary mtime → refresh
+	// safe) from "a different binary deployed" (stamp >= binary mtime → skip).
+	// Failure to record the stamp is non-fatal; auto-refresh falls back to the
+	// legacy hash-only check on the next invocation.
+	if btime, berr := binaryMtime(); berr == nil {
+		stamp := strconv.FormatInt(btime.UnixNano(), 10)
+		_ = os.WriteFile(filepath.Join(materialiseDir, skillsDeployStampFile), []byte(stamp), 0o644) //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 	}
 	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		return false, fmt.Errorf("mkdir target %s: %w", target, err)
@@ -124,6 +155,15 @@ func RemoveSkills(srcFS fs.FS, materialiseDir, target string) (bool, error) {
 // The install mode (symlink vs copy) is recovered by inspecting any existing
 // per-skill child under target.
 //
+// If a deploy stamp is present (written by InstallSkills), the refresh only
+// proceeds when the current binary is strictly newer than the stamp — meaning
+// the binary was rebuilt since the last install. When the binary is the same
+// age or older than the stamp, the installed bundle came from a newer or
+// different binary and must not be overwritten. The stamp check is skipped
+// (falling back to hash-only logic) when the stamp file is absent, to
+// preserve backward compatibility with installs done before this guard was
+// introduced.
+//
 // If any target/<name> entry would block install (user planted a regular
 // dir over what should be a symlink, or a non-anvil dir in copy mode), the
 // refresh silently no-ops without touching materialiseDir. The implicit
@@ -141,6 +181,21 @@ func RefreshSkillsIfStale(srcFS fs.FS, materialiseDir, target string) (bool, err
 		}
 		return false, fmt.Errorf("stat %s: %w", materialiseDir, err)
 	}
+
+	// Version guard: when a deploy stamp is present, only refresh if the
+	// current binary is strictly newer than the stamp. A stamp at or after the
+	// binary's mtime means a different (or equally-aged) binary last deployed —
+	// skip to avoid overwriting a divergent bundle.
+	if stampBytes, err := os.ReadFile(filepath.Join(materialiseDir, skillsDeployStampFile)); err == nil { //nolint:gosec // path is application-managed
+		if btime, berr := binaryMtime(); berr == nil {
+			if stampNanos, perr := strconv.ParseInt(strings.TrimSpace(string(stampBytes)), 10, 64); perr == nil {
+				if !btime.After(time.Unix(0, stampNanos)) {
+					return false, nil
+				}
+			}
+		}
+	}
+
 	fresh, err := SkillsAreFresh(srcFS, materialiseDir)
 	if err != nil {
 		return false, err
