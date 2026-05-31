@@ -340,6 +340,30 @@ func TestSessionResume_ProjectScope(t *testing.T) {
 	}
 }
 
+func TestSessionResume_NoMatch(t *testing.T) {
+	vault := setupVault(t)
+	writeSessionFixtureWithProject(t, vault, "sess-anvil", "sess-anvil", "Anvil Session", "anvil",
+		"## Handoff\n\n**Objective.** anvil work\n")
+
+	// A project scope matching no handoff is exit 0 with an explicit no_handoff
+	// signal — distinct from a populated hit (which always has a non-empty
+	// session_id) and from the unscoped no-handoff error path.
+	out, _, err := runCmd(t, newRootCmd(), "session", "resume", "--project", "no-such-project-xyz", "--json")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var got resumeOutput
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if !got.NoHandoff {
+		t.Errorf("no_handoff should be true on no-match, got envelope: %s", out)
+	}
+	if got.SessionID != "" {
+		t.Errorf("session_id should be empty on no-match, got %q", got.SessionID)
+	}
+}
+
 func TestSessionList_ProjectFilter(t *testing.T) {
 	vault := setupVault(t)
 	writeSessionFixtureWithProject(t, vault, "list-anvil", "list-anvil", "Anvil", "anvil", "## Handoff\n\n**Objective.** anvil\n")
