@@ -283,3 +283,81 @@ func TestSessionResume_AmbiguityWindow_ReturnsCandidates(t *testing.T) {
 		t.Errorf("expected ≥2 candidates in ambiguity window, got %d", len(got.Candidates))
 	}
 }
+
+// writeSessionFixtureWithProject is like writeSessionFixture but stamps a project field.
+func writeSessionFixtureWithProject(t *testing.T, vault, filenameID, fmID, title, project, body string) string {
+	t.Helper()
+	path := filepath.Join(vault, "10-sessions", filenameID+".md")
+	a := &core.Artifact{
+		Path: path,
+		FrontMatter: map[string]any{
+			"type": "session", "session_id": fmID, "source": "claude-code",
+			"status": "raw", "title": title, "created": "2026-05-23",
+			"project": project,
+		},
+		Body: body,
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestSessionResume_ProjectScope(t *testing.T) {
+	vault := setupVault(t)
+	anvilBody := "## Handoff\n\n**Objective.** anvil work\n"
+	otherBody := "## Handoff\n\n**Objective.** other project work\n"
+
+	// Two handoffs from different projects; timestamps far apart so no ambiguity.
+	p1 := writeSessionFixtureWithProject(t, vault, "sess-anvil", "sess-anvil", "Anvil Session", "anvil", anvilBody)
+	p2 := writeSessionFixtureWithProject(t, vault, "sess-other", "sess-other", "Other Session", "other", otherBody)
+	now := time.Now()
+	// anvil session is newest; other session is 20 minutes older (outside ambiguity window).
+	if err := os.Chtimes(p1, now, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(p2, now.Add(-20*time.Minute), now.Add(-20*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+
+	// --project anvil should return only the anvil handoff.
+	out, _, err := runCmd(t, newRootCmd(), "session", "resume", "--project", "anvil", "--json")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var got resumeOutput
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if got.SessionID != "sess-anvil" {
+		t.Errorf("session_id = %q, want sess-anvil", got.SessionID)
+	}
+	if got.Project != "anvil" {
+		t.Errorf("project = %q, want anvil", got.Project)
+	}
+	if !strings.Contains(got.Body, "anvil work") {
+		t.Errorf("body should contain anvil content: %q", got.Body)
+	}
+}
+
+func TestSessionList_ProjectFilter(t *testing.T) {
+	vault := setupVault(t)
+	writeSessionFixtureWithProject(t, vault, "list-anvil", "list-anvil", "Anvil", "anvil", "## Handoff\n\n**Objective.** anvil\n")
+	writeSessionFixtureWithProject(t, vault, "list-burgh", "list-burgh", "Burgh", "burgh", "## Handoff\n\n**Objective.** burgh\n")
+	writeSessionFixture(t, vault, "list-unscoped", "list-unscoped", "Unscoped", "## Handoff\n\n**Objective.** no project\n")
+
+	out, _, err := runCmd(t, newRootCmd(), "session", "list", "--project", "anvil", "--json")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var items []sessionItem
+	if err := json.Unmarshal([]byte(out), &items); err != nil {
+		t.Fatalf("list --project --json must be a plain array: %v\n%s", err, out)
+	}
+	if len(items) != 1 {
+		t.Fatalf("got %d items, want 1 (only anvil): %s", len(items), out)
+	}
+	if items[0].Project != "anvil" {
+		t.Errorf("project = %q, want anvil", items[0].Project)
+	}
+}

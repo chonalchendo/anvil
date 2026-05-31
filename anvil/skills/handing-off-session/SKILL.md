@@ -66,10 +66,10 @@ Working in <repo path>. <One-sentence framing: what kind of work, which project.
 
 ## Phase 3 — Write into the session file and stop
 
-Pipe the populated template — opened by a `## Handoff` heading — to `anvil session handoff`:
+Pipe the populated template — opened by a `## Handoff` heading — to `anvil session handoff`. Pass `--project <p>` when the session is scoped to a single project so `anvil session resume --project <p>` can filter to it in the next terminal:
 
 ```bash
-anvil session handoff --body - <<'EOF'
+anvil session handoff --project <p> --body - <<'EOF'
 ## Handoff
 
 <populated template>
