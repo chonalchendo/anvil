@@ -6,18 +6,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
-	"time"
 )
-
-// simulateBinaryRebuild overrides binaryMtime for the duration of the test to
-// return a time one hour in the future, simulating a binary rebuilt after the
-// deploy stamp was written.
-func simulateBinaryRebuild(t *testing.T) {
-	t.Helper()
-	orig := binaryMtime
-	binaryMtime = func() (time.Time, error) { return time.Now().Add(time.Hour), nil }
-	t.Cleanup(func() { binaryMtime = orig })
-}
 
 func fakeSkillsFS() fstest.MapFS {
 	return fstest.MapFS{
@@ -437,10 +426,6 @@ func TestRefreshSkillsIfStale_RefreshesWhenContentDrifts(t *testing.T) {
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false, false); err != nil {
 		t.Fatal(err)
 	}
-	// Simulate the binary being rebuilt after the install so the version guard
-	// allows the refresh to proceed.
-	simulateBinaryRebuild(t)
-
 	skill := filepath.Join(mat, "capturing-inbox", "SKILL.md")
 	if err := os.WriteFile(skill, []byte("drifted\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
@@ -472,8 +457,6 @@ func TestRefreshSkillsIfStale_RefreshesWhenHashFileMissing(t *testing.T) {
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, false, false); err != nil {
 		t.Fatal(err)
 	}
-	// Simulate the binary being rebuilt so the version guard allows the refresh.
-	simulateBinaryRebuild(t)
 	if err := os.Remove(filepath.Join(mat, skillsHashFile)); err != nil {
 		t.Fatal(err)
 	}
@@ -543,8 +526,6 @@ func TestRefreshSkillsIfStale_PreservesCopyMode(t *testing.T) {
 	if _, err := InstallSkills(fakeSkillsFS(), mat, target, true, false); err != nil {
 		t.Fatal(err)
 	}
-	// Simulate the binary being rebuilt so the version guard allows the refresh.
-	simulateBinaryRebuild(t)
 	if err := os.WriteFile(filepath.Join(mat, skillsHashFile), []byte("stale"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
@@ -568,5 +549,45 @@ func TestRefreshSkillsIfStale_PreservesCopyMode(t *testing.T) {
 	}
 	if string(body) != "# capturing-inbox\n" {
 		t.Errorf("body = %q", body)
+	}
+}
+
+// TestRefreshSkillsIfStale_OlderContentDoesNotDowngrade verifies that a binary
+// carrying older embedded skill content cannot overwrite a bundle installed by
+// a newer binary, regardless of binary mtime.
+//
+// Scenario:
+//  1. Install with newerFS (contains NEW-MARKER) — stamp = hash(newerFS).
+//  2. Call RefreshSkillsIfStale with olderFS (no marker) — stamp != hash(olderFS)
+//     so the version guard blocks the refresh.
+//  3. Installed bundle still contains NEW-MARKER.
+func TestRefreshSkillsIfStale_OlderContentDoesNotDowngrade(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	target := filepath.Join(t.TempDir(), "claude-skills")
+
+	// newerFS has an extra marker line that olderFS (fakeSkillsFS) does not.
+	newerFS := fstest.MapFS{
+		"capturing-inbox/SKILL.md": {Data: []byte("# capturing-inbox\n<!-- NEW-MARKER -->\n")},
+		"writing-issue/SKILL.md":   {Data: []byte("# writing-issue\n")},
+	}
+	if _, err := InstallSkills(newerFS, mat, target, false, false); err != nil {
+		t.Fatal(err)
+	}
+
+	// Simulate a binary with older embedded content (no NEW-MARKER).
+	refreshed, err := RefreshSkillsIfStale(fakeSkillsFS(), mat, target)
+	if err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	if refreshed {
+		t.Fatal("older-content binary must not overwrite a newer installed bundle")
+	}
+
+	body, err := os.ReadFile(filepath.Join(mat, "capturing-inbox", "SKILL.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "NEW-MARKER") {
+		t.Errorf("NEW-MARKER was overwritten; body = %q", body)
 	}
 }

@@ -6,30 +6,14 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"time"
 )
 
-// skillsDeployStampFile records the binary's mtime at install time so the
-// auto-refresh path can detect whether the current binary was rebuilt after
-// the last install and thus has the right to overwrite the installed bundle.
+// skillsDeployStampFile records the embedded skill content hash at install time
+// so the auto-refresh path can detect whether the current binary carries the
+// same content version and thus has the right to maintain (repair drift in)
+// the installed bundle.
 const skillsDeployStampFile = ".anvil-skills-deploy-stamp"
-
-// binaryMtime returns the modification time of the running executable.
-// Overridable in tests to simulate different binary ages without filesystem
-// manipulation.
-var binaryMtime = func() (time.Time, error) {
-	exe, err := os.Executable()
-	if err != nil {
-		return time.Time{}, fmt.Errorf("executable: %w", err)
-	}
-	info, err := os.Stat(exe)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("stat executable: %w", err)
-	}
-	return info.ModTime(), nil
-}
 
 // RefreshSkillsIfStale rewrites the installed bundle when the hash recorded
 // in materialiseDir diverges from srcFS. No-op when materialiseDir is absent.
@@ -37,17 +21,14 @@ var binaryMtime = func() (time.Time, error) {
 // per-skill child under target.
 //
 // If a deploy stamp is present (written by InstallSkills), the refresh only
-// proceeds when the current binary is strictly newer than the stamp — meaning
-// the binary was rebuilt since the last install. When the binary is the same
-// age or older than the stamp, the installed bundle came from a newer or
-// different binary and must not be overwritten. The stamp check is skipped
-// (falling back to hash-only logic) when the stamp file is absent, to
-// preserve backward compatibility with installs done before this guard was
-// introduced.
-//
-// The stamp is the deploying binary's mtime (nanosecond epoch), which is a
-// build-time proxy rather than a content-addressed version — accurate for the
-// normal rebuild path but may invert for binaries rebuilt from an older ref.
+// proceeds when the current binary's embedded content hash matches the stamp —
+// meaning this is the same content version that last installed the bundle and
+// therefore has the right to repair drift. A binary carrying different content
+// (older or newer ref) must not overwrite the installed bundle via auto-refresh;
+// only an explicit `anvil install skills` call (which writes a new stamp) may
+// change the installed version. The stamp check is skipped (falling back to
+// hash-only logic) when the stamp file is absent, to preserve backward
+// compatibility with installs done before this guard was introduced.
 //
 // If any target/<name> entry would block install (user planted a regular
 // dir over what should be a symlink, or a non-anvil dir in copy mode), the
@@ -67,16 +48,14 @@ func RefreshSkillsIfStale(srcFS fs.FS, materialiseDir, target string) (bool, err
 		return false, fmt.Errorf("stat %s: %w", materialiseDir, err)
 	}
 
-	// Version guard: when a deploy stamp is present, only refresh if the
-	// current binary is strictly newer than the stamp. A stamp at or after the
-	// binary's mtime means a different (or equally-aged) binary last deployed —
-	// skip to avoid overwriting a divergent bundle.
+	// Version guard: when a deploy stamp is present, only proceed if the
+	// current binary's embedded content hash matches the stamp. A mismatch
+	// means a different content version (older or newer) last deployed —
+	// skip to avoid overwriting a bundle owned by a different version.
 	if stampBytes, err := os.ReadFile(filepath.Join(materialiseDir, skillsDeployStampFile)); err == nil { //nolint:gosec // path is application-managed
-		if btime, berr := binaryMtime(); berr == nil {
-			if stampNanos, perr := strconv.ParseInt(strings.TrimSpace(string(stampBytes)), 10, 64); perr == nil {
-				if !btime.After(time.Unix(0, stampNanos)) {
-					return false, nil
-				}
+		if curHash, herr := computeSkillsHash(srcFS); herr == nil {
+			if strings.TrimSpace(string(stampBytes)) != curHash {
+				return false, nil
 			}
 		}
 	}
