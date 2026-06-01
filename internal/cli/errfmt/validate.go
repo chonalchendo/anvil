@@ -13,6 +13,9 @@ const (
 	CodeUnresolvedLink       = "unresolved_link"
 	CodeParseError           = "parse_error"
 	CodeUnknownGlossaryTag   = "unknown_glossary_tag"
+	// CodeDuplicateID flags two vault files that resolve to the same index id.
+	// Both paths are reported so the operator can decide which file is canonical.
+	CodeDuplicateID = "duplicate_id"
 )
 
 // ValidationError is the canonical shape. Optional fields use omitempty so

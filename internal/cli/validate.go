@@ -72,6 +72,9 @@ func newValidateCmd() *cobra.Command {
 				}
 				failures = validateOne(t, singleFile, known)
 			} else {
+				// idPaths accumulates every path seen per index id to detect
+				// cross-file collisions after per-file checks complete.
+				idPaths := make(map[string][]string)
 				for _, t := range core.AllTypes {
 					paths, err := collectArtifactPaths(root, t)
 					if err != nil {
@@ -79,7 +82,30 @@ func newValidateCmd() *cobra.Command {
 					}
 					for _, p := range paths {
 						failures = append(failures, validateOne(t, p, known)...)
+						a, loadErr := core.LoadArtifact(p)
+						if loadErr != nil {
+							continue // parse failures already reported above
+						}
+						id, _ := a.FrontMatter["id"].(string)
+						if id == "" {
+							id = strings.TrimSuffix(filepath.Base(p), ".md")
+						}
+						if id != "" {
+							idPaths[id] = append(idPaths[id], p)
+						}
 					}
+				}
+				// Report each id that maps to more than one file.
+				for id, paths := range idPaths {
+					if len(paths) < 2 {
+						continue
+					}
+					// Use the first colliding path as the ValidationError anchor;
+					// all colliding paths appear in Expected so both are visible.
+					failures = append(failures, errfmt.NewValidationError(
+						errfmt.CodeDuplicateID, paths[0], "id",
+						"duplicate id: "+id,
+					).WithExpected(paths))
 				}
 			}
 
