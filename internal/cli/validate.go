@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/glossary"
+	"github.com/chonalchendo/anvil/internal/index"
 	"github.com/chonalchendo/anvil/internal/schema"
 	"github.com/chonalchendo/anvil/schemas"
 )
@@ -70,16 +72,51 @@ func newValidateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				failures = validateOne(t, singleFile, known)
+				_, fs := validateOne(t, singleFile, known)
+				failures = fs
 			} else {
+				// idPaths accumulates every path seen per index id to detect
+				// cross-file collisions after per-file checks complete.
+				idPaths := make(map[string][]string)
 				for _, t := range core.AllTypes {
 					paths, err := collectArtifactPaths(root, t)
 					if err != nil {
 						return err
 					}
 					for _, p := range paths {
-						failures = append(failures, validateOne(t, p, known)...)
+						a, fs := validateOne(t, p, known)
+						failures = append(failures, fs...)
+						if a == nil {
+							continue // parse failures already reported above
+						}
+						// Reuse the index's canonical id derivation so validate
+						// detects exactly the collisions the indexer would.
+						row, rowErr := index.ArtifactRowFromFrontmatter(a.FrontMatter, p)
+						if rowErr != nil {
+							continue
+						}
+						idPaths[row.ID] = append(idPaths[row.ID], p)
 					}
+				}
+				// Report each id that maps to more than one file. Sort ids so
+				// duplicate_id findings are emitted in a stable order (map
+				// iteration is otherwise non-deterministic).
+				ids := make([]string, 0, len(idPaths))
+				for id := range idPaths {
+					ids = append(ids, id)
+				}
+				sort.Strings(ids)
+				for _, id := range ids {
+					paths := idPaths[id]
+					if len(paths) < 2 {
+						continue
+					}
+					// Use the first colliding path as the ValidationError anchor;
+					// all colliding paths appear in Expected so both are visible.
+					failures = append(failures, errfmt.NewValidationError(
+						errfmt.CodeDuplicateID, paths[0], "id",
+						"duplicate id: "+id,
+					).WithExpected(paths))
 				}
 			}
 
@@ -105,14 +142,16 @@ func newValidateCmd() *cobra.Command {
 }
 
 // validateOne runs schema + learning-body checks on a single artifact file and
-// returns any structured failures.
-func validateOne(t core.Type, path string, knownTags map[string]struct{}) []*errfmt.ValidationError {
+// returns the loaded artifact alongside any structured failures. The artifact
+// is nil on a parse failure (the only failure that prevents loading); callers
+// reuse it for cross-file id-collision detection without a second load.
+func validateOne(t core.Type, path string, knownTags map[string]struct{}) (*core.Artifact, []*errfmt.ValidationError) {
 	a, err := core.LoadArtifact(path)
 	if err != nil {
-		return []*errfmt.ValidationError{errfmt.NewValidationError(errfmt.CodeParseError, path, "", err.Error())}
+		return nil, []*errfmt.ValidationError{errfmt.NewValidationError(errfmt.CodeParseError, path, "", err.Error())}
 	}
 	if err := schema.Validate(string(t), a.FrontMatter); err != nil {
-		return schemaErrToValidationErrors(path, err)
+		return a, schemaErrToValidationErrors(path, err)
 	}
 
 	var out []*errfmt.ValidationError
@@ -124,7 +163,7 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}) []*err
 		for _, vErr := range core.ValidateLearning(a, knownTags) {
 			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 		}
-		return out
+		return a, out
 	}
 
 	if t == core.TypeIssue {
@@ -153,7 +192,7 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}) []*err
 		}
 	}
 
-	return out
+	return a, out
 }
 
 // vaultRootFromArtifactPath resolves the vault root for an artifact file by

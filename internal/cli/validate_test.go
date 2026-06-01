@@ -396,6 +396,67 @@ func TestValidate_Issue_MissingVerification(t *testing.T) {
 	}
 }
 
+func TestValidate_DuplicateID_CrossFile(t *testing.T) {
+	vault := setupVault(t)
+
+	// Plant an issue and a plan that share the same id field — the classic
+	// deprecated-plan-shadows-promoted-issue collision.
+	issue := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", "demo.dup.md"),
+		FrontMatter: map[string]any{
+			"id": "demo.dup", "type": "issue", "title": "dup",
+			"status": "open",
+		},
+	}
+	if err := issue.Save(); err != nil {
+		t.Fatal(err)
+	}
+	plan := &core.Artifact{
+		Path: filepath.Join(vault, "80-plans", "demo.dup.md"),
+		FrontMatter: map[string]any{
+			"id": "demo.dup", "type": "plan", "title": "dup",
+			"status": "draft",
+		},
+	}
+	if err := plan.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"validate", "--json", vault})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected validate to fail for duplicate id")
+	}
+	var failures []map[string]any
+	if err := json.Unmarshal(out.Bytes(), &failures); err != nil {
+		t.Fatalf("parse json: %v\n%s", err, out.String())
+	}
+	var found map[string]any
+	for _, f := range failures {
+		if f["code"] == "duplicate_id" {
+			found = f
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected duplicate_id finding, got %v", failures)
+	}
+	if found["field"] != "id" {
+		t.Errorf("field=%v want id", found["field"])
+	}
+	got, _ := found["got"].(string)
+	if !strings.Contains(got, "duplicate id") {
+		t.Errorf("got=%q want it to contain 'duplicate id'", got)
+	}
+	paths, _ := found["expected"].([]any)
+	if len(paths) < 2 {
+		t.Errorf("expected at least 2 paths in expected, got %v", paths)
+	}
+}
+
 func TestValidate_GlossaryDrift_EmptyGlossarySkips(t *testing.T) {
 	vault := setupVault(t)
 
