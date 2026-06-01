@@ -281,3 +281,81 @@ func TestInstall_Skills_Uninstall(t *testing.T) {
 		t.Errorf("output = %q, want mention of removed", out.String())
 	}
 }
+
+// TestInstallSkillsTargetCodex covers `anvil install skills --target codex`:
+// skills land copied (not symlinked) under $CODEX_HOME/skills, the Claude
+// config dir is left untouched, the copy still happens when a prior Claude
+// install left the materialise dir fresh, and an unknown target is rejected.
+func TestInstallSkillsTargetCodex(t *testing.T) {
+	t.Run("copies into CODEX_HOME and leaves Claude untouched", func(t *testing.T) {
+		codexDir := t.TempDir()
+		claudeDir := t.TempDir()
+		t.Setenv("CODEX_HOME", codexDir)
+		t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+		t.Setenv("ANVIL_SKILLS_DIR", t.TempDir())
+
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"install", "skills", "--target", "codex"})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("install skills --target codex: %v", err)
+		}
+
+		child := filepath.Join(codexDir, "skills", "completing-issue")
+		info, err := os.Lstat(child)
+		if err != nil {
+			t.Fatalf("lstat %s: %v", child, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			t.Errorf("%s should be a copy, not a symlink", child)
+		}
+		if _, err := os.Stat(filepath.Join(child, "SKILL.md")); err != nil {
+			t.Errorf("completing-issue SKILL.md not present under CODEX_HOME: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(claudeDir, "skills")); !os.IsNotExist(err) {
+			t.Errorf("Claude skills dir should be untouched by --target codex, got err=%v", err)
+		}
+		if !strings.Contains(out.String(), "copied anvil skills") {
+			t.Errorf("output = %q, want mention of copied anvil skills", out.String())
+		}
+	})
+
+	t.Run("copies even when a prior Claude install left the bundle fresh", func(t *testing.T) {
+		codexDir := t.TempDir()
+		t.Setenv("CODEX_HOME", codexDir)
+		t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+		t.Setenv("ANVIL_SKILLS_DIR", t.TempDir())
+
+		// Prime the materialise dir via a Claude install so its freshness hash
+		// is current — the shortcut the codex path must not take.
+		claude := newRootCmd()
+		claude.SetArgs([]string{"install", "skills"})
+		claude.SetOut(&bytes.Buffer{})
+		if err := claude.Execute(); err != nil {
+			t.Fatalf("seed claude install: %v", err)
+		}
+
+		codex := newRootCmd()
+		codex.SetArgs([]string{"install", "skills", "--target", "codex"})
+		codex.SetOut(&bytes.Buffer{})
+		if err := codex.Execute(); err != nil {
+			t.Fatalf("install skills --target codex: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(codexDir, "skills", "completing-issue", "SKILL.md")); err != nil {
+			t.Errorf("codex skills must be copied despite a fresh materialise dir: %v", err)
+		}
+	})
+
+	t.Run("rejects unknown target", func(t *testing.T) {
+		t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+		t.Setenv("ANVIL_SKILLS_DIR", t.TempDir())
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"install", "skills", "--target", "gemini"})
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetErr(&bytes.Buffer{})
+		if err := cmd.Execute(); err == nil {
+			t.Fatal("want error for unknown --target, got nil")
+		}
+	})
+}
