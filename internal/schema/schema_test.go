@@ -247,6 +247,38 @@ func TestValidate_Milestone_RejectsSchedulingFields(t *testing.T) {
 	}
 }
 
+func TestValidate_Contract_NewShape(t *testing.T) {
+	fm := map[string]any{
+		"type": "contract", "title": "Data boundaries", "description": "what the pipeline does / does not",
+		"created": "2026-06-02", "updated": "2026-06-02",
+		"status": "draft", "project": "burgh", "kind": "data",
+		"tags": []any{"domain/property"},
+	}
+	if err := Validate("contract", fm); err != nil {
+		t.Fatalf("expected valid contract: %v", err)
+	}
+}
+
+func TestValidate_Contract_RequiresKind(t *testing.T) {
+	fm := map[string]any{
+		"type": "contract", "title": "X", "description": "x",
+		"created": "2026-06-02", "status": "draft", "project": "burgh",
+	}
+	if err := Validate("contract", fm); err == nil {
+		t.Error("expected rejection: kind is required")
+	}
+}
+
+func TestValidate_Contract_RejectsBadStatus(t *testing.T) {
+	fm := map[string]any{
+		"type": "contract", "title": "X", "description": "x",
+		"created": "2026-06-02", "status": "ratified", "project": "burgh", "kind": "data",
+	}
+	if err := Validate("contract", fm); err == nil {
+		t.Error("expected rejection: status enum")
+	}
+}
+
 func TestValidate_Issue_NewShape(t *testing.T) {
 	fm := map[string]any{
 		"type": "issue", "title": "Fix inbox", "description": "x", "created": "2026-04-29",

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://anvil.dev/schemas/contract.schema.json",
+  "title": "contract",
+  "type": "object",
+  "required": ["type", "title", "description", "created", "status", "project", "kind"],
+  "properties": {
+    "type":           { "const": "contract" },
+    "title":          { "type": "string", "minLength": 1 },
+    "description":    { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[^\\n]+$" },
+    "created":        { "type": "string", "format": "date" },
+    "updated":        { "type": "string", "format": "date" },
+    "status":         { "enum": ["draft", "active", "deprecated"] },
+    "kind":           { "type": "string", "minLength": 1 },
+    "tags":           { "type": "array", "items": { "type": "string" } },
+    "aliases":        { "type": "array", "items": { "type": "string" } },
+    "project":        { "type": "string", "minLength": 1 },
+    "related":        { "type": "array", "items": { "type": "string" } },
+    "external_links": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+  },
+  "additionalProperties": false
+}

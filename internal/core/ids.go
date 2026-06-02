@@ -251,7 +251,7 @@ func DeterministicID(t Type, in IDInputs) (string, error) {
 	case TypeInbox:
 		date := time.Now().UTC().Format("2006-01-02")
 		return fmt.Sprintf("%s-%s", date, slug), nil
-	case TypeIssue, TypePlan, TypeMilestone:
+	case TypeIssue, TypePlan, TypeMilestone, TypeContract:
 		if in.Project == "" {
 			return "", fmt.Errorf("project required for %s", t)
 		}

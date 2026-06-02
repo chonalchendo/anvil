@@ -110,6 +110,19 @@ Cut entirely: `target_date`, `horizon`, `ordinal`, `predecessors`, `successors`,
 
 **Legal transitions:** see `internal/core/transitions.go`.
 
+### `contract`
+
+```yaml
+type: contract
+project: <slug>
+status: draft | active | deprecated
+kind: <registered label>   # required; register via `anvil contract kinds add <name>`
+```
+
+Plural per project (many contracts, one per component-family — e.g. `data`, `analytics`), unlike the singleton design types. `description` is the always-on layer surfaced in `anvil list contract --json`; the `does / does-not` boundary prose lives in the body, loaded on demand via `anvil show ... --body`.
+
+`kind` is a registered label, not a free scalar: an unregistered kind is rejected at create time (mirrors the tag-facet gate), keeping the set typo-safe and discoverable. Register with `anvil contract kinds add <name>` (idempotent; optional `--desc`); list with `anvil contract kinds list`. Kinds are stored in the glossary `kind/` facet.
+
 ### `issue`
 
 ```yaml

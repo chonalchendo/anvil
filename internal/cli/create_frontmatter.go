@@ -65,6 +65,17 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 		failures = append(failures, e)
 	}
 
+	// A contract's `kind` is a registered label, not a free scalar: it must
+	// already exist in the glossary `kind/` vocabulary (register via `anvil
+	// contract kinds add`). Mirrors the tag-facet gate — an unregistered kind
+	// is rejected, not silently accepted — keeping the kind set typo-safe and
+	// discoverable for the writing-contract skill.
+	if t == core.TypeContract {
+		if e := checkContractKind(v.Root, path, fm); e != nil {
+			failures = append(failures, e)
+		}
+	}
+
 	if authoredBody {
 		a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
 		switch t {
