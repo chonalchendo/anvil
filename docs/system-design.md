@@ -45,7 +45,7 @@ This is the live system-design reference. Long-form rationale and history live i
 
 ## Design layers
 
-Anvil's knowledge structure follows a three-layer model:
+Anvil's knowledge structure follows a layered `seed → milestone → issue` model:
 
 ```
 system-design (seed)  →  milestone  →  issue
