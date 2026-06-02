@@ -122,3 +122,19 @@ func TestCreateContract_RequiresKind(t *testing.T) {
 		t.Fatal("expected error: --kind required for contract")
 	}
 }
+
+// TestTagsAdd_RejectsKindFacet pins the single-registration-path invariant:
+// `kind/` is glossary storage for contract kinds, but the only public way to
+// register one is `anvil contract kinds add`, not the generic `tags add`.
+func TestTagsAdd_RejectsKindFacet(t *testing.T) {
+	setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	out, err := runArgs(t, "tags", "add", "kind/data", "--desc", "x")
+	if err == nil {
+		t.Fatalf("expected rejection of tags add kind/...\n%s", out)
+	}
+	if !strings.Contains(err.Error(), "contract kinds add") {
+		t.Errorf("error should redirect to the dedicated verb, got: %v", err)
+	}
+}
