@@ -1,6 +1,6 @@
 ---
 name: writing-contract
-description: "Use when authoring a new component contract or appending a precedent to an existing one. Triggers: 'write the X contract', 'record this boundary violation', 'add a precedent to Y', 'what does/does not X own'. Two modes: author (new contract) and update (append precedent or sharpen a does-not)."
+description: "Use when authoring a component contract or appending a precedent. Triggers: 'write the X contract', 'record this boundary violation', 'add a precedent to Y', 'what does/does not X own'. Modes: author (new) and update (append/sharpen)."
 license: MIT
 allowed-tools: [Bash, Read, Edit, Write]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -92,8 +92,7 @@ anvil create contract \
   --title "<Component> contract" \
   --project <slug> \
   --kind <registered-kind> \
-  --description "<one sentence — the component's primary responsibility>" \
-  --status draft
+  --description "<one sentence — the component's primary responsibility>"
 ```
 
 Then open the created file and write the body in the does/does-not shape from Phase 2.
