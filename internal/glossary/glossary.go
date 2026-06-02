@@ -14,7 +14,10 @@ import (
 )
 
 // Facets is the closed set of tag facets. Order matches Save's output.
-var Facets = []string{"domain", "activity", "pattern", "type"}
+// `kind` backs the contract-kind vocabulary (registered via `anvil contract
+// kinds add`); like `type` it is glossary-registered but not gate-validated on
+// arbitrary artifact tags (see internal/cli/facets.validFacets).
+var Facets = []string{"domain", "activity", "pattern", "type", "kind"}
 
 // Path returns the canonical location of the glossary file inside vaultRoot.
 func Path(vaultRoot string) string {

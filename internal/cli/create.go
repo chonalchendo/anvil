@@ -49,6 +49,7 @@ type templateData struct {
 	StartedAt        string
 	Breaking         bool
 	Scope            string
+	Kind             string
 	Tags             []string
 }
 
@@ -80,6 +81,7 @@ func newCreateCmd() *cobra.Command {
 		flagSeverity         string
 		flagMilestone        string
 		flagAcceptance       []string
+		flagKind             string
 	)
 
 	cmd := &cobra.Command{
@@ -269,6 +271,10 @@ func newCreateCmd() *cobra.Command {
 				if !cmd.Flags().Changed("breaking") {
 					return fmt.Errorf("--breaking must be set explicitly for sweep (true or false)")
 				}
+			case core.TypeContract:
+				if strings.TrimSpace(flagKind) == "" {
+					return fmt.Errorf("--kind is required for contract: a registered contract kind (see `anvil contract kinds list`)")
+				}
 			}
 
 			// Derive description from title when omitted for spine types that
@@ -343,6 +349,7 @@ func newCreateCmd() *cobra.Command {
 				Issue:            flagIssue,
 				Breaking:         flagBreaking,
 				Scope:            flagScope,
+				Kind:             flagKind,
 				Tags:             flagTags,
 			}
 
@@ -483,6 +490,7 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagSeverity, "severity", "", "issue severity (low|medium|high|critical; issue only)")
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "milestone slug or wikilink to assign (issue only)")
 	cmd.Flags().StringArrayVar(&flagAcceptance, "acceptance", nil, "acceptance criterion to add (repeatable; issue only)")
+	cmd.Flags().StringVar(&flagKind, "kind", "", "contract kind, a registered label (required for contract; register via `anvil contract kinds add`)")
 
 	return cmd
 }

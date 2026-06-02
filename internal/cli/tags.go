@@ -318,7 +318,12 @@ func newTagsAddCmd() *cobra.Command {
 			if flagDesc == "" {
 				return fmt.Errorf("--desc is required")
 			}
-			facet, _, ok := glossary.SplitTag(tag)
+			facet, name, ok := glossary.SplitTag(tag)
+			// `kind/` is a glossary facet for storage only; contract kinds have a
+			// dedicated registration verb so there is one path, not two.
+			if ok && facet == contractKindFacet {
+				return fmt.Errorf("%q is a contract-kind label, not a tag facet\n  corrected: anvil contract kinds add %s", tag, name)
+			}
 			if !ok || !slices.Contains(glossary.Facets, facet) {
 				return fmt.Errorf("invalid value %q for <facet>/<name>\n  valid values: %s\n  corrected:    anvil tags add %s/<name> --desc %q",
 					tag, strings.Join(glossary.Facets, ", "), glossary.Facets[0], flagDesc)

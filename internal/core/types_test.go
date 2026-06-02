@@ -28,6 +28,7 @@ func TestType_Dir(t *testing.T) {
 		TypePlan:      "80-plans",
 		TypeMilestone: "85-milestones",
 		TypeDecision:  "30-decisions",
+		TypeContract:  "75-contracts",
 	}
 	for tp, want := range cases {
 		if got := tp.Dir(); got != want {
