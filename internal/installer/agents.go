@@ -222,8 +222,14 @@ func parseAgentMarkdown(md []byte) (map[string]string, string, error) {
 	return fields, body, nil
 }
 
-// tomlBasicString quotes s as a single-line TOML basic string. Escaping every
-// backslash and double-quote covers all content the agent frontmatter carries.
+// Both string encoders below assume their input is anvil-authored, committed
+// agent markdown — clean UTF-8 text whose only TOML metacharacters are the
+// backslash and double-quote. They escape those; C0 control characters, which
+// TOML forbids in basic strings, cannot occur in the embedded bundle (an
+// invariant, not a runtime check). A live `tomllib` parse in the install
+// verification would catch a violation if a future agent broke it.
+
+// tomlBasicString quotes s as a single-line TOML basic string.
 func tomlBasicString(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`, "\t", `\t`)
 	return `"` + r.Replace(s) + `"`
@@ -231,7 +237,7 @@ func tomlBasicString(s string) string {
 
 // tomlMultilineString quotes s as a TOML multi-line basic string. Newlines are
 // kept literal; escaping every double-quote (rather than only runs of three)
-// guarantees the body can never reconstitute the `"""` delimiter.
+// keeps the body from reconstituting the `"""` delimiter.
 func tomlMultilineString(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
 	return "\"\"\"\n" + r.Replace(s) + "\n\"\"\""

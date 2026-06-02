@@ -45,9 +45,10 @@ Skills and agents are discovered at session start, so **restart Claude Code** af
 
 ```bash
 anvil install skills --target codex   # copies the bundle into ~/.codex/skills (honoring $CODEX_HOME)
+anvil install agents --target codex   # emits each subagent as ~/.codex/agents/<name>.toml
 ```
 
-Restart Codex to pick them up; the lifecycle skills auto-fire by description just as in Claude Code. The default target stays `claude`. `install agents` and `install hooks` remain Claude-only — Codex subagents use a different (TOML) format and there's no Codex `SessionStart` hook; both arrive with the full Codex adapter in v0.2.
+Restart Codex to pick them up; the lifecycle skills auto-fire by description just as in Claude Code. The default target stays `claude`. `install agents --target codex` translates each bundled subagent into Codex's TOML format (dropping the Claude-specific model/tools/skills fields). `install hooks` remains Claude-only — there's no Codex `SessionStart` hook; that arrives with the rest of the Codex adapter in v0.2.
 
 > Once released, `go install github.com/chonalchendo/anvil/cmd/anvil@latest` will be the one-line path. Build from source with `just install` (not `go install ./cmd/anvil`) — the recipe stamps the version and checks for a stale binary shadowing your `$PATH`.
 

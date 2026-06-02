@@ -218,7 +218,8 @@ func newInstallAgentsCmd() *cobra.Command {
 			"effect until you rebuild the binary (`just install`) and re-run\n" +
 			"`anvil install agents`. A freshly-deployed Claude agent is dispatchable via the\n" +
 			"Agent tool's subagent_type only after the next Claude Code session restart.",
-		Args: cobra.NoArgs,
+		Example: "  anvil install agents\n  anvil install agents --target codex\n  anvil install agents --target codex --uninstall",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			dir, err := resolveAnvilAgentsTarget(target)
 			if err != nil {
