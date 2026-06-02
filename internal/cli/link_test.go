@@ -2,11 +2,39 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/chonalchendo/anvil/internal/core"
 )
+
+func writeFixtureContract(t *testing.T, vault, project, slug string) string {
+	t.Helper()
+	id := project + "." + slug
+	dir := filepath.Join(vault, "75-contracts")
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // test fixture; 0755 matches vault convention
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, id+".md")
+	a := &core.Artifact{
+		Path: path,
+		FrontMatter: map[string]any{
+			"type": "contract", "title": "Data boundaries",
+			"description": "what the pipeline does / does not",
+			"created": "2026-06-01", "updated": "2026-06-01",
+			"status": "draft", "project": project, "kind": "data",
+			"tags": []any{},
+		},
+		Body: "## Boundaries\n\ndoes: x\ndoes not: y\n",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
 
 func writeFixturePlan(t *testing.T, vault, project, slug, title string) string {
 	t.Helper()
@@ -143,5 +171,54 @@ func TestLink_AnyPair_WritesToRelated(t *testing.T) {
 	related, _ := a.FrontMatter["related"].([]any)
 	if len(related) != 1 || related[0] != "[[decision.auth.0001-x]]" {
 		t.Errorf("related = %v", related)
+	}
+}
+
+// TestLink_IssueToContract confirms Option-A contract routing: an issue can
+// link to its governing contract and the wikilink lands in related[].
+func TestLink_IssueToContract(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "i001", "Add dedup")
+	writeFixtureContract(t, vault, "foo", "data-bounds")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"link", "issue", "foo.i001", "contract", "foo.data-bounds"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("link issue→contract: %v", err)
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.i001.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	related, _ := a.FrontMatter["related"].([]any)
+	if len(related) != 1 || related[0] != "[[contract.foo.data-bounds]]" {
+		t.Errorf("related = %v, want [[contract.foo.data-bounds]]", related)
+	}
+}
+
+// TestShow_IssueJSON_ExposesContractLink confirms that show issue --json
+// surfaces the contract wikilink so a worker can discover and follow it.
+func TestShow_IssueJSON_ExposesContractLink(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "i001", "Add dedup")
+	writeFixtureContract(t, vault, "foo", "data-bounds")
+
+	// Link then show.
+	if _, err := runArgs(t, "link", "issue", "foo.i001", "contract", "foo.data-bounds"); err != nil {
+		t.Fatalf("link: %v", err)
+	}
+	out, err := runArgs(t, "show", "issue", "foo.i001", "--json")
+	if err != nil {
+		t.Fatalf("show issue --json: %v\n%s", err, out)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	// The contract wikilink must appear somewhere in the JSON output so a
+	// worker can discover and load the governing contract.
+	raw, _ := json.Marshal(got)
+	if !strings.Contains(string(raw), "contract.foo.data-bounds") {
+		t.Errorf("contract link not found in show issue --json output:\n%s", string(raw))
 	}
 }
