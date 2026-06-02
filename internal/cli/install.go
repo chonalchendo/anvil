@@ -53,9 +53,10 @@ func resolveCodexConfigDir() (string, error) {
 	return filepath.Join(home, ".codex"), nil
 }
 
-// resolveSkillsConfigDir picks the agent CLI's config dir for skill install.
-// Only "claude" and "codex" are valid; an unknown target is a usage error.
-func resolveSkillsConfigDir(target string) (string, error) {
+// resolveAgentCLIConfigDir picks the agent CLI's config dir for skill/agent
+// install. Only "claude" and "codex" are valid; an unknown target is a usage
+// error.
+func resolveAgentCLIConfigDir(target string) (string, error) {
 	switch target {
 	case "claude":
 		return resolveClaudeConfigDir()
@@ -202,48 +203,83 @@ func newInstallSkillsCmd() *cobra.Command {
 
 func newInstallAgentsCmd() *cobra.Command {
 	var uninstall, force bool
+	var target string
 	cmd := &cobra.Command{
 		Use:   "agents",
-		Short: "Install (or remove) the binary-embedded Anvil agents into ~/.claude/agents/<name>.md",
-		Long: "Install (or remove) the Anvil agents bundle into ~/.claude/agents/<name>.md.\n\n" +
+		Short: "Install (or remove) the binary-embedded Anvil agents into an agent CLI's agents dir",
+		Long: "Install (or remove) the Anvil agents bundle into the target agent CLI's agents dir:\n" +
+			"--target claude → ~/.claude/agents/<name>.md (Claude markdown subagents);\n" +
+			"--target codex → ~/.codex/agents/<name>.toml (Codex custom-agent TOML, honoring\n" +
+			"$CODEX_HOME). The Codex emit translates each markdown agent — frontmatter\n" +
+			"name/description plus the body become the required TOML keys; Claude-specific\n" +
+			"model/tools/skills are dropped.\n\n" +
 			"Agents are embedded into the anvil binary at build time. This command deploys\n" +
 			"that embedded bundle — editing anvil/agents/<name>.md in a checkout has no\n" +
 			"effect until you rebuild the binary (`just install`) and re-run\n" +
-			"`anvil install agents`. A freshly-deployed agent is dispatchable via the Agent\n" +
-			"tool's subagent_type only after the next Claude Code session restart.",
+			"`anvil install agents`. A freshly-deployed Claude agent is dispatchable via the\n" +
+			"Agent tool's subagent_type only after the next Claude Code session restart.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			target, err := resolveAnvilAgentsTarget()
+			dir, err := resolveAnvilAgentsTarget(target)
 			if err != nil {
 				return err
 			}
+			if target == "codex" {
+				return runInstallCodexAgents(cmd, dir, uninstall, force)
+			}
 			if uninstall {
-				changed, err := installer.RemoveAgents(agents.FS, target)
+				changed, err := installer.RemoveAgents(agents.FS, dir)
 				if err != nil {
 					return fmt.Errorf("removing agents: %w", err)
 				}
 				if changed {
-					cmd.Println("removed anvil agents from", target)
+					cmd.Println("removed anvil agents from", dir)
 				} else {
-					cmd.Println("no anvil agents found at", target)
+					cmd.Println("no anvil agents found at", dir)
 				}
 				return nil
 			}
-			changed, err := installer.InstallAgents(agents.FS, target, force)
+			changed, err := installer.InstallAgents(agents.FS, dir, force)
 			if err != nil {
 				return fmt.Errorf("installing agents: %w", err)
 			}
 			if changed {
-				cmd.Println("installed anvil agents (embedded bundle) into", target+"; restart Claude Code before dispatching a freshly-added agent")
+				cmd.Println("installed anvil agents (embedded bundle) into", dir+"; restart Claude Code before dispatching a freshly-added agent")
 			} else {
-				cmd.Println("anvil agents up to date at", target)
+				cmd.Println("anvil agents up to date at", dir)
 			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove anvil agents instead of installing them")
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite an existing agent file that differs from the embedded copy")
+	cmd.Flags().StringVar(&target, "target", "claude", "agent CLI to install into: claude (~/.claude, markdown) or codex (~/.codex, TOML; honoring $CODEX_HOME)")
 	return cmd
+}
+
+func runInstallCodexAgents(cmd *cobra.Command, dir string, uninstall, force bool) error {
+	if uninstall {
+		changed, err := installer.RemoveCodexAgents(agents.FS, dir)
+		if err != nil {
+			return fmt.Errorf("removing codex agents: %w", err)
+		}
+		if changed {
+			cmd.Println("removed anvil agents from", dir)
+		} else {
+			cmd.Println("no anvil agents found at", dir)
+		}
+		return nil
+	}
+	changed, err := installer.InstallCodexAgents(agents.FS, dir, force)
+	if err != nil {
+		return fmt.Errorf("installing codex agents: %w", err)
+	}
+	if changed {
+		cmd.Println("installed anvil agents (embedded bundle) as Codex TOML into", dir)
+	} else {
+		cmd.Println("anvil agents up to date at", dir)
+	}
+	return nil
 }
 
 // resolveAnvilSkillsTarget returns the user-skills parent directory for the
@@ -251,18 +287,18 @@ func newInstallAgentsCmd() *cobra.Command {
 // path (skills/<skill>/SKILL.md) so the agent CLI's user-skill discovery picks
 // them up.
 func resolveAnvilSkillsTarget(target string) (string, error) {
-	dir, err := resolveSkillsConfigDir(target)
+	dir, err := resolveAgentCLIConfigDir(target)
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(dir, "skills"), nil
 }
 
-// resolveAnvilAgentsTarget returns the user-agents directory. Anvil installs
-// each shipped agent flat under this path (target/<name>.md) so Claude Code's
-// subagent discovery picks them up.
-func resolveAnvilAgentsTarget() (string, error) {
-	dir, err := resolveClaudeConfigDir()
+// resolveAnvilAgentsTarget returns the user-agents directory for the given
+// agent CLI target. Anvil installs each shipped agent flat under this path
+// (target/<name>.{md,toml}) so the CLI's subagent discovery picks them up.
+func resolveAnvilAgentsTarget(target string) (string, error) {
+	dir, err := resolveAgentCLIConfigDir(target)
 	if err != nil {
 		return "", err
 	}
