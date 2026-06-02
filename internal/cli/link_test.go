@@ -24,7 +24,7 @@ func writeFixtureContract(t *testing.T, vault, project, slug string) string {
 		FrontMatter: map[string]any{
 			"type": "contract", "title": "Data boundaries",
 			"description": "what the pipeline does / does not",
-			"created": "2026-06-01", "updated": "2026-06-01",
+			"created":     "2026-06-01", "updated": "2026-06-01",
 			"status": "draft", "project": project, "kind": "data",
 			"tags": []any{},
 		},
@@ -220,5 +220,21 @@ func TestShow_IssueJSON_ExposesContractLink(t *testing.T) {
 	raw, _ := json.Marshal(got)
 	if !strings.Contains(string(raw), "contract.foo.data-bounds") {
 		t.Errorf("contract link not found in show issue --json output:\n%s", string(raw))
+	}
+}
+
+// TestShow_Contract_Body pins the load leg of the discover-then-load path: once
+// a worker follows the wikilink, `show contract <id> --body` must surface the
+// contract's boundary prose.
+func TestShow_Contract_Body(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureContract(t, vault, "foo", "data-bounds")
+
+	out, err := runArgs(t, "show", "contract", "foo.data-bounds", "--body")
+	if err != nil {
+		t.Fatalf("show contract --body: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "does: x") {
+		t.Errorf("contract body not surfaced in show contract --body output:\n%s", out)
 	}
 }
