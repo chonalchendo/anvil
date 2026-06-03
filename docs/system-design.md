@@ -43,6 +43,28 @@ This is the live system-design reference. Long-form rationale and history live i
 - **[Skill-based execution](system-design/skill-execution.md)** — skill registry, auto-discovery, CI-vs-orchestrator split.
 - **[v0.1 roadmap](system-design/roadmap.md)** — punch list of what must ship before v0.1, ordered into Phase A/B/C.
 
+## Design layers
+
+Anvil's knowledge structure follows a layered `seed → milestone → issue` model:
+
+```
+system-design (seed)  →  milestone  →  issue
+                              ↕
+                          contract (cross-cutting)
+```
+
+**Layer 1 — system-design (seed).** System-design is deliberately thin — a rough high-level orientation to the codebase shape, key invariants, and risks. You cannot fully plan structure up front; attempting to do so produces a document that conflicts with reality before the first sprint closes. The system-design doc is a seed, not a blueprint.
+
+**Layer 2 — milestone → issue.** Work is shaped into milestones with closed acceptance criteria and decomposed into issues. Issues carry the `goal:` terminal predicate and a `## Verification` block; milestones carry the scope boundary. The hierarchy is `system-design (seed) → milestone → issue`.
+
+**Layer 3 — contract (cross-cutting, emergent).** A contract is a `does / does-not` boundary document for a component family (e.g. `data`, `analytics`). Unlike system-design, which is authored up front as a seed, a contract **accretes as building reveals structure** — it is grown from observations made during implementation, not distilled from a fuller design that exists elsewhere. Contracts load as binding context at issue-write, work, and review time; they carry architectural coherence across parallel workers and across time.
+
+**Complement, not replacement.** Contracts complement system-design; they do not replace it. System-design captures the deliberate top-level shape and the "why this shape" rationale once. Contracts capture the emergent boundaries that only become visible as slices are built. Detail flows `build → contract` (loaded as context), not `design → implementation`. A contract that contradicts the system-design indicates the design needs a targeted update, not that one supersedes the other.
+
+**When to author vs load.** Author a new contract when a component family has enough boundary structure to name (typically at the start of a milestone that owns it). Load an existing contract whenever writing, working, or reviewing an issue that touches the boundary — the governing contract is discoverable via `anvil show issue --json` once linked.
+
+See [`vault-schemas.md`](vault-schemas.md#contract) for the contract frontmatter schema and kind registry.
+
 ## Architectural overview
 
 ```mermaid
