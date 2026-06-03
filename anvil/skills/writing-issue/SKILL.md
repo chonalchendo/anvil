@@ -227,7 +227,7 @@ anvil list contract --json
 For each contract whose scope description matches the issue's domain, create the routing link:
 
 ```bash
-anvil link issue <issue-id> --to contract/<contract-id>
+anvil link issue <issue-id> contract <contract-id>
 ```
 
 This is the Option-A routing association: a worker completing the issue discovers its governing contract via this link and loads it as review rubric. If no contract matches, skip silently — do not invent a link.
