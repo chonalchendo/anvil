@@ -57,14 +57,59 @@ func TestSessionCurrent_JSON_ResolvesFromEnv(t *testing.T) {
 
 func TestSessionCurrent_UnsetEnv_Errors(t *testing.T) {
 	setupVault(t)
-	t.Setenv(envSessionID, "") // unset; the test process may inherit a real id
+	t.Setenv(envSessionID, "")          // unset; the test process may inherit a real id
+	t.Setenv("CODEX_HOME", t.TempDir()) // empty: no Codex rollout to fall back to
 
 	_, _, err := runCmd(t, newRootCmd(), "session", "current")
 	if err == nil {
-		t.Fatal("expected error when session env var is unset")
+		t.Fatal("expected error when neither a Claude nor a Codex session resolves")
 	}
 	if !strings.Contains(err.Error(), envSessionID) {
 		t.Errorf("error should name %s: %q", envSessionID, err.Error())
+	}
+}
+
+// TestSessionCodexBinding covers the Codex fallback: with no Claude session id
+// but a Codex rollout file present, `session current` resolves the rollout's id
+// and `session handoff` lazily creates the session file (no SessionStart hook
+// under Codex) and writes the handoff body resume can read back.
+func TestSessionCodexBinding(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv(envSessionID, "")
+	codexHome := t.TempDir()
+	t.Setenv("CODEX_HOME", codexHome)
+
+	const codexID = "codexsess-1111-2222-3333-444444444444"
+	rollDir := filepath.Join(codexHome, "sessions", "2026", "06", "03")
+	if err := os.MkdirAll(rollDir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	roll := filepath.Join(rollDir, "rollout-2026-06-03T10-00-00-"+codexID+".jsonl")
+	if err := os.WriteFile(roll, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	out, _, err := runCmd(t, newRootCmd(), "session", "current")
+	if err != nil {
+		t.Fatalf("session current under codex: %v", err)
+	}
+	if !strings.Contains(out, codexID) {
+		t.Errorf("session current = %q, want it to resolve codex id %q", out, codexID)
+	}
+
+	if _, _, err := runCmd(t, newRootCmd(), "session", "handoff", "--body", "carry-over context", "--project", "anvil"); err != nil {
+		t.Fatalf("session handoff under codex: %v", err)
+	}
+	sessionFile := filepath.Join(vault, "10-sessions", codexID+".md")
+	a, err := core.LoadArtifact(sessionFile)
+	if err != nil {
+		t.Fatalf("codex handoff should have created %s: %v", sessionFile, err)
+	}
+	if got, _ := a.FrontMatter["source"].(string); got != "codex" {
+		t.Errorf("source = %q, want codex", got)
+	}
+	if !strings.Contains(a.Body, "carry-over context") {
+		t.Errorf("handoff body = %q, want the written context", a.Body)
 	}
 }
 

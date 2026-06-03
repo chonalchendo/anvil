@@ -11,7 +11,7 @@
     "updated":         { "type": "string", "format": "date" },
     "tags":            { "type": "array", "items": { "type": "string" } },
     "aliases":         { "type": "array", "items": { "type": "string" } },
-    "source":          { "enum": ["claude-code", "chatgpt", "claude-web", "cursor", "continue"] },
+    "source":          { "enum": ["claude-code", "codex", "chatgpt", "claude-web", "cursor", "continue"] },
     "session_id":      { "type": "string", "minLength": 1 },
     "status":          { "enum": ["raw", "triaged", "distilled", "archived"] },
     "retention_until": { "type": "string", "format": "date" },

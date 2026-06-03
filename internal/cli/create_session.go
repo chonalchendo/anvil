@@ -15,7 +15,7 @@ import (
 	"github.com/chonalchendo/anvil/internal/schema"
 )
 
-var validSessionSources = []string{"claude-code", "chatgpt", "claude-web", "cursor", "continue"}
+var validSessionSources = []string{"claude-code", "codex", "chatgpt", "claude-web", "cursor", "continue"}
 
 func runCreateSession(cmd *cobra.Command, v *core.Vault, sessionID, source, startedAt, activeThread string, asJSON, update bool) error {
 	if sessionID == "" {
@@ -36,28 +36,7 @@ func runCreateSession(cmd *cobra.Command, v *core.Vault, sessionID, source, star
 	if startedAt == "" {
 		startedAt = now.Format(time.RFC3339)
 	}
-	created := now.Format("2006-01-02")
-	retention := now.AddDate(0, 0, 30).Format("2006-01-02")
-	short := sessionID
-	if len(short) > 8 {
-		short = short[:8]
-	}
-
-	data := templateData{
-		Created:        created,
-		ShortID:        short,
-		Source:         source,
-		SessionID:      sessionID,
-		RetentionUntil: retention,
-		ActiveThread:   activeThread,
-		StartedAt:      startedAt,
-	}
-
-	dir := filepath.Join(v.Root, core.TypeSession.Dir())
-	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
-		return fmt.Errorf("mkdir %s: %w", dir, err)
-	}
-	path := filepath.Join(dir, sessionID+".md")
+	path := filepath.Join(v.Root, core.TypeSession.Dir(), sessionID+".md")
 
 	if existing, err := core.LoadArtifact(path); err == nil {
 		if !update {
@@ -74,26 +53,56 @@ func runCreateSession(cmd *cobra.Command, v *core.Vault, sessionID, source, star
 		return fmt.Errorf("checking %s: %w", path, err)
 	}
 
-	fm, err := renderFrontMatter(core.TypeSession, data)
-	if err != nil {
-		return fmt.Errorf("rendering template: %w", err)
+	if _, err := writeSessionFile(v, path, sessionID, source, startedAt, activeThread); err != nil {
+		return err
 	}
-	if err := schema.Validate(string(core.TypeSession), fm); err != nil {
-		return fmt.Errorf("schema validation: %w", err)
-	}
-	a := &core.Artifact{Path: path, FrontMatter: fm}
-	if err := a.Save(); err != nil {
-		return fmt.Errorf("saving artifact: %w", err)
-	}
-	if err := indexAfterSave(v, a); err != nil {
-		return fmt.Errorf("indexing %s: %w", sessionID, err)
-	}
-
 	if asJSON {
 		return emitSessionJSON(cmd, sessionID, path, activeThread)
 	}
 	fmt.Fprintln(cmd.OutOrStdout(), path)
 	return nil
+}
+
+// writeSessionFile renders a session file's frontmatter, writes it to path, and
+// indexes it. Shared by `session create` and the Codex lazy-create in `session
+// handoff`. created/retention derive from now; startedAt is caller-resolved so
+// the create path's drift check and the file it writes agree on one value.
+func writeSessionFile(v *core.Vault, path, sessionID, source, startedAt, activeThread string) (*core.Artifact, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+		return nil, fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
+	}
+	now := time.Now().UTC()
+	data := templateData{
+		Created:        now.Format("2006-01-02"),
+		ShortID:        shortID(sessionID),
+		Source:         source,
+		SessionID:      sessionID,
+		RetentionUntil: now.AddDate(0, 0, 30).Format("2006-01-02"),
+		ActiveThread:   activeThread,
+		StartedAt:      startedAt,
+	}
+	fm, err := renderFrontMatter(core.TypeSession, data)
+	if err != nil {
+		return nil, fmt.Errorf("rendering template: %w", err)
+	}
+	if err := schema.Validate(string(core.TypeSession), fm); err != nil {
+		return nil, fmt.Errorf("schema validation: %w", err)
+	}
+	a := &core.Artifact{Path: path, FrontMatter: fm}
+	if err := a.Save(); err != nil {
+		return nil, fmt.Errorf("saving artifact: %w", err)
+	}
+	if err := indexAfterSave(v, a); err != nil {
+		return nil, fmt.Errorf("indexing %s: %w", sessionID, err)
+	}
+	return a, nil
+}
+
+func shortID(s string) string {
+	if len(s) > 8 {
+		return s[:8]
+	}
+	return s
 }
 
 func sessionDrift(fm map[string]any, source, startedAt, activeThread string) string {

@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -44,7 +45,7 @@ func newSessionCurrentCmd() *cobra.Command {
 		Short: "Print the invoking terminal's session id and file path",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			id, path, err := resolveCurrentSession()
+			id, path, _, err := resolveCurrentSession()
 			if err != nil {
 				return err
 			}
@@ -120,23 +121,36 @@ func newSessionHandoffCmd() *cobra.Command {
 			if strings.TrimSpace(body) == "" {
 				return errors.New("handoff body is empty; supply --body, --body-file, or piped stdin")
 			}
-			id, path, err := resolveCurrentSession()
+			id, path, source, err := resolveCurrentSession()
 			if err != nil {
 				return err
 			}
+			v, err := core.ResolveVault()
+			if err != nil {
+				return fmt.Errorf("resolving vault: %w", err)
+			}
 			a, err := core.LoadArtifact(path)
 			if err != nil {
-				if errors.Is(err, fs.ErrNotExist) {
+				if !errors.Is(err, fs.ErrNotExist) {
+					return fmt.Errorf("loading %s: %w", path, err)
+				}
+				// Claude pre-creates the file via its SessionStart hook; a missing
+				// file there is a setup error. Codex has no such hook, so the first
+				// handoff of a Codex session creates the file it writes into.
+				if source != "codex" {
 					return fmt.Errorf("session file %s not found; is the SessionStart hook installed?", path)
 				}
-				return fmt.Errorf("loading %s: %w", path, err)
+				a, err = writeSessionFile(v, path, id, source, "", "")
+				if err != nil {
+					return fmt.Errorf("creating codex session file: %w", err)
+				}
 			}
-			// Deriving path from envSessionID is what prevents the cross-session
-			// clobber: each terminal writes only to its own <id>.md, so two live
-			// sessions never target one file. This check is the integrity backstop
-			// — it refuses a file at the derived path whose stored id disagrees
-			// (a renamed, hand-edited, or otherwise foreign file), rather than
-			// silently overwriting it.
+			// Deriving the path from the resolved session id is what prevents the
+			// cross-session clobber: each terminal writes only to its own <id>.md,
+			// so two live sessions never target one file. This check is the
+			// integrity backstop — it refuses a file at the derived path whose
+			// stored id disagrees (a renamed, hand-edited, or otherwise foreign
+			// file), rather than silently overwriting it.
 			if stored, _ := a.FrontMatter["session_id"].(string); stored != id {
 				return fmt.Errorf("refusing handoff: %s stores session %q, not current %q — its session_id disagrees with the resolved path", path, stored, id)
 			}
@@ -146,10 +160,6 @@ func newSessionHandoffCmd() *cobra.Command {
 			a.Body = body
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("saving handoff: %w", err)
-			}
-			v, err := core.ResolveVault()
-			if err != nil {
-				return fmt.Errorf("resolving vault: %w", err)
 			}
 			if err := indexAfterSave(v, a); err != nil {
 				return fmt.Errorf("reindexing %s: %w", id, err)
@@ -387,19 +397,72 @@ func newSessionResumeCmd() *cobra.Command {
 	return cmd
 }
 
-// resolveCurrentSession derives this terminal's session id from envSessionID
-// and composes the path of its session file. The path is deterministic from
-// the env var alone; the file's existence is the caller's concern.
-func resolveCurrentSession() (id, path string, err error) {
-	id = os.Getenv(envSessionID)
+// resolveCurrentSession derives this terminal's session id and the path of its
+// session file. It prefers Claude Code's envSessionID; failing that it binds to
+// the active Codex session, which exports no session-id env var but persists a
+// per-session rollout file we can read. The path is deterministic from the id;
+// the file's existence is the caller's concern. source distinguishes the two so
+// callers can apply the right missing-file behaviour (Claude relies on the
+// SessionStart hook; Codex has none and creates the file lazily).
+func resolveCurrentSession() (id, path, source string, err error) {
+	id, source = os.Getenv(envSessionID), "claude-code"
 	if id == "" {
-		return "", "", fmt.Errorf("not running inside a Claude Code session (%s unset)", envSessionID)
+		id, err = codexSessionID()
+		if err != nil {
+			return "", "", "", err
+		}
+		source = "codex"
 	}
 	v, err := core.ResolveVault()
 	if err != nil {
-		return "", "", fmt.Errorf("resolving vault: %w", err)
+		return "", "", "", fmt.Errorf("resolving vault: %w", err)
 	}
-	return id, core.TypeSession.Path(v.Root, "", id), nil
+	return id, core.TypeSession.Path(v.Root, "", id), source, nil
+}
+
+// codexRolloutID extracts the session id trailing the timestamp in a Codex
+// rollout filename (rollout-<RFC3339-ish>-<id>.jsonl). Matching only the fixed
+// timestamp prefix keeps this agnostic to the id's internal shape.
+var codexRolloutID = regexp.MustCompile(`^rollout-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-(.+)\.jsonl$`)
+
+// codexSessionID returns the active Codex session's id, read from its newest
+// rollout transcript under $CODEX_HOME/sessions (default ~/.codex/sessions).
+// Codex exports no session-id env var (openai/codex#8923); the newest rollout
+// file is the live session, mirroring the single-active-session assumption the
+// Claude path already makes.
+func codexSessionID() (string, error) {
+	home := os.Getenv("CODEX_HOME")
+	if home == "" {
+		h, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("home dir: %w", err)
+		}
+		home = filepath.Join(h, ".codex")
+	}
+	root := filepath.Join(home, "sessions")
+	var newestName string
+	var newestMod time.Time
+	//nolint:gosec // G703: root derives from $CODEX_HOME or the user's own home dir, not untrusted input
+	_ = filepath.WalkDir(root, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil //nolint:nilerr // unreadable subtrees are skipped, not fatal
+		}
+		if !codexRolloutID.MatchString(d.Name()) {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return nil //nolint:nilerr // a vanished entry is skipped, not fatal
+		}
+		if info.ModTime().After(newestMod) {
+			newestMod, newestName = info.ModTime(), d.Name()
+		}
+		return nil
+	})
+	if newestName == "" {
+		return "", fmt.Errorf("no active session: set %s, or run under Codex (no rollout file under %s)", envSessionID, root)
+	}
+	return codexRolloutID.FindStringSubmatch(newestName)[1], nil
 }
 
 // sessionItem is one row of `anvil session list`, carrying the metadata
