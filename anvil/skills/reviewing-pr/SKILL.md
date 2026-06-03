@@ -37,6 +37,17 @@ The subagent reads **this project's own** standards — never a hardcoded doc pa
 
 Do not name `docs/<x>.md` paths or restate their content in the dispatch prompt — hardcoding one repo's layout dangles in every other, and restating burns context and drifts from source. Name the entry point (`CLAUDE.md`); the subagent follows its index.
 
+### Contract rubric
+
+Before dispatching, load any contracts linked to the PR's issue (via the routing link `writing-issue` establishes):
+
+```bash
+anvil list contract --json   # enumerate; then for each linked contract:
+anvil show contract <id> --body
+```
+
+Instruct the subagent to treat each contract's `does not` constraints as a **blocker-severity rubric**: any diff line that crosses a `does not` boundary is a blocker finding, cited against the contract id and the specific constraint text. If no contract links resolve (issue has no routing link, or the issue cannot be found), skip this step — the rubric is empty, not an error.
+
 ### Goal validation
 
 Beyond reading the standards docs, the dispatch prompt carries one explicit task — the standards are necessary but not sufficient, and a clean diff can still fail to deliver the issue it closes. Instruct the subagent to resolve the PR's linked issue — from the PR body's issue reference or the branch slug — and run `anvil show issue <id> --json` to read its `goal:`, the one-sentence terminal predicate. It judges whether the diff plainly achieves that goal and reports a shortfall as a Phase 3 finding — **blocker** when the goal is plainly unmet. When the issue also carries `acceptance[]` (an optional prose aid post-`goal:`), check each criterion too. Name the lookup; do not paste the goal or ACs into the dispatch prompt (the subagent fetches them — same context discipline as the standards docs).

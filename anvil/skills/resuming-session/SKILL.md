@@ -68,6 +68,16 @@ Cross-check git state. Run `git -C <repo from handoff> fetch origin` (silent; ke
 
 When checking whether a SHA from the handoff is reachable, compare against `origin/<branch>` (post-fetch), not just the local ref — so "local is behind origin" is distinguished from "squashed/diverged".
 
+## Phase 4 — Load active contracts
+
+Before handing control back, run:
+
+```bash
+anvil list contract --json
+```
+
+Surface the contract descriptions in one compact block (name + description only — no bodies). This gives the agent a cheap boundary map so contract `does not` constraints are visible before any work begins. If the vault has no contracts, skip silently.
+
 After surfacing, hand control back to the user (or, if the handoff names an unambiguous next action and the user already invoked you with intent to continue, proceed with that next action).
 
 ## What NOT to do

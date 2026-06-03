@@ -216,6 +216,24 @@ Required body sections (enforced by `create`):
 
 ---
 
+## Phase 4b — Link governing contract(s)
+
+After the issue is created, check whether any contract governs its slice:
+
+```bash
+anvil list contract --json
+```
+
+For each contract whose scope description matches the issue's domain, create the routing link:
+
+```bash
+anvil link issue <issue-id> --to contract/<contract-id>
+```
+
+This is the Option-A routing association: a worker completing the issue discovers its governing contract via this link and loads it as review rubric. If no contract matches, skip silently — do not invent a link.
+
+---
+
 ## Working the issue (state machine)
 
 The issue lifecycle is `open → in-progress → resolved` (with `→ abandoned` and reverse audit edges). All status changes go through `anvil transition`, not direct frontmatter edits.
