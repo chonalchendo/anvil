@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/chonalchendo/anvil/internal/core"
@@ -62,12 +63,18 @@ func codexSessionID() (string, error) {
 	root := filepath.Join(home, "sessions")
 	var newestName string
 	var newestMod time.Time
+	var sawRollout bool
 	//nolint:gosec // G703: root derives from $CODEX_HOME or the user's own home dir, not untrusted input
 	_ = filepath.WalkDir(root, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil //nolint:nilerr // unreadable subtrees are skipped, not fatal
 		}
-		if !codexRolloutID.MatchString(d.Name()) {
+		name := d.Name()
+		if !strings.HasPrefix(name, "rollout-") || !strings.HasSuffix(name, ".jsonl") {
+			return nil
+		}
+		sawRollout = true // a rollout exists even if its name doesn't parse below
+		if !codexRolloutID.MatchString(name) {
 			return nil
 		}
 		info, err := d.Info()
@@ -75,12 +82,17 @@ func codexSessionID() (string, error) {
 			return nil //nolint:nilerr // a vanished entry is skipped, not fatal
 		}
 		if info.ModTime().After(newestMod) {
-			newestMod, newestName = info.ModTime(), d.Name()
+			newestMod, newestName = info.ModTime(), name
 		}
 		return nil
 	})
-	if newestName == "" {
-		return "", fmt.Errorf("no active session: set %s, or run under Codex (no rollout file under %s)", envSessionID, root)
+	if newestName != "" {
+		return codexRolloutID.FindStringSubmatch(newestName)[1], nil
 	}
-	return codexRolloutID.FindStringSubmatch(newestName)[1], nil
+	// Split the two misses so a naming-format drift in Codex is diagnosable
+	// rather than masquerading as "no session".
+	if sawRollout {
+		return "", fmt.Errorf("found Codex rollout files under %s but none matched the expected name rollout-<YYYY-MM-DDThh-mm-ss>-<id>.jsonl; report this so the binding can be fixed", root)
+	}
+	return "", fmt.Errorf("no active session: set %s, or run under Codex (no rollout-*.jsonl under %s)", envSessionID, root)
 }

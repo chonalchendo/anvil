@@ -113,6 +113,30 @@ func TestSessionCodexBinding(t *testing.T) {
 	}
 }
 
+// TestCodexSessionID_UnparsableRolloutNamesShape pins that a rollout file whose
+// name doesn't match the expected shape yields a diagnosable error (naming the
+// shape), not the generic "no session" miss — so a Codex naming-format drift is
+// fixable rather than silent.
+func TestCodexSessionID_UnparsableRolloutNamesShape(t *testing.T) {
+	t.Setenv(envSessionID, "")
+	codexHome := t.TempDir()
+	t.Setenv("CODEX_HOME", codexHome)
+	dir := filepath.Join(codexHome, "sessions", "2026", "06", "03")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "rollout-garbage.jsonl"), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := codexSessionID()
+	if err == nil {
+		t.Fatal("expected error for an unparsable rollout filename")
+	}
+	if !strings.Contains(err.Error(), "expected name") {
+		t.Errorf("error should name the expected rollout shape: %q", err.Error())
+	}
+}
+
 func TestSessionList_JSON_IsArrayNewestFirst(t *testing.T) {
 	vault := setupVault(t)
 	older := writeSessionFixture(t, vault, "older", "older", "Older", "")
