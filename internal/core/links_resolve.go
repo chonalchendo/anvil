@@ -115,6 +115,12 @@ func checkWikilinkTarget(v *Vault, field, target string) (UnresolvedLink, bool) 
 // returns the targets that don't resolve in v. Mirrors ResolveLinks but
 // walks free-form markdown instead of typed frontmatter slots — duplicate
 // targets in the body are reported once. Field is "body" for every entry.
+//
+// Unlike frontmatter links, body wikilinks whose type prefix is not a known
+// Anvil type are flagged as unresolved rather than ignored. The link-indexer
+// only indexes type-prefixed wikilinks, so a bare `project.slug` form would
+// silently produce a graph orphan; rejecting it at create time surfaces the
+// error before the artifact is written.
 func ResolveBodyLinks(v *Vault, body string) []UnresolvedLink {
 	matches := wikilinkRe.FindAllStringSubmatch(StripFencedBlocks(body), -1)
 	if matches == nil {
@@ -123,11 +129,36 @@ func ResolveBodyLinks(v *Vault, body string) []UnresolvedLink {
 	seen := make(map[string]struct{}, len(matches))
 	var out []UnresolvedLink
 	for _, m := range matches {
-		target := m[1]
+		// Normalize the token exactly as the indexer's LinkRowsFromBody does —
+		// trim surrounding whitespace, then drop a trailing `|alias` — so the
+		// two paths agree on which body wikilinks are real references. Without
+		// this, `[[ anvil.foo ]]` or `[[type.x|Alias]]` would survive create yet
+		// the indexer would treat them differently, re-opening the orphan hole.
+		target := strings.TrimSpace(m[1])
+		if bar := strings.IndexByte(target, '|'); bar >= 0 {
+			target = strings.TrimSpace(target[:bar])
+		}
 		if _, ok := seen[target]; ok {
 			continue
 		}
 		seen[target] = struct{}{}
+		// Angle-bracket targets (e.g. [[milestone.<project>.<slug>]]) are
+		// documentation placeholders, not real artifact ids — skip them.
+		if strings.ContainsAny(target, "<>") {
+			continue
+		}
+		dot := strings.IndexByte(target, '.')
+		if dot < 0 {
+			// No dot → cannot be a vault reference; skip.
+			continue
+		}
+		prefix := target[:dot]
+		if _, err := ParseType(prefix); err != nil {
+			// Unknown type prefix: the indexer will silently drop this link, so
+			// flag it now so the author can use the full type.project.slug form.
+			out = append(out, UnresolvedLink{Field: "body", Target: target})
+			continue
+		}
 		if u, ok := checkWikilinkTarget(v, "body", target); ok {
 			out = append(out, u)
 		}
