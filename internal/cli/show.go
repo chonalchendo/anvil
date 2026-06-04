@@ -52,7 +52,7 @@ func newShowCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			if t.AllocatesID() {
+			if t.AllocatesID() && t != core.TypeIssue {
 				prefix := string(t) + "."
 				if strings.HasPrefix(args[1], prefix) {
 					candidate := strings.TrimPrefix(args[1], prefix)
@@ -64,23 +64,11 @@ func newShowCmd() *cobra.Command {
 					}
 				}
 			}
-			// Bare ordinal ("0042") and project-qualified ordinal ("anvil.0042"):
-			// resolve to the full ID by scanning the project's issues directory.
+			// Issue args (qualified "issue."-prefix, project-qualified ordinal,
+			// bare ordinal) canonicalise through one helper shared with the
+			// set/transition write paths so all three accept identical forms.
 			if t == core.TypeIssue {
-				if proj, ord, ok := core.ParseProjectQualifiedOrdinal(args[1]); ok {
-					// <project>.NNNN — project is explicit in the input.
-					if resolved, ok := core.ResolveIssueOrdinal(v, proj, ord); ok {
-						args[1] = resolved
-					}
-				} else if core.IsOrdinalOnly(args[1]) {
-					// Bare ordinal — project comes from cwd context.
-					p, err := core.ResolveProject()
-					if err == nil {
-						if resolved, ok := core.ResolveIssueOrdinal(v, p.Slug, args[1]); ok {
-							args[1] = resolved
-						}
-					}
-				}
+				args[1] = core.ResolveIssueArg(v, args[1])
 			}
 			if flagBody && flagNoBody {
 				return fmt.Errorf("--body and --no-body are mutually exclusive")

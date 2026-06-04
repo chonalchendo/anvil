@@ -36,20 +36,11 @@ func newTransitionCmd() *cobra.Command {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 
-			// Resolve bare ordinal ("0042") and project-qualified ordinal
-			// ("anvil.0042") to the full ID, matching the read path in show.go.
+			// Canonicalise issue args through the same helper as the show read
+			// path so write and read accept identical forms (qualified
+			// "issue."-prefix, project-qualified ordinal, bare ordinal).
 			if t == core.TypeIssue {
-				if proj, ord, ok := core.ParseProjectQualifiedOrdinal(id); ok {
-					if resolved, ok := core.ResolveIssueOrdinal(v, proj, ord); ok {
-						id = resolved
-					}
-				} else if core.IsOrdinalOnly(id) {
-					if p, err := core.ResolveProject(); err == nil {
-						if resolved, ok := core.ResolveIssueOrdinal(v, p.Slug, id); ok {
-							id = resolved
-						}
-					}
-				}
+				id = core.ResolveIssueArg(v, id)
 			}
 
 			path := filepath.Join(v.Root, t.Dir(), id+".md")

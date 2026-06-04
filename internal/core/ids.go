@@ -240,6 +240,40 @@ func ResolveIssueOrdinal(v *Vault, project, ordinal string) (string, bool) {
 	return "", false
 }
 
+// ResolveIssueArg canonicalises a user-supplied issue argument to a full issue
+// ID so read (show/list) and write (set/transition) paths accept identical
+// forms. It handles, in order:
+//   - a qualified "issue.<project>.<slug>" wikilink — strips the "issue."
+//     prefix (only when the remainder still contains "." so the bare
+//     "issue.<project>" singleton form is left intact);
+//   - a project-qualified ordinal "<project>.NNNN" — resolved against the
+//     issues directory;
+//   - a bare ordinal "NNNN" — project taken from cwd context.
+//
+// Any argument that is none of these (an already-full ID, an unresolvable
+// ordinal) is returned unchanged so the caller's path-load surfaces the
+// not-found error.
+func ResolveIssueArg(v *Vault, arg string) string {
+	const prefix = string(TypeIssue) + "."
+	if rest, found := strings.CutPrefix(arg, prefix); found && strings.Contains(rest, ".") {
+		arg = rest
+	}
+	if proj, ord, ok := ParseProjectQualifiedOrdinal(arg); ok {
+		if resolved, ok := ResolveIssueOrdinal(v, proj, ord); ok {
+			return resolved
+		}
+		return arg
+	}
+	if IsOrdinalOnly(arg) {
+		if p, err := ResolveProject(); err == nil {
+			if resolved, ok := ResolveIssueOrdinal(v, p.Slug, arg); ok {
+				return resolved
+			}
+		}
+	}
+	return arg
+}
+
 // IDInputs carries optional fields used by some artifact types.
 type IDInputs struct {
 	Title   string // required — slug source when Slug is empty
