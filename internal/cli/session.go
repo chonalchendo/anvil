@@ -47,6 +47,7 @@ func newSessionCurrentCmd() *cobra.Command {
 				return writeJSON(cmd, map[string]string{"session_id": id, "path": path})
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\n", id, path)
+			printVaultBackupNudge(cmd)
 			return nil
 		},
 	}
@@ -159,6 +160,7 @@ func newSessionHandoffCmd() *cobra.Command {
 				return fmt.Errorf("reindexing %s: %w", id, err)
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Handoff written to %s\n", path)
+			printVaultBackupNudge(cmd)
 			return nil
 		},
 	}
@@ -466,6 +468,24 @@ func parseObjective(body string) string {
 		}
 	}
 	return ""
+}
+
+// printVaultBackupNudge surfaces the vault's backup risk (uncommitted work, no
+// off-machine remote) on stderr — best-effort, so a non-git or unresolvable
+// vault never fails the session command it rides on. stderr keeps it clear of
+// the machine-readable stdout that resuming-session and tooling parse.
+func printVaultBackupNudge(cmd *cobra.Command) {
+	v, err := core.ResolveVault()
+	if err != nil {
+		return
+	}
+	st, err := core.VaultGitState(v.Root)
+	if err != nil {
+		return
+	}
+	if msg := st.BackupNudge(); msg != "" {
+		fmt.Fprintln(cmd.ErrOrStderr(), msg)
+	}
 }
 
 func writeJSON(cmd *cobra.Command, v any) error {
