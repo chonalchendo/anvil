@@ -46,6 +46,25 @@ func TestVaultGitState_NotRepo(t *testing.T) {
 	}
 }
 
+// A vault nested inside an unrelated parent repo has no .git of its own and is
+// still unversioned — guarding the os.Stat check against git's rev-parse
+// walk-up, which would falsely report the child as a repo.
+func TestVaultGitState_NestedInParentRepo(t *testing.T) {
+	parent := t.TempDir()
+	runGit(t, parent, "init", "-q")
+	child := filepath.Join(parent, "vault")
+	if err := os.Mkdir(child, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	st, err := VaultGitState(child)
+	if err != nil {
+		t.Fatalf("VaultGitState: %v", err)
+	}
+	if !st.NotRepo {
+		t.Fatal("child dir without its own .git: NotRepo = false, want true")
+	}
+}
+
 func TestVaultGitState_DirtyNoRemote(t *testing.T) {
 	dir := t.TempDir()
 	runGit(t, dir, "init", "-q")
