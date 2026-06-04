@@ -1,0 +1,62 @@
+# Vault hygiene — scheduled GC, validate-on-push, reindex smoke check.
+#
+# This file is scaffolded by `anvil init` into .github/workflows/. It activates
+# once the vault has a git remote. The workflow invokes existing anvil hygiene
+# commands; it does not implement hygiene logic.
+name: vault-hygiene
+
+on:
+  push:
+  schedule:
+    # Run session GC daily at 03:00 UTC.
+    - cron: "0 3 * * *"
+
+jobs:
+  validate:
+    name: Validate frontmatter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install anvil
+        run: |
+          go install github.com/chonalchendo/anvil/cmd/anvil@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Validate frontmatter
+        run: anvil validate --vault "$GITHUB_WORKSPACE"
+
+  reindex-smoke:
+    name: Reindex smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install anvil
+        run: |
+          go install github.com/chonalchendo/anvil/cmd/anvil@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Rebuild index (smoke; does not gate on orphans)
+        run: anvil reindex --vault "$GITHUB_WORKSPACE"
+
+  session-gc:
+    name: Session GC
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install anvil
+        run: |
+          go install github.com/chonalchendo/anvil/cmd/anvil@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Prune expired empty session stubs
+        run: anvil session gc --vault "$GITHUB_WORKSPACE"
+
+      - name: Commit pruned stubs
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(vault): session GC — prune expired empty stubs"
+          file_pattern: "10-sessions/**"

@@ -102,6 +102,20 @@ func TestInit_WritesBasesAndEnablesPlugin(t *testing.T) {
 	}
 }
 
+func TestInit_WritesWorkflowsIntoVault(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("ANVIL_VAULT", dir)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"init"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(dir, ".github", "workflows", "vault-hygiene.yml")
+	if _, err := os.Stat(p); err != nil {
+		t.Errorf("missing workflow template %s: %v", p, err)
+	}
+}
+
 func TestInit_WritesSchemasIntoVault(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("ANVIL_VAULT", dir)

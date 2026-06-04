@@ -30,6 +30,7 @@ var VaultDirs = []string{
 	"99-archive",
 	"_meta",
 	"schemas",
+	".github/workflows",
 }
 
 // Vault is the on-disk vault tree under ~/anvil-vault/ (or $ANVIL_VAULT).
@@ -69,6 +70,9 @@ func (v *Vault) SchemasDir() string { return filepath.Join(v.Root, "schemas") }
 
 // BasesDir returns the canonical path where Obsidian Bases dashboards live.
 func (v *Vault) BasesDir() string { return filepath.Join(v.Root, "90-bases") }
+
+// WorkflowsDir returns the path where GitHub Actions workflow templates live in the vault.
+func (v *Vault) WorkflowsDir() string { return filepath.Join(v.Root, ".github", "workflows") }
 
 // EnableObsidianCorePlugin turns on the named Obsidian core plugin in
 // .obsidian/core-plugins.json, creating the file (and .obsidian/) when absent.
