@@ -202,6 +202,20 @@ func TestResolveLinks_SingletonDesignDocMissing(t *testing.T) {
 	}
 }
 
+// TestResolveBodyLinks_BareProjectSlugFlagged asserts that a body wikilink
+// whose first segment is a project name (not a known Anvil type) is reported
+// as unresolved. The link-indexer silently drops such wikilinks, so accepting
+// them at create time would produce a silent graph orphan.
+func TestResolveBodyLinks_BareProjectSlugFlagged(t *testing.T) {
+	v := newScaffolded(t)
+	body := "See [[anvil.consolidate-anvil-surface]] for context.\n"
+	got := ResolveBodyLinks(v, body)
+	want := []UnresolvedLink{{Field: "body", Target: "anvil.consolidate-anvil-surface"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
 // TestResolveBodyLinks_TwoFencedBlocksProseInBetween exercises the non-greedy
 // [\s\S]*? in fencedBlockRe: the first closing fence must not consume the
 // second fenced block, so only the prose wikilink between them is validated.

@@ -647,6 +647,48 @@ func TestCreate_Issue_BodyFile_RejectsBadWikilink_RollsBack(t *testing.T) {
 	}
 }
 
+// TestCreate_Issue_BodyFile_RejectsBareProjectSlugWikilink asserts that a body
+// wikilink in the bare `project.slug` form (e.g. [[anvil.consolidate-anvil-surface]])
+// is rejected at create time. The link-indexer only indexes `type.project.slug`
+// wikilinks, so a bare form would silently produce a graph orphan if accepted.
+func TestCreate_Issue_BodyFile_RejectsBareProjectSlugWikilink(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	// "anvil" is a project name, not a known Anvil type, so the indexer cannot
+	// build an edge from this wikilink.
+	body := "## Problem\nSee [[anvil.consolidate-anvil-surface]] for context.\n## Acceptance criteria\n- x\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none\n"
+	bodyPath := filepath.Join(t.TempDir(), "issue-body.md")
+	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "issue",
+		"--title", "bare-wikilink",
+		"--description", "test",
+		"--goal", "goal",
+		"--body-file", bodyPath,
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	err := cmd.Execute()
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
+	}
+	if !strings.Contains(stderr.String(), "anvil.consolidate-anvil-surface") {
+		t.Errorf("stderr should name the bare wikilink target, got: %s", stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(vault, "70-issues", "foo.bare-wikilink.md")); !os.IsNotExist(err) {
+		t.Errorf("file should be rolled back; stat err = %v", err)
+	}
+}
+
 func TestCreate_Issue_BodyStdinDash(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")

@@ -115,6 +115,12 @@ func checkWikilinkTarget(v *Vault, field, target string) (UnresolvedLink, bool) 
 // returns the targets that don't resolve in v. Mirrors ResolveLinks but
 // walks free-form markdown instead of typed frontmatter slots — duplicate
 // targets in the body are reported once. Field is "body" for every entry.
+//
+// Unlike frontmatter links, body wikilinks whose type prefix is not a known
+// Anvil type are flagged as unresolved rather than ignored. The link-indexer
+// only indexes type-prefixed wikilinks, so a bare `project.slug` form would
+// silently produce a graph orphan; rejecting it at create time surfaces the
+// error before the artifact is written.
 func ResolveBodyLinks(v *Vault, body string) []UnresolvedLink {
 	matches := wikilinkRe.FindAllStringSubmatch(StripFencedBlocks(body), -1)
 	if matches == nil {
@@ -128,6 +134,23 @@ func ResolveBodyLinks(v *Vault, body string) []UnresolvedLink {
 			continue
 		}
 		seen[target] = struct{}{}
+		// Placeholder targets (contain <, >, or whitespace) are documentation
+		// literals — never real artifact ids — so skip them unconditionally.
+		if strings.ContainsAny(target, "<> \t\n") {
+			continue
+		}
+		dot := strings.IndexByte(target, '.')
+		if dot < 0 {
+			// No dot → cannot be a vault reference; skip.
+			continue
+		}
+		prefix := target[:dot]
+		if _, err := ParseType(prefix); err != nil {
+			// Unknown type prefix: the indexer will silently drop this link, so
+			// flag it now so the author can use the full type.project.slug form.
+			out = append(out, UnresolvedLink{Field: "body", Target: target})
+			continue
+		}
 		if u, ok := checkWikilinkTarget(v, "body", target); ok {
 			out = append(out, u)
 		}
