@@ -30,12 +30,10 @@ Anvil's methodology mapped (`ls anvil/skills/` or `anvil show skill <name>` for 
 | `writing-product-design` | design | workflow |
 | `writing-system-design` | design | workflow |
 | `writing-milestone` | design | workflow |
-| `writing-plan` | design | workflow |
 | `capturing-inbox` | execution | workflow |
 | `writing-issue` | execution | workflow |
 | `completing-issue` | execution | workflow |
 | `dispatching-issue-fleet` | execution | workflow |
-| `implementing-plan` | execution | workflow |
 | `reviewing-pr` | execution | workflow |
 | `responding-to-pr-review` | execution | workflow |
 | `distilling-learning` | execution | workflow |
