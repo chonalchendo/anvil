@@ -7,12 +7,16 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/anvil/agents"
+	"github.com/chonalchendo/anvil/anvil/skills"
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/installer"
 	"github.com/chonalchendo/anvil/internal/schema"
 )
 
 func newInitCmd() *cobra.Command {
-	return &cobra.Command{
+	var installClaude bool
+	cmd := &cobra.Command{
 		Use:   "init [path]",
 		Short: "Scaffold an Anvil vault",
 		Args:  cobra.MaximumNArgs(1),
@@ -45,7 +49,52 @@ func newInitCmd() *cobra.Command {
 				}
 			}
 			cmd.Println("vault scaffolded at", v.Root)
+			if installClaude {
+				if err := installClaudeComponents(cmd); err != nil {
+					return err
+				}
+			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&installClaude, "install-claude", false, "install embedded skills, agents, and hooks into ~/.claude after scaffolding")
+	return cmd
+}
+
+// installClaudeComponents installs the embedded skills, agents, and hooks into
+// the Claude config dir (~/.claude, or $CLAUDE_CONFIG_DIR). Mirrors what
+// `anvil install skills`, `anvil install agents`, and `anvil install hooks`
+// do individually, but called as a single opt-in step from `anvil init`.
+func installClaudeComponents(cmd *cobra.Command) error {
+	skillsDir, err := resolveAnvilSkillsTarget("claude")
+	if err != nil {
+		return err
+	}
+	mat, err := resolveAnvilSkillsMaterialiseDir()
+	if err != nil {
+		return err
+	}
+	if _, err := installer.InstallSkills(skills.FS, mat, skillsDir, false, false); err != nil {
+		return fmt.Errorf("installing skills: %w", err)
+	}
+	cmd.Println("installed anvil skills into", skillsDir)
+
+	agentsDir, err := resolveAnvilAgentsTarget("claude")
+	if err != nil {
+		return err
+	}
+	if _, err := installer.InstallAgents(agents.FS, agentsDir, false); err != nil {
+		return fmt.Errorf("installing agents: %w", err)
+	}
+	cmd.Println("installed anvil agents into", agentsDir)
+
+	settingsPath, err := resolveClaudeSettingsPath()
+	if err != nil {
+		return err
+	}
+	if _, err := installer.MergeSessionStartHook(settingsPath, sessionStartHookCommand); err != nil {
+		return fmt.Errorf("installing hooks: %w", err)
+	}
+	cmd.Println("installed SessionStart hook in", settingsPath)
+	return nil
 }
