@@ -71,7 +71,6 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 - `list` — `(N items)` footer to stderr; consider header line behind `--header`.
 - `list` — deprecate `--tag`, recommend `--tags`.
 - `validate` — `--paths` / `--type` filter to scope re-validation.
-- `migrate` — `--dry-run`; print N-files-changed on completion.
 
 ---
 
@@ -134,4 +133,4 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 - Codex adapter installer — only Claude Code hooks installer ships in v0.1.
 - Session-wide telemetry, dashboards, skill-execution events — only the build slice ships.
 - **`anvil index` verb** — surfaces facet co-occurrence across issue/plan/decision/learning/thread to feed `extract-skill-from-session`. Read-only, no LLM. Spec: `docs/superpowers/specs/2026-05-06-vault-synthesis-design.md`. Faceted-tag prerequisite landed. Reverse-link discovery itself is already covered by `anvil link --to/--from/--unresolved` (v0.1, on `.anvil/vault.db`); v0.2 layers facet aggregation on top.
-- Optimization-tagged agent-CLI items above (cobra `Example` blocks, `--paths` filters, `--dry-run` on `migrate`).
+- Optimization-tagged agent-CLI items above (cobra `Example` blocks, `--paths` filters on `validate`).
