@@ -64,13 +64,21 @@ func newShowCmd() *cobra.Command {
 					}
 				}
 			}
-			// Bare ordinal: "0042" → resolve to the full ID by scanning the
-			// project's issues directory. Requires project context from the cwd.
-			if t == core.TypeIssue && core.IsOrdinalOnly(args[1]) {
-				p, err := core.ResolveProject()
-				if err == nil {
-					if resolved, ok := core.ResolveIssueOrdinal(v, p.Slug, args[1]); ok {
+			// Bare ordinal ("0042") and project-qualified ordinal ("anvil.0042"):
+			// resolve to the full ID by scanning the project's issues directory.
+			if t == core.TypeIssue {
+				if proj, ord, ok := core.ParseProjectQualifiedOrdinal(args[1]); ok {
+					// <project>.NNNN — project is explicit in the input.
+					if resolved, ok := core.ResolveIssueOrdinal(v, proj, ord); ok {
 						args[1] = resolved
+					}
+				} else if core.IsOrdinalOnly(args[1]) {
+					// Bare ordinal — project comes from cwd context.
+					p, err := core.ResolveProject()
+					if err == nil {
+						if resolved, ok := core.ResolveIssueOrdinal(v, p.Slug, args[1]); ok {
+							args[1] = resolved
+						}
 					}
 				}
 			}
