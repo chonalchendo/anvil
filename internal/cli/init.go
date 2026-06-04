@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/chonalchendo/anvil/anvil/agents"
 	"github.com/chonalchendo/anvil/anvil/skills"
+	"github.com/chonalchendo/anvil/bases"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/installer"
 	"github.com/chonalchendo/anvil/internal/schema"
@@ -34,19 +36,14 @@ func newInitCmd() *cobra.Command {
 			if err := v.Scaffold(); err != nil {
 				return err
 			}
-			entries, err := schema.EmbeddedFS.ReadDir(".")
-			if err != nil {
-				return fmt.Errorf("read embedded schemas: %w", err)
+			if err := writeEmbedded(schema.EmbeddedFS, v.SchemasDir()); err != nil {
+				return fmt.Errorf("writing schemas: %w", err)
 			}
-			for _, e := range entries {
-				b, err := schema.EmbeddedFS.ReadFile(e.Name())
-				if err != nil {
-					return fmt.Errorf("read %s: %w", e.Name(), err)
-				}
-				target := filepath.Join(v.SchemasDir(), e.Name())
-				if err := os.WriteFile(target, b, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
-					return fmt.Errorf("write %s: %w", target, err)
-				}
+			if err := writeEmbedded(bases.FS, v.BasesDir()); err != nil {
+				return fmt.Errorf("writing bases: %w", err)
+			}
+			if err := v.EnableObsidianCorePlugin("bases"); err != nil {
+				return fmt.Errorf("enabling bases plugin: %w", err)
 			}
 			cmd.Println("vault scaffolded at", v.Root)
 			if installClaude {
@@ -59,6 +56,25 @@ func newInitCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&installClaude, "install-claude", false, "install embedded skills, agents, and hooks into ~/.claude after scaffolding")
 	return cmd
+}
+
+// writeEmbedded copies every file at the root of srcFS into destDir under its
+// original name. Used to deploy the embedded schema and bases bundles on init.
+func writeEmbedded(srcFS fs.FS, destDir string) error {
+	entries, err := fs.ReadDir(srcFS, ".")
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		b, err := fs.ReadFile(srcFS, e.Name())
+		if err != nil {
+			return fmt.Errorf("read %s: %w", e.Name(), err)
+		}
+		if err := os.WriteFile(filepath.Join(destDir, e.Name()), b, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+			return fmt.Errorf("write %s: %w", e.Name(), err)
+		}
+	}
+	return nil
 }
 
 // installClaudeComponents installs the embedded skills, agents, and hooks into

@@ -1,0 +1,97 @@
+filters:
+  and:
+    - file.inFolder("80-plans")
+    - file.ext == "md"
+properties:
+  file.name:
+    displayName: Plan
+  file.ctime:
+    displayName: Created
+  file.mtime:
+    displayName: Updated
+  note.title:
+    displayName: Title
+  note.status:
+    displayName: Status
+  note.project:
+    displayName: Project
+  note.issue:
+    displayName: Issue
+  note.plan_version:
+    displayName: Version
+views:
+  - type: table
+    name: Active (draft + locked + in-progress)
+    filters:
+      and:
+        - status != "done"
+        - status != "abandoned"
+    order:
+      - title
+      - file.name
+      - status
+      - project
+      - issue
+      - file.mtime
+    sort:
+      - property: file.mtime
+        direction: DESC
+      - property: status
+        direction: ASC
+    columnSize:
+      note.title: 480
+  - type: table
+    name: Locked (ready to build)
+    filters:
+      and:
+        - status == "locked"
+    order:
+      - title
+      - file.name
+      - project
+      - issue
+      - file.mtime
+    sort:
+      - property: file.mtime
+        direction: DESC
+  - type: table
+    name: In progress
+    filters:
+      and:
+        - status == "in-progress"
+    order:
+      - title
+      - file.name
+      - project
+      - issue
+      - file.mtime
+    sort:
+      - property: file.mtime
+        direction: DESC
+  - type: table
+    name: Done
+    filters:
+      and:
+        - status == "done"
+    order:
+      - title
+      - file.name
+      - project
+      - issue
+      - file.mtime
+    sort:
+      - property: file.mtime
+        direction: DESC
+  - type: table
+    name: All by project
+    order:
+      - title
+      - file.name
+      - status
+      - project
+      - issue
+    sort:
+      - property: project
+        direction: ASC
+      - property: status
+        direction: ASC

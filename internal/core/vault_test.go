@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -42,6 +43,52 @@ func TestVaultScaffold_CreatesAllDirs(t *testing.T) {
 			t.Errorf("missing dir %q: %v", d, err)
 		}
 	}
+}
+
+func TestEnableObsidianCorePlugin_CreatesFileWhenAbsent(t *testing.T) {
+	dir := t.TempDir()
+	v := &Vault{Root: dir}
+	if err := v.EnableObsidianCorePlugin("bases"); err != nil {
+		t.Fatalf("EnableObsidianCorePlugin: %v", err)
+	}
+	if got := readCorePlugins(t, dir); !got["bases"] {
+		t.Errorf("bases not enabled: %v", got)
+	}
+}
+
+func TestEnableObsidianCorePlugin_PreservesExisting(t *testing.T) {
+	dir := t.TempDir()
+	v := &Vault{Root: dir}
+	obs := filepath.Join(dir, ".obsidian")
+	if err := os.MkdirAll(obs, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(obs, "core-plugins.json"), []byte(`{"graph":true,"bases":false}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := v.EnableObsidianCorePlugin("bases"); err != nil {
+		t.Fatalf("EnableObsidianCorePlugin: %v", err)
+	}
+	got := readCorePlugins(t, dir)
+	if !got["bases"] {
+		t.Errorf("bases not enabled: %v", got)
+	}
+	if !got["graph"] {
+		t.Errorf("existing plugin clobbered: %v", got)
+	}
+}
+
+func readCorePlugins(t *testing.T, vaultRoot string) map[string]bool {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(vaultRoot, ".obsidian", "core-plugins.json")) //nolint:gosec // test-controlled path
+	if err != nil {
+		t.Fatalf("reading core-plugins.json: %v", err)
+	}
+	var plugins map[string]bool
+	if err := json.Unmarshal(b, &plugins); err != nil {
+		t.Fatalf("parsing core-plugins.json: %v", err)
+	}
+	return plugins
 }
 
 func TestVaultScaffold_Idempotent(t *testing.T) {

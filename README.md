@@ -12,7 +12,7 @@ The methodology lives in **skills** — auto-firing markdown files (following An
 
 Two stores:
 
-- **Knowledge vault** at `~/anvil-vault/` — issues, plans, milestones, learnings, decisions, skills, MOCs. Git-versioned, browsable in Obsidian, indexed by a local SQLite database.
+- **Knowledge vault** at `~/anvil-vault/` — issues, plans, milestones, learnings, decisions, skills, Bases dashboards. Git-versioned, browsable in Obsidian, indexed by a local SQLite database.
 - **Machine-local state** at `~/.anvil/` — project bindings, the bundled skills, and run state.
 
 Your project repos stay clean: no Anvil-specific files by default.

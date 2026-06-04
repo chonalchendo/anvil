@@ -52,7 +52,7 @@ This document captures the design rationale for Anvil. It exists so that future-
 **Vault details**
 - [Vault frontmatter schemas](#vault-frontmatter-schemas) — pointer to `vault-schemas.md`; the two architectural rules stay here
 - [Tag taxonomy](#tag-taxonomy) — four-facet classification, status not in tags
-- [Maps of Content (MOCs) and dashboards](#maps-of-content-mocs-and-dashboards) — hybrid pattern, Bases over Dataview
+- [Bases dashboards](#bases-dashboards) — seeded per-type indexes, Bases over Dataview
 - [Retention and compaction](#retention-and-compaction) — three-layer model, 50-note backpressure
 - [Pitfalls in long-running AI-augmented vaults](#pitfalls-in-long-running-ai-augmented-vaults) — twelve documented failure modes with mitigations
 
@@ -182,7 +182,7 @@ The vault is treated as a regular skill source — `anvil skill add ~/anvil-vaul
 Two top-level locations under `$HOME`, each with a clear purpose. No mixing.
 
 - **Operational state** (`~/.anvil/`) — issue files, briefings, build caches, telemetry, skill source clones, project-keyed state. Churns per-command. Not opened in Obsidian. Local to the machine; can be backed up to a private git remote but doesn't need to be.
-- **Knowledge vault** (`~/anvil-vault/`) — learnings, decisions, sweeps, threads, skills, MOCs, dashboards. Accumulates slowly. Opened in Obsidian. Git-versioned at the vault level; pushed to your own remote.
+- **Knowledge vault** (`~/anvil-vault/`) — learnings, decisions, sweeps, threads, skills, Bases dashboards. Accumulates slowly. Opened in Obsidian. Git-versioned at the vault level; pushed to your own remote.
 
 Within projects, no `.anvil/` directory ships in the repo by default. Project state is keyed by git remote URL and stored under `~/.anvil/projects/<n>/`. This is the work-friendly mode (no ceremony in repos that aren't yours to modify) and is the default. Users who explicitly want project state co-located with code can opt in, but it's not the recommended path.
 
@@ -462,13 +462,13 @@ anvil/
 │   │   │   ├── README.md.j2
 │   │   │   ├── obsidian.config.json
 │   │   │   ├── tag-conventions.md
-│   │   │   └── starter-mocs/
-│   │   │       ├── _home.md.j2
-│   │   │       ├── projects.md.j2
-│   │   │       └── dashboards/
-│   │   │           ├── active-issues.base
-│   │   │           ├── recent-learnings.base
-│   │   │           └── decisions-by-project.base
+│   │   │   └── bases/
+│   │   │       ├── vault-overview.base
+│   │   │       ├── issues.base
+│   │   │       ├── learnings.base
+│   │   │       ├── decisions.base
+│   │   │       ├── plans.base
+│   │   │       └── milestones.base
 │   │   ├── project/
 │   │   │   ├── config.toml.j2
 │   │   │   └── state.md.j2
@@ -613,15 +613,13 @@ The single Obsidian vault. Curated knowledge artifacts only. Git-versioned at th
 │   ├── payments.m2-idempotency.md
 │   ├── auth.m3-oauth-integration.md
 │   └── ...
-├── 90-moc/                          static MOCs + their .base sibling files
-│   ├── _home.md
-│   ├── projects.md
-│   ├── authentication.md
-│   ├── authentication.base
-│   └── dashboards/
-│       ├── active-issues.base
-│       ├── recent-learnings.base
-│       └── decisions-by-project.base
+├── 90-bases/                        Obsidian Bases dashboards (seeded by anvil init)
+│   ├── vault-overview.base
+│   ├── issues.base
+│   ├── learnings.base
+│   ├── decisions.base
+│   ├── plans.base
+│   └── milestones.base
 ├── 99-archive/                      cold storage; demoted sessions, deprecated decisions
 ├── _meta/
 │   ├── tag-conventions.md           controlled vocabulary, with examples
@@ -630,7 +628,7 @@ The single Obsidian vault. Curated knowledge artifacts only. Git-versioned at th
 └── .gitignore
 ```
 
-**Folder numbering rationale.** PARA-style numeric prefixes give sort stability across filesystems and signal lifecycle direction. `00-inbox` (capture) → `05-projects` (architectural top, read first) → `10-sessions` (raw AI output) → `20-80` (curated artifacts) → `85-milestones` (structural backbone, sits between artifacts and navigation) → `90-moc` (navigation) → `99-archive`. The numbering is deliberately PARA-flavored without claiming PARA semantics.
+**Folder numbering rationale.** PARA-style numeric prefixes give sort stability across filesystems and signal lifecycle direction. `00-inbox` (capture) → `05-projects` (architectural top, read first) → `10-sessions` (raw AI output) → `20-80` (curated artifacts) → `85-milestones` (structural backbone, sits between artifacts and navigation) → `90-bases` (navigation) → `99-archive`. The numbering is deliberately PARA-flavored without claiming PARA semantics.
 
 The `05-projects/` folder is intentionally placed near the top — it's the design-driven hierarchy's load-bearing layer. When someone opens the vault and asks "what is this project?", they should land here before anything else. The `85-milestones/` folder sits just before navigation because milestones bridge the design (above) and the operational artifacts (below).
 
@@ -758,7 +756,7 @@ The vault uses a four-facet faceted classification, prefixed in YAML `tags:` lis
 | `domain/` | What knowledge area | `domain/postgres`, `domain/typescript`, `domain/aws`, `domain/llm`, `domain/auth`, `domain/observability` |
 | `activity/` | What work mode produced it | `activity/debugging`, `activity/refactor`, `activity/design`, `activity/research`, `activity/review` |
 | `pattern/` | What reusable abstraction it documents | `pattern/error-handling`, `pattern/concurrency`, `pattern/caching`, `pattern/auth`, `pattern/migration`, `pattern/idempotency` |
-| `type/` | What kind of artifact (mirrors the `type:` frontmatter field) | `type/decision`, `type/learning`, `type/skill`, `type/sweep`, `type/thread`, `type/issue`, `type/plan`, `type/moc`, `type/transcript`, `type/session` |
+| `type/` | What kind of artifact (mirrors the `type:` frontmatter field) | `type/decision`, `type/learning`, `type/skill`, `type/sweep`, `type/thread`, `type/issue`, `type/plan`, `type/transcript`, `type/session` |
 
 **Status does not go in tags.** This is the most-violated rule in vaults at scale and the one whose violation hurts most. Lifecycle states mutate; renaming a tag across thousands of notes is destructive (forum reports of duplicate-tag fallout are common). Status lives in frontmatter where edits are atomic per-note and naturally typed for Bases summaries.
 
@@ -770,54 +768,30 @@ The starter taxonomy ships at `~/anvil-vault/_meta/tag-conventions.md`, written 
 
 ---
 
-## Maps of Content (MOCs) and dashboards
+## Bases dashboards
 
-Two patterns at scale: hand-curated MOCs for narrative navigation, Bases queries for exhaustive indexes. Hybrid combines both.
+Navigation at scale is exhaustive, auto-updating indexes — not hand-curated link lists. **Pure Dataview indexes fail at ~3,000–5,000 notes** (UI freezes; Dataview's maintainer has shifted focus to Datacore). **Bases handles 50,000-note vaults instantly** because it uses Obsidian's native metadata cache. So `90-bases/` is the index layer, built in Bases, no Dataview — the cost of a freeze on every session-start is too high.
 
-**Manual MOCs alone fail at ~500–1,000 notes** (curation can't keep up with growth). **Pure Dataview MOCs fail at ~3,000–5,000 notes** (UI freezes; Dataview's maintainer has shifted focus to Datacore). **Bases handles 50,000-note vaults instantly** because it uses Obsidian's native metadata cache.
-
-The hybrid pattern: a hand-written `90-moc/{area}.md` containing 5–30 carefully chosen wikilinks with paragraphs explaining *why* each note matters, followed by an embedded `.base` view for the exhaustive auto-updating index.
-
-```markdown
-# Postgres operations MOC
-
-This hub collects everything we know about running Postgres in production.
-Start with [[learning.postgres.cic-snapshot-wait]] for the canonical
-gotcha; see [[decision.postgres.0004-replication-strategy]] for context
-on why we run async replication.
-
-## Curated path
-- [[learning.postgres.cic-snapshot-wait]] — the lock interaction nobody warns you about
-- [[decision.postgres.0004-replication-strategy]] — why async, not sync
-- [[plan.postgres.q2-pgbouncer-rollout]] — current direction
-
-## Everything in this domain
-![[postgres.base]]
-```
-
-Where `90-moc/postgres.base` is:
+`anvil init` seeds `90-bases/` with one `.base` per artifact type (`issues`, `learnings`, `decisions`, `plans`, `milestones`) plus a `vault-overview.base` spanning all types. Each is a folder-scoped table with per-status views; the user edits them freely from there. A `.base` is plain YAML:
 
 ```yaml
 filters:
   and:
-    - file.hasTag("domain/postgres")
-    - 'status != "deprecated"'
+    - file.inFolder("70-issues")
+    - file.ext == "md"
 properties:
-  file.name: { displayName: Note }
-  type: { displayName: Type }
+  file.name: { displayName: Issue }
   status: { displayName: Status }
-  updated: { displayName: Updated }
+  severity: { displayName: Severity }
 views:
   - type: table
-    name: All
-    order: [file.name, type, status, updated]
-    sort: [{ column: updated, direction: DESC }]
-    group: type
+    name: Open
+    filters:
+      and:
+        - status == "open"
+    order: [title, file.name, severity, milestone]
+    sort: [{ property: severity, direction: ASC }]
 ```
-
-**Hand-curate the narrative section** whenever an area has more than three notes. **Auto-generate the index section always** via Bases. **Never hand-curate a list of every note in a domain** — that's where MOCs die at scale.
-
-The dashboard MOC (`90-moc/_home.md`) is the most-opened note in the vault. It uses Bases exclusively, no Dataview, because the cost of a freeze on every session-start is too high.
 
 A note on Bases stability. Bases is in Catalyst early access as of early 2026 and has shipped breaking syntax changes once (1.9.2). The downside is contained — the underlying YAML format is plain text and survives plugin churn; worst case dashboards need re-authoring against new syntax. This is acceptable risk given the 50× performance advantage over Dataview at scale.
 
@@ -865,11 +839,11 @@ Ranked by likelihood × severity, drawn from public reports of vaults running 6+
 
 3. **AI plugin index corruption at scale.** Hits at 5,000+ notes (Smart Connections, Copilot Vault QA). Full re-index every restart, hundreds of MB of index files, JSON serialization failures. Mitigation: don't depend on these plugins for agent reads. Agents read the filesystem directly; embedding plugins are for human exploratory search and accept that they need re-indexing.
 
-4. **Write-only-vault syndrome.** Universal at 6+ months. Mitigation: 50-note backpressure rule; daily triage of `status: raw`; hard 14/30-day demotion timers; hybrid MOCs that surface high-signal notes vs raw transcripts.
+4. **Write-only-vault syndrome.** Universal at 6+ months. Mitigation: 50-note backpressure rule; daily triage of `status: raw`; hard 14/30-day demotion timers; Bases dashboards that surface high-signal notes vs raw transcripts.
 
 5. **Dataview slowdowns.** Noticeable at ~1,000 notes; severe at ~4,000+; unusable at ~9,000+. Mitigation: build dashboards in Bases, not Dataview. Reserve Dataview for rarely-opened analysis pages.
 
-6. **Manual MOC failure.** Hits at ~1,000 notes. Mitigation: hybrid pattern — narrative top, embedded Bases bottom; never hand-maintain a list of every note in a domain.
+6. **Manual index failure.** Hits at ~1,000 notes. Mitigation: Bases dashboards for exhaustive auto-updating indexes; never hand-maintain a list of every note in a domain.
 
 7. **Embedding-plugin frontmatter pollution.** Smart Connections embeds frontmatter as part of the note body, so notes with heavy YAML show only YAML in the connection preview. Mitigation: agents read filesystem directly and parse frontmatter; treat embedding plugins as best-effort human search only.
 
@@ -1346,7 +1320,7 @@ Both Claude Code and Codex corrupt under shared state across runs (Claude #24864
 
 ### Why operational state and knowledge vault never mix
 
-Operational state churns per-command (issue files, briefings, build cache, telemetry, skill source clones). The vault accumulates slowly (learnings, decisions, sweeps, threads, milestones, MOCs). One is regenerable machine state; the other is your accumulated expertise. They have different consumers (the orchestrator vs. Obsidian and you), different lifecycle (short-lived vs. compounding), and different backup needs (none vs. private remote). Mixing them either pollutes the vault with command-output noise or buries operational state under Obsidian's surface area. The split is in the path, not just convention.
+Operational state churns per-command (issue files, briefings, build cache, telemetry, skill source clones). The vault accumulates slowly (learnings, decisions, sweeps, threads, milestones, Bases dashboards). One is regenerable machine state; the other is your accumulated expertise. They have different consumers (the orchestrator vs. Obsidian and you), different lifecycle (short-lived vs. compounding), and different backup needs (none vs. private remote). Mixing them either pollutes the vault with command-output noise or buries operational state under Obsidian's surface area. The split is in the path, not just convention.
 
 ### Why the design-driven hierarchy holds
 
@@ -1394,7 +1368,7 @@ Don't port:
 
 v0.1 (the smallest shippable thing):
 - `anvil init` (global once, project per repo).
-- `anvil init --vault ~/anvil-vault` to scaffold the knowledge vault with starter MOCs, dashboards, tag conventions, and Obsidian config.
+- `anvil init --vault ~/anvil-vault` to scaffold the knowledge vault with seeded Bases dashboards, tag conventions, and Obsidian config.
 - `anvil build <issue>` with `ClaudeCodeAdapter` only, **sequential execution** (single task at a time, even when wave graph permits parallelism).
 - Per-spawn state isolation via `CLAUDE_CONFIG_DIR` with credential symlinking. Non-negotiable from v0.1 because shared state corrupts even under sequential runs.
 - `anvil status` (briefing, current state).

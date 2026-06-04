@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -69,6 +70,35 @@ func TestInit_PathArg(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "00-inbox")); err != nil {
 		t.Errorf("expected vault at %s", dir)
+	}
+}
+
+func TestInit_WritesBasesAndEnablesPlugin(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("ANVIL_VAULT", dir)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"init"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"vault-overview", "issues", "learnings", "decisions", "plans", "milestones"} {
+		if _, err := os.Stat(filepath.Join(dir, "90-bases", n+".base")); err != nil {
+			t.Errorf("missing base %s: %v", n, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "90-bases", "burgh.base")); !os.IsNotExist(err) {
+		t.Errorf("project-specific burgh.base should not ship (stat err=%v)", err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, ".obsidian", "core-plugins.json")) //nolint:gosec // test-controlled path
+	if err != nil {
+		t.Fatalf("reading core-plugins.json: %v", err)
+	}
+	var plugins map[string]bool
+	if err := json.Unmarshal(b, &plugins); err != nil {
+		t.Fatal(err)
+	}
+	if !plugins["bases"] {
+		t.Errorf("bases plugin not enabled: %s", b)
 	}
 }
 

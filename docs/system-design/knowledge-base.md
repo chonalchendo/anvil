@@ -26,7 +26,7 @@ tags: [domain/dev-tools, type/system-design-shard]
 ├── 70-issues/              # work items (single source of truth)
 ├── 80-plans/               # canonical; worktrees read from here
 ├── 85-milestones/          # bridges design and execution
-├── 90-moc/dashboards/      # static MOCs + .base files
+├── 90-bases/               # Obsidian Bases dashboards, seeded by anvil init
 ├── 99-archive/
 ├── _meta/                  # tag-conventions, frontmatter-schema, retention
 └── schemas/                # JSON Schemas for CI validation
