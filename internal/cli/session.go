@@ -16,12 +16,6 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-// envSessionID is the per-terminal session identifier Claude Code exports into
-// every subprocess it spawns. It is the deterministic, process-scoped handle
-// that lets `anvil session` resolve "this terminal's session" without the
-// mtime heuristic that lets concurrent sessions clobber each other's handoffs.
-const envSessionID = "CLAUDE_CODE_SESSION_ID"
-
 func newSessionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "session",
@@ -44,7 +38,7 @@ func newSessionCurrentCmd() *cobra.Command {
 		Short: "Print the invoking terminal's session id and file path",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			id, path, err := resolveCurrentSession()
+			id, path, _, err := resolveCurrentSession()
 			if err != nil {
 				return err
 			}
@@ -120,23 +114,36 @@ func newSessionHandoffCmd() *cobra.Command {
 			if strings.TrimSpace(body) == "" {
 				return errors.New("handoff body is empty; supply --body, --body-file, or piped stdin")
 			}
-			id, path, err := resolveCurrentSession()
+			id, path, source, err := resolveCurrentSession()
 			if err != nil {
 				return err
 			}
+			v, err := core.ResolveVault()
+			if err != nil {
+				return fmt.Errorf("resolving vault: %w", err)
+			}
 			a, err := core.LoadArtifact(path)
 			if err != nil {
-				if errors.Is(err, fs.ErrNotExist) {
+				if !errors.Is(err, fs.ErrNotExist) {
+					return fmt.Errorf("loading %s: %w", path, err)
+				}
+				// Claude pre-creates the file via its SessionStart hook; a missing
+				// file there is a setup error. Codex has no such hook, so the first
+				// handoff of a Codex session creates the file it writes into.
+				if source != "codex" {
 					return fmt.Errorf("session file %s not found; is the SessionStart hook installed?", path)
 				}
-				return fmt.Errorf("loading %s: %w", path, err)
+				a, err = writeSessionFile(v, path, id, source, "", "")
+				if err != nil {
+					return fmt.Errorf("creating codex session file: %w", err)
+				}
 			}
-			// Deriving path from envSessionID is what prevents the cross-session
-			// clobber: each terminal writes only to its own <id>.md, so two live
-			// sessions never target one file. This check is the integrity backstop
-			// — it refuses a file at the derived path whose stored id disagrees
-			// (a renamed, hand-edited, or otherwise foreign file), rather than
-			// silently overwriting it.
+			// Deriving the path from the resolved session id is what prevents the
+			// cross-session clobber: each terminal writes only to its own <id>.md,
+			// so two live sessions never target one file. This check is the
+			// integrity backstop — it refuses a file at the derived path whose
+			// stored id disagrees (a renamed, hand-edited, or otherwise foreign
+			// file), rather than silently overwriting it.
 			if stored, _ := a.FrontMatter["session_id"].(string); stored != id {
 				return fmt.Errorf("refusing handoff: %s stores session %q, not current %q — its session_id disagrees with the resolved path", path, stored, id)
 			}
@@ -146,10 +153,6 @@ func newSessionHandoffCmd() *cobra.Command {
 			a.Body = body
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("saving handoff: %w", err)
-			}
-			v, err := core.ResolveVault()
-			if err != nil {
-				return fmt.Errorf("resolving vault: %w", err)
 			}
 			if err := indexAfterSave(v, a); err != nil {
 				return fmt.Errorf("reindexing %s: %w", id, err)
@@ -385,21 +388,6 @@ func newSessionResumeCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON object")
 	cmd.Flags().StringVar(&flagProject, "project", "", "filter candidates to sessions whose project matches this value")
 	return cmd
-}
-
-// resolveCurrentSession derives this terminal's session id from envSessionID
-// and composes the path of its session file. The path is deterministic from
-// the env var alone; the file's existence is the caller's concern.
-func resolveCurrentSession() (id, path string, err error) {
-	id = os.Getenv(envSessionID)
-	if id == "" {
-		return "", "", fmt.Errorf("not running inside a Claude Code session (%s unset)", envSessionID)
-	}
-	v, err := core.ResolveVault()
-	if err != nil {
-		return "", "", fmt.Errorf("resolving vault: %w", err)
-	}
-	return id, core.TypeSession.Path(v.Root, "", id), nil
 }
 
 // sessionItem is one row of `anvil session list`, carrying the metadata
