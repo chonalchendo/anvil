@@ -279,6 +279,40 @@ func TestNextIssueOrdinal_GapAndLegacyMix(t *testing.T) {
 	}
 }
 
+func TestResolveIssueOrdinal_ProjectQualified(t *testing.T) {
+	v := newScaffolded(t)
+	dir := filepath.Join(v.Root, TypeIssue.Dir())
+	if err := os.WriteFile(filepath.Join(dir, "anvil.0019.some-slug.md"), []byte(""), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+
+	// ParseProjectQualifiedOrdinal must parse "anvil.0019".
+	project, ordinal, ok := ParseProjectQualifiedOrdinal("anvil.0019")
+	if !ok {
+		t.Fatal("ParseProjectQualifiedOrdinal(\"anvil.0019\") returned ok=false")
+	}
+	if project != "anvil" || ordinal != "0019" {
+		t.Fatalf("got project=%q ordinal=%q, want anvil/0019", project, ordinal)
+	}
+
+	// Resolving via extracted project+ordinal must find the file.
+	id, found := ResolveIssueOrdinal(v, project, ordinal)
+	if !found {
+		t.Fatal("ResolveIssueOrdinal returned not-found for anvil.0019")
+	}
+	if id != "anvil.0019.some-slug" {
+		t.Errorf("ResolveIssueOrdinal = %q, want anvil.0019.some-slug", id)
+	}
+
+	// Non-matching inputs must return false.
+	if _, _, ok := ParseProjectQualifiedOrdinal("0019"); ok {
+		t.Error("ParseProjectQualifiedOrdinal(\"0019\") should return ok=false (bare ordinal, no project)")
+	}
+	if _, _, ok := ParseProjectQualifiedOrdinal("anvil.0019.some-slug"); ok {
+		t.Error("ParseProjectQualifiedOrdinal(\"anvil.0019.some-slug\") should return ok=false (full id, not project-qualified ordinal)")
+	}
+}
+
 func TestSlugifyIssue_CapsAt40OnHyphenBoundary(t *testing.T) {
 	if got := slugifyIssue("Short title"); got != "short-title" {
 		t.Errorf("short slug = %q, want short-title", got)

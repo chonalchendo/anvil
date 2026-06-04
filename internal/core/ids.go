@@ -196,8 +196,22 @@ func findIssueBySlug(v *Vault, project, slug string) (id, path string, found boo
 // ordinalOnlyRe matches a string that is only digits — a bare ordinal like "0042".
 var ordinalOnlyRe = regexp.MustCompile(`^[0-9]+$`)
 
+// projectQualifiedOrdinalRe matches <project>.NNNN — e.g. "anvil.0018".
+// Capture groups: 1=project, 2=ordinal.
+var projectQualifiedOrdinalRe = regexp.MustCompile(`^([a-z0-9][a-z0-9-]*)\.([0-9]+)$`)
+
 // IsOrdinalOnly reports whether s is a bare issue ordinal (all digits, no dots).
 func IsOrdinalOnly(s string) bool { return ordinalOnlyRe.MatchString(s) }
+
+// ParseProjectQualifiedOrdinal parses a "<project>.NNNN" string and returns
+// the project slug and ordinal digits. Returns ("", "", false) for any other form.
+func ParseProjectQualifiedOrdinal(s string) (project, ordinal string, ok bool) {
+	m := projectQualifiedOrdinalRe.FindStringSubmatch(s)
+	if m == nil {
+		return "", "", false
+	}
+	return m[1], m[2], true
+}
 
 // ResolveIssueOrdinal scans the issues directory for a file matching
 // <project>.NNNN.<slug>.md where NNNN == ordinal, and returns the full ID
