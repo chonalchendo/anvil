@@ -60,10 +60,16 @@ func ClearActiveThread() error {
 	return fmt.Errorf("remove active-thread: %w", err)
 }
 
-// stateDir returns the state directory: ANVIL_STATE_DIR env if set, else ~/.anvil/state.
+// stateDir returns the state directory. Precedence: $ANVIL_STATE_DIR (exact
+// path) → $ANVIL_HOME/state → ~/.anvil/state. $ANVIL_HOME lets a sandbox run
+// redirect the entire anvil store with one variable; $ANVIL_STATE_DIR is kept
+// for callers that need finer-grained control.
 func stateDir() (string, error) {
 	if d := os.Getenv("ANVIL_STATE_DIR"); d != "" {
 		return d, nil
+	}
+	if h := os.Getenv("ANVIL_HOME"); h != "" {
+		return filepath.Join(h, "state"), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {

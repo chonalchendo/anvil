@@ -49,31 +49,45 @@ func ResolveProject() (*Project, error) {
 	return nil, ErrNoProject
 }
 
-// SwitchProject writes slug to ~/.anvil/current-project after verifying the
-// slug has an adopted binding.
-func SwitchProject(slug string) error {
+// anvilHome returns the root of the anvil global store: $ANVIL_HOME if set,
+// else ~/.anvil. Both the project registry and the state dir resolve beneath
+// this root so a sandbox run can redirect the entire store with one variable.
+func anvilHome() (string, error) {
+	if d := os.Getenv("ANVIL_HOME"); d != "" {
+		return d, nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("switch: resolving home: %w", err)
+		return "", fmt.Errorf("resolving home: %w", err)
 	}
-	binding := filepath.Join(home, ".anvil", "projects", slug, ".binding")
+	return filepath.Join(home, ".anvil"), nil
+}
+
+// SwitchProject writes slug to <anvilHome>/current-project after verifying the
+// slug has an adopted binding.
+func SwitchProject(slug string) error {
+	root, err := anvilHome()
+	if err != nil {
+		return fmt.Errorf("switch: %w", err)
+	}
+	binding := filepath.Join(root, "projects", slug, ".binding")
 	if _, err := os.Stat(binding); err != nil {
 		return fmt.Errorf("switch: slug %q not adopted: %w", slug, err)
 	}
-	ptr := filepath.Join(home, ".anvil", "current-project")
+	ptr := filepath.Join(root, "current-project")
 	if err := os.WriteFile(ptr, []byte(slug+"\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		return fmt.Errorf("switch: writing pointer: %w", err)
 	}
 	return nil
 }
 
-// ListProjects returns all adopted projects found under ~/.anvil/projects/.
+// ListProjects returns all adopted projects found under <anvilHome>/projects/.
 func ListProjects() ([]Project, error) {
-	home, err := os.UserHomeDir()
+	root, err := anvilHome()
 	if err != nil {
-		return nil, fmt.Errorf("list: resolving home: %w", err)
+		return nil, fmt.Errorf("list: %w", err)
 	}
-	base := filepath.Join(home, ".anvil", "projects")
+	base := filepath.Join(root, "projects")
 	entries, err := os.ReadDir(base)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -95,19 +109,19 @@ func ListProjects() ([]Project, error) {
 	return out, nil
 }
 
-// readCurrentProjectPointer reads ~/.anvil/current-project and resolves the
+// readCurrentProjectPointer reads <anvilHome>/current-project and resolves the
 // slug to a full Project by looking up its adopted binding.
 func readCurrentProjectPointer() (*Project, error) {
-	home, err := os.UserHomeDir()
+	root, err := anvilHome()
 	if err != nil {
 		return nil, err
 	}
-	b, err := os.ReadFile(filepath.Join(home, ".anvil", "current-project")) //nolint:gosec // path is test-controlled or application-managed; not user input
+	b, err := os.ReadFile(filepath.Join(root, "current-project")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		return nil, err
 	}
 	slug := strings.TrimSpace(string(b))
-	binding := filepath.Join(home, ".anvil", "projects", slug, ".binding")
+	binding := filepath.Join(root, "projects", slug, ".binding")
 	rb, err := os.ReadFile(binding) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		return nil, fmt.Errorf("current-project %q has no binding: %w", slug, err)
@@ -117,19 +131,19 @@ func readCurrentProjectPointer() (*Project, error) {
 
 // AdoptProject records an explicit binding for the current git tree.
 func AdoptProject(slug string) error {
-	root, err := gitToplevel()
+	gitRoot, err := gitToplevel()
 	if err != nil {
 		return fmt.Errorf("adopt: %w", err)
 	}
-	home, err := os.UserHomeDir()
+	anvil, err := anvilHome()
 	if err != nil {
-		return fmt.Errorf("adopt: resolving home: %w", err)
+		return fmt.Errorf("adopt: %w", err)
 	}
-	dir := filepath.Join(home, ".anvil", "projects", slug)
+	dir := filepath.Join(anvil, "projects", slug)
 	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		return fmt.Errorf("adopt: mkdir %s: %w", dir, err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, ".binding"), []byte(root+"\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+	if err := os.WriteFile(filepath.Join(dir, ".binding"), []byte(gitRoot+"\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		return fmt.Errorf("adopt: write binding: %w", err)
 	}
 	return nil
@@ -163,11 +177,11 @@ func slugFromRemote(remote string) string {
 // projectFromSlug returns the Project for an adopted slug, or an error if no
 // binding exists.
 func projectFromSlug(slug string) (*Project, error) {
-	home, err := os.UserHomeDir()
+	anvil, err := anvilHome()
 	if err != nil {
 		return nil, err
 	}
-	b, err := os.ReadFile(filepath.Join(home, ".anvil", "projects", slug, ".binding")) //nolint:gosec // path is test-controlled or application-managed; not user input
+	b, err := os.ReadFile(filepath.Join(anvil, "projects", slug, ".binding")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		return nil, err
 	}
@@ -175,11 +189,11 @@ func projectFromSlug(slug string) (*Project, error) {
 }
 
 func readAdoptedBinding(root string) (*Project, error) {
-	home, err := os.UserHomeDir()
+	anvil, err := anvilHome()
 	if err != nil {
 		return nil, err
 	}
-	base := filepath.Join(home, ".anvil", "projects")
+	base := filepath.Join(anvil, "projects")
 	entries, err := os.ReadDir(base)
 	if err != nil {
 		return nil, err
