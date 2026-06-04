@@ -1,4 +1,4 @@
-# Vault hygiene — scheduled GC, validate-on-push, reindex orphan check.
+# Vault hygiene — scheduled GC, validate-on-push, reindex smoke check.
 #
 # This file is scaffolded by `anvil init` into .github/workflows/. It activates
 # once the vault has a git remote. The workflow invokes existing anvil hygiene
@@ -21,31 +21,24 @@ jobs:
       - name: Install anvil
         run: |
           go install github.com/chonalchendo/anvil/cmd/anvil@latest
-        env:
-          GOPATH: /home/runner/go
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Validate frontmatter
         run: anvil validate --vault "$GITHUB_WORKSPACE"
-        env:
-          PATH: /home/runner/go/bin:$PATH
-          ANVIL_VAULT: ${{ github.workspace }}
 
-  reindex-check:
-    name: Reindex orphan check
+  reindex-smoke:
+    name: Reindex smoke
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Install anvil
-        run: go install github.com/chonalchendo/anvil/cmd/anvil@latest
-        env:
-          GOPATH: /home/runner/go
+        run: |
+          go install github.com/chonalchendo/anvil/cmd/anvil@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
-      - name: Reindex and report orphans
+      - name: Rebuild index (smoke; does not gate on orphans)
         run: anvil reindex --vault "$GITHUB_WORKSPACE"
-        env:
-          PATH: /home/runner/go/bin:$PATH
-          ANVIL_VAULT: ${{ github.workspace }}
 
   session-gc:
     name: Session GC
@@ -55,15 +48,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install anvil
-        run: go install github.com/chonalchendo/anvil/cmd/anvil@latest
-        env:
-          GOPATH: /home/runner/go
+        run: |
+          go install github.com/chonalchendo/anvil/cmd/anvil@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Prune expired empty session stubs
         run: anvil session gc --vault "$GITHUB_WORKSPACE"
-        env:
-          PATH: /home/runner/go/bin:$PATH
-          ANVIL_VAULT: ${{ github.workspace }}
 
       - name: Commit pruned stubs
         uses: stefanzweifel/git-auto-commit-action@v5
