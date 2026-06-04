@@ -40,7 +40,25 @@ func newSetCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			path := filepath.Join(v.Root, t.Dir(), args[1]+".md")
+
+			id := args[1]
+			// Resolve bare ordinal ("0042") and project-qualified ordinal
+			// ("anvil.0042") to the full ID, matching the read path in show.go.
+			if t == core.TypeIssue {
+				if proj, ord, ok := core.ParseProjectQualifiedOrdinal(id); ok {
+					if resolved, ok := core.ResolveIssueOrdinal(v, proj, ord); ok {
+						id = resolved
+					}
+				} else if core.IsOrdinalOnly(id) {
+					if p, err := core.ResolveProject(); err == nil {
+						if resolved, ok := core.ResolveIssueOrdinal(v, p.Slug, id); ok {
+							id = resolved
+						}
+					}
+				}
+			}
+
+			path := filepath.Join(v.Root, t.Dir(), id+".md")
 			a, err := core.LoadArtifact(path)
 			if err != nil {
 				if os.IsNotExist(err) {
@@ -66,7 +84,7 @@ func newSetCmd() *cobra.Command {
 
 			prev, hadPrev := a.FrontMatter[field]
 
-			result := setResult{ID: args[1], Path: path, Field: field, Status: "set"}
+			result := setResult{ID: id, Path: path, Field: field, Status: "set"}
 
 			switch kind {
 			case schema.KindScalar:
@@ -258,7 +276,7 @@ func newSetCmd() *cobra.Command {
 				}
 			}
 			if err := indexAfterSave(v, a); err != nil {
-				return fmt.Errorf("indexing %s: %w", args[1], err)
+				return fmt.Errorf("indexing %s: %w", id, err)
 			}
 			return emitSetResult(cmd, flagJSON, result)
 		},
