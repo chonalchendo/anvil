@@ -42,19 +42,3 @@ func TestWritingIssueSkill_DocumentsTransitions(t *testing.T) {
 		}
 	}
 }
-
-// writing-plan must document the lock → in-progress → done walk, including
-// where each transition fires (planner vs. executor).
-func TestWritingPlanSkill_DocumentsTransitionWalk(t *testing.T) {
-	body := skillBody(t, "writing-plan")
-	for _, want := range []string{
-		"anvil transition plan",
-		"locked",
-		"in-progress",
-		"done",
-	} {
-		if !strings.Contains(body, want) {
-			t.Errorf("writing-plan/SKILL.md missing %q", want)
-		}
-	}
-}

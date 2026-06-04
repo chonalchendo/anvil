@@ -22,7 +22,6 @@ const CodeSkillSchemaDrift = "skill_schema_drift"
 var skillTypeTargets = map[string]string{
 	"writing-issue":          "issue",
 	"writing-milestone":      "milestone",
-	"writing-plan":           "plan",
 	"writing-product-design": "product-design",
 	"writing-system-design":  "system-design",
 }
