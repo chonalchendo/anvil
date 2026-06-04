@@ -216,6 +216,55 @@ func TestResolveBodyLinks_BareProjectSlugFlagged(t *testing.T) {
 	}
 }
 
+// TestResolveBodyLinks_WhitespacePaddedBareProjectSlugFlagged asserts that a
+// bare project.slug body wikilink with surrounding whitespace is still flagged.
+// The indexer trims the token before lookup, so an un-trimmed validator would
+// accept `[[ anvil.foo ]]` while the indexer produces zero edges — a silent
+// graph orphan. Both paths must normalize identically.
+func TestResolveBodyLinks_WhitespacePaddedBareProjectSlugFlagged(t *testing.T) {
+	v := newScaffolded(t)
+	body := "See [[ anvil.consolidate-anvil-surface ]] for context.\n"
+	got := ResolveBodyLinks(v, body)
+	want := []UnresolvedLink{{Field: "body", Target: "anvil.consolidate-anvil-surface"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+// TestResolveBodyLinks_NoSpaceAliasNormalized asserts that an aliased body
+// wikilink without surrounding spaces (`[[type.project.slug|Alias]]`) is
+// normalized the same as the indexer: the alias is stripped before type/target
+// lookup. A dangling target is flagged; a resolving target is accepted. Before
+// the fix, create stat'd the literal `…|Alias.md` path and mis-rejected.
+func TestResolveBodyLinks_NoSpaceAliasNormalized(t *testing.T) {
+	v := newScaffolded(t)
+	writeBlankIssue(t, v, "anvil.real")
+	cases := []struct {
+		name string
+		body string
+		want []UnresolvedLink
+	}{
+		{
+			name: "dangling aliased link flagged on normalized target",
+			body: "See [[issue.anvil.ghost|Display]] for context.\n",
+			want: []UnresolvedLink{{Field: "body", Target: "issue.anvil.ghost"}},
+		},
+		{
+			name: "resolving aliased link accepted",
+			body: "See [[issue.anvil.real|the real issue]] for context.\n",
+			want: nil,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ResolveBodyLinks(v, tc.body)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 // TestResolveBodyLinks_TwoFencedBlocksProseInBetween exercises the non-greedy
 // [\s\S]*? in fencedBlockRe: the first closing fence must not consume the
 // second fenced block, so only the prose wikilink between them is validated.

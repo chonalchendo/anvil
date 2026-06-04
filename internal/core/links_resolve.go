@@ -129,14 +129,22 @@ func ResolveBodyLinks(v *Vault, body string) []UnresolvedLink {
 	seen := make(map[string]struct{}, len(matches))
 	var out []UnresolvedLink
 	for _, m := range matches {
-		target := m[1]
+		// Normalize the token exactly as the indexer's LinkRowsFromBody does —
+		// trim surrounding whitespace, then drop a trailing `|alias` — so the
+		// two paths agree on which body wikilinks are real references. Without
+		// this, `[[ anvil.foo ]]` or `[[type.x|Alias]]` would survive create yet
+		// the indexer would treat them differently, re-opening the orphan hole.
+		target := strings.TrimSpace(m[1])
+		if bar := strings.IndexByte(target, '|'); bar >= 0 {
+			target = strings.TrimSpace(target[:bar])
+		}
 		if _, ok := seen[target]; ok {
 			continue
 		}
 		seen[target] = struct{}{}
-		// Placeholder targets (contain <, >, or whitespace) are documentation
-		// literals — never real artifact ids — so skip them unconditionally.
-		if strings.ContainsAny(target, "<> \t\n") {
+		// Angle-bracket targets (e.g. [[milestone.<project>.<slug>]]) are
+		// documentation placeholders, not real artifact ids — skip them.
+		if strings.ContainsAny(target, "<>") {
 			continue
 		}
 		dot := strings.IndexByte(target, '.')
