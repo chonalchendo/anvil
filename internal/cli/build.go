@@ -24,12 +24,20 @@ func newBuildCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "build <plan-id>",
-		Short: "Walk a plan's wave graph and dispatch each task to its agent CLI",
-		Args:  cobra.ExactArgs(1),
+		Use:    "build <plan-id>",
+		Short:  "Walk a plan's wave graph and dispatch each task to its agent CLI",
+		Hidden: true, // deferred pending Phase B revival; see decision.consolidate-anvil-surface.0003
+		Args:   cobra.ExactArgs(1),
 		Example: `  anvil build anvil.refactor-auth --dry-run
   anvil build anvil.refactor-auth --concurrency 2 --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// anvil build is deferred pending revival of milestone
+			// exit-phase-b-dogfood-the-build-orchestrator. The plan type it
+			// depends on is deprecated; Phase B economics are in flux. Running
+			// anyway, but callers should expect this surface to change.
+			cmd.PrintErrln("notice: anvil build is deferred pending Phase B revival" +
+				" (milestone: exit-phase-b-dogfood-the-build-orchestrator;" +
+				" decision: consolidate-anvil-surface.0003)")
 			planID := args[0]
 			// Reject path-traversal segments before composing a filesystem path
 			// — args[0] is user input and could otherwise escape the plan dir.
