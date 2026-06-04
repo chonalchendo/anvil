@@ -7,11 +7,9 @@ import (
 	"testing"
 )
 
-// TestRoot_AutoRefreshesStaleSkills verifies that auto-refresh fires when the
-// deploy stamp is absent (backward-compatible path: pre-version-guard install).
-// The stamp is removed after install to simulate an install done by an older
-// binary that did not write the stamp; a stale hash then triggers the fallback
-// hash-only logic and the bundle is rewritten.
+// TestRoot_AutoRefreshesStaleSkills verifies that auto-refresh fires whenever
+// the installed bundle's hash diverges from the binary's embedded skills —
+// monotonic refresh, no version guard.
 func TestRoot_AutoRefreshesStaleSkills(t *testing.T) {
 	skillsRoot := t.TempDir()
 	claudeRoot := t.TempDir()
@@ -23,13 +21,6 @@ func TestRoot_AutoRefreshesStaleSkills(t *testing.T) {
 
 	if _, _, err := runCmd(t, newRootCmd(), "install", "skills"); err != nil {
 		t.Fatalf("install skills: %v", err)
-	}
-
-	// Remove the deploy stamp to simulate a pre-version-guard install so the
-	// backward-compatible hash-only path is exercised.
-	stampPath := filepath.Join(skillsRoot, ".anvil-skills-deploy-stamp")
-	if err := os.Remove(stampPath); err != nil && !os.IsNotExist(err) {
-		t.Fatalf("remove stamp: %v", err)
 	}
 
 	hashPath := filepath.Join(skillsRoot, ".anvil-skills-hash")
@@ -51,72 +42,6 @@ func TestRoot_AutoRefreshesStaleSkills(t *testing.T) {
 	}
 	if string(data) == "stale" {
 		t.Error("hash file was not rewritten by auto-refresh")
-	}
-}
-
-// TestRoot_SkipsAutoRefreshForForeignDeploy confirms that when the deploy stamp
-// is present and the binary has not been rebuilt (stamp >= binary mtime), an
-// unrelated command does not overwrite the installed bundle even when the hash
-// file records a divergent value — protecting against a stale global binary
-// silently downgrading skills deployed by a newer worktree binary.
-func TestRoot_SkipsAutoRefreshForForeignDeploy(t *testing.T) {
-	skillsRoot := t.TempDir()
-	claudeRoot := t.TempDir()
-	t.Setenv("ANVIL_SKILLS_DIR", skillsRoot)
-	t.Setenv("CLAUDE_CONFIG_DIR", claudeRoot)
-	setupVault(t)
-
-	if _, _, err := runCmd(t, newRootCmd(), "install", "skills"); err != nil {
-		t.Fatalf("install skills: %v", err)
-	}
-
-	// Add a marker to a materialised skill to detect if auto-refresh fires.
-	// Find the first SKILL.md in the materialise dir.
-	var skillmd string
-	if entries, rerr := os.ReadDir(skillsRoot); rerr == nil {
-		for _, e := range entries {
-			if !e.IsDir() {
-				continue
-			}
-			candidate := filepath.Join(skillsRoot, e.Name(), "SKILL.md")
-			if _, serr := os.Stat(candidate); serr == nil {
-				skillmd = candidate
-				break
-			}
-		}
-	}
-	if skillmd == "" {
-		t.Fatal("no SKILL.md found in materialise dir")
-	}
-	f, err := os.OpenFile(skillmd, os.O_APPEND|os.O_WRONLY, 0o644) //nolint:gosec // path is test-controlled
-	if err != nil {
-		t.Fatalf("open skill: %v", err)
-	}
-	_, werr := f.WriteString("\nMARKER_FOREIGN_DEPLOY\n")
-	if cerr := f.Close(); cerr != nil && werr == nil {
-		werr = cerr
-	}
-	if werr != nil {
-		t.Fatalf("write marker: %v", werr)
-	}
-
-	// Simulate a divergent hash (as if a different binary deployed skills).
-	hashPath := filepath.Join(skillsRoot, ".anvil-skills-hash")
-	if err := os.WriteFile(hashPath, []byte("deadbeefdeadbeef"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
-		t.Fatalf("write foreign hash: %v", err)
-	}
-
-	_, _, err = runCmd(t, newRootCmd(), "where")
-	if err != nil {
-		t.Fatalf("where: %v", err)
-	}
-
-	data, err := os.ReadFile(skillmd) //nolint:gosec // path is test-controlled
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(data), "MARKER_FOREIGN_DEPLOY") {
-		t.Error("auto-refresh overwrote skills despite stamp guard; marker lost")
 	}
 }
 

@@ -6,48 +6,19 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
-	"time"
 )
-
-// skillsDeployStampFile records the binary's mtime at install time so the
-// auto-refresh path can detect whether the current binary was rebuilt after
-// the last install and thus has the right to overwrite the installed bundle.
-const skillsDeployStampFile = ".anvil-skills-deploy-stamp"
-
-// binaryMtime returns the modification time of the running executable.
-// Overridable in tests to simulate different binary ages without filesystem
-// manipulation.
-var binaryMtime = func() (time.Time, error) {
-	exe, err := os.Executable()
-	if err != nil {
-		return time.Time{}, fmt.Errorf("executable: %w", err)
-	}
-	info, err := os.Stat(exe)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("stat executable: %w", err)
-	}
-	return info.ModTime(), nil
-}
 
 // RefreshSkillsIfStale rewrites the installed bundle when the hash recorded
 // in materialiseDir diverges from srcFS. No-op when materialiseDir is absent.
 // The install mode (symlink vs copy) is recovered by inspecting any existing
 // per-skill child under target.
 //
-// If a deploy stamp is present (written by InstallSkills), the refresh only
-// proceeds when the current binary is strictly newer than the stamp — meaning
-// the binary was rebuilt since the last install. When the binary is the same
-// age or older than the stamp, the installed bundle came from a newer or
-// different binary and must not be overwritten. The stamp check is skipped
-// (falling back to hash-only logic) when the stamp file is absent, to
-// preserve backward compatibility with installs done before this guard was
-// introduced.
-//
-// The stamp is the deploying binary's mtime (nanosecond epoch), which is a
-// build-time proxy rather than a content-addressed version — accurate for the
-// normal rebuild path but may invert for binaries rebuilt from an older ref.
+// Refresh is monotonic: a released user upgrades the binary, so embedded skills
+// are always newer-or-equal than what is installed, and refreshing whenever the
+// hashes differ is correct. The one path that could regress — building from an
+// older git ref and letting it downgrade a newer installed bundle — is a
+// dogfood artifact, not a user scenario; recover from it with an explicit
+// `anvil install skills --force`.
 //
 // If any target/<name> entry would block install (user planted a regular
 // dir over what should be a symlink, or a non-anvil dir in copy mode), the
@@ -65,20 +36,6 @@ func RefreshSkillsIfStale(srcFS fs.FS, materialiseDir, target string) (bool, err
 			return false, nil
 		}
 		return false, fmt.Errorf("stat %s: %w", materialiseDir, err)
-	}
-
-	// Version guard: when a deploy stamp is present, only refresh if the
-	// current binary is strictly newer than the stamp. A stamp at or after the
-	// binary's mtime means a different (or equally-aged) binary last deployed —
-	// skip to avoid overwriting a divergent bundle.
-	if stampBytes, err := os.ReadFile(filepath.Join(materialiseDir, skillsDeployStampFile)); err == nil { //nolint:gosec // path is application-managed
-		if btime, berr := binaryMtime(); berr == nil {
-			if stampNanos, perr := strconv.ParseInt(strings.TrimSpace(string(stampBytes)), 10, 64); perr == nil {
-				if !btime.After(time.Unix(0, stampNanos)) {
-					return false, nil
-				}
-			}
-		}
 	}
 
 	fresh, err := SkillsAreFresh(srcFS, materialiseDir)
