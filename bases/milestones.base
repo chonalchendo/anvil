@@ -1,0 +1,92 @@
+filters:
+  and:
+    - file.inFolder("85-milestones")
+    - file.ext == "md"
+properties:
+  file.name:
+    displayName: Milestone
+  file.ctime:
+    displayName: Created
+  file.mtime:
+    displayName: Updated
+  note.title:
+    displayName: Title
+  note.status:
+    displayName: Status
+  note.project:
+    displayName: Project
+  note.product_design:
+    displayName: Product design
+  note.system_design:
+    displayName: System design
+views:
+  - type: table
+    name: Active (planned + in-progress)
+    filters:
+      and:
+        - status != "done"
+        - status != "abandoned"
+    order:
+      - title
+      - file.name
+      - status
+      - project
+      - file.mtime
+    sort:
+      - property: project
+        direction: DESC
+      - property: status
+        direction: ASC
+  - type: table
+    name: In progress
+    filters:
+      and:
+        - status == "in-progress"
+    order:
+      - title
+      - file.name
+      - project
+      - product_design
+      - system_design
+      - file.mtime
+    sort:
+      - property: file.mtime
+        direction: DESC
+  - type: table
+    name: Planned
+    filters:
+      and:
+        - status == "planned"
+    order:
+      - title
+      - file.name
+      - project
+      - file.mtime
+    sort:
+      - property: file.mtime
+        direction: DESC
+  - type: table
+    name: Done
+    filters:
+      and:
+        - status == "done"
+    order:
+      - title
+      - file.name
+      - project
+      - file.mtime
+    sort:
+      - property: file.mtime
+        direction: DESC
+  - type: table
+    name: All by project
+    order:
+      - title
+      - file.name
+      - status
+      - project
+    sort:
+      - property: project
+        direction: ASC
+      - property: status
+        direction: ASC

@@ -1,0 +1,83 @@
+filters:
+  and:
+    - file.inFolder("30-decisions")
+    - file.ext == "md"
+properties:
+  file.name:
+    displayName: Decision
+  file.ctime:
+    displayName: Created
+  file.mtime:
+    displayName: Updated
+  note.title:
+    displayName: Title
+  note.status:
+    displayName: Status
+  note.date:
+    displayName: Date
+  note.supersedes:
+    displayName: Supersedes
+  note.superseded_by:
+    displayName: Superseded by
+views:
+  - type: table
+    name: Accepted
+    filters:
+      and:
+        - status == "accepted"
+    order:
+      - title
+      - file.name
+      - date
+      - supersedes
+    sort:
+      - property: date
+        direction: DESC
+  - type: table
+    name: Proposed
+    filters:
+      and:
+        - status == "proposed"
+    order:
+      - title
+      - file.name
+      - date
+    sort:
+      - property: date
+        direction: DESC
+  - type: table
+    name: Rejected
+    filters:
+      and:
+        - status == "rejected"
+    order:
+      - title
+      - file.name
+      - date
+    sort:
+      - property: date
+        direction: DESC
+  - type: table
+    name: Superseded / deprecated
+    filters:
+      and:
+        - status == "superseded" || status == "deprecated"
+    order:
+      - title
+      - file.name
+      - status
+      - date
+      - superseded_by
+    sort:
+      - property: date
+        direction: DESC
+  - type: table
+    name: All by date
+    order:
+      - title
+      - file.name
+      - status
+      - date
+    sort:
+      - property: date
+        direction: DESC

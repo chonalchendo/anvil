@@ -1,0 +1,109 @@
+filters:
+  and:
+    - file.ext == "md"
+    - type != null
+properties:
+  file.name:
+    displayName: File
+  file.ctime:
+    displayName: Created
+  file.mtime:
+    displayName: Updated
+  note.title:
+    displayName: Title
+  note.type:
+    displayName: Type
+  note.status:
+    displayName: Status
+  note.project:
+    displayName: Project
+  note.severity:
+    displayName: Severity
+views:
+  - type: table
+    name: All artifacts by type
+    order:
+      - title
+      - file.name
+      - type
+      - status
+      - project
+      - file.mtime
+    sort:
+      - property: type
+        direction: ASC
+      - property: file.mtime
+        direction: DESC
+  - type: table
+    name: Milestones
+    filters:
+      and:
+        - type == "milestone"
+    order:
+      - title
+      - file.name
+      - project
+      - status
+      - file.mtime
+    sort:
+      - property: project
+        direction: ASC
+      - property: status
+        direction: ASC
+  - type: table
+    name: Plans
+    filters:
+      and:
+        - type == "plan"
+    order:
+      - title
+      - file.name
+      - project
+      - status
+      - issue
+      - file.mtime
+    sort:
+      - property: file.mtime
+        direction: DESC
+  - type: table
+    name: Decisions
+    filters:
+      and:
+        - type == "decision"
+    order:
+      - title
+      - file.name
+      - status
+      - date
+    sort:
+      - property: date
+        direction: DESC
+  - type: table
+    name: Inbox (unresolved)
+    filters:
+      and:
+        - type == "inbox"
+        - status != "promoted"
+        - status != "discarded"
+    order:
+      - title
+      - file.name
+      - suggested_type
+      - file.ctime
+    sort:
+      - property: file.ctime
+        direction: DESC
+  - type: table
+    name: Learnings
+    filters:
+      and:
+        - type == "learning"
+    order:
+      - title
+      - file.name
+      - diataxis
+      - confidence
+      - file.mtime
+    sort:
+      - property: confidence
+        direction: DESC

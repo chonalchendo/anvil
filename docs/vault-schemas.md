@@ -329,7 +329,7 @@ Wikilinks are vault-global, not project-scoped. Because the project name is part
 ├── 70-issues/                    # work items (single source of truth)
 ├── 80-plans/
 ├── 85-milestones/
-├── 90-moc/dashboards/
+├── 90-bases/
 ├── 99-archive/
 ├── _meta/
 └── schemas/

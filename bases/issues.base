@@ -1,0 +1,99 @@
+filters:
+  and:
+    - file.inFolder("70-issues")
+    - file.ext == "md"
+properties:
+  file.name:
+    displayName: Issue
+  file.ctime:
+    displayName: Created
+  file.mtime:
+    displayName: Updated
+  note.title:
+    displayName: Title
+  note.severity:
+    displayName: Severity
+  note.status:
+    displayName: Status
+  note.project:
+    displayName: Project
+  note.milestone:
+    displayName: Milestone
+  note.owner:
+    displayName: Owner
+views:
+  - type: table
+    name: Open
+    filters:
+      and:
+        - status == "open"
+    order:
+      - title
+      - file.name
+      - project
+      - severity
+      - milestone
+      - file.ctime
+    sort:
+      - property: file.ctime
+        direction: ASC
+      - property: severity
+        direction: ASC
+      - property: project
+        direction: DESC
+      - property: file.mtime
+        direction: DESC
+    columnSize:
+      file.name: 92
+      note.title: 620
+  - type: table
+    name: In progress
+    filters:
+      and:
+        - status == "in-progress"
+    order:
+      - title
+      - file.name
+      - project
+      - owner
+      - severity
+      - milestone
+      - file.mtime
+    sort:
+      - property: file.mtime
+        direction: DESC
+    columnSize:
+      file.name: 92
+      note.title: 629
+  - type: table
+    name: High + critical (any status)
+    filters:
+      and:
+        - severity == "high" || severity == "critical"
+        - status != "resolved"
+        - status != "abandoned"
+    order:
+      - title
+      - file.name
+      - status
+      - project
+      - severity
+      - milestone
+  - type: table
+    name: By project
+    filters:
+      and:
+        - status != "resolved"
+        - status != "abandoned"
+    order:
+      - title
+      - file.name
+      - status
+      - severity
+      - milestone
+      - file.mtime
+    sort:
+      - property: project
+        direction: ASC
+      - property: severity
+        direction: DESC

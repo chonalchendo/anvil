@@ -52,7 +52,7 @@ This document captures the design rationale for Anvil. It exists so that future-
 **Vault details**
 - [Vault frontmatter schemas](#vault-frontmatter-schemas) — pointer to `vault-schemas.md`; the two architectural rules stay here
 - [Tag taxonomy](#tag-taxonomy) — four-facet classification, status not in tags
-- [Maps of Content (MOCs) and dashboards](#maps-of-content-mocs-and-dashboards) — hybrid pattern, Bases over Dataview
+- [Bases dashboards](#bases-dashboards) — seeded per-type indexes, Bases over Dataview
 - [Retention and compaction](#retention-and-compaction) — three-layer model, 50-note backpressure
 - [Pitfalls in long-running AI-augmented vaults](#pitfalls-in-long-running-ai-augmented-vaults) — twelve documented failure modes with mitigations
 
@@ -462,13 +462,13 @@ anvil/
 │   │   │   ├── README.md.j2
 │   │   │   ├── obsidian.config.json
 │   │   │   ├── tag-conventions.md
-│   │   │   └── starter-mocs/
-│   │   │       ├── _home.md.j2
-│   │   │       ├── projects.md.j2
-│   │   │       └── dashboards/
-│   │   │           ├── active-issues.base
-│   │   │           ├── recent-learnings.base
-│   │   │           └── decisions-by-project.base
+│   │   │   └── bases/
+│   │   │       ├── vault-overview.base
+│   │   │       ├── issues.base
+│   │   │       ├── learnings.base
+│   │   │       ├── decisions.base
+│   │   │       ├── plans.base
+│   │   │       └── milestones.base
 │   │   ├── project/
 │   │   │   ├── config.toml.j2
 │   │   │   └── state.md.j2
@@ -613,15 +613,13 @@ The single Obsidian vault. Curated knowledge artifacts only. Git-versioned at th
 │   ├── payments.m2-idempotency.md
 │   ├── auth.m3-oauth-integration.md
 │   └── ...
-├── 90-moc/                          static MOCs + their .base sibling files
-│   ├── _home.md
-│   ├── projects.md
-│   ├── authentication.md
-│   ├── authentication.base
-│   └── dashboards/
-│       ├── active-issues.base
-│       ├── recent-learnings.base
-│       └── decisions-by-project.base
+├── 90-bases/                        Obsidian Bases dashboards (seeded by anvil init)
+│   ├── vault-overview.base
+│   ├── issues.base
+│   ├── learnings.base
+│   ├── decisions.base
+│   ├── plans.base
+│   └── milestones.base
 ├── 99-archive/                      cold storage; demoted sessions, deprecated decisions
 ├── _meta/
 │   ├── tag-conventions.md           controlled vocabulary, with examples
@@ -630,7 +628,7 @@ The single Obsidian vault. Curated knowledge artifacts only. Git-versioned at th
 └── .gitignore
 ```
 
-**Folder numbering rationale.** PARA-style numeric prefixes give sort stability across filesystems and signal lifecycle direction. `00-inbox` (capture) → `05-projects` (architectural top, read first) → `10-sessions` (raw AI output) → `20-80` (curated artifacts) → `85-milestones` (structural backbone, sits between artifacts and navigation) → `90-moc` (navigation) → `99-archive`. The numbering is deliberately PARA-flavored without claiming PARA semantics.
+**Folder numbering rationale.** PARA-style numeric prefixes give sort stability across filesystems and signal lifecycle direction. `00-inbox` (capture) → `05-projects` (architectural top, read first) → `10-sessions` (raw AI output) → `20-80` (curated artifacts) → `85-milestones` (structural backbone, sits between artifacts and navigation) → `90-bases` (navigation) → `99-archive`. The numbering is deliberately PARA-flavored without claiming PARA semantics.
 
 The `05-projects/` folder is intentionally placed near the top — it's the design-driven hierarchy's load-bearing layer. When someone opens the vault and asks "what is this project?", they should land here before anything else. The `85-milestones/` folder sits just before navigation because milestones bridge the design (above) and the operational artifacts (below).
 
@@ -770,54 +768,30 @@ The starter taxonomy ships at `~/anvil-vault/_meta/tag-conventions.md`, written 
 
 ---
 
-## Maps of Content (MOCs) and dashboards
+## Bases dashboards
 
-Two patterns at scale: hand-curated MOCs for narrative navigation, Bases queries for exhaustive indexes. Hybrid combines both.
+Navigation at scale is exhaustive, auto-updating indexes — not hand-curated link lists. **Pure Dataview indexes fail at ~3,000–5,000 notes** (UI freezes; Dataview's maintainer has shifted focus to Datacore). **Bases handles 50,000-note vaults instantly** because it uses Obsidian's native metadata cache. So `90-bases/` is the index layer, built in Bases, no Dataview — the cost of a freeze on every session-start is too high.
 
-**Manual MOCs alone fail at ~500–1,000 notes** (curation can't keep up with growth). **Pure Dataview MOCs fail at ~3,000–5,000 notes** (UI freezes; Dataview's maintainer has shifted focus to Datacore). **Bases handles 50,000-note vaults instantly** because it uses Obsidian's native metadata cache.
-
-The hybrid pattern: a hand-written `90-moc/{area}.md` containing 5–30 carefully chosen wikilinks with paragraphs explaining *why* each note matters, followed by an embedded `.base` view for the exhaustive auto-updating index.
-
-```markdown
-# Postgres operations MOC
-
-This hub collects everything we know about running Postgres in production.
-Start with [[learning.postgres.cic-snapshot-wait]] for the canonical
-gotcha; see [[decision.postgres.0004-replication-strategy]] for context
-on why we run async replication.
-
-## Curated path
-- [[learning.postgres.cic-snapshot-wait]] — the lock interaction nobody warns you about
-- [[decision.postgres.0004-replication-strategy]] — why async, not sync
-- [[plan.postgres.q2-pgbouncer-rollout]] — current direction
-
-## Everything in this domain
-![[postgres.base]]
-```
-
-Where `90-moc/postgres.base` is:
+`anvil init` seeds `90-bases/` with one `.base` per artifact type (`issues`, `learnings`, `decisions`, `plans`, `milestones`) plus a `vault-overview.base` spanning all types. Each is a folder-scoped table with per-status views; the user edits them freely from there. A `.base` is plain YAML:
 
 ```yaml
 filters:
   and:
-    - file.hasTag("domain/postgres")
-    - 'status != "deprecated"'
+    - file.inFolder("70-issues")
+    - file.ext == "md"
 properties:
-  file.name: { displayName: Note }
-  type: { displayName: Type }
+  file.name: { displayName: Issue }
   status: { displayName: Status }
-  updated: { displayName: Updated }
+  severity: { displayName: Severity }
 views:
   - type: table
-    name: All
-    order: [file.name, type, status, updated]
-    sort: [{ column: updated, direction: DESC }]
-    group: type
+    name: Open
+    filters:
+      and:
+        - status == "open"
+    order: [title, file.name, severity, milestone]
+    sort: [{ property: severity, direction: ASC }]
 ```
-
-**Hand-curate the narrative section** whenever an area has more than three notes. **Auto-generate the index section always** via Bases. **Never hand-curate a list of every note in a domain** — that's where MOCs die at scale.
-
-The dashboard MOC (`90-moc/_home.md`) is the most-opened note in the vault. It uses Bases exclusively, no Dataview, because the cost of a freeze on every session-start is too high.
 
 A note on Bases stability. Bases is in Catalyst early access as of early 2026 and has shipped breaking syntax changes once (1.9.2). The downside is contained — the underlying YAML format is plain text and survives plugin churn; worst case dashboards need re-authoring against new syntax. This is acceptable risk given the 50× performance advantage over Dataview at scale.
 
