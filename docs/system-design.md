@@ -104,7 +104,7 @@ The orchestrator is deliberately small. Coding work happens inside agent CLI sub
 
 ## Data flow
 
-`anvil build` is the load-bearing path. The CLI parses the manifest into a wave graph and hands it to the orchestrator. For each wave (sequential in v0.1), the orchestrator constructs a `TaskSpec`, calls the appropriate adapter, and consumes a `NormalizedEvent` stream while the adapter drives the subprocess. Events are persisted to telemetry as they arrive. On wave completion the orchestrator emits a `TaskResult` summary; on failure the wave pauses and the user is prompted (see [Failure handling](system-design/adapters.md#failure-handling)).
+`anvil build` is the load-bearing path (deferred pending Phase B revival; see `decision.consolidate-anvil-surface.0003`). The CLI parses the manifest into a wave graph and hands it to the orchestrator. For each wave (sequential in v0.1), the orchestrator constructs a `TaskSpec`, calls the appropriate adapter, and consumes a `NormalizedEvent` stream while the adapter drives the subprocess. Events are persisted to telemetry as they arrive. On wave completion the orchestrator emits a `TaskResult` summary; on failure the wave pauses and the user is prompted (see [Failure handling](system-design/adapters.md#failure-handling)).
 
 ```mermaid
 sequenceDiagram
