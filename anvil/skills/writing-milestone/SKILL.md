@@ -10,7 +10,7 @@ metadata:
   skill_type: workflow
   side: design
   created: 2026-04-30
-  updated: 2026-04-30
+  updated: 2026-06-04
   tags: [type/skill, activity/milestone]
   diataxis: how-to
   authored_via: manual
@@ -93,6 +93,20 @@ anvil set milestone <id> system_design "[[system-design.<project>]]"
 ```
 
 Both calls land in dedicated typed slots. If a system-design doesn't yet exist, omit the second call.
+
+---
+
+## Phase 4b — Contract coverage
+
+Name the component families this milestone owns (read them off the acceptance criteria), then see which already have a governing contract:
+
+```bash
+anvil list contract --json
+```
+
+A contract **accretes from building**, so it is authored at the start of the milestone that owns the family (`docs/system-design.md`, contract cadence). For an **extremely obvious** uncovered family — one this milestone plainly owns and builds against — surface the gap and, on the user's confirmation, fire `writing-contract` (author mode) for it. Skip silently when every family the milestone owns is already covered, or when the gap is ambiguous — never author speculatively. This is the authoring end of the cadence; `writing-issue` Phase 4b stays link-only.
+
+**REQUIRED SUB-SKILL (on confirmed gap only):** Use `writing-contract`.
 
 ---
 
