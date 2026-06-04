@@ -186,6 +186,10 @@ anvil create issue --title "<title>" --description "<one-line preview>" --goal "
 
 An optional `## Acceptance criteria` prose checklist may follow `## Problem` when an unambiguous bulleted list aids the implementer — but it is no longer required, and the binary gate is `## Verification`, not AC.
 
+**Outcome, not mechanism.** ACs and `goal:` must name an observable outcome ("dev run rows auto-reap on a cadence"), not a mechanism ("a cron workflow invokes `gc_dev_runs`"). An AC that prescribes a mechanism ties the implementer to an unverified assumption and makes the issue fragile to a mechanism pivot. Mechanism detail belongs in `## Problem` prose where it informs but does not constrain.
+
+**Feasibility gate for prescribed mechanisms.** If any AC or `## Verification` block names a specific tool, CLI command, or runtime behaviour as the mechanism, verify runtime feasibility before the issue lands: run the one command that proves the mechanism works (or fails) in this environment. If it fails, either rewrite the AC as an outcome and drop the mechanism, or split out a feasibility spike issue. Prescribing an unverified mechanism defers the discovery cost to `completing-issue` — after a fleet dispatch, a review, and multiple responder rounds have already run.
+
 Capture `id` and `path` from the JSON output. The file lands at `~/anvil-vault/70-issues/<project>.<slug>.md`.
 
 Set typed frontmatter slots (these are still post-create — typed setters live outside the body):
