@@ -14,6 +14,7 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/installer"
 	"github.com/chonalchendo/anvil/internal/schema"
+	"github.com/chonalchendo/anvil/workflows"
 )
 
 func newInitCmd() *cobra.Command {
@@ -41,6 +42,9 @@ func newInitCmd() *cobra.Command {
 			}
 			if err := writeEmbedded(bases.FS, v.BasesDir()); err != nil {
 				return fmt.Errorf("writing bases: %w", err)
+			}
+			if err := writeEmbedded(workflows.FS, v.WorkflowsDir()); err != nil {
+				return fmt.Errorf("writing workflows: %w", err)
 			}
 			if err := v.EnableObsidianCorePlugin("bases"); err != nil {
 				return fmt.Errorf("enabling bases plugin: %w", err)

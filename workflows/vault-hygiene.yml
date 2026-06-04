@@ -1,0 +1,72 @@
+# Vault hygiene — scheduled GC, validate-on-push, reindex orphan check.
+#
+# This file is scaffolded by `anvil init` into .github/workflows/. It activates
+# once the vault has a git remote. The workflow invokes existing anvil hygiene
+# commands; it does not implement hygiene logic.
+name: vault-hygiene
+
+on:
+  push:
+  schedule:
+    # Run session GC daily at 03:00 UTC.
+    - cron: "0 3 * * *"
+
+jobs:
+  validate:
+    name: Validate frontmatter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install anvil
+        run: |
+          go install github.com/chonalchendo/anvil/cmd/anvil@latest
+        env:
+          GOPATH: /home/runner/go
+
+      - name: Validate frontmatter
+        run: anvil validate --vault "$GITHUB_WORKSPACE"
+        env:
+          PATH: /home/runner/go/bin:$PATH
+          ANVIL_VAULT: ${{ github.workspace }}
+
+  reindex-check:
+    name: Reindex orphan check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install anvil
+        run: go install github.com/chonalchendo/anvil/cmd/anvil@latest
+        env:
+          GOPATH: /home/runner/go
+
+      - name: Reindex and report orphans
+        run: anvil reindex --vault "$GITHUB_WORKSPACE"
+        env:
+          PATH: /home/runner/go/bin:$PATH
+          ANVIL_VAULT: ${{ github.workspace }}
+
+  session-gc:
+    name: Session GC
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install anvil
+        run: go install github.com/chonalchendo/anvil/cmd/anvil@latest
+        env:
+          GOPATH: /home/runner/go
+
+      - name: Prune expired empty session stubs
+        run: anvil session gc --vault "$GITHUB_WORKSPACE"
+        env:
+          PATH: /home/runner/go/bin:$PATH
+          ANVIL_VAULT: ${{ github.workspace }}
+
+      - name: Commit pruned stubs
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(vault): session GC — prune expired empty stubs"
+          file_pattern: "10-sessions/**"
