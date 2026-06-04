@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +45,7 @@ func TestPruneExpiredStubs_RemovesExpiredEmptyStubs(t *testing.T) {
 	writeSessionFixtureWithRetention(t, vault, "expired-handoff", "2026-05-01",
 		"## Handoff\n\n**Objective.** ship it\n")
 
-	removed, retained, err := pruneExpiredStubs(vault, false, now)
+	removed, retained, err := pruneExpiredStubs(io.Discard, vault, false, now)
 	if err != nil {
 		t.Fatalf("pruneExpiredStubs: %v", err)
 	}
@@ -69,7 +70,7 @@ func TestPruneExpiredStubs_DryRun_DoesNotDelete(t *testing.T) {
 
 	path := writeSessionFixtureWithRetention(t, vault, "dry-stub", "2026-05-01", "")
 
-	removed, _, err := pruneExpiredStubs(vault, true, now)
+	removed, _, err := pruneExpiredStubs(io.Discard, vault, true, now)
 	if err != nil {
 		t.Fatalf("pruneExpiredStubs dry-run: %v", err)
 	}
@@ -89,7 +90,7 @@ func TestPruneExpiredStubs_HandoffNeverPruned(t *testing.T) {
 	writeSessionFixtureWithRetention(t, vault, "old-handoff", "2020-01-01",
 		"## Handoff\n\n**Objective.** ancient work\n")
 
-	removed, retained, err := pruneExpiredStubs(vault, false, now)
+	removed, retained, err := pruneExpiredStubs(io.Discard, vault, false, now)
 	if err != nil {
 		t.Fatalf("pruneExpiredStubs: %v", err)
 	}
@@ -108,7 +109,7 @@ func TestPruneExpiredStubs_NoRetentionDate_Retained(t *testing.T) {
 	// Empty stub with no retention_until — must not be pruned.
 	writeSessionFixtureWithRetention(t, vault, "no-retention", "", "")
 
-	removed, _, err := pruneExpiredStubs(vault, false, now)
+	removed, _, err := pruneExpiredStubs(io.Discard, vault, false, now)
 	if err != nil {
 		t.Fatalf("pruneExpiredStubs: %v", err)
 	}

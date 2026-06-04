@@ -2,7 +2,9 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -27,7 +29,7 @@ Use --dry-run to report what would be pruned without removing anything.`,
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			removed, skipped, err := pruneExpiredStubs(v.Root, dryRun, time.Now().UTC())
+			removed, skipped, err := pruneExpiredStubs(cmd.ErrOrStderr(), v.Root, dryRun, time.Now().UTC())
 			if err != nil {
 				return err
 			}
@@ -55,8 +57,8 @@ Use --dry-run to report what would be pruned without removing anything.`,
 // dryRun is true) files that are BOTH empty (no handoff body) AND past their
 // retention_until date relative to now. Sessions with a handoff body are
 // never touched. Returns the paths acted on and the count of retained sessions.
-func pruneExpiredStubs(vaultRoot string, dryRun bool, now time.Time) (removed []string, retained int, err error) {
-	dir := vaultRoot + "/10-sessions"
+func pruneExpiredStubs(warnW io.Writer, vaultRoot string, dryRun bool, now time.Time) (removed []string, retained int, err error) {
+	dir := filepath.Join(vaultRoot, core.TypeSession.Dir())
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -69,10 +71,12 @@ func pruneExpiredStubs(vaultRoot string, dryRun bool, now time.Time) (removed []
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 			continue
 		}
-		path := dir + "/" + e.Name()
+		path := filepath.Join(dir, e.Name())
 		a, err := core.LoadArtifact(path)
 		if err != nil {
-			// Skip unreadable files rather than aborting the whole sweep.
+			// Skip unreadable files rather than aborting the whole sweep, but
+			// surface them so a corrupt session is not invisible to the operator.
+			fmt.Fprintf(warnW, "WARN: skipping unreadable session %s: %v\n", path, err)
 			retained++
 			continue
 		}
