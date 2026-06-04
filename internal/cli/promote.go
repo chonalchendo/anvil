@@ -11,8 +11,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/chonalchendo/anvil/internal/cli/errfmt"
-	"github.com/chonalchendo/anvil/internal/cli/facets"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/schema"
 )
@@ -256,13 +254,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		} else {
 			// Scaffold the required issue sections so the promoted artifact
 			// passes `anvil validate` without a follow-up edit round-trip.
-			var sb strings.Builder
-			for _, h := range core.RequiredIssueSections {
-				sb.WriteString("\n")
-				sb.WriteString(h)
-				sb.WriteString("\n")
-			}
-			body = sb.String()
+			body = core.ScaffoldSections(core.RequiredIssueSections)
 		}
 	}
 
@@ -271,52 +263,14 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
 	targetPath := filepath.Join(dir, targetID+".md")
-	if err := schema.Validate(string(target), fm); err != nil {
-		return renderSchemaErr(cmd, v, targetPath, err, asJSON)
-	}
 
-	for _, f := range flagAllowNewFacet {
-		if !facets.Has(f) {
-			return formatEnumError("--allow-new-facet", f, facets.Names(), "")
-		}
-	}
-	allowed := map[string]bool{}
-	for _, f := range flagAllowNewFacet {
-		allowed[f] = true
-	}
-	values, skipped, gErr := facets.CollectValues(v.Root)
-	if gErr != nil {
-		return fmt.Errorf("walking vault for facet values: %w", gErr)
-	}
-	for _, p := range skipped {
-		cmd.PrintErrln("warn: skipped corrupt artifact during facet walk: " + p)
-	}
-	tagsRaw, _ := fm["tags"].([]any)
-	tagsStr := make([]string, 0, len(tagsRaw))
-	for _, raw := range tagsRaw {
-		if s, ok := raw.(string); ok {
-			tagsStr = append(tagsStr, s)
-		}
-	}
-	if errs := facets.Check(values, tagsStr, allowed); len(errs) > 0 {
-		for _, e := range errs {
-			e.Path = targetPath
-		}
-		emitValidationErrors(cmd, asJSON, errs)
-		return ErrSchemaInvalid
-	}
-
-	// Validate a user-authored body before committing to disk.
-	if userAuthoredBody {
-		tgt := &core.Artifact{Path: targetPath, FrontMatter: fm, Body: body}
-		if vErrs := core.ValidateIssue(tgt); len(vErrs) > 0 {
-			var failures []*errfmt.ValidationError
-			for _, ve := range vErrs {
-				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, targetPath, "", ve.Error()))
-			}
-			emitValidationErrors(cmd, asJSON, failures)
-			return ErrSchemaInvalid
-		}
+	// Route through the same validator create uses so the two paths accept the
+	// identical artifact set: schema + facet novelty, plus — for an authored
+	// body — required headings AND wikilink resolution. Inline-validating here
+	// (the prior shape) let an unresolved [[wikilink]] through promote that
+	// create rejects.
+	if err := validateBeforeCreate(cmd, v, target, targetPath, fm, body, userAuthoredBody, flagAllowNewFacet, asJSON); err != nil {
+		return err
 	}
 
 	tgtArt := &core.Artifact{Path: targetPath, FrontMatter: fm, Body: body}

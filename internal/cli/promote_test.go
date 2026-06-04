@@ -586,6 +586,38 @@ func TestPromote_IssueBodyFlagOverridesScaffold(t *testing.T) {
 	}
 }
 
+// TestPromote_IssueBodyRejectsUnresolvedWikilink pins parity with create: an
+// authored --body carrying an unresolved [[wikilink]] is rejected, not written.
+// Before promote routed through validateBeforeCreate it ran ValidateIssue only,
+// so such a body was silently accepted (divergent from create).
+func TestPromote_IssueBodyRejectsUnresolvedWikilink(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	const authored = "\n## Problem\n\nsee [[issue.foo.does-not-exist]]\n\n## Non-goals\n\nnone\n\n## Verification\n\n### Direct\n\n```bash\ntrue\n```\n\n### Indirect\n\n```bash\ntrue\n```\n\n## Links\n\nnone\n"
+	add := newRootCmd()
+	add.SetArgs([]string{"create", "inbox", "--title", "wikilink reject", "--suggested-project", "foo"})
+	if err := add.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"promote", id, "--as", "issue", "--tags", "domain/dev-tools", "--allow-new-facet=domain", "--body", authored})
+	var errBuf bytes.Buffer
+	cmd.SetErr(&errBuf)
+	cmd.SetOut(&errBuf)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected rejection for unresolved wikilink in authored body")
+	}
+	if !strings.Contains(errBuf.String(), "issue.foo.does-not-exist") {
+		t.Errorf("error should name the unresolved wikilink, got:\n%s", errBuf.String())
+	}
+}
+
 // TestPromote_PreExistingTargetGetsSuffix documents the NextID uniqueness
 // contract: when the deterministic target path is occupied, NextID hands out a
 // suffixed ID (e.g. `-2`), so promote can never overwrite a pre-existing file.
