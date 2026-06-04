@@ -504,15 +504,17 @@ func TestPromote_JSON_AlreadyDiscarded(t *testing.T) {
 	}
 }
 
-func TestPromote_CopiesInboxBody(t *testing.T) {
+// TestPromote_IssueScaffoldsBody verifies that promoting to issue without an
+// explicit --body injects the required heading scaffold so the promoted artifact
+// immediately passes `anvil validate` without a follow-up edit round-trip.
+func TestPromote_IssueScaffoldsBody(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	const body = "this body must travel\n"
 	add := newRootCmd()
-	add.SetArgs([]string{"create", "inbox", "--title", "carries body", "--suggested-project", "foo", "--body", body})
+	add.SetArgs([]string{"create", "inbox", "--title", "scaffold smoke", "--suggested-project", "foo"})
 	if err := add.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -537,8 +539,50 @@ func TestPromote_CopiesInboxBody(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load promoted: %v", err)
 	}
-	if strings.TrimSpace(a.Body) != strings.TrimSpace(body) {
-		t.Errorf("promoted body = %q, want %q", a.Body, body)
+	for _, heading := range core.RequiredIssueSections {
+		if !strings.Contains(a.Body, heading) {
+			t.Errorf("promoted issue body missing required heading %q\nbody: %q", heading, a.Body)
+		}
+	}
+}
+
+// TestPromote_IssueBodyFlagOverridesScaffold verifies that --body is used verbatim
+// (and validated) when supplied, bypassing the scaffold path.
+func TestPromote_IssueBodyFlagOverridesScaffold(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	const authored = "\n## Problem\n\ndetails\n\n## Non-goals\n\nnone\n\n## Verification\n\n### Direct\n\n```bash\ntrue\n```\n\n### Indirect\n\n```bash\ntrue\n```\n\n## Links\n\nnone\n"
+	add := newRootCmd()
+	add.SetArgs([]string{"create", "inbox", "--title", "body flag smoke", "--suggested-project", "foo"})
+	if err := add.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"promote", id, "--as", "issue", "--tags", "domain/dev-tools", "--allow-new-facet=domain", "--body", authored, "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("promote: %v", err)
+	}
+	var r promoteJSONResult
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out.String())), &r); err != nil {
+		t.Fatalf("parse: %v\n%s", err, out.String())
+	}
+	if r.Path == nil {
+		t.Fatal("promote did not return target path")
+	}
+	a, err := core.LoadArtifact(*r.Path)
+	if err != nil {
+		t.Fatalf("load promoted: %v", err)
+	}
+	if strings.TrimSpace(a.Body) != strings.TrimSpace(authored) {
+		t.Errorf("promoted body = %q, want %q", a.Body, authored)
 	}
 }
 

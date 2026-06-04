@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/cli/facets"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/schema"
@@ -239,15 +240,30 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		fm["acceptance"] = anyAcc
 	}
 
-	// --body / --body-file override the inbox body for issue targets so callers
-	// can land a complete artifact in one call without a follow-up `set` round-trip.
+	// Determine body for the promoted artifact. Issue targets need the required
+	// heading scaffold when no explicit body is supplied; other types reuse the
+	// inbox body as-is.
 	body := inbox.Body
-	if target == core.TypeIssue && (flagBody != "" || flagBodyFile != "") {
-		b, err := readBody(cmd, flagBody, flagBodyFile)
-		if err != nil {
-			return err
+	userAuthoredBody := false
+	if target == core.TypeIssue {
+		if flagBody != "" || flagBodyFile != "" {
+			b, err := readBody(cmd, flagBody, flagBodyFile)
+			if err != nil {
+				return err
+			}
+			body = b
+			userAuthoredBody = true
+		} else {
+			// Scaffold the required issue sections so the promoted artifact
+			// passes `anvil validate` without a follow-up edit round-trip.
+			var sb strings.Builder
+			for _, h := range core.RequiredIssueSections {
+				sb.WriteString("\n")
+				sb.WriteString(h)
+				sb.WriteString("\n")
+			}
+			body = sb.String()
 		}
-		body = b
 	}
 
 	dir := filepath.Join(v.Root, target.Dir())
@@ -289,6 +305,20 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		emitValidationErrors(cmd, asJSON, errs)
 		return ErrSchemaInvalid
 	}
+
+	// Validate a user-authored body before committing to disk.
+	if userAuthoredBody {
+		tgt := &core.Artifact{Path: targetPath, FrontMatter: fm, Body: body}
+		if vErrs := core.ValidateIssue(tgt); len(vErrs) > 0 {
+			var failures []*errfmt.ValidationError
+			for _, ve := range vErrs {
+				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, targetPath, "", ve.Error()))
+			}
+			emitValidationErrors(cmd, asJSON, failures)
+			return ErrSchemaInvalid
+		}
+	}
+
 	tgtArt := &core.Artifact{Path: targetPath, FrontMatter: fm, Body: body}
 	if err := tgtArt.Save(); err != nil {
 		return fmt.Errorf("saving %s: %w", target, err)
