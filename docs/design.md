@@ -182,7 +182,7 @@ The vault is treated as a regular skill source — `anvil skill add ~/anvil-vaul
 Two top-level locations under `$HOME`, each with a clear purpose. No mixing.
 
 - **Operational state** (`~/.anvil/`) — issue files, briefings, build caches, telemetry, skill source clones, project-keyed state. Churns per-command. Not opened in Obsidian. Local to the machine; can be backed up to a private git remote but doesn't need to be.
-- **Knowledge vault** (`~/anvil-vault/`) — learnings, decisions, sweeps, threads, skills, MOCs, dashboards. Accumulates slowly. Opened in Obsidian. Git-versioned at the vault level; pushed to your own remote.
+- **Knowledge vault** (`~/anvil-vault/`) — learnings, decisions, sweeps, threads, skills, Bases dashboards. Accumulates slowly. Opened in Obsidian. Git-versioned at the vault level; pushed to your own remote.
 
 Within projects, no `.anvil/` directory ships in the repo by default. Project state is keyed by git remote URL and stored under `~/.anvil/projects/<n>/`. This is the work-friendly mode (no ceremony in repos that aren't yours to modify) and is the default. Users who explicitly want project state co-located with code can opt in, but it's not the recommended path.
 
@@ -756,7 +756,7 @@ The vault uses a four-facet faceted classification, prefixed in YAML `tags:` lis
 | `domain/` | What knowledge area | `domain/postgres`, `domain/typescript`, `domain/aws`, `domain/llm`, `domain/auth`, `domain/observability` |
 | `activity/` | What work mode produced it | `activity/debugging`, `activity/refactor`, `activity/design`, `activity/research`, `activity/review` |
 | `pattern/` | What reusable abstraction it documents | `pattern/error-handling`, `pattern/concurrency`, `pattern/caching`, `pattern/auth`, `pattern/migration`, `pattern/idempotency` |
-| `type/` | What kind of artifact (mirrors the `type:` frontmatter field) | `type/decision`, `type/learning`, `type/skill`, `type/sweep`, `type/thread`, `type/issue`, `type/plan`, `type/moc`, `type/transcript`, `type/session` |
+| `type/` | What kind of artifact (mirrors the `type:` frontmatter field) | `type/decision`, `type/learning`, `type/skill`, `type/sweep`, `type/thread`, `type/issue`, `type/plan`, `type/transcript`, `type/session` |
 
 **Status does not go in tags.** This is the most-violated rule in vaults at scale and the one whose violation hurts most. Lifecycle states mutate; renaming a tag across thousands of notes is destructive (forum reports of duplicate-tag fallout are common). Status lives in frontmatter where edits are atomic per-note and naturally typed for Bases summaries.
 
@@ -839,11 +839,11 @@ Ranked by likelihood × severity, drawn from public reports of vaults running 6+
 
 3. **AI plugin index corruption at scale.** Hits at 5,000+ notes (Smart Connections, Copilot Vault QA). Full re-index every restart, hundreds of MB of index files, JSON serialization failures. Mitigation: don't depend on these plugins for agent reads. Agents read the filesystem directly; embedding plugins are for human exploratory search and accept that they need re-indexing.
 
-4. **Write-only-vault syndrome.** Universal at 6+ months. Mitigation: 50-note backpressure rule; daily triage of `status: raw`; hard 14/30-day demotion timers; hybrid MOCs that surface high-signal notes vs raw transcripts.
+4. **Write-only-vault syndrome.** Universal at 6+ months. Mitigation: 50-note backpressure rule; daily triage of `status: raw`; hard 14/30-day demotion timers; Bases dashboards that surface high-signal notes vs raw transcripts.
 
 5. **Dataview slowdowns.** Noticeable at ~1,000 notes; severe at ~4,000+; unusable at ~9,000+. Mitigation: build dashboards in Bases, not Dataview. Reserve Dataview for rarely-opened analysis pages.
 
-6. **Manual MOC failure.** Hits at ~1,000 notes. Mitigation: hybrid pattern — narrative top, embedded Bases bottom; never hand-maintain a list of every note in a domain.
+6. **Manual index failure.** Hits at ~1,000 notes. Mitigation: Bases dashboards for exhaustive auto-updating indexes; never hand-maintain a list of every note in a domain.
 
 7. **Embedding-plugin frontmatter pollution.** Smart Connections embeds frontmatter as part of the note body, so notes with heavy YAML show only YAML in the connection preview. Mitigation: agents read filesystem directly and parse frontmatter; treat embedding plugins as best-effort human search only.
 
@@ -1320,7 +1320,7 @@ Both Claude Code and Codex corrupt under shared state across runs (Claude #24864
 
 ### Why operational state and knowledge vault never mix
 
-Operational state churns per-command (issue files, briefings, build cache, telemetry, skill source clones). The vault accumulates slowly (learnings, decisions, sweeps, threads, milestones, MOCs). One is regenerable machine state; the other is your accumulated expertise. They have different consumers (the orchestrator vs. Obsidian and you), different lifecycle (short-lived vs. compounding), and different backup needs (none vs. private remote). Mixing them either pollutes the vault with command-output noise or buries operational state under Obsidian's surface area. The split is in the path, not just convention.
+Operational state churns per-command (issue files, briefings, build cache, telemetry, skill source clones). The vault accumulates slowly (learnings, decisions, sweeps, threads, milestones, Bases dashboards). One is regenerable machine state; the other is your accumulated expertise. They have different consumers (the orchestrator vs. Obsidian and you), different lifecycle (short-lived vs. compounding), and different backup needs (none vs. private remote). Mixing them either pollutes the vault with command-output noise or buries operational state under Obsidian's surface area. The split is in the path, not just convention.
 
 ### Why the design-driven hierarchy holds
 
@@ -1368,7 +1368,7 @@ Don't port:
 
 v0.1 (the smallest shippable thing):
 - `anvil init` (global once, project per repo).
-- `anvil init --vault ~/anvil-vault` to scaffold the knowledge vault with starter MOCs, dashboards, tag conventions, and Obsidian config.
+- `anvil init --vault ~/anvil-vault` to scaffold the knowledge vault with seeded Bases dashboards, tag conventions, and Obsidian config.
 - `anvil build <issue>` with `ClaudeCodeAdapter` only, **sequential execution** (single task at a time, even when wave graph permits parallelism).
 - Per-spawn state isolation via `CLAUDE_CONFIG_DIR` with credential symlinking. Non-negotiable from v0.1 because shared state corrupts even under sequential runs.
 - `anvil status` (briefing, current state).
