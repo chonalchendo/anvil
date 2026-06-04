@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -49,15 +48,6 @@ func InstallSkills(srcFS fs.FS, materialiseDir, target string, useCopy, force bo
 	}
 	if err := os.WriteFile(filepath.Join(materialiseDir, skillsHashFile), []byte(hash), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		return false, fmt.Errorf("write skills hash: %w", err)
-	}
-	// Record the deploying binary's mtime as a provenance stamp so auto-refresh
-	// can distinguish "this binary was rebuilt" (stamp < binary mtime → refresh
-	// safe) from "a different binary deployed" (stamp >= binary mtime → skip).
-	// Failure to record the stamp is non-fatal; auto-refresh falls back to the
-	// legacy hash-only check on the next invocation.
-	if btime, berr := binaryMtime(); berr == nil {
-		stamp := strconv.FormatInt(btime.UnixNano(), 10)
-		_ = os.WriteFile(filepath.Join(materialiseDir, skillsDeployStampFile), []byte(stamp), 0o644) //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 	}
 	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		return false, fmt.Errorf("mkdir target %s: %w", target, err)
