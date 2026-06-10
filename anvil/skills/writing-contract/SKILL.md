@@ -10,7 +10,7 @@ metadata:
   skill_type: workflow
   side: design
   created: 2026-06-02
-  updated: 2026-06-02
+  updated: 2026-06-10
   tags: [type/skill, activity/contract]
   diataxis: how-to
   authored_via: manual
@@ -30,7 +30,7 @@ Workflow for creating or updating a component contract — the per-component `do
 
 Decide before Phase 1. If uncertain, run `anvil list contract` to check whether a contract already exists.
 
-## Does / does-not shape (both modes)
+## Contract skeleton (both modes)
 
 Every contract body follows this skeleton:
 
@@ -45,6 +45,11 @@ Every contract body follows this skeleton:
 - <component> does not <boundary that surprised someone or needs emphasis>.
 - <component> does not own <Y> — that belongs to <other component>.
 
+## Code design
+
+- <component-specific style rule, file/package shape, or pattern to follow or avoid>.
+- House-wide rules live in <docs/link> — don't duplicate them here; reference only.
+
 ## Decision tree
 
 When in doubt: <brief heuristic for the hardest boundary call>.
@@ -55,6 +60,8 @@ When in doubt: <brief heuristic for the hardest boundary call>.
 ```
 
 The `## Precedents` section is append-only. Never rewrite a precedent; add a new one.
+
+`## Code design` is **optional but always considered** — omit it only when the component has no conventions that differ from the project's house-wide rules. If a future agent would have to guess at patterns, file layout, or idioms specific to this component, write them here.
 
 ---
 
@@ -85,6 +92,8 @@ Identify the component's boundary from at least two of:
 
 Draft the `## Does` and `## Does not` lists before writing the file. The `## Decision tree` entry is one sentence capturing the hardest boundary call — skip it if no non-obvious case has surfaced yet.
 
+For `## Code design`, ask: *would a parallel agent building this component have to guess at file layout, patterns, or idioms?* If yes, extract those rules now. Link to house-wide convention docs rather than duplicating them.
+
 ### Phase 3 — Create the contract
 
 ```bash
@@ -95,7 +104,7 @@ anvil create contract \
   --description "<one sentence — the component's primary responsibility>"
 ```
 
-Then open the created file and write the body in the does/does-not shape from Phase 2.
+Then open the created file and write the body using the skeleton from Phase 2 — `## Does`, `## Does not`, `## Code design` (if applicable), `## Decision tree`, `## Precedents`.
 
 **Gate:** validate before promoting to `active`.
 
@@ -125,6 +134,7 @@ anvil show contract <id>        # read current body
 - **New precedent** — a boundary was violated or clarified by a real issue or PR. Append to `## Precedents`.
 - **Sharpen a does-not** — an existing `does not` entry is ambiguous or incomplete. Edit the entry in-place; do not add a redundant entry.
 - **New does-not** — a boundary omission was found. Append to `## Does not`. If it was discovered via an issue/PR, also add a `## Precedents` entry.
+- **Code design rule** — a component-specific style, pattern, or layout convention surfaced during implementation. Add to `## Code design`; add the section if it doesn't exist yet. Link to house-wide docs rather than duplicating them.
 
 ### Phase 3 — Apply the update
 
