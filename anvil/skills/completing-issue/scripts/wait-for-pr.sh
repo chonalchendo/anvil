@@ -6,6 +6,7 @@
 # Terminal states:
 #   merged              — PR was merged
 #   closed              — PR closed without merge
+#   conflicting         — merge conflict; rebase/merge base branch before continuing
 #   ci_passed           — CI green, no review blockers; PR is ready for human merge
 #   review_blocked      — unresolved review threads exist (human reviewer)
 #   ci_failed           — at least one required CI check failed
@@ -33,7 +34,7 @@ Options:
   --interval <seconds> Poll interval in seconds (default: 30)
 
 Output fields (JSON):
-  state                merged | closed | ci_passed | review_blocked | ci_failed | timeout
+  state                merged | closed | conflicting | ci_passed | review_blocked | ci_failed | timeout
   merged               true | false
   ci_conclusion        success | failure | pending | skipped | null
   review_blockers_count number of unresolved review threads
@@ -89,14 +90,14 @@ while true; do
         exit 0
     fi
 
-    # One fetch yields state, merged, and the head SHA used for the CI lookup.
+    # One fetch yields state, merged, mergeable_state, and the head SHA used for the CI lookup.
     pr_fields=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" \
-        --jq '"\(.state)\t\(.merged)\t\(.head.sha)"' 2>/dev/null) || {
+        --jq '"\(.state)\t\(.merged)\t\(.mergeable_state)\t\(.head.sha)"' 2>/dev/null) || {
         echo "Warning: gh api call failed; retrying in ${POLL_INTERVAL}s" >&2
         sleep "$POLL_INTERVAL"
         continue
     }
-    IFS=$'\t' read -r pr_state pr_merged head_sha <<< "$pr_fields"
+    IFS=$'\t' read -r pr_state pr_merged pr_mergeable_state head_sha <<< "$pr_fields"
 
     # Terminal: merged.
     if [[ "$pr_merged" == "true" ]]; then
@@ -107,6 +108,14 @@ while true; do
     # Terminal: closed without merge.
     if [[ "$pr_state" == "closed" ]]; then
         emit "closed" "false" "null" "0" "false"
+        exit 0
+    fi
+
+    # Terminal: conflicting — GitHub reports "dirty" for a merge conflict.
+    # A conflicted head gets no CI checks, so continuing to poll is blind; surface
+    # immediately so the caller can rebase/merge base and re-push.
+    if [[ "$pr_mergeable_state" == "dirty" ]]; then
+        emit "conflicting" "false" "null" "0" "false"
         exit 0
     fi
 
