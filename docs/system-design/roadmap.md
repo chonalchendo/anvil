@@ -106,6 +106,7 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 - `project list` — `--json` flat array.
 - `validate` — structured `{code, path, field, got, expected?, fix?}` via `internal/cli/errfmt`; codes `enum_violation`/`missing_required`/`type_mismatch`/`constraint_violation`/`unresolved_link`.
 - Root `--vault` / `--project` flags — precedence flag > env (`ANVIL_VAULT`/`ANVIL_PROJECT`) > cwd.
+- `ANVIL_HOME` — root of the global store (project registry + thread state); defaults to `~/.anvil`. Redirects the whole store for sandbox/self-test isolation. State dir precedence: `ANVIL_STATE_DIR` > `ANVIL_HOME/state` > `~/.anvil/state`.
 - `show --validate` — text view to stdout; diagnostics via `cmd.PrintErrln`.
 - `inbox promote` — `formatEnumError` with `corrected:` line; idempotent re-runs return `already_promoted` / `already_discarded`.
 - `cmd.Println` → `fmt.Fprintln(cmd.OutOrStdout())` migration for show/list/project/validate (cobra's `cmd.Print*` defaults to **stderr**, `command.go:1436`).

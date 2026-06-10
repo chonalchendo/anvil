@@ -46,3 +46,28 @@ func TestActiveThread_RoundTrip(t *testing.T) {
 		t.Fatalf("expected file to be removed, got err: %v", err)
 	}
 }
+
+func TestStateDir_Precedence(t *testing.T) {
+	// $ANVIL_HOME/state is used when $ANVIL_STATE_DIR is unset.
+	home := t.TempDir()
+	t.Setenv("ANVIL_STATE_DIR", "")
+	t.Setenv("ANVIL_HOME", home)
+	got, err := stateDir()
+	if err != nil {
+		t.Fatalf("stateDir: %v", err)
+	}
+	if want := filepath.Join(home, "state"); got != want {
+		t.Errorf("stateDir under $ANVIL_HOME = %q, want %q", got, want)
+	}
+
+	// $ANVIL_STATE_DIR takes precedence over $ANVIL_HOME.
+	exact := t.TempDir()
+	t.Setenv("ANVIL_STATE_DIR", exact)
+	got, err = stateDir()
+	if err != nil {
+		t.Fatalf("stateDir: %v", err)
+	}
+	if got != exact {
+		t.Errorf("stateDir with $ANVIL_STATE_DIR set = %q, want %q", got, exact)
+	}
+}

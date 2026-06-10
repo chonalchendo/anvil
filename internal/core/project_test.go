@@ -146,3 +146,37 @@ func TestListProjects(t *testing.T) {
 		t.Errorf("got %d, want 2", len(projects))
 	}
 }
+
+// TestProject_AnvilHomeOverride_RedirectsStore pins the isolation knob: with
+// $ANVIL_HOME set, the project registry lands under it, not under $HOME/.anvil,
+// so a sandbox or self-test run never reads or mutates the real store.
+func TestProject_AnvilHomeOverride_RedirectsStore(t *testing.T) {
+	anvilHomeDir := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("ANVIL_HOME", anvilHomeDir)
+	t.Setenv("HOME", home)
+	dir := t.TempDir()
+	gitInit(t, dir, "git@github.com:acme/foo.git")
+	t.Chdir(dir)
+
+	if err := AdoptProject("foo"); err != nil {
+		t.Fatalf("AdoptProject: %v", err)
+	}
+
+	// Binding lands under $ANVIL_HOME, not $HOME/.anvil.
+	if _, err := os.Stat(filepath.Join(anvilHomeDir, "projects", "foo", ".binding")); err != nil {
+		t.Errorf("binding not under $ANVIL_HOME: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".anvil", "projects", "foo", ".binding")); !os.IsNotExist(err) {
+		t.Errorf("binding leaked into $HOME/.anvil (err=%v) — override not honoured", err)
+	}
+
+	// ListProjects reads from the override too.
+	ps, err := ListProjects()
+	if err != nil {
+		t.Fatalf("ListProjects: %v", err)
+	}
+	if len(ps) != 1 || ps[0].Slug != "foo" {
+		t.Errorf("ListProjects under override = %v, want [foo]", ps)
+	}
+}
