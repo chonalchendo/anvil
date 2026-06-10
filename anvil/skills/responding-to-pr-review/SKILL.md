@@ -69,12 +69,13 @@ Instead of polling in-agent (which replays full conversation context on every it
 
 ```bash
 bash ~/.claude/skills/completing-issue/scripts/wait-for-pr.sh --pr <n> [--repo owner/repo] [--timeout 900]
-# blocks until: merged | closed | ci_passed | review_blocked | ci_failed | timeout
+# blocks until: merged | closed | conflicting | ci_passed | review_blocked | ci_failed | timeout
 # emits one JSON: {state, merged, ci_conclusion, review_blockers_count, timed_out}
 ```
 
 Branch on `state`:
 - `merged` or `closed` — done; surface the PR url and return.
+- `conflicting` — rebase or merge the base branch, force-push, then re-invoke the poller.
 - `ci_passed` — CI green, no blockers, PR unmerged; surface the PR url for the human to merge and return.
 - `review_blocked` — re-fetch inline comments and loop Phase 2-3.
 - `ci_failed` — investigate the failed check, fix, push, then re-invoke the poller.
