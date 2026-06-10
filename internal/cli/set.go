@@ -40,7 +40,16 @@ func newSetCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			path := filepath.Join(v.Root, t.Dir(), args[1]+".md")
+
+			id := args[1]
+			// Canonicalise issue args through the same helper as the show read
+			// path so write and read accept identical forms (qualified
+			// "issue."-prefix, project-qualified ordinal, bare ordinal).
+			if t == core.TypeIssue {
+				id = core.ResolveIssueArg(v, id)
+			}
+
+			path := filepath.Join(v.Root, t.Dir(), id+".md")
 			a, err := core.LoadArtifact(path)
 			if err != nil {
 				if os.IsNotExist(err) {
@@ -66,7 +75,7 @@ func newSetCmd() *cobra.Command {
 
 			prev, hadPrev := a.FrontMatter[field]
 
-			result := setResult{ID: args[1], Path: path, Field: field, Status: "set"}
+			result := setResult{ID: id, Path: path, Field: field, Status: "set"}
 
 			switch kind {
 			case schema.KindScalar:
@@ -258,7 +267,7 @@ func newSetCmd() *cobra.Command {
 				}
 			}
 			if err := indexAfterSave(v, a); err != nil {
-				return fmt.Errorf("indexing %s: %w", args[1], err)
+				return fmt.Errorf("indexing %s: %w", id, err)
 			}
 			return emitSetResult(cmd, flagJSON, result)
 		},

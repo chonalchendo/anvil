@@ -521,3 +521,61 @@ func TestTransitionReverseAppendsAuditLine(t *testing.T) {
 		t.Fatalf("audit line missing in body:\n%s", body)
 	}
 }
+
+// TestTransition_Issue_ByOrdinal pins the write-path counterpart to
+// show_test.go's TestShow_Issue_ByOrdinal: a bare ordinal ("1") and a
+// project-qualified ordinal ("foo.0001") both resolve to the full issue ID on
+// the transition write path, matching the read path the fix unified them with.
+func TestTransition_Issue_ByOrdinal(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	path := createIssueGetPath(t,
+		"create", "issue",
+		"--title", "Transition me by ordinal",
+		"--description", "d",
+		"--goal", "g",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	)
+	id := strings.TrimSuffix(filepath.Base(path), ".md")
+	if !strings.HasPrefix(id, "foo.0001.") {
+		t.Fatalf("expected first issue at ordinal 0001, got %q", id)
+	}
+
+	// Bare ordinal on the write path.
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "1", "in-progress", "--owner", "claude"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("transition issue 1: %v\n%s", err, out.String())
+	}
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := a.FrontMatter["status"].(string); got != "in-progress" {
+		t.Fatalf("bare ordinal: status = %q, want in-progress", got)
+	}
+
+	// Project-qualified ordinal resolves the same artifact.
+	cmd = newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "foo.0001", "resolved"})
+	out.Reset()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("transition issue foo.0001: %v\n%s", err, out.String())
+	}
+	a, err = core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := a.FrontMatter["status"].(string); got != "resolved" {
+		t.Fatalf("project-qualified ordinal: status = %q, want resolved", got)
+	}
+}
