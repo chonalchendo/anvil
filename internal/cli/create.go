@@ -9,23 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 )
-
-// maxDescriptionChars mirrors the `maxLength: 120` cap in every spine-type
-// schema (issue, plan, milestone, decision, sweep, product-design,
-// system-design). Pre-flighted here so the CLI rejects oversize descriptions
-// before any template rendering or facet walk, with a single focused error.
-const maxDescriptionChars = 120
-
-// maxGoalChars bounds an issue's `goal:` — the one-sentence terminal predicate.
-// Same cap as description: it is a spine field, not a place for prose.
-const maxGoalChars = 120
 
 // templateData holds all variables that frontmatter templates may reference.
 // Fields unused by a given type are left at their zero values; templates guard
@@ -194,30 +183,8 @@ func newCreateCmd() *cobra.Command {
 				return fmt.Errorf("--title is required for %s", t)
 			}
 
-			// Capped-field checks run before vault/project resolution so cap
-			// feedback fast-fails for every type, in or out of a vault. The
-			// description cap applies to all spine types; the issue path also
-			// collects its goal-length overage so the author sees every
-			// violation in one rejection rather than one per resubmit.
-			if t != core.TypeSession {
-				var capErrs []error
-				if n := utf8.RuneCountInString(flagDescription); n > maxDescriptionChars {
-					capErrs = append(capErrs, fmt.Errorf(
-						"--description too long: %d chars (max %d); description is spine index/preview text, not docs — re-summarise to fit the cap rather than raise it",
-						n, maxDescriptionChars,
-					))
-				}
-				if (t == core.TypeIssue || t == core.TypeMilestone) && strings.TrimSpace(flagGoal) != "" {
-					if n := utf8.RuneCountInString(flagGoal); n > maxGoalChars {
-						capErrs = append(capErrs, fmt.Errorf(
-							"--goal too long: %d chars (max %d); goal is a one-sentence predicate, not docs — tighten it",
-							n, maxGoalChars,
-						))
-					}
-				}
-				if err := errors.Join(capErrs...); err != nil {
-					return err
-				}
+			if err := checkFieldCaps(t, flagDescription, flagGoal); err != nil {
+				return err
 			}
 
 			v, err := core.ResolveVault()
@@ -243,38 +210,11 @@ func newCreateCmd() *cobra.Command {
 				project = p.Slug
 			}
 
-			// Per-type required-flag checks. Capped-field overages were already
-			// reported above (before vault resolution); the issue goal cap is
-			// surfaced there too when goal is present, so by here a missing goal
-			// is the only remaining issue-specific failure.
-			switch t {
-			case core.TypeIssue:
-				if strings.TrimSpace(flagGoal) == "" {
-					return fmt.Errorf("--goal is required for issue: a one-sentence terminal predicate (what 'done' means)")
-				}
-			case core.TypeMilestone:
-				if strings.TrimSpace(flagGoal) == "" {
-					return fmt.Errorf("--goal is required for milestone: a one-sentence terminal predicate (what 'done' means)")
-				}
-			case core.TypePlan:
-				if flagIssue == "" {
-					return fmt.Errorf("--issue is required for plan")
-				}
-			case core.TypeDecision:
-				if flagTopic == "" {
-					return fmt.Errorf("--topic is required for decision")
-				}
-			case core.TypeSweep:
-				if flagScope == "" {
-					return fmt.Errorf("--scope is required for sweep")
-				}
-				if !cmd.Flags().Changed("breaking") {
-					return fmt.Errorf("--breaking must be set explicitly for sweep (true or false)")
-				}
-			case core.TypeContract:
-				if strings.TrimSpace(flagKind) == "" {
-					return fmt.Errorf("--kind is required for contract: a registered contract kind (see `anvil contract kinds list`)")
-				}
+			// Per-type required-flag checks, three tiers — see
+			// collectPreValidationErrors.
+			preValidationErrors, err := collectPreValidationErrors(cmd, t, flagIssue, flagTopic)
+			if err != nil {
+				return err
 			}
 
 			// Derive description from title when omitted for spine types that
@@ -296,9 +236,23 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			id, path, err := resolveCreateIDPath(v, t, project, flagTitle, flagTopic, slugDefault)
-			if err != nil {
-				return err
+			// A missing decision --topic blocks ID allocation entirely (the
+			// decision path is topic-scoped), so resolution is skipped and
+			// id/path stay "": every violation in the block carries the same
+			// empty path, and nothing is written — preValidationErrors is
+			// non-empty, so validateBeforeCreate rejects before any save.
+			// On every other type the resolved path is stamped onto the
+			// collected errors so the whole block agrees on one path value.
+			var id, path string
+			if t != core.TypeDecision || flagTopic != "" {
+				var err error
+				id, path, err = resolveCreateIDPath(v, t, project, flagTitle, flagTopic, slugDefault)
+				if err != nil {
+					return err
+				}
+				for _, e := range preValidationErrors {
+					e.Path = path
+				}
 			}
 
 			var body string
@@ -392,6 +346,18 @@ func newCreateCmd() *cobra.Command {
 				fm[k] = v
 			}
 
+			// Templates render flag-backed schema-required scalars
+			// unconditionally, so an unset flag lands as ""/null. Drop those
+			// keys so schema.Validate reports the canonical missing_required
+			// violation — aggregated with every other failure in
+			// validateBeforeCreate — instead of an empty-string length or
+			// null type violation.
+			for _, k := range []string{"goal", "scope", "kind"} {
+				if fv, ok := fm[k]; ok && (fv == nil || fv == "") {
+					delete(fm, k)
+				}
+			}
+
 			if t != core.TypeDecision {
 				if existing, err := core.LoadArtifact(path); err == nil {
 					drift := createDrift(t, fm, existing.FrontMatter, body, existing.Body)
@@ -406,7 +372,7 @@ func newCreateCmd() *cobra.Command {
 					if c, ok := existing.FrontMatter["created"]; ok {
 						fm["created"] = c
 					}
-					if err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON); err != nil {
+					if err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON, preValidationErrors...); err != nil {
 						return err
 					}
 					originalBytes, rerr := os.ReadFile(path) //nolint:gosec // path is test-controlled or application-managed; not user input
@@ -430,7 +396,7 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			if err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON); err != nil {
+			if err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON, preValidationErrors...); err != nil {
 				return err
 			}
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable

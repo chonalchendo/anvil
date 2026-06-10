@@ -374,6 +374,109 @@ func TestCreate_Decision_TopicScoped(t *testing.T) {
 	}
 }
 
+// TestCreate_Decision_MissingTopic_ReportedWithFacetErrors asserts that when
+// --topic is absent AND facet tags are missing, a single create invocation
+// surfaces both the missing-topic violation and the missing-facet violations
+// together rather than short-circuiting at --topic.
+func TestCreate_Decision_MissingTopic_ReportedWithFacetErrors(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	cmd := newRootCmd()
+	// No --topic and no --tags: should report both classes in one pass.
+	cmd.SetArgs([]string{"create", "decision", "--title", "zz-probe", "--description", "probe"})
+	var errBuf bytes.Buffer
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&errBuf)
+	err := cmd.Execute()
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
+	}
+	combined := errBuf.String() + err.Error()
+	if !strings.Contains(combined, "topic") {
+		t.Errorf("output must include topic violation; got:\n%s", combined)
+	}
+	if !strings.Contains(combined, "missing_required_facet") {
+		t.Errorf("output must include missing_required_facet violation; got:\n%s", combined)
+	}
+	// Violations carry no phantom path: id/path are never resolved on this
+	// branch, so no placeholder filename may leak into the block.
+	if strings.Contains(combined, "placeholder") {
+		t.Errorf("violations must not name a phantom placeholder path; got:\n%s", combined)
+	}
+	// Validation precedes the write: nothing lands in 30-decisions — no real
+	// artifact and no placeholder file.
+	entries, readErr := os.ReadDir(filepath.Join(vault, "30-decisions"))
+	if readErr != nil {
+		t.Fatalf("reading decisions dir: %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected no file written on validation failure, got %d", len(entries))
+	}
+}
+
+// TestCreate_Issue_MissingGoalAndFacets_ReportedTogether pins the issue-side
+// one-pass guarantee: a create missing BOTH --goal (schema-required scalar)
+// and a domain facet surfaces both violations in a single aggregated block —
+// there is no CLI-level --goal short-circuit ahead of facet validation.
+func TestCreate_Issue_MissingGoalAndFacets_ReportedTogether(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue", "--title", "zz-goal-probe", "--description", "probe"})
+	var errBuf bytes.Buffer
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&errBuf)
+	err := cmd.Execute()
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
+	}
+	combined := errBuf.String()
+	if !strings.Contains(combined, "goal") {
+		t.Errorf("output must include the missing-goal violation; got:\n%s", combined)
+	}
+	if !strings.Contains(combined, "terminal predicate") {
+		t.Errorf("goal violation must keep the terminal-predicate flag hint; got:\n%s", combined)
+	}
+	if !strings.Contains(combined, "missing_required_facet") {
+		t.Errorf("output must include missing_required_facet violation; got:\n%s", combined)
+	}
+	entries, readErr := os.ReadDir(filepath.Join(vault, "70-issues"))
+	if readErr != nil {
+		t.Fatalf("reading issues dir: %v", readErr)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected no file written on validation failure, got %d", len(entries))
+	}
+}
+
+// Milestone shares the goal field and template shape with issue; pin that the
+// dropped CLI-level check reports through the same aggregated block.
+func TestCreate_Milestone_MissingGoal_ReportedAsSchemaViolation(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "milestone", "--title", "zz-milestone-probe", "--description", "probe"})
+	var errBuf bytes.Buffer
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&errBuf)
+	err := cmd.Execute()
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
+	}
+	combined := errBuf.String()
+	if !strings.Contains(combined, "goal") || !strings.Contains(combined, "terminal predicate") {
+		t.Errorf("output must include the missing-goal violation with its flag hint; got:\n%s", combined)
+	}
+}
+
 func TestCreatePlan_NewSchema_Succeeds(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
@@ -1292,10 +1395,12 @@ func TestCreate_Sweep_MissingScope(t *testing.T) {
 	var stderr bytes.Buffer
 	cmd.SetErr(&stderr)
 	cmd.SetOut(&stderr)
-	if err := cmd.Execute(); err == nil {
-		t.Error("expected error: missing --scope")
-	} else if !strings.Contains(err.Error(), "scope") {
-		t.Errorf("error = %v, want mention of scope", err)
+	err := cmd.Execute()
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
+	}
+	if !strings.Contains(stderr.String(), "scope") {
+		t.Errorf("violations must mention scope; got:\n%s", stderr.String())
 	}
 }
 
@@ -1309,10 +1414,12 @@ func TestCreate_Sweep_MissingBreaking(t *testing.T) {
 	var stderr bytes.Buffer
 	cmd.SetErr(&stderr)
 	cmd.SetOut(&stderr)
-	if err := cmd.Execute(); err == nil {
-		t.Error("expected error: --breaking must be set explicitly")
-	} else if !strings.Contains(err.Error(), "breaking") {
-		t.Errorf("error = %v, want mention of breaking", err)
+	err := cmd.Execute()
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
+	}
+	if !strings.Contains(stderr.String(), "breaking") {
+		t.Errorf("violations must mention breaking; got:\n%s", stderr.String())
 	}
 }
 
