@@ -279,13 +279,7 @@ func newCreateCmd() *cobra.Command {
 					case core.TypeIssue:
 						sections = core.RequiredIssueSections
 					}
-					var sb strings.Builder
-					for _, h := range sections {
-						sb.WriteString("\n")
-						sb.WriteString(h)
-						sb.WriteString("\n")
-					}
-					body = sb.String()
+					body = core.ScaffoldSections(sections)
 				}
 			}
 

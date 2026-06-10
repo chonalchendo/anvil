@@ -22,6 +22,20 @@ var RequiredIssueSections = []string{
 	"## Links",
 }
 
+// ScaffoldSections renders an ordered heading list into a body skeleton: each
+// heading on its own line, blank line between, so the result passes the
+// matching ordered-scan validator (ValidateIssue, ValidateLearning) without a
+// follow-up edit. Shared by create and promote so the two scaffolds can't drift.
+func ScaffoldSections(headings []string) string {
+	var sb strings.Builder
+	for _, h := range headings {
+		sb.WriteString("\n")
+		sb.WriteString(h)
+		sb.WriteString("\n")
+	}
+	return sb.String()
+}
+
 // ValidateIssue checks that the issue body contains the required headings in
 // order. Same ordered-scan algorithm as ValidateLearning.
 func ValidateIssue(a *Artifact) []error {
