@@ -727,3 +727,42 @@ func TestSet_Tags_RemoveLastRequiredFacet_ReportsMissingFacet(t *testing.T) {
 		t.Errorf("raw schema diagnostic leaked instead of structured error: %s", got)
 	}
 }
+
+// TestSet_Issue_ByOrdinal pins the write-path counterpart to show_test.go's
+// TestShow_Issue_ByOrdinal: a bare ordinal ("0001") resolves to the full issue
+// ID on the set write path, matching the read path the fix unified them with.
+func TestSet_Issue_ByOrdinal(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	path := createIssueGetPath(t,
+		"create", "issue",
+		"--title", "Set me by ordinal",
+		"--description", "d",
+		"--goal", "g",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	)
+	id := strings.TrimSuffix(filepath.Base(path), ".md")
+	if !strings.HasPrefix(id, "foo.0001.") {
+		t.Fatalf("expected first issue at ordinal 0001, got %q", id)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "0001", "milestone", "foo.cli-substrate"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("set issue 0001: %v\n%s", err, out.String())
+	}
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := a.FrontMatter["milestone"].(string); got != "[[milestone.foo.cli-substrate]]" {
+		t.Errorf("milestone = %q, want [[milestone.foo.cli-substrate]]", got)
+	}
+}
