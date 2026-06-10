@@ -200,10 +200,10 @@ func TestRemoveSessionStartHook_MissingFileNoOp(t *testing.T) {
 
 const testEndCmd = `anvil session end --commit`
 
-func TestMergeStopHook_NewFile(t *testing.T) {
+func TestMergeSessionEndHook_NewFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 
-	changed, err := MergeStopHook(path, testEndCmd)
+	changed, err := MergeSessionEndHook(path, testEndCmd)
 	if err != nil {
 		t.Fatalf("merge: %v", err)
 	}
@@ -216,19 +216,19 @@ func TestMergeStopHook_NewFile(t *testing.T) {
 	if !ok {
 		t.Fatalf("hooks key missing or wrong type: %v", got["hooks"])
 	}
-	stop, ok := hooks["Stop"].([]any)
-	if !ok || len(stop) != 1 {
-		t.Fatalf("Stop = %v", hooks["Stop"])
+	se, ok := hooks["SessionEnd"].([]any)
+	if !ok || len(se) != 1 {
+		t.Fatalf("SessionEnd = %v", hooks["SessionEnd"])
 	}
 }
 
-func TestMergeStopHook_Idempotent(t *testing.T) {
+func TestMergeSessionEndHook_Idempotent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 
-	if _, err := MergeStopHook(path, testEndCmd); err != nil {
+	if _, err := MergeSessionEndHook(path, testEndCmd); err != nil {
 		t.Fatalf("first: %v", err)
 	}
-	changed, err := MergeStopHook(path, testEndCmd)
+	changed, err := MergeSessionEndHook(path, testEndCmd)
 	if err != nil {
 		t.Fatalf("second: %v", err)
 	}
@@ -237,33 +237,33 @@ func TestMergeStopHook_Idempotent(t *testing.T) {
 	}
 }
 
-func TestMergeStopHook_PreservesSessionStart(t *testing.T) {
+func TestMergeSessionEndHook_PreservesSessionStart(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	if _, err := MergeSessionStartHook(path, testCmd); err != nil {
 		t.Fatalf("seed SessionStart: %v", err)
 	}
 
-	if _, err := MergeStopHook(path, testEndCmd); err != nil {
-		t.Fatalf("merge Stop: %v", err)
+	if _, err := MergeSessionEndHook(path, testEndCmd); err != nil {
+		t.Fatalf("merge SessionEnd: %v", err)
 	}
 
 	got := readJSON(t, path)
 	hooks := got["hooks"].(map[string]any)
 	if _, ok := hooks["SessionStart"]; !ok {
-		t.Error("SessionStart removed by MergeStopHook")
+		t.Error("SessionStart removed by MergeSessionEndHook")
 	}
-	if _, ok := hooks["Stop"]; !ok {
-		t.Error("Stop hook not added")
+	if _, ok := hooks["SessionEnd"]; !ok {
+		t.Error("SessionEnd hook not added")
 	}
 }
 
-func TestRemoveStopHook_RemovesMatching(t *testing.T) {
+func TestRemoveSessionEndHook_RemovesMatching(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
-	if _, err := MergeStopHook(path, testEndCmd); err != nil {
+	if _, err := MergeSessionEndHook(path, testEndCmd); err != nil {
 		t.Fatalf("seed merge: %v", err)
 	}
 
-	changed, err := RemoveStopHook(path, testEndCmd)
+	changed, err := RemoveSessionEndHook(path, testEndCmd)
 	if err != nil {
 		t.Fatalf("remove: %v", err)
 	}
@@ -273,18 +273,18 @@ func TestRemoveStopHook_RemovesMatching(t *testing.T) {
 
 	got := readJSON(t, path)
 	if hooks, ok := got["hooks"].(map[string]any); ok {
-		if stop, ok := hooks["Stop"]; ok {
-			if arr, ok := stop.([]any); ok && len(arr) > 0 {
-				t.Errorf("Stop still present after remove: %v", arr)
+		if se, ok := hooks["SessionEnd"]; ok {
+			if arr, ok := se.([]any); ok && len(arr) > 0 {
+				t.Errorf("SessionEnd still present after remove: %v", arr)
 			}
 		}
 	}
 }
 
-func TestRemoveStopHook_MissingFileNoOp(t *testing.T) {
+func TestRemoveSessionEndHook_MissingFileNoOp(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 
-	changed, err := RemoveStopHook(path, testEndCmd)
+	changed, err := RemoveSessionEndHook(path, testEndCmd)
 	if err != nil {
 		t.Fatalf("remove: %v", err)
 	}

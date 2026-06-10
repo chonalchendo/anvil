@@ -13,8 +13,10 @@ import (
 	"github.com/chonalchendo/anvil/internal/installer"
 )
 
-const sessionStartHookCommand = `anvil install fire-session-start`
-const sessionEndHookCommand = `anvil session end --commit`
+const (
+	sessionStartHookCommand = `anvil install fire-session-start`
+	sessionEndHookCommand   = `anvil session end --commit`
+)
 
 func newInstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -72,7 +74,7 @@ func newInstallHooksCmd() *cobra.Command {
 	var uninstall bool
 	cmd := &cobra.Command{
 		Use:   "hooks",
-		Short: "Install (or remove) the Claude Code SessionStart hook",
+		Short: "Install (or remove) the Claude Code SessionStart and SessionEnd hooks",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			path, err := resolveClaudeSettingsPath()
@@ -84,11 +86,11 @@ func newInstallHooksCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("removing SessionStart hook: %w", err)
 				}
-				changedStop, err := installer.RemoveStopHook(path, sessionEndHookCommand)
+				changedEnd, err := installer.RemoveSessionEndHook(path, sessionEndHookCommand)
 				if err != nil {
-					return fmt.Errorf("removing Stop hook: %w", err)
+					return fmt.Errorf("removing SessionEnd hook: %w", err)
 				}
-				if changedStart || changedStop {
+				if changedStart || changedEnd {
 					cmd.Println("removed anvil hooks from", path)
 				} else {
 					cmd.Println("no matching anvil hooks in", path)
@@ -99,11 +101,11 @@ func newInstallHooksCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("installing SessionStart hook: %w", err)
 			}
-			changedStop, err := installer.MergeStopHook(path, sessionEndHookCommand)
+			changedEnd, err := installer.MergeSessionEndHook(path, sessionEndHookCommand)
 			if err != nil {
-				return fmt.Errorf("installing Stop hook: %w", err)
+				return fmt.Errorf("installing SessionEnd hook: %w", err)
 			}
-			if changedStart || changedStop {
+			if changedStart || changedEnd {
 				cmd.Println("installed anvil hooks in", path)
 			} else {
 				cmd.Println("anvil hooks already installed in", path)
@@ -111,7 +113,7 @@ func newInstallHooksCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove the hook instead of installing it")
+	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove the SessionStart and SessionEnd hooks instead of installing them")
 	return cmd
 }
 

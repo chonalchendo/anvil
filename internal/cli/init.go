@@ -115,8 +115,8 @@ func installClaudeComponents(cmd *cobra.Command) error {
 	if _, err := installer.MergeSessionStartHook(settingsPath, sessionStartHookCommand); err != nil {
 		return fmt.Errorf("installing SessionStart hook: %w", err)
 	}
-	if _, err := installer.MergeStopHook(settingsPath, sessionEndHookCommand); err != nil {
-		return fmt.Errorf("installing Stop hook: %w", err)
+	if _, err := installer.MergeSessionEndHook(settingsPath, sessionEndHookCommand); err != nil {
+		return fmt.Errorf("installing SessionEnd hook: %w", err)
 	}
 	cmd.Println("installed anvil hooks in", settingsPath)
 	return nil

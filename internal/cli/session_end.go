@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -12,9 +11,10 @@ import (
 func newSessionEndCmd() *cobra.Command {
 	var flagCommit bool
 	cmd := &cobra.Command{
-		Use:   "end",
-		Short: "End-of-session cleanup: optionally snapshot uncommitted vault artifacts",
-		Args:  cobra.NoArgs,
+		Use:     "end",
+		Short:   "End-of-session cleanup: optionally snapshot uncommitted vault artifacts",
+		Example: "  anvil session end --commit",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !flagCommit {
 				return nil
@@ -30,15 +30,7 @@ func newSessionEndCmd() *cobra.Command {
 			if st.NotRepo || st.Dirty == 0 {
 				return nil
 			}
-			if err := gitRun(v.Root, "add", "-A"); err != nil {
-				return fmt.Errorf("git add: %w", err)
-			}
-			msg := "anvil vault snapshot: " + time.Now().UTC().Format(time.RFC3339)
-			if err := gitRun(v.Root, "commit", "-m", msg); err != nil {
-				return fmt.Errorf("git commit: %w", err)
-			}
-			cmd.Printf("committed %d change(s) to the vault\n", st.Dirty)
-			return nil
+			return snapshotVault(cmd, v.Root, "", st.Dirty)
 		},
 	}
 	cmd.Flags().BoolVar(&flagCommit, "commit", false, "snapshot uncommitted vault artifacts with git")
