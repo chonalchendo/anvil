@@ -1,6 +1,6 @@
 ---
 name: writing-contract
-description: "Use when authoring a component contract or appending a precedent. Triggers: 'write the X contract', 'record this boundary violation', 'add a precedent to Y', 'what does/does not X own'. Modes: author (new) and update (append/sharpen)."
+description: "Use when authoring a component contract or appending a precedent. Triggers: 'write the X contract', 'record this boundary violation or code-design rule for X', 'what does/does not X own'. Modes: author (new) and update (append/sharpen)."
 license: MIT
 allowed-tools: [Bash, Read, Edit, Write]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -10,7 +10,7 @@ metadata:
   skill_type: workflow
   side: design
   created: 2026-06-02
-  updated: 2026-06-02
+  updated: 2026-06-10
   tags: [type/skill, activity/contract]
   diataxis: how-to
   authored_via: manual
@@ -20,7 +20,7 @@ metadata:
 
 # Writing Contract
 
-Workflow for creating or updating a component contract — the per-component `does / does not` boundary document registered in the project vault. Contracts are plural per project (one per component-family) and carry a registry-validated `kind`.
+Workflow for creating or updating a component contract — the per-component guardrail document — boundary (`does / does not`) plus component-specific code design — registered in the project vault. Contracts are plural per project (one per component-family) and carry a registry-validated `kind`.
 
 ## Mode selection
 
@@ -30,7 +30,7 @@ Workflow for creating or updating a component contract — the per-component `do
 
 Decide before Phase 1. If uncertain, run `anvil list contract` to check whether a contract already exists.
 
-## Does / does-not shape (both modes)
+## Contract skeleton (both modes)
 
 Every contract body follows this skeleton:
 
@@ -45,6 +45,11 @@ Every contract body follows this skeleton:
 - <component> does not <boundary that surprised someone or needs emphasis>.
 - <component> does not own <Y> — that belongs to <other component>.
 
+## Code design
+
+- <component-specific style rule, file/package shape, or pattern to follow or avoid>.
+- House-wide rules live in <docs/link> — don't duplicate them here; reference only.
+
 ## Decision tree
 
 When in doubt: <brief heuristic for the hardest boundary call>.
@@ -55,6 +60,8 @@ When in doubt: <brief heuristic for the hardest boundary call>.
 ```
 
 The `## Precedents` section is append-only. Never rewrite a precedent; add a new one.
+
+`## Code design` is **optional but always considered** — omit it only when the component has no conventions that differ from the project's house-wide rules. If a future agent would have to guess at patterns, file layout, or idioms specific to this component, write them here.
 
 ---
 
@@ -85,6 +92,8 @@ Identify the component's boundary from at least two of:
 
 Draft the `## Does` and `## Does not` lists before writing the file. The `## Decision tree` entry is one sentence capturing the hardest boundary call — skip it if no non-obvious case has surfaced yet.
 
+For `## Code design`, apply the guess heuristic above and extract those rules now.
+
 ### Phase 3 — Create the contract
 
 ```bash
@@ -95,7 +104,7 @@ anvil create contract \
   --description "<one sentence — the component's primary responsibility>"
 ```
 
-Then open the created file and write the body in the does/does-not shape from Phase 2.
+Then open the created file and write the body using the contract skeleton above.
 
 **Gate:** validate before promoting to `active`.
 
@@ -125,6 +134,7 @@ anvil show contract <id>        # read current body
 - **New precedent** — a boundary was violated or clarified by a real issue or PR. Append to `## Precedents`.
 - **Sharpen a does-not** — an existing `does not` entry is ambiguous or incomplete. Edit the entry in-place; do not add a redundant entry.
 - **New does-not** — a boundary omission was found. Append to `## Does not`. If it was discovered via an issue/PR, also add a `## Precedents` entry.
+- **Code design rule** — a component-specific style, pattern, or layout convention surfaced during implementation. Add to `## Code design`; add the section if it doesn't exist yet.
 
 ### Phase 3 — Apply the update
 
