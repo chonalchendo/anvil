@@ -28,6 +28,7 @@ func newSessionCmd() *cobra.Command {
 		newSessionShowCmd(),
 		newSessionResumeCmd(),
 		newSessionGCCmd(),
+		newSessionEndCmd(),
 	)
 	return cmd
 }

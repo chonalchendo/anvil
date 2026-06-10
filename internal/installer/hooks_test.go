@@ -197,3 +197,98 @@ func TestRemoveSessionStartHook_MissingFileNoOp(t *testing.T) {
 		t.Error("changed = true on missing file, want false")
 	}
 }
+
+const testEndCmd = `anvil session end --commit`
+
+func TestMergeStopHook_NewFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+
+	changed, err := MergeStopHook(path, testEndCmd)
+	if err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if !changed {
+		t.Error("changed = false, want true on new file")
+	}
+
+	got := readJSON(t, path)
+	hooks, ok := got["hooks"].(map[string]any)
+	if !ok {
+		t.Fatalf("hooks key missing or wrong type: %v", got["hooks"])
+	}
+	stop, ok := hooks["Stop"].([]any)
+	if !ok || len(stop) != 1 {
+		t.Fatalf("Stop = %v", hooks["Stop"])
+	}
+}
+
+func TestMergeStopHook_Idempotent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+
+	if _, err := MergeStopHook(path, testEndCmd); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	changed, err := MergeStopHook(path, testEndCmd)
+	if err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	if changed {
+		t.Error("changed = true on second merge, want false")
+	}
+}
+
+func TestMergeStopHook_PreservesSessionStart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if _, err := MergeSessionStartHook(path, testCmd); err != nil {
+		t.Fatalf("seed SessionStart: %v", err)
+	}
+
+	if _, err := MergeStopHook(path, testEndCmd); err != nil {
+		t.Fatalf("merge Stop: %v", err)
+	}
+
+	got := readJSON(t, path)
+	hooks := got["hooks"].(map[string]any)
+	if _, ok := hooks["SessionStart"]; !ok {
+		t.Error("SessionStart removed by MergeStopHook")
+	}
+	if _, ok := hooks["Stop"]; !ok {
+		t.Error("Stop hook not added")
+	}
+}
+
+func TestRemoveStopHook_RemovesMatching(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if _, err := MergeStopHook(path, testEndCmd); err != nil {
+		t.Fatalf("seed merge: %v", err)
+	}
+
+	changed, err := RemoveStopHook(path, testEndCmd)
+	if err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if !changed {
+		t.Error("changed = false, want true")
+	}
+
+	got := readJSON(t, path)
+	if hooks, ok := got["hooks"].(map[string]any); ok {
+		if stop, ok := hooks["Stop"]; ok {
+			if arr, ok := stop.([]any); ok && len(arr) > 0 {
+				t.Errorf("Stop still present after remove: %v", arr)
+			}
+		}
+	}
+}
+
+func TestRemoveStopHook_MissingFileNoOp(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+
+	changed, err := RemoveStopHook(path, testEndCmd)
+	if err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if changed {
+		t.Error("changed = true on missing file, want false")
+	}
+}

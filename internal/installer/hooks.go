@@ -75,6 +75,74 @@ func RemoveSessionStartHook(settingsPath, command string) (bool, error) {
 	return true, nil
 }
 
+// MergeStopHook ensures settingsPath contains a Claude Code Stop hook that
+// runs command. The file is created if missing. All unrelated keys and
+// existing hook entries are preserved. Returns changed=false if the exact
+// command was already present.
+func MergeStopHook(settingsPath, command string) (bool, error) {
+	settings, err := loadSettings(settingsPath)
+	if err != nil {
+		return false, err
+	}
+
+	hooks := getOrCreateMap(settings, "hooks")
+	stop := getOrCreateSlice(hooks, "Stop")
+
+	if hookCommandPresent(stop, command) {
+		return false, nil
+	}
+
+	entry := map[string]any{
+		"hooks": []any{
+			map[string]any{"type": "command", "command": command},
+		},
+	}
+	hooks["Stop"] = append(stop, entry)
+	settings["hooks"] = hooks
+
+	if err := writeSettings(settingsPath, settings); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// RemoveStopHook strips any Stop hook entry whose inner command matches
+// command. Missing file or missing hook is not an error.
+func RemoveStopHook(settingsPath, command string) (bool, error) {
+	settings, err := loadSettings(settingsPath)
+	if err != nil {
+		return false, err
+	}
+
+	hooks, ok := settings["hooks"].(map[string]any)
+	if !ok {
+		return false, nil
+	}
+	stop, ok := hooks["Stop"].([]any)
+	if !ok {
+		return false, nil
+	}
+
+	kept := make([]any, 0, len(stop))
+	changed := false
+	for _, e := range stop {
+		if entryMatchesCommand(e, command) {
+			changed = true
+			continue
+		}
+		kept = append(kept, e)
+	}
+	if !changed {
+		return false, nil
+	}
+	hooks["Stop"] = kept
+
+	if err := writeSettings(settingsPath, settings); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func loadSettings(path string) (map[string]any, error) {
 	b, err := os.ReadFile(path) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {

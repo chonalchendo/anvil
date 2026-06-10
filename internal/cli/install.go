@@ -14,6 +14,7 @@ import (
 )
 
 const sessionStartHookCommand = `anvil install fire-session-start`
+const sessionEndHookCommand = `anvil session end --commit`
 
 func newInstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -79,25 +80,33 @@ func newInstallHooksCmd() *cobra.Command {
 				return err
 			}
 			if uninstall {
-				changed, err := installer.RemoveSessionStartHook(path, sessionStartHookCommand)
+				changedStart, err := installer.RemoveSessionStartHook(path, sessionStartHookCommand)
 				if err != nil {
-					return fmt.Errorf("removing hook: %w", err)
+					return fmt.Errorf("removing SessionStart hook: %w", err)
 				}
-				if changed {
-					cmd.Println("removed SessionStart hook from", path)
+				changedStop, err := installer.RemoveStopHook(path, sessionEndHookCommand)
+				if err != nil {
+					return fmt.Errorf("removing Stop hook: %w", err)
+				}
+				if changedStart || changedStop {
+					cmd.Println("removed anvil hooks from", path)
 				} else {
-					cmd.Println("no matching SessionStart hook in", path)
+					cmd.Println("no matching anvil hooks in", path)
 				}
 				return nil
 			}
-			changed, err := installer.MergeSessionStartHook(path, sessionStartHookCommand)
+			changedStart, err := installer.MergeSessionStartHook(path, sessionStartHookCommand)
 			if err != nil {
-				return fmt.Errorf("installing hook: %w", err)
+				return fmt.Errorf("installing SessionStart hook: %w", err)
 			}
-			if changed {
-				cmd.Println("installed SessionStart hook in", path)
+			changedStop, err := installer.MergeStopHook(path, sessionEndHookCommand)
+			if err != nil {
+				return fmt.Errorf("installing Stop hook: %w", err)
+			}
+			if changedStart || changedStop {
+				cmd.Println("installed anvil hooks in", path)
 			} else {
-				cmd.Println("SessionStart hook already installed in", path)
+				cmd.Println("anvil hooks already installed in", path)
 			}
 			return nil
 		},
