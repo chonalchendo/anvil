@@ -24,9 +24,11 @@ import (
 // create surface every blocking class, so the author pays one round-trip, not
 // one per layer.
 //
-// preErrors holds caller-collected violations (e.g. missing required CLI flags
-// that can't be expressed in the JSON Schema) that are prepended before schema
-// errors so the full set is emitted in a single block.
+// preErrors holds caller-collected violations — required CLI flags the JSON
+// Schema cannot express (decision --topic, sweep's explicit --breaking) —
+// prepended before schema errors so the full set is emitted in a single block.
+// Invariant: a non-empty preErrors always rejects, so callers may pass a
+// zero-value path/id alongside it knowing nothing will be written.
 //
 // Returns ErrSchemaInvalid (after emitting the violations block) when any layer
 // fails, a usage error for an unknown --allow-new-facet name, or nil when the
@@ -50,6 +52,11 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 	if err := schema.Validate(string(t), fm); err != nil {
 		errs := schemaErrToValidationErrors(path, err)
 		augmentFacetErrors(errs, values)
+		for _, e := range errs {
+			if fix := requiredFlagFix(t, e.Field); fix != "" && e.Fix == "" {
+				e.WithFix(fix)
+			}
+		}
 		failures = append(failures, errs...)
 	}
 
@@ -103,6 +110,23 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 	}
 	emitValidationErrors(cmd, asJSON, failures)
 	return ErrSchemaInvalid
+}
+
+// requiredFlagFix returns the actionable hint for a schema-required scalar
+// that a create flag populates. Create carries no CLI-level required check
+// for these fields (the schema's `required` reports them, aggregated with
+// every other violation); the hint preserves the guidance that check used
+// to give — which flag to pass and what it means.
+func requiredFlagFix(t core.Type, field string) string {
+	switch {
+	case field == "goal" && (t == core.TypeIssue || t == core.TypeMilestone):
+		return "pass --goal: a one-sentence terminal predicate (what 'done' means)"
+	case field == "scope" && t == core.TypeSweep:
+		return "pass --scope"
+	case field == "kind" && t == core.TypeContract:
+		return "pass --kind: a registered contract kind (see `anvil contract kinds list`)"
+	}
+	return ""
 }
 
 // renderFrontMatter executes the template for t against data and parses the

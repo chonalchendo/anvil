@@ -243,40 +243,40 @@ func newCreateCmd() *cobra.Command {
 				project = p.Slug
 			}
 
-			// Per-type required-flag checks. Capped-field overages were already
-			// reported above (before vault resolution); the issue goal cap is
-			// surfaced there too when goal is present, so by here a missing goal
-			// is the only remaining issue-specific failure.
+			// Per-type required-flag checks, three tiers:
 			//
-			// TypeDecision's --topic check is deferred: a missing topic is
-			// collected as a ValidationError so it can be emitted alongside any
-			// facet violations in a single block rather than short-circuiting
-			// before validateBeforeCreate runs. All other per-type required flags
-			// still short-circuit because their absence makes path resolution
-			// meaningless and there is no facet overlap to surface.
+			//   - Schema-owned: flags that fill a schema-required scalar
+			//     (issue/milestone --goal, sweep --scope, contract --kind) get
+			//     no CLI-level check. Their empty render is stripped below so
+			//     schema.Validate reports them as missing_required in the same
+			//     aggregated block as facet and body violations;
+			//     requiredFlagFix re-attaches the flag hint.
+			//   - Deferred: requirements the schema cannot express — decision
+			//     --topic (an ID/path input, not a frontmatter field) and
+			//     sweep's explicit --breaking (false is schema-valid) — are
+			//     collected here and prepended to that same block by
+			//     validateBeforeCreate.
+			//   - Short-circuit: plan --issue is the named remaining
+			//     exception — the plan's default slug, and so its id and path,
+			//     derive from the issue link, so nothing downstream is
+			//     meaningful without it.
+			var preValidationErrors []*errfmt.ValidationError
 			switch t {
-			case core.TypeIssue:
-				if strings.TrimSpace(flagGoal) == "" {
-					return fmt.Errorf("--goal is required for issue: a one-sentence terminal predicate (what 'done' means)")
-				}
-			case core.TypeMilestone:
-				if strings.TrimSpace(flagGoal) == "" {
-					return fmt.Errorf("--goal is required for milestone: a one-sentence terminal predicate (what 'done' means)")
-				}
 			case core.TypePlan:
 				if flagIssue == "" {
 					return fmt.Errorf("--issue is required for plan")
 				}
 			case core.TypeSweep:
-				if flagScope == "" {
-					return fmt.Errorf("--scope is required for sweep")
-				}
 				if !cmd.Flags().Changed("breaking") {
-					return fmt.Errorf("--breaking must be set explicitly for sweep (true or false)")
+					preValidationErrors = append(preValidationErrors,
+						errfmt.NewValidationError(errfmt.CodeMissingRequired, "", "breaking", "").
+							WithExpected("--breaking must be set explicitly for sweep (true or false)"))
 				}
-			case core.TypeContract:
-				if strings.TrimSpace(flagKind) == "" {
-					return fmt.Errorf("--kind is required for contract: a registered contract kind (see `anvil contract kinds list`)")
+			case core.TypeDecision:
+				if flagTopic == "" {
+					preValidationErrors = append(preValidationErrors,
+						errfmt.NewValidationError(errfmt.CodeMissingRequired, "", "topic", "").
+							WithExpected("--topic is required for decision"))
 				}
 			}
 
@@ -299,26 +299,22 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			// For decision, a missing --topic blocks ID allocation but must not
-			// short-circuit facet validation. Collect the error for inclusion in
-			// the validateBeforeCreate block; use a placeholder path so the
-			// validator can still walk the frontmatter and surface every violation
-			// at once.
-			var preValidationErrors []*errfmt.ValidationError
+			// A missing decision --topic blocks ID allocation entirely (the
+			// decision path is topic-scoped), so resolution is skipped and
+			// id/path stay "": every violation in the block carries the same
+			// empty path, and nothing is written — preValidationErrors is
+			// non-empty, so validateBeforeCreate rejects before any save.
+			// On every other type the resolved path is stamped onto the
+			// collected errors so the whole block agrees on one path value.
 			var id, path string
-			if t == core.TypeDecision && flagTopic == "" {
-				preValidationErrors = []*errfmt.ValidationError{
-					errfmt.NewValidationError(errfmt.CodeMissingRequired, "", "topic", "").
-						WithExpected("--topic is required for decision"),
-				}
-				// Placeholder path — never written; exists only so validateBeforeCreate
-				// has a path string for error context.
-				path = t.Path(v.Root, "", "decision.placeholder")
-			} else {
+			if t != core.TypeDecision || flagTopic != "" {
 				var err error
 				id, path, err = resolveCreateIDPath(v, t, project, flagTitle, flagTopic, slugDefault)
 				if err != nil {
 					return err
+				}
+				for _, e := range preValidationErrors {
+					e.Path = path
 				}
 			}
 
@@ -411,6 +407,18 @@ func newCreateCmd() *cobra.Command {
 					continue
 				}
 				fm[k] = v
+			}
+
+			// Templates render flag-backed schema-required scalars
+			// unconditionally, so an unset flag lands as ""/null. Drop those
+			// keys so schema.Validate reports the canonical missing_required
+			// violation — aggregated with every other failure in
+			// validateBeforeCreate — instead of an empty-string length or
+			// null type violation.
+			for _, k := range []string{"goal", "scope", "kind"} {
+				if fv, ok := fm[k]; ok && (fv == nil || fv == "") {
+					delete(fm, k)
+				}
 			}
 
 			if t != core.TypeDecision {
