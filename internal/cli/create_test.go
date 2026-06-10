@@ -374,6 +374,34 @@ func TestCreate_Decision_TopicScoped(t *testing.T) {
 	}
 }
 
+// TestCreate_Decision_MissingTopic_ReportedWithFacetErrors asserts that when
+// --topic is absent AND facet tags are missing, a single create invocation
+// surfaces both the missing-topic violation and the missing-facet violations
+// together rather than short-circuiting at --topic.
+func TestCreate_Decision_MissingTopic_ReportedWithFacetErrors(t *testing.T) {
+	setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	cmd := newRootCmd()
+	// No --topic and no --tags: should report both classes in one pass.
+	cmd.SetArgs([]string{"create", "decision", "--title", "zz-probe", "--description", "probe"})
+	var errBuf bytes.Buffer
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&errBuf)
+	err := cmd.Execute()
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
+	}
+	combined := errBuf.String() + err.Error()
+	if !strings.Contains(combined, "topic") {
+		t.Errorf("output must include topic violation; got:\n%s", combined)
+	}
+	if !strings.Contains(combined, "missing_required_facet") {
+		t.Errorf("output must include missing_required_facet violation; got:\n%s", combined)
+	}
+}
+
 func TestCreatePlan_NewSchema_Succeeds(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")

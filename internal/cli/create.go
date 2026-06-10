@@ -247,6 +247,13 @@ func newCreateCmd() *cobra.Command {
 			// reported above (before vault resolution); the issue goal cap is
 			// surfaced there too when goal is present, so by here a missing goal
 			// is the only remaining issue-specific failure.
+			//
+			// TypeDecision's --topic check is deferred: a missing topic is
+			// collected as a ValidationError so it can be emitted alongside any
+			// facet violations in a single block rather than short-circuiting
+			// before validateBeforeCreate runs. All other per-type required flags
+			// still short-circuit because their absence makes path resolution
+			// meaningless and there is no facet overlap to surface.
 			switch t {
 			case core.TypeIssue:
 				if strings.TrimSpace(flagGoal) == "" {
@@ -259,10 +266,6 @@ func newCreateCmd() *cobra.Command {
 			case core.TypePlan:
 				if flagIssue == "" {
 					return fmt.Errorf("--issue is required for plan")
-				}
-			case core.TypeDecision:
-				if flagTopic == "" {
-					return fmt.Errorf("--topic is required for decision")
 				}
 			case core.TypeSweep:
 				if flagScope == "" {
@@ -296,9 +299,27 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			id, path, err := resolveCreateIDPath(v, t, project, flagTitle, flagTopic, slugDefault)
-			if err != nil {
-				return err
+			// For decision, a missing --topic blocks ID allocation but must not
+			// short-circuit facet validation. Collect the error for inclusion in
+			// the validateBeforeCreate block; use a placeholder path so the
+			// validator can still walk the frontmatter and surface every violation
+			// at once.
+			var preValidationErrors []*errfmt.ValidationError
+			var id, path string
+			if t == core.TypeDecision && flagTopic == "" {
+				preValidationErrors = []*errfmt.ValidationError{
+					errfmt.NewValidationError(errfmt.CodeMissingRequired, "", "topic", "").
+						WithExpected("--topic is required for decision"),
+				}
+				// Placeholder path — never written; exists only so validateBeforeCreate
+				// has a path string for error context.
+				path = t.Path(v.Root, "", "decision.placeholder")
+			} else {
+				var err error
+				id, path, err = resolveCreateIDPath(v, t, project, flagTitle, flagTopic, slugDefault)
+				if err != nil {
+					return err
+				}
 			}
 
 			var body string
@@ -406,7 +427,7 @@ func newCreateCmd() *cobra.Command {
 					if c, ok := existing.FrontMatter["created"]; ok {
 						fm["created"] = c
 					}
-					if err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON); err != nil {
+					if err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON, preValidationErrors...); err != nil {
 						return err
 					}
 					originalBytes, rerr := os.ReadFile(path) //nolint:gosec // path is test-controlled or application-managed; not user input
@@ -430,7 +451,7 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			if err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON); err != nil {
+			if err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON, preValidationErrors...); err != nil {
 				return err
 			}
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable

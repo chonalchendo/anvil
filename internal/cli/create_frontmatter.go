@@ -24,10 +24,14 @@ import (
 // create surface every blocking class, so the author pays one round-trip, not
 // one per layer.
 //
+// preErrors holds caller-collected violations (e.g. missing required CLI flags
+// that can't be expressed in the JSON Schema) that are prepended before schema
+// errors so the full set is emitted in a single block.
+//
 // Returns ErrSchemaInvalid (after emitting the violations block) when any layer
 // fails, a usage error for an unknown --allow-new-facet name, or nil when the
 // artifact is clean and safe to write.
-func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path string, fm map[string]any, body string, authoredBody bool, allowNewFacet []string, asJSON bool) error {
+func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path string, fm map[string]any, body string, authoredBody bool, allowNewFacet []string, asJSON bool, preErrors ...*errfmt.ValidationError) error {
 	for _, f := range allowNewFacet {
 		if !facets.Has(f) {
 			return formatEnumError("--allow-new-facet", f, facets.Names(), "")
@@ -41,7 +45,7 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 		cmd.PrintErrln("warn: skipped corrupt artifact during facet walk: " + p)
 	}
 
-	var failures []*errfmt.ValidationError
+	failures := append([]*errfmt.ValidationError(nil), preErrors...)
 
 	if err := schema.Validate(string(t), fm); err != nil {
 		errs := schemaErrToValidationErrors(path, err)
