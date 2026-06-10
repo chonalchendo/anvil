@@ -9,23 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 )
-
-// maxDescriptionChars mirrors the `maxLength: 120` cap in every spine-type
-// schema (issue, plan, milestone, decision, sweep, product-design,
-// system-design). Pre-flighted here so the CLI rejects oversize descriptions
-// before any template rendering or facet walk, with a single focused error.
-const maxDescriptionChars = 120
-
-// maxGoalChars bounds an issue's `goal:` — the one-sentence terminal predicate.
-// Same cap as description: it is a spine field, not a place for prose.
-const maxGoalChars = 120
 
 // templateData holds all variables that frontmatter templates may reference.
 // Fields unused by a given type are left at their zero values; templates guard
@@ -194,30 +183,8 @@ func newCreateCmd() *cobra.Command {
 				return fmt.Errorf("--title is required for %s", t)
 			}
 
-			// Capped-field checks run before vault/project resolution so cap
-			// feedback fast-fails for every type, in or out of a vault. The
-			// description cap applies to all spine types; the issue path also
-			// collects its goal-length overage so the author sees every
-			// violation in one rejection rather than one per resubmit.
-			if t != core.TypeSession {
-				var capErrs []error
-				if n := utf8.RuneCountInString(flagDescription); n > maxDescriptionChars {
-					capErrs = append(capErrs, fmt.Errorf(
-						"--description too long: %d chars (max %d); description is spine index/preview text, not docs — re-summarise to fit the cap rather than raise it",
-						n, maxDescriptionChars,
-					))
-				}
-				if (t == core.TypeIssue || t == core.TypeMilestone) && strings.TrimSpace(flagGoal) != "" {
-					if n := utf8.RuneCountInString(flagGoal); n > maxGoalChars {
-						capErrs = append(capErrs, fmt.Errorf(
-							"--goal too long: %d chars (max %d); goal is a one-sentence predicate, not docs — tighten it",
-							n, maxGoalChars,
-						))
-					}
-				}
-				if err := errors.Join(capErrs...); err != nil {
-					return err
-				}
+			if err := checkFieldCaps(t, flagDescription, flagGoal); err != nil {
+				return err
 			}
 
 			v, err := core.ResolveVault()
@@ -243,41 +210,11 @@ func newCreateCmd() *cobra.Command {
 				project = p.Slug
 			}
 
-			// Per-type required-flag checks, three tiers:
-			//
-			//   - Schema-owned: flags that fill a schema-required scalar
-			//     (issue/milestone --goal, sweep --scope, contract --kind) get
-			//     no CLI-level check. Their empty render is stripped below so
-			//     schema.Validate reports them as missing_required in the same
-			//     aggregated block as facet and body violations;
-			//     requiredFlagFix re-attaches the flag hint.
-			//   - Deferred: requirements the schema cannot express — decision
-			//     --topic (an ID/path input, not a frontmatter field) and
-			//     sweep's explicit --breaking (false is schema-valid) — are
-			//     collected here and prepended to that same block by
-			//     validateBeforeCreate.
-			//   - Short-circuit: plan --issue is the named remaining
-			//     exception — the plan's default slug, and so its id and path,
-			//     derive from the issue link, so nothing downstream is
-			//     meaningful without it.
-			var preValidationErrors []*errfmt.ValidationError
-			switch t {
-			case core.TypePlan:
-				if flagIssue == "" {
-					return fmt.Errorf("--issue is required for plan")
-				}
-			case core.TypeSweep:
-				if !cmd.Flags().Changed("breaking") {
-					preValidationErrors = append(preValidationErrors,
-						errfmt.NewValidationError(errfmt.CodeMissingRequired, "", "breaking", "").
-							WithExpected("--breaking must be set explicitly for sweep (true or false)"))
-				}
-			case core.TypeDecision:
-				if flagTopic == "" {
-					preValidationErrors = append(preValidationErrors,
-						errfmt.NewValidationError(errfmt.CodeMissingRequired, "", "topic", "").
-							WithExpected("--topic is required for decision"))
-				}
+			// Per-type required-flag checks, three tiers — see
+			// collectPreValidationErrors.
+			preValidationErrors, err := collectPreValidationErrors(cmd, t, flagIssue, flagTopic)
+			if err != nil {
+				return err
 			}
 
 			// Derive description from title when omitted for spine types that
