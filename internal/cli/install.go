@@ -13,7 +13,10 @@ import (
 	"github.com/chonalchendo/anvil/internal/installer"
 )
 
-const sessionStartHookCommand = `anvil install fire-session-start`
+const (
+	sessionStartHookCommand = `anvil install fire-session-start`
+	sessionEndHookCommand   = `anvil session end --commit`
+)
 
 func newInstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -71,7 +74,7 @@ func newInstallHooksCmd() *cobra.Command {
 	var uninstall bool
 	cmd := &cobra.Command{
 		Use:   "hooks",
-		Short: "Install (or remove) the Claude Code SessionStart hook",
+		Short: "Install (or remove) the Claude Code SessionStart and SessionEnd hooks",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			path, err := resolveClaudeSettingsPath()
@@ -79,30 +82,38 @@ func newInstallHooksCmd() *cobra.Command {
 				return err
 			}
 			if uninstall {
-				changed, err := installer.RemoveSessionStartHook(path, sessionStartHookCommand)
+				changedStart, err := installer.RemoveSessionStartHook(path, sessionStartHookCommand)
 				if err != nil {
-					return fmt.Errorf("removing hook: %w", err)
+					return fmt.Errorf("removing SessionStart hook: %w", err)
 				}
-				if changed {
-					cmd.Println("removed SessionStart hook from", path)
+				changedEnd, err := installer.RemoveSessionEndHook(path, sessionEndHookCommand)
+				if err != nil {
+					return fmt.Errorf("removing SessionEnd hook: %w", err)
+				}
+				if changedStart || changedEnd {
+					cmd.Println("removed anvil hooks from", path)
 				} else {
-					cmd.Println("no matching SessionStart hook in", path)
+					cmd.Println("no matching anvil hooks in", path)
 				}
 				return nil
 			}
-			changed, err := installer.MergeSessionStartHook(path, sessionStartHookCommand)
+			changedStart, err := installer.MergeSessionStartHook(path, sessionStartHookCommand)
 			if err != nil {
-				return fmt.Errorf("installing hook: %w", err)
+				return fmt.Errorf("installing SessionStart hook: %w", err)
 			}
-			if changed {
-				cmd.Println("installed SessionStart hook in", path)
+			changedEnd, err := installer.MergeSessionEndHook(path, sessionEndHookCommand)
+			if err != nil {
+				return fmt.Errorf("installing SessionEnd hook: %w", err)
+			}
+			if changedStart || changedEnd {
+				cmd.Println("installed anvil hooks in", path)
 			} else {
-				cmd.Println("SessionStart hook already installed in", path)
+				cmd.Println("anvil hooks already installed in", path)
 			}
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove the hook instead of installing it")
+	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove the SessionStart and SessionEnd hooks instead of installing them")
 	return cmd
 }
 

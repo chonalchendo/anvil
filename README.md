@@ -36,7 +36,7 @@ anvil --version          # confirm it's on your PATH (run `hash -r` if your shel
 anvil init               # scaffold a vault (defaults to ~/anvil-vault)
 anvil install skills     # bundled skills → Claude Code
 anvil install agents     # bundled subagents (e.g. the issue-fleet worker)
-anvil install hooks      # bind each session to the active thread
+anvil install hooks      # bind each session to the active thread + auto-snapshot the vault at session end
 ```
 
 Skills and agents are discovered at session start, so **restart Claude Code** afterward. In a fresh session the available-skills list should include Anvil's skills (`writing-issue`, `completing-issue`, `capturing-inbox`, …) — bare, with no `anvil:` prefix. Pass `--uninstall` to any `install` command to remove it.
@@ -48,7 +48,7 @@ anvil install skills --target codex   # copies the bundle into ~/.codex/skills (
 anvil install agents --target codex   # emits each subagent as ~/.codex/agents/<name>.toml
 ```
 
-Restart Codex to pick them up; the lifecycle skills auto-fire by description just as in Claude Code. The default target stays `claude`. `install agents --target codex` translates each bundled subagent into Codex's TOML format (dropping the Claude-specific model/tools/skills fields). `install hooks` remains Claude-only — there's no Codex `SessionStart` hook; that arrives with the rest of the Codex adapter in v0.2.
+Restart Codex to pick them up; the lifecycle skills auto-fire by description just as in Claude Code. The default target stays `claude`. `install agents --target codex` translates each bundled subagent into Codex's TOML format (dropping the Claude-specific model/tools/skills fields). `install hooks` remains Claude-only — Codex has no `SessionStart`/`SessionEnd` hook events; that arrives with the rest of the Codex adapter in v0.2.
 
 > Once released, `go install github.com/chonalchendo/anvil/cmd/anvil@latest` will be the one-line path. Build from source with `just install` (not `go install ./cmd/anvil`) — the recipe stamps the version and checks for a stale binary shadowing your `$PATH`.
 

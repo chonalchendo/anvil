@@ -197,3 +197,98 @@ func TestRemoveSessionStartHook_MissingFileNoOp(t *testing.T) {
 		t.Error("changed = true on missing file, want false")
 	}
 }
+
+const testEndCmd = `anvil session end --commit`
+
+func TestMergeSessionEndHook_NewFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+
+	changed, err := MergeSessionEndHook(path, testEndCmd)
+	if err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if !changed {
+		t.Error("changed = false, want true on new file")
+	}
+
+	got := readJSON(t, path)
+	hooks, ok := got["hooks"].(map[string]any)
+	if !ok {
+		t.Fatalf("hooks key missing or wrong type: %v", got["hooks"])
+	}
+	se, ok := hooks["SessionEnd"].([]any)
+	if !ok || len(se) != 1 {
+		t.Fatalf("SessionEnd = %v", hooks["SessionEnd"])
+	}
+}
+
+func TestMergeSessionEndHook_Idempotent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+
+	if _, err := MergeSessionEndHook(path, testEndCmd); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	changed, err := MergeSessionEndHook(path, testEndCmd)
+	if err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	if changed {
+		t.Error("changed = true on second merge, want false")
+	}
+}
+
+func TestMergeSessionEndHook_PreservesSessionStart(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if _, err := MergeSessionStartHook(path, testCmd); err != nil {
+		t.Fatalf("seed SessionStart: %v", err)
+	}
+
+	if _, err := MergeSessionEndHook(path, testEndCmd); err != nil {
+		t.Fatalf("merge SessionEnd: %v", err)
+	}
+
+	got := readJSON(t, path)
+	hooks := got["hooks"].(map[string]any)
+	if _, ok := hooks["SessionStart"]; !ok {
+		t.Error("SessionStart removed by MergeSessionEndHook")
+	}
+	if _, ok := hooks["SessionEnd"]; !ok {
+		t.Error("SessionEnd hook not added")
+	}
+}
+
+func TestRemoveSessionEndHook_RemovesMatching(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if _, err := MergeSessionEndHook(path, testEndCmd); err != nil {
+		t.Fatalf("seed merge: %v", err)
+	}
+
+	changed, err := RemoveSessionEndHook(path, testEndCmd)
+	if err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if !changed {
+		t.Error("changed = false, want true")
+	}
+
+	got := readJSON(t, path)
+	if hooks, ok := got["hooks"].(map[string]any); ok {
+		if se, ok := hooks["SessionEnd"]; ok {
+			if arr, ok := se.([]any); ok && len(arr) > 0 {
+				t.Errorf("SessionEnd still present after remove: %v", arr)
+			}
+		}
+	}
+}
+
+func TestRemoveSessionEndHook_MissingFileNoOp(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+
+	changed, err := RemoveSessionEndHook(path, testEndCmd)
+	if err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if changed {
+		t.Error("changed = true on missing file, want false")
+	}
+}

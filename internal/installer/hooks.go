@@ -7,20 +7,44 @@ import (
 	"os"
 )
 
-// MergeSessionStartHook ensures settingsPath contains a Claude Code
-// SessionStart hook that runs command. The file is created if missing.
-// All unrelated keys and existing hook entries are preserved.
-// Returns changed=false if the exact command was already present.
+// MergeSessionStartHook registers command under the Claude Code SessionStart
+// hook event in settingsPath.
 func MergeSessionStartHook(settingsPath, command string) (bool, error) {
+	return mergeHook(settingsPath, "SessionStart", command)
+}
+
+// RemoveSessionStartHook strips command from the SessionStart hook event in
+// settingsPath.
+func RemoveSessionStartHook(settingsPath, command string) (bool, error) {
+	return removeHook(settingsPath, "SessionStart", command)
+}
+
+// MergeSessionEndHook registers command under the Claude Code SessionEnd hook
+// event in settingsPath.
+func MergeSessionEndHook(settingsPath, command string) (bool, error) {
+	return mergeHook(settingsPath, "SessionEnd", command)
+}
+
+// RemoveSessionEndHook strips command from the SessionEnd hook event in
+// settingsPath.
+func RemoveSessionEndHook(settingsPath, command string) (bool, error) {
+	return removeHook(settingsPath, "SessionEnd", command)
+}
+
+// mergeHook ensures settingsPath contains a Claude Code hook for the given
+// event that runs command. The file is created if missing. All unrelated keys
+// and existing hook entries are preserved. Returns changed=false if the exact
+// command was already present.
+func mergeHook(settingsPath, event, command string) (bool, error) {
 	settings, err := loadSettings(settingsPath)
 	if err != nil {
 		return false, err
 	}
 
 	hooks := getOrCreateMap(settings, "hooks")
-	ss := getOrCreateSlice(hooks, "SessionStart")
+	entries := getOrCreateSlice(hooks, event)
 
-	if hookCommandPresent(ss, command) {
+	if hookCommandPresent(entries, command) {
 		return false, nil
 	}
 
@@ -29,7 +53,7 @@ func MergeSessionStartHook(settingsPath, command string) (bool, error) {
 			map[string]any{"type": "command", "command": command},
 		},
 	}
-	hooks["SessionStart"] = append(ss, entry)
+	hooks[event] = append(entries, entry)
 	settings["hooks"] = hooks
 
 	if err := writeSettings(settingsPath, settings); err != nil {
@@ -38,9 +62,9 @@ func MergeSessionStartHook(settingsPath, command string) (bool, error) {
 	return true, nil
 }
 
-// RemoveSessionStartHook strips any SessionStart hook entry whose inner
-// command matches command. Missing file or missing hook is not an error.
-func RemoveSessionStartHook(settingsPath, command string) (bool, error) {
+// removeHook strips any hook entry under event whose inner command matches
+// command. Missing file or missing hook is not an error.
+func removeHook(settingsPath, event, command string) (bool, error) {
 	settings, err := loadSettings(settingsPath)
 	if err != nil {
 		return false, err
@@ -50,14 +74,14 @@ func RemoveSessionStartHook(settingsPath, command string) (bool, error) {
 	if !ok {
 		return false, nil
 	}
-	ss, ok := hooks["SessionStart"].([]any)
+	entries, ok := hooks[event].([]any)
 	if !ok {
 		return false, nil
 	}
 
-	kept := make([]any, 0, len(ss))
+	kept := make([]any, 0, len(entries))
 	changed := false
-	for _, e := range ss {
+	for _, e := range entries {
 		if entryMatchesCommand(e, command) {
 			changed = true
 			continue
@@ -67,7 +91,7 @@ func RemoveSessionStartHook(settingsPath, command string) (bool, error) {
 	if !changed {
 		return false, nil
 	}
-	hooks["SessionStart"] = kept
+	hooks[event] = kept
 
 	if err := writeSettings(settingsPath, settings); err != nil {
 		return false, err

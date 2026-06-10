@@ -42,22 +42,28 @@ func newVaultCommitCmd() *cobra.Command {
 				cmd.Println("vault clean — nothing to commit")
 				return nil
 			}
-			msg := flagMessage
-			if msg == "" {
-				msg = "anvil vault snapshot: " + time.Now().UTC().Format(time.RFC3339)
-			}
-			if err := gitRun(v.Root, "add", "-A"); err != nil {
-				return fmt.Errorf("git add: %w", err)
-			}
-			if err := gitRun(v.Root, "commit", "-m", msg); err != nil {
-				return fmt.Errorf("git commit: %w", err)
-			}
-			cmd.Printf("committed %d change(s) to the vault\n", st.Dirty)
-			return nil
+			return snapshotVault(cmd, v.Root, flagMessage, st.Dirty)
 		},
 	}
 	cmd.Flags().StringVarP(&flagMessage, "message", "m", "", "commit message (default: timestamped snapshot)")
 	return cmd
+}
+
+// snapshotVault stages and commits every pending change under root, printing
+// the committed count. Callers decide the not-repo/clean-tree policy before
+// calling; an empty msg gets the timestamped default.
+func snapshotVault(cmd *cobra.Command, root, msg string, dirty int) error {
+	if msg == "" {
+		msg = "anvil vault snapshot: " + time.Now().UTC().Format(time.RFC3339)
+	}
+	if err := gitRun(root, "add", "-A"); err != nil {
+		return fmt.Errorf("git add: %w", err)
+	}
+	if err := gitRun(root, "commit", "-m", msg); err != nil {
+		return fmt.Errorf("git commit: %w", err)
+	}
+	cmd.Printf("committed %d change(s) to the vault\n", dirty)
+	return nil
 }
 
 func gitRun(dir string, args ...string) error {
