@@ -5,7 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 )
+
+// anvilHookPrefix identifies hook entries anvil manages. Anvil owns exactly one
+// hook per managed event, so install upserts: any entry invoking `anvil ` is a
+// prior managed command and is replaced — not duplicated — when the command
+// string changes (e.g. a new flag added to the SessionEnd hook).
+const anvilHookPrefix = "anvil "
 
 // MergeSessionStartHook registers command under the Claude Code SessionStart
 // hook event in settingsPath.
@@ -32,9 +39,11 @@ func RemoveSessionEndHook(settingsPath, command string) (bool, error) {
 }
 
 // mergeHook ensures settingsPath contains a Claude Code hook for the given
-// event that runs command. The file is created if missing. All unrelated keys
-// and existing hook entries are preserved. Returns changed=false if the exact
-// command was already present.
+// event that runs command. The file is created if missing. Unrelated keys and
+// non-anvil hook entries are preserved; any stale anvil-managed entry (a prior
+// command string) is replaced so a changed command upserts instead of
+// accumulating a duplicate that double-fires. Returns changed=false only when
+// command is already the sole anvil entry and nothing stale needed dropping.
 func mergeHook(settingsPath, event, command string) (bool, error) {
 	settings, err := loadSettings(settingsPath)
 	if err != nil {
@@ -44,16 +53,30 @@ func mergeHook(settingsPath, event, command string) (bool, error) {
 	hooks := getOrCreateMap(settings, "hooks")
 	entries := getOrCreateSlice(hooks, event)
 
-	if hookCommandPresent(entries, command) {
+	kept := make([]any, 0, len(entries))
+	hasCurrent := false
+	for _, e := range entries {
+		switch {
+		case entryMatchesCommand(e, command):
+			hasCurrent = true
+			kept = append(kept, e)
+		case entryIsManaged(e):
+			continue // drop a stale anvil-managed variant
+		default:
+			kept = append(kept, e)
+		}
+	}
+	if hasCurrent && len(kept) == len(entries) {
 		return false, nil
 	}
-
-	entry := map[string]any{
-		"hooks": []any{
-			map[string]any{"type": "command", "command": command},
-		},
+	if !hasCurrent {
+		kept = append(kept, map[string]any{
+			"hooks": []any{
+				map[string]any{"type": "command", "command": command},
+			},
+		})
 	}
-	hooks[event] = append(entries, entry)
+	hooks[event] = kept
 	settings["hooks"] = hooks
 
 	if err := writeSettings(settingsPath, settings); err != nil {
@@ -147,16 +170,19 @@ func getOrCreateSlice(parent map[string]any, key string) []any {
 	return []any{}
 }
 
-func hookCommandPresent(entries []any, command string) bool {
-	for _, e := range entries {
-		if entryMatchesCommand(e, command) {
-			return true
-		}
-	}
-	return false
+func entryMatchesCommand(entry any, command string) bool {
+	return entryCommandMatches(entry, func(c string) bool { return c == command })
 }
 
-func entryMatchesCommand(entry any, command string) bool {
+// entryIsManaged reports whether entry invokes an anvil-managed command, by the
+// anvilHookPrefix rule — the identity install upserts on.
+func entryIsManaged(entry any) bool {
+	return entryCommandMatches(entry, func(c string) bool { return strings.HasPrefix(c, anvilHookPrefix) })
+}
+
+// entryCommandMatches reports whether any command inside a Claude Code hook
+// entry satisfies pred.
+func entryCommandMatches(entry any, pred func(string) bool) bool {
 	m, ok := entry.(map[string]any)
 	if !ok {
 		return false
@@ -170,7 +196,7 @@ func entryMatchesCommand(entry any, command string) bool {
 		if !ok {
 			continue
 		}
-		if hm["command"] == command {
+		if c, ok := hm["command"].(string); ok && pred(c) {
 			return true
 		}
 	}

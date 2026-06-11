@@ -237,6 +237,59 @@ func TestMergeSessionEndHook_Idempotent(t *testing.T) {
 	}
 }
 
+func TestMergeSessionEndHook_ReplacesStaleVariant(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if _, err := MergeSessionEndHook(path, testEndCmd); err != nil {
+		t.Fatalf("seed old command: %v", err)
+	}
+
+	const newCmd = testEndCmd + " --push"
+	changed, err := MergeSessionEndHook(path, newCmd)
+	if err != nil {
+		t.Fatalf("merge new command: %v", err)
+	}
+	if !changed {
+		t.Error("changed = false, want true when the managed command changes")
+	}
+
+	got := readJSON(t, path)
+	se := got["hooks"].(map[string]any)["SessionEnd"].([]any)
+	if len(se) != 1 {
+		t.Fatalf("SessionEnd entries = %d, want 1 (stale variant not replaced): %v", len(se), se)
+	}
+	cmd := se[0].(map[string]any)["hooks"].([]any)[0].(map[string]any)["command"]
+	if cmd != newCmd {
+		t.Errorf("command = %q, want %q", cmd, newCmd)
+	}
+}
+
+func TestMergeSessionEndHook_PreservesForeignHook(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if _, err := MergeSessionEndHook(path, "/usr/local/bin/my-own-hook.sh"); err != nil {
+		t.Fatalf("seed foreign hook: %v", err)
+	}
+
+	if _, err := MergeSessionEndHook(path, testEndCmd); err != nil {
+		t.Fatalf("merge anvil hook: %v", err)
+	}
+
+	got := readJSON(t, path)
+	se := got["hooks"].(map[string]any)["SessionEnd"].([]any)
+	if len(se) != 2 {
+		t.Fatalf("SessionEnd entries = %d, want 2 (foreign hook clobbered): %v", len(se), se)
+	}
+	cmds := make(map[string]bool)
+	for _, e := range se {
+		cmds[e.(map[string]any)["hooks"].([]any)[0].(map[string]any)["command"].(string)] = true
+	}
+	if !cmds["/usr/local/bin/my-own-hook.sh"] {
+		t.Errorf("foreign hook not retained; surviving commands = %v", cmds)
+	}
+	if !cmds[testEndCmd] {
+		t.Errorf("anvil hook not added; surviving commands = %v", cmds)
+	}
+}
+
 func TestMergeSessionEndHook_PreservesSessionStart(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	if _, err := MergeSessionStartHook(path, testCmd); err != nil {
