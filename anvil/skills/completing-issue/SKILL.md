@@ -10,7 +10,7 @@ metadata:
   skill_type: workflow
   side: execution
   created: 2026-05-19
-  updated: 2026-05-21
+  updated: 2026-06-11
   tags: [type/skill, activity/issue]
   diataxis: how-to
   authored_via: manual
@@ -50,6 +50,16 @@ The `in-progress` transition re-runs `reproduction_anchor` for bug issues, and r
 
 ## Phase 1 — Implement
 
+**Load the governing contract(s) first.** An issue's routing links name the contracts bounding its slice — per-component guardrails (`## Does not`, `## Code design`) the house docs don't carry:
+
+```bash
+anvil show issue <id> --json \
+  | jq -r '.related[]? | select(startswith("[[contract.")) | ltrimstr("[[contract.") | rtrimstr("]]")'
+anvil show contract <id> --body   # for each id printed
+```
+
+Treat each `## Does not` as a hard boundary (crossing one → **Scope-change protocol**); apply its `## Code design` as you write. No contract resolves → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
+
 Make the minimal change that achieves the issue's `goal:` and passes every `## Verification` check (`## Acceptance criteria`, when present, is a prose aid — not the gate). Stay within the issue's declared file set (or `<declared-files>` when dispatched by `dispatching-issue-fleet`). See **Scope-change protocol** below if the work outgrows declared scope.
 
 No refactoring "while in the area." No helpers without a second use. No defensive code for unreachable states. Defer to the project's conventions (`CLAUDE.md`, `AGENTS.md`, style guides) for project-specific hard rules.
@@ -78,7 +88,7 @@ A Direct pass with an Indirect fail is the precise gap this skill exists to catc
 
 Re-read the change once. Two checklists:
 
-**Project-specific** — pull violations from `CLAUDE.md`, `AGENTS.md`, contributor docs, or the project's style guide. Fix what you find.
+**Project-specific** — pull violations from `CLAUDE.md`, `AGENTS.md`, contributor docs, the project's style guide, and the governing contract(s) loaded in Phase 1 (re-check the diff against each `## Does not`). Fix what you find.
 
 **Generic anti-patterns** — these apply regardless of project:
 
