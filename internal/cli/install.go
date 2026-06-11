@@ -15,7 +15,7 @@ import (
 
 const (
 	sessionStartHookCommand = `anvil install fire-session-start`
-	sessionEndHookCommand   = `anvil session end --commit`
+	sessionEndHookCommand   = `anvil session end --commit --push`
 )
 
 func newInstallCmd() *cobra.Command {
