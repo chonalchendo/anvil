@@ -10,10 +10,11 @@ import (
 
 func newSessionEndCmd() *cobra.Command {
 	var flagCommit bool
+	var flagPush bool
 	cmd := &cobra.Command{
 		Use:     "end",
 		Short:   "End-of-session cleanup: optionally snapshot uncommitted vault artifacts",
-		Example: "  anvil session end --commit",
+		Example: "  anvil session end --commit --push",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !flagCommit {
@@ -30,9 +31,10 @@ func newSessionEndCmd() *cobra.Command {
 			if st.NotRepo || st.Dirty == 0 {
 				return nil
 			}
-			return snapshotVault(cmd, v.Root, "", st.Dirty)
+			return snapshotVault(cmd, v.Root, "", st, flagPush)
 		},
 	}
 	cmd.Flags().BoolVar(&flagCommit, "commit", false, "snapshot uncommitted vault artifacts with git")
+	cmd.Flags().BoolVar(&flagPush, "push", false, "push to the vault's remote after committing (requires --commit; warns, never fails, on push error)")
 	return cmd
 }
