@@ -39,11 +39,12 @@ Do not name `docs/<x>.md` paths or restate their content in the dispatch prompt 
 
 ### Contract rubric
 
-Before dispatching, load any contracts linked to the PR's issue (via the routing link `writing-issue` establishes):
+Before dispatching, load the contracts linked to the PR's issue (via the routing link `writing-issue` establishes) — resolve them from the issue's own routing links, not the vault-wide list:
 
 ```bash
-anvil list contract --json   # enumerate; then for each linked contract:
-anvil show contract <id> --body
+anvil show issue <issue-id> --json \
+  | jq -r '.related[]? | select(startswith("[[contract.")) | ltrimstr("[[contract.") | rtrimstr("]]")'
+anvil show contract <id> --body   # for each id printed
 ```
 
 Instruct the subagent to treat each contract's `does not` constraints as a **blocker-severity rubric**: any diff line that crosses a `does not` boundary is a blocker finding, cited against the contract id and the specific constraint text. If no contract links resolve (issue has no routing link, or the issue cannot be found), skip this step — the rubric is empty, not an error.
