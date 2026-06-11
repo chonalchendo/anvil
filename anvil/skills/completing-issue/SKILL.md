@@ -50,7 +50,7 @@ The `in-progress` transition re-runs `reproduction_anchor` for bug issues, and r
 
 ## Phase 1 — Implement
 
-**Load the governing contract(s) first.** An issue's routing links name the contracts that bound its slice (`writing-issue` establishes them); they carry the per-component guardrails — `## Does not` boundaries and `## Code design` idioms — that the house docs (`CLAUDE.md`, `AGENTS.md`) don't. Resolve and read them before writing code:
+**Load the governing contract(s) first.** An issue's routing links name the contracts bounding its slice — per-component guardrails (`## Does not`, `## Code design`) the house docs don't carry:
 
 ```bash
 anvil show issue <id> --json \
@@ -58,7 +58,7 @@ anvil show issue <id> --json \
 anvil show contract <id> --body   # for each id printed
 ```
 
-Treat each `## Does not` as a hard boundary: a change that would cross one is out of scope (halt via the **Scope-change protocol**), not a judgment call. Apply its `## Code design` rules as you write. No contract link resolves → no contract governs this slice; proceed on the house docs alone.
+Treat each `## Does not` as a hard boundary (crossing one → **Scope-change protocol**); apply its `## Code design` as you write. No contract resolves → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
 
 Make the minimal change that achieves the issue's `goal:` and passes every `## Verification` check (`## Acceptance criteria`, when present, is a prose aid — not the gate). Stay within the issue's declared file set (or `<declared-files>` when dispatched by `dispatching-issue-fleet`). See **Scope-change protocol** below if the work outgrows declared scope.
 
