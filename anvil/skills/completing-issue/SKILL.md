@@ -118,7 +118,8 @@ An Indirect block whose predicates only assert presence (`--help | grep`, `test 
 Choose the `--body` by whether the target repo defines a PR template — `--body` is always passed (GitHub only auto-populates `.github/PULL_REQUEST_TEMPLATE.md` when it is *absent*, and the `closes #N` link must survive either way):
 
 ```bash
-tmpl=$(ls .github/PULL_REQUEST_TEMPLATE.md .github/pull_request_template.md 2>/dev/null | head -1)
+# GitHub honours the template at repo root, .github/, or docs/, case-insensitively
+tmpl=$(ls {.github/,docs/,}{PULL_REQUEST_TEMPLATE,pull_request_template}.md 2>/dev/null | head -1)
 ```
 
 - **Template found** → fill its sections from the diff and the issue's `goal:`, then append `closes #<issue-number>`. Pass the filled template as `--body`, preserving its headers so a reviewer gets the structure they rely on.
