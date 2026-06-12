@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,13 +19,15 @@ import (
 // without shimming binaries on PATH. Pattern mirrors ghPRListFn. The
 // gitWorktreeListFn used here is declared once in fleet.go.
 var (
-	gitWorktreeAddFn    = gitWorktreeAddReal
-	gitWorktreeRemoveFn = gitWorktreeRemoveReal
-	gitMainRootFn       = gitMainRootReal
-	ghPRViewJSONFn      = ghPRViewJSONReal
-	ghPRChecksFn        = ghPRChecksReal
-	ghPRMergeFn         = ghPRMergeReal
-	userHomeFn          = os.UserHomeDir
+	gitWorktreeAddFn       = gitWorktreeAddReal
+	gitWorktreeRemoveFn    = gitWorktreeRemoveReal
+	gitMainRootFn          = gitMainRootReal
+	gitFetchOriginFn       = gitFetchOriginReal
+	gitResolveOriginHEADFn = gitResolveOriginHEADReal
+	ghPRViewJSONFn         = ghPRViewJSONReal
+	ghPRChecksFn           = ghPRChecksReal
+	ghPRMergeFn            = ghPRMergeReal
+	userHomeFn             = os.UserHomeDir
 )
 
 // claimConflict reports whether claiming `a` (issue → in-progress) collides with
@@ -73,8 +76,15 @@ func defaultWorktreePath(project, slug string) (string, error) {
 	return filepath.Join(home, "Development", project+"-worktrees", slug), nil
 }
 
-func gitWorktreeAddReal(repoDir, path, branch string) error {
-	cmd := exec.Command("git", "worktree", "add", path, "-b", branch) //nolint:gosec // binary path resolved from trusted sources; not user input
+// gitWorktreeAddReal creates a new worktree at path on branch, branching from
+// startPoint when non-empty (e.g. "origin/HEAD"). An empty startPoint lets git
+// branch from the current HEAD, which is the legacy behaviour.
+func gitWorktreeAddReal(repoDir, path, branch, startPoint string) error {
+	args := []string{"worktree", "add", path, "-b", branch}
+	if startPoint != "" {
+		args = append(args, startPoint)
+	}
+	cmd := exec.Command("git", args...) //nolint:gosec // binary path resolved from trusted sources; not user input
 	if repoDir != "" {
 		cmd.Dir = repoDir
 	}
@@ -82,6 +92,29 @@ func gitWorktreeAddReal(repoDir, path, branch string) error {
 		return fmt.Errorf("git worktree add: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+func gitFetchOriginReal() error {
+	out, err := exec.Command("git", "fetch", "origin").CombinedOutput() //nolint:gosec // binary path resolved from trusted sources; not user input
+	if err != nil {
+		return fmt.Errorf("git fetch origin: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// gitResolveOriginHEADReal resolves the symbolic ref origin/HEAD to a concrete
+// remote-tracking ref (e.g. "origin/master"). Returns an error when the remote
+// does not exist or has no HEAD — the caller falls back to local HEAD.
+func gitResolveOriginHEADReal() (string, error) {
+	out, err := exec.Command("git", "rev-parse", "--abbrev-ref", "origin/HEAD").Output() //nolint:gosec // binary path resolved from trusted sources; not user input
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse origin/HEAD: %w", err)
+	}
+	ref := strings.TrimSpace(string(out))
+	if ref == "" {
+		return "", errors.New("git rev-parse origin/HEAD: empty output")
+	}
+	return ref, nil
 }
 
 func gitWorktreeRemoveReal(repoDir, path string) error {
@@ -95,11 +128,16 @@ func gitWorktreeRemoveReal(repoDir, path string) error {
 	return nil
 }
 
-// cutWorktreeIfNeeded creates `git worktree add path -b branch` unless an
-// entry already matches (idempotent). Errors on path/branch mismatch with an
-// existing worktree, or on git failure. Uses fleet.go's gitWorktreeListFn
-// (branch-keyed map).
-func cutWorktreeIfNeeded(path, branch string) error {
+// cutWorktreeIfNeeded creates `git worktree add path -b branch [startPoint]`
+// unless an entry already matches (idempotent). Errors on path/branch mismatch
+// with an existing worktree, or on git failure. Uses fleet.go's
+// gitWorktreeListFn (branch-keyed map).
+//
+// It fetches origin before cutting so the new branch starts from the remote's
+// current tip via origin/HEAD rather than a potentially stale local HEAD.
+// Offline, no-remote, or an unset origin/HEAD is non-fatal: a warning lands on
+// errW (the command's stderr) and the worktree falls back to local HEAD.
+func cutWorktreeIfNeeded(errW io.Writer, path, branch string) error {
 	worktrees, err := gitWorktreeListFn()
 	if err != nil {
 		return err
@@ -115,7 +153,16 @@ func cutWorktreeIfNeeded(path, branch string) error {
 			return fmt.Errorf("worktree at %s already on branch %q (expected %q)", path, b, branch)
 		}
 	}
-	return gitWorktreeAddFn("", path, branch)
+	// Fetch origin so the new branch starts from the remote tip.
+	startPoint := ""
+	if ferr := gitFetchOriginFn(); ferr != nil {
+		fmt.Fprintf(errW, "warning: git fetch origin failed (%v); branching from local HEAD\n", ferr)
+	} else if ref, rerr := gitResolveOriginHEADFn(); rerr != nil {
+		fmt.Fprintf(errW, "warning: resolving origin/HEAD failed (%v); branching from local HEAD\n", rerr)
+	} else {
+		startPoint = ref
+	}
+	return gitWorktreeAddFn("", path, branch, startPoint)
 }
 
 // gitMainRootReal returns the main worktree's root directory by deriving it
@@ -180,13 +227,15 @@ func ghPRMergeReal(num int) error {
 }
 
 // doCutWorktree resolves defaults from the issue, applies overrides, and
-// cuts the worktree. Returns a Structured error on failure so callers can
-// uniformly refuse the transition without writing to disk.
-func doCutWorktree(a *core.Artifact, id, pathOverride, branchOverride string) error {
+// cuts the worktree. Returns the worktree path (cut or reused) so the caller
+// can emit it — the skill contract is "the claim tells you where to work" —
+// or a Structured error on failure so callers can uniformly refuse the
+// transition without writing to disk.
+func doCutWorktree(errW io.Writer, a *core.Artifact, id, pathOverride, branchOverride string) (string, error) {
 	project := projectFromArtifact(a, id)
 	slug := slugFromIssueID(id)
 	if project == "" || slug == "" {
-		return errfmt.NewStructured("cut_worktree_path_failed").
+		return "", errfmt.NewStructured("cut_worktree_path_failed").
 			Set("error", "issue id lacks `<project>.<slug>` shape").
 			Set("id", id)
 	}
@@ -194,7 +243,7 @@ func doCutWorktree(a *core.Artifact, id, pathOverride, branchOverride string) er
 	if wtPath == "" {
 		p, derr := defaultWorktreePath(project, slug)
 		if derr != nil {
-			return errfmt.NewStructured("cut_worktree_path_failed").Set("error", derr.Error())
+			return "", errfmt.NewStructured("cut_worktree_path_failed").Set("error", derr.Error())
 		}
 		wtPath = p
 	}
@@ -202,13 +251,13 @@ func doCutWorktree(a *core.Artifact, id, pathOverride, branchOverride string) er
 	if branch == "" {
 		branch = project + "/" + slug
 	}
-	if err := cutWorktreeIfNeeded(wtPath, branch); err != nil {
-		return errfmt.NewStructured("cut_worktree_failed").
+	if err := cutWorktreeIfNeeded(errW, wtPath, branch); err != nil {
+		return "", errfmt.NewStructured("cut_worktree_failed").
 			Set("path", wtPath).
 			Set("branch", branch).
 			Set("error", err.Error())
 	}
-	return nil
+	return wtPath, nil
 }
 
 // doLandPR derives the worktree path from the issue and runs landPR. When

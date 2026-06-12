@@ -34,6 +34,11 @@ type sideFXStub struct {
 	homeDir     string
 	homeErr     error
 
+	fetchErr      error
+	fetchCalls    int
+	originHEAD    string
+	originHEADErr error
+
 	viewByField  map[string][]byte
 	viewByFieldE map[string]error
 	checksErr    error
@@ -43,7 +48,7 @@ type sideFXStub struct {
 }
 
 type (
-	addCall    struct{ Dir, Path, Branch string }
+	addCall    struct{ Dir, Path, Branch, StartPoint string }
 	removeCall struct{ Dir, Path string }
 )
 
@@ -53,6 +58,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		listEntries:  map[string]worktreeInfo{},
 		mainRoot:     "/repo",
 		homeDir:      "/home/anvil",
+		originHEAD:   "origin/master",
 		viewByField:  map[string][]byte{},
 		viewByFieldE: map[string]error{},
 	}
@@ -61,6 +67,8 @@ func stubSideFX(t *testing.T) *sideFXStub {
 	prevAdd := gitWorktreeAddFn
 	prevRemove := gitWorktreeRemoveFn
 	prevMain := gitMainRootFn
+	prevFetch := gitFetchOriginFn
+	prevOriginHEAD := gitResolveOriginHEADFn
 	prevHome := userHomeFn
 	prevView := ghPRViewJSONFn
 	prevChecks := ghPRChecksFn
@@ -69,8 +77,8 @@ func stubSideFX(t *testing.T) *sideFXStub {
 	gitWorktreeListFn = func() (map[string]worktreeInfo, error) {
 		return s.listEntries, s.listErr
 	}
-	gitWorktreeAddFn = func(dir, path, branch string) error {
-		s.addCalls = append(s.addCalls, addCall{Dir: dir, Path: path, Branch: branch})
+	gitWorktreeAddFn = func(dir, path, branch, startPoint string) error {
+		s.addCalls = append(s.addCalls, addCall{Dir: dir, Path: path, Branch: branch, StartPoint: startPoint})
 		return s.addErr
 	}
 	gitWorktreeRemoveFn = func(dir, path string) error {
@@ -78,6 +86,11 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		return s.removeErr
 	}
 	gitMainRootFn = func() (string, error) { return s.mainRoot, s.mainErr }
+	gitFetchOriginFn = func() error {
+		s.fetchCalls++
+		return s.fetchErr
+	}
+	gitResolveOriginHEADFn = func() (string, error) { return s.originHEAD, s.originHEADErr }
 	userHomeFn = func() (string, error) { return s.homeDir, s.homeErr }
 	ghPRViewJSONFn = func(_ int, fields string) ([]byte, error) {
 		if e := s.viewByFieldE[fields]; e != nil {
@@ -102,6 +115,8 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		gitWorktreeAddFn = prevAdd
 		gitWorktreeRemoveFn = prevRemove
 		gitMainRootFn = prevMain
+		gitFetchOriginFn = prevFetch
+		gitResolveOriginHEADFn = prevOriginHEAD
 		userHomeFn = prevHome
 		ghPRViewJSONFn = prevView
 		ghPRChecksFn = prevChecks
@@ -151,8 +166,11 @@ func TestCutWorktreeHappyPath(t *testing.T) {
 	}
 	got := s.addCalls[0]
 	wantPath := filepath.Join(s.homeDir, "Development", "demo-worktrees", "foo")
-	if got.Path != wantPath || got.Branch != "demo/foo" {
-		t.Errorf("add called with %+v; want path=%s branch=demo/foo", got, wantPath)
+	if got.Path != wantPath || got.Branch != "demo/foo" || got.StartPoint != "origin/master" {
+		t.Errorf("add called with %+v; want path=%s branch=demo/foo startPoint=origin/master", got, wantPath)
+	}
+	if s.fetchCalls != 1 {
+		t.Errorf("want 1 fetch call, got %d", s.fetchCalls)
 	}
 	// Verify state advanced.
 	a := loadIssueDoc(t, vault, "demo.foo")
@@ -531,6 +549,85 @@ body
 	}
 	if !strings.Contains(stdout.String(), "cut_worktree_path_failed") {
 		t.Errorf("missing error code: %s", stdout.String())
+	}
+}
+
+// TestCutWorktreeFetchFailureFallsBackToLocalHEAD verifies that a fetch error
+// is non-fatal: the worktree is still cut, but startPoint is empty (local HEAD)
+// and a warning is printed.
+func TestCutWorktreeFetchFailureFallsBackToLocalHEAD(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	s.fetchErr = errors.New("network unreachable")
+
+	out := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree")
+
+	if len(s.addCalls) != 1 {
+		t.Fatalf("want 1 add call, got %d: %+v", len(s.addCalls), s.addCalls)
+	}
+	if s.addCalls[0].StartPoint != "" {
+		t.Errorf("startPoint = %q; want empty (fallback to local HEAD)", s.addCalls[0].StartPoint)
+	}
+	if !strings.Contains(out, "warning: git fetch origin failed") || !strings.Contains(out, "branching from local HEAD") {
+		t.Errorf("missing fetch-failure warning in output: %s", out)
+	}
+}
+
+// TestCutWorktreeOriginHEADResolutionFailureFallsBackToLocalHEAD verifies that
+// when origin/HEAD cannot be resolved (e.g. remote has no HEAD set), the
+// worktree is still cut from local HEAD without error — and the fallback is
+// warned about, not silent.
+func TestCutWorktreeOriginHEADResolutionFailureFallsBackToLocalHEAD(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	s.originHEADErr = errors.New("origin/HEAD not set")
+
+	out := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree")
+
+	if len(s.addCalls) != 1 {
+		t.Fatalf("want 1 add call, got %d: %+v", len(s.addCalls), s.addCalls)
+	}
+	if s.addCalls[0].StartPoint != "" {
+		t.Errorf("startPoint = %q; want empty (fallback to local HEAD)", s.addCalls[0].StartPoint)
+	}
+	if !strings.Contains(out, "warning: resolving origin/HEAD failed") || !strings.Contains(out, "branching from local HEAD") {
+		t.Errorf("missing origin/HEAD-fallback warning in output: %s", out)
+	}
+}
+
+// TestCutWorktreeEmitsWorktreePath verifies the claim emits the worktree path
+// in both human and JSON modes — the completing-issue skill's "emits the
+// worktree path; cd into it" contract.
+func TestCutWorktreeEmitsWorktreePath(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	wantPath := filepath.Join(s.homeDir, "Development", "demo-worktrees", "foo")
+
+	out := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree")
+	if !strings.Contains(out, "worktree: "+wantPath) {
+		t.Errorf("human output missing worktree path line: %s", out)
+	}
+
+	execCmd(t, "transition", "issue", "demo.foo", "open")
+	jsonOut := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--json")
+	var res transitionResult
+	if err := jsonUnmarshal(t, jsonOut, &res); err != nil {
+		t.Fatalf("unmarshal %q: %v", jsonOut, err)
+	}
+	if res.Worktree != wantPath {
+		t.Errorf("json worktree = %q, want %q", res.Worktree, wantPath)
 	}
 }
 

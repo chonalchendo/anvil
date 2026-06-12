@@ -29,7 +29,6 @@ metadata:
 You enter holding:
 
 1. An open or in-progress issue with a `## Verification` section containing both `### Direct` and `### Indirect` entries.
-2. A worktree (or branch) dedicated to the issue, separated from the main checkout per the project's branching convention.
 
 If `## Verification` is missing either subsection or its entries are non-predicate-shaped ("feature works" rather than "command X exits 0 / output contains Y"), halt and hand back to `writing-issue`. Do not improvise checks — the issue spec is the contract.
 
@@ -41,10 +40,13 @@ For a one-off completion, the main agent can dispatch this skill to an isolated 
 
 ```bash
 anvil show issue <id>
-anvil transition issue <id> in-progress --owner <your-name>
+anvil transition issue <id> in-progress --owner <your-name> --cut-worktree
+# emits the worktree path; cd into it and work there
 ```
 
 Read the issue's `goal:` — its one-sentence terminal predicate — and hold it as orientation for everything below: `## Verification` is the binary gate, `goal:` is what the change is *for*.
+
+`--cut-worktree` fetches origin and branches from `origin/HEAD` so the new branch starts from the remote's current tip, not a potentially stale local HEAD. Offline or no-remote falls back to local HEAD with a warning — work continues. Handed a pre-cut worktree (e.g. fleet dispatch)? Pass `--worktree <path> --branch <branch>` matching it, or claim without `--cut-worktree` — a bare `--cut-worktree` derives the default path and would cut a duplicate.
 
 The `in-progress` transition re-runs `reproduction_anchor` for bug issues, and refuses the claim unless `goal:` is set (backfill-on-claim for the pre-`goal` back-catalogue). A mismatch means the bug is stale or already fixed — surface and stop; do not paper over with `--force`.
 
@@ -149,8 +151,7 @@ When a responding-to-pr-review loop needs to wait for CI or a reviewer pass, inv
 
 ```bash
 bash ~/.claude/skills/completing-issue/scripts/wait-for-pr.sh --pr <n> [--repo owner/repo] [--timeout 900]
-# emits one JSON result on terminal state: state, merged, ci_conclusion, review_blockers_count, timed_out
-# state: merged | closed | conflicting | ci_passed | review_blocked | ci_failed | timeout — branch handling is in responding-to-pr-review Phase 4
+# emits one JSON on terminal state: {state, merged, ci_conclusion, review_blockers_count, timed_out}; state: merged|closed|conflicting|ci_passed|review_blocked|ci_failed|timeout — branch handling is in responding-to-pr-review Phase 4
 ```
 
 In-agent polling burns tokens on every LLM iteration; a single `wait-for-pr.sh` call blocks out-of-band and returns exactly when action is needed.

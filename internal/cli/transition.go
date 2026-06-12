@@ -213,10 +213,13 @@ func newTransitionCmd() *cobra.Command {
 				}
 			}
 
+			var wtPath string
 			if cutWorktree {
-				if err := doCutWorktree(a, id, worktreeOverride, branchOverride); err != nil {
+				p, err := doCutWorktree(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride)
+				if err != nil {
 					return printAndReturn(cmd, err)
 				}
+				wtPath = p
 			}
 
 			if landPRNum != 0 {
@@ -310,7 +313,7 @@ func newTransitionCmd() *cobra.Command {
 
 			return emitTransitionJSON(cmd, asJSON, transitionResult{
 				ID: id, Path: path, From: from, To: to, Owner: owner, Reason: reason, Status: "transitioned",
-				Advisory: advisory,
+				Advisory: advisory, Worktree: wtPath,
 			})
 		},
 	}
@@ -335,6 +338,7 @@ type transitionResult struct {
 	Reason   string `json:"reason,omitempty"`
 	Status   string `json:"status"`
 	Advisory string `json:"advisory,omitempty"`
+	Worktree string `json:"worktree,omitempty"`
 }
 
 // milestoneCloseAdvisory returns the milestone-close hint when the
@@ -388,6 +392,9 @@ func emitTransitionJSON(cmd *cobra.Command, asJSON bool, r transitionResult) err
 		return nil
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s: %s → %s\n", r.ID, r.From, r.To)
+	if r.Worktree != "" {
+		fmt.Fprintln(cmd.OutOrStdout(), "worktree: "+r.Worktree)
+	}
 	if r.Advisory != "" {
 		fmt.Fprintln(cmd.OutOrStdout(), r.Advisory)
 	}
