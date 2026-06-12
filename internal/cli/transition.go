@@ -152,6 +152,7 @@ func newTransitionCmd() *cobra.Command {
 				}
 				return emitTransitionJSON(cmd, asJSON, transitionResult{
 					ID: id, Path: path, From: from, To: "resolved", Status: "transitioned",
+					Advisory: milestoneCloseAdvisory(v, a),
 				})
 			}
 
@@ -338,13 +339,22 @@ type transitionResult struct {
 
 // milestoneCloseAdvisory returns the milestone-close hint when the
 // just-resolved issue was the last open/in-progress issue linked to its
-// milestone, "" otherwise. The resolved issue is already saved to disk as
-// resolved, so a full scan (no self-exclusion) is correct. Scan failures
-// return "" — the advisory is best-effort and must never fail a transition
-// that already landed.
+// milestone, "" otherwise. The advised `transition milestone <id> done` edge
+// is only legal from in-progress, so any other milestone status (or a
+// missing milestone file) stays silent. The resolved issue is already saved
+// to disk as resolved, so a full scan (no self-exclusion) is correct. Scan
+// failures return "" — the advisory is best-effort and must never fail a
+// transition that already landed.
 func milestoneCloseAdvisory(v *core.Vault, resolved *core.Artifact) string {
 	ms := milestoneSlug(resolved.FrontMatter["milestone"])
 	if ms == "" {
+		return ""
+	}
+	m, err := core.LoadArtifact(filepath.Join(v.Root, core.TypeMilestone.Dir(), ms+".md"))
+	if err != nil {
+		return ""
+	}
+	if status, _ := m.FrontMatter["status"].(string); status != "in-progress" {
 		return ""
 	}
 	paths, err := collectArtifactPaths(v.Root, core.TypeIssue)
