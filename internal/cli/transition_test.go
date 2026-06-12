@@ -522,6 +522,190 @@ func TestTransitionReverseAppendsAuditLine(t *testing.T) {
 	}
 }
 
+// writeFixtureIssueWithMilestone writes a fixture issue carrying a milestone
+// wikilink, for the milestone-close advisory tests.
+func writeFixtureIssueWithMilestone(t *testing.T, vault, project, slug, milestone string) {
+	t.Helper()
+	path := writeFixtureIssueDated(t, vault, project, slug, slug, "2026-01-01")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.FrontMatter["milestone"] = "[[milestone." + milestone + "]]"
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// writeFixtureMilestone writes a minimal milestone artifact with the given
+// status, for the milestone-close advisory tests.
+func writeFixtureMilestone(t *testing.T, vault, id, status string) {
+	t.Helper()
+	a := &core.Artifact{
+		Path: filepath.Join(vault, "85-milestones", id+".md"),
+		FrontMatter: map[string]any{
+			"type": "milestone", "title": id, "description": "fixture description",
+			"created": "2026-01-01", "updated": "2026-01-01",
+			"status": status, "project": strings.SplitN(id, ".", 2)[0],
+			"goal": "fixture milestone is done", "kind": "scoped",
+		},
+		Body: "fixture body\n",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestTransitionResolveLastIssueAdvisory pins the milestone-close advisory:
+// resolving the last open/in-progress issue linked to a milestone surfaces
+// "consider: anvil transition milestone <id> done" in both the human output
+// and the --json envelope; any other outcome stays silent.
+func TestTransitionResolveLastIssueAdvisory(t *testing.T) {
+	const milestone = "demo.m1"
+
+	setup := func(t *testing.T) string {
+		t.Helper()
+		vault := t.TempDir()
+		t.Setenv("ANVIL_VAULT", vault)
+		execCmd(t, "init", vault)
+		return vault
+	}
+
+	// resolveEnvelope claims then resolves id with --json, returning the
+	// parsed envelope. Uses runCmd so stderr warnings can't corrupt the JSON.
+	resolveEnvelope := func(t *testing.T, id string) map[string]any {
+		t.Helper()
+		execCmd(t, "transition", "issue", id, "in-progress", "--owner", "claude")
+		stdout, stderr, err := runCmd(t, newRootCmd(), "transition", "issue", id, "resolved", "--json")
+		if err != nil {
+			t.Fatalf("resolve %s: %v\nstderr: %s", id, err, stderr)
+		}
+		var got map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimSpace(stdout)), &got); err != nil {
+			t.Fatalf("json: %v\nstdout: %s", err, stdout)
+		}
+		return got
+	}
+
+	t.Run("last issue resolved emits advisory", func(t *testing.T) {
+		vault := setup(t)
+		writeFixtureMilestone(t, vault, milestone, "in-progress")
+		writeFixtureIssueWithMilestone(t, vault, "demo", "a", milestone)
+		writeFixtureIssueWithMilestone(t, vault, "demo", "b", milestone)
+		execCmd(t, "reindex")
+
+		execCmd(t, "transition", "issue", "demo.a", "in-progress", "--owner", "claude")
+		execCmd(t, "transition", "issue", "demo.a", "resolved")
+
+		got := resolveEnvelope(t, "demo.b")
+		adv, _ := got["advisory"].(string)
+		if !strings.Contains(adv, "last open issue in "+milestone) ||
+			!strings.Contains(adv, "anvil transition milestone "+milestone+" done") {
+			t.Fatalf("advisory = %q, want milestone-close hint", adv)
+		}
+	})
+
+	t.Run("human output carries advisory line", func(t *testing.T) {
+		vault := setup(t)
+		writeFixtureMilestone(t, vault, milestone, "in-progress")
+		writeFixtureIssueWithMilestone(t, vault, "demo", "a", milestone)
+		execCmd(t, "reindex")
+
+		execCmd(t, "transition", "issue", "demo.a", "in-progress", "--owner", "claude")
+		stdout, stderr, err := runCmd(t, newRootCmd(), "transition", "issue", "demo.a", "resolved")
+		if err != nil {
+			t.Fatalf("resolve: %v\nstderr: %s", err, stderr)
+		}
+		if !strings.Contains(stdout, "anvil transition milestone "+milestone+" done") {
+			t.Fatalf("human output missing advisory:\n%s", stdout)
+		}
+	})
+
+	t.Run("other open issue suppresses advisory", func(t *testing.T) {
+		vault := setup(t)
+		writeFixtureMilestone(t, vault, milestone, "in-progress")
+		writeFixtureIssueWithMilestone(t, vault, "demo", "a", milestone)
+		writeFixtureIssueWithMilestone(t, vault, "demo", "b", milestone)
+		execCmd(t, "reindex")
+
+		got := resolveEnvelope(t, "demo.a")
+		if adv, ok := got["advisory"]; ok {
+			t.Fatalf("advisory = %v with demo.b still open, want absent", adv)
+		}
+	})
+
+	t.Run("no milestone link no advisory", func(t *testing.T) {
+		vault := setup(t)
+		writeFixtureIssueDated(t, vault, "demo", "a", "a", "2026-01-01")
+		execCmd(t, "reindex")
+
+		got := resolveEnvelope(t, "demo.a")
+		if adv, ok := got["advisory"]; ok {
+			t.Fatalf("advisory = %v for milestone-less issue, want absent", adv)
+		}
+	})
+
+	t.Run("abandoned suppresses advisory", func(t *testing.T) {
+		vault := setup(t)
+		writeFixtureMilestone(t, vault, milestone, "in-progress")
+		writeFixtureIssueWithMilestone(t, vault, "demo", "a", milestone)
+		execCmd(t, "reindex")
+
+		stdout, stderr, err := runCmd(t, newRootCmd(), "transition", "issue", "demo.a", "abandoned", "--json")
+		if err != nil {
+			t.Fatalf("abandon: %v\nstderr: %s", err, stderr)
+		}
+		var got map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimSpace(stdout)), &got); err != nil {
+			t.Fatalf("json: %v\nstdout: %s", err, stdout)
+		}
+		if adv, ok := got["advisory"]; ok {
+			t.Fatalf("advisory = %v on abandoned, want absent", adv)
+		}
+	})
+
+	t.Run("stale close of last issue emits advisory", func(t *testing.T) {
+		vault := setup(t)
+		writeFixtureMilestone(t, vault, milestone, "in-progress")
+		writeFixtureIssueWithMilestone(t, vault, "demo", "a", milestone)
+		path := filepath.Join(vault, "70-issues", "demo.a.md")
+		a, err := core.LoadArtifact(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a.FrontMatter["reproduction_anchor"] = map[string]any{"command": "printf actual", "expected": "expected"}
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+		execCmd(t, "reindex")
+
+		stdout, stderr, err := runCmd(t, newRootCmd(), "transition", "issue", "demo.a", "in-progress", "--no-longer-reproduces", "--json")
+		if err != nil {
+			t.Fatalf("stale close: %v\nstderr: %s", err, stderr)
+		}
+		var got map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimSpace(stdout)), &got); err != nil {
+			t.Fatalf("json: %v\nstdout: %s", err, stdout)
+		}
+		adv, _ := got["advisory"].(string)
+		if !strings.Contains(adv, "anvil transition milestone "+milestone+" done") {
+			t.Fatalf("advisory = %q on stale close of last issue, want milestone-close hint", adv)
+		}
+	})
+
+	t.Run("milestone not in-progress suppresses advisory", func(t *testing.T) {
+		vault := setup(t)
+		writeFixtureMilestone(t, vault, milestone, "done")
+		writeFixtureIssueWithMilestone(t, vault, "demo", "a", milestone)
+		execCmd(t, "reindex")
+
+		got := resolveEnvelope(t, "demo.a")
+		if adv, ok := got["advisory"]; ok {
+			t.Fatalf("advisory = %v with milestone already done, want absent", adv)
+		}
+	})
+}
+
 // TestTransition_Issue_ByOrdinal pins the write-path counterpart to
 // show_test.go's TestShow_Issue_ByOrdinal: a bare ordinal ("1") and a
 // project-qualified ordinal ("foo.0001") both resolve to the full issue ID on
