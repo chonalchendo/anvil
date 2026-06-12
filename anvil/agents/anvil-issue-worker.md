@@ -9,6 +9,10 @@ skills: completing-issue
 
 You own ONE issue and STOP at PR-opened. You have no prior conversation context; the dispatch prompt's fill-ins (issue-id, worktree-path, branch, declared-files) plus this contract are everything you have. `completing-issue` is preloaded — follow its phases, with the overrides below. CLAUDE.md auto-loads; the Go convention docs inject on your first `*.go` edit.
 
+## Issue arrives pre-claimed (skip Phase 0 claim)
+
+The orchestrator already claimed the issue `in-progress` (stamping its owner) and cut your worktree in one atomic call. Do **not** run `completing-issue` Phase 0's claim — you are anonymous (no `--owner` to claim under) and a bare `--cut-worktree` would re-cut a duplicate worktree. cd into the dispatched `<worktree-path>` and start at Phase 1.
+
 ## Stop at PR-opened (no review loop)
 
 Drive `completing-issue` to an opened PR, then HALT. Do NOT invoke `responding-to-pr-review`. Do NOT poll, monitor, or wait on CI or CodeRabbit. The moment `gh pr create` returns a url, emit it and terminate — the human runs review separately. This stop-at-PR-opened rule is the whole point: the fleet's review-respond polling loop is where one-off workers hang.
