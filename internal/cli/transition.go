@@ -302,8 +302,14 @@ func newTransitionCmd() *cobra.Command {
 				return err
 			}
 
+			var advisory string
+			if t == core.TypeIssue && to == "resolved" {
+				advisory = milestoneCloseAdvisory(v, a)
+			}
+
 			return emitTransitionJSON(cmd, asJSON, transitionResult{
 				ID: id, Path: path, From: from, To: to, Owner: owner, Reason: reason, Status: "transitioned",
+				Advisory: advisory,
 			})
 		},
 	}
@@ -320,13 +326,45 @@ func newTransitionCmd() *cobra.Command {
 }
 
 type transitionResult struct {
-	ID     string `json:"id"`
-	Path   string `json:"path"`
-	From   string `json:"from"`
-	To     string `json:"to"`
-	Owner  string `json:"owner,omitempty"`
-	Reason string `json:"reason,omitempty"`
-	Status string `json:"status"`
+	ID       string `json:"id"`
+	Path     string `json:"path"`
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Owner    string `json:"owner,omitempty"`
+	Reason   string `json:"reason,omitempty"`
+	Status   string `json:"status"`
+	Advisory string `json:"advisory,omitempty"`
+}
+
+// milestoneCloseAdvisory returns the milestone-close hint when the
+// just-resolved issue was the last open/in-progress issue linked to its
+// milestone, "" otherwise. The resolved issue is already saved to disk as
+// resolved, so a full scan (no self-exclusion) is correct. Scan failures
+// return "" — the advisory is best-effort and must never fail a transition
+// that already landed.
+func milestoneCloseAdvisory(v *core.Vault, resolved *core.Artifact) string {
+	ms := milestoneSlug(resolved.FrontMatter["milestone"])
+	if ms == "" {
+		return ""
+	}
+	paths, err := collectArtifactPaths(v.Root, core.TypeIssue)
+	if err != nil {
+		return ""
+	}
+	for _, p := range paths {
+		other, err := core.LoadArtifact(p)
+		if err != nil {
+			continue
+		}
+		if milestoneSlug(other.FrontMatter["milestone"]) != ms {
+			continue
+		}
+		status, _ := other.FrontMatter["status"].(string)
+		if status == "open" || status == "in-progress" {
+			return ""
+		}
+	}
+	return fmt.Sprintf("last open issue in %s; consider: anvil transition milestone %s done", ms, ms)
 }
 
 func emitTransitionJSON(cmd *cobra.Command, asJSON bool, r transitionResult) error {
@@ -340,6 +378,9 @@ func emitTransitionJSON(cmd *cobra.Command, asJSON bool, r transitionResult) err
 		return nil
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s: %s → %s\n", r.ID, r.From, r.To)
+	if r.Advisory != "" {
+		fmt.Fprintln(cmd.OutOrStdout(), r.Advisory)
+	}
 	return nil
 }
 
