@@ -115,8 +115,18 @@ An Indirect block whose predicates only assert presence (`--help | grep`, `test 
 
 **On verify + build-gate success:**
 
+Choose the `--body` by whether the target repo defines a PR template — `--body` is always passed (GitHub only auto-populates `.github/PULL_REQUEST_TEMPLATE.md` when it is *absent*, and the `closes #N` link must survive either way):
+
 ```bash
-gh pr create --title "<conventional-commit summary>" --body "<one-paragraph + closes #<issue-number>>"
+# GitHub honours the template at repo root, .github/, or docs/, case-insensitively
+tmpl=$(ls {.github/,docs/,}{PULL_REQUEST_TEMPLATE,pull_request_template}.md 2>/dev/null | head -1)
+```
+
+- **Template found** → fill its sections from the diff and the issue's `goal:`, then append `closes #<issue-number>`. Pass the filled template as `--body`, preserving its headers so a reviewer gets the structure they rely on.
+- **No template** → `--body "<one-paragraph + closes #<issue-number>>"`.
+
+```bash
+gh pr create --title "<conventional-commit summary>" --body "<filled template | one-paragraph, + closes #<issue-number>>"
 ```
 
 Surface the PR url. Stop. The issue stays `in-progress`; the human transitions it to `resolved` after merge. **REQUIRED SUB-SKILL:** Use reviewing-pr to run the default independent review pass, then responding-to-pr-review to drive its findings to resolution — unless you were dispatched to stop at PR-opened (e.g. by `dispatching-issue-fleet`), where the orchestrator owns review.
