@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -134,9 +135,9 @@ func gitWorktreeRemoveReal(repoDir, path string) error {
 //
 // It fetches origin before cutting so the new branch starts from the remote's
 // current tip via origin/HEAD rather than a potentially stale local HEAD.
-// Offline or no-remote is non-fatal: the warning is printed and the worktree
-// falls back to local HEAD.
-func cutWorktreeIfNeeded(path, branch string) error {
+// Offline, no-remote, or an unset origin/HEAD is non-fatal: a warning lands on
+// errW (the command's stderr) and the worktree falls back to local HEAD.
+func cutWorktreeIfNeeded(errW io.Writer, path, branch string) error {
 	worktrees, err := gitWorktreeListFn()
 	if err != nil {
 		return err
@@ -155,8 +156,10 @@ func cutWorktreeIfNeeded(path, branch string) error {
 	// Fetch origin so the new branch starts from the remote tip.
 	startPoint := ""
 	if ferr := gitFetchOriginFn(); ferr != nil {
-		fmt.Fprintf(os.Stderr, "warning: git fetch origin failed (%v); branching from local HEAD\n", ferr)
-	} else if ref, rerr := gitResolveOriginHEADFn(); rerr == nil {
+		fmt.Fprintf(errW, "warning: git fetch origin failed (%v); branching from local HEAD\n", ferr)
+	} else if ref, rerr := gitResolveOriginHEADFn(); rerr != nil {
+		fmt.Fprintf(errW, "warning: resolving origin/HEAD failed (%v); branching from local HEAD\n", rerr)
+	} else {
 		startPoint = ref
 	}
 	return gitWorktreeAddFn("", path, branch, startPoint)
@@ -224,13 +227,15 @@ func ghPRMergeReal(num int) error {
 }
 
 // doCutWorktree resolves defaults from the issue, applies overrides, and
-// cuts the worktree. Returns a Structured error on failure so callers can
-// uniformly refuse the transition without writing to disk.
-func doCutWorktree(a *core.Artifact, id, pathOverride, branchOverride string) error {
+// cuts the worktree. Returns the worktree path (cut or reused) so the caller
+// can emit it — the skill contract is "the claim tells you where to work" —
+// or a Structured error on failure so callers can uniformly refuse the
+// transition without writing to disk.
+func doCutWorktree(errW io.Writer, a *core.Artifact, id, pathOverride, branchOverride string) (string, error) {
 	project := projectFromArtifact(a, id)
 	slug := slugFromIssueID(id)
 	if project == "" || slug == "" {
-		return errfmt.NewStructured("cut_worktree_path_failed").
+		return "", errfmt.NewStructured("cut_worktree_path_failed").
 			Set("error", "issue id lacks `<project>.<slug>` shape").
 			Set("id", id)
 	}
@@ -238,7 +243,7 @@ func doCutWorktree(a *core.Artifact, id, pathOverride, branchOverride string) er
 	if wtPath == "" {
 		p, derr := defaultWorktreePath(project, slug)
 		if derr != nil {
-			return errfmt.NewStructured("cut_worktree_path_failed").Set("error", derr.Error())
+			return "", errfmt.NewStructured("cut_worktree_path_failed").Set("error", derr.Error())
 		}
 		wtPath = p
 	}
@@ -246,13 +251,13 @@ func doCutWorktree(a *core.Artifact, id, pathOverride, branchOverride string) er
 	if branch == "" {
 		branch = project + "/" + slug
 	}
-	if err := cutWorktreeIfNeeded(wtPath, branch); err != nil {
-		return errfmt.NewStructured("cut_worktree_failed").
+	if err := cutWorktreeIfNeeded(errW, wtPath, branch); err != nil {
+		return "", errfmt.NewStructured("cut_worktree_failed").
 			Set("path", wtPath).
 			Set("branch", branch).
 			Set("error", err.Error())
 	}
-	return nil
+	return wtPath, nil
 }
 
 // doLandPR derives the worktree path from the issue and runs landPR. When
