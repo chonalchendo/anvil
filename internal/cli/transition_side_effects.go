@@ -18,13 +18,15 @@ import (
 // without shimming binaries on PATH. Pattern mirrors ghPRListFn. The
 // gitWorktreeListFn used here is declared once in fleet.go.
 var (
-	gitWorktreeAddFn    = gitWorktreeAddReal
-	gitWorktreeRemoveFn = gitWorktreeRemoveReal
-	gitMainRootFn       = gitMainRootReal
-	ghPRViewJSONFn      = ghPRViewJSONReal
-	ghPRChecksFn        = ghPRChecksReal
-	ghPRMergeFn         = ghPRMergeReal
-	userHomeFn          = os.UserHomeDir
+	gitWorktreeAddFn       = gitWorktreeAddReal
+	gitWorktreeRemoveFn    = gitWorktreeRemoveReal
+	gitMainRootFn          = gitMainRootReal
+	gitFetchOriginFn       = gitFetchOriginReal
+	gitResolveOriginHEADFn = gitResolveOriginHEADReal
+	ghPRViewJSONFn         = ghPRViewJSONReal
+	ghPRChecksFn           = ghPRChecksReal
+	ghPRMergeFn            = ghPRMergeReal
+	userHomeFn             = os.UserHomeDir
 )
 
 // claimConflict reports whether claiming `a` (issue → in-progress) collides with
@@ -73,8 +75,15 @@ func defaultWorktreePath(project, slug string) (string, error) {
 	return filepath.Join(home, "Development", project+"-worktrees", slug), nil
 }
 
-func gitWorktreeAddReal(repoDir, path, branch string) error {
-	cmd := exec.Command("git", "worktree", "add", path, "-b", branch) //nolint:gosec // binary path resolved from trusted sources; not user input
+// gitWorktreeAddReal creates a new worktree at path on branch, branching from
+// startPoint when non-empty (e.g. "origin/HEAD"). An empty startPoint lets git
+// branch from the current HEAD, which is the legacy behaviour.
+func gitWorktreeAddReal(repoDir, path, branch, startPoint string) error {
+	args := []string{"worktree", "add", path, "-b", branch}
+	if startPoint != "" {
+		args = append(args, startPoint)
+	}
+	cmd := exec.Command("git", args...) //nolint:gosec // binary path resolved from trusted sources; not user input
 	if repoDir != "" {
 		cmd.Dir = repoDir
 	}
@@ -82,6 +91,29 @@ func gitWorktreeAddReal(repoDir, path, branch string) error {
 		return fmt.Errorf("git worktree add: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+func gitFetchOriginReal() error {
+	out, err := exec.Command("git", "fetch", "origin").CombinedOutput() //nolint:gosec // binary path resolved from trusted sources; not user input
+	if err != nil {
+		return fmt.Errorf("git fetch origin: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// gitResolveOriginHEADReal resolves the symbolic ref origin/HEAD to a concrete
+// remote-tracking ref (e.g. "origin/master"). Returns an error when the remote
+// does not exist or has no HEAD — the caller falls back to local HEAD.
+func gitResolveOriginHEADReal() (string, error) {
+	out, err := exec.Command("git", "rev-parse", "--abbrev-ref", "origin/HEAD").Output() //nolint:gosec // binary path resolved from trusted sources; not user input
+	if err != nil {
+		return "", fmt.Errorf("git rev-parse origin/HEAD: %w", err)
+	}
+	ref := strings.TrimSpace(string(out))
+	if ref == "" {
+		return "", errors.New("git rev-parse origin/HEAD: empty output")
+	}
+	return ref, nil
 }
 
 func gitWorktreeRemoveReal(repoDir, path string) error {
@@ -95,10 +127,15 @@ func gitWorktreeRemoveReal(repoDir, path string) error {
 	return nil
 }
 
-// cutWorktreeIfNeeded creates `git worktree add path -b branch` unless an
-// entry already matches (idempotent). Errors on path/branch mismatch with an
-// existing worktree, or on git failure. Uses fleet.go's gitWorktreeListFn
-// (branch-keyed map).
+// cutWorktreeIfNeeded creates `git worktree add path -b branch [startPoint]`
+// unless an entry already matches (idempotent). Errors on path/branch mismatch
+// with an existing worktree, or on git failure. Uses fleet.go's
+// gitWorktreeListFn (branch-keyed map).
+//
+// It fetches origin before cutting so the new branch starts from the remote's
+// current tip via origin/HEAD rather than a potentially stale local HEAD.
+// Offline or no-remote is non-fatal: the warning is printed and the worktree
+// falls back to local HEAD.
 func cutWorktreeIfNeeded(path, branch string) error {
 	worktrees, err := gitWorktreeListFn()
 	if err != nil {
@@ -115,7 +152,14 @@ func cutWorktreeIfNeeded(path, branch string) error {
 			return fmt.Errorf("worktree at %s already on branch %q (expected %q)", path, b, branch)
 		}
 	}
-	return gitWorktreeAddFn("", path, branch)
+	// Fetch origin so the new branch starts from the remote tip.
+	startPoint := ""
+	if ferr := gitFetchOriginFn(); ferr != nil {
+		fmt.Fprintf(os.Stderr, "warning: git fetch origin failed (%v); branching from local HEAD\n", ferr)
+	} else if ref, rerr := gitResolveOriginHEADFn(); rerr == nil {
+		startPoint = ref
+	}
+	return gitWorktreeAddFn("", path, branch, startPoint)
 }
 
 // gitMainRootReal returns the main worktree's root directory by deriving it
