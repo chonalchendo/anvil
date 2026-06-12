@@ -129,7 +129,21 @@ tmpl=$(ls {.github/,docs/,}{PULL_REQUEST_TEMPLATE,pull_request_template}.md 2>/d
 gh pr create --title "<conventional-commit summary>" --body "<filled template | one-paragraph, + closes #<issue-number>>"
 ```
 
-Surface the PR url. Stop. The issue stays `in-progress`; the human transitions it to `resolved` after merge. **REQUIRED SUB-SKILL:** Use reviewing-pr to run the default independent review pass, then responding-to-pr-review to drive its findings to resolution — unless you were dispatched to stop at PR-opened (e.g. by `dispatching-issue-fleet`), where the orchestrator owns review.
+Immediately after the PR opens, stamp its URL onto the issue so staleness detection can map the two:
+
+```bash
+anvil link issue <id> --external <pr-url>
+```
+
+Surface the PR url. The issue stays `in-progress` until the human approves and merges. Once approved, the atomic merge+resolve verb is:
+
+```bash
+anvil transition issue <id> resolved --land-pr <pr-number>
+```
+
+This verifies required checks are green, squash-merges, confirms MERGED state, removes the worktree, and writes an audit line — all in one call so a session boundary cannot split merge from resolve. The human fires it; the agent never does.
+
+**REQUIRED SUB-SKILL:** Use reviewing-pr to run the default independent review pass, then responding-to-pr-review to drive its findings to resolution — unless you were dispatched to stop at PR-opened (e.g. by `dispatching-issue-fleet`), where the orchestrator owns review.
 
 When a responding-to-pr-review loop needs to wait for CI or a reviewer pass, invoke the out-of-band poller **once** instead of polling in-agent:
 
