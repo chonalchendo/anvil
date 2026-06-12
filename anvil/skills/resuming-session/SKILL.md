@@ -15,6 +15,8 @@ The companion **REQUIRED SIBLING:** `handing-off-session` writes the handoff at 
 
 ## Phase 1 — Locate candidate handoff(s) in the recency window
 
+First run `anvil doctor --json`. If `findings` is non-empty, surface each on one line — `[<kind>] <id> — fix: <fix>` — so stale lifecycle state is visible before any work is picked up. Doctor is read-only and fails open offline (empty findings, skip silently); never auto-run the fix commands — each correction stays an explicit agent/human action.
+
 `anvil session resume --json` applies the 10-min ambiguity window, walks past empty stubs, and returns in one call. When the user specifies a project (e.g. "resume session for anvil"), add `--project <p>` to scope candidates to that project only:
 
 - **No match** → `{walked, no_handoff: true}` (only when `--project` matched no handoff) — stop. Tell the user: *"No handoff found for project `<p>`. Start fresh."* Do not load the empty body. `no_handoff` is the explicit signal; a populated single-candidate hit always carries a non-empty `session_id`, so never treat `{session_id: ""}` as a candidate.
