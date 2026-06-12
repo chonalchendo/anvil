@@ -14,6 +14,8 @@ Never `git checkout -b` or commit directly on `master` — parallel sessions col
 
 ## Post-merge cleanup (sequence matters)
 
+**Issue-backed PRs:** skip the manual sequence — `anvil transition issue <id> resolved --land-pr <pr>` performs gate → worktree remove → squash-merge → MERGED-verify atomically and resolves the issue in the same call. The manual two-step below remains for issueless PRs only.
+
 `gh pr merge --delete-branch` refuses the local-branch delete while the worktree is still checked out (`cannot delete branch 'anvil/<slug>' used by worktree at ...`). Remove the worktree **first**:
 
 ```bash
@@ -46,4 +48,4 @@ Do not poll PRs on a fixed interval — each wakeup past the 300 s prompt-cache 
 
 ## Workflow Summary
 
-Cut worktree → implement + commit → smoke-test gate → `gh pr create` → `reviewing-pr` (subagent review) + CI → user approval → remove worktree → `gh pr merge --delete-branch` (order matters — see [Post-merge cleanup](#post-merge-cleanup-sequence-matters)). The independent review catches what unit tests miss — part of the verification budget, not optional.
+Cut worktree → implement + commit → smoke-test gate → `gh pr create` → `reviewing-pr` (subagent review) + CI → user approval → land (`anvil transition issue <id> resolved --land-pr <pr>` for issue-backed PRs; manual sequence otherwise — see [Post-merge cleanup](#post-merge-cleanup-sequence-matters)). The independent review catches what unit tests miss — part of the verification budget, not optional.

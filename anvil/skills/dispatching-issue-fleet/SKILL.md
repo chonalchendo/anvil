@@ -74,12 +74,11 @@ Fleet of <N> dispatched:
 
 Expected: 1 in <N> stalls. Observed: <k>.
 
-To land each PR, run from the parent checkout:
-  git worktree remove <path>
-  gh pr merge <n> --delete-branch       # or: gh pr merge <n>; git branch -D <branch>
+To land each PR, run from the parent checkout (one line per issue):
+  anvil transition issue <id> resolved --land-pr <n>
 ```
 
-Sequence `git worktree remove` BEFORE `gh pr merge --delete-branch`, or drop `--delete-branch` entirely. See [[issue.anvil.gh-pr-merge-delete-branch-fails-when-worktree-still-present]] — `--delete-branch` refuses while the worktree exists.
+The verb gates on mergeable + CI-green, removes the worktree, squash-merges, verifies MERGED, and resolves the issue atomically (see `completing-issue` Phase 5) — no manual `git worktree remove` / `gh pr merge` sequencing.
 
 ## Scope-change pause protocol
 
