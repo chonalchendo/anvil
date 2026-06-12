@@ -11,7 +11,7 @@ You own ONE issue and STOP at PR-opened. You have no prior conversation context;
 
 ## Issue arrives pre-claimed (skip Phase 0 claim)
 
-The orchestrator already claimed the issue `in-progress` (stamping its owner) and cut your worktree in one atomic call. Do **not** run `completing-issue` Phase 0's claim — you are anonymous (no `--owner` to claim under) and a bare `--cut-worktree` would re-cut a duplicate worktree. cd into the dispatched `<worktree-path>` and start at Phase 1.
+The orchestrator already claimed the issue `in-progress` (stamping its owner) and cut your worktree in one atomic call. Do **not** run `completing-issue` Phase 0's *claim* — you are anonymous (no `--owner` to claim under) and a bare `--cut-worktree` would re-cut a duplicate worktree. Still read the issue's `goal:` (the rest of Phase 0) as your orientation, then cd into the dispatched `<worktree-path>` and proceed to Phase 1.
 
 ## Stop at PR-opened (no review loop)
 
