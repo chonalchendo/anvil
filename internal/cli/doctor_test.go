@@ -38,7 +38,7 @@ func TestDoctorMergedPRIssue(t *testing.T) {
 	t.Cleanup(func() { ghPRStateByURLFn = old })
 	ghPRStateByURLFn = func(_ string) (string, error) { return "MERGED", nil }
 
-	findings, err := runDoctor(v)
+	findings, err := runDoctor(v, "foo")
 	if err != nil {
 		t.Fatalf("runDoctor: %v", err)
 	}
@@ -85,13 +85,14 @@ func TestDoctorDeadClaim(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// No worktrees, no open PRs.
+	// No worktrees, no open PRs, and doctor runs from a different session.
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
 	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	t.Setenv(envSessionID, "some-other-session")
 
 	// No external_links on this issue — dead claim with no PR.
-	findings, err := runDoctor(v)
+	findings, err := runDoctor(v, "foo")
 	if err != nil {
 		t.Fatalf("runDoctor: %v", err)
 	}
@@ -145,13 +146,97 @@ func TestDoctorDeadClaim_LiveWorktreeSuppresses(t *testing.T) {
 		}, nil
 	}
 
-	findings, err := runDoctor(v)
+	findings, err := runDoctor(v, "foo")
 	if err != nil {
 		t.Fatalf("runDoctor: %v", err)
 	}
 	for _, f := range findings {
 		if f.Kind == "dead-claim" && f.ID == id {
 			t.Errorf("unexpected dead-claim finding for issue with live worktree")
+		}
+	}
+}
+
+// TestDoctorDeadClaim_CurrentSessionSuppresses verifies that a claim held by
+// the session running doctor is never flagged, even with no worktree or PR.
+func TestDoctorDeadClaim_CurrentSessionSuppresses(t *testing.T) {
+	vault := setupVault(t)
+	v := &core.Vault{Root: vault}
+
+	id := "foo.mine-0004"
+	path := filepath.Join(vault, "70-issues", id+".md")
+	a := &core.Artifact{
+		Path: path,
+		FrontMatter: map[string]any{
+			"type":          "issue",
+			"title":         "my own claim",
+			"status":        "in-progress",
+			"project":       "foo",
+			"created":       "2026-06-01",
+			"updated":       "2026-06-01",
+			"severity":      "medium",
+			"claim_session": "this-session-uuid",
+		},
+		Body: fixtureIssueBody,
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	oldWT := gitWorktreeListFn
+	t.Cleanup(func() { gitWorktreeListFn = oldWT })
+	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	t.Setenv(envSessionID, "this-session-uuid")
+
+	findings, err := runDoctor(v, "foo")
+	if err != nil {
+		t.Fatalf("runDoctor: %v", err)
+	}
+	for _, f := range findings {
+		if f.Kind == "dead-claim" && f.ID == id {
+			t.Errorf("unexpected dead-claim finding for the current session's own claim")
+		}
+	}
+}
+
+// TestDoctorDeadClaim_OtherProjectSkipped verifies that issues bound to a
+// different project are not judged against this repo's worktrees.
+func TestDoctorDeadClaim_OtherProjectSkipped(t *testing.T) {
+	vault := setupVault(t)
+	v := &core.Vault{Root: vault}
+
+	id := "bar.elsewhere-0005"
+	path := filepath.Join(vault, "70-issues", id+".md")
+	a := &core.Artifact{
+		Path: path,
+		FrontMatter: map[string]any{
+			"type":          "issue",
+			"title":         "other project claim",
+			"status":        "in-progress",
+			"project":       "bar",
+			"created":       "2026-06-01",
+			"updated":       "2026-06-01",
+			"severity":      "medium",
+			"claim_session": "dead-session-uuid",
+		},
+		Body: fixtureIssueBody,
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	oldWT := gitWorktreeListFn
+	t.Cleanup(func() { gitWorktreeListFn = oldWT })
+	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	t.Setenv(envSessionID, "some-other-session")
+
+	findings, err := runDoctor(v, "foo")
+	if err != nil {
+		t.Fatalf("runDoctor: %v", err)
+	}
+	for _, f := range findings {
+		if f.Kind == "dead-claim" && f.ID == id {
+			t.Errorf("unexpected dead-claim finding for another project's issue")
 		}
 	}
 }
@@ -205,7 +290,7 @@ func TestDoctorFinishedMilestone(t *testing.T) {
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
 	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
 
-	findings, err := runDoctor(v)
+	findings, err := runDoctor(v, "anvil")
 	if err != nil {
 		t.Fatalf("runDoctor: %v", err)
 	}
@@ -223,8 +308,8 @@ func TestDoctorFinishedMilestone(t *testing.T) {
 	}
 }
 
-// TestDoctorOrphanWorktree verifies that an anvil/ worktree whose branch is
-// gone on origin produces an orphan-worktree finding.
+// TestDoctorOrphanWorktree verifies that an anvil/ worktree whose branch has
+// a merged PR produces an orphan-worktree finding.
 func TestDoctorOrphanWorktree(t *testing.T) {
 	vault := setupVault(t)
 	v := &core.Vault{Root: vault}
@@ -237,11 +322,11 @@ func TestDoctorOrphanWorktree(t *testing.T) {
 		}, nil
 	}
 
-	oldBranch := gitBranchExistsFn
-	t.Cleanup(func() { gitBranchExistsFn = oldBranch })
-	gitBranchExistsFn = func(_ string) (bool, error) { return false, nil }
+	oldMerged := ghMergedPRForBranchFn
+	t.Cleanup(func() { ghMergedPRForBranchFn = oldMerged })
+	ghMergedPRForBranchFn = func(_ string) (int, bool, error) { return 42, true, nil }
 
-	findings, err := runDoctor(v)
+	findings, err := runDoctor(v, "anvil")
 	if err != nil {
 		t.Fatalf("runDoctor: %v", err)
 	}
@@ -256,6 +341,36 @@ func TestDoctorOrphanWorktree(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("no orphan-worktree finding; got %v", findings)
+	}
+}
+
+// TestDoctorOrphanWorktree_NoMergedPRNotFlagged verifies that a branch with
+// no merged PR — in-flight or never pushed — is not flagged, even when it is
+// absent on origin.
+func TestDoctorOrphanWorktree_NoMergedPRNotFlagged(t *testing.T) {
+	vault := setupVault(t)
+	v := &core.Vault{Root: vault}
+
+	oldWT := gitWorktreeListFn
+	t.Cleanup(func() { gitWorktreeListFn = oldWT })
+	gitWorktreeListFn = func() (map[string]worktreeInfo, error) {
+		return map[string]worktreeInfo{
+			"anvil/in-flight-slug": {path: "/tmp/in-flight"},
+		}, nil
+	}
+
+	oldMerged := ghMergedPRForBranchFn
+	t.Cleanup(func() { ghMergedPRForBranchFn = oldMerged })
+	ghMergedPRForBranchFn = func(_ string) (int, bool, error) { return 0, false, nil }
+
+	findings, err := runDoctor(v, "anvil")
+	if err != nil {
+		t.Fatalf("runDoctor: %v", err)
+	}
+	for _, f := range findings {
+		if f.Kind == "orphan-worktree" {
+			t.Errorf("unexpected orphan-worktree finding for branch with no merged PR: %+v", f)
+		}
 	}
 }
 
@@ -293,10 +408,6 @@ func TestDoctorJSON_Envelope(t *testing.T) {
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
 	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
-
-	oldBranch := gitBranchExistsFn
-	t.Cleanup(func() { gitBranchExistsFn = oldBranch })
-	gitBranchExistsFn = func(_ string) (bool, error) { return true, nil }
 
 	cmd := newRootCmd()
 	stdout, _, err := runCmd(t, cmd, "doctor", "--json")
@@ -356,10 +467,6 @@ func TestDoctorJSON_EmptyFindings(t *testing.T) {
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
 	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
-
-	oldBranch := gitBranchExistsFn
-	t.Cleanup(func() { gitBranchExistsFn = oldBranch })
-	gitBranchExistsFn = func(_ string) (bool, error) { return true, nil }
 
 	cmd := newRootCmd()
 	stdout, _, err := runCmd(t, cmd, "doctor", "--json")

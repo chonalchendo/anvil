@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -27,8 +28,8 @@ type doctorEnvelope struct {
 
 // Package-level indirection points so tests can swap network and filesystem calls.
 var (
-	ghPRStateByURLFn  = ghPRStateByURLReal
-	gitBranchExistsFn = gitBranchExistsReal
+	ghPRStateByURLFn      = ghPRStateByURLReal
+	ghMergedPRForBranchFn = ghMergedPRForBranchReal
 )
 
 func newDoctorCmd() *cobra.Command {
@@ -42,7 +43,11 @@ func newDoctorCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			findings, err := runDoctor(v)
+			projSlug := ""
+			if p, err := core.ResolveProject(); err == nil {
+				projSlug = p.Slug
+			}
+			findings, err := runDoctor(v, projSlug)
 			if err != nil {
 				return err
 			}
@@ -72,10 +77,20 @@ func newDoctorCmd() *cobra.Command {
 	return cmd
 }
 
+// childIssue is the per-issue tuple the finished-milestone check consumes,
+// collected during the single issue-loading pass in runDoctor.
+type childIssue struct {
+	status    string
+	milestone string
+}
+
 // runDoctor checks all four stale-lifecycle shapes and returns the findings.
 // Best-effort: a check that cannot shell out (gh missing, no network) skips
 // rather than aborts so doctor is always usable in offline environments.
-func runDoctor(v *core.Vault) ([]doctorFinding, error) {
+// projectSlug is the current project binding; repo-local checks (dead claim)
+// only judge issues bound to it, because the worktree evidence comes from the
+// cwd's repo and would be wrong for every other project in the vault.
+func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 	var findings []doctorFinding
 
 	issuePaths, err := collectArtifactPaths(v.Root, core.TypeIssue)
@@ -85,24 +100,36 @@ func runDoctor(v *core.Vault) ([]doctorFinding, error) {
 
 	worktrees, _ := gitWorktreeListFn() // best-effort
 
+	children := make([]childIssue, 0, len(issuePaths))
 	for _, p := range issuePaths {
 		a, err := core.LoadArtifact(p)
 		if err != nil {
 			continue // skip unreadable
 		}
 		status, _ := a.FrontMatter["status"].(string)
+		children = append(children, childIssue{
+			status:    status,
+			milestone: milestoneSlug(a.FrontMatter["milestone"]),
+		})
 		if status != "in-progress" {
 			continue
 		}
 		id := strings.TrimSuffix(filepath.Base(p), ".md")
 
-		// Shape 1: merged-PR issue.
+		// Shape 1: merged-PR issue. PR state is queried by absolute URL, so
+		// this is correct for every project in the vault.
 		if f := checkMergedPR(id, a); f != nil {
 			findings = append(findings, *f)
 			continue
 		}
 
-		// Shape 2: dead claim — no open PR, no live worktree.
+		// Shape 2: dead claim — no open PR, no live worktree. Worktree
+		// evidence is repo-local; other projects' claims are checked when
+		// doctor runs from their repo.
+		proj, _ := a.FrontMatter["project"].(string)
+		if projectSlug == "" || proj != projectSlug {
+			continue
+		}
 		if f := checkDeadClaim(v, id, a, worktrees); f != nil {
 			findings = append(findings, *f)
 		}
@@ -118,7 +145,7 @@ func runDoctor(v *core.Vault) ([]doctorFinding, error) {
 		if err != nil {
 			continue
 		}
-		if f := checkFinishedMilestone(v, p, a, issuePaths); f != nil {
+		if f := checkFinishedMilestone(p, a, children); f != nil {
 			findings = append(findings, *f)
 		}
 	}
@@ -133,16 +160,27 @@ func runDoctor(v *core.Vault) ([]doctorFinding, error) {
 	return findings, nil
 }
 
+// prLinks returns the GitHub pull-request URLs from an issue's
+// external_links, dropping non-PR GitHub links so callers never shell out on
+// queries doomed to fail.
+func prLinks(a *core.Artifact) []string {
+	links, _ := a.FrontMatter["external_links"].([]any)
+	var out []string
+	for _, raw := range links {
+		url, ok := raw.(string)
+		if !ok || !strings.Contains(url, "github.com") || !strings.Contains(url, "/pull/") {
+			continue
+		}
+		out = append(out, url)
+	}
+	return out
+}
+
 // checkMergedPR returns a finding when the issue's external_links contains a
 // GitHub PR URL whose state is MERGED. Returns nil when no PR link is present,
 // gh is unavailable, or the PR is not merged.
 func checkMergedPR(id string, a *core.Artifact) *doctorFinding {
-	links, _ := a.FrontMatter["external_links"].([]any)
-	for _, raw := range links {
-		url, ok := raw.(string)
-		if !ok || !strings.Contains(url, "github.com") {
-			continue
-		}
+	for _, url := range prLinks(a) {
 		state, err := ghPRStateByURLFn(url)
 		if err != nil {
 			continue // gh unavailable or network error — skip
@@ -162,11 +200,18 @@ func checkMergedPR(id string, a *core.Artifact) *doctorFinding {
 // checkDeadClaim returns a finding when an in-progress issue has no open PR
 // and no live worktree — the claim is stranded from a dead session.
 // Returns nil when claim_session is unset (issue never claimed via session),
-// when a worktree is alive, or when an open PR exists.
+// when the claim belongs to the session running doctor, when a worktree is
+// alive, or when an open PR exists. Session artifacts carry no liveness
+// marker (an empty stub means live-now or killed, and killed is exactly the
+// shape doctor exists to catch), so the current-session id is the only
+// honest session-level suppression.
 func checkDeadClaim(v *core.Vault, id string, a *core.Artifact, worktrees map[string]worktreeInfo) *doctorFinding {
 	claimSession, _ := a.FrontMatter["claim_session"].(string)
 	if claimSession == "" {
 		return nil // not session-claimed; not a dead claim
+	}
+	if claimSession == os.Getenv(envSessionID) {
+		return nil // claimed by the session running doctor — alive by construction
 	}
 	// Alive if a matching worktree exists.
 	branches := fleetCandidateBranches(v, id)
@@ -179,12 +224,7 @@ func checkDeadClaim(v *core.Vault, id string, a *core.Artifact, worktrees map[st
 		return nil
 	}
 	// Alive if there is an open PR linked via external_links.
-	links, _ := a.FrontMatter["external_links"].([]any)
-	for _, raw := range links {
-		url, ok := raw.(string)
-		if !ok || !strings.Contains(url, "github.com") {
-			continue
-		}
+	for _, url := range prLinks(a) {
 		state, err := ghPRStateByURLFn(url)
 		if err != nil {
 			return nil // can't confirm — don't false-positive
@@ -204,27 +244,19 @@ func checkDeadClaim(v *core.Vault, id string, a *core.Artifact, worktrees map[st
 // checkFinishedMilestone returns a finding when an in-progress milestone has
 // every child issue resolved or abandoned. Returns nil for milestones that are
 // not in-progress, have open work, or have no children.
-func checkFinishedMilestone(_ *core.Vault, msPath string, a *core.Artifact, issuePaths []string) *doctorFinding {
+func checkFinishedMilestone(msPath string, a *core.Artifact, children []childIssue) *doctorFinding {
 	status, _ := a.FrontMatter["status"].(string)
 	if status != "in-progress" {
 		return nil
 	}
 	msID := strings.TrimSuffix(filepath.Base(msPath), ".md")
-	msSlug := msID
-	// milestoneSlug strips the [[milestone.]] wikilink syntax; here we need the
-	// bare slug so issue milestone fields can match against it.
 	hasChild := false
-	for _, p := range issuePaths {
-		child, err := core.LoadArtifact(p)
-		if err != nil {
-			continue
-		}
-		if milestoneSlug(child.FrontMatter["milestone"]) != msSlug {
+	for _, c := range children {
+		if c.milestone != msID {
 			continue
 		}
 		hasChild = true
-		cs, _ := child.FrontMatter["status"].(string)
-		if cs == "open" || cs == "in-progress" {
+		if c.status == "open" || c.status == "in-progress" {
 			return nil // still open work
 		}
 	}
@@ -235,25 +267,28 @@ func checkFinishedMilestone(_ *core.Vault, msPath string, a *core.Artifact, issu
 		Kind:     "finished-milestone",
 		ID:       msID,
 		Evidence: "all child issues are resolved or abandoned",
-		Fix:      fmt.Sprintf("anvil transition milestone %s done", msSlug),
+		Fix:      fmt.Sprintf("anvil transition milestone %s done", msID),
 	}
 }
 
-// checkOrphanWorktree returns a finding when an anvil/ worktree's branch no
-// longer exists on origin (was merged and deleted). Returns nil for
-// non-anvil branches or when the branch still exists on origin.
+// checkOrphanWorktree returns a finding when an anvil/ worktree's branch has
+// a merged PR — the work landed, the worktree is done. The merged-PR gate
+// covers both stale shapes (branch deleted on origin, branch merged but not
+// deleted) and never flags in-flight or never-pushed branches, which mere
+// absence-on-origin would. Returns nil for non-anvil branches, branches with
+// no merged PR, or when gh is unavailable.
 func checkOrphanWorktree(branch, path string) *doctorFinding {
 	if !strings.HasPrefix(branch, "anvil/") {
 		return nil
 	}
-	exists, err := gitBranchExistsFn(branch)
-	if err != nil || exists {
+	prNum, merged, err := ghMergedPRForBranchFn(branch)
+	if err != nil || !merged {
 		return nil // error = can't tell; skip rather than false-positive
 	}
 	return &doctorFinding{
 		Kind:     "orphan-worktree",
 		ID:       branch,
-		Evidence: fmt.Sprintf("branch %s not found on origin; worktree at %s may be stale", branch, path),
+		Evidence: fmt.Sprintf("branch %s has merged PR #%d; worktree at %s is stale", branch, prNum, path),
 		Fix:      fmt.Sprintf("git worktree remove %s", path),
 	}
 }
@@ -278,16 +313,25 @@ func ghPRStateByURLReal(url string) (string, error) {
 	return v.State, nil
 }
 
-// gitBranchExistsReal checks whether branch exists on origin via
-// `git ls-remote --heads origin <branch>`. Returns (false, nil) when the
-// branch is absent, (true, nil) when present, and ("", err) when git fails.
-func gitBranchExistsReal(branch string) (bool, error) {
-	if _, err := exec.LookPath("git"); err != nil {
-		return false, err
+// ghMergedPRForBranchReal returns the number of a merged PR whose head is
+// branch, queried via `gh pr list`. merged is false when no such PR exists;
+// err signals gh is unavailable or the query failed.
+func ghMergedPRForBranchReal(branch string) (prNum int, merged bool, err error) {
+	if _, err := exec.LookPath("gh"); err != nil {
+		return 0, false, errGhUnavailable
 	}
-	out, err := exec.Command("git", "ls-remote", "--heads", "origin", branch).Output() //nolint:gosec // branch is a package-controlled slug, never user input
+	out, err := exec.Command("gh", "pr", "list", "--head", branch, "--state", "merged", "--json", "number", "--limit", "1").Output() //nolint:gosec // branch is a package-controlled slug, never user input
 	if err != nil {
-		return false, err
+		return 0, false, errGhUnavailable
 	}
-	return strings.TrimSpace(string(out)) != "", nil
+	var prs []struct {
+		Number int `json:"number"`
+	}
+	if err := json.Unmarshal(out, &prs); err != nil {
+		return 0, false, fmt.Errorf("gh pr list: parse: %w", err)
+	}
+	if len(prs) == 0 {
+		return 0, false, nil
+	}
+	return prs[0].Number, true, nil
 }
