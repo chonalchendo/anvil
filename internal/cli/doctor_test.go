@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/chonalchendo/anvil/internal/core"
 )
@@ -238,6 +239,110 @@ func TestDoctorDeadClaim_OtherProjectSkipped(t *testing.T) {
 		if f.Kind == "dead-claim" && f.ID == id {
 			t.Errorf("unexpected dead-claim finding for another project's issue")
 		}
+	}
+}
+
+// writeSessionStub writes a minimal session file under 10-sessions/ with the
+// given started_at, for the dead-claim liveness tests.
+func writeSessionStub(t *testing.T, vault, sessionID, startedAt string) {
+	t.Helper()
+	path := filepath.Join(vault, "10-sessions", sessionID+".md")
+	a := &core.Artifact{
+		Path: path,
+		FrontMatter: map[string]any{
+			"type":       "session",
+			"session_id": sessionID,
+			"source":     "claude-code",
+			"started_at": startedAt,
+		},
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// claimedIssue saves an in-progress issue claimed by claimSession with no
+// worktree or PR — the dead-claim shape — and returns its id.
+func claimedIssue(t *testing.T, vault, id, claimSession string) string {
+	t.Helper()
+	a := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", id+".md"),
+		FrontMatter: map[string]any{
+			"type":          "issue",
+			"title":         "claim",
+			"status":        "in-progress",
+			"project":       "foo",
+			"created":       "2026-06-01",
+			"updated":       "2026-06-01",
+			"severity":      "medium",
+			"claim_session": claimSession,
+		},
+		Body: fixtureIssueBody,
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func hasDeadClaim(findings []doctorFinding, id string) bool {
+	for _, f := range findings {
+		if f.Kind == "dead-claim" && f.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// TestDoctorDeadClaim_LiveSessionSuppresses verifies that a claim held by a
+// concurrent session that started recently — its session file exists with a
+// fresh started_at — is not flagged, even with no worktree or PR. This is the
+// false positive anvil.0063 fixes.
+func TestDoctorDeadClaim_LiveSessionSuppresses(t *testing.T) {
+	vault := setupVault(t)
+	v := &core.Vault{Root: vault}
+
+	sess := "concurrent-live-session"
+	writeSessionStub(t, vault, sess, time.Now().UTC().Format(time.RFC3339))
+	id := claimedIssue(t, vault, "foo.live-sess-0010", sess)
+
+	oldWT := gitWorktreeListFn
+	t.Cleanup(func() { gitWorktreeListFn = oldWT })
+	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	t.Setenv(envSessionID, "some-other-session")
+
+	findings, err := runDoctor(v, "foo")
+	if err != nil {
+		t.Fatalf("runDoctor: %v", err)
+	}
+	if hasDeadClaim(findings, id) {
+		t.Errorf("unexpected dead-claim for issue claimed by a recently-started session")
+	}
+}
+
+// TestDoctorDeadClaim_StaleSessionFlagged verifies that a lingering session file
+// whose started_at is older than the liveness window does not suppress the
+// finding — a claim from a long-dead session is still reported.
+func TestDoctorDeadClaim_StaleSessionFlagged(t *testing.T) {
+	vault := setupVault(t)
+	v := &core.Vault{Root: vault}
+
+	sess := "long-dead-session"
+	stale := time.Now().UTC().Add(-2 * sessionLivenessWindow).Format(time.RFC3339)
+	writeSessionStub(t, vault, sess, stale)
+	id := claimedIssue(t, vault, "foo.stale-sess-0011", sess)
+
+	oldWT := gitWorktreeListFn
+	t.Cleanup(func() { gitWorktreeListFn = oldWT })
+	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	t.Setenv(envSessionID, "some-other-session")
+
+	findings, err := runDoctor(v, "foo")
+	if err != nil {
+		t.Fatalf("runDoctor: %v", err)
+	}
+	if !hasDeadClaim(findings, id) {
+		t.Errorf("no dead-claim for issue claimed by a session older than the liveness window; got %v", findings)
 	}
 }
 
