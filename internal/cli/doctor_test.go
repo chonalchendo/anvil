@@ -346,6 +346,55 @@ func TestDoctorDeadClaim_StaleSessionFlagged(t *testing.T) {
 	}
 }
 
+// TestDoctorDeadClaim_SessionWithoutStartedAtFlagged verifies that a session
+// file lacking a parseable started_at does not suppress the finding — doctor
+// reports rather than trust an unreadable start time (no mtime guessing).
+func TestDoctorDeadClaim_SessionWithoutStartedAtFlagged(t *testing.T) {
+	vault := setupVault(t)
+	v := &core.Vault{Root: vault}
+
+	sess := "no-startedat-session"
+	a := &core.Artifact{
+		Path:        filepath.Join(vault, "10-sessions", sess+".md"),
+		FrontMatter: map[string]any{"type": "session", "session_id": sess, "source": "claude-code"},
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	id := claimedIssue(t, vault, "foo.no-startedat-0012", sess)
+
+	oldWT := gitWorktreeListFn
+	t.Cleanup(func() { gitWorktreeListFn = oldWT })
+	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	t.Setenv(envSessionID, "some-other-session")
+
+	findings, err := runDoctor(v, "foo")
+	if err != nil {
+		t.Fatalf("runDoctor: %v", err)
+	}
+	if !hasDeadClaim(findings, id) {
+		t.Errorf("expected dead-claim for a session file without parseable started_at; got %v", findings)
+	}
+}
+
+// TestClaimSessionLive_WindowBoundary pins the recency window: a session that
+// started just inside the window is live; just outside, it is not.
+func TestClaimSessionLive_WindowBoundary(t *testing.T) {
+	vault := setupVault(t)
+	v := &core.Vault{Root: vault}
+	now := time.Now().UTC()
+	sess := "boundary-session"
+
+	writeSessionStub(t, vault, sess, now.Add(-sessionLivenessWindow+time.Minute).Format(time.RFC3339))
+	if !claimSessionLive(v, sess, now) {
+		t.Error("session started just inside the window should be live")
+	}
+	writeSessionStub(t, vault, sess, now.Add(-sessionLivenessWindow-time.Minute).Format(time.RFC3339))
+	if claimSessionLive(v, sess, now) {
+		t.Error("session started just outside the window should not be live")
+	}
+}
+
 // TestDoctorFinishedMilestone verifies that an in-progress milestone whose
 // child issues are all resolved produces a finished-milestone finding.
 func TestDoctorFinishedMilestone(t *testing.T) {

@@ -212,11 +212,9 @@ func checkMergedPR(id string, a *core.Artifact) *doctorFinding {
 // checkDeadClaim returns a finding when an in-progress issue has no open PR
 // and no live worktree — the claim is stranded from a dead session.
 // Returns nil when claim_session is unset (issue never claimed via session),
-// when the claim belongs to the session running doctor, when a worktree is
-// alive, or when an open PR exists. Session artifacts carry no liveness
-// marker (an empty stub means live-now or killed, and killed is exactly the
-// shape doctor exists to catch), so the current-session id is the only
-// honest session-level suppression.
+// when the claim belongs to the session running doctor, when the claiming
+// session started recently (see claimSessionLive), when a worktree is alive,
+// or when an open PR exists.
 func checkDeadClaim(v *core.Vault, id string, a *core.Artifact, worktrees map[string]worktreeInfo) *doctorFinding {
 	claimSession, _ := a.FrontMatter["claim_session"].(string)
 	if claimSession == "" {
@@ -260,24 +258,25 @@ func checkDeadClaim(v *core.Vault, id string, a *core.Artifact, worktrees map[st
 	}
 }
 
-// claimSessionLive reports whether claimSession has a session file that started
-// within sessionLivenessWindow of now — doctor's read-side liveness
-// approximation, since session files carry no heartbeat. A missing session file
-// is not live (GC'd or never created). The start time comes from the session's
-// started_at; when that is absent or unparseable, the file's mtime stands in.
+// claimSessionLive reports whether claimSession has a session file whose
+// started_at is within sessionLivenessWindow of now — doctor's read-side
+// liveness approximation, since session files carry no heartbeat. A claim is
+// live only when the file exists and its started_at parses to a recent instant;
+// a missing file (GC'd or never created) or one without a parseable started_at
+// is not live, so doctor still reports it. A well-formed session always carries
+// started_at as a quoted RFC3339 string (internal/templates/session.tmpl), so
+// the string read is the only shape worth handling — an unreadable start time
+// is treated as not-live rather than guessed at from file mtime.
 func claimSessionLive(v *core.Vault, claimSession string, now time.Time) bool {
 	path := filepath.Join(v.Root, core.TypeSession.Dir(), claimSession+".md")
-	info, err := os.Stat(path)
+	a, err := core.LoadArtifact(path)
 	if err != nil {
 		return false // no session file — not a live session
 	}
-	started := info.ModTime()
-	if a, lerr := core.LoadArtifact(path); lerr == nil {
-		if s, _ := a.FrontMatter["started_at"].(string); s != "" {
-			if t, perr := time.Parse(time.RFC3339, s); perr == nil {
-				started = t
-			}
-		}
+	s, _ := a.FrontMatter["started_at"].(string)
+	started, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return false // no parseable start time — can't claim it's live
 	}
 	return now.Sub(started) < sessionLivenessWindow
 }
