@@ -35,7 +35,13 @@ The overlap check is one-line declarations plus eyeball compare. No static analy
 
 ## Phase 3 — Dispatch N subagents
 
-For each surviving candidate, fire one subagent via the Agent tool with `subagent_type: anvil-issue-worker` — the bundled, cost-tuned worker (`anvil/agents/anvil-issue-worker.md`: runs on a cheaper model than the orchestrator, `completing-issue` preloaded). The agent file **is** the worker contract — claim → implement → smoke → `gh pr create`, stop-at-PR with no review loop, pre-edit worktree invariant, scope-change Blocker, forbidden-call audit, structured return line — so you do not re-state it per call. Cut each candidate's worktree per your project's worktree convention (see your `CLAUDE.md`) **before** dispatching: the agent works in `<worktree-path>` and halts if it is absent (its pre-edit invariant refuses to cut its own). Fill only the per-call values into the dispatch prompt body:
+For each surviving candidate, fire one subagent via the Agent tool with `subagent_type: anvil-issue-worker` — the bundled, cost-tuned worker (`anvil/agents/anvil-issue-worker.md`: runs on a cheaper model than the orchestrator, `completing-issue` preloaded). The agent file **is** the worker contract — implement → smoke → `gh pr create`, stop-at-PR with no review loop, pre-edit worktree invariant, scope-change Blocker, forbidden-call audit, structured return line — so you do not re-state it per call. **Claim and cut each candidate's worktree before dispatching**, one atomic call per candidate:
+
+```bash
+anvil transition issue <id> in-progress --owner <name> --cut-worktree
+```
+
+This claims the issue `in-progress` (stamping an owner) *and* emits the worktree path — so the issue never sits `open` through the run. The worker arrives pre-claimed and skips its own Phase 0 claim: it is anonymous (no owner to claim under) and a bare `--cut-worktree` would re-cut a duplicate. The agent works in `<worktree-path>` and halts if it is absent (its pre-edit invariant refuses to cut its own). Fill only the per-call values into the dispatch prompt body:
 
 > Complete anvil issue `<issue-id>`. Worktree: `<worktree-path>` on branch `<branch>`. Declared files (estimate, grep to confirm): `<declared-files>`.
 
