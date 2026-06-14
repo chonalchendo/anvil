@@ -7,11 +7,23 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/internal/core"
 )
+
+// sessionLivenessWindow bounds how recently a claim_session must have started
+// for its claim to count as live. Session files carry no heartbeat (written
+// once at start, no end-marker), so doctor approximates liveness from the
+// session's start time: a claim from a session that began within this window is
+// assumed still-running and suppressed, while older claims with no worktree or
+// open PR are reported. This trades a brief false negative (a claim from a
+// session that died less than a day ago is not reported until the window lapses)
+// for eliminating the false positive where a concurrent live session's fresh
+// claims were flagged as dead.
+const sessionLivenessWindow = 24 * time.Hour
 
 // doctorFinding is one stale-lifecycle finding emitted by `anvil doctor`.
 type doctorFinding struct {
@@ -200,11 +212,9 @@ func checkMergedPR(id string, a *core.Artifact) *doctorFinding {
 // checkDeadClaim returns a finding when an in-progress issue has no open PR
 // and no live worktree — the claim is stranded from a dead session.
 // Returns nil when claim_session is unset (issue never claimed via session),
-// when the claim belongs to the session running doctor, when a worktree is
-// alive, or when an open PR exists. Session artifacts carry no liveness
-// marker (an empty stub means live-now or killed, and killed is exactly the
-// shape doctor exists to catch), so the current-session id is the only
-// honest session-level suppression.
+// when the claim belongs to the session running doctor, when the claiming
+// session started recently (see claimSessionLive), when a worktree is alive,
+// or when an open PR exists.
 func checkDeadClaim(v *core.Vault, id string, a *core.Artifact, worktrees map[string]worktreeInfo) *doctorFinding {
 	claimSession, _ := a.FrontMatter["claim_session"].(string)
 	if claimSession == "" {
@@ -212,6 +222,13 @@ func checkDeadClaim(v *core.Vault, id string, a *core.Artifact, worktrees map[st
 	}
 	if claimSession == os.Getenv(envSessionID) {
 		return nil // claimed by the session running doctor — alive by construction
+	}
+	// Alive if the claiming session started recently — a concurrent session
+	// working the issue (claimed, but no worktree or PR yet) is not a dead
+	// claim. Checked before the worktree/PR probes so a live concurrent claim
+	// short-circuits the gh shell-out.
+	if claimSessionLive(v, claimSession, time.Now().UTC()) {
+		return nil
 	}
 	// Alive if a matching worktree exists.
 	branches := fleetCandidateBranches(v, id)
@@ -239,6 +256,29 @@ func checkDeadClaim(v *core.Vault, id string, a *core.Artifact, worktrees map[st
 		Evidence: fmt.Sprintf("in-progress with claim_session %s but no live worktree or open PR", claimSession),
 		Fix:      fmt.Sprintf("anvil transition issue %s open", id),
 	}
+}
+
+// claimSessionLive reports whether claimSession has a session file whose
+// started_at is within sessionLivenessWindow of now — doctor's read-side
+// liveness approximation, since session files carry no heartbeat. A claim is
+// live only when the file exists and its started_at parses to a recent instant;
+// a missing file (GC'd or never created) or one without a parseable started_at
+// is not live, so doctor still reports it. A well-formed session always carries
+// started_at as a quoted RFC3339 string (internal/templates/session.tmpl), so
+// the string read is the only shape worth handling — an unreadable start time
+// is treated as not-live rather than guessed at from file mtime.
+func claimSessionLive(v *core.Vault, claimSession string, now time.Time) bool {
+	path := filepath.Join(v.Root, core.TypeSession.Dir(), claimSession+".md")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		return false // no session file — not a live session
+	}
+	s, _ := a.FrontMatter["started_at"].(string)
+	started, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return false // no parseable start time — can't claim it's live
+	}
+	return now.Sub(started) < sessionLivenessWindow
 }
 
 // checkFinishedMilestone returns a finding when an in-progress milestone has
