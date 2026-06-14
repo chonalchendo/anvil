@@ -90,14 +90,22 @@ func TestProjectList_JSON(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	var got []map[string]string
+	var got struct {
+		Items     []map[string]string `json:"items"`
+		Total     int                 `json:"total"`
+		Returned  int                 `json:"returned"`
+		Truncated bool                `json:"truncated"`
+	}
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
 	}
-	if len(got) != 2 {
-		t.Errorf("len=%d want 2", len(got))
+	if len(got.Items) != 2 {
+		t.Errorf("items len=%d want 2", len(got.Items))
 	}
-	for _, p := range got {
+	if got.Total != 2 || got.Returned != 2 || got.Truncated {
+		t.Errorf("envelope = %+v want total=2 returned=2 truncated=false", got)
+	}
+	for _, p := range got.Items {
 		if p["slug"] == "" || p["root"] == "" {
 			t.Errorf("slug/root missing in %v", p)
 		}
