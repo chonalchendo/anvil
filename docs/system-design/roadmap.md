@@ -103,7 +103,7 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 - `list` / `inbox list` — `--limit` (default 10), recency-desc sort, `--since`/`--until`, JSON envelope `{items, total, returned, truncated}`, stderr truncation hint.
 - `list` — per-item `id`/`type`/`title`/`description`/`status`/`created`/`project`/`tags`/`path`.
 - `show` — body included by default for bounded types (inbox, decision, issue, sweep) up to 500 lines with stderr clip hint; plan defaults to frontmatter-only (opt in via `--body`/`--waves`/`--task`); `--no-body` forces frontmatter-only on any type; `--json` nests under `"frontmatter"`.
-- `project list` — `--json` flat array.
+- `project list` — `--json` envelope `{items, total, returned, truncated}`, matching the other `list` verbs.
 - `validate` — structured `{code, path, field, got, expected?, fix?}` via `internal/cli/errfmt`; codes `enum_violation`/`missing_required`/`type_mismatch`/`constraint_violation`/`unresolved_link`.
 - Root `--vault` / `--project` flags — precedence flag > env (`ANVIL_VAULT`/`ANVIL_PROJECT`) > cwd.
 - `ANVIL_HOME` — root of the global store (project registry + thread state); defaults to `~/.anvil`. Redirects the whole store for sandbox/self-test isolation. State dir precedence: `ANVIL_STATE_DIR` > `ANVIL_HOME/state` > `~/.anvil/state`.

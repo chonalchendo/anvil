@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
@@ -64,9 +65,7 @@ func newProjectListCmd() *cobra.Command {
 				for _, p := range projects {
 					out = append(out, map[string]string{"slug": p.Slug, "root": p.Root})
 				}
-				b, _ := json.Marshal(out)
-				fmt.Fprintln(w, string(b))
-				return nil
+				return output.WriteListJSON(w, out, len(out), len(out))
 			}
 			for _, p := range projects {
 				fmt.Fprintf(w, "%s\t%s\n", p.Slug, p.Root)
