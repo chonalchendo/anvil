@@ -113,7 +113,7 @@ Then re-run every `### Indirect` entry against the built artifact, not the dev t
 
 For a change with runtime behaviour, an Indirect block whose predicates only assert presence (`--help | grep`, `test -f`, grepping source files) does not satisfy "actually works" — those checks exit 0 even when the artifact is broken. Treat the build gate as failed and report it via the Phase 5 failure path; do not treat a presence-only Indirect pass as behavioral verification.
 
-**Exception — doc-only / skill-body changes.** These ship no runtime behaviour, so presence-in-the-shipped-artifact *is* the verification ceiling. A grep counts here only when it asserts against the built/installed artifact — after the build-and-install gate has rebuilt and re-deployed it (e.g. `install skills` into a temp `HOME`, then grep the installed copy) — which exercises the build→embed→install path and proves the change reaches what agents load. Grepping the source tree alone still never counts.
+**Exception** — doc-only / skill-body changes. These ship no runtime behaviour, so presence-in-the-shipped-artifact *is* the verification ceiling. A grep counts here only when it asserts against the built/installed artifact — after the build-and-install gate has rebuilt and re-deployed it (e.g. `install skills` into a temp `HOME`, then grep the installed copy) — proving the change reaches what agents load. Grepping the source tree alone still never counts.
 
 ## Phase 5 — Open PR or report failure
 
