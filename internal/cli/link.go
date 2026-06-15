@@ -50,6 +50,9 @@ func newLinkCmd() *cobra.Command {
 					return fmt.Errorf("resolving vault: %w", err)
 				}
 				srcID := args[1]
+				if src == core.TypeIssue {
+					srcID = core.ResolveIssueArg(v, srcID)
+				}
 				if err := core.AppendExternalLink(v, src, srcID, externalURI); err != nil {
 					return err
 				}
@@ -81,6 +84,12 @@ func newLinkCmd() *cobra.Command {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 			srcID, tgtID := args[1], args[3]
+			if src == core.TypeIssue {
+				srcID = core.ResolveIssueArg(v, srcID)
+			}
+			if tgt == core.TypeIssue {
+				tgtID = core.ResolveIssueArg(v, tgtID)
+			}
 			if err := core.AppendLink(v, src, srcID, tgt, tgtID); err != nil {
 				return err
 			}
