@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -308,9 +307,10 @@ func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool, t co
 	return nil
 }
 
-// writeProjectedListJSON emits the bounded-list envelope with each item
-// reduced to only the requested field keys. SetEscapeHTML(false) preserves
-// angle-bracket characters (e.g. wikilinks) without &lt;/&gt; escaping.
+// writeProjectedListJSON emits the canonical bounded-list envelope with each
+// item reduced to only the requested field keys, routing through
+// output.WriteListJSON so the projected and full --json paths serialise
+// identically (same envelope shape, same HTML escaping).
 func writeProjectedListJSON(w io.Writer, items []listItem, total, returned int, fields []string) error {
 	projected := make([]map[string]any, 0, len(items))
 	for _, item := range items {
@@ -336,21 +336,7 @@ func writeProjectedListJSON(w io.Writer, items []listItem, total, returned int, 
 		}
 		projected = append(projected, row)
 	}
-	env := struct {
-		Items     []map[string]any `json:"items"`
-		Total     int              `json:"total"`
-		Returned  int              `json:"returned"`
-		Truncated bool             `json:"truncated"`
-	}{projected, total, returned, returned < total}
-	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(env); err != nil {
-		return err
-	}
-	// json.Encoder.Encode appends a newline; write as-is.
-	_, err := w.Write(buf.Bytes())
-	return err
+	return output.WriteListJSON(w, projected, total, returned)
 }
 
 // milestoneSlug extracts the slug from a milestone wikilink of the form
