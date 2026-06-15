@@ -89,6 +89,7 @@ func newRootCmd() *cobra.Command {
 		newSessionCmd(),
 		newVaultCmd(),
 		newDoctorCmd(),
+		newRefreshCmd(),
 	)
 	return cmd
 }

@@ -60,3 +60,26 @@ jobs:
         with:
           commit_message: "chore(vault): session GC — prune expired empty stubs"
           file_pattern: "10-sessions/**"
+
+  refresh-learnings:
+    name: Learning freshness
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install anvil
+        run: |
+          go install github.com/chonalchendo/anvil/cmd/anvil@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Stale learnings whose related target is gone
+        run: |
+          anvil reindex --vault "$GITHUB_WORKSPACE"
+          anvil refresh learnings --vault "$GITHUB_WORKSPACE"
+
+      - name: Commit freshness transitions
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(vault): learning freshness — stale learnings with missing related targets"
+          file_pattern: "20-learnings/**"
