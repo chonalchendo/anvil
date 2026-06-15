@@ -68,4 +68,4 @@ See `@docs/guardrails.md` for vault hygiene (Obsidian stub cleanup) and end-of-s
 - `@docs/dependencies.md` — new libraries. Baked-in Go ecosystem decisions; don't re-litigate without an ADR.
 - `@docs/skill-authoring.md` — writing/editing a SKILL.md. Trigger contract, body shape, workflow-vs-knowledge split.
 - `@docs/vault-schemas.md` — frontmatter. Universal fields, per-type reference, validation rules.
-- `@docs/eval-methodology.md` — eval grading rubric + result schema. Read when ingesting eval results (`anvil eval`) or judging skill `confidence`; execution stays external.
+- `@docs/eval-methodology.md` — eval grading rubric + result schema. Read when ingesting eval results (planned `anvil eval`, anvil.0070) or judging skill `confidence`; execution stays external.

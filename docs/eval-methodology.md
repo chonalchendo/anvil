@@ -1,10 +1,10 @@
 # Eval Methodology
 
-How anvil reasons about skill evals. Read when ingesting eval results (`anvil eval`) or judging skill `confidence`.
+How anvil reasons about skill evals. Read when ingesting eval results (the planned `anvil eval`, anvil.0070) or judging skill `confidence`.
 
 Skill `confidence: low | medium | high` is metadata an author asserts. An eval **measures** it: run the skill against fixed prompts, grade each expectation, track the pass-rate over versions. This doc makes that method anvil-native so a dispatched agent can cite the rubric and result schema without reaching the external harness.
 
-**Execution stays external.** anvil records and describes; it does not run or grade. Harnesses that own execution — Anthropic's `skill-creator` plugin (`run_eval.py`, `agents/grader.md`, `references/schemas.md`), or any other — spawn the agent, capture the transcript, and emit the result files below. anvil's stack is Go + markdown, and headless `claude -p` is metered, not subscription-covered ([[issue.anvil.0070.eval-runner-on-agentadapter-run-evals]]). `anvil eval ingest` reads the emitted files; the run-cost stays with whoever invokes the harness.
+**Execution stays external.** anvil records and describes; it does not run or grade. Harnesses that own execution — Anthropic's `skill-creator` plugin (`run_eval.py`, `agents/grader.md`, `references/schemas.md`), or any other — spawn the agent, capture the transcript, and emit the result files below. anvil's stack is Go + markdown, and headless `claude -p` is metered, not subscription-covered ([[issue.anvil.0070.eval-runner-on-agentadapter-run-evals]]). The planned `anvil eval ingest` (anvil.0070) reads the emitted files; the run-cost stays with whoever invokes the harness.
 
 ## Grading rubric (per-expectation, evidence-cited)
 
@@ -34,7 +34,7 @@ anvil parses two files from the harness. Field names below are the ingest contra
   "iterations": [ { "version": "v2", "expectation_pass_rate": 0.85, "is_current_best": true } ] }
 ```
 
-anvil ingests `summary.{passed,failed,total,pass_rate}` per run and `iterations[].{version,expectation_pass_rate}` per version into the `eval_runs` table, queryable per skill over time. Keying skill-confidence promotion off that table is downstream, not here.
+anvil.0070 will ingest `summary.{passed,failed,total,pass_rate}` per run and `iterations[].{version,expectation_pass_rate}` per version into an `eval_runs` table, queryable per skill over time. Keying skill-confidence promotion off that table is downstream, not here.
 
 ---
 
