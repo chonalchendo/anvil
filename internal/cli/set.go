@@ -95,7 +95,7 @@ func newSetCmd() *cobra.Command {
 
 			case schema.KindArray:
 				switch {
-				case flagAddSet || len(values) > 0:
+				case flagAddSet:
 					if len(values) == 0 {
 						return fmt.Errorf("--add requires at least one positional value, e.g. anvil set %s %s %s --add foo bar", args[0], args[1], field)
 					}
@@ -113,6 +113,18 @@ func newSetCmd() *cobra.Command {
 					result.To = append([]any(nil), next...)
 					result.Value = singleOrSlice(added)
 					result.Status = "added"
+				case len(values) > 0:
+					// Bare positionals replace the array; use --add to append.
+					before := arrayValue(a.FrontMatter[field])
+					next := make([]any, len(values))
+					for i, v := range values {
+						next[i] = v
+					}
+					a.FrontMatter[field] = next
+					result.From = before
+					result.To = append([]any(nil), next...)
+					// Value mirrors To so callers can assert to==value as a replace-vs-append signal.
+					result.Value = append([]any(nil), next...)
 				case flagRemSet:
 					existing := arrayValue(a.FrontMatter[field])
 					// Resolve every --remove target to an index in the original
@@ -169,10 +181,12 @@ func newSetCmd() *cobra.Command {
 					result.Status = "removed"
 				default:
 					return fmt.Errorf(
-						"field %q is an array (field_is_array); use --add <value>... or --remove <value|index>\n"+
-							"  append:  anvil set %s %s %s <value>... [--add]\n"+
+						"field %q is an array (field_is_array); pass values to replace, --add to append, or --remove\n"+
+							"  replace: anvil set %s %s %s <value>...\n"+
+							"  append:  anvil set %s %s %s <value>... --add\n"+
 							"  remove:  anvil set %s %s %s --remove VALUE_OR_INDEX",
 						field,
+						args[0], args[1], field,
 						args[0], args[1], field,
 						args[0], args[1], field,
 					)
