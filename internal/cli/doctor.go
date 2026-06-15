@@ -250,6 +250,19 @@ func checkDeadClaim(v *core.Vault, id string, a *core.Artifact, worktrees map[st
 			return nil
 		}
 	}
+	// Distinguish merged-but-unresolved (fix: resolve) from abandoned (fix: reopen).
+	// Try the conventional branch names for this issue; if any has a merged PR the
+	// fix already landed — recommend resolved, not open.
+	for _, b := range branches {
+		if _, merged, err := ghMergedPRForBranchFn(b); err == nil && merged {
+			return &doctorFinding{
+				Kind:     "dead-claim",
+				ID:       id,
+				Evidence: fmt.Sprintf("in-progress with claim_session %s but no live worktree or open PR; branch %s has a merged PR", claimSession, b),
+				Fix:      fmt.Sprintf("anvil transition issue %s resolved", id),
+			}
+		}
+	}
 	return &doctorFinding{
 		Kind:     "dead-claim",
 		ID:       id,
