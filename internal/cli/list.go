@@ -1,9 +1,7 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -49,14 +47,6 @@ type listFilters struct {
 // list is the only consumer; promote to schema package on a second use.
 var issueSeverityEnum = []string{"low", "medium", "high", "critical"}
 
-// listItemFields is the exhaustive set of JSON keys a listItem can carry.
-// Used to reject unknown --fields values before any output is written.
-var listItemFields = []string{
-	"id", "type", "title", "description", "status",
-	"severity", "created", "project", "milestone", "tags",
-	"path", "missing_section",
-}
-
 func newListCmd() *cobra.Command {
 	var (
 		flagStatus, flagProject, flagTag string
@@ -97,19 +87,9 @@ func newListCmd() *cobra.Command {
 			if flagInvalidBody && t != core.TypeIssue {
 				return printAndReturn(cmd, errfmt.NewUnsupportedForType(string(t), []string{"issue"}))
 			}
-			var fields []string
-			if flagFields != "" {
-				fields = splitTags([]string{flagFields}) // reuse comma-split logic
-				for _, f := range fields {
-					if !slices.Contains(listItemFields, f) {
-						// Always non-zero: callers rely on exit code to detect
-						// typos in --fields, regardless of --json mode.
-						return errfmt.NewStructured("bad_flag_value").
-							Set("flag", "fields").
-							Set("value", f).
-							Set("allowed", listItemFields)
-					}
-				}
+			fields, err := parseFields(flagFields)
+			if err != nil {
+				return err
 			}
 			if flagReady || flagOrphans {
 				// --ready/--orphans list an actionable queue; default to
@@ -305,38 +285,6 @@ func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool, t co
 		cmd.PrintErrln(hint)
 	}
 	return nil
-}
-
-// writeProjectedListJSON emits the canonical bounded-list envelope with each
-// item reduced to only the requested field keys, routing through
-// output.WriteListJSON so the projected and full --json paths serialise
-// identically (same envelope shape, same HTML escaping).
-func writeProjectedListJSON(w io.Writer, items []listItem, total, returned int, fields []string) error {
-	projected := make([]map[string]any, 0, len(items))
-	for _, item := range items {
-		// Round-trip through JSON to obtain a key→value map without
-		// maintaining a hand-coded field registry.
-		b, err := json.Marshal(item)
-		if err != nil {
-			return err
-		}
-		var full map[string]any
-		if err := json.Unmarshal(b, &full); err != nil {
-			return err
-		}
-		row := make(map[string]any, len(fields))
-		for _, f := range fields {
-			if v, ok := full[f]; ok {
-				row[f] = v
-			} else {
-				// Field exists in schema but was omitted (omitempty zero
-				// value); include it as null so callers see the key.
-				row[f] = nil
-			}
-		}
-		projected = append(projected, row)
-	}
-	return output.WriteListJSON(w, projected, total, returned)
 }
 
 // milestoneSlug extracts the slug from a milestone wikilink of the form
