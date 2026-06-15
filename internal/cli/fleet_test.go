@@ -11,6 +11,79 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
+func TestScopeAudit_ViolationsDetected(t *testing.T) {
+	cmd := newRootCmd()
+	stdout, _, err := runCmd(t, cmd, "fleet", "scope-audit",
+		"--declared", "a.py,b.py",
+		"--changed", "a.py,cli.py",
+	)
+	if err != nil {
+		t.Fatalf("scope-audit: unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "cli.py") {
+		t.Errorf("expected cli.py in output, got: %q", stdout)
+	}
+	if strings.Contains(stdout, "a.py") {
+		t.Errorf("a.py is declared; must not appear in output, got: %q", stdout)
+	}
+}
+
+func TestScopeAudit_Clean(t *testing.T) {
+	cmd := newRootCmd()
+	stdout, _, err := runCmd(t, cmd, "fleet", "scope-audit",
+		"--declared", "a.py,b.py",
+		"--changed", "a.py,b.py",
+	)
+	if err != nil {
+		t.Fatalf("scope-audit: unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "clean") {
+		t.Errorf("expected 'clean' in output, got: %q", stdout)
+	}
+}
+
+func TestScopeViolations(t *testing.T) {
+	cases := []struct {
+		name     string
+		declared []string
+		changed  []string
+		want     []string
+	}{
+		{"all-in-scope", []string{"a.py", "b.py"}, []string{"a.py", "b.py"}, nil},
+		{"one-violation", []string{"a.py", "b.py"}, []string{"a.py", "cli.py"}, []string{"cli.py"}},
+		{"no-declared", nil, []string{"x.go"}, []string{"x.go"}},
+		{"empty-changed", []string{"a.py"}, nil, nil},
+		{"multiple-violations", []string{"a.py"}, []string{"b.py", "c.py"}, []string{"b.py", "c.py"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := scopeViolations(tc.declared, tc.changed)
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("scopeViolations (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestSplitCSV(t *testing.T) {
+	cases := []struct {
+		in   string
+		want []string
+	}{
+		{"a,b,c", []string{"a", "b", "c"}},
+		{"a, b , c", []string{"a", "b", "c"}},
+		{"", nil},
+		{"a", []string{"a"}},
+		{",a,", []string{"a"}},
+	}
+	for _, tc := range cases {
+		got := splitCSV(tc.in)
+		if diff := cmp.Diff(tc.want, got); diff != "" {
+			t.Errorf("splitCSV(%q) (-want +got):\n%s", tc.in, diff)
+		}
+	}
+}
+
 func TestParseWorktreePorcelain_MultipleEntries(t *testing.T) {
 	in := strings.Join([]string{
 		"worktree /a/main",
