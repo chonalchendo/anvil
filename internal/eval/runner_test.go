@@ -3,6 +3,7 @@ package eval
 import (
 	"context"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,6 +18,7 @@ type fakeAdapter struct {
 	runResult   build.RunResult
 	runErr      error
 	judgeResult build.RunResult
+	judgeErr    error
 	onRun       func(req build.RunRequest)
 	calls       int
 }
@@ -31,7 +33,7 @@ func (f *fakeAdapter) Run(_ context.Context, req build.RunRequest) (build.RunRes
 	if len(req.Skills) > 0 {
 		return f.runResult, f.runErr
 	}
-	return f.judgeResult, nil
+	return f.judgeResult, f.judgeErr
 }
 
 func TestEvalRunCasePassSumsCost(t *testing.T) {
@@ -47,7 +49,7 @@ func TestEvalRunCasePassSumsCost(t *testing.T) {
 	if !res.Pass {
 		t.Errorf("Pass = false, want true (reason %q)", res.Reason)
 	}
-	if res.Cost != 0.012 {
+	if math.Abs(res.Cost-0.012) > 1e-9 {
 		t.Errorf("Cost = %v, want 0.012 (run + judge)", res.Cost)
 	}
 	if res.Duration != 2*time.Second {
@@ -118,5 +120,31 @@ func TestEvalRunCaseQuotaPropagates(t *testing.T) {
 	_, err := (&Runner{Adapter: fa}).RunCase(context.Background(), "s", Case{})
 	if !errors.Is(err, build.ErrQuotaExhausted) {
 		t.Errorf("err = %v, want ErrQuotaExhausted to propagate", err)
+	}
+}
+
+func TestEvalRunCaseJudgeErrorGradedAsFail(t *testing.T) {
+	fa := &fakeAdapter{
+		runResult:   build.RunResult{CostUSD: 0.01},
+		judgeResult: build.RunResult{CostUSD: 0.003}, // billed before erroring
+		judgeErr:    errors.New("judge boom"),
+	}
+	res, err := (&Runner{Adapter: fa}).RunCase(context.Background(), "s", Case{})
+	if err != nil {
+		t.Fatalf("a judge error should grade as a fail, not abort the case: %v", err)
+	}
+	if res.Pass {
+		t.Error("Pass = true, want false on judge error")
+	}
+	if math.Abs(res.Cost-0.013) > 1e-9 {
+		t.Errorf("Cost = %v, want 0.013 (run + billed judge cost folded in)", res.Cost)
+	}
+}
+
+func TestEvalRunCaseJudgeQuotaPropagates(t *testing.T) {
+	fa := &fakeAdapter{judgeErr: build.ErrQuotaExhausted}
+	_, err := (&Runner{Adapter: fa}).RunCase(context.Background(), "s", Case{})
+	if !errors.Is(err, build.ErrQuotaExhausted) {
+		t.Errorf("err = %v, want judge ErrQuotaExhausted to propagate", err)
 	}
 }

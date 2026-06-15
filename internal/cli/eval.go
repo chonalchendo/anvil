@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -55,13 +56,19 @@ func newEvalCmd() *cobra.Command {
 
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON instead of a table")
 	cmd.Flags().BoolVar(&flagHistory, "history", false, "print recorded runs for the skill instead of executing")
-	cmd.Flags().StringVar(&flagModel, "model", "claude-sonnet-4-6", "model id for both the skill run and the judge")
+	cmd.Flags().StringVar(&flagModel, "model", "claude-sonnet-4-6", "Claude model id for both the skill run and the judge")
 	cmd.Flags().DurationVar(&flagTimeout, "timeout", 10*time.Minute, "per-spawn timeout")
 	cmd.Flags().IntVar(&flagCase, "case", -1, "run only the eval with this id (default: all)")
 	return cmd
 }
 
 func runEvalSuite(cmd *cobra.Command, db *index.DB, skill string, asJSON bool, caseID int, model string, timeout time.Duration) error {
+	// eval routes through the Claude adapter only (the sole adapter anvil ships);
+	// "claude-" is build.Router's dispatch key. Reject other ids loudly rather
+	// than spawning Claude with a model it does not recognise.
+	if !strings.HasPrefix(model, "claude-") {
+		return fmt.Errorf("anvil eval runs the Claude adapter only; --model must be a claude-* id, got %q", model)
+	}
 	suite, err := eval.LoadSuite(skills.FS, skill)
 	if err != nil {
 		return err

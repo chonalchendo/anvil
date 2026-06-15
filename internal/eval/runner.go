@@ -41,8 +41,9 @@ type Result struct {
 // under test, then judge the outcome off the filesystem side-effects and the
 // agent's diagnostic. Isolation is Cwd-scoped (a per-case temp dir) rather than
 // CLAUDE_CONFIG_DIR — the thinnest cut given RunRequest carries no env override.
-// ErrQuotaExhausted propagates so the caller can stop; any other run error is
-// graded as a fail so one bad case does not abort the suite.
+// ErrQuotaExhausted (from either the skill run or the judge) propagates so the
+// caller can stop; any other spawn error is graded as a fail so one bad case
+// does not abort the suite.
 func (r *Runner) RunCase(ctx context.Context, skill string, c Case) (Result, error) {
 	res := Result{Skill: skill, EvalID: c.ID, Name: c.Name, Model: r.Model, Date: time.Now().UTC().Format(time.RFC3339)}
 
@@ -73,11 +74,15 @@ func (r *Runner) RunCase(ctx context.Context, skill string, c Case) (Result, err
 	}
 
 	pass, reason, judgeCost, err := r.judge(ctx, c, cwd, runRes.Diagnostic)
+	res.Cost += judgeCost // billed even when the judge spawn then errors
 	if err != nil {
-		return res, err
+		if errors.Is(err, build.ErrQuotaExhausted) {
+			return res, err
+		}
+		res.Reason = "judge spawn errored: " + err.Error()
+		return res, nil
 	}
 	res.Pass, res.Reason = pass, reason
-	res.Cost += judgeCost
 	return res, nil
 }
 
