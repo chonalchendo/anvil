@@ -7,5 +7,5 @@ import "embed"
 
 // FS is the embedded bundle of Anvil agent definitions.
 //
-//go:embed anvil-issue-worker.md
+//go:embed anvil-issue-worker.md anvil-learnings-researcher.md
 var FS embed.FS
