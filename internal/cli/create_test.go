@@ -115,6 +115,34 @@ func TestCreate_NonIssueCappedField_ChecksBeforeProjectResolution(t *testing.T) 
 	}
 }
 
+// TestCreate_TitleAndCapViolations_ReportedTogether is the 2026-06-12 reopen
+// regression guard: a missing --title must not short-circuit ahead of a
+// simultaneous --description cap overage. Both pre-resolution violations
+// surface in one rejection rather than costing a trim-resubmit round-trip.
+func TestCreate_TitleAndCapViolations_ReportedTogether(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	longDesc := strings.Repeat("x", 130)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue", "--description", longDesc, "--goal", "goal"})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected error for missing title and over-length description")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "title is required") {
+		t.Errorf("error must report the missing title: %q", msg)
+	}
+	if !strings.Contains(msg, "description too long") {
+		t.Errorf("missing title must not swallow the cap overage: %q", msg)
+	}
+}
+
 func TestCreate_Issue_WritesValidFile(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
