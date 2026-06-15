@@ -5,11 +5,15 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/chonalchendo/anvil/internal/core"
 )
+
+// numberedIssueIDRe matches the create-issue id scheme <project>.NNNN.<slug>.
+var numberedIssueIDRe = regexp.MustCompile(`^foo\.[0-9]{4}\..+`)
 
 func TestPromote_TopLevel_Issue(t *testing.T) {
 	vault := setupVault(t)
@@ -39,6 +43,96 @@ func TestPromote_TopLevel_Issue(t *testing.T) {
 	}
 	if a.FrontMatter["status"] != "promoted" {
 		t.Errorf("status = %v", a.FrontMatter["status"])
+	}
+}
+
+// TestPromote_Issue_NumberedIDAndGoalOverride pins create-issue parity: a
+// promoted issue gets a <project>.NNNN.<slug> id (not the bare slug NextID
+// produced), and --goal / --description override the inbox title (which would
+// overflow the 120-char schema cap when long).
+func TestPromote_Issue_NumberedIDAndGoalOverride(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	longTitle := strings.Repeat("x", 130)
+	add := newRootCmd()
+	add.SetArgs([]string{"create", "inbox", "--title", longTitle, "--suggested-project", "foo"})
+	if err := add.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	entries, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(entries[0].Name(), ".md")
+
+	cmd := newRootCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{
+		"promote", id, "--as", "issue",
+		"--goal", "promoted issue reaches create parity",
+		"--description", "short desc",
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain",
+		"--json",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("promote: %v", err)
+	}
+
+	var res struct {
+		ID   string `json:"id"`
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
+		t.Fatalf("unmarshal %q: %v", out.String(), err)
+	}
+	if !numberedIssueIDRe.MatchString(res.ID) {
+		t.Errorf("id = %q, want foo.NNNN.<slug>", res.ID)
+	}
+	a, err := core.LoadArtifact(res.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := a.FrontMatter["goal"]; got != "promoted issue reaches create parity" {
+		t.Errorf("goal = %v, want flag override", got)
+	}
+	if got := a.FrontMatter["description"]; got != "short desc" {
+		t.Errorf("description = %v, want flag override", got)
+	}
+}
+
+// TestPromote_Issue_RefusesSlugCollision guards the AllocateIssueID switch:
+// promoting an inbox whose title-slug matches an existing issue must refuse,
+// not overwrite the live issue (promote has no create-style drift check).
+func TestPromote_Issue_RefusesSlugCollision(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	bodyFile := filepath.Join(t.TempDir(), "b.md")
+	if err := os.WriteFile(bodyFile, []byte(core.ScaffoldSections(core.RequiredIssueSections)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	mk := newRootCmd()
+	mk.SetArgs([]string{"create", "issue", "--title", "shared slug", "--description", "d", "--goal", "g", "--tags", "domain/dev-tools", "--allow-new-facet=domain", "--body-file", bodyFile})
+	if err := mk.Execute(); err != nil {
+		t.Fatalf("create issue: %v", err)
+	}
+
+	add := newRootCmd()
+	add.SetArgs([]string{"create", "inbox", "--title", "shared slug", "--suggested-project", "foo"})
+	if err := add.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	inbox, _ := os.ReadDir(filepath.Join(vault, "00-inbox"))
+	id := strings.TrimSuffix(inbox[0].Name(), ".md")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"promote", id, "--as", "issue", "--tags", "domain/dev-tools", "--allow-new-facet=domain"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("expected slug-collision refusal, got %v", err)
 	}
 }
 

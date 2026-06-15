@@ -27,6 +27,8 @@ func newPromoteCmd() *cobra.Command {
 		flagAcceptance    []string
 		flagBody          string
 		flagBodyFile      string
+		flagGoal          string
+		flagDescription   string
 	)
 
 	cmd := &cobra.Command{
@@ -70,7 +72,7 @@ func newPromoteCmd() *cobra.Command {
 			case "discard":
 				return discardInbox(cmd, v, a, id, flagJSON)
 			default:
-				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON, flagTags, flagAllowNewFacet, flagProjectLocal, flagSeverity, flagMilestone, flagAcceptance, flagBody, flagBodyFile)
+				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON, flagTags, flagAllowNewFacet, flagProjectLocal, flagSeverity, flagMilestone, flagAcceptance, flagBody, flagBodyFile, flagGoal, flagDescription)
 			}
 		},
 	}
@@ -85,6 +87,8 @@ func newPromoteCmd() *cobra.Command {
 	cmd.Flags().StringArrayVar(&flagAcceptance, "acceptance", nil, "acceptance criterion to add (repeatable; issue only)")
 	cmd.Flags().StringVar(&flagBody, "body", "", "body content for the promoted artifact (literal, or '-' to read stdin; issue only)")
 	cmd.Flags().StringVar(&flagBodyFile, "body-file", "", "read body from <path> (issue only; mutually exclusive with --body)")
+	cmd.Flags().StringVar(&flagGoal, "goal", "", fmt.Sprintf("terminal predicate, one sentence (max %d chars; issue only, defaults to the inbox title)", maxGoalChars))
+	cmd.Flags().StringVar(&flagDescription, "description", "", fmt.Sprintf("one-line summary (max %d chars; defaults to the inbox title)", maxDescriptionChars))
 	_ = cmd.MarkFlagRequired("as")
 	return cmd
 }
@@ -155,7 +159,7 @@ func formatEnumError(field, got string, valid []string, exampleCmd string) error
 // promoteToTyped writes the target artifact, then flips the inbox row to
 // status: promoted with provenance fields. Issue is the only target that
 // resolves a project; the others ignore the project field.
-func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type, asJSON bool, flagTags, flagAllowNewFacet []string, projectOverride, flagSeverity, flagMilestone string, flagAcceptance []string, flagBody, flagBodyFile string) error {
+func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type, asJSON bool, flagTags, flagAllowNewFacet []string, projectOverride, flagSeverity, flagMilestone string, flagAcceptance []string, flagBody, flagBodyFile, flagGoal, flagDescription string) error {
 	status, _ := inbox.FrontMatter["status"].(string)
 	switch status {
 	case "promoted":
@@ -182,13 +186,25 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 
 	title, _ := inbox.FrontMatter["title"].(string)
 	created := time.Now().UTC().Format("2006-01-02")
-	// Spine targets require a non-empty description, and issues now require a
-	// non-empty goal; reuse the inbox title for both so promote stays a
-	// single-step operation. The author refines goal via `anvil set` once the
-	// stub exists. Goal is ignored by non-issue templates.
-	data := templateData{Title: title, Description: title, Goal: title, Created: created, Tags: flagTags}
-	idInputs := core.IDInputs{Title: title}
+	// Spine targets require a non-empty description, and issues a non-empty
+	// goal; default both to the inbox title so promote stays single-step, but
+	// let --description / --goal override — a long inbox title overflows the
+	// 120-char schema cap, and a promoted issue should reach create-issue
+	// parity. Goal is ignored by non-issue templates.
+	description := title
+	if flagDescription != "" {
+		description = flagDescription
+	}
+	goal := title
+	if flagGoal != "" {
+		goal = flagGoal
+	}
+	data := templateData{Title: title, Description: description, Goal: goal, Created: created, Tags: flagTags}
 
+	var (
+		targetID   string
+		targetPath string
+	)
 	if target == core.TypeIssue {
 		project := projectOverride
 		if project == "" {
@@ -205,12 +221,17 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 			project = p.Slug
 		}
 		data.Project = project
-		idInputs.Project = project
-	}
-
-	targetID, err := core.NextID(v, target, idInputs)
-	if err != nil {
-		return fmt.Errorf("allocating ID: %w", err)
+		// Mint the numbered <project>.NNNN.<slug> id via the same allocator
+		// create uses, so promoted and created issues share one id scheme.
+		var err error
+		if targetID, targetPath, err = core.AllocateIssueID(v, project, title, ""); err != nil {
+			return fmt.Errorf("allocating ID: %w", err)
+		}
+	} else {
+		var err error
+		if targetID, err = core.NextID(v, target, core.IDInputs{Title: title}); err != nil {
+			return fmt.Errorf("allocating ID: %w", err)
+		}
 	}
 
 	fm, err := renderFrontMatter(target, data)
@@ -262,7 +283,16 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		return fmt.Errorf("mkdir %s: %w", dir, err)
 	}
-	targetPath := filepath.Join(dir, targetID+".md")
+	if targetPath == "" {
+		targetPath = filepath.Join(dir, targetID+".md")
+	}
+
+	// AllocateIssueID resolves a colliding slug to the existing issue (create
+	// uses that for its drift check); promote has no drift path, so refuse
+	// rather than overwrite a live issue.
+	if _, statErr := os.Stat(targetPath); statErr == nil {
+		return fmt.Errorf("issue %s already exists (slug collision with this inbox title); rename the inbox before promoting", targetID)
+	}
 
 	// Route through the same validator create uses so the two paths accept the
 	// identical artifact set: schema + facet novelty, plus — for an authored
