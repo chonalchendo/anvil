@@ -29,20 +29,21 @@ Map each keyword to the closest existing tag. A keyword with no close tag still 
 
 ## Phase 2 — Query, cheapest first
 
-**a. By facet** — cheap, high-recall:
+**a. By facet** — cheap, high-recall. `--tags` is all-of (comma-separated); `--confidence` is exact-match, so query each tier you want and union the results — do NOT pass `--confidence high,medium`, which matches nothing:
 
 ```bash
-anvil list learning --tags domain/<X>,activity/<Y> --confidence high,medium --json
+anvil list learning --tags domain/<X>,activity/<Y> --confidence high --json
+anvil list learning --tags domain/<X>,activity/<Y> --confidence medium --json
 ```
 
 **b. By link graph** — the highest-precision signal. A learning whose edges touch an artifact this work also touches is almost certainly relevant. For each artifact id named in the work-context:
 
 ```bash
-anvil link --to <artifact-id> --json     # learnings pointing AT it
+anvil link --to <artifact-id> --json     # edges pointing AT it
 anvil link --from <artifact-id> --json   # what it points at
 ```
 
-Keep the `learning` edges; pull each one's frontmatter with `anvil show learning <id> --json`.
+Keep the edges whose endpoint is a learning (its id resolves under the learnings dir, i.e. `anvil show learning <id> --json` succeeds); read each one's frontmatter that way.
 
 **c. By content** — for any work-context keyword or touched file path that Phase 1 could not map to a tag, grep the learning bodies for it (their TL;DR names the surface). Full-text search over learning bodies is not yet a CLI verb (a separate, later issue); grep is the interim path, so say so if it limits recall.
 
