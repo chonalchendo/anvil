@@ -52,7 +52,65 @@ func newFleetCmd() *cobra.Command {
 		Short: "Inspect in-flight issue worktrees + PRs",
 	}
 	cmd.AddCommand(newFleetStatusCmd())
+	cmd.AddCommand(newFleetScopeAuditCmd())
 	return cmd
+}
+
+// newFleetScopeAuditCmd returns a command that compares a branch's changed
+// files against an issue's declared-files allowlist and names any file outside
+// the allowlist. One out-of-scope file per line; "scope: clean" when none.
+// Orchestrators can pipe through grep to detect violations.
+func newFleetScopeAuditCmd() *cobra.Command {
+	var declared, changed string
+	cmd := &cobra.Command{
+		Use:          "scope-audit",
+		Short:        "Flag changed files that fall outside an issue's declared-files allowlist",
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			outside := scopeViolations(splitCSV(declared), splitCSV(changed))
+			w := cmd.OutOrStdout()
+			if len(outside) == 0 {
+				fmt.Fprintln(w, "scope: clean")
+				return nil
+			}
+			for _, f := range outside {
+				fmt.Fprintln(w, f)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&declared, "declared", "", "comma-separated declared-files allowlist")
+	cmd.Flags().StringVar(&changed, "changed", "", "comma-separated changed files on the branch")
+	_ = cmd.MarkFlagRequired("declared")
+	_ = cmd.MarkFlagRequired("changed")
+	return cmd
+}
+
+// scopeViolations returns the elements of changed that are not in declared.
+func scopeViolations(declared, changed []string) []string {
+	allowSet := make(map[string]bool, len(declared))
+	for _, f := range declared {
+		allowSet[f] = true
+	}
+	var outside []string
+	for _, f := range changed {
+		if !allowSet[f] {
+			outside = append(outside, f)
+		}
+	}
+	return outside
+}
+
+// splitCSV splits a comma-separated string into trimmed, non-empty tokens.
+func splitCSV(s string) []string {
+	var out []string
+	for _, f := range strings.Split(s, ",") {
+		f = strings.TrimSpace(f)
+		if f != "" {
+			out = append(out, f)
+		}
+	}
+	return out
 }
 
 func newFleetStatusCmd() *cobra.Command {
