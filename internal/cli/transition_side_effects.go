@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
@@ -28,6 +29,7 @@ var (
 	ghPRChecksFn           = ghPRChecksReal
 	ghPRMergeFn            = ghPRMergeReal
 	userHomeFn             = os.UserHomeDir
+	mergeabilityPollSleep  = time.Sleep
 )
 
 // claimConflict reports whether claiming `a` (issue → in-progress) collides with
@@ -299,13 +301,26 @@ func landPR(num int, worktreePath string) error {
 		Mergeable        string `json:"mergeable"`
 		MergeStateStatus string `json:"mergeStateStatus"`
 	}
-	raw, err := ghPRViewJSONFn(num, "mergeable,mergeStateStatus")
-	if err != nil {
-		return errfmt.NewStructured("land_pr_view_failed").Set("pr", num).Set("error", err.Error())
-	}
+	// GitHub recomputes mergeability asynchronously after a sibling PR merges;
+	// UNKNOWN means "recomputing, not yet known" — poll until resolved, up to
+	// ~30 s. Only CONFLICTING (or any other non-MERGEABLE, non-UNKNOWN value)
+	// is a genuine hard abort.
+	const maxAttempts = 6
 	var st mergeState
-	if err := json.Unmarshal(raw, &st); err != nil {
-		return errfmt.NewStructured("land_pr_view_failed").Set("pr", num).Set("error", err.Error())
+	for attempt := range maxAttempts {
+		raw, err := ghPRViewJSONFn(num, "mergeable,mergeStateStatus")
+		if err != nil {
+			return errfmt.NewStructured("land_pr_view_failed").Set("pr", num).Set("error", err.Error())
+		}
+		if err := json.Unmarshal(raw, &st); err != nil {
+			return errfmt.NewStructured("land_pr_view_failed").Set("pr", num).Set("error", err.Error())
+		}
+		if st.Mergeable != "UNKNOWN" {
+			break
+		}
+		if attempt < maxAttempts-1 {
+			mergeabilityPollSleep(5 * time.Second)
+		}
 	}
 	if st.Mergeable != "MERGEABLE" {
 		return errfmt.NewStructured("land_pr_not_mergeable").
@@ -365,7 +380,7 @@ func landPR(num int, worktreePath string) error {
 	type finalState struct {
 		State string `json:"state"`
 	}
-	raw, err = ghPRViewJSONFn(num, "state")
+	raw, err := ghPRViewJSONFn(num, "state")
 	if err != nil {
 		return errfmt.NewStructured("land_pr_state_verify_failed").Set("pr", num).Set("error", err.Error())
 	}

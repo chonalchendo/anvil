@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/chonalchendo/anvil/internal/core"
 )
@@ -73,6 +74,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 	prevView := ghPRViewJSONFn
 	prevChecks := ghPRChecksFn
 	prevMerge := ghPRMergeFn
+	prevSleep := mergeabilityPollSleep
 
 	gitWorktreeListFn = func() (map[string]worktreeInfo, error) {
 		return s.listEntries, s.listErr
@@ -109,6 +111,9 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		s.mergeCalls = append(s.mergeCalls, num)
 		return s.mergeErr
 	}
+	// Suppress real sleeps in tests; tests that care about poll behavior
+	// override ghPRViewJSONFn directly after calling stubSideFX.
+	mergeabilityPollSleep = func(_ time.Duration) {}
 
 	t.Cleanup(func() {
 		gitWorktreeListFn = prevList
@@ -121,6 +126,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		ghPRViewJSONFn = prevView
 		ghPRChecksFn = prevChecks
 		ghPRMergeFn = prevMerge
+		mergeabilityPollSleep = prevSleep
 	})
 	return s
 }
@@ -375,6 +381,50 @@ func TestLandPRRefusesWhenNotMergeable(t *testing.T) {
 	a := loadIssueDoc(t, vault, "demo.foo")
 	if a.FrontMatter["status"] != "in-progress" {
 		t.Errorf("status = %v, want in-progress (unchanged)", a.FrontMatter["status"])
+	}
+}
+
+// TestLandPRPollsUnknownMergeability verifies that a transient UNKNOWN
+// mergeability is retried rather than hard-aborted, and that CONFLICTING still
+// fails after all retries exhaust.
+func TestLandPRPollsUnknownMergeability(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	// First call returns UNKNOWN; second returns MERGEABLE — land-pr must succeed.
+	callCount := 0
+	ghPRViewJSONFn = func(_ int, fields string) ([]byte, error) {
+		if fields == "mergeable,mergeStateStatus" {
+			callCount++
+			if callCount == 1 {
+				return []byte(`{"mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"}`), nil
+			}
+			return []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`), nil
+		}
+		if b, ok := s.viewByField[fields]; ok {
+			return b, nil
+		}
+		return []byte("{}"), nil
+	}
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+
+	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
+
+	if callCount < 2 {
+		t.Errorf("expected at least 2 mergeability polls (UNKNOWN then MERGEABLE), got %d", callCount)
+	}
+	if len(s.mergeCalls) != 1 {
+		t.Errorf("merge calls = %v, want [42]", s.mergeCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v, want resolved", a.FrontMatter["status"])
 	}
 }
 
