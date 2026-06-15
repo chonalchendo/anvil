@@ -177,11 +177,11 @@ Do NOT call `gh pr create`. Do NOT transition the issue. Leave the worktree for 
 
 ## Phase 6 — Offer learning distillation (on resolve)
 
-A completed run is the system's most learning-rich event — a verified change just landed. Once the issue reaches `resolved` (the human fired the merge+resolve verb in Phase 5), **offer — do not force —** a handoff to `distilling-learning` to capture any durable learning the run produced:
+A completed run is the system's most learning-rich event — a verified change just landed. Once the issue reaches `resolved` (the human fired the merge+resolve verb in Phase 5), **offer — do not force —** a handoff to `distilling-learning`:
 
 > This run resolved `<id>`. Distill a learning from it? (`distilling-learning`)
 
-Honour the user's answer; "nothing worth distilling" is a valid one. The capture step stays human-validated — never auto-distill (Iron Law of `distilling-learning`).
+The bar is **compounding, not record-keeping**: file a learning when the run surfaced something a *future* agent would act on differently — a gotcha, a confirmed approach, a dead end avoided — so it is retrieved before similar work and makes the next agent's run cheaper or safer (the read-side crossbar already wired into authoring and the fleet). "Nothing worth distilling" is a valid answer; the capture step stays human-validated — never auto-distill (Iron Law of `distilling-learning`).
 
 **Dispatched / autonomous mode is a no-op.** A fleet- or `anvil-issue-worker`-dispatched completion stops at PR-opened and never reaches the resolve, so it makes no offer and never stalls on one — consistent with the dispatched-completion-stops-at-PR-opened convention. The orchestrator owns any post-merge distillation.
 
