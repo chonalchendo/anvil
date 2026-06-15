@@ -42,12 +42,12 @@ The fleet worker is a subagent and cannot dispatch a sub-subagent, so per-worker
 work: fleet of <N> issues under [[milestone.<project>.<slug>]]
 domain: <union of candidate domain/ tags>
 activity: activity/issue
-artifacts: <candidate issue ids>
+artifacts: [[milestone.<project>.<slug>]], <candidate issue ids>
 </work-context>
 Return up to 5 findings.
 ```
 
-Distil the return (or `Findings: none`) to one line and inject it as the `Prior learnings (gist)` field of each worker's dispatch prompt below.
+The milestone belongs in `artifacts:`, not just the `work:` prose — that is what the agent's link-graph pass queries edges against. Distil the return (or `Findings: none`) to one line and inject it into each worker's dispatch prompt below.
 
 ## Phase 3 — Dispatch N subagents
 
