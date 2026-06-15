@@ -59,6 +59,7 @@ func newListCmd() *cobra.Command {
 		flagLimit                        int
 		flagReady, flagOrphans           bool
 		flagInvalidBody                  bool
+		flagFields                       string
 	)
 
 	cmd := &cobra.Command{
@@ -86,6 +87,10 @@ func newListCmd() *cobra.Command {
 			if flagInvalidBody && t != core.TypeIssue {
 				return printAndReturn(cmd, errfmt.NewUnsupportedForType(string(t), []string{"issue"}))
 			}
+			fields, err := parseFields(flagFields)
+			if err != nil {
+				return err
+			}
 			if flagReady || flagOrphans {
 				// --ready/--orphans list an actionable queue; default to
 				// unlimited so callers see the full set without knowing to
@@ -99,7 +104,7 @@ func newListCmd() *cobra.Command {
 					Severity: flagSeverity, Milestone: flagMilestone,
 					Since: flagSince, Until: flagUntil,
 					InvalidBody: flagInvalidBody,
-				}, flagJSON, limit)
+				}, flagJSON, limit, fields)
 			}
 			v, err := core.ResolveVault()
 			if err != nil {
@@ -113,7 +118,7 @@ func newListCmd() *cobra.Command {
 				Milestone: flagMilestone,
 				Since:     flagSince, Until: flagUntil,
 				InvalidBody: flagInvalidBody,
-			}, flagJSON, flagLimit)
+			}, flagJSON, flagLimit, fields)
 		},
 	}
 
@@ -132,6 +137,7 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagReady, "ready", false, "filter to issues with no unresolved blockers (issue only)")
 	cmd.Flags().BoolVar(&flagOrphans, "orphans", false, "filter to artifacts with no incoming wikilinks")
 	cmd.Flags().BoolVar(&flagInvalidBody, "invalid-body", false, "filter to issues failing the body-shape gauntlet; names the first missing section per entry (issue only)")
+	cmd.Flags().StringVar(&flagFields, "fields", "", "comma-separated list of fields to include in --json output (e.g. id,title,status); unknown fields error non-zero")
 	return cmd
 }
 
@@ -157,7 +163,7 @@ func suggestProjectAlternative(t core.Type) string {
 	return "this type is deliberately cross-project; filter via --tag or --tags"
 }
 
-func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJSON bool, limit int) error {
+func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJSON bool, limit int, fields []string) error {
 	paths, err := collectArtifactPaths(v.Root, t)
 	if err != nil {
 		return err
@@ -213,7 +219,7 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 	if limit > 0 && len(items) > limit {
 		items = items[:limit]
 	}
-	return emitList(cmd, items, total, asJSON, t)
+	return emitList(cmd, items, total, asJSON, t, fields)
 }
 
 func matchesFilters(f listFilters, status, project, diataxis, confidence, severity, milestone, created string, tagsRaw any) bool {
@@ -250,9 +256,12 @@ func matchesFilters(f listFilters, status, project, diataxis, confidence, severi
 	return true
 }
 
-func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool, t core.Type) error {
+func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool, t core.Type, fields []string) error {
 	returned := len(items)
 	if asJSON {
+		if len(fields) > 0 {
+			return writeProjectedListJSON(cmd.OutOrStdout(), items, total, returned, fields)
+		}
 		return output.WriteListJSON(cmd.OutOrStdout(), items, total, returned)
 	}
 	w := cmd.OutOrStdout()
@@ -331,7 +340,7 @@ func hasTagSubstring(tags any, sub string) bool {
 	return false
 }
 
-func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f listFilters, asJSON bool, limit int) error {
+func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f listFilters, asJSON bool, limit int, fields []string) error {
 	if ready && t != core.TypeIssue {
 		e := errfmt.NewUnsupportedForType(string(t), []string{"issue"})
 		return printAndReturn(cmd, e)
@@ -395,7 +404,7 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 	if limit > 0 && len(items) > limit {
 		items = items[:limit]
 	}
-	return emitList(cmd, items, total, asJSON, t)
+	return emitList(cmd, items, total, asJSON, t, fields)
 }
 
 // collectArtifactPaths returns absolute paths of artifacts of type t under

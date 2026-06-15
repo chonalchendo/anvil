@@ -811,3 +811,73 @@ func TestList_InvalidBody_ReadyIndexed(t *testing.T) {
 		t.Errorf("missing_section=%q; want it to name ## Verification", raw.Items[0].MissingSection)
 	}
 }
+
+func TestList_FieldsProjection_OnlyRequestedKeys(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A issue")
+	writeFixtureIssue(t, vault, "foo", "b", "B issue")
+
+	cmd := newRootCmd()
+	out, _, err := runCmd(t, cmd, "list", "issue", "--json", "--fields", "id,title,status")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Decode as raw envelope so we can inspect keys without a typed struct.
+	var env struct {
+		Items []json.RawMessage `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(out), &env); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if len(env.Items) != 2 {
+		t.Fatalf("want 2 items, got %d", len(env.Items))
+	}
+	for _, raw := range env.Items {
+		var m map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &m); err != nil {
+			t.Fatalf("item parse: %v", err)
+		}
+		wantKeys := []string{"id", "status", "title"}
+		for _, k := range wantKeys {
+			if _, ok := m[k]; !ok {
+				t.Errorf("key %q missing from projected item %s", k, raw)
+			}
+		}
+		// Ensure no extra keys leak through.
+		if len(m) != len(wantKeys) {
+			t.Errorf("projected item has %d keys, want %d: %s", len(m), len(wantKeys), raw)
+		}
+	}
+}
+
+func TestList_FieldsProjection_UnknownFieldErrors(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A issue")
+
+	cmd := newRootCmd()
+	_, _, err := runCmd(t, cmd, "list", "issue", "--json", "--fields", "id,nonexistent")
+	if err == nil {
+		t.Fatal("expected non-zero exit for unknown field, got nil")
+	}
+}
+
+func TestList_FieldsProjection_DefaultUnchanged(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A issue")
+
+	// Without --fields, output must still include all listItem fields (no regression).
+	cmd := newRootCmd()
+	out, _, err := runCmd(t, cmd, "list", "issue", "--json")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	env := unmarshalListEnvelope(t, out)
+	if len(env.Items) != 1 {
+		t.Fatalf("want 1 item, got %d", len(env.Items))
+	}
+	item := env.Items[0]
+	if item.ID == "" || item.Type == "" || item.Title == "" || item.Status == "" || item.Path == "" {
+		t.Errorf("full output missing required fields: %+v", item)
+	}
+}
