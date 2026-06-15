@@ -50,6 +50,22 @@ The per-phase procedure — drafting instructions, mermaid templates, gate crite
 
 **REQUIRED REFERENCE:** Use skills/writing-system-design/references/phases.md
 
+## Prior learnings (after Phase 1, before Phase 4)
+
+Once Phase 1 fixes the slug and confirms the product-design dependency, dispatch `anvil-learnings-researcher` via the Agent tool's `subagent_type` to surface what the vault already knows about this architecture before you derive components. Build the `<work-context>`:
+
+```text
+<work-context>
+work: <the architectural shape in one sentence>
+domain: <domain/ tag(s) the design touches>
+activity: activity/system-design
+artifacts: [[product-design.<project>]]
+</work-context>
+Return up to 5 findings.
+```
+
+Fold non-stale, high-confidence findings into components (Phase 4), invariants (Phase 7), and risks (Phase 10) as you draft, and record the surfaced set in the design's rationale (Phase 9) so the reasoning is auditable. `Findings: none` → note it and move on. A `stale?: yes` finding is a signal to weigh against present evidence, not a directive.
+
 ## Quick reference
 
 | Phase | What | Gate |

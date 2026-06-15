@@ -33,6 +33,22 @@ Each candidate issue declares the files it anticipates touching (read the issue 
 
 The overlap check is one-line declarations plus eyeball compare. No static analyzer, no dep tracker.
 
+## Phase 2b — Retrieve prior learnings once (before fan-out)
+
+The fleet worker is a subagent and cannot dispatch a sub-subagent, so per-worker retrieval is impossible by topology. Retrieve **once in the orchestrator**, before fan-out, and inject the gist into every worker's dispatch prompt — correct by topology and cheaper (one retrieval, N workers). Dispatch `anvil-learnings-researcher` via `subagent_type` with a `<work-context>` built from the batch's shared milestone and the union of the candidates' domains:
+
+```text
+<work-context>
+work: fleet of <N> issues under [[milestone.<project>.<slug>]]
+domain: <union of candidate domain/ tags>
+activity: activity/issue
+artifacts: <candidate issue ids>
+</work-context>
+Return up to 5 findings.
+```
+
+Distil the return (or `Findings: none`) to one line and inject it as the `Prior learnings (gist)` field of each worker's dispatch prompt below.
+
 ## Phase 3 — Dispatch N subagents
 
 For each surviving candidate, fire one subagent via the Agent tool with `subagent_type: anvil-issue-worker` — the bundled, cost-tuned worker (`anvil/agents/anvil-issue-worker.md`: runs on a cheaper model than the orchestrator, `completing-issue` preloaded). The agent file **is** the worker contract — implement → smoke → `gh pr create`, stop-at-PR with no review loop, pre-edit worktree invariant, scope-change Blocker, forbidden-call audit, structured return line — so you do not re-state it per call. **Claim and cut each candidate's worktree before dispatching**, one atomic call per candidate:
@@ -43,7 +59,7 @@ anvil transition issue <id> in-progress --owner <name> --cut-worktree
 
 This claims the issue `in-progress` (stamping an owner) *and* emits the worktree path — so the issue never sits `open` through the run. The worker arrives pre-claimed and skips its own Phase 0 claim: it is anonymous (no owner to claim under) and a bare `--cut-worktree` would re-cut a duplicate. The agent works in `<worktree-path>` and halts if it is absent (its pre-edit invariant refuses to cut its own). Fill only the per-call values into the dispatch prompt body:
 
-> Complete anvil issue `<issue-id>`. Worktree: `<worktree-path>` on branch `<branch>`. Declared files (estimate, grep to confirm): `<declared-files>`.
+> Complete anvil issue `<issue-id>`. Worktree: `<worktree-path>` on branch `<branch>`. Declared files (estimate, grep to confirm): `<declared-files>`. Prior learnings (gist): `<one-line distillation from Phase 2b, or "none">`.
 
 A worker stops at PR opened — it cannot dispatch the reviewer sub-subagent, so review is the orchestrator's job (Phase 5).
 
