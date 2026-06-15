@@ -42,6 +42,13 @@ func TestLegalNextLists(t *testing.T) {
 	}
 }
 
+func TestMilestonePlannedToDoneIsLegal(t *testing.T) {
+	_, err := LookupTransition(TypeMilestone, "planned", "done")
+	if err != nil {
+		t.Fatalf("planned→done must be legal for milestones: %v", err)
+	}
+}
+
 func TestReverseTransitionFlagged(t *testing.T) {
 	tr, err := LookupTransition(TypeIssue, "resolved", "open")
 	if err != nil {
