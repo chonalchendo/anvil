@@ -87,8 +87,8 @@ func newPromoteCmd() *cobra.Command {
 	cmd.Flags().StringArrayVar(&flagAcceptance, "acceptance", nil, "acceptance criterion to add (repeatable; issue only)")
 	cmd.Flags().StringVar(&flagBody, "body", "", "body content for the promoted artifact (literal, or '-' to read stdin; issue only)")
 	cmd.Flags().StringVar(&flagBodyFile, "body-file", "", "read body from <path> (issue only; mutually exclusive with --body)")
-	cmd.Flags().StringVar(&flagGoal, "goal", "", "issue goal — terminal predicate (issue only; defaults to the inbox title)")
-	cmd.Flags().StringVar(&flagDescription, "description", "", "one-line description (defaults to the inbox title)")
+	cmd.Flags().StringVar(&flagGoal, "goal", "", fmt.Sprintf("terminal predicate, one sentence (max %d chars; issue only, defaults to the inbox title)", maxGoalChars))
+	cmd.Flags().StringVar(&flagDescription, "description", "", fmt.Sprintf("one-line summary (max %d chars; defaults to the inbox title)", maxDescriptionChars))
 	_ = cmd.MarkFlagRequired("as")
 	return cmd
 }
