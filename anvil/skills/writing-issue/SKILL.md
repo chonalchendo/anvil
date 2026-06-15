@@ -138,7 +138,7 @@ activity: activity/issue
 artifacts: [[milestone.<project>.<slug>]]
 files: <paths the fix will likely touch, if known>
 </work-context>
-Return up to 5 findings.
+Return the findings that genuinely bear on this work, highest-precision first.
 ```
 
 Fold the return into the issue: on findings, add a `## Prior learnings` section before `## Links` (one bullet per finding, keeping its `[[learning.<id>]]` source and `stale?` flag) and let any non-stale high-confidence one sharpen Problem / Non-goals / Verification. On `Findings: none`, skip the section. `stale?: yes` is a signal to weigh against present evidence, not a directive.

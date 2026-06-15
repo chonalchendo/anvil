@@ -61,7 +61,7 @@ domain: <domain/ tag(s) the design touches>
 activity: activity/system-design
 artifacts: [[product-design.<project>]]
 </work-context>
-Return up to 5 findings.
+Return the findings that genuinely bear on this work, highest-precision first.
 ```
 
 Fold non-stale, high-confidence findings into components (Phase 4), invariants (Phase 7), and risks (Phase 10) as you draft, and record the surfaced set in the design's rationale (Phase 9) so the reasoning is auditable. `Findings: none` → note it and move on. A `stale?: yes` finding is a signal to weigh against present evidence, not a directive.

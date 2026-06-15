@@ -61,7 +61,7 @@ For each candidate that survives Phase 3, decide whether it can still be trusted
 
 ## Return contract
 
-Return up to the N findings the dispatch prompt asks for (default 5), highest-precision first (link-graph hits over facet hits over content hits). The tightness IS the value — no preamble, no raw docs. Each finding is exactly one block:
+Return the findings that genuinely bear on the work — the relevant few, not a fixed count — highest-precision first (link-graph hits over facet hits over content hits). Honour a specific count when the dispatch prompt asks for one. The tightness IS the value — no preamble, no raw docs. Each finding is exactly one block:
 
 ```text
 - <title> · confidence:<high|medium|low> · stale?:<yes|no> · updated:<YYYY-MM-DD>
