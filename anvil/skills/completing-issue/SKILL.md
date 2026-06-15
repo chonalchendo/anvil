@@ -10,7 +10,7 @@ metadata:
   skill_type: workflow
   side: execution
   created: 2026-05-19
-  updated: 2026-06-12
+  updated: 2026-06-15
   tags: [type/skill, activity/issue]
   diataxis: how-to
   authored_via: manual
@@ -174,6 +174,16 @@ Recommended next step: <one sentence>
 ```
 
 Do NOT call `gh pr create`. Do NOT transition the issue. Leave the worktree for human review.
+
+## Phase 6 — Offer learning distillation (on resolve)
+
+A completed run is the system's most learning-rich event — a verified change just landed. Once the issue reaches `resolved` (the human fired the merge+resolve verb in Phase 5), **offer — do not force —** a handoff to `distilling-learning` to capture any durable learning the run produced:
+
+> This run resolved `<id>`. Distill a learning from it? (`distilling-learning`)
+
+Honour the user's answer; "nothing worth distilling" is a valid one. The capture step stays human-validated — never auto-distill (Iron Law of `distilling-learning`).
+
+**Dispatched / autonomous mode is a no-op.** A fleet- or `anvil-issue-worker`-dispatched completion stops at PR-opened and never reaches the resolve, so it makes no offer and never stalls on one — consistent with the dispatched-completion-stops-at-PR-opened convention. The orchestrator owns any post-merge distillation.
 
 ## Scope-change protocol
 
