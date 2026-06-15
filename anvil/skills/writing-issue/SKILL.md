@@ -228,7 +228,7 @@ anvil set issue <id> severity <low|medium|high|critical>
 anvil set issue <id> acceptance --add "<criterion>"
 ```
 
-Positional values on array fields error with `field_is_array`; use `--add VALUE` to append and `--remove INDEX` to delete.
+Bare positional values on array fields **replace** the array; use `--add VALUE` to append and `--remove VALUE_OR_INDEX` to delete.
 
 Required body sections (enforced by `create`):
 
