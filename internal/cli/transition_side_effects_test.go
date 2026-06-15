@@ -385,8 +385,7 @@ func TestLandPRRefusesWhenNotMergeable(t *testing.T) {
 }
 
 // TestLandPRPollsUnknownMergeability verifies that a transient UNKNOWN
-// mergeability is retried rather than hard-aborted, and that CONFLICTING still
-// fails after all retries exhaust.
+// mergeability is polled past rather than hard-aborted on the first read.
 func TestLandPRPollsUnknownMergeability(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
@@ -425,6 +424,53 @@ func TestLandPRPollsUnknownMergeability(t *testing.T) {
 	a := loadIssueDoc(t, vault, "demo.foo")
 	if a.FrontMatter["status"] != "resolved" {
 		t.Errorf("status = %v, want resolved", a.FrontMatter["status"])
+	}
+}
+
+// Guards anvil.0078's non-goal: polling past a transient UNKNOWN must not
+// bypass the mergeability gate. If every poll stays UNKNOWN the verb still
+// hard-aborts rather than merging on unresolved mergeability.
+func TestLandPRRefusesWhenMergeabilityNeverResolves(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	// Every poll returns UNKNOWN — mergeability never resolves.
+	callCount := 0
+	ghPRViewJSONFn = func(_ int, fields string) ([]byte, error) {
+		if fields == "mergeable,mergeStateStatus" {
+			callCount++
+			return []byte(`{"mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"}`), nil
+		}
+		if b, ok := s.viewByField[fields]; ok {
+			return b, nil
+		}
+		return []byte("{}"), nil
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "land_pr_not_mergeable") {
+		t.Errorf("missing error code: %s", stdout.String())
+	}
+	if callCount < 2 {
+		t.Errorf("expected multiple mergeability polls before abort, got %d", callCount)
+	}
+	if len(s.mergeCalls) != 0 {
+		t.Errorf("merge should not have been called: %v", s.mergeCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "in-progress" {
+		t.Errorf("status = %v, want in-progress (unchanged)", a.FrontMatter["status"])
 	}
 }
 
