@@ -51,13 +51,15 @@ The milestone belongs in `artifacts:`, not just the `work:` prose — that is wh
 
 ## Phase 3 — Dispatch N subagents
 
-For each surviving candidate, fire one subagent via the Agent tool with `subagent_type: anvil-issue-worker` — the bundled, cost-tuned worker (`anvil/agents/anvil-issue-worker.md`: runs on a cheaper model than the orchestrator, `completing-issue` preloaded). The agent file **is** the worker contract — implement → smoke → `gh pr create`, stop-at-PR with no review loop, pre-edit worktree invariant, scope-change Blocker, forbidden-call audit, structured return line — so you do not re-state it per call. **Claim and cut each candidate's worktree before dispatching**, one atomic call per candidate:
+For each surviving candidate, fire one subagent via the Agent tool with `subagent_type: anvil-issue-worker` — the bundled, cost-tuned worker (`anvil/agents/anvil-issue-worker.md`: runs on a cheaper model than the orchestrator, `completing-issue` preloaded). The agent file **is** the worker contract — implement → smoke → `gh pr create`, stop-at-PR with no review loop, pre-edit worktree invariant, scope-change Blocker, forbidden-call audit, structured return line — so you do not re-state it per call. **Claim each candidate, then cut its worktree, before dispatching.** Claim with a plain transition — decoupled from the cut so it holds whatever the project's worktree layout:
 
 ```bash
-anvil transition issue <id> in-progress --owner <name> --cut-worktree
+anvil transition issue <id> in-progress --owner <name>
 ```
 
-This claims the issue `in-progress` (stamping an owner) *and* emits the worktree path — so the issue never sits `open` through the run. The worker arrives pre-claimed and skips its own Phase 0 claim: it is anonymous (no owner to claim under) and a bare `--cut-worktree` would re-cut a duplicate. The agent works in `<worktree-path>` and halts if it is absent (its pre-edit invariant refuses to cut its own). Fill only the per-call values into the dispatch prompt body:
+Then cut the worktree by the project's convention (read it from `CLAUDE.md`). Default-path projects can fold the two into one call — append `--cut-worktree`, which claims *and* emits the worktree path. Custom-layout projects (non-default path, per-worktree setup) cut separately after the plain claim with their own recipe; bundling the claim into `--cut-worktree` there rides it on a flag they can't use, and the issue silently sits `open` through the whole run.
+
+The worker arrives pre-claimed and skips its own Phase 0 claim: it is anonymous (no owner to claim under) and a bare `--cut-worktree` would re-cut a duplicate. The agent works in `<worktree-path>` and halts if it is absent (its pre-edit invariant refuses to cut its own). Fill only the per-call values into the dispatch prompt body:
 
 > Complete anvil issue `<issue-id>`. Worktree: `<worktree-path>` on branch `<branch>`. Declared files (estimate, grep to confirm): `<declared-files>`. Prior learnings (gist): `<one-line distillation from Phase 2b, or "none">`.
 
