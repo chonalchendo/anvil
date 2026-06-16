@@ -87,7 +87,7 @@ Three authoring paths, three meta-skills:
 
 2. **`bootstrapping-knowledge-skill`** *(future)* — first-draft a knowledge skill on a domain you don't yet know. Calls `researching` (general-purpose research skill) as a sub-skill to gather best practices, then synthesises a draft body. Best for bootstrapping knowledge skills on new domains. The research half is general-purpose: `researching` also serves design / planning / inbox-promotion flows that need external facts; it is not skill-authoring-specific.
 
-3. **`synthesizing-knowledge-skill`** — refresh a knowledge skill from accumulated learnings. Captured learnings in `~/anvil-vault/20-learnings/`; want the skill updated. Diffs new learnings against the existing skill, proposes updates.
+3. **`synthesizing-knowledge`** — refresh a knowledge skill from accumulated learnings. Captured learnings in `~/anvil-vault/20-learnings/`; want the skill updated. Diffs new learnings against the existing skill, proposes updates.
 
 All three invoke `writing-skills` as sub-skill for formatting. Provenance differs by path; reflected in skill metadata.
 
@@ -96,7 +96,7 @@ All three invoke `writing-skills` as sub-skill for formatting. Provenance differ
 1. `bootstrapping-knowledge-skill` (which calls `researching`) produces a draft knowledge skill at `confidence: medium`, `status: from-research-only`.
 2. Skill auto-fires on real work; helps where it can, fails where it has gaps.
 3. Each gap → learning in the vault.
-4. Periodic `synthesizing-knowledge-skill` refresh incorporates new learnings.
+4. Periodic `synthesizing-knowledge` refresh incorporates new learnings.
 5. Eventually `confidence: high`, `status: experience-validated`. Research bootstrapped; experience refined.
 
 `~/anvil-vault/40-skills/` accumulates these. Anvil methodology skills are stable and small; user knowledge skills grow. Six months of sqlmesh + Anvil → your `sqlmesh-best-practices` is better than anyone else's: *your* learnings, *your* problems, *your* fixes.
@@ -109,7 +109,7 @@ Per Anthropic's skill-building guide ("iterate on a single task before expanding
 
 1. **Identify a real recurring activity.** Not "someone might want this" — "I do this every week."
 2. **Do it for real with Claude Code.** Iterate until it works.
-3. **Run the meta-skill** (`extracting-skill-from-session` for workflows, `bootstrapping-knowledge-skill` for knowledge bootstraps, `synthesizing-knowledge-skill` for refreshes).
+3. **Run the meta-skill** (`extracting-skill-from-session` for workflows, `bootstrapping-knowledge-skill` for knowledge bootstraps, `synthesizing-knowledge` for refreshes).
 4. **Meta-skill produces SKILL.md** via `writing-skills`.
 5. **Test before shipping.** 10-20 trigger-eval queries (mix of should-fire / should-NOT-fire), 3 runs each. Aim ≥90% on relevant, ≤10% on unrelated. Trigger-eval harness deferred to v0.2+; in v0.1 the authoring agent self-checks the trigger contract during phase 6 of `extracting-skill-from-session`.
 6. **Iterate on real use.** Skills are living. Each gap → learning; refresh periodically.

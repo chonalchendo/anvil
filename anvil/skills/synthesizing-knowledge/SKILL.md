@@ -117,7 +117,7 @@ Confirm the destination:
 >
 > Wait for the user's response.
 
-The new skill ships at `confidence: low` regardless of the source learnings' confidence — generalization is a hypothesis, not a proof. Set `status: from-learnings` to distinguish from research-bootstrapped drafts.
+The new skill ships at `confidence: low` regardless of the source learnings' confidence — generalization is a hypothesis, not a proof. Set `status: in-use`; a populated `source_learnings` already distinguishes it from a research-bootstrapped (`from-research-only`) draft.
 
 Populate `metadata.source_learnings` with the learning IDs that drove the synthesis:
 

@@ -382,7 +382,7 @@ anvil/
 │   │   └── SKILL.md
 │   ├── researching-domain/
 │   │   └── SKILL.md
-│   ├── synthesizing-knowledge-skill/
+│   ├── synthesizing-knowledge/
 │   │   └── SKILL.md
 │   ├── writing-product-design/
 │   │   └── SKILL.md
@@ -498,7 +498,7 @@ The bundled skills carry the workflow burden, divided into three sides: **meta**
 | `writing-skills` | meta | knowledge | style guide for all SKILL.md authoring |
 | `extracting-skill-from-session` | meta | workflow | crystallize a working in-context workflow into a skill |
 | `researching-domain` | meta | workflow | produce a first-draft knowledge skill from focused research |
-| `synthesizing-knowledge-skill` | meta | workflow | refresh a knowledge skill with accumulated vault learnings |
+| `synthesizing-knowledge` | meta | workflow | refresh a knowledge skill with accumulated vault learnings |
 | `writing-product-design` | design | workflow | produces `product-design.md` for a project |
 | `writing-system-design` | design | workflow | produces `system-design.md` (with mermaid diagrams), references the product design |
 | `defining-milestone` | design | workflow | produces individual milestone artifacts |
@@ -515,7 +515,7 @@ The bundled skills carry the workflow burden, divided into three sides: **meta**
 
 Design-side skills enforce ordering: `writing-system-design` won't fire until a product design exists for the project, and prompts the user to create one first if missing. This protects the *design before implementation* discipline.
 
-Meta-skills are the methodology's reproductive system. `extracting-skill-from-session` produces workflow skills; `researching-domain` produces knowledge skills; `synthesizing-knowledge-skill` refreshes them. Each invokes `writing-skills` as a sub-skill for formatting. The methodology bootstraps itself: most of the seventeen skills can be authored via the meta-skills rather than green-field drafted.
+Meta-skills are the methodology's reproductive system. `extracting-skill-from-session` produces workflow skills; `researching-domain` produces knowledge skills; `synthesizing-knowledge` refreshes them. Each invokes `writing-skills` as a sub-skill for formatting. The methodology bootstraps itself: most of the seventeen skills can be authored via the meta-skills rather than green-field drafted.
 
 **Generic engineering skills are not bundled.** Brainstorming, test-driven development, systematic debugging, refactoring patterns, exploration spikes, dependency upgrade workflows — these exist independent of Anvil and are well-served by Superpowers and other external packs. `anvil init` recommends installing Superpowers as a companion. See "Recommended companion packs" in the skill management section.
 
@@ -1389,7 +1389,7 @@ v0.2:
 - `CodexAdapter` with `CODEX_HOME` isolation and `auth.json` seeding per spawn.
 - **Concurrent wave execution** with per-task git worktrees under `~/.anvil/build-runs/<run-id>/<task-id>/repo/`. Default concurrency cap of 4. Backoff on transient errors.
 - `anvil adopt` for brownfield (drafts product-design, system-design, and milestones from existing code).
-- `researching-domain` and `synthesizing-knowledge-skill` meta-skills — enable the knowledge-skill lifecycle for user-authored skills in the vault.
+- `researching-domain` and `synthesizing-knowledge` meta-skills — enable the knowledge-skill lifecycle for user-authored skills in the vault.
 - Remaining bundled execution skills (`capturing-inbox`, `creating-issue`, `decision-making`, `sweep`).
 - Vault skill source support (`anvil skill add ~/anvil-vault`) — including the four-facet tag taxonomy validation in CI.
 
@@ -1433,7 +1433,7 @@ Distinct from the vault pitfalls above (which are generic to long-running AI-aug
 
 11. **Backpressure UX friction.** The 50-note threshold blocks new session writes when triage is overdue. May feel punitive at exactly the wrong moment (end of productive work). Mitigation in v0.1: soft-warn first, escalating block at 75 and 100. Revisit after observing real triage behavior; tune threshold or change enforcement model based on data.
 
-12. **Knowledge-skill quality drift.** Research-derived skills can be confidently wrong; experience-derived skills can become stale. Mitigation: mandatory `confidence` and `status` metadata on every skill; periodic refresh via `synthesizing-knowledge-skill`; user-facing surface in `anvil skill list` showing each skill's confidence level so users know what to trust.
+12. **Knowledge-skill quality drift.** Research-derived skills can be confidently wrong; experience-derived skills can become stale. Mitigation: mandatory `confidence` and `status` metadata on every skill; periodic refresh via `synthesizing-knowledge`; user-facing surface in `anvil skill list` showing each skill's confidence level so users know what to trust.
 
 ---
 

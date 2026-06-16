@@ -35,9 +35,9 @@ The agent fires this skill from the description's trigger contract. If the user'
 
 | User intent | Right skill |
 |---|---|
-| Capture *principles* the user has been applying repeatedly | `synthesizing-knowledge-skill` (if learnings already exist in the vault) |
+| Capture *principles* the user has been applying repeatedly | `synthesizing-knowledge` (if learnings already exist in the vault) |
 | Bootstrap a knowledge skill on a topic researched but not yet practiced | `researching` |
-| Refresh an existing knowledge skill with new vault learnings | `synthesizing-knowledge-skill` |
+| Refresh an existing knowledge skill with new vault learnings | `synthesizing-knowledge` |
 | Crystallize a workflow that just ran successfully | this skill |
 
 The shape distinction is real. Workflow skills encode a sequence with phases that depend on each other; the agent must read the body in full because the description deliberately omits the steps. Knowledge skills encode principles, patterns, and gotchas applied as judgment; the description is *pushy* because under-triggering is the failure mode.
@@ -133,7 +133,7 @@ Anvil layers three overlays on top that `superpowers:writing-skills` does not en
 **Confidence progression.** A fresh extraction ships at `confidence: low`. One successful session is necessary but not sufficient evidence — a single run can't tell you whether you captured the right pattern, the wrong pattern phrased generically, or a pattern that won't recur. Confidence is bumped manually as evidence accumulates:
 
 - `low` → `medium`: the skill has fired on three or more real activities and produced useful results each time.
-- `medium` → `high`: the skill has been refreshed via `synthesizing-knowledge-skill` (or hand-refresh) incorporating accumulated learnings from `~/anvil-vault/20-learnings/`.
+- `medium` → `high`: the skill has been refreshed via `synthesizing-knowledge` (or hand-refresh) incorporating accumulated learnings from `~/anvil-vault/20-learnings/`.
 
 Agents weight skill content by confidence during synthesis. Keeping the field honest matters.
 

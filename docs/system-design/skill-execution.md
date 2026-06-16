@@ -8,7 +8,7 @@ tags: [domain/dev-tools, type/system-design-shard]
 Skills follow Anthropic's SKILL.md open standard — directory per skill with `SKILL.md`, optional `references/`, `scripts/`, `assets/`. Progressive disclosure: ~100-token metadata always loaded, body lazy-loaded, bundled resources on demand.
 
 **Three sides:**
-- **Meta** — skills that produce other skills (`writing-skills`, `extracting-skill-from-session`, `synthesizing-knowledge-skill`, `researching-domain`).
+- **Meta** — skills that produce other skills (`writing-skills`, `extracting-skill-from-session`, `synthesizing-knowledge`, `researching-domain`).
 - **Design** — produce structural artifacts (`writing-product-design`, `writing-system-design`, `defining-milestone`, `decision-making`).
 - **Execution** — produce operational artifacts (`creating-issue`, `creating-plan`, `implementing-a-plan`, `capturing-inbox`, `human-review`, `capturing-learnings`, `re-entry`, `pausing-work`).
 
