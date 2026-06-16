@@ -53,6 +53,7 @@ func newListCmd() *cobra.Command {
 		flagDiataxis, flagConfidence     string
 		flagSeverity                     string
 		flagMilestone                    string
+		flagSearch                       string
 		flagSince, flagUntil             string
 		flagTags                         []string
 		flagJSON                         bool
@@ -87,9 +88,18 @@ func newListCmd() *cobra.Command {
 			if flagInvalidBody && t != core.TypeIssue {
 				return printAndReturn(cmd, errfmt.NewUnsupportedForType(string(t), []string{"issue"}))
 			}
+			if flagSearch != "" && t != core.TypeLearning {
+				return printAndReturn(cmd, errfmt.NewUnsupportedForType(string(t), []string{"learning"}))
+			}
 			fields, err := parseFields(flagFields)
 			if err != nil {
 				return err
+			}
+			if flagSearch != "" {
+				return runListSearch(cmd, t, flagSearch, listFilters{
+					Status: flagStatus, Project: flagProject,
+					Since: flagSince, Until: flagUntil,
+				}, flagJSON, flagLimit, fields)
 			}
 			if flagReady || flagOrphans {
 				// --ready/--orphans list an actionable queue; default to
@@ -130,6 +140,7 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagConfidence, "confidence", "", "filter by confidence (exact match)")
 	cmd.Flags().StringVar(&flagSeverity, "severity", "", "filter by severity (exact match: "+strings.Join(issueSeverityEnum, "|")+"; issue only)")
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "filter by milestone slug (exact match, e.g. anvil.v0-1-polish-dogfood-findings; issue only)")
+	cmd.Flags().StringVar(&flagSearch, "search", "", "full-text search over learning TL;DR content, ranked by relevance (learning only)")
 	cmd.Flags().StringVar(&flagSince, "since", "", "include only artifacts created on or after YYYY-MM-DD")
 	cmd.Flags().StringVar(&flagUntil, "until", "", "include only artifacts created on or before YYYY-MM-DD")
 	cmd.Flags().IntVar(&flagLimit, "limit", defaultListLimit, "maximum results to return (default 10; --ready/--orphans default to unlimited)")
@@ -369,9 +380,19 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 	if err != nil {
 		return err
 	}
-	// Severity and milestone are not in the index; filter post-load. Load all
-	// matching rows before applying the limit so the truncation hint reflects
-	// the filtered total, not the pre-filter row count.
+	items := indexRowsToItems(rows, f)
+	total := len(items)
+	if limit > 0 && len(items) > limit {
+		items = items[:limit]
+	}
+	return emitList(cmd, items, total, asJSON, t, fields)
+}
+
+// indexRowsToItems enriches index rows with frontmatter fields the index does
+// not store (title, description, severity, milestone, tags), applying the
+// post-load severity/milestone/invalid-body filters. Input order is preserved
+// — callers relying on a query's ORDER BY (e.g. FTS rank) keep that order.
+func indexRowsToItems(rows []index.ArtifactRow, f listFilters) []listItem {
 	items := make([]listItem, 0, len(rows))
 	for _, r := range rows {
 		item := listItem{
@@ -400,11 +421,31 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 		}
 		items = append(items, item)
 	}
-	total := len(items)
-	if limit > 0 && len(items) > limit {
-		items = items[:limit]
+	return items
+}
+
+// runListSearch runs an FTS content search over learning TL;DRs, emitting hits
+// in FTS rank order. Only the learning type is searchable.
+func runListSearch(cmd *cobra.Command, t core.Type, query string, f listFilters, asJSON bool, limit int, fields []string) error {
+	v, err := core.ResolveVault()
+	if err != nil {
+		return fmt.Errorf("resolving vault: %w", err)
 	}
-	return emitList(cmd, items, total, asJSON, t, fields)
+	db, err := indexForRead(v)
+	if err != nil {
+		return err
+	}
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
+
+	rows, err := db.SearchLearnings(query, index.QueryFilters{
+		Status: f.Status, Project: f.Project,
+		Since: f.Since, Until: f.Until, Limit: limit,
+	})
+	if err != nil {
+		return err
+	}
+	items := indexRowsToItems(rows, f)
+	return emitList(cmd, items, len(items), asJSON, t, fields)
 }
 
 // collectArtifactPaths returns absolute paths of artifacts of type t under
