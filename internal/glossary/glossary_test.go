@@ -109,3 +109,64 @@ func TestAddTag_RejectsBadShape(t *testing.T) {
 		}
 	}
 }
+
+func TestAddDefinition_RoundTrip(t *testing.T) {
+	g := New()
+	if err := g.AddDefinition("compounding", "gains that build on prior gains"); err != nil {
+		t.Fatal(err)
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "glossary.md")
+	if err := g.Save(path); err != nil {
+		t.Fatal(err)
+	}
+
+	g2, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	def, ok := g2.Definition("compounding")
+	if !ok || def != "gains that build on prior gains" {
+		t.Errorf("Definition(compounding) = (%q, %v), want (\"gains that build on prior gains\", true)", def, ok)
+	}
+}
+
+func TestAddDefinition_Idempotent(t *testing.T) {
+	g := New()
+	if err := g.AddDefinition("term", "desc"); err != nil {
+		t.Fatal(err)
+	}
+	// Same desc: no-op, no error.
+	if err := g.AddDefinition("term", "desc"); err != nil {
+		t.Fatalf("second AddDefinition with same desc: %v", err)
+	}
+	// Different desc: error.
+	if err := g.AddDefinition("term", "other"); err == nil {
+		t.Error("AddDefinition with different desc should return error")
+	}
+}
+
+func TestUpdateDefinition(t *testing.T) {
+	g := New()
+	if err := g.AddDefinition("term", "old"); err != nil {
+		t.Fatal(err)
+	}
+	if !g.UpdateDefinition("term", "new") {
+		t.Fatal("UpdateDefinition returned false for existing term")
+	}
+	def, ok := g.Definition("term")
+	if !ok || def != "new" {
+		t.Errorf("Definition(term) = (%q, %v), want (\"new\", true)", def, ok)
+	}
+	if g.UpdateDefinition("absent", "x") {
+		t.Error("UpdateDefinition returned true for absent term")
+	}
+}
+
+func TestAddDefinition_RejectsEmptyTerm(t *testing.T) {
+	g := New()
+	if err := g.AddDefinition("", "desc"); err == nil {
+		t.Error("AddDefinition with empty term should return error")
+	}
+}
