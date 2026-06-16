@@ -22,6 +22,7 @@ import (
 var (
 	gitWorktreeAddFn       = gitWorktreeAddReal
 	gitWorktreeRemoveFn    = gitWorktreeRemoveReal
+	gitDeleteLocalBranchFn = gitDeleteLocalBranchReal
 	gitMainRootFn          = gitMainRootReal
 	gitFetchOriginFn       = gitFetchOriginReal
 	gitResolveOriginHEADFn = gitResolveOriginHEADReal
@@ -127,6 +128,23 @@ func gitWorktreeRemoveReal(repoDir, path string) error {
 	}
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git worktree remove: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// gitDeleteLocalBranchReal deletes the local branch via `git branch -D`, run
+// from repoDir (the main worktree) so it does not depend on the caller's cwd —
+// which may be the worktree just removed. Run after the worktree is removed so
+// git does not refuse the delete on a branch still referenced by a worktree.
+// Restores the local-branch cleanup that the old `gh pr merge --delete-branch`
+// provided before this path split into a remote-only `gh api` delete.
+func gitDeleteLocalBranchReal(repoDir, branch string) error {
+	cmd := exec.Command("git", "branch", "-D", branch) //nolint:gosec // binary path resolved from trusted sources; not user input
+	if repoDir != "" {
+		cmd.Dir = repoDir
+	}
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git branch -D %s: %w: %s", branch, err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
@@ -314,14 +332,15 @@ func doLandPR(a *core.Artifact, id string, prNum int, worktreeOverride string) e
 	return landPR(prNum, wtPath)
 }
 
-// landPR runs gate→merge→verify→remove-worktree→delete-branch. Returns nil on
-// success or a Structured error keyed on the failing gate.
+// landPR runs gate→merge→verify→remove-worktree→delete-local-branch→delete-remote-branch.
+// Returns nil on success or a Structured error keyed on the failing gate.
 //
 // Ordering rationale: the merge runs before the worktree is removed so that
 // when the caller's cwd is inside the worktree, the process's working
 // directory still exists when gh/git are invoked. The worktree is removed
-// after the merge is verified MERGED; branch deletion follows worktree removal
-// because git refuses --delete-branch while a worktree references the branch.
+// after the merge is verified MERGED; both branch deletes follow worktree
+// removal because git refuses to delete a branch while a worktree references
+// it.
 //
 // Worktree resolution: if worktreePath exists on disk it is used directly. If
 // not, landPR falls back to the live worktree list keyed by the PR's head
@@ -369,6 +388,17 @@ func landPR(num int, worktreePath string) error {
 	if err := ghPRChecksFn(num); err != nil {
 		return errfmt.NewStructured("land_pr_ci_not_green").Set("pr", num).Set("error", err.Error())
 	}
+	// Resolve the PR's head branch once: it both keys the worktree-list fallback
+	// below and names the local branch to delete after the worktree is removed.
+	headBranch := ""
+	type headRef struct {
+		HeadRefName string `json:"headRefName"`
+	}
+	var ref headRef
+	if raw, rerr := ghPRViewJSONFn(num, "headRefName"); rerr == nil {
+		_ = json.Unmarshal(raw, &ref)
+	}
+	headBranch = ref.HeadRefName
 	// Resolve the actual worktree path: try the explicit/default path first,
 	// then fall back to the live worktree list keyed by the PR's head branch.
 	resolved := ""
@@ -377,20 +407,10 @@ func landPR(num int, worktreePath string) error {
 			resolved = worktreePath
 		}
 	}
-	if resolved == "" {
-		// Derive worktree from PR's head branch via the live worktree list.
-		type headRef struct {
-			HeadRefName string `json:"headRefName"`
-		}
-		var ref headRef
-		if raw, rerr := ghPRViewJSONFn(num, "headRefName"); rerr == nil {
-			_ = json.Unmarshal(raw, &ref)
-		}
-		if ref.HeadRefName != "" {
-			if worktrees, lerr := gitWorktreeListFn(); lerr == nil {
-				if info, ok := worktrees[ref.HeadRefName]; ok {
-					resolved = info.path
-				}
+	if resolved == "" && headBranch != "" {
+		if worktrees, lerr := gitWorktreeListFn(); lerr == nil {
+			if info, ok := worktrees[headBranch]; ok {
+				resolved = info.path
 			}
 		}
 	}
@@ -429,13 +449,25 @@ func landPR(num int, worktreePath string) error {
 		}
 		return errfmt.NewStructured("land_pr_state_not_merged").Set("pr", num).Set("state", fin.State)
 	}
-	// PR is confirmed MERGED. Remove the worktree then delete the remote branch.
-	// These are cleanup steps: failures are reported but the merge already landed.
+	// PR is confirmed MERGED. Remove the worktree, then delete the local and
+	// remote branches. These are cleanup steps: failures are reported but the
+	// merge already landed. The local-branch delete runs after worktree removal
+	// (git refuses to delete a branch a worktree still references) and restores
+	// the parity the old `gh pr merge --delete-branch` provided — a successful
+	// land leaves neither a local nor a remote branch behind.
 	if err := gitWorktreeRemoveFn(root, resolved); err != nil {
 		return errfmt.NewStructured("land_pr_worktree_remove_failed").
 			Set("pr", num).
 			Set("path", resolved).
 			Set("error", err.Error())
+	}
+	if headBranch != "" {
+		if err := gitDeleteLocalBranchFn(root, headBranch); err != nil {
+			return errfmt.NewStructured("land_pr_local_branch_delete_failed").
+				Set("pr", num).
+				Set("branch", headBranch).
+				Set("error", err.Error())
+		}
 	}
 	if err := ghDeleteBranchFn(num); err != nil {
 		return errfmt.NewStructured("land_pr_branch_delete_failed").

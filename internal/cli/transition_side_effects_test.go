@@ -24,35 +24,38 @@ func loadIssueDoc(t *testing.T, vault, id string) *core.Artifact {
 // sideFXStub captures the calls made by stubSideFX-installed fakes; tests
 // opt into per-fn behavior by setting fields on the returned recorder.
 type sideFXStub struct {
-	listEntries map[string]worktreeInfo
-	listErr     error
-	addErr      error
-	addCalls    []addCall
-	removeErr   error
-	removeCalls []removeCall
-	mainRoot    string
-	mainErr     error
-	homeDir     string
-	homeErr     error
+	listEntries            map[string]worktreeInfo
+	listErr                error
+	addErr                 error
+	addCalls               []addCall
+	removeErr              error
+	removeCalls            []removeCall
+	localBranchDeleteErr   error
+	localBranchDeleteCalls []localBranchDeleteCall
+	mainRoot               string
+	mainErr                error
+	homeDir                string
+	homeErr                error
 
 	fetchErr      error
 	fetchCalls    int
 	originHEAD    string
 	originHEADErr error
 
-	viewByField  map[string][]byte
-	viewByFieldE map[string]error
-	checksErr    error
-	checksCalls  []int
-	mergeErr     error
-	mergeCalls   []int
+	viewByField       map[string][]byte
+	viewByFieldE      map[string]error
+	checksErr         error
+	checksCalls       []int
+	mergeErr          error
+	mergeCalls        []int
 	deleteBranchErr   error
 	deleteBranchCalls []int
 }
 
 type (
-	addCall    struct{ Dir, Path, Branch, StartPoint string }
-	removeCall struct{ Dir, Path string }
+	addCall               struct{ Dir, Path, Branch, StartPoint string }
+	removeCall            struct{ Dir, Path string }
+	localBranchDeleteCall struct{ Dir, Branch string }
 )
 
 func stubSideFX(t *testing.T) *sideFXStub {
@@ -69,6 +72,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 	prevList := gitWorktreeListFn
 	prevAdd := gitWorktreeAddFn
 	prevRemove := gitWorktreeRemoveFn
+	prevLocalBranchDelete := gitDeleteLocalBranchFn
 	prevMain := gitMainRootFn
 	prevFetch := gitFetchOriginFn
 	prevOriginHEAD := gitResolveOriginHEADFn
@@ -89,6 +93,10 @@ func stubSideFX(t *testing.T) *sideFXStub {
 	gitWorktreeRemoveFn = func(dir, path string) error {
 		s.removeCalls = append(s.removeCalls, removeCall{Dir: dir, Path: path})
 		return s.removeErr
+	}
+	gitDeleteLocalBranchFn = func(dir, branch string) error {
+		s.localBranchDeleteCalls = append(s.localBranchDeleteCalls, localBranchDeleteCall{Dir: dir, Branch: branch})
+		return s.localBranchDeleteErr
 	}
 	gitMainRootFn = func() (string, error) { return s.mainRoot, s.mainErr }
 	gitFetchOriginFn = func() error {
@@ -126,6 +134,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		gitWorktreeListFn = prevList
 		gitWorktreeAddFn = prevAdd
 		gitWorktreeRemoveFn = prevRemove
+		gitDeleteLocalBranchFn = prevLocalBranchDelete
 		gitMainRootFn = prevMain
 		gitFetchOriginFn = prevFetch
 		gitResolveOriginHEADFn = prevOriginHEAD
@@ -348,6 +357,14 @@ func TestLandPRHappyPath(t *testing.T) {
 	if len(s.mergeCalls) != 1 || s.mergeCalls[0] != 42 {
 		t.Errorf("merge calls = %v", s.mergeCalls)
 	}
+	// Parity with the old `--delete-branch`: a successful land deletes the local
+	// branch (from the main root) and the remote branch.
+	if len(s.localBranchDeleteCalls) != 1 || s.localBranchDeleteCalls[0].Branch != "anvil/foo" || s.localBranchDeleteCalls[0].Dir != s.mainRoot {
+		t.Errorf("local branch delete calls = %v, want one {%s anvil/foo}", s.localBranchDeleteCalls, s.mainRoot)
+	}
+	if len(s.deleteBranchCalls) != 1 || s.deleteBranchCalls[0] != 42 {
+		t.Errorf("remote branch delete calls = %v, want [42]", s.deleteBranchCalls)
+	}
 	// Audit line written.
 	body, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
@@ -533,6 +550,14 @@ func TestLandPRRefusesWhenFinalStateNotMerged(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "land_pr_state_not_merged") {
 		t.Errorf("missing error code: %s", stdout.String())
+	}
+	// Atomicity guarantee: a non-MERGED state leaves the worktree and branches
+	// untouched, so a clean retry is possible after the merge failure is fixed.
+	if len(s.removeCalls) != 0 {
+		t.Errorf("worktree must not be removed on non-MERGED state: %v", s.removeCalls)
+	}
+	if len(s.deleteBranchCalls) != 0 {
+		t.Errorf("remote branch must not be deleted on non-MERGED state: %v", s.deleteBranchCalls)
 	}
 	a := loadIssueDoc(t, vault, "demo.foo")
 	if a.FrontMatter["status"] != "in-progress" {
@@ -1015,9 +1040,12 @@ func TestLandPRMergeExitNonZeroButStateMerged(t *testing.T) {
 	if len(s.mergeCalls) != 1 {
 		t.Errorf("merge must have been called: %v", s.mergeCalls)
 	}
-	// Worktree removal and branch delete must still proceed.
+	// Worktree removal, local + remote branch delete must still proceed.
 	if len(s.removeCalls) != 1 {
 		t.Errorf("worktree must be removed after confirmed-MERGED: %v", s.removeCalls)
+	}
+	if len(s.localBranchDeleteCalls) != 1 || s.localBranchDeleteCalls[0].Branch != "demo/foo" {
+		t.Errorf("local branch delete must be called after confirmed-MERGED: %v", s.localBranchDeleteCalls)
 	}
 	if len(s.deleteBranchCalls) != 1 {
 		t.Errorf("branch delete must be called after confirmed-MERGED: %v", s.deleteBranchCalls)
