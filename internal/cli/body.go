@@ -81,19 +81,22 @@ func readBody(_ *cobra.Command, flagBody, flagBodyFile string) (string, error) {
 // stdinIsPipe reports whether os.Stdin carries real piped/redirected data
 // the caller intends us to read. Only two shapes qualify:
 //
-//   - a named pipe (`echo x | cmd`, heredocs, process substitution)
+//   - a named pipe with bytes available (`echo x | cmd`, heredocs, process substitution)
 //   - a regular file with non-zero size (`cmd < file.md`)
 //
-// Sockets, ttys, /dev/null, and empty files all return false so we never
-// block on a read that has no producer — e.g. when an agent harness
-// attaches a persistent unix socket to stdin without ever writing to it.
+// Sockets, ttys, /dev/null, empty pipes, and empty files all return false so
+// we never treat an inherited/empty non-tty stdin as a competing body source —
+// e.g. when an agent batch-creates issues from a subprocess whose stdin is
+// inherited rather than a terminal, or attached via /dev/null.
 func stdinIsPipe() (bool, error) {
 	fi, err := os.Stdin.Stat()
 	if err != nil {
 		return false, err
 	}
 	m := fi.Mode()
-	if m&os.ModeNamedPipe != 0 {
+	// Both named pipes and regular files must carry bytes; an empty pipe
+	// (`printf '' | cmd`) has Size()==0 and must not trigger body-collision.
+	if m&os.ModeNamedPipe != 0 && fi.Size() > 0 {
 		return true, nil
 	}
 	if m.IsRegular() && fi.Size() > 0 {
