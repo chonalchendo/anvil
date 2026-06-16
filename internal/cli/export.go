@@ -74,15 +74,14 @@ artifact — anvil produces it; training is the caller's responsibility.`,
 				return fmt.Errorf("listing traces: %w", err)
 			}
 
-			var out *os.File
-			if flagOut == "" || flagOut == "-" {
-				out = os.Stdout
-			} else {
-				out, err = os.Create(flagOut) //nolint:gosec // path is an explicit user-supplied argument
+			out := cmd.OutOrStdout()
+			if flagOut != "" && flagOut != "-" {
+				f, err := os.Create(flagOut) //nolint:gosec // path is an explicit user-supplied argument
 				if err != nil {
 					return fmt.Errorf("creating output file: %w", err)
 				}
-				defer out.Close() //nolint:errcheck // close in defer; error not actionable
+				defer f.Close() //nolint:errcheck // close in defer; error not actionable
+				out = f
 			}
 
 			enc := json.NewEncoder(out)

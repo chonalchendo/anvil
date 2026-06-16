@@ -14,6 +14,7 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
 	"github.com/chonalchendo/anvil/internal/schema"
+	"github.com/chonalchendo/anvil/internal/telemetry"
 )
 
 func newBuildCmd() *cobra.Command {
@@ -93,8 +94,11 @@ func newBuildCmd() *cobra.Command {
 			}
 			sum, err := build.Build(cmd.Context(), p, opts)
 			if sum != nil {
-				persistErr := persistTraces(v.Root, p, sum)
-				if persistErr != nil {
+				// This (hidden, Phase-B-deferred) build path is the intended
+				// producer of trace rows for `anvil export traces`. Until build
+				// is revived there is no live producer; export reads an empty
+				// table against a real vault. See PR #247 / build's Hidden note.
+				if persistErr := persistTraces(v.Root, p, sum); persistErr != nil {
 					cmd.PrintErrln("warning: failed to persist traces:", persistErr)
 				}
 			}
@@ -109,36 +113,14 @@ func newBuildCmd() *cobra.Command {
 	return cmd
 }
 
-// persistTraces writes task outcomes from a completed build run into the vault
-// index so they are queryable by `anvil export traces`. Dry-run tasks are
-// omitted (they carry no real outcome). A DB error is non-fatal — build
-// succeeded; the caller logs it as a warning.
+// persistTraces opens the vault index and hands the build summary to the
+// telemetry seam (build.TaskOutcome's named persistence owner). A DB error is
+// non-fatal — build succeeded; the caller logs it as a warning.
 func persistTraces(vaultRoot string, p *core.Plan, sum *build.Summary) error {
 	db, err := index.Open(index.DBPath(vaultRoot))
 	if err != nil {
 		return fmt.Errorf("opening index: %w", err)
 	}
 	defer db.Close() //nolint:errcheck // close in defer; error not actionable
-
-	now := index.NowUTC()
-	for _, task := range p.Tasks {
-		oc, ok := sum.Outcomes[task.ID]
-		if !ok || oc.Outcome == "skipped_dry_run" {
-			continue
-		}
-		tr := index.Trace{
-			TaskID:     oc.TaskID,
-			Prompt:     oc.Prompt,
-			Outcome:    oc.Outcome,
-			Model:      oc.Model,
-			Effort:     oc.Effort,
-			DurationMS: oc.Duration.Milliseconds(),
-			CostUSD:    oc.Result.CostUSD,
-			RecordedAt: now,
-		}
-		if err := db.InsertTrace(tr); err != nil {
-			return err
-		}
-	}
-	return nil
+	return telemetry.PersistTraces(db, p, sum)
 }

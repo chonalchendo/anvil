@@ -50,12 +50,8 @@ CREATE TABLE IF NOT EXISTS traces (
     prompt      TEXT    NOT NULL,
     outcome     TEXT    NOT NULL,
     model       TEXT    NOT NULL DEFAULT '',
-    effort      TEXT    NOT NULL DEFAULT '',
-    duration_ms INTEGER NOT NULL DEFAULT 0,
-    cost_usd    REAL    NOT NULL DEFAULT 0,
-    recorded_at TEXT    NOT NULL
+    effort      TEXT    NOT NULL DEFAULT ''
 );
-CREATE INDEX IF NOT EXISTS traces_outcome_idx ON traces(outcome);
 `
 
 // DB wraps the sql.DB and owns its lifecycle.

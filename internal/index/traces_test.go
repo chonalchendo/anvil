@@ -15,9 +15,9 @@ func TestExportTraces(t *testing.T) {
 	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
 	traces := []Trace{
-		{TaskID: "task-1", Prompt: "fix the bug", Outcome: "success", Model: "claude-sonnet-4-6", Effort: "medium", DurationMS: 5000, CostUSD: 0.01, RecordedAt: "2026-06-16T10:00:00Z"},
-		{TaskID: "task-2", Prompt: "add tests", Outcome: "failed", Model: "claude-sonnet-4-6", Effort: "medium", DurationMS: 3000, CostUSD: 0.005, RecordedAt: "2026-06-16T10:01:00Z"},
-		{TaskID: "task-3", Prompt: "refactor auth", Outcome: "success", Model: "claude-sonnet-4-6", Effort: "high", DurationMS: 8000, CostUSD: 0.02, RecordedAt: "2026-06-16T10:02:00Z"},
+		{TaskID: "task-1", Prompt: "fix the bug", Outcome: "success", Model: "claude-sonnet-4-6", Effort: "medium"},
+		{TaskID: "task-2", Prompt: "add tests", Outcome: "failed", Model: "claude-sonnet-4-6", Effort: "medium"},
+		{TaskID: "task-3", Prompt: "refactor auth", Outcome: "success", Model: "claude-sonnet-4-6", Effort: "high"},
 	}
 	for _, tr := range traces {
 		if err := db.InsertTrace(tr); err != nil {
@@ -32,8 +32,8 @@ func TestExportTraces(t *testing.T) {
 
 	// Only success rows returned, in insertion order, with auto-assigned IDs.
 	want := []Trace{
-		{ID: 1, TaskID: "task-1", Prompt: "fix the bug", Outcome: "success", Model: "claude-sonnet-4-6", Effort: "medium", DurationMS: 5000, CostUSD: 0.01, RecordedAt: "2026-06-16T10:00:00Z"},
-		{ID: 3, TaskID: "task-3", Prompt: "refactor auth", Outcome: "success", Model: "claude-sonnet-4-6", Effort: "high", DurationMS: 8000, CostUSD: 0.02, RecordedAt: "2026-06-16T10:02:00Z"},
+		{ID: 1, TaskID: "task-1", Prompt: "fix the bug", Outcome: "success", Model: "claude-sonnet-4-6", Effort: "medium"},
+		{ID: 3, TaskID: "task-3", Prompt: "refactor auth", Outcome: "success", Model: "claude-sonnet-4-6", Effort: "high"},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("ListSuccessfulTraces mismatch (-want +got):\n%s", diff)

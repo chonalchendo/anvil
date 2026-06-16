@@ -29,8 +29,7 @@ const metaKeySchemaVersion = "schema_version"
 // stored version lags — the no-migration "schema changed → rebuild" path.
 //
 //	1: learning_fts (FTS5 over learning TL;DR)
-//	2: traces (build task prompt+outcome records for eval/RL export)
-const SchemaVersion = 2
+const SchemaVersion = 1
 
 // GetSchemaVersion returns the stored schema version, or 0 when unset (a DB
 // built before versioning, or a fresh one).
