@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS eval_runs (
 );
 CREATE INDEX IF NOT EXISTS eval_runs_skill_idx ON eval_runs(skill);
 CREATE VIRTUAL TABLE IF NOT EXISTS learning_fts USING fts5(id UNINDEXED, tldr);
+CREATE VIRTUAL TABLE IF NOT EXISTS artifact_fts USING fts5(id UNINDEXED, content);
 `
 
 // DB wraps the sql.DB and owns its lifecycle.

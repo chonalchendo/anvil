@@ -53,6 +53,12 @@ func indexAfterSave(v *core.Vault, a *core.Artifact) error {
 	if err := db.ReplaceLinks(row.ID, links); err != nil {
 		return err
 	}
+	// Keep artifact_fts in lockstep with the just-saved row so a later create's
+	// content-dedup query (which reads artifact_fts) sees this issue/milestone
+	// without relying on an incidental reindex. No-op for non-issue/milestone.
+	if err := db.IndexArtifactFTS(row, a.FrontMatter); err != nil {
+		return err
+	}
 
 	// Re-stamp last-reindex so the file we just wrote (which advanced the vault
 	// dir mtime) doesn't immediately make the index look stale on subsequent

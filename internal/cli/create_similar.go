@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/index"
 )
 
 // similarityThreshold gates the overlap coefficient for near-duplicate
@@ -16,44 +17,108 @@ import (
 // enough to catch rephrasings.
 const similarityThreshold = 0.5
 
-// findNearDuplicates scans existing same-type artifacts in v and returns
-// IDs whose slugs are near-duplicates of candidateID. Project-scoped types
-// are filtered to the same project so cross-project titles don't collide.
-// Inbox is excluded — its date prefix already namespaces and the throwaway
-// nature means warnings would be noise.
+// findNearDuplicates returns IDs of existing same-type artifacts that are likely
+// near-duplicates of candidateID. Two strategies are combined: slug-token overlap
+// (catches rephrasings that share significant title words) and FTS content search
+// over description+goal (catches disjoint-title pairs that describe identical work).
+// Project-scoped types are filtered to the same project so cross-project titles
+// don't collide. Inbox is excluded — its date prefix already namespaces and the
+// throwaway nature means warnings would be noise.
 func findNearDuplicates(v *core.Vault, t core.Type, project, candidateID string) []string {
 	if t == core.TypeInbox || t == core.TypeDecision || t == core.TypeSession {
 		return nil
 	}
+
+	seen := make(map[string]struct{})
+
+	// Strategy 1: slug-token overlap over the filesystem.
 	dir := filepath.Join(v.Root, t.Dir())
 	entries, err := os.ReadDir(dir)
+	if err == nil {
+		candidateSlug := slugFromID(t, candidateID)
+		prefix := ""
+		if t == core.TypeIssue || t == core.TypePlan || t == core.TypeMilestone {
+			prefix = project + "."
+		}
+		for _, e := range entries {
+			name := e.Name()
+			if !strings.HasSuffix(name, ".md") {
+				continue
+			}
+			id := strings.TrimSuffix(name, ".md")
+			if id == candidateID {
+				continue
+			}
+			if prefix != "" && !strings.HasPrefix(id, prefix) {
+				continue
+			}
+			if similarSlugs(candidateSlug, slugFromID(t, id)) {
+				seen[id] = struct{}{}
+			}
+		}
+	}
+
+	// Strategy 2: FTS content match over description+goal for issues and
+	// milestones. Reads the candidate's own file to build the query; silently
+	// skips if the DB or file is unavailable so create never hard-fails on
+	// index absence.
+	if t == core.TypeIssue || t == core.TypeMilestone {
+		if hits := contentDuplicates(v, t, project, candidateID); len(hits) > 0 {
+			for _, id := range hits {
+				seen[id] = struct{}{}
+			}
+		}
+	}
+
+	if len(seen) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(seen))
+	for id := range seen {
+		out = append(out, id)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// contentDuplicates queries artifact_fts for existing issues/milestones whose
+// description+goal content matches the candidate's own content. Returns nil on
+// any index error so the caller degrades gracefully to slug-only detection.
+func contentDuplicates(v *core.Vault, t core.Type, project, candidateID string) []string {
+	// Read candidate's frontmatter to extract the query text.
+	path := filepath.Join(v.Root, t.Dir(), candidateID+".md")
+	a, err := core.LoadArtifact(path)
 	if err != nil {
 		return nil
 	}
-	candidateSlug := slugFromID(t, candidateID)
-	prefix := ""
-	if t == core.TypeIssue || t == core.TypePlan || t == core.TypeMilestone {
-		prefix = project + "."
+	get := func(k string) string {
+		s, _ := a.FrontMatter[k].(string)
+		return strings.TrimSpace(s)
 	}
-	var matches []string
-	for _, e := range entries {
-		name := e.Name()
-		if !strings.HasSuffix(name, ".md") {
-			continue
-		}
-		id := strings.TrimSuffix(name, ".md")
-		if id == candidateID {
-			continue
-		}
-		if prefix != "" && !strings.HasPrefix(id, prefix) {
-			continue
-		}
-		if similarSlugs(candidateSlug, slugFromID(t, id)) {
-			matches = append(matches, id)
+	query := strings.TrimSpace(get("description") + " " + get("goal"))
+	if query == "" {
+		return nil
+	}
+
+	db, err := index.Open(index.DBPath(v.Root))
+	if err != nil {
+		return nil
+	}
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
+
+	f := index.QueryFilters{Project: project}
+	hits, err := db.SearchArtifactContent(query, candidateID, f)
+	if err != nil {
+		return nil
+	}
+	// Filter to same type — artifact_fts covers both issues and milestones.
+	out := make([]string, 0, len(hits))
+	for _, h := range hits {
+		if h.Type == string(t) {
+			out = append(out, h.ID)
 		}
 	}
-	sort.Strings(matches)
-	return matches
+	return out
 }
 
 // slugFromID strips the type-specific prefix from id, returning the
