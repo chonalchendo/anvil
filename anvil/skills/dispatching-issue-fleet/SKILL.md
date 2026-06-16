@@ -104,7 +104,7 @@ The verb gates on mergeable + CI-green, removes the worktree, squash-merges, ver
 
 ## Phase 6 — Post-merge distillation harvest (offer, don't force)
 
-Phase 2b wired the read-side crossbar (retrieve learnings before fan-out); this closes the **write-side** for dispatched work. A worker stops at PR-opened, so it never reaches `completing-issue`'s Phase 6 distillation offer (an explicit no-op in dispatched mode), and per-worker distillation is impossible by topology (a subagent can't dispatch a sub-subagent). The learnings a worker surfaces are therefore lost unless harvested here — at the orchestrator level, once the batch lands. Throughput already scales learning *consumption*; this is what scales their *production*.
+Phase 2b wired the read-side crossbar; this closes the **write-side** for dispatched work. A worker stops at PR-opened, so it never reaches `completing-issue`'s Phase 6 distillation offer (a no-op in dispatched mode) — the learnings it surfaces are lost unless harvested here, at the orchestrator level, once the batch lands. Throughput already scales learning *consumption*; this is what scales their *production*.
 
 Fire this **after** the human has run the `anvil transition … resolved --land-pr` calls from Phase 5 — not at green. Learnings from PRs that never land have lower value, so harvest only what merged. Mirror the read-side: **one** orchestrator-level pass over the whole batch, not per-worker.
 
@@ -114,7 +114,7 @@ Fire this **after** the human has run the `anvil transition … resolved --land-
    > This fleet landed `<k>` PRs. Distill learnings from the batch? (`distilling-learning`)
 
    The bar is **compounding, not record-keeping**: distill only what a future agent would be retrieved into and act on. "Nothing worth distilling" is a valid answer.
-3. **The human gate is non-negotiable** (`distilling-learning`'s Iron Law). The harvest *offers* and stages candidate material for the human-validated capture step; it never auto-distills, even unattended.
+3. **The human gate is non-negotiable** (`distilling-learning`'s Phase 2 gate — the user prunes the draft list before any file is written). The harvest *offers* and stages candidate material for that capture step; it never auto-distills, even unattended.
 
 **Autonomous orchestrator (unattended runs):** make no blocking offer — stage the candidate list into the final report under a `Harvest candidates:` block and stop, consistent with the dispatched-completion-stops-at-PR-opened convention. A human (or a later session) fires `distilling-learning` over it.
 
