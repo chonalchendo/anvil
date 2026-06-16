@@ -2,8 +2,70 @@ package core
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
+
+// anvilInvocationRE matches an `anvil <args...>` invocation inside a code fence
+// and captures the remainder of the line after `anvil`. The boundary is `\b`
+// rather than line-start, so command-chained forms (`x && anvil bogus`) and
+// substitutions (`$(anvil bogus)`) are caught too. The trailing capture is the
+// raw argument string, tokenised and walked against the command tree below.
+var anvilInvocationRE = regexp.MustCompile(`\banvil\s+([^\n]*)`)
+
+// VerbPathValidator reports whether the anvil command described by tokens — the
+// whitespace-split words following `anvil` on a fence line — names a real path
+// through the command tree. It returns the offending subcommand token and false
+// when a token sits in command position but matches no registered subcommand;
+// "" and true otherwise. The CLI layer builds this from cobra (which owns the
+// command tree); core stays cobra-free, mirroring the existing core/CLI split.
+type VerbPathValidator func(tokens []string) (bad string, ok bool)
+
+// lintVerificationVerbs scans code-fence lines inside the Verification span and
+// reports any `anvil <verb> <subverb>...` invocation whose deepest subcommand
+// token names no registered command. Only lines inside a code fence (between
+// opening ``` and closing ```) are scanned. Returns nil without scanning when
+// validate is nil (caller has no command tree to check against).
+func lintVerificationVerbs(body string, validate VerbPathValidator) []error {
+	if validate == nil {
+		return nil
+	}
+	span := verificationSpan(body)
+	if span == "" {
+		return nil
+	}
+
+	// Collect only lines inside a code fence.
+	var codeLines strings.Builder
+	inFence := false
+	for _, line := range strings.Split(span, "\n") {
+		trimmed := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmed, "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			codeLines.WriteString(line)
+			codeLines.WriteByte('\n')
+		}
+	}
+
+	var errs []error
+	seen := make(map[string]struct{})
+	for _, m := range anvilInvocationRE.FindAllStringSubmatch(codeLines.String(), -1) {
+		tokens := strings.Fields(m[1])
+		bad, ok := validate(tokens)
+		if ok {
+			continue
+		}
+		if _, already := seen[bad]; already {
+			continue
+		}
+		seen[bad] = struct{}{}
+		errs = append(errs, fmt.Errorf("verification block cites unknown anvil subcommand %q — fix the command or update the issue", bad))
+	}
+	return errs
+}
 
 // RequiredIssueSections is the ordered set of headings validate enforces on
 // issue body content. H3 entries (### Direct, ### Indirect) are sub-headings
@@ -79,6 +141,16 @@ func ValidateIssue(a *Artifact) []error {
 	}
 
 	return errs
+}
+
+// ValidateIssueVerbs checks that every `anvil <verb> <subverb>...` invocation
+// inside a code fence in the Verification block names a real path through the
+// command tree — the deepest subcommand token must match a registered command,
+// so a stale nested subcommand (`anvil project init`) is caught, not just a
+// bogus top-level verb. Call this from CLI layers that own the cobra tree; pass
+// the result through the same errfmt pipeline as ValidateIssue.
+func ValidateIssueVerbs(body string, validate VerbPathValidator) []error {
+	return lintVerificationVerbs(body, validate)
 }
 
 // verificationSpan returns the body slice from the "## Verification" heading to
