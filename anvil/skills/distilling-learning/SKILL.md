@@ -90,7 +90,28 @@ Never include a `status/*` tag.
 
 ---
 
-## Phase 4 — Create + populate each approved learning
+## Phase 4 — Dedup check
+
+Before creating any learning, search the vault for existing learnings that cover the same claim. This prevents near-duplicate accrual that would need manual dedup later.
+
+For each draft learning, run:
+
+```bash
+anvil list learning --search "<key terms from the title / claim>"
+```
+
+Pick one to three distinctive nouns or phrases from the draft title. If results appear:
+
+- Read the top match (`anvil show learning <id>`).
+- If it materially covers the same claim: propose **sharpening the existing learning** (edit its TL;DR / Evidence / Caveats) rather than creating a new one.
+- If it is related but distinct: proceed to create; note the existing learning in the new one's Evidence section and link via `anvil link`.
+- If no close match: proceed to create.
+
+The agent surfaces candidates and the decision — the user decides whether to merge or proceed. Never auto-block or auto-merge.
+
+---
+
+## Phase 5 — Create + populate each approved learning
 
 For each approved learning, in order:
 
@@ -133,7 +154,7 @@ anvil link learning <id> <source-type> <source-id>
 
 ---
 
-## Phase 5 — Glossary additions
+## Phase 6 — Glossary additions
 
 If new tags were approved in phase 3, append them now (one per new tag):
 
@@ -145,7 +166,7 @@ Same commit as the learning files.
 
 ---
 
-## Phase 6 — Source aftermath
+## Phase 7 — Source aftermath
 
 | Source kind | Aftermath |
 |---|---|
@@ -158,7 +179,7 @@ Session folder hygiene (raw → distilled) is **not** this skill's concern — i
 
 ---
 
-## Phase 7 — Validate
+## Phase 8 — Validate
 
 ```bash
 anvil validate
