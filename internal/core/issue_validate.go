@@ -37,7 +37,8 @@ func ScaffoldSections(headings []string) string {
 }
 
 // ValidateIssue checks that the issue body contains the required headings in
-// order. Same ordered-scan algorithm as ValidateLearning.
+// order and that code fences in the Verification section are balanced.
+// Same ordered-scan algorithm as ValidateLearning.
 func ValidateIssue(a *Artifact) []error {
 	var errs []error
 	pos := 0
@@ -54,5 +55,19 @@ func ValidateIssue(a *Artifact) []error {
 			pos += len(h)
 		}
 	}
+
+	// Fence-balance check: an odd number of triple-backtick fence lines means
+	// at least one fence is unclosed. An unterminated fence in Verification is
+	// the canonical failure mode (heredoc delimiter ate the closing ```).
+	fenceCount := 0
+	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(strings.TrimLeft(line, " \t"), "```") {
+			fenceCount++
+		}
+	}
+	if fenceCount%2 != 0 {
+		errs = append(errs, fmt.Errorf("issue body has unbalanced code fences (unterminated ``` block)"))
+	}
+
 	return errs
 }

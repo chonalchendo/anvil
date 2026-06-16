@@ -107,3 +107,48 @@ func TestValidateIssue_NoAcceptanceCriteria_Valid(t *testing.T) {
 		t.Errorf("AC is optional — expected no errors, got: %v", errs)
 	}
 }
+
+func TestValidateIssue_UnterminatedFence_Rejected(t *testing.T) {
+	// Body with an unterminated code fence in Verification must be rejected.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\ntrue\n\n## Links\n"
+	a := &Artifact{
+		FrontMatter: map[string]any{"type": "issue"},
+		Body:        body,
+	}
+	errs := ValidateIssue(a)
+	if len(errs) == 0 {
+		t.Fatal("expected error for unterminated code fence")
+	}
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Error(), "unbalanced") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected 'unbalanced' in error, got: %v", errs)
+	}
+}
+
+func TestValidateIssue_BalancedFences_Valid(t *testing.T) {
+	// Body with balanced fences must pass.
+	a := &Artifact{
+		FrontMatter: map[string]any{"type": "issue"},
+		Body:        fullIssueBody,
+	}
+	if errs := ValidateIssue(a); len(errs) != 0 {
+		t.Errorf("balanced fences — expected no errors, got: %v", errs)
+	}
+}
+
+func TestValidateIssue_BalancedFencesInVerification_Valid(t *testing.T) {
+	// Body with fenced bash blocks in both Direct and Indirect must pass.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\ntrue\n```\n\n## Links\n"
+	a := &Artifact{
+		FrontMatter: map[string]any{"type": "issue"},
+		Body:        body,
+	}
+	if errs := ValidateIssue(a); len(errs) != 0 {
+		t.Errorf("balanced fenced blocks — expected no errors, got: %v", errs)
+	}
+}
