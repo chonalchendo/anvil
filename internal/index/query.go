@@ -103,7 +103,9 @@ WHERE learning_fts MATCH ?`
 // SearchArtifactContent returns issues and milestones whose description+goal
 // content matches the query, ranked by FTS5 relevance. Excludes excludeID so
 // the calling artifact (just saved) never reports itself as its own duplicate.
-// QueryFilters Type/Project narrow the result; Limit ≤ 0 returns all matches.
+// QueryFilters Status/Project narrow the result; Limit ≤ 0 returns all matches.
+// artifact_fts mixes issues and milestones, so filtering by type is the
+// caller's responsibility.
 func (d *DB) SearchArtifactContent(query, excludeID string, f QueryFilters) ([]ArtifactRow, error) {
 	match := ftsMatchExpr(query)
 	if match == "" {
