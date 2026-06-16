@@ -871,3 +871,30 @@ func TestIssue_ReproductionAnchorRejectsAdditionalProperties(t *testing.T) {
 		t.Fatal("expected error for additionalProperties inside reproduction_anchor")
 	}
 }
+
+func TestValidateField_AcceptsValidValue(t *testing.T) {
+	if err := ValidateField("issue", "status", "open"); err != nil {
+		t.Errorf("expected valid status to pass, got %v", err)
+	}
+}
+
+func TestValidateField_RejectsInvalidValue(t *testing.T) {
+	if err := ValidateField("issue", "status", "bogus"); err == nil {
+		t.Error("expected invalid status to fail, got nil")
+	}
+}
+
+func TestValidateField_IgnoresMissingRequiredFields(t *testing.T) {
+	// Validating only `milestone` on a map that omits all required fields
+	// (type, title, goal, etc.) must not fail — we only check the written field.
+	if err := ValidateField("issue", "milestone", "[[milestone.foo.bar]]"); err != nil {
+		t.Errorf("expected single-field validation to ignore missing required fields, got %v", err)
+	}
+}
+
+func TestValidateField_UnknownField_NoError(t *testing.T) {
+	// Ad-hoc fields not declared in the schema are accepted.
+	if err := ValidateField("issue", "ad_hoc_custom_field", "any value"); err != nil {
+		t.Errorf("expected unknown field to be accepted, got %v", err)
+	}
+}
