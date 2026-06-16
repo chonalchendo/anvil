@@ -31,6 +31,16 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		return ReindexStats{}, fmt.Errorf("get last reindex: %w", err)
 	}
 
+	// A schema bump (e.g. a newly added derived table) needs one full rebuild to
+	// backfill rows the incremental walk can't reconstruct from unchanged files.
+	sv, err := d.GetSchemaVersion()
+	if err != nil {
+		return ReindexStats{}, err
+	}
+	if sv < SchemaVersion {
+		return d.ReindexFull(vaultRoot)
+	}
+
 	// Capture the start BEFORE the walk and stamp THAT value (not a post-pass
 	// time.Now()): any file edited during the pass must re-qualify next run.
 	// A post-pass stamp would mark such an edit as ModTime ≤ stamp and skip it.
@@ -116,6 +126,9 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		if err := d.ReplaceLinks(row.ID, links); err != nil {
 			return ReindexStats{}, err
 		}
+		if err := d.indexLearningFTS(row, a.Body); err != nil {
+			return ReindexStats{}, err
+		}
 	}
 
 	// Purge artifacts whose CURRENT stored path is absent from disk. Re-querying
@@ -165,6 +178,9 @@ func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 	if _, err := tx.Exec(`DELETE FROM artifacts`); err != nil {
 		return ReindexStats{}, fmt.Errorf("clear artifacts: %w", err)
 	}
+	if _, err := tx.Exec(`DELETE FROM learning_fts`); err != nil {
+		return ReindexStats{}, fmt.Errorf("clear fts: %w", err)
+	}
 	if err := tx.Commit(); err != nil {
 		return ReindexStats{}, fmt.Errorf("commit clear: %w", err)
 	}
@@ -197,12 +213,18 @@ func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 		if err := d.ReplaceLinks(row.ID, links); err != nil {
 			return err
 		}
+		if err := d.indexLearningFTS(row, a.Body); err != nil {
+			return err
+		}
 		return nil
 	})
 	if walkErr != nil {
 		return ReindexStats{}, fmt.Errorf("walk: %w", walkErr)
 	}
 	if err := d.SetLastReindex(time.Now()); err != nil {
+		return ReindexStats{}, err
+	}
+	if err := d.SetSchemaVersion(SchemaVersion); err != nil {
 		return ReindexStats{}, err
 	}
 	// Report from DB so duplicate IDs (same id in multiple files) don't
@@ -216,6 +238,16 @@ func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 		Links:      links,
 		DurationMS: time.Since(start).Milliseconds(),
 	}, nil
+}
+
+// indexLearningFTS upserts a learning's TL;DR into the FTS table; a no-op for
+// every other type. Called after each artifact upsert so content search stays
+// in lockstep with the artifacts table.
+func (d *DB) indexLearningFTS(row ArtifactRow, body string) error {
+	if row.Type != string(core.TypeLearning) {
+		return nil
+	}
+	return d.ReplaceLearningFTS(row.ID, LearningTLDR(body))
 }
 
 // purgeStaleRowFor drops the indexed row whose stored path equals path, used

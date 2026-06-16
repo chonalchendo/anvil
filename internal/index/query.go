@@ -45,6 +45,75 @@ END) = 0
 	return rows, nil
 }
 
+// SearchLearnings returns learnings whose TL;DR matches the query, ranked by
+// FTS5 relevance. The query is tokenised: each whitespace-separated term is
+// quoted (so punctuation can't produce an FTS syntax error) and joined with
+// implicit AND, so "schema rename" requires both terms but not adjacency.
+// QueryFilters Status/Project/Since/Until/Limit narrow the result; Limit ≤ 0
+// returns all matches. An all-punctuation query yields no terms → no results.
+func (d *DB) SearchLearnings(query string, f QueryFilters) ([]ArtifactRow, error) {
+	match := ftsMatchExpr(query)
+	if match == "" {
+		return nil, nil
+	}
+	q := `
+SELECT a.id, a.type, a.status, a.project, a.path, a.created, a.updated
+FROM learning_fts
+JOIN artifacts a ON a.id = learning_fts.id
+WHERE learning_fts MATCH ?`
+	args := []any{match}
+	if f.Status != "" {
+		q += " AND a.status = ?"
+		args = append(args, f.Status)
+	}
+	if f.Project != "" {
+		q += " AND a.project = ?"
+		args = append(args, f.Project)
+	}
+	if f.Since != "" {
+		q += " AND a.created >= ?"
+		args = append(args, f.Since)
+	}
+	if f.Until != "" {
+		q += " AND a.created <= ?"
+		args = append(args, f.Until)
+	}
+	q += " ORDER BY rank"
+	if f.Limit > 0 {
+		q += " LIMIT ?"
+		args = append(args, f.Limit)
+	}
+
+	rs, err := d.sql.Query(q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("search learnings: %w", err)
+	}
+	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
+	var out []ArtifactRow
+	for rs.Next() {
+		var r ArtifactRow
+		if err := rs.Scan(&r.ID, &r.Type, &r.Status, &r.Project, &r.Path, &r.Created, &r.Updated); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rs.Err()
+}
+
+// ftsMatchExpr turns a free-text query into a safe FTS5 MATCH expression:
+// each whitespace term is wrapped in double quotes (embedded quotes doubled),
+// joined by spaces (FTS5 implicit AND). Returns "" when no terms remain.
+func ftsMatchExpr(query string) string {
+	terms := strings.Fields(query)
+	if len(terms) == 0 {
+		return ""
+	}
+	for i, t := range terms {
+		terms[i] = `"` + strings.ReplaceAll(t, `"`, `""`) + `"`
+	}
+	return strings.Join(terms, " ")
+}
+
 // ListByType returns every artifact of the given type, ordered by id.
 func (d *DB) ListByType(typ string) ([]ArtifactRow, error) {
 	const q = `

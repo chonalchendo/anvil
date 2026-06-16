@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -19,6 +20,40 @@ var ErrLastReindexUnset = errors.New("last reindex stamp unset")
 var ErrIndexStale = errors.New("vault index stale")
 
 const metaKeyLastReindex = "last_reindex"
+
+const metaKeySchemaVersion = "schema_version"
+
+// SchemaVersion bumps whenever a schema change needs a full rebuild to backfill
+// derived rows from existing files (a new table the incremental walk can't
+// populate from unchanged files). Reindex forces one full rebuild when the
+// stored version lags — the no-migration "schema changed → rebuild" path.
+//
+//	1: learning_fts (FTS5 over learning TL;DR)
+const SchemaVersion = 1
+
+// GetSchemaVersion returns the stored schema version, or 0 when unset (a DB
+// built before versioning, or a fresh one).
+func (d *DB) GetSchemaVersion() (int, error) {
+	row := d.sql.QueryRow(`SELECT value FROM meta WHERE key = ?`, metaKeySchemaVersion)
+	var s string
+	if err := row.Scan(&s); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("get schema version: %w", err)
+	}
+	return strconv.Atoi(s)
+}
+
+// SetSchemaVersion stamps the schema version reached by a full rebuild.
+func (d *DB) SetSchemaVersion(v int) error {
+	const q = `INSERT INTO meta(key, value) VALUES(?, ?)
+ON CONFLICT(key) DO UPDATE SET value=excluded.value`
+	if _, err := d.sql.Exec(q, metaKeySchemaVersion, strconv.Itoa(v)); err != nil {
+		return fmt.Errorf("set schema version: %w", err)
+	}
+	return nil
+}
 
 // SetLastReindex stamps the last-full-reindex time.
 func (d *DB) SetLastReindex(t time.Time) error {

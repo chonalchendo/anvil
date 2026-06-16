@@ -13,7 +13,6 @@ import (
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
-	"github.com/chonalchendo/anvil/internal/index"
 )
 
 const defaultListLimit = 10
@@ -53,6 +52,7 @@ func newListCmd() *cobra.Command {
 		flagDiataxis, flagConfidence     string
 		flagSeverity                     string
 		flagMilestone                    string
+		flagSearch                       string
 		flagSince, flagUntil             string
 		flagTags                         []string
 		flagJSON                         bool
@@ -87,9 +87,18 @@ func newListCmd() *cobra.Command {
 			if flagInvalidBody && t != core.TypeIssue {
 				return printAndReturn(cmd, errfmt.NewUnsupportedForType(string(t), []string{"issue"}))
 			}
+			if flagSearch != "" && t != core.TypeLearning {
+				return printAndReturn(cmd, errfmt.NewUnsupportedForType(string(t), []string{"learning"}))
+			}
 			fields, err := parseFields(flagFields)
 			if err != nil {
 				return err
+			}
+			if flagSearch != "" {
+				return runListSearch(cmd, t, flagSearch, listFilters{
+					Status: flagStatus, Project: flagProject,
+					Since: flagSince, Until: flagUntil,
+				}, flagJSON, flagLimit, fields)
 			}
 			if flagReady || flagOrphans {
 				// --ready/--orphans list an actionable queue; default to
@@ -130,6 +139,7 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagConfidence, "confidence", "", "filter by confidence (exact match)")
 	cmd.Flags().StringVar(&flagSeverity, "severity", "", "filter by severity (exact match: "+strings.Join(issueSeverityEnum, "|")+"; issue only)")
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "filter by milestone slug (exact match, e.g. anvil.v0-1-polish-dogfood-findings; issue only)")
+	cmd.Flags().StringVar(&flagSearch, "search", "", "full-text search over learning TL;DR content, ranked by relevance (learning only)")
 	cmd.Flags().StringVar(&flagSince, "since", "", "include only artifacts created on or after YYYY-MM-DD")
 	cmd.Flags().StringVar(&flagUntil, "until", "", "include only artifacts created on or before YYYY-MM-DD")
 	cmd.Flags().IntVar(&flagLimit, "limit", defaultListLimit, "maximum results to return (default 10; --ready/--orphans default to unlimited)")
@@ -338,73 +348,6 @@ func hasTagSubstring(tags any, sub string) bool {
 		}
 	}
 	return false
-}
-
-func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f listFilters, asJSON bool, limit int, fields []string) error {
-	if ready && t != core.TypeIssue {
-		e := errfmt.NewUnsupportedForType(string(t), []string{"issue"})
-		return printAndReturn(cmd, e)
-	}
-	v, err := core.ResolveVault()
-	if err != nil {
-		return fmt.Errorf("resolving vault: %w", err)
-	}
-	db, err := indexForRead(v)
-	if err != nil {
-		return err
-	}
-	defer db.Close() //nolint:errcheck // close in defer; error not actionable
-
-	qf := index.QueryFilters{
-		Status: f.Status, Project: f.Project,
-		Since: f.Since, Until: f.Until,
-	}
-	var rows []index.ArtifactRow
-	switch {
-	case ready:
-		rows, err = db.ListReady(string(t), qf)
-	case orphans:
-		rows, err = db.ListOrphans(qf)
-	}
-	if err != nil {
-		return err
-	}
-	// Severity and milestone are not in the index; filter post-load. Load all
-	// matching rows before applying the limit so the truncation hint reflects
-	// the filtered total, not the pre-filter row count.
-	items := make([]listItem, 0, len(rows))
-	for _, r := range rows {
-		item := listItem{
-			ID: r.ID, Type: r.Type, Status: r.Status,
-			Project: r.Project, Path: r.Path, Created: r.Created,
-		}
-		if a, err := core.LoadArtifact(r.Path); err == nil {
-			item.Title, _ = a.FrontMatter["title"].(string)
-			item.Description, _ = a.FrontMatter["description"].(string)
-			item.Severity, _ = a.FrontMatter["severity"].(string)
-			item.Milestone = milestoneSlug(a.FrontMatter["milestone"])
-			item.Tags = stringTags(a.FrontMatter["tags"])
-			if f.InvalidBody {
-				errs := core.ValidateIssue(a)
-				if len(errs) == 0 {
-					continue // valid body — exclude from --invalid-body results
-				}
-				item.MissingSection = firstMissingSection(errs)
-			}
-		}
-		if f.Severity != "" && item.Severity != f.Severity {
-			continue
-		}
-		if f.Milestone != "" && item.Milestone != f.Milestone {
-			continue
-		}
-		items = append(items, item)
-	}
-	total := len(items)
-	if limit > 0 && len(items) > limit {
-		items = items[:limit]
-	}
-	return emitList(cmd, items, total, asJSON, t, fields)
 }
 
 // collectArtifactPaths returns absolute paths of artifacts of type t under

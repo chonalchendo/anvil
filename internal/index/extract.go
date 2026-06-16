@@ -20,6 +20,22 @@ type LinkRow struct {
 	Source, Target, Relation, Anchor string
 }
 
+// learningTLDRRe captures the text under a learning's `## TL;DR` heading up to
+// the next H2 (or end of body). The FTS index stores only this section — the
+// learning's one-paragraph essence — so a learning is findable by content.
+var learningTLDRRe = regexp.MustCompile(`(?s)\n##\s+TL;DR\s*\n(.*?)(?:\n##\s|$)`)
+
+// LearningTLDR returns the trimmed body text of a learning's TL;DR section, or
+// "" when the section is absent. The leading newline is prepended so the regex
+// anchors a TL;DR heading that opens the body with no blank line before it.
+func LearningTLDR(body string) string {
+	m := learningTLDRRe.FindStringSubmatch("\n" + body)
+	if m == nil {
+		return ""
+	}
+	return strings.TrimSpace(m[1])
+}
+
 var wikilinkRe = regexp.MustCompile(`^\[\[([^\]]+)\]\]$`)
 
 // bodyWikilinkRe matches wikilinks anywhere in body text (unanchored).
