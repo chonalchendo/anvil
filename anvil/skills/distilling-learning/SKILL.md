@@ -162,6 +162,13 @@ If new tags were approved in phase 3, append them now (one per new tag):
 anvil tags add domain/<new-name> --desc "<one-line description>"
 ```
 
+If the learning introduces a term that deserves a canonical definition — a new concept the vault vocabulary should carry — add it to the glossary. Author-gate this: only add when the term and gloss are confirmed, not auto-extracted.
+
+```bash
+anvil glossary add <term> --desc "<one-line definition>"
+# idempotent; use --update to overwrite an existing definition
+```
+
 Same commit as the learning files.
 
 ---

@@ -140,6 +140,37 @@ func (g *Glossary) Definition(term string) (string, bool) {
 	return "", false
 }
 
+// AddDefinition appends a term definition. No-op if the term already exists
+// with the same description; returns an error if it exists with a different one
+// (caller should use UpdateDefinition instead).
+func (g *Glossary) AddDefinition(term, desc string) error {
+	if term == "" {
+		return fmt.Errorf("term must not be empty")
+	}
+	for _, e := range g.definitions {
+		if e.Key == term {
+			if e.Desc == desc {
+				return nil // idempotent
+			}
+			return fmt.Errorf("term %q already defined: %q\n  use --update to overwrite", term, e.Desc)
+		}
+	}
+	g.definitions = append(g.definitions, Entry{Key: term, Desc: desc})
+	return nil
+}
+
+// UpdateDefinition rewrites term's description in place.
+// Returns false if the term is absent.
+func (g *Glossary) UpdateDefinition(term, desc string) bool {
+	for i, e := range g.definitions {
+		if e.Key == term {
+			g.definitions[i].Desc = desc
+			return true
+		}
+	}
+	return false
+}
+
 // Save writes g to path in canonical form, creating the parent directory.
 func (g *Glossary) Save(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
