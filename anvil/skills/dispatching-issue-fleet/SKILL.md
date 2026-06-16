@@ -5,7 +5,7 @@ description: "Use when the user wants to dispatch parallel subagents to work mul
 
 # Dispatching Issue Fleet
 
-Your job is to orchestrate N parallel subagents through claim → implement → smoke → PR (each subagent's half), then fire the independent review on every returned PR and drive its findings to resolution (your half — Phase 5), and halt at green so the human can merge. You do not write code yourself; you dispatch, audit returns, and present a structured report.
+Your job is to orchestrate N parallel subagents through claim → implement → smoke → PR (each subagent's half), then fire the independent review on every returned PR and drive its findings to resolution (your half — Phase 5), halt at green so the human can merge, and — once the batch lands — offer a post-merge distillation harvest (Phase 6, the write-side learning crossbar). You do not write code yourself; you dispatch, audit returns, and present a structured report.
 
 ## Iron Law
 
@@ -100,7 +100,23 @@ To land each PR, run from the parent checkout (one line per issue):
   anvil transition issue <id> resolved --land-pr <n>
 ```
 
-The verb gates on mergeable + CI-green, removes the worktree, squash-merges, verifies MERGED, and resolves the issue atomically (see `completing-issue` Phase 5) — no manual `git worktree remove` / `gh pr merge` sequencing.
+The verb gates on mergeable + CI-green, removes the worktree, squash-merges, verifies MERGED, and resolves the issue atomically (see `completing-issue` Phase 5) — no manual `git worktree remove` / `gh pr merge` sequencing. Once the human has landed the batch, run Phase 6.
+
+## Phase 6 — Post-merge distillation harvest (offer, don't force)
+
+Phase 2b wired the read-side crossbar (retrieve learnings before fan-out); this closes the **write-side** for dispatched work. A worker stops at PR-opened, so it never reaches `completing-issue`'s Phase 6 distillation offer (an explicit no-op in dispatched mode), and per-worker distillation is impossible by topology (a subagent can't dispatch a sub-subagent). The learnings a worker surfaces are therefore lost unless harvested here — at the orchestrator level, once the batch lands. Throughput already scales learning *consumption*; this is what scales their *production*.
+
+Fire this **after** the human has run the `anvil transition … resolved --land-pr` calls from Phase 5 — not at green. Learnings from PRs that never land have lower value, so harvest only what merged. Mirror the read-side: **one** orchestrator-level pass over the whole batch, not per-worker.
+
+1. **Collect candidate material — landed PRs only.** For each issue that produced a PR url in Phase 4 *and* has since merged, gather what a future agent would act on differently: a gotcha hit, a confirmed approach, a dead end avoided. Sources are the merged PR (`gh pr view <n>`), the resolved issue, and your own Phase 5 review observations. The guard from Phase 4 carries forward — a `Blocker:` or malformed return emitted no PR, so it contributes no material; confirm the merged PR before collecting. Also flag any **cross-PR breakage** you observed — sequential merges of individually-green PRs can land a broken `master` — as a first-class harvest candidate.
+2. **Offer — do not force — a single handoff to `distilling-learning`** over the collected candidates:
+
+   > This fleet landed `<k>` PRs. Distill learnings from the batch? (`distilling-learning`)
+
+   The bar is **compounding, not record-keeping**: distill only what a future agent would be retrieved into and act on. "Nothing worth distilling" is a valid answer.
+3. **The human gate is non-negotiable** (`distilling-learning`'s Iron Law). The harvest *offers* and stages candidate material for the human-validated capture step; it never auto-distills, even unattended.
+
+**Autonomous orchestrator (unattended runs):** make no blocking offer — stage the candidate list into the final report under a `Harvest candidates:` block and stop, consistent with the dispatched-completion-stops-at-PR-opened convention. A human (or a later session) fires `distilling-learning` over it.
 
 ## Scope-change pause protocol
 
