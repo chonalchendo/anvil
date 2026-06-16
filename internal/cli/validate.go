@@ -78,11 +78,15 @@ func newValidateCmd() *cobra.Command {
 			} else {
 				// idPaths accumulates every path seen per index id to detect
 				// cross-file collisions after per-file checks complete.
+				projectFilter := os.Getenv("ANVIL_PROJECT")
 				idPaths := make(map[string][]string)
 				for _, t := range core.AllTypes {
 					paths, err := collectArtifactPaths(root, t)
 					if err != nil {
 						return err
+					}
+					if projectFilter != "" {
+						paths = filterPathsByProject(paths, t, projectFilter)
 					}
 					for _, p := range paths {
 						a, fs := validateOne(t, p, known, verbs)
@@ -140,6 +144,29 @@ func newValidateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON array of structured errors")
 	cmd.AddCommand(newValidateSkillCmd())
 	return cmd
+}
+
+// filterPathsByProject retains only paths that belong to the named project slug.
+// For types that AllocatesID (flat <dir>/<project>.<id>.md layout) the filter
+// matches the filename prefix "<slug>.". For singletons (product-design,
+// system-design) the file lives at <dir>/<slug>/<type>.md, so the grandparent
+// directory name is the slug.
+func filterPathsByProject(paths []string, t core.Type, slug string) []string {
+	var out []string
+	prefix := slug + "."
+	for _, p := range paths {
+		if t.AllocatesID() {
+			if strings.HasPrefix(filepath.Base(p), prefix) {
+				out = append(out, p)
+			}
+		} else {
+			// Singleton: parent dir is the project slug.
+			if filepath.Base(filepath.Dir(p)) == slug {
+				out = append(out, p)
+			}
+		}
+	}
+	return out
 }
 
 // verbPathValidator builds a core.VerbPathValidator backed by cobra's command
