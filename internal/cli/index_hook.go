@@ -59,6 +59,13 @@ func indexAfterSave(v *core.Vault, a *core.Artifact) error {
 	if err := db.IndexArtifactFTS(row, a.FrontMatter); err != nil {
 		return err
 	}
+	// Keep the tags table in lockstep too, so `anvil index` finds the just-saved
+	// artifact's facets without a manual reindex. Skipping this would leave the
+	// row tag-less until a full reindex — incremental can't catch it, since the
+	// re-stamp below pushes last_reindex past this file's mtime.
+	if err := db.ReplaceTags(row.ID, index.TagsFromFrontmatter(a.FrontMatter)); err != nil {
+		return err
+	}
 
 	// Re-stamp last-reindex so the file we just wrote (which advanced the vault
 	// dir mtime) doesn't immediately make the index look stale on subsequent

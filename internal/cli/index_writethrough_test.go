@@ -71,6 +71,47 @@ func TestCreateWritesThroughToIndex(t *testing.T) {
 	}
 }
 
+func TestCreateWritesThroughTagsToIndex(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	// Establish a last_reindex stamp first, so the create below takes the
+	// write-through path (not the bootstrap full-reindex, which indexes tags
+	// anyway and would hide the gap this test guards).
+	execCmd(t, "reindex")
+
+	out := execCmd(t, "create", "issue",
+		"--project", "demo",
+		"--title", "tagged",
+		"--description", "tagged desc",
+		"--goal", "tagged is done",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+		"--json",
+	)
+	var result map[string]any
+	if err := jsonUnmarshal(t, out, &result); err != nil {
+		t.Fatal(err)
+	}
+	id, _ := result["id"].(string)
+
+	// No reindex: the create write-through must have populated the tags table,
+	// so a tag query finds the new artifact immediately.
+	rows, err := openIndex(t, vault).RelatedByTags([]string{"domain/dev-tools"}, index.QueryFilters{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, r := range rows {
+		if r.ID == id {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("create did not write tags through to the index: %s absent from %v", id, rows)
+	}
+}
+
 func TestSetStatusWritesThroughToIndex(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
