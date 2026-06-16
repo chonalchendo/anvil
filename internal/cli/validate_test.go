@@ -463,6 +463,7 @@ func TestValidate_DuplicateID_CrossFile(t *testing.T) {
 // full-vault count.
 func TestValidate_ProjectFlag_ScopesFindings(t *testing.T) {
 	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
 
 	// Plant an invalid issue for project "alpha" (bad status).
 	alphaIssue := &core.Artifact{
@@ -530,6 +531,50 @@ func TestValidate_ProjectFlag_ScopesFindings(t *testing.T) {
 		if strings.Contains(filepath.Base(path), "beta.") {
 			t.Errorf("foreign-project path appeared in scoped output: %s", path)
 		}
+	}
+}
+
+// TestValidate_ProjectFlag_ScopesByFrontmatter pins the resolution semantics:
+// scoping follows the frontmatter `project` field, not the filename slug. A
+// misfiled artifact (filename `beta.0001.bad.md` declaring `project: alpha`)
+// must surface under `--project alpha` and be absent under `--project beta` —
+// the path-based filter would invert both.
+func TestValidate_ProjectFlag_ScopesByFrontmatter(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	// Misfiled: filename says beta, frontmatter declares alpha.
+	misfiled := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", "beta.0001.bad.md"),
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "misfiled", "description": "d",
+			"created": "2026-06-16", "status": "bogus-status",
+			"project": "alpha", "severity": "low",
+		},
+	}
+	if err := misfiled.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	run := func(slug string) []map[string]any {
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"--project", slug, "validate", vault, "--json"})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		_ = cmd.Execute()
+		var failures []map[string]any
+		if err := json.Unmarshal(out.Bytes(), &failures); err != nil {
+			t.Fatalf("parse json (slug=%s): %v\n%s", slug, err, out.String())
+		}
+		return failures
+	}
+
+	if got := run("alpha"); len(got) == 0 {
+		t.Error("misfiled artifact (frontmatter project=alpha) must surface under --project alpha")
+	}
+	if got := run("beta"); len(got) != 0 {
+		t.Errorf("misfiled artifact must be absent under --project beta (filename slug), got %v", got)
 	}
 }
 
