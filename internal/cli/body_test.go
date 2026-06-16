@@ -12,17 +12,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// withStdin replaces os.Stdin with a pipe carrying data and a non-tty mode.
+// withStdin replaces os.Stdin with a pipe carrying data, written and closed
+// before returning. The synchronous write guarantees the bytes are buffered
+// in the pipe before readBody probes it: stdinIsPipe uses a FIONREAD ioctl,
+// which (like any point-in-time emptiness check) reports 0 if the writer has
+// not run yet. An async goroutine writer would race the probe. Small test
+// payloads fit the kernel pipe buffer (typically 64 KiB), so the write never
+// blocks.
 func withStdin(t *testing.T, data string) func() {
 	t.Helper()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
-	go func() {
-		_, _ = io.WriteString(w, data)
-		_ = w.Close()
-	}()
+	if _, err := io.WriteString(w, data); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
 	orig := os.Stdin
 	os.Stdin = r
 	return func() {
@@ -160,5 +168,38 @@ func TestReadBody_NoFlagNoStdin(t *testing.T) {
 	}
 	if got != "" {
 		t.Errorf("got %q, want empty", got)
+	}
+}
+
+// TestReadBody_EmptyPipeWithBodyFileDoesNotCollide is the regression test for
+// the bug where an empty named pipe (e.g. piping zero bytes into cmd) was misread as a
+// competing body source and rejected with "mutually exclusive". The fix
+// requires FIONREAD>0 before treating a named pipe as carrying data.
+func TestReadBody_EmptyPipeWithBodyFileDoesNotCollide(t *testing.T) {
+	// Simulate `printf '' | cmd --body-file f`: a named pipe (r) with the
+	// write end closed immediately, so Size()==0.
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = w.Close() // write end closed; pipe is empty
+
+	orig := os.Stdin
+	os.Stdin = r
+	defer func() { os.Stdin = orig; _ = r.Close() }()
+
+	// Write a temp body file for --body-file to read.
+	f := t.TempDir() + "/body.md"
+	if err := os.WriteFile(f, []byte("body content\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := &cobra.Command{}
+	got, err := readBody(cmd, "", f)
+	if err != nil {
+		t.Fatalf("unexpected error (collision guard still firing?): %v", err)
+	}
+	if got != "body content\n" {
+		t.Errorf("got %q, want %q", got, "body content\n")
 	}
 }

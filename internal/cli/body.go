@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/sys/unix"
 )
 
 // readBody resolves the body content for `create` and `inbox add`. Sources
@@ -81,12 +82,19 @@ func readBody(_ *cobra.Command, flagBody, flagBodyFile string) (string, error) {
 // stdinIsPipe reports whether os.Stdin carries real piped/redirected data
 // the caller intends us to read. Only two shapes qualify:
 //
-//   - a named pipe (`echo x | cmd`, heredocs, process substitution)
+//   - a named pipe with bytes buffered (`echo x | cmd`, heredocs, process substitution)
 //   - a regular file with non-zero size (`cmd < file.md`)
 //
-// Sockets, ttys, /dev/null, and empty files all return false so we never
-// block on a read that has no producer — e.g. when an agent harness
-// attaches a persistent unix socket to stdin without ever writing to it.
+// Sockets, ttys, /dev/null, empty pipes, and empty files all return false so
+// we never treat an inherited/empty non-tty stdin as a competing body source —
+// e.g. when an agent batch-creates issues from a subprocess whose stdin is
+// inherited rather than a terminal, or attached via /dev/null.
+//
+// Pipe emptiness is probed with a FIONREAD ioctl, not fi.Size(): on Linux
+// fstat() on a pipe always reports Size()==0 regardless of buffered bytes
+// (only macOS/BSD surface the buffer length there), so Size() would misread
+// every genuine piped body as empty. FIONREAD returns the number of bytes
+// immediately readable on both Linux and macOS, with no blocking read.
 func stdinIsPipe() (bool, error) {
 	fi, err := os.Stdin.Stat()
 	if err != nil {
@@ -94,7 +102,11 @@ func stdinIsPipe() (bool, error) {
 	}
 	m := fi.Mode()
 	if m&os.ModeNamedPipe != 0 {
-		return true, nil
+		n, err := unix.IoctlGetInt(int(os.Stdin.Fd()), fionread)
+		if err != nil {
+			return false, fmt.Errorf("probe stdin pipe: %w", err)
+		}
+		return n > 0, nil
 	}
 	if m.IsRegular() && fi.Size() > 0 {
 		return true, nil
