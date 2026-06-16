@@ -62,7 +62,7 @@ func lintVerificationVerbs(body string, validate VerbPathValidator) []error {
 			continue
 		}
 		seen[bad] = struct{}{}
-		errs = append(errs, fmt.Errorf("Verification block cites unknown anvil subcommand %q — fix the command or update the issue", bad))
+		errs = append(errs, fmt.Errorf("verification block cites unknown anvil subcommand %q — fix the command or update the issue", bad))
 	}
 	return errs
 }
