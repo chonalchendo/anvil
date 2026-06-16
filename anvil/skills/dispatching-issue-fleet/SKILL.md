@@ -104,19 +104,15 @@ The verb gates on mergeable + CI-green, removes the worktree, squash-merges, ver
 
 ## Phase 6 — Post-merge distillation harvest (offer, don't force)
 
-Phase 2b wired the read-side crossbar; this closes the **write-side** for dispatched work. A worker stops at PR-opened, so it never reaches `completing-issue`'s Phase 6 distillation offer (a no-op in dispatched mode) — the learnings it surfaces are lost unless harvested here, at the orchestrator level, once the batch lands. Throughput already scales learning *consumption*; this is what scales their *production*.
+Phase 2b is the read side; this is the write side. Workers stop at PR-opened, never reaching `completing-issue`'s distillation offer — so learnings they surface are lost unless harvested here, once the batch lands.
 
-Fire this **after** the human has run the `anvil transition … resolved --land-pr` calls from Phase 5 — not at green. Learnings from PRs that never land have lower value, so harvest only what merged. Mirror the read-side: **one** orchestrator-level pass over the whole batch, not per-worker.
+Fire **after** the human's `--land-pr` calls, not at green — harvest only merged PRs. One orchestrator-level pass over the batch, not per-worker:
 
-1. **Collect candidate material — landed PRs only.** For each issue that produced a PR url in Phase 4 *and* has since merged, gather what a future agent would act on differently: a gotcha hit, a confirmed approach, a dead end avoided. Sources are the merged PR (`gh pr view <n>`), the resolved issue, and your own Phase 5 review observations. The guard from Phase 4 carries forward — a `Blocker:` or malformed return emitted no PR, so it contributes no material; confirm the merged PR before collecting. Also flag any **cross-PR breakage** you observed — sequential merges of individually-green PRs can land a broken `master` — as a first-class harvest candidate.
-2. **Offer — do not force — a single handoff to `distilling-learning`** over the collected candidates:
+1. **Collect from landed PRs only** (`gh pr view <n>`, the resolved issue, your Phase 5 observations): gotchas, confirmed approaches, dead ends avoided. A `Blocker:`/malformed return emitted no PR — skip it. Flag any **cross-PR breakage** (sequential green merges landing a broken `master`) as a candidate.
+2. **Offer one handoff to `distilling-learning`** over the candidates — *"This fleet landed `<k>` PRs. Distill learnings? (`distilling-learning`)"*. Bar is compounding, not record-keeping; "nothing worth distilling" is valid.
+3. **Human gate is non-negotiable** (`distilling-learning`'s Phase 2 draft-list gate). The harvest offers and stages; it never auto-distills.
 
-   > This fleet landed `<k>` PRs. Distill learnings from the batch? (`distilling-learning`)
-
-   The bar is **compounding, not record-keeping**: distill only what a future agent would be retrieved into and act on. "Nothing worth distilling" is a valid answer.
-3. **The human gate is non-negotiable** (`distilling-learning`'s Phase 2 gate — the user prunes the draft list before any file is written). The harvest *offers* and stages candidate material for that capture step; it never auto-distills, even unattended.
-
-**Autonomous orchestrator (unattended runs):** make no blocking offer — stage the candidate list into the final report under a `Harvest candidates:` block and stop, consistent with the dispatched-completion-stops-at-PR-opened convention. A human (or a later session) fires `distilling-learning` over it.
+**Autonomous orchestrator:** no blocking offer — stage candidates into the report under `Harvest candidates:` and stop. A human fires `distilling-learning` later.
 
 ## Scope-change pause protocol
 
