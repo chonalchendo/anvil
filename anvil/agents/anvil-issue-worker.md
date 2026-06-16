@@ -31,6 +31,15 @@ Blocker: scope-change <metric>=<observed> vs <declared> — <cause>
 
 This is **not** self-correctable. Treat it as a structural invariant — identical in force to the Pre-edit worktree invariant above — not as an advisory pause. Do not silently scope down (cut a quieter version) or scope up (touch sibling files).
 
+**Pre-PR scope-audit (run before `gh pr create`):** Compute the branch's changed files and run them through `anvil fleet scope-audit` against the declared set. Any file named in the output is out-of-scope — halt with the Blocker above instead of opening the PR.
+
+```bash
+# from the worktree root; <base> is the merge-base of the branch against origin/master
+changed=$(git diff --name-only "$(git merge-base HEAD origin/master)") 
+anvil fleet scope-audit --declared "<declared-files>" --changed "$(echo "$changed" | paste -sd, -)"
+# exit 0 = clean; exit 1 = violations printed → Blocker
+```
+
 ## Forbidden calls
 
 Never `gh pr merge`, `git worktree remove`, `anvil transition resolved`, or `anvil transition abandoned` — the human owns those.
