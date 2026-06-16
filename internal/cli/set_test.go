@@ -781,6 +781,42 @@ func TestSet_Tags_RemoveLastRequiredFacet_ReportsMissingFacet(t *testing.T) {
 	}
 }
 
+// TestSet_LegacyArtifactMissingRequiredField_Succeeds asserts that setting a
+// single field on an artifact missing an unrelated required field (e.g. `goal`,
+// added after the artifact was created) does not fail with schema_invalid. The
+// field being written is validated; other required fields are not checked.
+func TestSet_LegacyArtifactMissingRequiredField_Succeeds(t *testing.T) {
+	vault := setupVault(t)
+	// Write a legacy issue without `goal` (a now-required field).
+	id := "foo.legacy"
+	path := filepath.Join(vault, "70-issues", id+".md")
+	a := &core.Artifact{
+		Path: path,
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "legacy", "description": "no goal field", "created": "2026-04-29",
+			"updated": "2026-04-29", "status": "open", "project": "foo", "severity": "medium",
+			"tags": []any{"domain/dev-tools"},
+			// intentionally omits "goal", which the current schema requires
+		},
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", id, "milestone", "foo.some-milestone", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("set on legacy artifact (missing goal) failed: %v\n%s", err, out.String())
+	}
+	got, _ := core.LoadArtifact(path)
+	if ms, _ := got.FrontMatter["milestone"].(string); ms != "[[milestone.foo.some-milestone]]" {
+		t.Errorf("milestone = %q, want [[milestone.foo.some-milestone]]", ms)
+	}
+}
+
 // TestSet_Issue_ByOrdinal pins the write-path counterpart to show_test.go's
 // TestShow_Issue_ByOrdinal: a bare ordinal ("0001") resolves to the full issue
 // ID on the set write path, matching the read path the fix unified them with.

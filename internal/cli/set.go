@@ -258,7 +258,7 @@ func newSetCmd() *cobra.Command {
 				}
 			}
 
-			if err := schema.Validate(string(t), a.FrontMatter); err != nil {
+			if err := schema.ValidateField(string(t), field, a.FrontMatter[field]); err != nil {
 				return renderSchemaErr(cmd, v, path, err, flagJSON)
 			}
 			if err := a.Save(); err != nil {
