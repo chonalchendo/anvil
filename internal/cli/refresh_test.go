@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
 )
 
@@ -61,16 +62,54 @@ func TestFreshnessStalesMissingRelated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("staleLearnings: %v", err)
 	}
-	if checked != 3 { // drifted + fresh + draft-drift; already-stale not examined
-		t.Errorf("checked = %d, want 3", checked)
+	// Only verified learnings are eligible (verified→stale is the sole legal
+	// edge into stale): drifted + fresh. draft-drift and already-stale are
+	// excluded by the state machine even though both have a dead related link.
+	if checked != 2 {
+		t.Errorf("checked = %d, want 2", checked)
 	}
 	sort.Slice(got, func(i, j int) bool { return got[i].ID < got[j].ID })
 	want := []staleCandidate{
-		{ID: "l.draft-drift", Path: "/v/l.draft-drift.md", Missing: []string{"anvil.gone"}},
 		{ID: "l.drifted", Path: "/v/l.drifted.md", Missing: []string{"anvil.gone"}},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("staleLearnings mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestFreshnessCommandRespectsStateMachine drives the full command through a
+// temp vault and asserts the on-disk transition obeys the learning state
+// machine: a verified learning with a dead related link goes stale, a draft
+// one does not (draft→stale is illegal).
+func TestFreshnessCommandRespectsStateMachine(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+
+	tags := []string{"--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"}
+
+	execCmd(t, append([]string{"create", "learning", "--title", "drifted verified claim"}, tags...)...)
+	execCmd(t, "set", "learning", "drifted-verified-claim", "related", "[[issue.demo.ghost]]")
+	execCmd(t, "transition", "learning", "drifted-verified-claim", "verified")
+
+	execCmd(t, append([]string{"create", "learning", "--title", "drifted draft claim"}, tags...)...)
+	execCmd(t, "set", "learning", "drifted-draft-claim", "related", "[[issue.demo.ghost]]")
+
+	execCmd(t, "reindex")
+	execCmd(t, "refresh", "learnings")
+
+	dir := filepath.Join(vault, core.TypeLearning.Dir())
+	for id, want := range map[string]string{
+		"drifted-verified-claim": "stale", // verified→stale: legal, drifted
+		"drifted-draft-claim":    "draft", // draft→stale: illegal, untouched
+	} {
+		a, err := core.LoadArtifact(filepath.Join(dir, id+".md"))
+		if err != nil {
+			t.Fatalf("load %s: %v", id, err)
+		}
+		if got, _ := a.FrontMatter["status"].(string); got != want {
+			t.Errorf("%s status = %q, want %q", id, got, want)
+		}
 	}
 }
 

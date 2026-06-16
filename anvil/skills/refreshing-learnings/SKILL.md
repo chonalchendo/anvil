@@ -56,20 +56,20 @@ Prioritise `draft` and `verified` learnings (those the deterministic pass left u
 
 | Verdict | When | Action |
 |---|---|---|
-| **keep** | Still true and well-scoped | `anvil set learning <id> status verified` (promote a confirmed draft) |
-| **update** | Core claim holds, details drifted | Edit the body; bump `updated`; re-`verified` |
+| **keep** | Still true and well-scoped | `anvil transition learning <id> verified` (promote a confirmed draft, or revive a stale one) |
+| **update** | Core claim holds, details drifted | Edit the body; bump `updated`; revive via `verified` if it was stale |
 | **consolidate** | Two+ learnings say one thing | Merge into the strongest; `retracted` the rest with a `related` pointer to the survivor |
 | **replace** | Superseded by a newer claim | `retracted`; distil the replacement via `distilling-learning` |
 | **delete** | Never load-bearing; noise | Remove the file (vault hygiene) |
-| **stale** | Claim no longer holds, no replacement yet | `anvil set learning <id> status stale` |
+| **stale** | Claim no longer holds, no replacement yet | `anvil transition learning <id> stale` |
 
-Status is driven by the generic field edit — there is no `transition` verb for learnings:
+Status is gated by the learning state machine — drive it through `transition`, not a raw `set`:
 
 ```bash
-anvil set learning <id> status <verified|stale|retracted>
+anvil transition learning <id> <verified|stale|retracted>
 ```
 
-Gate the destructive verdicts (consolidate / replace / delete) on the user before acting.
+Legal edges: `draft→verified`, `verified→stale`, `stale→verified`, `verified→retracted` (so a draft is promoted to `verified` before it can go stale or be retracted). `transition` rejects an illegal jump; reach for `anvil set learning <id> status` only as a deliberate force-edit escape hatch. Gate the destructive verdicts (consolidate / replace / delete) on the user before acting.
 
 ## Phase 4 — Validate
 
