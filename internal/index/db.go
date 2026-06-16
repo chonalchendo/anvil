@@ -32,6 +32,17 @@ CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS eval_runs (
+    skill     TEXT NOT NULL,
+    source    TEXT NOT NULL,
+    ref       TEXT NOT NULL DEFAULT '',
+    passed    INTEGER,
+    failed    INTEGER,
+    total     INTEGER,
+    pass_rate REAL NOT NULL,
+    date      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS eval_runs_skill_idx ON eval_runs(skill);
 `
 
 // DB wraps the sql.DB and owns its lifecycle.
