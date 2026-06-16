@@ -12,19 +12,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// withStdin replaces os.Stdin with a pipe whose data is fully written and the
-// write-end closed before returning. This ensures fi.Size()>0 is visible to
-// stdinIsPipe() without a race, since stdinIsPipe now requires bytes on the
-// pipe to treat it as a body source.
+// withStdin replaces os.Stdin with a pipe carrying data, written and closed
+// before returning. The synchronous write guarantees the bytes are buffered
+// in the pipe before readBody probes it: stdinIsPipe uses a FIONREAD ioctl,
+// which (like any point-in-time emptiness check) reports 0 if the writer has
+// not run yet. An async goroutine writer would race the probe. Small test
+// payloads fit the kernel pipe buffer (typically 64 KiB), so the write never
+// blocks.
 func withStdin(t *testing.T, data string) func() {
 	t.Helper()
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Write synchronously; small test payloads fit in the kernel pipe buffer
-	// (typically 64 KiB) so this never blocks. Close write-end before returning
-	// so Size()>0 is already stable when the caller calls readBody.
 	if _, err := io.WriteString(w, data); err != nil {
 		t.Fatal(err)
 	}
@@ -172,9 +172,9 @@ func TestReadBody_NoFlagNoStdin(t *testing.T) {
 }
 
 // TestReadBody_EmptyPipeWithBodyFileDoesNotCollide is the regression test for
-// the bug where an empty named pipe (e.g. `printf '' | cmd`) was misread as a
+// the bug where an empty named pipe (e.g. piping zero bytes into cmd) was misread as a
 // competing body source and rejected with "mutually exclusive". The fix
-// requires fi.Size()>0 before treating a named pipe as carrying data.
+// requires FIONREAD>0 before treating a named pipe as carrying data.
 func TestReadBody_EmptyPipeWithBodyFileDoesNotCollide(t *testing.T) {
 	// Simulate `printf '' | cmd --body-file f`: a named pipe (r) with the
 	// write end closed immediately, so Size()==0.
