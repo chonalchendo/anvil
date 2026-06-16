@@ -78,6 +78,24 @@ func ArtifactRowFromFrontmatter(fm map[string]any, path string) (ArtifactRow, er
 	}, nil
 }
 
+// TagsFromFrontmatter returns the artifact's `tags` list, dropping non-string
+// and empty entries. Order is preserved; duplicates are left to the (artifact,
+// tag) primary key to collapse. Mirrors the tag walk in cli.walkTags so the
+// indexed facet set matches what `anvil tags list` counts.
+func TagsFromFrontmatter(fm map[string]any) []string {
+	raw, ok := fm["tags"].([]any)
+	if !ok {
+		return nil
+	}
+	tags := make([]string, 0, len(raw))
+	for _, item := range raw {
+		if s, ok := item.(string); ok && s != "" {
+			tags = append(tags, s)
+		}
+	}
+	return tags
+}
+
 // LinkRowsFromFrontmatter walks scalar + array frontmatter values, emits a
 // LinkRow for each `[[type.id]]` wikilink, with the field name as Relation.
 // Output is sorted by (Relation, Target) for deterministic comparison.

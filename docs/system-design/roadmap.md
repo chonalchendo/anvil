@@ -120,6 +120,10 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 
 - **Issue progression + vault graph queries** (2026-05-07, PR #7, spec `2026-05-07-progression-and-graph-queries-design`) — materialised `<vault>/.anvil/vault.db` (modernc-sqlite) with write-through from `create`/`set`/`link`/`promote`/`transition`. Per-type state machines in `internal/core/transitions.go`. New verbs `anvil transition` and `anvil reindex`; new flags `list --ready` / `--orphans`, `link --from` / `--to` / `--unresolved`. Structured error envelopes (`illegal_transition`, `transition_flag_required`, `index_stale`, `unsupported_for_type`). Schema gains `blocks` / `depends_on` on issue.
 
+### Phase B agent-flow extensions (cont.)
+
+- **`anvil index` verb — seed-based related-context retrieval** (2026-06-16, issue `anvil.0088`) — `index <id>` and `index --tags <facet/value,...>` rank artifacts by shared facets plus a direct-link bonus, each carrying the matched tags/links as evidence. Read-only, no LLM. Backed by a new `tags` table in `vault.db` (`SchemaVersion` 2; backfills on the version-lag full reindex). The aggregate facet co-occurrence matrix for `extract-skill-from-session` stays deferred (see below).
+
 ### Phase B build orchestrator (interim)
 
 - **Cost / token visibility** (2026-05-07, PR #8, spec `2026-05-07-build-cost-visibility-design`) — surfaces per-task `tokens` / `cost_usd` / `agent_time_ms` in `anvil build --json` records and emits a one-line `build summary` to stderr on every terminator (success / partial-fail / quota / cancel). Stop-gap before sub-project 2's SQLite layer; no persistence, no schema.
@@ -133,5 +137,5 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 - Read-side CLI gaps beyond Bundle E — AI reads files directly.
 - Codex adapter installer — only Claude Code hooks installer ships in v0.1.
 - Session-wide telemetry, dashboards, skill-execution events — only the build slice ships.
-- **`anvil index` verb** — surfaces facet co-occurrence across issue/plan/decision/learning/thread to feed `extract-skill-from-session`. Read-only, no LLM. Spec: `docs/superpowers/specs/2026-05-06-vault-synthesis-design.md`. Faceted-tag prerequisite landed. Reverse-link discovery itself is already covered by `anvil link --to/--from/--unresolved` (v0.1, on `.anvil/vault.db`); v0.2 layers facet aggregation on top.
+- **`anvil index` aggregate co-occurrence** — a facet co-occurrence matrix across issue/plan/decision/learning/thread to feed `extract-skill-from-session`. Read-only, no LLM. The seed-based `anvil index` verb shipped (2026-06-16, `anvil.0088`); this is the remaining aggregate slice, surfaced when `extract-skill-from-session` demands it.
 - Optimization-tagged agent-CLI items above (cobra `Example` blocks, `--paths` filters on `validate`).

@@ -1,7 +1,9 @@
 package index
 
 import (
+	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -239,6 +241,194 @@ func (d *DB) queryWithFilters(base string, f QueryFilters, args []any) ([]Artifa
 		out = append(out, r)
 	}
 	return out, rs.Err()
+}
+
+// RelatedRow is an artifact related to a seed, carrying the evidence for the
+// relation: SharedTags are the facets it has in common with the seed, Links the
+// direct link relations between the two (empty for a tag-set seed). Score ranks
+// the row — higher is more related.
+type RelatedRow struct {
+	ArtifactRow
+	Score      int
+	SharedTags []string
+	Links      []string
+}
+
+// relatedLinkBonus is added to a candidate's score when it is also directly
+// linked to the seed (either direction). Set so one shared tag plus a direct
+// link (1+2) outranks two shared tags alone (2): a direct link is the stronger
+// relatedness signal.
+const relatedLinkBonus = 2
+
+// RelatedByID returns artifacts that share at least one tag with the seed,
+// ranked by shared-tag count plus a bonus for a direct link to the seed. The
+// seed itself is excluded. Candidates come from the facet overlap only — a
+// directly-linked artifact that shares no tag is the domain of `anvil link`,
+// not this verb; the link bonus only re-ranks facet candidates. Results are
+// ordered Score desc, id asc (deterministic). QueryFilters narrow the candidate
+// set; Limit is not applied here — the caller truncates so the total is exact.
+func (d *DB) RelatedByID(id string, f QueryFilters) ([]RelatedRow, error) {
+	filt, fargs := artifactFilterClauses(f)
+	q := `
+SELECT a.id, a.type, a.status, a.project, a.path, a.created, a.updated,
+       COUNT(DISTINCT st.tag) AS shared,
+       group_concat(DISTINCT st.tag) AS shared_tags
+FROM tags seed
+JOIN tags st ON st.tag = seed.tag AND st.artifact <> seed.artifact
+JOIN artifacts a ON a.id = st.artifact
+WHERE seed.artifact = ?` + filt + `
+GROUP BY a.id`
+	args := append([]any{id}, fargs...)
+	rows, order, err := scanRelated(d.sql, q, args)
+	if err != nil {
+		return nil, fmt.Errorf("related by id %s: %w", id, err)
+	}
+
+	from, err := d.LinksFrom(id)
+	if err != nil {
+		return nil, err
+	}
+	to, err := d.LinksTo(id)
+	if err != nil {
+		return nil, err
+	}
+	rels := map[string][]string{}
+	for _, l := range from {
+		rels[l.Target] = append(rels[l.Target], l.Relation)
+	}
+	for _, l := range to {
+		rels[l.Source] = append(rels[l.Source], l.Relation)
+	}
+	for nid, rr := range rows {
+		if rs, ok := rels[nid]; ok {
+			rr.Score += relatedLinkBonus
+			rr.Links = sortedUnique(rs)
+		}
+	}
+	return rankRelated(rows, order), nil
+}
+
+// RelatedByTags returns artifacts carrying at least one of the given tags,
+// ranked by how many of them match (SharedTags holds the matched subset). Used
+// before an artifact exists — context for the facets a create is about to use.
+// No link bonus applies (there is no seed artifact). Ordered Score desc, id asc.
+func (d *DB) RelatedByTags(tags []string, f QueryFilters) ([]RelatedRow, error) {
+	if len(tags) == 0 {
+		return nil, nil
+	}
+	filt, fargs := artifactFilterClauses(f)
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(tags)), ",")
+	q := `
+SELECT a.id, a.type, a.status, a.project, a.path, a.created, a.updated,
+       COUNT(DISTINCT t.tag) AS shared,
+       group_concat(DISTINCT t.tag) AS shared_tags
+FROM tags t
+JOIN artifacts a ON a.id = t.artifact
+WHERE t.tag IN (` + placeholders + `)` + filt + `
+GROUP BY a.id`
+	args := make([]any, 0, len(tags)+len(fargs))
+	for _, t := range tags {
+		args = append(args, t)
+	}
+	args = append(args, fargs...)
+	rows, order, err := scanRelated(d.sql, q, args)
+	if err != nil {
+		return nil, fmt.Errorf("related by tags: %w", err)
+	}
+	return rankRelated(rows, order), nil
+}
+
+// scanRelated runs a related-query and returns the rows keyed by id plus the
+// insertion order, so rankRelated can apply a deterministic sort. The query
+// must select the seven ArtifactRow columns then shared-count and a
+// comma-joined shared-tags string.
+func scanRelated(db *sql.DB, q string, args []any) (map[string]*RelatedRow, []string, error) {
+	rs, err := db.Query(q, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
+	rows := map[string]*RelatedRow{}
+	var order []string
+	for rs.Next() {
+		var r RelatedRow
+		var shared int
+		var sharedTags sql.NullString
+		if err := rs.Scan(&r.ID, &r.Type, &r.Status, &r.Project, &r.Path, &r.Created, &r.Updated, &shared, &sharedTags); err != nil {
+			return nil, nil, err
+		}
+		r.Score = shared
+		r.SharedTags = sortedUnique(strings.Split(sharedTags.String, ","))
+		rows[r.ID] = &r
+		order = append(order, r.ID)
+	}
+	return rows, order, rs.Err()
+}
+
+// rankRelated flattens the id-keyed rows in insertion order, then sorts by
+// Score desc, id asc — a stable, deterministic ranking.
+func rankRelated(rows map[string]*RelatedRow, order []string) []RelatedRow {
+	out := make([]RelatedRow, 0, len(order))
+	for _, id := range order {
+		out = append(out, *rows[id])
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Score != out[j].Score {
+			return out[i].Score > out[j].Score
+		}
+		return out[i].ID < out[j].ID
+	})
+	return out
+}
+
+// artifactFilterClauses builds the " AND a.<col> = ?" suffix and args shared by
+// the related-queries, mirroring queryWithFilters but for a GROUP BY query that
+// can't reuse it. Limit is intentionally omitted — the caller truncates.
+func artifactFilterClauses(f QueryFilters) (string, []any) {
+	var clauses []string
+	var args []any
+	if f.Status != "" {
+		clauses = append(clauses, "a.status = ?")
+		args = append(args, f.Status)
+	}
+	if f.Project != "" {
+		clauses = append(clauses, "a.project = ?")
+		args = append(args, f.Project)
+	}
+	if f.Since != "" {
+		clauses = append(clauses, "a.created >= ?")
+		args = append(args, f.Since)
+	}
+	if f.Until != "" {
+		clauses = append(clauses, "a.created <= ?")
+		args = append(args, f.Until)
+	}
+	if len(clauses) == 0 {
+		return "", nil
+	}
+	return " AND " + strings.Join(clauses, " AND "), args
+}
+
+// sortedUnique returns the input sorted with empty strings and duplicates
+// removed — used to make SharedTags / Links output deterministic.
+func sortedUnique(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(in))
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if s == "" {
+			continue
+		}
+		if _, dup := seen[s]; dup {
+			continue
+		}
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // LinksFrom returns outgoing edges from source.

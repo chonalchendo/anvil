@@ -52,6 +52,9 @@ func (d *DB) DeleteArtifact(id string) error {
 	if _, err := tx.Exec(`DELETE FROM artifact_fts WHERE id = ?`, id); err != nil {
 		return fmt.Errorf("delete artifact fts for %s: %w", id, err)
 	}
+	if _, err := tx.Exec(`DELETE FROM tags WHERE artifact = ?`, id); err != nil {
+		return fmt.Errorf("delete tags for %s: %w", id, err)
+	}
 	if _, err := tx.Exec(`DELETE FROM artifacts WHERE id = ?`, id); err != nil {
 		return fmt.Errorf("delete artifact %s: %w", id, err)
 	}
@@ -93,6 +96,27 @@ func (d *DB) ReplaceArtifactFTS(id, content string) error {
 	if content != "" {
 		if _, err := tx.Exec(`INSERT INTO artifact_fts(id, content) VALUES(?, ?)`, id, content); err != nil {
 			return fmt.Errorf("insert artifact fts %s: %w", id, err)
+		}
+	}
+	return tx.Commit()
+}
+
+// ReplaceTags atomically replaces all facet rows for an artifact. Empty tags
+// is allowed (clears the artifact's facets). Duplicate tags collapse on the
+// (artifact, tag) primary key, so the caller need not pre-dedupe.
+func (d *DB) ReplaceTags(artifact string, tags []string) error {
+	tx, err := d.sql.Begin()
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after successful commit returns ErrTxDone; error not actionable
+	if _, err := tx.Exec(`DELETE FROM tags WHERE artifact = ?`, artifact); err != nil {
+		return fmt.Errorf("clear tags: %w", err)
+	}
+	const ins = `INSERT OR IGNORE INTO tags(artifact, tag) VALUES(?, ?)`
+	for _, t := range tags {
+		if _, err := tx.Exec(ins, artifact, t); err != nil {
+			return fmt.Errorf("insert tag %s/%s: %w", artifact, t, err)
 		}
 	}
 	return tx.Commit()

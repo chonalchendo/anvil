@@ -132,6 +132,9 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		if err := d.IndexArtifactFTS(row, a.FrontMatter); err != nil {
 			return ReindexStats{}, err
 		}
+		if err := d.ReplaceTags(row.ID, TagsFromFrontmatter(a.FrontMatter)); err != nil {
+			return ReindexStats{}, err
+		}
 	}
 
 	// Purge artifacts whose CURRENT stored path is absent from disk. Re-querying
@@ -187,6 +190,9 @@ func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 	if _, err := tx.Exec(`DELETE FROM artifact_fts`); err != nil {
 		return ReindexStats{}, fmt.Errorf("clear artifact fts: %w", err)
 	}
+	if _, err := tx.Exec(`DELETE FROM tags`); err != nil {
+		return ReindexStats{}, fmt.Errorf("clear tags: %w", err)
+	}
 	if err := tx.Commit(); err != nil {
 		return ReindexStats{}, fmt.Errorf("commit clear: %w", err)
 	}
@@ -223,6 +229,9 @@ func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 			return err
 		}
 		if err := d.IndexArtifactFTS(row, a.FrontMatter); err != nil {
+			return err
+		}
+		if err := d.ReplaceTags(row.ID, TagsFromFrontmatter(a.FrontMatter)); err != nil {
 			return err
 		}
 		return nil

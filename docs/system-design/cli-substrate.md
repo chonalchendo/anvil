@@ -22,6 +22,7 @@ anvil list       <type> [--filters]
 anvil link       <type> <id> --to <type> <id>
 anvil set        <type> <id> <field> <value>
 anvil tags       add | list | define
+anvil index      <id> | --tags <facet/value,...>   # related artifacts by shared facets + links
 anvil project    list | switch | adopt | current
 ```
 
@@ -32,6 +33,8 @@ anvil project    list | switch | adopt | current
 **Edits split the same way.** `set` is for typed fields (validated like `create`); body prose stays raw markdown, edited in place.
 
 `tags list` walks the vault and aggregates `tags` frontmatter into a deduped (tag, count) list. Used by artifact-creating skills to discover existing taxonomy before proposing new tags — minimizing tag drift.
+
+`index` answers "what else is relevant to *this*?" — seed it with an artifact id or a tag set and it ranks artifacts by shared facets (plus a bonus for a direct link to an id seed), each row carrying the matched tags/links as evidence. Backed by the `tags` table in `.anvil/vault.db`. Used before create/complete/distill to pull related prior context into view.
 
 **Project identity resolution** (three-step fallback): explicit `anvil project adopt <slug>` binding (recorded in `~/.anvil/projects/<slug>/.binding`) → git remote URL → refuse with clear error. The adopted binding takes precedence so an explicit user override always wins over the inferred one. No magic cwd-basename fallback.
 

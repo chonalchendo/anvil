@@ -28,6 +28,12 @@ CREATE TABLE IF NOT EXISTS links (
 );
 CREATE INDEX IF NOT EXISTS links_target_idx ON links(target);
 CREATE INDEX IF NOT EXISTS artifacts_type_status_idx ON artifacts(type, status);
+CREATE TABLE IF NOT EXISTS tags (
+    artifact TEXT NOT NULL,
+    tag      TEXT NOT NULL,
+    PRIMARY KEY (artifact, tag)
+);
+CREATE INDEX IF NOT EXISTS tags_tag_idx ON tags(tag);
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
