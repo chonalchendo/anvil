@@ -31,7 +31,7 @@ In both modes, `--max` (default `5`, range 1–8) and `--allow-overlap` are pars
 
 Each candidate issue declares the files it anticipates touching (read the issue body's `files:` hint or the linked plan's task `files[]`). Compare each candidate's set against every other candidate's. On collision, default-serialize: drop the loser to the next wave. Opt in to parallel collision with `--allow-overlap` (rare — only when the user has eyeballed the overlap and accepts the merge-conflict cost).
 
-The overlap check is one-line declarations plus eyeball compare. No static analyzer, no dep tracker.
+The overlap check is one-line declarations plus eyeball compare — pre-dispatch only. Per-worker post-edit enforcement is handled by `anvil fleet scope-audit` inside each worker before its PR opens (see Scope-change pause protocol).
 
 ## Phase 2b — Retrieve prior learnings once (before fan-out)
 
@@ -104,7 +104,7 @@ The verb gates on mergeable + CI-green, removes the worktree, squash-merges, ver
 
 ## Scope-change pause protocol
 
-If a subagent reports it has exceeded a stated threshold (lint findings > documented cap, files-touched > 3, LOC > issue estimate), do not silently scope down. Pause, surface the counts to the user, and let the user decide: split into multiple issues, expand the issue scope, or abort the subagent. The subagent prompt mirrors this contract on its side.
+A worker runs `anvil fleet scope-audit` against its branch before opening a PR (see `anvil-issue-worker.md` — Scope-change check). Out-of-scope files surface as a `Blocker:` return; the worker never opens the PR. If a subagent returns such a Blocker, do not re-dispatch: surface the named files to the user and let them decide — split the issue, expand the declared set, or abort. The worker's per-file gate is the deterministic enforcement point; this protocol handles the orchestrator's response to it.
 
 ## Forbidden calls (orchestrator AND subagents)
 
