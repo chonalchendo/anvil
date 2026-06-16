@@ -2,8 +2,59 @@ package core
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
+
+// anvilVerbRE matches `anvil <verb>` tokens inside code fences, capturing the
+// first token after `anvil`. Only the top-level subcommand is checked; deeper
+// nesting (e.g. `anvil project adopt`) is out of scope per the non-goals.
+var anvilVerbRE = regexp.MustCompile(`(?m)^\s*anvil\s+([a-z][a-z0-9_-]*)`)
+
+// lintVerificationVerbs scans code-fence lines inside the Verification span and
+// reports any `anvil <verb>` token whose verb is not in knownVerbs. Only lines
+// inside a code fence (between opening ``` and closing ```) are scanned.
+// Returns nil without scanning when knownVerbs is nil (caller has no command
+// tree to check against).
+func lintVerificationVerbs(body string, knownVerbs map[string]struct{}) []error {
+	if knownVerbs == nil {
+		return nil
+	}
+	span := verificationSpan(body)
+	if span == "" {
+		return nil
+	}
+
+	// Collect only lines inside a code fence.
+	var codeLines strings.Builder
+	inFence := false
+	for _, line := range strings.Split(span, "\n") {
+		trimmed := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmed, "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			codeLines.WriteString(line)
+			codeLines.WriteByte('\n')
+		}
+	}
+
+	var errs []error
+	seen := make(map[string]struct{})
+	for _, m := range anvilVerbRE.FindAllStringSubmatch(codeLines.String(), -1) {
+		verb := m[1]
+		if _, known := knownVerbs[verb]; known {
+			continue
+		}
+		if _, already := seen[verb]; already {
+			continue
+		}
+		seen[verb] = struct{}{}
+		errs = append(errs, fmt.Errorf("Verification block cites unknown anvil subcommand %q — fix the command or update the issue", verb))
+	}
+	return errs
+}
 
 // RequiredIssueSections is the ordered set of headings validate enforces on
 // issue body content. H3 entries (### Direct, ### Indirect) are sub-headings
@@ -79,6 +130,17 @@ func ValidateIssue(a *Artifact) []error {
 	}
 
 	return errs
+}
+
+// ValidateIssueVerbs checks that every `anvil <verb>` token inside a code
+// fence in the Verification block names a real top-level subcommand. Call this
+// from CLI layers that have access to the registered command tree; pass the
+// result through the same errfmt pipeline as ValidateIssue.
+//
+// Only the first token after `anvil` is checked — deeper nesting (e.g. `anvil
+// project adopt`) is out of scope (see issue non-goals).
+func ValidateIssueVerbs(body string, knownVerbs map[string]struct{}) []error {
+	return lintVerificationVerbs(body, knownVerbs)
 }
 
 // verificationSpan returns the body slice from the "## Verification" heading to

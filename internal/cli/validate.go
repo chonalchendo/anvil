@@ -66,13 +66,14 @@ func newValidateCmd() *cobra.Command {
 				}
 			}
 
+			verbs := rootVerbs(cmd.Root())
 			var failures []*errfmt.ValidationError
 			if singleFile != "" {
 				t, err := typeFromArtifactPath(singleFile)
 				if err != nil {
 					return err
 				}
-				_, fs := validateOne(t, singleFile, known)
+				_, fs := validateOne(t, singleFile, known, verbs)
 				failures = fs
 			} else {
 				// idPaths accumulates every path seen per index id to detect
@@ -84,7 +85,7 @@ func newValidateCmd() *cobra.Command {
 						return err
 					}
 					for _, p := range paths {
-						a, fs := validateOne(t, p, known)
+						a, fs := validateOne(t, p, known, verbs)
 						failures = append(failures, fs...)
 						if a == nil {
 							continue // parse failures already reported above
@@ -141,11 +142,23 @@ func newValidateCmd() *cobra.Command {
 	return cmd
 }
 
+// rootVerbs returns the set of top-level subcommand names registered on root,
+// used to lint `anvil <verb>` tokens inside Verification code fences.
+func rootVerbs(root *cobra.Command) map[string]struct{} {
+	cmds := root.Commands()
+	out := make(map[string]struct{}, len(cmds))
+	for _, c := range cmds {
+		// Commands()[i].Name() is the primary Use token before any space.
+		out[c.Name()] = struct{}{}
+	}
+	return out
+}
+
 // validateOne runs schema + learning-body checks on a single artifact file and
 // returns the loaded artifact alongside any structured failures. The artifact
 // is nil on a parse failure (the only failure that prevents loading); callers
 // reuse it for cross-file id-collision detection without a second load.
-func validateOne(t core.Type, path string, knownTags map[string]struct{}) (*core.Artifact, []*errfmt.ValidationError) {
+func validateOne(t core.Type, path string, knownTags map[string]struct{}, knownVerbs map[string]struct{}) (*core.Artifact, []*errfmt.ValidationError) {
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		return nil, []*errfmt.ValidationError{errfmt.NewValidationError(errfmt.CodeParseError, path, "", err.Error())}
@@ -168,6 +181,9 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}) (*core
 
 	if t == core.TypeIssue {
 		for _, vErr := range core.ValidateIssue(a) {
+			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+		}
+		for _, vErr := range core.ValidateIssueVerbs(a.Body, knownVerbs) {
 			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 		}
 	}

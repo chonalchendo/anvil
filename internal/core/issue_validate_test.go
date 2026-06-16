@@ -168,6 +168,79 @@ func TestValidateIssue_UnbalancedFenceOutsideVerification_Ignored(t *testing.T) 
 	}
 }
 
+// knownVerbs is a minimal set that mirrors real CLI top-level subcommands for
+// verb-lint tests. Kept small; the real set is discovered from cobra at runtime.
+var knownVerbs = map[string]struct{}{
+	"create":     {},
+	"list":       {},
+	"show":       {},
+	"validate":   {},
+	"project":    {},
+	"transition": {},
+}
+
+func TestValidateIssueVerbs_UnknownVerb_Rejected(t *testing.T) {
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil frobnicate widget\n```\n\n### Indirect\n```bash\nanvil frobnicate widget\n```\n\n## Links\n"
+	errs := ValidateIssueVerbs(body, knownVerbs)
+	if len(errs) == 0 {
+		t.Fatal("expected error for unknown anvil verb 'frobnicate'")
+	}
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Error(), "frobnicate") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected 'frobnicate' named in error, got: %v", errs)
+	}
+}
+
+func TestValidateIssueVerbs_UnknownVerb_DeduplicatedAcrossFences(t *testing.T) {
+	// The same bogus verb in both Direct and Indirect should only be reported once.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil bogus\n```\n\n### Indirect\n```bash\nanvil bogus\n```\n\n## Links\n"
+	errs := ValidateIssueVerbs(body, knownVerbs)
+	if len(errs) != 1 {
+		t.Errorf("expected exactly 1 error for duplicate unknown verb, got %d: %v", len(errs), errs)
+	}
+}
+
+func TestValidateIssueVerbs_KnownVerb_Accepted(t *testing.T) {
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil create issue --title t\n```\n\n### Indirect\n```bash\nanvil list issue\n```\n\n## Links\n"
+	errs := ValidateIssueVerbs(body, knownVerbs)
+	if len(errs) != 0 {
+		t.Errorf("known verbs must be accepted, got: %v", errs)
+	}
+}
+
+func TestValidateIssueVerbs_AnvilOutsideFence_Ignored(t *testing.T) {
+	// `anvil bogus` mentioned in prose (outside a code fence) must not be flagged.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\nRun anvil bogus to test.\n\n### Direct\n```bash\nanvil create issue\n```\n\n### Indirect\n```bash\nanvil list issue\n```\n\n## Links\n"
+	errs := ValidateIssueVerbs(body, knownVerbs)
+	if len(errs) != 0 {
+		t.Errorf("anvil verb outside fence must be ignored, got: %v", errs)
+	}
+}
+
+func TestValidateIssueVerbs_AnvilOutsideVerificationSpan_Ignored(t *testing.T) {
+	// `anvil bogus` in ## Problem (outside the Verification span) must not fire.
+	body := "\n## Problem\n```bash\nanvil bogus\n```\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil create issue\n```\n\n### Indirect\n```bash\nanvil list issue\n```\n\n## Links\n"
+	errs := ValidateIssueVerbs(body, knownVerbs)
+	if len(errs) != 0 {
+		t.Errorf("anvil verb outside Verification span must be ignored, got: %v", errs)
+	}
+}
+
+func TestValidateIssueVerbs_NilKnownVerbs_SkipsCheck(t *testing.T) {
+	// Passing nil skips the verb-lint so callers without a command tree can safely
+	// call ValidateIssueVerbs without panicking.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil totally-fake-verb\n```\n\n### Indirect\n```bash\ntrue\n```\n\n## Links\n"
+	errs := ValidateIssueVerbs(body, nil)
+	if len(errs) != 0 {
+		t.Errorf("nil knownVerbs must skip check, got: %v", errs)
+	}
+}
+
 func TestValidateIssue_NestedHeredocFence_AcceptedFalsePositive(t *testing.T) {
 	// ACCEPTED LIMITATION (docs/issue-spec.md depth-aware runner contract): the
 	// write-time check is line-level parity, not depth-aware. A heredoc holding a
