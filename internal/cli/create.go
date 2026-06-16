@@ -179,11 +179,18 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
+			// Title-presence and field-cap checks form the pre-resolution tier:
+			// both are computable without a vault, so they fast-fail ahead of
+			// vault/project resolution (a missing project must not mask a cap
+			// overage — see TestCreate_NonIssueCappedField_ChecksBeforeProjectResolution).
+			// errors.Join keeps the tier single-pass: a missing --title no longer
+			// short-circuits ahead of a simultaneous --description/--goal cap
+			// overage, so the author sees every pre-resolution violation at once.
+			var titleErr error
 			if t != core.TypeSession && flagTitle == "" {
-				return fmt.Errorf("--title is required for %s", t)
+				titleErr = fmt.Errorf("--title is required for %s", t)
 			}
-
-			if err := checkFieldCaps(t, flagDescription, flagGoal); err != nil {
+			if err := errors.Join(titleErr, checkFieldCaps(t, flagDescription, flagGoal)); err != nil {
 				return err
 			}
 
