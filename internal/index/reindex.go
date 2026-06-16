@@ -129,7 +129,7 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		if err := d.indexLearningFTS(row, a.Body); err != nil {
 			return ReindexStats{}, err
 		}
-		if err := d.indexArtifactFTS(row, a.FrontMatter); err != nil {
+		if err := d.IndexArtifactFTS(row, a.FrontMatter); err != nil {
 			return ReindexStats{}, err
 		}
 	}
@@ -222,7 +222,7 @@ func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 		if err := d.indexLearningFTS(row, a.Body); err != nil {
 			return err
 		}
-		if err := d.indexArtifactFTS(row, a.FrontMatter); err != nil {
+		if err := d.IndexArtifactFTS(row, a.FrontMatter); err != nil {
 			return err
 		}
 		return nil
@@ -259,11 +259,12 @@ func (d *DB) indexLearningFTS(row ArtifactRow, body string) error {
 	return d.ReplaceLearningFTS(row.ID, LearningTLDR(body))
 }
 
-// indexArtifactFTS upserts an issue or milestone's description+goal into the
+// IndexArtifactFTS upserts an issue or milestone's description+goal into the
 // FTS table for content-aware near-duplicate detection; a no-op for every other
 // type. Concatenates description and goal with a space so both fields are
-// searchable in a single FTS column.
-func (d *DB) indexArtifactFTS(row ArtifactRow, fm map[string]any) error {
+// searchable in a single FTS column. Exported so the create-time index hook can
+// keep artifact_fts in lockstep with artifacts on each save.
+func (d *DB) IndexArtifactFTS(row ArtifactRow, fm map[string]any) error {
 	if row.Type != string(core.TypeIssue) && row.Type != string(core.TypeMilestone) {
 		return nil
 	}

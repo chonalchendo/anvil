@@ -194,4 +194,68 @@ func TestCreate_ContentDuplicate_DisjointTitles(t *testing.T) {
 	}
 }
 
+// TestCreate_ContentDuplicate_PriorNotBootstrapReindexed verifies the create-time
+// FTS population path: a third milestone duplicating the SECOND (not the first)
+// is flagged even though no `anvil reindex` ran between the second create and the
+// third. The first create incidentally bootstrap-reindexes the whole vault (its
+// stamp was unset), so the first row lands in artifact_fts for free. The second
+// create does NOT bootstrap-reindex (stamp now set) — its artifact_fts row exists
+// only because indexAfterSave now calls IndexArtifactFTS. The third milestone's
+// content matches only the second (disjoint from the first's content AND title),
+// so a missing second-row FTS entry would silently drop the warning.
+func TestCreate_ContentDuplicate_PriorNotBootstrapReindexed(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	// #1: distinct content X — incidentally bootstrap-reindexed into artifact_fts.
+	first := []string{
+		"create", "milestone", "--project", "foo",
+		"--title", "Reindex drops links on concurrent writes",
+		"--description", "concurrent saves lose graph edges in the index",
+		"--goal", "concurrent index writes no longer drop link rows",
+		"--json",
+	}
+	// #2: distinct content Y, disjoint title and content from #1. Created with the
+	// stamp already set, so it is FTS-indexed only via the create-time hook.
+	second := []string{
+		"create", "milestone", "--project", "foo",
+		"--title", "Validate rejects malformed frontmatter keys",
+		"--description", "schema validation skips unknown top-level fields entirely",
+		"--goal", "validation flags every unexpected frontmatter key as an error",
+		"--json",
+	}
+	// #3: content Y again, title disjoint from #2 — matches ONLY #2 by content.
+	third := []string{
+		"create", "milestone", "--project", "foo",
+		"--title", "Frontmatter typos slip past the checker",
+		"--description", "schema validation skips unknown top-level fields entirely",
+		"--goal", "validation flags every unexpected frontmatter key as an error",
+		"--json",
+	}
+
+	for i, args := range [][]string{first, second, third} {
+		cmd := newRootCmd()
+		cmd.SetArgs(args)
+		var out, errBuf bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&errBuf)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("create #%d: %v\nstdout: %s\nstderr: %s", i+1, err, out.String(), errBuf.String())
+		}
+		if i < 2 {
+			continue
+		}
+		var got map[string]any
+		if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+			t.Fatalf("parse json: %v\nout: %s", err, out.String())
+		}
+		warnings, _ := got["warnings"].([]any)
+		if len(warnings) == 0 {
+			t.Fatalf("third milestone duplicating the non-reindexed second: expected a warning but got none\nout: %s\nstderr: %s", out.String(), errBuf.String())
+		}
+	}
+}
+
 func bytesContains(b, sub []byte) bool { return bytes.Contains(b, sub) }
