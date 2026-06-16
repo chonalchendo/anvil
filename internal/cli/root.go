@@ -83,6 +83,7 @@ func newRootCmd() *cobra.Command {
 		newTagsCmd(),
 		newGlossaryCmd(),
 		newContractCmd(),
+		newIndexCmd(),
 		newReindexCmd(),
 		newTransitionCmd(),
 		newRenameCmd(),

@@ -30,7 +30,8 @@ const metaKeySchemaVersion = "schema_version"
 //
 //	1: learning_fts (FTS5 over learning TL;DR)
 //	2: artifact_fts (FTS5 over issue/milestone description+goal for content-aware dedup)
-const SchemaVersion = 2
+//	3: tags (facet rows for `anvil index` relatedness)
+const SchemaVersion = 3
 
 // GetSchemaVersion returns the stored schema version, or 0 when unset (a DB
 // built before versioning, or a fresh one).
