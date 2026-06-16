@@ -5,7 +5,7 @@ description: "Use when the user wants to dispatch parallel subagents to work mul
 
 # Dispatching Issue Fleet
 
-Your job is to orchestrate N parallel subagents through claim → implement → smoke → PR (each subagent's half), then fire the independent review on every returned PR and drive its findings to resolution (your half — Phase 5), and halt at green so the human can merge. You do not write code yourself; you dispatch, audit returns, and present a structured report.
+Your job is to orchestrate N parallel subagents through claim → implement → smoke → PR (each subagent's half), then fire the independent review on every returned PR and drive its findings to resolution (your half — Phase 5), halt at green so the human can merge, and — once the batch lands — offer a post-merge distillation harvest (Phase 6, the write-side learning crossbar). You do not write code yourself; you dispatch, audit returns, and present a structured report.
 
 ## Iron Law
 
@@ -100,7 +100,19 @@ To land each PR, run from the parent checkout (one line per issue):
   anvil transition issue <id> resolved --land-pr <n>
 ```
 
-The verb gates on mergeable + CI-green, removes the worktree, squash-merges, verifies MERGED, and resolves the issue atomically (see `completing-issue` Phase 5) — no manual `git worktree remove` / `gh pr merge` sequencing.
+The verb gates on mergeable + CI-green, removes the worktree, squash-merges, verifies MERGED, and resolves the issue atomically (see `completing-issue` Phase 5) — no manual `git worktree remove` / `gh pr merge` sequencing. Once the human has landed the batch, run Phase 6.
+
+## Phase 6 — Post-merge distillation harvest (offer, don't force)
+
+Phase 2b is the read side; this is the write side. Workers stop at PR-opened, never reaching `completing-issue`'s distillation offer — so learnings they surface are lost unless harvested here, once the batch lands.
+
+Fire **after** the human's `--land-pr` calls, not at green — harvest only merged PRs. One orchestrator-level pass over the batch, not per-worker:
+
+1. **Collect from landed PRs only** (`gh pr view <n>`, the resolved issue, your Phase 5 observations): gotchas, confirmed approaches, dead ends avoided. A `Blocker:`/malformed return emitted no PR — skip it. Flag any **cross-PR breakage** (sequential green merges landing a broken `master`) as a candidate.
+2. **Offer one handoff to `distilling-learning`** over the candidates — *"This fleet landed `<k>` PRs. Distill learnings? (`distilling-learning`)"*. Bar is compounding, not record-keeping; "nothing worth distilling" is valid.
+3. **Human gate is non-negotiable** (`distilling-learning`'s Phase 2 draft-list gate). The harvest offers and stages; it never auto-distills.
+
+**Autonomous orchestrator:** no blocking offer — stage candidates into the report under `Harvest candidates:` and stop. A human fires `distilling-learning` later.
 
 ## Scope-change pause protocol
 
