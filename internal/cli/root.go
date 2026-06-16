@@ -90,6 +90,7 @@ func newRootCmd() *cobra.Command {
 		newVaultCmd(),
 		newDoctorCmd(),
 		newEvalCmd(),
+		newRefreshCmd(),
 	)
 	return cmd
 }

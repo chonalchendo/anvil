@@ -45,6 +45,20 @@ END) = 0
 	return rows, nil
 }
 
+// ListByType returns every artifact of the given type, ordered by id.
+func (d *DB) ListByType(typ string) ([]ArtifactRow, error) {
+	const q = `
+SELECT a.id, a.type, a.status, a.project, a.path, a.created, a.updated
+FROM artifacts a
+WHERE a.type = ?
+`
+	rows, err := d.queryWithFilters(q, QueryFilters{}, []any{typ})
+	if err != nil {
+		return nil, fmt.Errorf("list by type %s: %w", typ, err)
+	}
+	return rows, nil
+}
+
 // ListOrphans returns artifacts with no incoming links.
 func (d *DB) ListOrphans(f QueryFilters) ([]ArtifactRow, error) {
 	const q = `
