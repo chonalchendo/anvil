@@ -129,6 +129,9 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		if err := d.indexLearningFTS(row, a.Body); err != nil {
 			return ReindexStats{}, err
 		}
+		if err := d.indexArtifactFTS(row, a.FrontMatter); err != nil {
+			return ReindexStats{}, err
+		}
 	}
 
 	// Purge artifacts whose CURRENT stored path is absent from disk. Re-querying
@@ -179,7 +182,10 @@ func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 		return ReindexStats{}, fmt.Errorf("clear artifacts: %w", err)
 	}
 	if _, err := tx.Exec(`DELETE FROM learning_fts`); err != nil {
-		return ReindexStats{}, fmt.Errorf("clear fts: %w", err)
+		return ReindexStats{}, fmt.Errorf("clear learning fts: %w", err)
+	}
+	if _, err := tx.Exec(`DELETE FROM artifact_fts`); err != nil {
+		return ReindexStats{}, fmt.Errorf("clear artifact fts: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return ReindexStats{}, fmt.Errorf("commit clear: %w", err)
@@ -216,6 +222,9 @@ func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 		if err := d.indexLearningFTS(row, a.Body); err != nil {
 			return err
 		}
+		if err := d.indexArtifactFTS(row, a.FrontMatter); err != nil {
+			return err
+		}
 		return nil
 	})
 	if walkErr != nil {
@@ -248,6 +257,22 @@ func (d *DB) indexLearningFTS(row ArtifactRow, body string) error {
 		return nil
 	}
 	return d.ReplaceLearningFTS(row.ID, LearningTLDR(body))
+}
+
+// indexArtifactFTS upserts an issue or milestone's description+goal into the
+// FTS table for content-aware near-duplicate detection; a no-op for every other
+// type. Concatenates description and goal with a space so both fields are
+// searchable in a single FTS column.
+func (d *DB) indexArtifactFTS(row ArtifactRow, fm map[string]any) error {
+	if row.Type != string(core.TypeIssue) && row.Type != string(core.TypeMilestone) {
+		return nil
+	}
+	get := func(k string) string {
+		s, _ := fm[k].(string)
+		return strings.TrimSpace(s)
+	}
+	content := strings.TrimSpace(get("description") + " " + get("goal"))
+	return d.ReplaceArtifactFTS(row.ID, content)
 }
 
 // purgeStaleRowFor drops the indexed row whose stored path equals path, used

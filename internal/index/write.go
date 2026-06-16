@@ -47,7 +47,10 @@ func (d *DB) DeleteArtifact(id string) error {
 		return fmt.Errorf("delete links from %s: %w", id, err)
 	}
 	if _, err := tx.Exec(`DELETE FROM learning_fts WHERE id = ?`, id); err != nil {
-		return fmt.Errorf("delete fts for %s: %w", id, err)
+		return fmt.Errorf("delete learning fts for %s: %w", id, err)
+	}
+	if _, err := tx.Exec(`DELETE FROM artifact_fts WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("delete artifact fts for %s: %w", id, err)
 	}
 	if _, err := tx.Exec(`DELETE FROM artifacts WHERE id = ?`, id); err != nil {
 		return fmt.Errorf("delete artifact %s: %w", id, err)
@@ -70,6 +73,26 @@ func (d *DB) ReplaceLearningFTS(id, tldr string) error {
 	if tldr != "" {
 		if _, err := tx.Exec(`INSERT INTO learning_fts(id, tldr) VALUES(?, ?)`, id, tldr); err != nil {
 			return fmt.Errorf("insert fts %s: %w", id, err)
+		}
+	}
+	return tx.Commit()
+}
+
+// ReplaceArtifactFTS replaces the FTS row for an issue or milestone: it drops
+// any prior row and inserts the new content. An empty content string clears the
+// row without inserting (artifact contributes nothing to content search).
+func (d *DB) ReplaceArtifactFTS(id, content string) error {
+	tx, err := d.sql.Begin()
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // rollback after successful commit returns ErrTxDone; error not actionable
+	if _, err := tx.Exec(`DELETE FROM artifact_fts WHERE id = ?`, id); err != nil {
+		return fmt.Errorf("clear artifact fts %s: %w", id, err)
+	}
+	if content != "" {
+		if _, err := tx.Exec(`INSERT INTO artifact_fts(id, content) VALUES(?, ?)`, id, content); err != nil {
+			return fmt.Errorf("insert artifact fts %s: %w", id, err)
 		}
 	}
 	return tx.Commit()

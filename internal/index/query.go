@@ -100,6 +100,55 @@ WHERE learning_fts MATCH ?`
 	return out, rs.Err()
 }
 
+// SearchArtifactContent returns issues and milestones whose description+goal
+// content matches the query, ranked by FTS5 relevance. Excludes excludeID so
+// the calling artifact (just saved) never reports itself as its own duplicate.
+// QueryFilters Type/Project narrow the result; Limit ≤ 0 returns all matches.
+func (d *DB) SearchArtifactContent(query, excludeID string, f QueryFilters) ([]ArtifactRow, error) {
+	match := ftsMatchExpr(query)
+	if match == "" {
+		return nil, nil
+	}
+	q := `
+SELECT a.id, a.type, a.status, a.project, a.path, a.created, a.updated
+FROM artifact_fts
+JOIN artifacts a ON a.id = artifact_fts.id
+WHERE artifact_fts MATCH ?`
+	args := []any{match}
+	if excludeID != "" {
+		q += " AND a.id != ?"
+		args = append(args, excludeID)
+	}
+	if f.Status != "" {
+		q += " AND a.status = ?"
+		args = append(args, f.Status)
+	}
+	if f.Project != "" {
+		q += " AND a.project = ?"
+		args = append(args, f.Project)
+	}
+	q += " ORDER BY rank"
+	if f.Limit > 0 {
+		q += " LIMIT ?"
+		args = append(args, f.Limit)
+	}
+
+	rs, err := d.sql.Query(q, args...)
+	if err != nil {
+		return nil, fmt.Errorf("search artifact content: %w", err)
+	}
+	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
+	var out []ArtifactRow
+	for rs.Next() {
+		var r ArtifactRow
+		if err := rs.Scan(&r.ID, &r.Type, &r.Status, &r.Project, &r.Path, &r.Created, &r.Updated); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rs.Err()
+}
+
 // ftsMatchExpr turns a free-text query into a safe FTS5 MATCH expression:
 // each whitespace term is wrapped in double quotes (embedded quotes doubled),
 // joined by spaces (FTS5 implicit AND). Returns "" when no terms remain.

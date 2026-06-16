@@ -141,4 +141,57 @@ func TestSimilarSlugs_OverlapCoefficient(t *testing.T) {
 	}
 }
 
+// TestCreate_ContentDuplicate_DisjointTitles verifies that two milestones with
+// disjoint title tokens but identical description+goal are flagged as near-duplicates
+// via FTS content search. Slug overlap alone would not fire on these titles.
+func TestCreate_ContentDuplicate_DisjointTitles(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	// First milestone: title tokens are "reindex", "drops", "links", "concurrent", "writes".
+	firstArgs := []string{
+		"create", "milestone",
+		"--project", "foo",
+		"--title", "Reindex drops links on concurrent writes",
+		"--description", "concurrent saves lose graph edges in the index",
+		"--goal", "concurrent index writes no longer drop link rows",
+		"--json",
+	}
+	// Second milestone: title tokens are "index", "loses", "edges", "under",
+	// "parallel", "saves" — overlap with first title is zero significant tokens,
+	// but description+goal are identical.
+	secondArgs := []string{
+		"create", "milestone",
+		"--project", "foo",
+		"--title", "Index loses edges under parallel saves",
+		"--description", "concurrent saves lose graph edges in the index",
+		"--goal", "concurrent index writes no longer drop link rows",
+		"--json",
+	}
+
+	for i, args := range [][]string{firstArgs, secondArgs} {
+		cmd := newRootCmd()
+		cmd.SetArgs(args)
+		var out, errBuf bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&errBuf)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("create #%d: %v\nstdout: %s\nstderr: %s", i+1, err, out.String(), errBuf.String())
+		}
+		if i == 0 {
+			continue // first create has no prior to match
+		}
+		var got map[string]any
+		if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+			t.Fatalf("parse json: %v\nout: %s", err, out.String())
+		}
+		warnings, _ := got["warnings"].([]any)
+		if len(warnings) == 0 {
+			t.Fatalf("content-duplicate milestone: expected warnings but got none\nout: %s\nstderr: %s", out.String(), errBuf.String())
+		}
+	}
+}
+
 func bytesContains(b, sub []byte) bool { return bytes.Contains(b, sub) }
