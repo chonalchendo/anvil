@@ -6,18 +6,28 @@ import (
 	"strings"
 )
 
-// anvilVerbRE matches `anvil <verb>` tokens inside code fences, capturing the
-// first token after `anvil`. Only the top-level subcommand is checked; deeper
-// nesting (e.g. `anvil project adopt`) is out of scope per the non-goals.
-var anvilVerbRE = regexp.MustCompile(`(?m)^\s*anvil\s+([a-z][a-z0-9_-]*)`)
+// anvilInvocationRE matches an `anvil <args...>` invocation inside a code fence
+// and captures the remainder of the line after `anvil`. The boundary is `\b`
+// rather than line-start, so command-chained forms (`x && anvil bogus`) and
+// substitutions (`$(anvil bogus)`) are caught too. The trailing capture is the
+// raw argument string, tokenised and walked against the command tree below.
+var anvilInvocationRE = regexp.MustCompile(`\banvil\s+([^\n]*)`)
+
+// VerbPathValidator reports whether the anvil command described by tokens — the
+// whitespace-split words following `anvil` on a fence line — names a real path
+// through the command tree. It returns the offending subcommand token and false
+// when a token sits in command position but matches no registered subcommand;
+// "" and true otherwise. The CLI layer builds this from cobra (which owns the
+// command tree); core stays cobra-free, mirroring the existing core/CLI split.
+type VerbPathValidator func(tokens []string) (bad string, ok bool)
 
 // lintVerificationVerbs scans code-fence lines inside the Verification span and
-// reports any `anvil <verb>` token whose verb is not in knownVerbs. Only lines
-// inside a code fence (between opening ``` and closing ```) are scanned.
-// Returns nil without scanning when knownVerbs is nil (caller has no command
-// tree to check against).
-func lintVerificationVerbs(body string, knownVerbs map[string]struct{}) []error {
-	if knownVerbs == nil {
+// reports any `anvil <verb> <subverb>...` invocation whose deepest subcommand
+// token names no registered command. Only lines inside a code fence (between
+// opening ``` and closing ```) are scanned. Returns nil without scanning when
+// validate is nil (caller has no command tree to check against).
+func lintVerificationVerbs(body string, validate VerbPathValidator) []error {
+	if validate == nil {
 		return nil
 	}
 	span := verificationSpan(body)
@@ -42,16 +52,17 @@ func lintVerificationVerbs(body string, knownVerbs map[string]struct{}) []error 
 
 	var errs []error
 	seen := make(map[string]struct{})
-	for _, m := range anvilVerbRE.FindAllStringSubmatch(codeLines.String(), -1) {
-		verb := m[1]
-		if _, known := knownVerbs[verb]; known {
+	for _, m := range anvilInvocationRE.FindAllStringSubmatch(codeLines.String(), -1) {
+		tokens := strings.Fields(m[1])
+		bad, ok := validate(tokens)
+		if ok {
 			continue
 		}
-		if _, already := seen[verb]; already {
+		if _, already := seen[bad]; already {
 			continue
 		}
-		seen[verb] = struct{}{}
-		errs = append(errs, fmt.Errorf("Verification block cites unknown anvil subcommand %q — fix the command or update the issue", verb))
+		seen[bad] = struct{}{}
+		errs = append(errs, fmt.Errorf("Verification block cites unknown anvil subcommand %q — fix the command or update the issue", bad))
 	}
 	return errs
 }
@@ -132,15 +143,14 @@ func ValidateIssue(a *Artifact) []error {
 	return errs
 }
 
-// ValidateIssueVerbs checks that every `anvil <verb>` token inside a code
-// fence in the Verification block names a real top-level subcommand. Call this
-// from CLI layers that have access to the registered command tree; pass the
-// result through the same errfmt pipeline as ValidateIssue.
-//
-// Only the first token after `anvil` is checked — deeper nesting (e.g. `anvil
-// project adopt`) is out of scope (see issue non-goals).
-func ValidateIssueVerbs(body string, knownVerbs map[string]struct{}) []error {
-	return lintVerificationVerbs(body, knownVerbs)
+// ValidateIssueVerbs checks that every `anvil <verb> <subverb>...` invocation
+// inside a code fence in the Verification block names a real path through the
+// command tree — the deepest subcommand token must match a registered command,
+// so a stale nested subcommand (`anvil project init`) is caught, not just a
+// bogus top-level verb. Call this from CLI layers that own the cobra tree; pass
+// the result through the same errfmt pipeline as ValidateIssue.
+func ValidateIssueVerbs(body string, validate VerbPathValidator) []error {
+	return lintVerificationVerbs(body, validate)
 }
 
 // verificationSpan returns the body slice from the "## Verification" heading to

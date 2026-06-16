@@ -168,20 +168,57 @@ func TestValidateIssue_UnbalancedFenceOutsideVerification_Ignored(t *testing.T) 
 	}
 }
 
-// knownVerbs is a minimal set that mirrors real CLI top-level subcommands for
-// verb-lint tests. Kept small; the real set is discovered from cobra at runtime.
-var knownVerbs = map[string]struct{}{
-	"create":     {},
-	"list":       {},
-	"show":       {},
-	"validate":   {},
-	"project":    {},
-	"transition": {},
+// fixtureVerbValidator mimics the cobra-backed VerbPathValidator the CLI builds
+// at runtime, but without importing cobra (core stays cobra-free). It models a
+// tiny command tree: a path is a non-leaf (has subcommands) until a leaf token
+// is reached, after which trailing tokens are args/flags. Mirrors the
+// Find-based rule in cli.verbPathValidator — a token in subcommand position
+// that names no child is the bogus one.
+//
+// tree maps a command path (joined by space) to its set of child names; a path
+// absent from tree is a leaf (consumes the rest as args).
+func fixtureVerbValidator(tree map[string]map[string]struct{}) VerbPathValidator {
+	return func(tokens []string) (string, bool) {
+		path := ""
+		for _, tok := range tokens {
+			children, hasSub := tree[path]
+			if !hasSub {
+				return "", true // reached a leaf; rest are args/flags
+			}
+			if strings.HasPrefix(tok, "-") {
+				return "", true // flag before any deeper subcommand
+			}
+			if _, ok := children[tok]; !ok {
+				return strings.Trim(tok, "()\"';|&"), false
+			}
+			if path == "" {
+				path = tok
+			} else {
+				path += " " + tok
+			}
+		}
+		return "", true
+	}
 }
+
+// fixtureTree models `anvil create issue`, `anvil list`, `anvil show`,
+// `anvil validate`, `anvil project adopt`, `anvil transition`. `project` is a
+// non-leaf whose only child is `adopt` (so `project init` is bogus); `create`
+// is a non-leaf whose child is `issue`; the rest are leaves.
+var fixtureTree = map[string]map[string]struct{}{
+	"": {
+		"create": {}, "list": {}, "show": {}, "validate": {},
+		"project": {}, "transition": {},
+	},
+	"create":  {"issue": {}},
+	"project": {"adopt": {}},
+}
+
+func validatorFixture() VerbPathValidator { return fixtureVerbValidator(fixtureTree) }
 
 func TestValidateIssueVerbs_UnknownVerb_Rejected(t *testing.T) {
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil frobnicate widget\n```\n\n### Indirect\n```bash\nanvil frobnicate widget\n```\n\n## Links\n"
-	errs := ValidateIssueVerbs(body, knownVerbs)
+	errs := ValidateIssueVerbs(body, validatorFixture())
 	if len(errs) == 0 {
 		t.Fatal("expected error for unknown anvil verb 'frobnicate'")
 	}
@@ -196,10 +233,40 @@ func TestValidateIssueVerbs_UnknownVerb_Rejected(t *testing.T) {
 	}
 }
 
+func TestValidateIssueVerbs_NestedUnknownSubcommand_Rejected(t *testing.T) {
+	// The issue's motivating reproduction: `project` is a real verb but `init` is
+	// not a registered subcommand. The deepest token must be validated, not just
+	// the top-level verb.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil project init scratch\n```\n\n### Indirect\n```bash\nanvil project init scratch\n```\n\n## Links\n"
+	errs := ValidateIssueVerbs(body, validatorFixture())
+	if len(errs) == 0 {
+		t.Fatal("expected error for nested unknown subcommand 'anvil project init'")
+	}
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Error(), "init") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected 'init' named in error, got: %v", errs)
+	}
+}
+
+func TestValidateIssueVerbs_NestedKnownSubcommand_Accepted(t *testing.T) {
+	// `anvil project adopt` is a real nested path; its trailing positional arg
+	// (`scratch`) must not be mistaken for a bogus subcommand.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil project adopt scratch\n```\n\n### Indirect\n```bash\nanvil create issue --title t\n```\n\n## Links\n"
+	errs := ValidateIssueVerbs(body, validatorFixture())
+	if len(errs) != 0 {
+		t.Errorf("known nested path must be accepted, got: %v", errs)
+	}
+}
+
 func TestValidateIssueVerbs_UnknownVerb_DeduplicatedAcrossFences(t *testing.T) {
 	// The same bogus verb in both Direct and Indirect should only be reported once.
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil bogus\n```\n\n### Indirect\n```bash\nanvil bogus\n```\n\n## Links\n"
-	errs := ValidateIssueVerbs(body, knownVerbs)
+	errs := ValidateIssueVerbs(body, validatorFixture())
 	if len(errs) != 1 {
 		t.Errorf("expected exactly 1 error for duplicate unknown verb, got %d: %v", len(errs), errs)
 	}
@@ -207,16 +274,31 @@ func TestValidateIssueVerbs_UnknownVerb_DeduplicatedAcrossFences(t *testing.T) {
 
 func TestValidateIssueVerbs_KnownVerb_Accepted(t *testing.T) {
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil create issue --title t\n```\n\n### Indirect\n```bash\nanvil list issue\n```\n\n## Links\n"
-	errs := ValidateIssueVerbs(body, knownVerbs)
+	errs := ValidateIssueVerbs(body, validatorFixture())
 	if len(errs) != 0 {
 		t.Errorf("known verbs must be accepted, got: %v", errs)
+	}
+}
+
+func TestValidateIssueVerbs_ChainedInvocation_Rejected(t *testing.T) {
+	// A non-line-start invocation (`x && anvil bogus`) must still be caught: the
+	// regex anchors on a word boundary, not line start.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue && anvil bogus\n```\n\n### Indirect\n```bash\necho $(anvil bogus)\n```\n\n## Links\n"
+	errs := ValidateIssueVerbs(body, validatorFixture())
+	if len(errs) == 0 {
+		t.Fatal("expected error for chained/substituted unknown verb")
+	}
+	for _, e := range errs {
+		if strings.Contains(e.Error(), "bogus)") {
+			t.Errorf("shell punctuation must be trimmed from the reported token, got: %v", e)
+		}
 	}
 }
 
 func TestValidateIssueVerbs_AnvilOutsideFence_Ignored(t *testing.T) {
 	// `anvil bogus` mentioned in prose (outside a code fence) must not be flagged.
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\nRun anvil bogus to test.\n\n### Direct\n```bash\nanvil create issue\n```\n\n### Indirect\n```bash\nanvil list issue\n```\n\n## Links\n"
-	errs := ValidateIssueVerbs(body, knownVerbs)
+	errs := ValidateIssueVerbs(body, validatorFixture())
 	if len(errs) != 0 {
 		t.Errorf("anvil verb outside fence must be ignored, got: %v", errs)
 	}
@@ -225,19 +307,19 @@ func TestValidateIssueVerbs_AnvilOutsideFence_Ignored(t *testing.T) {
 func TestValidateIssueVerbs_AnvilOutsideVerificationSpan_Ignored(t *testing.T) {
 	// `anvil bogus` in ## Problem (outside the Verification span) must not fire.
 	body := "\n## Problem\n```bash\nanvil bogus\n```\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil create issue\n```\n\n### Indirect\n```bash\nanvil list issue\n```\n\n## Links\n"
-	errs := ValidateIssueVerbs(body, knownVerbs)
+	errs := ValidateIssueVerbs(body, validatorFixture())
 	if len(errs) != 0 {
 		t.Errorf("anvil verb outside Verification span must be ignored, got: %v", errs)
 	}
 }
 
-func TestValidateIssueVerbs_NilKnownVerbs_SkipsCheck(t *testing.T) {
+func TestValidateIssueVerbs_NilValidator_SkipsCheck(t *testing.T) {
 	// Passing nil skips the verb-lint so callers without a command tree can safely
 	// call ValidateIssueVerbs without panicking.
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil totally-fake-verb\n```\n\n### Indirect\n```bash\ntrue\n```\n\n## Links\n"
 	errs := ValidateIssueVerbs(body, nil)
 	if len(errs) != 0 {
-		t.Errorf("nil knownVerbs must skip check, got: %v", errs)
+		t.Errorf("nil validator must skip check, got: %v", errs)
 	}
 }
 

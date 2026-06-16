@@ -66,7 +66,7 @@ func newValidateCmd() *cobra.Command {
 				}
 			}
 
-			verbs := rootVerbs(cmd.Root())
+			verbs := verbPathValidator(cmd.Root())
 			var failures []*errfmt.ValidationError
 			if singleFile != "" {
 				t, err := typeFromArtifactPath(singleFile)
@@ -142,23 +142,40 @@ func newValidateCmd() *cobra.Command {
 	return cmd
 }
 
-// rootVerbs returns the set of top-level subcommand names registered on root,
-// used to lint `anvil <verb>` tokens inside Verification code fences.
-func rootVerbs(root *cobra.Command) map[string]struct{} {
-	cmds := root.Commands()
-	out := make(map[string]struct{}, len(cmds))
-	for _, c := range cmds {
-		// Commands()[i].Name() is the primary Use token before any space.
-		out[c.Name()] = struct{}{}
+// verbPathValidator builds a core.VerbPathValidator backed by cobra's command
+// tree, so the Verification verb-lint validates the full `anvil <verb>
+// <subverb>...` path, not just the top-level token. Cobra's Find walks the
+// tree and returns the deepest matched command plus the unconsumed args; a path
+// is bogus when that command still has subcommands and the next non-flag arg
+// names none of them (e.g. `anvil project init` — `project` is real, `init` is
+// not). A leaf command (`anvil create issue`) consumes its trailing args as
+// flags/positionals, so those never count as subcommand candidates.
+func verbPathValidator(root *cobra.Command) core.VerbPathValidator {
+	return func(tokens []string) (string, bool) {
+		if len(tokens) == 0 {
+			return "", true
+		}
+		cmd, rest, _ := root.Find(tokens)
+		if !cmd.HasSubCommands() {
+			return "", true
+		}
+		for _, tok := range rest {
+			if strings.HasPrefix(tok, "-") {
+				continue // a flag, not a subcommand candidate
+			}
+			// First non-flag arg sits in subcommand position but Find did not
+			// descend into it, so it names no registered subcommand.
+			return strings.Trim(tok, "()\"';|&"), false
+		}
+		return "", true
 	}
-	return out
 }
 
 // validateOne runs schema + learning-body checks on a single artifact file and
 // returns the loaded artifact alongside any structured failures. The artifact
 // is nil on a parse failure (the only failure that prevents loading); callers
 // reuse it for cross-file id-collision detection without a second load.
-func validateOne(t core.Type, path string, knownTags map[string]struct{}, knownVerbs map[string]struct{}) (*core.Artifact, []*errfmt.ValidationError) {
+func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs core.VerbPathValidator) (*core.Artifact, []*errfmt.ValidationError) {
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		return nil, []*errfmt.ValidationError{errfmt.NewValidationError(errfmt.CodeParseError, path, "", err.Error())}
@@ -183,7 +200,7 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, knownV
 		for _, vErr := range core.ValidateIssue(a) {
 			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 		}
-		for _, vErr := range core.ValidateIssueVerbs(a.Body, knownVerbs) {
+		for _, vErr := range core.ValidateIssueVerbs(a.Body, verbs) {
 			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 		}
 	}
