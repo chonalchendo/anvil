@@ -45,7 +45,7 @@ anvil link --from <artifact-id> --json   # what it points at
 
 Keep the edges whose endpoint is a learning (its id resolves under the learnings dir, i.e. `anvil show learning <id> --json` succeeds); read each one's frontmatter that way.
 
-**c. By content** — for any work-context keyword or touched file path that Phase 1 could not map to a tag, grep the learning bodies for it (their TL;DR names the surface). Full-text search over learning bodies is not yet a CLI verb (a separate, later issue); grep is the interim path, so say so if it limits recall.
+**c. By content** — for any work-context keyword or touched file path that Phase 1 could not map to a tag, run `anvil list learning --search "<keyword>" --json` (FTS5 over each learning's TL;DR, ranked by relevance). Fall back to grepping bodies only for matches outside the TL;DR (Evidence/Caveats), and say so if that limits recall.
 
 ## Phase 3 — Progressive disclosure
 

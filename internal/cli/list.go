@@ -437,15 +437,21 @@ func runListSearch(cmd *cobra.Command, t core.Type, query string, f listFilters,
 	}
 	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
+	// Load all matches, then truncate after enrichment so total reflects the
+	// real match count and the truncation hint fires (mirrors runListIndexed).
 	rows, err := db.SearchLearnings(query, index.QueryFilters{
 		Status: f.Status, Project: f.Project,
-		Since: f.Since, Until: f.Until, Limit: limit,
+		Since: f.Since, Until: f.Until,
 	})
 	if err != nil {
 		return err
 	}
 	items := indexRowsToItems(rows, f)
-	return emitList(cmd, items, len(items), asJSON, t, fields)
+	total := len(items)
+	if limit > 0 && len(items) > limit {
+		items = items[:limit]
+	}
+	return emitList(cmd, items, total, asJSON, t, fields)
 }
 
 // collectArtifactPaths returns absolute paths of artifacts of type t under

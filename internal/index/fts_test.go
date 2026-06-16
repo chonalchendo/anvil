@@ -1,8 +1,10 @@
 package index
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestLearningTLDRExtraction(t *testing.T) {
@@ -191,5 +193,41 @@ func TestFTSReindexReflectsEditedTLDR(t *testing.T) {
 	}
 	if hits, _ := db.SearchLearnings("beta", QueryFilters{}); len(hits) != 1 {
 		t.Fatalf("new term 'beta' not indexed: %+v", hits)
+	}
+}
+
+// TestFTSIncrementalReflectsEditedTLDR covers the production hot path: an
+// in-place TL;DR edit picked up by an incremental Reindex (mtime > stamp) must
+// re-extract and replace the FTS row, not leave the stale terms.
+func TestFTSIncrementalReflectsEditedTLDR(t *testing.T) {
+	vault := t.TempDir()
+	path := filepath.Join(vault, "20-learnings", "demo.a.md")
+	writeLearning(t, vault, "demo.a", "original phrasing alpha")
+
+	db, err := Open(DBPath(vault))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
+	if _, err := db.Reindex(vault); err != nil {
+		t.Fatalf("Reindex: %v", err)
+	}
+
+	// Edit in place and push mtime past the stamp so the incremental walk
+	// re-qualifies the file.
+	writeLearning(t, vault, "demo.a", "rewritten phrasing beta")
+	future := time.Now().Add(2 * time.Second)
+	if err := os.Chtimes(path, future, future); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Reindex(vault); err != nil {
+		t.Fatalf("incremental Reindex: %v", err)
+	}
+
+	if hits, _ := db.SearchLearnings("alpha", QueryFilters{}); len(hits) != 0 {
+		t.Fatalf("stale term 'alpha' still matches after incremental: %+v", hits)
+	}
+	if hits, _ := db.SearchLearnings("beta", QueryFilters{}); len(hits) != 1 {
+		t.Fatalf("new term 'beta' not indexed after incremental: %+v", hits)
 	}
 }
