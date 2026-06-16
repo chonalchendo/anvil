@@ -325,7 +325,7 @@ func newTransitionCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&cutWorktree, "cut-worktree", false, "create the conventional worktree+branch before transitioning (issue → in-progress only)")
 	cmd.Flags().StringVar(&worktreeOverride, "worktree", "", "override the derived worktree path (used with --cut-worktree or --land-pr)")
 	cmd.Flags().StringVar(&branchOverride, "branch", "", "override the derived branch name (used with --cut-worktree)")
-	cmd.Flags().IntVar(&landPRNum, "land-pr", 0, "PR number to land: verify-mergeable + CI-green, remove worktree, squash-merge and delete branch, verify MERGED, then transition (issue → resolved only)")
+	cmd.Flags().IntVar(&landPRNum, "land-pr", 0, "PR number to land: verify-mergeable + CI-green, squash-merge, verify MERGED, remove worktree, delete branch, then transition (issue → resolved only)")
 	return cmd
 }
 

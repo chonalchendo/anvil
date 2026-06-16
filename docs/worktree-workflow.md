@@ -16,9 +16,9 @@ Never `git checkout -b` or commit directly on `master` — parallel sessions col
 
 ## Post-merge cleanup (sequence matters)
 
-**Issue-backed PRs:** skip the manual sequence — `anvil transition issue <id> resolved --land-pr <pr>` performs gate → worktree remove → squash-merge → MERGED-verify atomically and resolves the issue in the same call. The manual two-step below remains for issueless PRs only.
+**Issue-backed PRs:** skip the manual sequence — `anvil transition issue <id> resolved --land-pr <pr>` performs gate → squash-merge → MERGED-verify → worktree remove → branch delete (local + remote) and resolves the issue in the same call. The merge runs *before* the worktree is removed so the verb survives being invoked from inside the worktree it cleans up; branch deletion follows removal because git refuses to delete a branch a worktree still references. The manual two-step below remains for issueless PRs only.
 
-`gh pr merge --delete-branch` refuses the local-branch delete while the worktree is still checked out (`cannot delete branch 'anvil/<slug>' used by worktree at ...`). Remove the worktree **first**:
+`gh pr merge --delete-branch` refuses the local-branch delete while the worktree is still checked out (`cannot delete branch 'anvil/<slug>' used by worktree at ...`). For the manual path, remove the worktree **first**:
 
 ```bash
 git -C ~/Development/anvil worktree remove ~/Development/anvil-worktrees/<slug>
