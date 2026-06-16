@@ -107,7 +107,7 @@ Pick one to three distinctive nouns or phrases from the draft title. If results 
 - If it is related but distinct: proceed to create; note the existing learning in the new one's Evidence section and link via `anvil link`.
 - If no close match: proceed to create.
 
-The agent surfaces candidates and the decision — the user decides whether to merge or proceed. Never auto-block or auto-merge.
+**Gate:** surface the candidates + the decision; the user decides whether to merge/sharpen the existing learning or proceed. Never auto-block or auto-merge.
 
 ---
 
