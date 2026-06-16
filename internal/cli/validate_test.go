@@ -457,6 +457,127 @@ func TestValidate_DuplicateID_CrossFile(t *testing.T) {
 	}
 }
 
+// TestValidate_ProjectFlag_ScopesFindings asserts that --project <slug> restricts
+// findings to artifacts owned by that project. A finding planted on a foreign
+// project must not appear, and the scoped count must be strictly less than the
+// full-vault count.
+func TestValidate_ProjectFlag_ScopesFindings(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	// Plant an invalid issue for project "alpha" (bad status).
+	alphaIssue := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", "alpha.0001.bad.md"),
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "alpha bad", "description": "d",
+			"created": "2026-06-16", "status": "bogus-alpha",
+			"project": "alpha", "severity": "low",
+		},
+	}
+	if err := alphaIssue.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Plant an invalid issue for project "beta" (bad status).
+	betaIssue := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", "beta.0001.bad.md"),
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "beta bad", "description": "d",
+			"created": "2026-06-16", "status": "bogus-beta",
+			"project": "beta", "severity": "low",
+		},
+	}
+	if err := betaIssue.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Full-vault run: must see both findings.
+	fullCmd := newRootCmd()
+	fullCmd.SetArgs([]string{"validate", vault, "--json"})
+	var fullOut bytes.Buffer
+	fullCmd.SetOut(&fullOut)
+	fullCmd.SetErr(&fullOut)
+	_ = fullCmd.Execute()
+
+	var fullFailures []map[string]any
+	if err := json.Unmarshal(fullOut.Bytes(), &fullFailures); err != nil {
+		t.Fatalf("parse full json: %v\n%s", err, fullOut.String())
+	}
+	if len(fullFailures) < 2 {
+		t.Fatalf("expected at least 2 findings in full-vault run, got %d", len(fullFailures))
+	}
+
+	// Project-scoped run: --project alpha must return only alpha's finding.
+	scopedCmd := newRootCmd()
+	scopedCmd.SetArgs([]string{"--project", "alpha", "validate", vault, "--json"})
+	var scopedOut bytes.Buffer
+	scopedCmd.SetOut(&scopedOut)
+	scopedCmd.SetErr(&scopedOut)
+	_ = scopedCmd.Execute()
+
+	var scopedFailures []map[string]any
+	if err := json.Unmarshal(scopedOut.Bytes(), &scopedFailures); err != nil {
+		t.Fatalf("parse scoped json: %v\n%s", err, scopedOut.String())
+	}
+
+	// Scoped count must be strictly less than full-vault count.
+	if len(scopedFailures) >= len(fullFailures) {
+		t.Errorf("scoped count %d must be < full count %d", len(scopedFailures), len(fullFailures))
+	}
+
+	// No beta paths must appear in the scoped output.
+	for _, f := range scopedFailures {
+		path, _ := f["path"].(string)
+		if strings.Contains(filepath.Base(path), "beta.") {
+			t.Errorf("foreign-project path appeared in scoped output: %s", path)
+		}
+	}
+}
+
+// TestValidate_ProjectFlag_ScopesByFrontmatter pins the resolution semantics:
+// scoping follows the frontmatter `project` field, not the filename slug. A
+// misfiled artifact (filename `beta.0001.bad.md` declaring `project: alpha`)
+// must surface under `--project alpha` and be absent under `--project beta` —
+// the path-based filter would invert both.
+func TestValidate_ProjectFlag_ScopesByFrontmatter(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	// Misfiled: filename says beta, frontmatter declares alpha.
+	misfiled := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", "beta.0001.bad.md"),
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "misfiled", "description": "d",
+			"created": "2026-06-16", "status": "bogus-status",
+			"project": "alpha", "severity": "low",
+		},
+	}
+	if err := misfiled.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	run := func(slug string) []map[string]any {
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"--project", slug, "validate", vault, "--json"})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		_ = cmd.Execute()
+		var failures []map[string]any
+		if err := json.Unmarshal(out.Bytes(), &failures); err != nil {
+			t.Fatalf("parse json (slug=%s): %v\n%s", slug, err, out.String())
+		}
+		return failures
+	}
+
+	if got := run("alpha"); len(got) == 0 {
+		t.Error("misfiled artifact (frontmatter project=alpha) must surface under --project alpha")
+	}
+	if got := run("beta"); len(got) != 0 {
+		t.Errorf("misfiled artifact must be absent under --project beta (filename slug), got %v", got)
+	}
+}
+
 func TestValidate_GlossaryDrift_EmptyGlossarySkips(t *testing.T) {
 	vault := setupVault(t)
 

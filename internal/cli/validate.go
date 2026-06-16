@@ -77,7 +77,11 @@ func newValidateCmd() *cobra.Command {
 				failures = fs
 			} else {
 				// idPaths accumulates every path seen per index id to detect
-				// cross-file collisions after per-file checks complete.
+				// cross-file collisions after per-file checks complete. Under
+				// --project, it holds only scoped artifacts, so duplicate-id
+				// detection narrows to the named project — a foreign-vs-scoped
+				// collision is out of scope for a scoped run by construction.
+				projectFilter := os.Getenv("ANVIL_PROJECT")
 				idPaths := make(map[string][]string)
 				for _, t := range core.AllTypes {
 					paths, err := collectArtifactPaths(root, t)
@@ -86,6 +90,9 @@ func newValidateCmd() *cobra.Command {
 					}
 					for _, p := range paths {
 						a, fs := validateOne(t, p, known, verbs)
+						if projectFilter != "" && !artifactInProject(a, p, t, projectFilter) {
+							continue
+						}
 						failures = append(failures, fs...)
 						if a == nil {
 							continue // parse failures already reported above
@@ -140,6 +147,28 @@ func newValidateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON array of structured errors")
 	cmd.AddCommand(newValidateSkillCmd())
 	return cmd
+}
+
+// artifactInProject reports whether an artifact belongs to the named project
+// slug. It resolves the project from the frontmatter `project` field — the same
+// signal list.go's matchesFilters uses — so scoping is robust to a misfiled
+// artifact (filename slug != declared project), which is exactly the hygiene
+// defect validate exists to surface; a path-based filter would let such a file
+// slip the scope. Two cases lack a frontmatter project to read, so they fall
+// back to the path: a parse failure (a == nil, no frontmatter loaded) keyed off
+// the filename prefix, and a singleton (product-design / system-design, which
+// carry no `project` field) keyed off its parent dir <dir>/<slug>/<type>.md.
+func artifactInProject(a *core.Artifact, path string, t core.Type, slug string) bool {
+	if a != nil {
+		if p, ok := a.FrontMatter["project"].(string); ok && p != "" {
+			return p == slug
+		}
+	}
+	if t.AllocatesID() {
+		return strings.HasPrefix(filepath.Base(path), slug+".")
+	}
+	// Singleton: parent dir is the project slug.
+	return filepath.Base(filepath.Dir(path)) == slug
 }
 
 // verbPathValidator builds a core.VerbPathValidator backed by cobra's command
