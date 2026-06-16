@@ -152,3 +152,43 @@ func TestValidateIssue_BalancedFencesInVerification_Valid(t *testing.T) {
 		t.Errorf("balanced fenced blocks — expected no errors, got: %v", errs)
 	}
 }
+
+func TestValidateIssue_UnbalancedFenceOutsideVerification_Ignored(t *testing.T) {
+	// The check is scoped to the Verification section per the issue goal: an odd
+	// fence outside Verification (here in ## Problem) must NOT be flagged.
+	body := "\n## Problem\n```bash\noops unterminated\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\ntrue\n```\n\n## Links\n"
+	a := &Artifact{
+		FrontMatter: map[string]any{"type": "issue"},
+		Body:        body,
+	}
+	for _, e := range ValidateIssue(a) {
+		if strings.Contains(e.Error(), "unbalanced") {
+			t.Errorf("fence outside Verification must be ignored, got: %v", e)
+		}
+	}
+}
+
+func TestValidateIssue_NestedHeredocFence_AcceptedFalsePositive(t *testing.T) {
+	// ACCEPTED LIMITATION (docs/issue-spec.md depth-aware runner contract): the
+	// write-time check is line-level parity, not depth-aware. A heredoc holding a
+	// mini issue doc with one illustrative ```bash opener makes the fence count
+	// odd, so this VALID body is false-rejected. Distinguishing it from a real
+	// unterminated fence needs executing the bash (the runner's job); per the
+	// issue's "not full markdown linting" non-goal we pin the false-positive
+	// rather than reimplement the runner. If this ever stops rejecting, the
+	// scoping/algorithm changed — revisit the contract, don't just flip the test.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\ncat <<'EOF' > /tmp/mini.md\n## Verification\n```bash\ntrue\n```\nEOF\nanvil create issue --body-file /tmp/mini.md\n```\n\n## Links\n"
+	a := &Artifact{
+		FrontMatter: map[string]any{"type": "issue"},
+		Body:        body,
+	}
+	found := false
+	for _, e := range ValidateIssue(a) {
+		if strings.Contains(e.Error(), "unbalanced") {
+			found = true
+		}
+	}
+	if !found {
+		t.Skip("nested-heredoc false-positive no longer reproduces — depth-awareness may have landed; re-evaluate the accepted limitation")
+	}
+}
