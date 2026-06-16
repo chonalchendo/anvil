@@ -57,6 +57,7 @@ type TaskOutcome struct {
 	Model    string
 	Effort   string
 	Outcome  string // "success" | "failed" | "quota_exhausted" | "cancelled" | "skipped_dry_run"
+	Prompt   string // assembled instruction delivered to the agent; populated by dispatchTask
 	Duration time.Duration
 	Result   RunResult
 	Err      error
@@ -204,10 +205,12 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 		return oc
 	}
 
+	instruction := assembleInstruction(t)
+	oc.Prompt = instruction
 	req := RunRequest{
 		Model:       model,
 		Effort:      effort,
-		Instruction: assembleInstruction(t),
+		Instruction: instruction,
 		Skills:      t.SkillsToLoad,
 		Context:     t.ContextToLoad,
 		Files:       t.Files,

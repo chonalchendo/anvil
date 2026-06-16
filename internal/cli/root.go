@@ -91,6 +91,7 @@ func newRootCmd() *cobra.Command {
 		newDoctorCmd(),
 		newEvalCmd(),
 		newRefreshCmd(),
+		newExportCmd(),
 	)
 	return cmd
 }

@@ -44,6 +44,18 @@ CREATE TABLE IF NOT EXISTS eval_runs (
 );
 CREATE INDEX IF NOT EXISTS eval_runs_skill_idx ON eval_runs(skill);
 CREATE VIRTUAL TABLE IF NOT EXISTS learning_fts USING fts5(id UNINDEXED, tldr);
+CREATE TABLE IF NOT EXISTS traces (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id     TEXT    NOT NULL,
+    prompt      TEXT    NOT NULL,
+    outcome     TEXT    NOT NULL,
+    model       TEXT    NOT NULL DEFAULT '',
+    effort      TEXT    NOT NULL DEFAULT '',
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    cost_usd    REAL    NOT NULL DEFAULT 0,
+    recorded_at TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS traces_outcome_idx ON traces(outcome);
 `
 
 // DB wraps the sql.DB and owns its lifecycle.
