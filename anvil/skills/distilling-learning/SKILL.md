@@ -80,6 +80,8 @@ anvil tags list --source used --prefix activity/    # values currently in vault
 anvil tags list --source used --prefix pattern/     # values currently in vault
 ```
 
+**The `pattern/*` facet.** `domain/*` tags the subject, `activity/*` the verb — neither reaches a *reusable implementation pattern* (a write-through invariant, an atomic-transition rule) that recurs across unrelated subjects. Tag such a learning `pattern/*` so an agent in a different `domain/*` finds it; a learning bound to one subject takes none. Draw the value from the seeded vocabulary (`anvil tags list --source defined --prefix pattern/`), reusing before inventing.
+
 For each learning, propose tags drawn from existing values first. Only invent a new tag if no existing one fits — and only after the user approves it. New tags must:
 
 - Be lowercase ASCII, hyphens only (no spaces, no underscores, no caps).
