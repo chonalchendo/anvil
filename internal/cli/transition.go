@@ -17,7 +17,7 @@ import (
 
 func newTransitionCmd() *cobra.Command {
 	var owner, reason string
-	var asJSON, force, noLongerReproduces, cutWorktree bool
+	var asJSON, force, noLongerReproduces, cutWorktree, localValidated bool
 	var worktreeOverride, branchOverride string
 	var landPRNum int
 	cmd := &cobra.Command{
@@ -93,6 +93,11 @@ func newTransitionCmd() *cobra.Command {
 				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
 					Set("flag", "--worktree").
 					Set("applies_to", "use only with --cut-worktree or --land-pr"))
+			}
+			if localValidated && landPRNum == 0 {
+				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
+					Set("flag", "--local-validated").
+					Set("applies_to", "use only with --land-pr"))
 			}
 			if landPRNum != 0 {
 				if t != core.TypeIssue || to != "resolved" {
@@ -223,7 +228,7 @@ func newTransitionCmd() *cobra.Command {
 			}
 
 			if landPRNum != 0 {
-				if err := doLandPR(a, id, landPRNum, worktreeOverride); err != nil {
+				if err := doLandPR(a, id, landPRNum, worktreeOverride, localValidated); err != nil {
 					return printAndReturn(cmd, err)
 				}
 			}
@@ -285,7 +290,11 @@ func newTransitionCmd() *cobra.Command {
 
 			if t == core.TypeIssue && to == "resolved" && landPRNum != 0 {
 				stamp := time.Now().UTC().Format("2006-01-02")
-				audit := fmt.Sprintf("\n> resolved --land-pr %d %s: merged via squash + branch deleted\n", landPRNum, stamp)
+				extra := ""
+				if localValidated {
+					extra = " (--local-validated: CI gate bypassed on operator attestation)"
+				}
+				audit := fmt.Sprintf("\n> resolved --land-pr %d %s: merged via squash + branch deleted%s\n", landPRNum, stamp, extra)
 				if !strings.HasSuffix(a.Body, "\n") {
 					a.Body += "\n"
 				}
@@ -326,6 +335,7 @@ func newTransitionCmd() *cobra.Command {
 	cmd.Flags().StringVar(&worktreeOverride, "worktree", "", "override the derived worktree path (used with --cut-worktree or --land-pr)")
 	cmd.Flags().StringVar(&branchOverride, "branch", "", "override the derived branch name (used with --cut-worktree)")
 	cmd.Flags().IntVar(&landPRNum, "land-pr", 0, "PR number to land: verify-mergeable + CI-green, squash-merge, verify MERGED, remove worktree, delete branch, then transition (issue → resolved only)")
+	cmd.Flags().BoolVar(&localValidated, "local-validated", false, "bypass the CI-green gate when used with --land-pr; for use when required CI is genuinely unavailable and the operator has validated locally (audit-logged)")
 	return cmd
 }
 
