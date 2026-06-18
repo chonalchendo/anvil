@@ -29,6 +29,38 @@ const anchorMaxStdoutBytes = 256 * 1024
 // shaRe matches an `expected` field that opts into sha256-digest comparison.
 var shaRe = regexp.MustCompile(`(?i)^sha:[0-9a-f]+$`)
 
+// ansiRe strips ANSI/VT100 escape sequences (CSI sequences and OSC sequences)
+// emitted by progress bars, colour codes, and cursor-control sequences.
+var ansiRe = regexp.MustCompile(`\x1b(?:\[[0-9;?]*[A-Za-z]|\][^\x07]*(?:\x07|\x1b\\))`)
+
+// normalizeAnchorOutput strips progress-bar noise from anchor stdout so it does
+// not pollute the comparison. The algorithm:
+//  1. Strip ANSI/VT100 escape sequences (colour, cursor-control).
+//  2. Split on \n (physical newlines) and drop any line that contains a \r. A
+//     carriage return on a physical line is the in-place-redraw signature of a
+//     progress bar: DuckDB and similar engines repaint the bar by writing
+//     `\r<bar>\r<bar>…` and terminate the run with a \n, so every progress line
+//     carries at least one \r while the real value line (printed once, no
+//     redraw) carries none. Last-\r-wins rendering is insufficient here: the
+//     final repaint leaves visible residual text (e.g. "100% ▕███▏ … elapsed"),
+//     which would still defeat an exact --expected match.
+//  3. Rejoin surviving lines with \n.
+//
+// Trailing \n is not stripped here; callers that need trailing-newline tolerance
+// apply strings.TrimSuffix independently.
+func normalizeAnchorOutput(s string) string {
+	s = ansiRe.ReplaceAllString(s, "")
+	lines := strings.Split(s, "\n")
+	out := lines[:0]
+	for _, line := range lines {
+		if strings.IndexByte(line, '\r') >= 0 {
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
 // capWriter writes to an underlying buffer up to a fixed cap, then silently
 // discards further bytes (still claiming acceptance so the producer's pipe
 // doesn't block). Truncation is exposed via Truncated.
@@ -98,7 +130,7 @@ func runAnchorCheck(ctx context.Context, a *core.Artifact, stderr io.Writer) (ma
 		return false, cmdStr, "", fmt.Errorf("anchor stdout exceeded %d bytes", anchorMaxStdoutBytes)
 	}
 
-	got := stdout.buf.String()
+	got := normalizeAnchorOutput(stdout.buf.String())
 	if shaRe.MatchString(expected) {
 		sum := sha256.Sum256(stdout.buf.Bytes())
 		gotDigest := "sha:" + hex.EncodeToString(sum[:])
