@@ -30,7 +30,24 @@ Only after Challenge. The synthesis must explicitly reflect the opposing view, n
 
 Name sources inline (`per docs.example.com/...`). Mark gaps explicitly — "no info found on Y" beats silent omission.
 
+## Phase: Multi-voter (optional, high-stakes claims only)
+
+When a decision rides on one or more load-bearing claims and you want stronger than a single-agent Challenge pass, apply independent multi-voter adjudication. Engage this phase explicitly ("verify these claims with multiple skeptics") — do not run it by default, as the token cost is high.
+
+**Mechanism:**
+
+1. Identify the load-bearing claims from the Synthesise output (typically 2–5; skip obvious background facts).
+2. For each claim, run K independent skeptic passes (K = 3 is the default). Each pass argues against the claim using only sources not already cited in favour of it. Passes must be independent — each starts from the claim text only, not from the previous skeptic's output.
+3. Tally: if ≥ ⌈K×2/3⌉ passes refute the claim (assert it is false, unsupported, or overstated in the decision context), **drop the claim** from the synthesis and note it as unverified. If fewer than that threshold refute it, the claim survives.
+4. Revise the synthesis to reflect dropped claims. Where a claim is dropped, record "claim dropped: <gist>, refuted by <n>/<K> independent skeptics."
+
+**Parallel vs. sequential harnesses:**
+
+Where the agent harness can run K passes concurrently (e.g. multi-agent fan-out), do so. Where it cannot, run the K passes sequentially in a single context — each pass must not be influenced by the previous one's conclusion; summarise the claim but do not summarise how the prior pass evaluated it. Sequential and parallel produce the same tally; sequential is slower but cross-harness portable.
+
+**Why not always:** Multi-voter triples (or more) the Challenge cost. Reserve it for claims whose error would cause a genuinely bad decision — architecture choices, security properties, performance claims that size a migration.
+
 ## Hand-back
 
-- **Sub-skill:** return synthesis (including the reflected critique) to the caller. Done.
+- **Sub-skill:** return synthesis (including the reflected critique, and any dropped claims) to the caller. Done.
 - **Standalone:** return to `SKILL.md` Phase 3 — Capture.
