@@ -297,6 +297,25 @@ func TestTransition_InProgress_ForceAndNoLongerReproducesMutuallyExclusive(t *te
 	}
 }
 
+// TestTransition_InProgress_CarriageReturnProgressBarMatches exercises the
+// carriage-return normalization fix: a command that emits \r-progress-bar noise
+// followed by the real value on a trailing line must claim cleanly when expected
+// holds only the bare value. This FAILS against pre-fix code and is the
+// regression guard for the fix.
+func TestTransition_InProgress_CarriageReturnProgressBarMatches(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	// Synthetic DuckDB-shaped progress: \r50%\r100%\n0 — expected holds just "0".
+	writeIssueWithAnchor(t, vault, "anvil.cr", `printf '\r50%%\r100%%\n0'`, "0")
+
+	execCmd(t, "transition", "issue", "anvil.cr", "in-progress", "--owner", "x")
+
+	if !strings.Contains(readIssueRaw(t, vault, "anvil.cr"), "status: in-progress") {
+		t.Errorf("expected carriage-return progress noise to be stripped before comparison")
+	}
+}
+
 // TestTransition_InProgress_EchoTrailingNewlineMatches exercises the trailing-
 // newline fix: `echo hello` always appends \n, so the old exact-equality
 // comparison (got == expected) would reject a bare --expected "hello". The
