@@ -915,6 +915,89 @@ func TestLandPRDetectsWorktreeViaHeadBranch(t *testing.T) {
 	}
 }
 
+// TestLandPRLocalValidatedBypassesCICheck confirms that --local-validated
+// skips ghPRChecksFn even when it would return an error, allowing the merge
+// to proceed. This covers the operator-attestation override path: required CI
+// is unavailable but the operator has verified locally.
+func TestLandPRLocalValidatedBypassesCICheck(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	// CI would fail without the override.
+	s.checksErr = errors.New("check `tests` failed: timed out waiting for status")
+
+	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--local-validated")
+
+	// Merge must have been called despite the CI error.
+	if len(s.mergeCalls) != 1 || s.mergeCalls[0] != 42 {
+		t.Errorf("merge calls = %v, want [42]", s.mergeCalls)
+	}
+	// CI check must have been skipped entirely.
+	if len(s.checksCalls) != 0 {
+		t.Errorf("CI check should be skipped with --local-validated; got calls: %v", s.checksCalls)
+	}
+}
+
+// TestLandPRLocalValidatedAuditsOverride pins the audit trail: a land that
+// bypasses the CI gate with --local-validated must record that fact in the
+// issue body so a later reader sees the attestation.
+func TestLandPRLocalValidatedAuditsOverride(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.checksErr = errors.New("check `tests` failed")
+
+	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--local-validated")
+
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if !strings.Contains(a.Body, "--local-validated") {
+		t.Errorf("audit line missing --local-validated tag:\n%s", a.Body)
+	}
+	if !strings.Contains(a.Body, "CI gate bypassed") {
+		t.Errorf("audit line missing bypass notice:\n%s", a.Body)
+	}
+}
+
+// TestLocalValidatedWithoutLandPRRejected ensures --local-validated cannot be
+// used without --land-pr: using the flag alone is a user error and must
+// return an explicit rejection rather than silently being ignored.
+func TestLocalValidatedWithoutLandPRRejected(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	stubSideFX(t)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--local-validated", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "invalid_flag_for_transition") {
+		t.Errorf("expected invalid_flag_for_transition rejection; got: %s", stdout.String())
+	}
+}
+
 // TestLandPRErrorsWhenNoWorktreeFound verifies that --land-pr returns
 // land_pr_worktree_missing and does not merge when no worktree is found via
 // either the default path or the live worktree list.
