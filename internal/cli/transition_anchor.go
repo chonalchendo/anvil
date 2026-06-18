@@ -33,17 +33,18 @@ var shaRe = regexp.MustCompile(`(?i)^sha:[0-9a-f]+$`)
 // emitted by progress bars, colour codes, and cursor-control sequences.
 var ansiRe = regexp.MustCompile(`\x1b(?:\[[0-9;?]*[A-Za-z]|\][^\x07]*(?:\x07|\x1b\\))`)
 
-// normalizeAnchorOutput renders terminal control sequences so that progress-bar
-// noise (carriage-return overwrites, ANSI escapes) does not pollute the
-// comparison. The algorithm:
-//  1. Strip ANSI/VT100 escape sequences.
-//  2. Split on \n (physical newlines). Drop any segment that begins with \r —
-//     these are pure carriage-return progress-overwrite lines (the pattern used
-//     by DuckDB and similar engines to redraw a progress bar in-place). Such
-//     lines carry no payload; their only effect on a real terminal is to redraw
-//     column 0, which leaves no residual text once the next \n-delimited line
-//     prints the actual value.
-//  3. Rejoin surviving segments with \n.
+// normalizeAnchorOutput strips progress-bar noise from anchor stdout so it does
+// not pollute the comparison. The algorithm:
+//  1. Strip ANSI/VT100 escape sequences (colour, cursor-control).
+//  2. Split on \n (physical newlines) and drop any line that contains a \r. A
+//     carriage return on a physical line is the in-place-redraw signature of a
+//     progress bar: DuckDB and similar engines repaint the bar by writing
+//     `\r<bar>\r<bar>…` and terminate the run with a \n, so every progress line
+//     carries at least one \r while the real value line (printed once, no
+//     redraw) carries none. Last-\r-wins rendering is insufficient here: the
+//     final repaint leaves visible residual text (e.g. "100% ▕███▏ … elapsed"),
+//     which would still defeat an exact --expected match.
+//  3. Rejoin surviving lines with \n.
 //
 // Trailing \n is not stripped here; callers that need trailing-newline tolerance
 // apply strings.TrimSuffix independently.
@@ -52,8 +53,7 @@ func normalizeAnchorOutput(s string) string {
 	lines := strings.Split(s, "\n")
 	out := lines[:0]
 	for _, line := range lines {
-		// Lines starting with \r are pure progress-redraw lines; discard them.
-		if len(line) > 0 && line[0] == '\r' {
+		if strings.IndexByte(line, '\r') >= 0 {
 			continue
 		}
 		out = append(out, line)

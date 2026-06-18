@@ -316,6 +316,27 @@ func TestTransition_InProgress_CarriageReturnProgressBarMatches(t *testing.T) {
 	}
 }
 
+// TestTransition_InProgress_MidLineCarriageReturnProgressMatches exercises the
+// genuine DuckDB output shape: progress lines do NOT begin with \r — prior
+// content is written, then \r repaints in place, so the \r sits MID-line and
+// the line begins with literal text. The pre-fix whole-\n-line drop (and a
+// last-\r-wins render) both leave the residual "100% done" text and defeat the
+// bare --expected "0". Only dropping any line that contains a \r claims cleanly.
+func TestTransition_InProgress_MidLineCarriageReturnProgressMatches(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	// Mid-line \r repaints: line begins with literal "100% done", then \r repaints
+	// the next progress line, then the real value "0" prints on its own line.
+	writeIssueWithAnchor(t, vault, "anvil.midcr", `printf '\r100%% done     \n\r 49%% wait    \r100%% done     \n0\n'`, "0")
+
+	execCmd(t, "transition", "issue", "anvil.midcr", "in-progress", "--owner", "x")
+
+	if !strings.Contains(readIssueRaw(t, vault, "anvil.midcr"), "status: in-progress") {
+		t.Errorf("expected mid-line carriage-return progress noise to be stripped before comparison")
+	}
+}
+
 // TestTransition_InProgress_EchoTrailingNewlineMatches exercises the trailing-
 // newline fix: `echo hello` always appends \n, so the old exact-equality
 // comparison (got == expected) would reject a bare --expected "hello". The
