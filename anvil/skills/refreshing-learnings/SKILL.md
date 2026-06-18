@@ -1,6 +1,6 @@
 ---
 name: refreshing-learnings
-description: "Use to age existing learnings against the current codebase — keep / update / consolidate / replace / delete — and drive status draft→verified→stale→retracted. Triggers: 'refresh learnings', 'are these still true', 'age the learnings'. Not for creating a new learning (distilling-learning)."
+description: "Use to age existing learnings against the current codebase — keep / update / consolidate / synthesize / replace / delete — and drive status draft→verified→stale→retracted. Triggers: 'refresh learnings', 'are these still true', 'age the learnings'. Not for creating a new learning (distilling-learning)."
 license: MIT
 allowed-tools: [Bash, Read, Edit]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
