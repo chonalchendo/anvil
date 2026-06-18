@@ -126,7 +126,7 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		if err := d.ReplaceLinks(row.ID, links); err != nil {
 			return ReindexStats{}, err
 		}
-		if err := d.indexLearningFTS(row, a.Body); err != nil {
+		if err := d.IndexLearningFTS(row, a.Body); err != nil {
 			return ReindexStats{}, err
 		}
 		if err := d.IndexArtifactFTS(row, a.FrontMatter); err != nil {
@@ -225,7 +225,7 @@ func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 		if err := d.ReplaceLinks(row.ID, links); err != nil {
 			return err
 		}
-		if err := d.indexLearningFTS(row, a.Body); err != nil {
+		if err := d.IndexLearningFTS(row, a.Body); err != nil {
 			return err
 		}
 		if err := d.IndexArtifactFTS(row, a.FrontMatter); err != nil {
@@ -258,10 +258,11 @@ func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 	}, nil
 }
 
-// indexLearningFTS upserts a learning's TL;DR into the FTS table; a no-op for
+// IndexLearningFTS upserts a learning's TL;DR into the FTS table; a no-op for
 // every other type. Called after each artifact upsert so content search stays
-// in lockstep with the artifacts table.
-func (d *DB) indexLearningFTS(row ArtifactRow, body string) error {
+// in lockstep with the artifacts table. Exported so the create-time index hook
+// can keep learning_fts in lockstep with artifacts on each save.
+func (d *DB) IndexLearningFTS(row ArtifactRow, body string) error {
 	if row.Type != string(core.TypeLearning) {
 		return nil
 	}

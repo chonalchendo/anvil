@@ -112,6 +112,45 @@ func TestCreateWritesThroughTagsToIndex(t *testing.T) {
 	}
 }
 
+func TestCreateWritesThroughLearningFTSToIndex(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	// Stamp last_reindex first, so the create takes the write-through path (not
+	// the bootstrap full-reindex, which populates learning_fts anyway and would
+	// mask the gap this test guards).
+	execCmd(t, "reindex")
+
+	out := execCmd(t, "create", "learning",
+		"--title", "fts canary",
+		"--tags", "domain/dev-tools,activity/governance",
+		"--allow-new-facet", "domain,activity",
+		"--body", "## TL;DR\nzqxwvcanary immediate searchability check.\n\n## Evidence\nn/a\n\n## Caveats\nn/a",
+		"--json",
+	)
+	var result map[string]any
+	if err := jsonUnmarshal(t, out, &result); err != nil {
+		t.Fatal(err)
+	}
+	id, _ := result["id"].(string)
+
+	// No reindex: the create write-through must have populated learning_fts, so
+	// a content search over the TL;DR finds the new learning immediately.
+	hits, err := openIndex(t, vault).SearchLearnings("zqxwvcanary", index.QueryFilters{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, r := range hits {
+		if r.ID == id {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("create did not write learning TL;DR through to learning_fts: %s absent from %v", id, hits)
+	}
+}
+
 func TestSetStatusWritesThroughToIndex(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)

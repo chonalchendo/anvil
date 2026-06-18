@@ -66,6 +66,14 @@ func indexAfterSave(v *core.Vault, a *core.Artifact) error {
 	if err := db.ReplaceTags(row.ID, index.TagsFromFrontmatter(a.FrontMatter)); err != nil {
 		return err
 	}
+	// Keep learning_fts in lockstep too, so a just-saved learning's TL;DR is
+	// content-searchable (`anvil list learning --search`) without a manual
+	// reindex. Without this the row stays unsearchable until a full rebuild —
+	// incremental can't catch it, since the re-stamp below pushes last_reindex
+	// past this file's mtime. No-op for non-learning types.
+	if err := db.IndexLearningFTS(row, a.Body); err != nil {
+		return err
+	}
 
 	// Re-stamp last-reindex so the file we just wrote (which advanced the vault
 	// dir mtime) doesn't immediately make the index look stale on subsequent
