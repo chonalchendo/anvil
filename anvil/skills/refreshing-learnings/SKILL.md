@@ -1,6 +1,6 @@
 ---
 name: refreshing-learnings
-description: "Use to age existing learnings against the current codebase — keep / update / consolidate / replace / delete — and drive status draft→verified→stale→retracted. Triggers: 'refresh learnings', 'are these still true', 'age the learnings'. Not for creating a new learning (distilling-learning)."
+description: "Use to age existing learnings against the current codebase — keep / update / consolidate / synthesize / replace / delete — and drive status draft→verified→stale→retracted. Triggers: 'refresh learnings', 'are these still true', 'age the learnings'. Not for creating a new learning (distilling-learning)."
 license: MIT
 allowed-tools: [Bash, Read, Edit]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -10,7 +10,7 @@ metadata:
   skill_type: workflow
   side: execution
   created: 2026-06-15
-  updated: 2026-06-15
+  updated: 2026-06-18
   tags: [type/skill, activity/refresh]
   diataxis: how-to
   authored_via: manual
@@ -59,6 +59,7 @@ Prioritise `draft` and `verified` learnings (those the deterministic pass left u
 | **keep** | Still true and well-scoped | `anvil transition learning <id> verified` (promote a confirmed draft, or revive a stale one) |
 | **update** | Core claim holds, details drifted | Edit the body; bump `updated`; revive via `verified` if it was stale |
 | **consolidate** | Two+ learnings say one thing | Merge into the strongest; `retracted` the rest with a `related` pointer to the survivor |
+| **synthesize** | Two+ *distinct* learnings share a generalizable pattern worth a higher tier | Create a new generalized learning citing them; the specifics are kept, not retracted |
 | **replace** | Superseded by a newer claim | `retracted`; distil the replacement via `distilling-learning` |
 | **delete** | Never load-bearing; noise | Remove the file (vault hygiene) |
 | **stale** | Claim no longer holds, no replacement yet | `anvil transition learning <id> stale` |
@@ -70,6 +71,15 @@ anvil transition learning <id> <verified|stale|retracted>
 ```
 
 Legal edges: `draft→verified`, `verified→stale`, `stale→verified`, `verified→retracted` (so a draft is promoted to `verified` before it can go stale or be retracted). `transition` rejects an illegal jump; reach for `anvil set learning <id> status` only as a deliberate force-edit escape hatch. Gate the destructive verdicts (consolidate / replace / delete) on the user before acting.
+
+**Synthesize** is consolidate's additive sibling: consolidate collapses duplicates and retracts the losers; synthesize rolls a cluster of *distinct* learnings up into a new higher-tier generalization while keeping every specific. Reuse the `learning` type — no new artifact type:
+
+```bash
+anvil create learning --title "<generalized claim>" --tags <...> --json   # the higher-tier learning
+anvil link learning <new-id> learning <source-id>                         # cite each source (>=2); they are kept, not retracted
+```
+
+The `related[]` links *are* the tier marker — a learning citing 2+ source learnings is a generalization; add a `source_learnings` field only when a query needs to filter on one. It surfaces through the same `anvil-learnings-researcher` + FTS5 crossbar as any learning. Gate on the user: generalization is a judgement call, not an automatic roll-up.
 
 ## Phase 4 — Validate
 
