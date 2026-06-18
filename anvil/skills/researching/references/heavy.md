@@ -40,6 +40,10 @@ Where primaries and secondaries disagree, surface the disagreement with both cit
 
 Mark gaps explicitly: "no primary found on Y" beats silent omission. Decision-grade callers need to see the holes.
 
+## Phase: Multi-voter (optional, high-stakes claims only)
+
+Heavy mode rides on a real decision, so its load-bearing claims are exactly the ones the independent multi-voter gate exists for. After Synthesise, apply the **Multi-voter** phase defined in `references/adversarial.md` (K independent skeptic passes per claim, drop a claim when ≥ ⌈K×2/3⌉ refute it, sequential fallback where the harness has no parallel fan-out). Engage it explicitly — do not run by default, as the token cost is high.
+
 ## Hand-back
 
 - **Sub-skill:** return the cited synthesis to the caller. Done.
