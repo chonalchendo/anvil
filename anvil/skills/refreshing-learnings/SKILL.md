@@ -1,6 +1,6 @@
 ---
 name: refreshing-learnings
-description: "Use to age existing learnings against the current codebase — keep / update / consolidate / synthesize / replace / delete — and drive status draft→verified→stale→retracted. Triggers: 'refresh learnings', 'are these still true', 'age the learnings'. Not for creating a new learning (distilling-learning)."
+description: "Use to age existing learnings against the current codebase — keep / update / consolidate / synthesize / promote / replace / delete — and drive status draft→verified→stale→retracted. Triggers: 'refresh learnings', 'are these still true', 'age the learnings'. Not for creating a new learning (distilling-learning)."
 license: MIT
 allowed-tools: [Bash, Read, Edit]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -60,6 +60,7 @@ Prioritise `draft` and `verified` learnings (those the deterministic pass left u
 | **update** | Core claim holds, details drifted | Edit the body; bump `updated`; revive via `verified` if it was stale |
 | **consolidate** | Two+ learnings say one thing | Merge into the strongest; `retracted` the rest with a `related` pointer to the survivor |
 | **synthesize** | Two+ *distinct* learnings share a generalizable pattern worth a higher tier | Create a new generalized learning citing them; the specifics are kept, not retracted |
+| **promote** | A learning crystallizes a does/does-not boundary worth enforcing | Graduate it into a contract precedent (`writing-contract` update mode); link learning↔contract |
 | **replace** | Superseded by a newer claim | `retracted`; distil the replacement via `distilling-learning` |
 | **delete** | Never load-bearing; noise | Remove the file (vault hygiene) |
 | **stale** | Claim no longer holds, no replacement yet | `anvil transition learning <id> stale` |
@@ -80,6 +81,15 @@ anvil link learning <new-id> learning <source-id>                         # cite
 ```
 
 The `related[]` links *are* the tier marker — a learning citing 2+ source learnings is a generalization; add a `source_learnings` field only when a query needs to filter on one. It surfaces through the same `anvil-learnings-researcher` + FTS5 crossbar as any learning. Gate on the user: generalization is a judgement call, not an automatic roll-up.
+
+**Promote** is synthesize's enforcement sibling: it graduates a does/does-not boundary learning into an *enforced* contract precedent — the edge from the corpus (retrieved only when queried) to a contract's `## Does not`, which `reviewing-pr` treats as blocker-severity and `resuming-session` surfaces at startup. Only a boundary rule qualifies; an observation stays a learning. Reuse [[writing-contract]] update mode — no new skill or verb:
+
+```bash
+anvil link learning <id> contract <contract-id>   # learning → contract
+anvil link contract <contract-id> learning <id>   # contract → learning — `anvil link` writes only the source's related[]; run both for a materialized back-link
+```
+
+Then, via `writing-contract` update mode, append a `## Does not` entry (the rule itself — `reviewing-pr` enforces only `## Does not`, not `## Precedents`) plus a `## Precedents` line anchored on the **issue/PR** id that proved it, not the learning id (a learning can later be retracted, leaving the contract stale-but-authoritative). The learning stays `verified` — the bidirectional link is the graduation marker, not a new status. Gate on the user: enforced-blocker status is a judgement call.
 
 ## Phase 4 — Validate
 
