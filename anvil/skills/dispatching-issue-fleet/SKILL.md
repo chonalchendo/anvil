@@ -33,12 +33,7 @@ Each candidate issue declares the files it anticipates touching (read the issue 
 
 The overlap check is one-line declarations plus eyeball compare — pre-dispatch only. Per-worker post-edit enforcement is handled by `anvil fleet scope-audit` inside each worker before its PR opens (see Scope-change pause protocol).
 
-**Overlapping-dependent landing — never stack.** When you serialize overlapping issues (wave 1 predecessor, wave 2 dependent), never base the dependent's branch on the predecessor's. A dependent stacked on the predecessor's branch is **auto-closed** the moment `--land-pr` squash-merges and deletes that branch, and the closed PR can't be reopened or retargeted (`gh pr edit --base` and `gh pr reopen` both refuse). Do this instead:
-
-1. Land the predecessor fully first: `anvil transition issue <pred-id> resolved --land-pr <n>` (from outside all worktrees).
-2. Only then cut the dependent's worktree — `--cut-worktree` branches it from fresh `origin/master`, already carrying the predecessor's change.
-
-**Already stacked before landing?** Rebase the dependent onto master *before* you land the predecessor: `git rebase --onto origin/master <predecessor-tip> HEAD`, force-push, confirm GitHub retargets the PR to master. Use the predecessor branch **tip** (capture `gh pr view <pred-n> --json headRefOid` before landing) — not `git merge-base`, which keeps the predecessor's commits on the dependent.
+**Overlapping-dependent landing — never stack.** When you serialize overlapping issues, never base the dependent on the predecessor's branch: `--land-pr` squash-merges and deletes that branch, which **auto-closes** the dependent PR irrecoverably (no reopen, no retarget). Land the predecessor first, *then* cut the dependent — `--cut-worktree` branches it from fresh `origin/master`. If one is already stacked, rebase it onto master before landing the predecessor with `git rebase --onto origin/master <predecessor-tip> HEAD` (force-push after) — use the predecessor branch **tip** from `gh pr view <pred-n> --json headRefOid`, not `git merge-base`, which keeps the predecessor's commits.
 
 ## Phase 2b — Retrieve prior learnings once (before fan-out)
 
