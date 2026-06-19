@@ -47,6 +47,15 @@ Keep the edges whose endpoint is a learning (its id resolves under the learnings
 
 **c. By content** — for any work-context keyword or touched file path that Phase 1 could not map to a tag, run `anvil list learning --search "<keyword>" --json` (FTS5 over each learning's TL;DR, ranked by relevance). Fall back to grepping bodies only for matches outside the TL;DR (Evidence/Caveats), and say so if that limits recall.
 
+**d. By relatedness index** — the partial-overlap recall 2a cannot reach. `anvil list learning --tags` is all-of (a learning must carry *every* tag); `anvil index` ranks by shared-facet *count* plus a link bonus, so it surfaces a learning that overlaps the work on only *some* facets — or sits one edge from a touched artifact — without matching every tag. This is the path that catches cross-cutting learnings; seed it both ways and union the results:
+
+```bash
+anvil index <artifact-id> --type learning --json                       # for each artifact id in the work-context
+anvil index --tags domain/<X>,activity/<Y>,<concept-tags> --type learning --json   # the Phase-1 canonicalised concepts as a set
+```
+
+Each hit carries `score` (higher = more shared facets + link bonus) and its `shared_tags`/`links` as evidence — rank by it and carry the evidence into Phase 4. Dedupe against ids already surfaced by 2a–2c.
+
 ## Phase 3 — Progressive disclosure
 
 Work from frontmatter first — the `--json` from Phase 2 gives you title, tags, confidence, `updated`, and `related` for every candidate. Read the full body **only** for the handful that look load-bearing for this work. Never return raw bodies; you return the distilled finding.
@@ -61,7 +70,7 @@ For each candidate that survives Phase 3, decide whether it can still be trusted
 
 ## Return contract
 
-Return the findings that genuinely bear on the work — the relevant few, not a fixed count — highest-precision first (link-graph hits over facet hits over content hits). Honour a specific count when the dispatch prompt asks for one. The tightness IS the value — no preamble, no raw docs. Each finding is exactly one block:
+Return the findings that genuinely bear on the work — the relevant few, not a fixed count — highest-precision first (exact link-graph and all-of facet hits over content and relatedness-index hits). Honour a specific count when the dispatch prompt asks for one. The tightness IS the value — no preamble, no raw docs. Each finding is exactly one block:
 
 ```text
 - <title> · confidence:<high|medium|low> · stale?:<yes|no> · updated:<YYYY-MM-DD>
