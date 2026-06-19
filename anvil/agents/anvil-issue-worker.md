@@ -42,6 +42,10 @@ audit=$(anvil fleet scope-audit --declared "<declared-files>" --changed "$change
 [ "$audit" = "scope: clean" ] || { printf 'Blocker: scope-change out-of-scope files:\n%s\n' "$audit"; exit 1; }
 ```
 
+## Checkpoint-commit WIP (survive mid-task death)
+
+You may die mid-task on a terminal error (API 5xx after retries, OOM, killed process) — long before `gh pr create`. Uncommitted work is invisible to the orchestrator and unrecoverable without a human reading your dirty tree. So commit WIP incrementally: after each coherent unit of progress (a file implemented, a test added) `git commit` it on your branch with a `wip:` prefix. A mid-task death then leaves recoverable checkpoint commits on the branch, not a silent dirty tree; the final PR squashes them, so granularity costs nothing.
+
 ## Forbidden calls
 
 Never `gh pr merge`, `git worktree remove`, `anvil transition resolved`, or `anvil transition abandoned` — the human owns those.

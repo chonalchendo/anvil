@@ -71,7 +71,9 @@ Each subagent's last line is structurally one of:
 
 - `^https://github\.com/.+/pull/[0-9]+$` — PR url. Proceed to Phase 5 for this PR.
 - `^Blocker: .+$` — explicit blocker. Record, surface to user, do not re-dispatch.
-- Anything else — **malformed return** (narrative-as-final-output). This is the recurring 100-200 LOC stall pattern (sessions 2026-05-13, 2026-05-14, 2026-05-15 all hit it). Re-dispatch action-only: a step-by-step plain-text prompt with **no skill wrapper**, naming the exact next commit + push + PR commands. If the second dispatch also malforms, fall back to main-session takeover for that issue.
+- Anything else — **malformed return** (narrative-as-final-output) or a worker that died mid-task (API 5xx, OOM, killed). This is the recurring 100-200 LOC stall pattern (sessions 2026-05-13, 2026-05-14, 2026-05-15 all hit it). Re-dispatch action-only: a step-by-step plain-text prompt with **no skill wrapper**, naming the exact next commit + push + PR commands. If the second dispatch also malforms, fall back to main-session takeover for that issue.
+
+**Recover the dead/malformed worker's WIP from its branch, not the dirty tree.** Workers checkpoint-commit as they work (see `anvil-issue-worker.md` — Checkpoint-commit WIP), so a mid-task death leaves recoverable `wip:` commits on the branch. Before re-dispatching or taking over, read `git log --stat <branch>` (the worktree the orchestrator cut for this issue) to see what already landed — do **not** reconstruct progress by reading every modified/untracked file in the dirty worktree. Re-dispatch the takeover prompt pointed at that branch so it builds on the checkpoints rather than redoing them.
 
 **Expected miss-rate: 1 in N falls back to main-session takeover.** Surface this in the final report so the human reads a stall as design-anticipated, not a tool bug.
 
