@@ -33,7 +33,7 @@ Each candidate issue declares the files it anticipates touching (read the issue 
 
 The overlap check is one-line declarations plus eyeball compare — pre-dispatch only. Per-worker post-edit enforcement is handled by `anvil fleet scope-audit` inside each worker before its PR opens (see Scope-change pause protocol).
 
-**Overlapping-dependent landing sequence — squash-merge auto-close trap.** When two issues overlap and you serialize them (wave 1: predecessor, wave 2: dependent), the dependent's worktree must be cut from `origin/master` *after* the predecessor lands — never stacked on the predecessor's branch. Stacking is a trap: `--land-pr` squash-merges and deletes the predecessor branch, which causes GitHub to **auto-close** the dependent PR whose base branch no longer exists. A closed PR cannot be recovered via `gh pr edit --base` or `gh pr reopen` (both refuse). Recovery requires: `git rebase --onto origin/master <predecessor-branch-tip> HEAD` on the dependent branch, force-push, open a new PR, and leave an audit comment on the dead PR — ~6 manual steps.
+**Overlapping-dependent landing sequence — squash-merge auto-close trap.** When two issues overlap and you serialize them (wave 1: predecessor, wave 2: dependent), the dependent's worktree must be cut from `origin/master` *after* the predecessor lands — never stacked on the predecessor's branch. Stacking is a trap: `--land-pr` squash-merges and deletes the predecessor branch, which causes GitHub to **auto-close** the dependent PR whose base branch no longer exists. A closed PR cannot be recovered via `gh pr edit --base` or `gh pr reopen` (both refuse). Recovery requires: `git rebase --onto origin/master <predecessor-branch-tip> HEAD` on the dependent branch, force-push, open a new PR, and leave an audit comment on the dead PR — ~6 manual steps. `<predecessor-branch-tip>` is the predecessor PR's pre-merge head SHA (capture `gh pr view <n> --json headRefOid` *before* landing) or the dependent's reflog — the branch name no longer resolves once `--land-pr` deletes it.
 
 **Safe protocol:**
 1. Land the predecessor first: `anvil transition issue <pred-id> resolved --land-pr <n>` (run from outside all worktrees, never from inside the PR's worktree).
@@ -41,7 +41,7 @@ The overlap check is one-line declarations plus eyeball compare — pre-dispatch
 3. Cut the dependent's worktree *after* the predecessor merges, branching from `origin/master` (the `--cut-worktree` flag fetches and branches from `origin/HEAD`).
 4. Dispatch the dependent worker only then.
 
-If the human has already stacked a dependent and the predecessor is about to land: rebase the dependent *before* merging — `git rebase --onto origin/master $(git merge-base HEAD origin/master) HEAD` on the dependent branch, force-push, confirm GitHub retargets to master, then land the predecessor.
+If the human has already stacked a dependent and the predecessor is about to land: rebase the dependent *before* merging — `git rebase --onto origin/master <predecessor-branch> HEAD` on the dependent branch, force-push, confirm GitHub retargets to master, then land the predecessor. The `<upstream>` arg must be the predecessor tip (not `git merge-base HEAD origin/master`, which resolves to the fork point *before* the predecessor's commits and would replay them onto master).
 
 ## Phase 2b — Retrieve prior learnings once (before fan-out)
 
