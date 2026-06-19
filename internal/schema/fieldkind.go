@@ -39,6 +39,30 @@ func FieldKind(typeName, fieldName string) (Kind, error) {
 	return classify(prop.Type), nil
 }
 
+// FieldRequired reports whether fieldName is in typeName's schema `required`
+// array. The set unset-on-empty path consults this so clearing a required
+// scalar (title, goal, …) falls through to ValidateField's minLength:1 reject
+// instead of silently deleting the key. An error is returned only when typeName
+// has no embedded schema.
+func FieldRequired(typeName, fieldName string) (bool, error) {
+	b, err := EmbeddedFS.ReadFile(typeName + ".schema.json")
+	if err != nil {
+		return false, fmt.Errorf("read %s schema: %w", typeName, err)
+	}
+	var raw struct {
+		Required []string `json:"required"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return false, fmt.Errorf("parse %s schema: %w", typeName, err)
+	}
+	for _, r := range raw.Required {
+		if r == fieldName {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // classify maps a JSON Schema "type" value to a FieldKind. The value may be a
 // string ("array"), a slice of strings (["string","null"]), or absent (e.g.
 // fields defined via `enum` or `const` — treated as scalar).
