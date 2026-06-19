@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -49,7 +50,7 @@ func newBuildCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			tasks := readyIssuesToTasks(rows, flagMilestone)
+			tasks := readyUnitsToTasks(selectReadyUnits(rows, flagMilestone))
 			if len(tasks) == 0 {
 				cmd.PrintErrln("no ready issues to dispatch")
 				return nil
@@ -102,26 +103,31 @@ func newBuildCmd() *cobra.Command {
 	return cmd
 }
 
-// readyIssuesToTasks maps ready-issue index rows to dispatch tasks: each ready
-// issue becomes a task that runs completing-issue to PR-opened. When milestone
-// is set, rows are filtered by their milestone frontmatter — which the index
-// does not store, so the artifact is loaded to read it.
-func readyIssuesToTasks(rows []index.ArtifactRow, milestone string) []core.Task {
-	tasks := make([]core.Task, 0, len(rows))
-	for _, r := range rows {
-		if milestone != "" {
-			a, err := core.LoadArtifact(r.Path)
-			if err != nil || milestoneSlug(a.FrontMatter["milestone"]) != milestone {
-				continue
-			}
+// readyUnitsToTasks maps the priority-ordered ready frontier to dispatch tasks.
+// Each unit becomes a completing-issue task whose body carries the assembled
+// start-context (goal, severity, milestone, governing contracts, path) — the
+// same context `anvil next` hands an interactive agent, so a dispatched agent
+// starts from the unit-with-context rather than a bare id. Milestone and
+// contracts lines are omitted when empty so the body carries no blank scaffolding.
+func readyUnitsToTasks(units []readyUnit) []core.Task {
+	tasks := make([]core.Task, 0, len(units))
+	for _, u := range units {
+		var b strings.Builder
+		fmt.Fprintf(&b, "Complete anvil issue %s end-to-end to PR-opened using the completing-issue skill. The human owns the merge.\n\n", u.ID)
+		fmt.Fprintf(&b, "Goal: %s\n", u.Goal)
+		fmt.Fprintf(&b, "Severity: %s\n", u.Severity)
+		if u.Milestone != "" {
+			fmt.Fprintf(&b, "Milestone: %s\n", u.Milestone)
 		}
+		if len(u.Contracts) > 0 {
+			fmt.Fprintf(&b, "Governing contracts: %s\n", strings.Join(u.Contracts, ", "))
+		}
+		fmt.Fprintf(&b, "Issue path: %s\n", u.Path)
+
 		tasks = append(tasks, core.Task{
-			ID:           r.ID,
+			ID:           u.ID,
 			SkillsToLoad: []string{"completing-issue"},
-			Body: fmt.Sprintf(
-				"Complete anvil issue %s end-to-end to PR-opened using the completing-issue skill. The human owns the merge.",
-				r.ID,
-			),
+			Body:         b.String(),
 		})
 	}
 	return tasks

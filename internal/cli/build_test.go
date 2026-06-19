@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"strings"
 	"testing"
-
-	"github.com/chonalchendo/anvil/internal/index"
 )
 
 func TestBuild_DryRunJSON_EmitsReadyIssueRecords(t *testing.T) {
@@ -74,12 +72,12 @@ func TestBuild_RejectsPositionalArgs(t *testing.T) {
 	}
 }
 
-func TestReadyIssuesToTasks_MapsIDAndCompletingSkill(t *testing.T) {
-	rows := []index.ArtifactRow{
-		{ID: "demo.a", Path: "/nonexistent"},
-		{ID: "demo.b", Path: "/nonexistent"},
+func TestReadyUnitsToTasks_MapsIDSkillAndStartContext(t *testing.T) {
+	units := []readyUnit{
+		{ID: "demo.a", Goal: "ship a", Severity: "high", Milestone: "demo.m1", Contracts: []string{"demo.c1"}, Path: "/v/demo.a.md"},
+		{ID: "demo.b", Goal: "ship b", Severity: "low", Path: "/v/demo.b.md"},
 	}
-	tasks := readyIssuesToTasks(rows, "") // no milestone filter → no artifact load
+	tasks := readyUnitsToTasks(units)
 	if len(tasks) != 2 {
 		t.Fatalf("got %d tasks, want 2", len(tasks))
 	}
@@ -89,7 +87,14 @@ func TestReadyIssuesToTasks_MapsIDAndCompletingSkill(t *testing.T) {
 	if len(tasks[0].SkillsToLoad) != 1 || tasks[0].SkillsToLoad[0] != "completing-issue" {
 		t.Errorf("task[0].SkillsToLoad = %v, want [completing-issue]", tasks[0].SkillsToLoad)
 	}
-	if !strings.Contains(tasks[0].Body, "demo.a") {
-		t.Errorf("task[0].Body should reference the issue id; got %q", tasks[0].Body)
+	// The body carries the assembled start-context, not just the id.
+	for _, want := range []string{"demo.a", "Goal: ship a", "Severity: high", "Milestone: demo.m1", "Governing contracts: demo.c1", "Issue path: /v/demo.a.md"} {
+		if !strings.Contains(tasks[0].Body, want) {
+			t.Errorf("task[0].Body missing %q; got:\n%s", want, tasks[0].Body)
+		}
+	}
+	// Empty milestone/contracts produce no blank scaffolding lines.
+	if strings.Contains(tasks[1].Body, "Milestone:") || strings.Contains(tasks[1].Body, "Governing contracts:") {
+		t.Errorf("task[1].Body should omit empty milestone/contracts; got:\n%s", tasks[1].Body)
 	}
 }
