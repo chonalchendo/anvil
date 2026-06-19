@@ -33,6 +33,8 @@ Each candidate issue declares the files it anticipates touching (read the issue 
 
 The overlap check is one-line declarations plus eyeball compare — pre-dispatch only. Per-worker post-edit enforcement is handled by `anvil fleet scope-audit` inside each worker before its PR opens (see Scope-change pause protocol).
 
+**Overlapping-dependent landing — never stack.** When you serialize overlapping issues, never base the dependent on the predecessor's branch: `--land-pr` squash-merges and deletes that branch, which **auto-closes** the dependent PR irrecoverably (no reopen, no retarget). Land the predecessor first, *then* cut the dependent — `--cut-worktree` branches it from fresh `origin/master`. If one is already stacked, rebase it onto master before landing the predecessor with `git rebase --onto origin/master <predecessor-tip> HEAD` (force-push after) — use the predecessor branch **tip** from `gh pr view <pred-n> --json headRefOid`, not `git merge-base`, which keeps the predecessor's commits.
+
 ## Phase 2b — Retrieve prior learnings once (before fan-out)
 
 The fleet worker is a subagent and cannot dispatch a sub-subagent, so per-worker retrieval is impossible by topology. Retrieve **once in the orchestrator**, before fan-out, and inject the gist into every worker's dispatch prompt — correct by topology and cheaper (one retrieval, N workers). Dispatch `anvil-learnings-researcher` via `subagent_type` with a `<work-context>` built from the batch's shared milestone and the union of the candidates' domains:
