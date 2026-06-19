@@ -13,7 +13,7 @@ import (
 )
 
 // newBuildCmd builds the issue-graph dispatch loop. The command is the driver
-// in contract.anvil.build-orchestration: it selects work — the ready-issue
+// in contract.anvil.build-orchestration-contract: it selects work — the ready-issue
 // frontier from the index — and hands the engine pre-built task waves. It does
 // not own dispatch mechanics. Hidden pending the live-spawn (AC #3) and
 // telemetry (AC #4) milestone slices; --dry-run is the supported path today.

@@ -92,7 +92,7 @@ type tokensJSON struct {
 // finish before the loop aborts. Cancellation flows from the parent ctx, never
 // from sibling failures. The engine owns dispatch only — the caller (driver)
 // owns work-selection and hands it dependency-ordered waves; see
-// contract.anvil.build-orchestration.
+// contract.anvil.build-orchestration-contract.
 func Build(ctx context.Context, waves [][]core.Task, opts Options) (*Summary, error) {
 	if opts.Concurrency <= 0 {
 		opts.Concurrency = 4
