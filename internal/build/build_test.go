@@ -66,19 +66,19 @@ func (f *fakeAdapter) Run(ctx context.Context, req RunRequest) (RunResult, error
 	return r.res, r.err
 }
 
-func twoTaskPlan() *core.Plan {
-	return &core.Plan{
-		ID: "anvil.demo", Slug: "demo", Status: "ready",
-		Tasks: []core.Task{
-			{
-				ID: "T1", Title: "Wave-0 task", Model: "claude-sonnet-4-6", Effort: "medium",
-				Body: "do T1", Verify: "true",
-			},
-			{
-				ID: "T2", Title: "Wave-1 task", Model: "claude-sonnet-4-6", Effort: "medium",
-				Body: "do T2", Verify: "true", DependsOn: []string{"T1"},
-			},
-		},
+// twoTaskWaves is the canonical two-wave fixture: T1 in wave 0, T2 in wave 1.
+// The driver now owns wave computation, so the engine receives the ordering
+// pre-built rather than deriving it from a plan's depends_on edges.
+func twoTaskWaves() [][]core.Task {
+	return [][]core.Task{
+		{{
+			ID: "T1", Title: "Wave-0 task", Model: "claude-sonnet-4-6", Effort: "medium",
+			Body: "do T1", Verify: "true",
+		}},
+		{{
+			ID: "T2", Title: "Wave-1 task", Model: "claude-sonnet-4-6", Effort: "medium",
+			Body: "do T2", Verify: "true",
+		}},
 	}
 }
 
@@ -91,7 +91,7 @@ func TestBuild_WaveOrder_T1BeforeT2(t *testing.T) {
 		Stderr:      io.Discard,
 		Router:      Router{"claude-": fa},
 	}
-	sum, err := Build(context.Background(), twoTaskPlan(), opts)
+	sum, err := Build(context.Background(), twoTaskWaves(), opts)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -107,15 +107,12 @@ func TestBuild_WaveOrder_T1BeforeT2(t *testing.T) {
 }
 
 func TestBuild_ConcurrencyLimit_HoldsAtCap(t *testing.T) {
-	// 3 independent wave-0 tasks; concurrency=2; assert max in-flight ≤ 2.
-	plan := &core.Plan{
-		ID: "anvil.fan", Slug: "fan", Status: "ready",
-		Tasks: []core.Task{
-			{ID: "T1", Title: "a", Model: "claude-sonnet-4-6", Body: "a", Verify: "true"},
-			{ID: "T2", Title: "b", Model: "claude-sonnet-4-6", Body: "b", Verify: "true"},
-			{ID: "T3", Title: "c", Model: "claude-sonnet-4-6", Body: "c", Verify: "true"},
-		},
-	}
+	// 3 independent tasks in one wave; concurrency=2; assert max in-flight ≤ 2.
+	waves := [][]core.Task{{
+		{ID: "T1", Title: "a", Model: "claude-sonnet-4-6", Body: "a", Verify: "true"},
+		{ID: "T2", Title: "b", Model: "claude-sonnet-4-6", Body: "b", Verify: "true"},
+		{ID: "T3", Title: "c", Model: "claude-sonnet-4-6", Body: "c", Verify: "true"},
+	}}
 	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
 		"a": {hold: 50 * time.Millisecond},
 		"b": {hold: 50 * time.Millisecond},
@@ -126,7 +123,7 @@ func TestBuild_ConcurrencyLimit_HoldsAtCap(t *testing.T) {
 		Stdout: io.Discard, Stderr: io.Discard,
 		Router: Router{"claude-": fa},
 	}
-	if _, err := Build(context.Background(), plan, opts); err != nil {
+	if _, err := Build(context.Background(), waves, opts); err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 	if got := fa.max.Load(); got > 2 {
@@ -143,7 +140,7 @@ func TestBuild_TaskFailure_ReturnsErrBuildTaskFailed(t *testing.T) {
 		Stdout: io.Discard, Stderr: io.Discard,
 		Router: Router{"claude-": fa},
 	}
-	_, err := Build(context.Background(), twoTaskPlan(), opts)
+	_, err := Build(context.Background(), twoTaskWaves(), opts)
 	if !errors.Is(err, ErrBuildTaskFailed) {
 		t.Errorf("err = %v, want ErrBuildTaskFailed", err)
 	}
@@ -158,7 +155,7 @@ func TestBuild_QuotaExhausted_AbortsWaveAndReturnsSentinel(t *testing.T) {
 		Stdout: io.Discard, Stderr: io.Discard,
 		Router: Router{"claude-": fa},
 	}
-	sum, err := Build(context.Background(), twoTaskPlan(), opts)
+	sum, err := Build(context.Background(), twoTaskWaves(), opts)
 	if !errors.Is(err, ErrBuildQuotaExhausted) {
 		t.Errorf("err = %v, want ErrBuildQuotaExhausted", err)
 	}
@@ -175,7 +172,7 @@ func TestBuild_DryRun_SkipsAdapterAndSucceeds(t *testing.T) {
 		Stdout: io.Discard, Stderr: io.Discard,
 		Router: Router{},
 	}
-	sum, err := Build(context.Background(), twoTaskPlan(), opts)
+	sum, err := Build(context.Background(), twoTaskWaves(), opts)
 	if err != nil {
 		t.Fatalf("dry-run Build: %v", err)
 	}
@@ -192,7 +189,7 @@ func TestBuild_NoAdapterRegistered_ErrorsLoud(t *testing.T) {
 		Stdout: io.Discard, Stderr: io.Discard,
 		Router: Router{}, // nothing registered
 	}
-	_, err := Build(context.Background(), twoTaskPlan(), opts)
+	_, err := Build(context.Background(), twoTaskWaves(), opts)
 	if err == nil || !strings.Contains(err.Error(), "no adapter for model") {
 		t.Errorf("err = %v, want 'no adapter for model …'", err)
 	}
@@ -211,7 +208,7 @@ func TestBuild_DiagnosticOnFailure_InJSONAndStderr(t *testing.T) {
 		Stderr: &stderr,
 		Router: Router{"claude-": fa},
 	}
-	_, _ = Build(context.Background(), twoTaskPlan(), opts)
+	_, _ = Build(context.Background(), twoTaskWaves(), opts)
 
 	// JSON record must carry the diagnostic field.
 	if !strings.Contains(stdout.String(), `"diagnostic":"boom"`) {
@@ -247,7 +244,7 @@ func TestBuild_JSONRecord_IncludesTokensAndCost(t *testing.T) {
 		Stdout: &stdout, Stderr: &stderr,
 		Router: Router{"claude-": fa},
 	}
-	if _, err := Build(context.Background(), twoTaskPlan(), opts); err != nil {
+	if _, err := Build(context.Background(), twoTaskWaves(), opts); err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 	lines := strings.Split(strings.TrimRight(stdout.String(), "\n"), "\n")
@@ -295,7 +292,7 @@ func TestBuild_JSONRecord_DryRunOmitsCostFields(t *testing.T) {
 		Stdout: &stdout, Stderr: &stderr,
 		Router: Router{},
 	}
-	if _, err := Build(context.Background(), twoTaskPlan(), opts); err != nil {
+	if _, err := Build(context.Background(), twoTaskWaves(), opts); err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 	lines := strings.Split(strings.TrimRight(stdout.String(), "\n"), "\n")
@@ -341,7 +338,7 @@ func TestBuild_Summary_AggregatesAcrossTasks(t *testing.T) {
 		Stdout: io.Discard, Stderr: &stderr,
 		Router: Router{"claude-": fa},
 	}
-	if _, err := Build(context.Background(), twoTaskPlan(), opts); err != nil {
+	if _, err := Build(context.Background(), twoTaskWaves(), opts); err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 	got := stderr.String()
@@ -370,7 +367,7 @@ func TestBuild_Summary_OmittedOnDryRun(t *testing.T) {
 		Stdout: io.Discard, Stderr: &stderr,
 		Router: Router{},
 	}
-	if _, err := Build(context.Background(), twoTaskPlan(), opts); err != nil {
+	if _, err := Build(context.Background(), twoTaskWaves(), opts); err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 	if got := stderr.String(); got != "" {
@@ -394,7 +391,7 @@ func TestBuild_Summary_PrintedOnPartialFail(t *testing.T) {
 		Stdout: io.Discard, Stderr: &stderr,
 		Router: Router{"claude-": fa},
 	}
-	_, err := Build(context.Background(), twoTaskPlan(), opts)
+	_, err := Build(context.Background(), twoTaskWaves(), opts)
 	if !errors.Is(err, ErrBuildTaskFailed) {
 		t.Fatalf("err = %v, want ErrBuildTaskFailed", err)
 	}
@@ -430,7 +427,7 @@ func TestBuild_Summary_PrintedOnQuotaExhausted(t *testing.T) {
 		Stdout: io.Discard, Stderr: &stderr,
 		Router: Router{"claude-": fa},
 	}
-	_, err := Build(context.Background(), twoTaskPlan(), opts)
+	_, err := Build(context.Background(), twoTaskWaves(), opts)
 	if !errors.Is(err, ErrBuildQuotaExhausted) {
 		t.Fatalf("err = %v, want ErrBuildQuotaExhausted", err)
 	}
@@ -467,15 +464,12 @@ func (c *concurrencyDetectingWriter) Write(p []byte) (int, error) {
 }
 
 func TestBuild_JSONRecord_WritesAreSerialized(t *testing.T) {
-	plan := &core.Plan{
-		ID: "anvil.fanout", Slug: "fanout", Status: "ready",
-		Tasks: []core.Task{
-			{ID: "T1", Title: "a", Model: "claude-sonnet-4-6", Body: "a", Verify: "true"},
-			{ID: "T2", Title: "b", Model: "claude-sonnet-4-6", Body: "b", Verify: "true"},
-			{ID: "T3", Title: "c", Model: "claude-sonnet-4-6", Body: "c", Verify: "true"},
-			{ID: "T4", Title: "d", Model: "claude-sonnet-4-6", Body: "d", Verify: "true"},
-		},
-	}
+	waves := [][]core.Task{{
+		{ID: "T1", Title: "a", Model: "claude-sonnet-4-6", Body: "a", Verify: "true"},
+		{ID: "T2", Title: "b", Model: "claude-sonnet-4-6", Body: "b", Verify: "true"},
+		{ID: "T3", Title: "c", Model: "claude-sonnet-4-6", Body: "c", Verify: "true"},
+		{ID: "T4", Title: "d", Model: "claude-sonnet-4-6", Body: "d", Verify: "true"},
+	}}
 	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
 		"a": {hold: 5 * time.Millisecond},
 		"b": {hold: 5 * time.Millisecond},
@@ -488,7 +482,7 @@ func TestBuild_JSONRecord_WritesAreSerialized(t *testing.T) {
 		Stdout: stdout, Stderr: io.Discard,
 		Router: Router{"claude-": fa},
 	}
-	if _, err := Build(context.Background(), plan, opts); err != nil {
+	if _, err := Build(context.Background(), waves, opts); err != nil {
 		t.Fatalf("Build: %v", err)
 	}
 	if got := stdout.max.Load(); got > 1 {

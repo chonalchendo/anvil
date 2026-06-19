@@ -87,11 +87,13 @@ type tokensJSON struct {
 	CacheWrite int64 `json:"cache_write,omitempty"`
 }
 
-// Build walks plan.Waves(), dispatching each task through a routed adapter
-// under an errgroup with concurrency limit. Wave-complete-then-stop: all
-// in-flight tasks finish before the loop aborts. Cancellation flows from the
-// parent ctx, never from sibling failures.
-func Build(ctx context.Context, p *core.Plan, opts Options) (*Summary, error) {
+// Build dispatches pre-computed task waves through a routed adapter under an
+// errgroup with concurrency limit. Wave-complete-then-stop: all in-flight tasks
+// finish before the loop aborts. Cancellation flows from the parent ctx, never
+// from sibling failures. The engine owns dispatch only — the caller (driver)
+// owns work-selection and hands it dependency-ordered waves; see
+// contract.anvil.build-orchestration.
+func Build(ctx context.Context, waves [][]core.Task, opts Options) (*Summary, error) {
 	if opts.Concurrency <= 0 {
 		opts.Concurrency = 4
 	}
@@ -100,11 +102,6 @@ func Build(ctx context.Context, p *core.Plan, opts Options) (*Summary, error) {
 	}
 	if opts.Stderr == nil {
 		opts.Stderr = io.Discard
-	}
-
-	waves, err := p.Waves()
-	if err != nil {
-		return nil, err
 	}
 
 	start := time.Now()
@@ -121,8 +118,7 @@ func Build(ctx context.Context, p *core.Plan, opts Options) (*Summary, error) {
 		g := new(errgroup.Group)
 		g.SetLimit(opts.Concurrency)
 
-		for _, idx := range wave {
-			task := p.Tasks[idx]
+		for _, task := range wave {
 			waveNum := w
 			g.Go(func() error {
 				oc := dispatchTask(ctx, task, waveNum, opts)
@@ -141,8 +137,8 @@ func Build(ctx context.Context, p *core.Plan, opts Options) (*Summary, error) {
 		// Classify wave: scan our own outcomes, not the errgroup's err.
 		quotaHit, anyFail := false, false
 		var firstErr error
-		for _, idx := range wave {
-			oc := sum.Outcomes[p.Tasks[idx].ID]
+		for _, task := range wave {
+			oc := sum.Outcomes[task.ID]
 			switch oc.Outcome {
 			case "quota_exhausted":
 				quotaHit, anyFail = true, true
