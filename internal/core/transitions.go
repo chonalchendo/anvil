@@ -37,6 +37,7 @@ var transitions = map[Type][]Transition{
 		{From: "in-progress", To: "abandoned"},
 		{From: "planned", To: "abandoned"},
 		{From: "done", To: "in-progress", Reverse: true},
+		{From: "done", To: "planned", Reverse: true},
 	},
 	TypeDecision: {
 		{From: "proposed", To: "accepted"},
