@@ -76,6 +76,10 @@ func newSetCmd() *cobra.Command {
 			prev, hadPrev := a.FrontMatter[field]
 
 			result := setResult{ID: id, Path: path, Field: field, Status: "set"}
+			// fieldUnset is set to true when the caller passes an empty string for
+			// a scalar field, meaning "remove this key". ValidateField is skipped
+			// in that path because the field is absent, not invalid.
+			var fieldUnset bool
 
 			switch kind {
 			case schema.KindScalar:
@@ -86,6 +90,18 @@ func newSetCmd() *cobra.Command {
 					return fmt.Errorf("%q is a scalar; expected exactly 1 value, got %d", field, len(values))
 				}
 				v := values[0]
+				// Empty string on an optional scalar field means "unset": delete
+				// the key rather than writing a malformed or empty value.
+				// Check before normalization so "milestone" wrapping never runs
+				// on an empty slug.
+				if v == "" {
+					delete(a.FrontMatter, field)
+					result.From = prev
+					result.To = nil
+					result.Status = "unset"
+					fieldUnset = true
+					break
+				}
 				if field == "milestone" {
 					v = normalizeMilestone(v)
 				}
@@ -258,8 +274,10 @@ func newSetCmd() *cobra.Command {
 				}
 			}
 
-			if err := schema.ValidateField(string(t), field, a.FrontMatter[field]); err != nil {
-				return renderSchemaErr(cmd, v, path, err, flagJSON)
+			if !fieldUnset {
+				if err := schema.ValidateField(string(t), field, a.FrontMatter[field]); err != nil {
+					return renderSchemaErr(cmd, v, path, err, flagJSON)
+				}
 			}
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("saving artifact: %w", err)
