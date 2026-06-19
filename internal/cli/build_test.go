@@ -2,134 +2,94 @@ package cli
 
 import (
 	"bytes"
-	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/chonalchendo/anvil/internal/build"
-	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/index"
 )
 
-func copyBuildSmokeFixture(t *testing.T, vault string) {
-	t.Helper()
-	src := filepath.Join("testdata", "plan_build_smoke.md")
-	data, err := os.ReadFile(src) //nolint:gosec // path is test-controlled or application-managed; not user input
-	if err != nil {
-		t.Fatal(err)
-	}
-	dst := filepath.Join(vault, core.TypePlan.Dir(), "anvil.build-smoke.md")
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(dst, data, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
-		t.Fatal(err)
-	}
-}
+func TestBuild_DryRunJSON_EmitsReadyIssueRecords(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t) // demo.foo: open, unblocked → ready
 
-func TestBuild_DryRun_EmitsJSONPerTask(t *testing.T) {
-	vault := setupVault(t)
-	copyBuildSmokeFixture(t, vault)
-
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"build", "anvil.build-smoke", "--dry-run", "--json"})
-	var out, errBuf bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&errBuf)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("dry-run build: %v\nstderr: %s", err, errBuf.String())
-	}
-
-	got := out.String()
-	for _, want := range []string{`"task_id":"T1"`, `"task_id":"T2"`, `"status":"skipped_dry_run"`} {
-		if !strings.Contains(got, want) {
-			t.Errorf("missing %q in stdout:\n%s", want, got)
+	out := execCmd(t, "build", "--dry-run", "--json", "--project", "demo")
+	for _, want := range []string{`"task_id":"demo.foo"`, `"status":"skipped_dry_run"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in output:\n%s", want, out)
 		}
 	}
 }
 
-func TestBuild_ClaudeBinaryMissing_ReturnsErrBuildTaskFailed(t *testing.T) {
-	vault := setupVault(t)
-	copyBuildSmokeFixture(t, vault)
+func TestBuild_DryRunText_ListsReadyIssueIDs(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
 
-	// Force ANVIL_CLAUDE_BIN to a path that does not exist; PATH-fallback
-	// is irrelevant because the adapter consults the env first.
-	t.Setenv("ANVIL_CLAUDE_BIN", filepath.Join(t.TempDir(), "no-such-claude"))
-
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"build", "anvil.build-smoke"})
-	var errBuf bytes.Buffer
-	cmd.SetOut(&errBuf)
-	cmd.SetErr(&errBuf)
-	err := cmd.Execute()
-	if !errors.Is(err, build.ErrBuildTaskFailed) {
-		t.Errorf("err = %v, want ErrBuildTaskFailed (claude binary missing → task failure)", err)
+	out := execCmd(t, "build", "--dry-run", "--project", "demo")
+	if !strings.Contains(out, "demo.foo") {
+		t.Errorf("dry-run text output missing ready issue id demo.foo:\n%s", out)
 	}
 }
 
-func TestBuild_ClaudeAdapterReachedViaShim(t *testing.T) {
-	vault := setupVault(t)
-	copyBuildSmokeFixture(t, vault)
+func TestBuild_NoReadyIssues_PrintsNotice(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
 
-	// Stub claude on PATH via ANVIL_CLAUDE_BIN. Reuses the adapter's
-	// happy-path shim so we know it emits valid stream-json.
-	shim, err := filepath.Abs(filepath.Join("..", "adapters", "claude", "testdata", "shim_success.sh"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("ANVIL_CLAUDE_BIN", shim)
-
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"build", "anvil.build-smoke", "--json"})
-	var out, errBuf bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&errBuf)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("build via shim: %v\nstderr: %s", err, errBuf.String())
-	}
-	for _, want := range []string{`"task_id":"T1"`, `"task_id":"T2"`, `"outcome":"success"`, `"diagnostic":"Done."`} {
-		if !strings.Contains(out.String(), want) {
-			t.Errorf("missing %q in stdout:\n%s", want, out.String())
-		}
+	out := execCmd(t, "build", "--dry-run")
+	if !strings.Contains(out, "no ready issues to dispatch") {
+		t.Errorf("expected no-ready notice; got:\n%s", out)
 	}
 }
 
-func TestBuild_PlanNotFound_ReturnsErrArtifactNotFound(t *testing.T) {
-	setupVault(t)
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"build", "anvil.no-such-plan", "--dry-run"})
-	var errBuf bytes.Buffer
-	cmd.SetOut(&errBuf)
-	cmd.SetErr(&errBuf)
-	err := cmd.Execute()
-	if !errors.Is(err, ErrArtifactNotFound) {
-		t.Errorf("err = %v, want ErrArtifactNotFound", err)
+func TestBuild_MilestoneFilter_ExcludesUnmatchedIssue(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t) // demo.foo carries no milestone
+
+	// A milestone filter matching nothing must exclude the unmatched issue
+	// rather than dispatch it — yielding the no-ready notice.
+	out := execCmd(t, "build", "--dry-run", "--project", "demo", "--milestone", "demo.nonexistent")
+	if !strings.Contains(out, "no ready issues to dispatch") {
+		t.Errorf("milestone filter should exclude demo.foo (no milestone); got:\n%s", out)
 	}
 }
 
-func TestBuild_RejectsPathTraversalInPlanID(t *testing.T) {
-	setupVault(t)
-	cases := []string{
-		"../etc/passwd",
-		"foo/bar",
-		`foo\bar`,
-		"..",
+func TestBuild_RejectsPositionalArgs(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"build", "some-plan-id", "--dry-run"})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	if err := cmd.Execute(); err == nil {
+		t.Errorf("build takes no positional args; want error, got nil\noutput: %s", buf.String())
 	}
-	for _, planID := range cases {
-		t.Run(planID, func(t *testing.T) {
-			cmd := newRootCmd()
-			cmd.SetArgs([]string{"build", planID, "--dry-run"})
-			var errBuf bytes.Buffer
-			cmd.SetOut(&errBuf)
-			cmd.SetErr(&errBuf)
-			err := cmd.Execute()
-			if err == nil {
-				t.Fatalf("err = nil, want rejection of plan-id %q", planID)
-			}
-			if !strings.Contains(err.Error(), "invalid plan-id") {
-				t.Errorf("err = %v, want \"invalid plan-id\" rejection", err)
-			}
-		})
+}
+
+func TestReadyIssuesToTasks_MapsIDAndCompletingSkill(t *testing.T) {
+	rows := []index.ArtifactRow{
+		{ID: "demo.a", Path: "/nonexistent"},
+		{ID: "demo.b", Path: "/nonexistent"},
+	}
+	tasks := readyIssuesToTasks(rows, "") // no milestone filter → no artifact load
+	if len(tasks) != 2 {
+		t.Fatalf("got %d tasks, want 2", len(tasks))
+	}
+	if tasks[0].ID != "demo.a" {
+		t.Errorf("task[0].ID = %q, want demo.a", tasks[0].ID)
+	}
+	if len(tasks[0].SkillsToLoad) != 1 || tasks[0].SkillsToLoad[0] != "completing-issue" {
+		t.Errorf("task[0].SkillsToLoad = %v, want [completing-issue]", tasks[0].SkillsToLoad)
+	}
+	if !strings.Contains(tasks[0].Body, "demo.a") {
+		t.Errorf("task[0].Body should reference the issue id; got %q", tasks[0].Body)
 	}
 }
