@@ -556,6 +556,85 @@ func writeFixtureMilestone(t *testing.T, vault, id, status string) {
 	}
 }
 
+// TestTransitionBucketMilestoneToDoneRejected pins the bucket guard: a
+// milestone with kind: bucket has no terminal predicate, so done is meaningless.
+// The edge exists in the transition table (planned→done), so the guard must fire
+// after LookupTransition with the structured bucket_milestone_no_done code; a
+// scoped milestone on the same edge still transitions cleanly.
+func TestTransitionBucketMilestoneToDoneRejected(t *testing.T) {
+	const id = "demo.bucket"
+
+	writeBucket := func(t *testing.T, vault string) {
+		t.Helper()
+		a := &core.Artifact{
+			Path: filepath.Join(vault, "85-milestones", id+".md"),
+			FrontMatter: map[string]any{
+				"type": "milestone", "title": id, "description": "fixture description",
+				"created": "2026-01-01", "updated": "2026-01-01",
+				"status": "planned", "project": "demo",
+				"goal": "rolling tracker", "kind": "bucket",
+			},
+			Body: "fixture body\n",
+		}
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	t.Run("bucket done rejected with structured code", func(t *testing.T) {
+		vault := t.TempDir()
+		t.Setenv("ANVIL_VAULT", vault)
+		execCmd(t, "init", vault)
+		writeBucket(t, vault)
+		execCmd(t, "reindex")
+
+		c := newRootCmd()
+		c.SetArgs([]string{"transition", "milestone", id, "done", "--json"})
+		var stdout, stderr bytes.Buffer
+		c.SetOut(&stdout)
+		c.SetErr(&stderr)
+		if err := c.Execute(); err != nil {
+			t.Fatalf("unexpected error with --json: %v\nstderr: %s", err, stderr.String())
+		}
+		var env map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimSpace(stdout.String())), &env); err != nil {
+			t.Fatalf("stdout must be valid JSON; stdout=%q stderr=%q err=%v", stdout.String(), stderr.String(), err)
+		}
+		if env["code"] != "bucket_milestone_no_done" {
+			t.Fatalf("expected code=bucket_milestone_no_done, got: %v", env)
+		}
+		if env["kind"] != "bucket" {
+			t.Fatalf("expected kind=bucket in envelope, got: %v", env)
+		}
+
+		// Guard fires before any state mutation: disk stays planned.
+		a, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", id+".md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, _ := a.FrontMatter["status"].(string); got != "planned" {
+			t.Fatalf("status mutated to %q, want planned (guard must precede mutation)", got)
+		}
+	})
+
+	t.Run("scoped milestone on same edge transitions", func(t *testing.T) {
+		vault := t.TempDir()
+		t.Setenv("ANVIL_VAULT", vault)
+		execCmd(t, "init", vault)
+		writeFixtureMilestone(t, vault, "demo.scoped", "planned")
+		execCmd(t, "reindex")
+
+		out := execCmd(t, "transition", "milestone", "demo.scoped", "done", "--json")
+		var env map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
+			t.Fatalf("json: %v\nout: %s", err, out)
+		}
+		if env["status"] != "transitioned" || env["to"] != "done" {
+			t.Fatalf("scoped milestone done envelope: %v", env)
+		}
+	})
+}
+
 // TestTransitionResolveLastIssueAdvisory pins the milestone-close advisory:
 // resolving the last open/in-progress issue linked to a milestone surfaces
 // "consider: anvil transition milestone <id> done" in both the human output
