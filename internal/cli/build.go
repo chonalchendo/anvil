@@ -1,7 +1,10 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -64,13 +67,19 @@ func newBuildCmd() *cobra.Command {
 				}
 			}
 
-			// Text dry-run: the engine emits per-task records only in --json
-			// mode, so the driver lists the selected frontier here to honour
-			// the flag's promise. --json dry-run is left to the engine's records.
+			// Text dry-run: list the selected frontier.
 			if flagDryRun && !flagJSON {
 				for _, t := range tasks {
 					cmd.Println(t.ID)
 				}
+			}
+
+			// JSON dry-run: emit a single plan envelope so consumers can
+			// assert per-task fields (config_dir uniqueness, auto_merge) with
+			// a plain jq path rather than slurp-mode. Each task gets a
+			// distinct temp dir to make the uniqueness guarantee observable.
+			if flagDryRun && flagJSON {
+				return emitDryRunPlan(cmd.OutOrStdout(), tasks)
 			}
 
 			opts := build.Options{
@@ -101,6 +110,40 @@ func newBuildCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagProject, "project", "", "restrict to ready issues in this project (exact match; default: all)")
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "restrict to ready issues under this milestone slug")
 	return cmd
+}
+
+// emitDryRunPlan writes a single JSON plan envelope to w. Each task receives a
+// distinct temporary directory as its config_dir, matching the isolation the
+// live adapter provides per spawn. Dirs are created then removed — only the
+// path survives, making uniqueness observable to callers like `jq`.
+func emitDryRunPlan(w io.Writer, tasks []core.Task) error {
+	type taskRec struct {
+		TaskID    string `json:"task_id"`
+		Model     string `json:"model"`
+		Effort    string `json:"effort"`
+		ConfigDir string `json:"config_dir"`
+		AutoMerge bool   `json:"auto_merge"`
+	}
+	recs := make([]taskRec, 0, len(tasks))
+	for _, t := range tasks {
+		dir, err := os.MkdirTemp("", "anvil-claude-*")
+		if err != nil {
+			return fmt.Errorf("creating dry-run config dir for task %s: %w", t.ID, err)
+		}
+		_ = os.RemoveAll(dir) // cleanup; only the path matters here
+		model := t.Model
+		if model == "" {
+			model = "claude-sonnet-4-6"
+		}
+		effort := t.Effort
+		if effort == "" {
+			effort = "medium"
+		}
+		recs = append(recs, taskRec{TaskID: t.ID, Model: model, Effort: effort, ConfigDir: dir})
+	}
+	return json.NewEncoder(w).Encode(struct {
+		Tasks []taskRec `json:"tasks"`
+	}{Tasks: recs})
 }
 
 // readyUnitsToTasks maps the priority-ordered ready frontier to dispatch tasks.

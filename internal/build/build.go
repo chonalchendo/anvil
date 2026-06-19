@@ -52,14 +52,19 @@ type Summary struct {
 // TaskOutcome is the per-task record held in memory. Sub-project 3 will
 // persist this shape to SQLite via internal/telemetry.
 type TaskOutcome struct {
-	TaskID   string
-	Wave     int
-	Model    string
-	Effort   string
-	Outcome  string // "success" | "failed" | "quota_exhausted" | "cancelled" | "skipped_dry_run"
-	Duration time.Duration
-	Result   RunResult
-	Err      error
+	TaskID    string
+	Wave      int
+	Model     string
+	Effort    string
+	Outcome   string // "success" | "failed" | "quota_exhausted" | "cancelled" | "skipped_dry_run"
+	Duration  time.Duration
+	Result    RunResult
+	Err       error
+	ConfigDir string // per-spawn CLAUDE_CONFIG_DIR; empty on dry-run
+	// AutoMerge is always false: the human owns the merge button.
+	// Carried in the record so downstream readers (telemetry, dry-run
+	// JSON) can assert the invariant without reading the source.
+	AutoMerge bool
 }
 
 // jsonRecord is the per-task line emitted to stdout in --json mode.
@@ -75,6 +80,8 @@ type jsonRecord struct {
 	CostUSD     float64     `json:"cost_usd,omitempty"`
 	Tokens      *tokensJSON `json:"tokens,omitempty"`
 	Diagnostic  string      `json:"diagnostic,omitempty"`
+	ConfigDir   string      `json:"config_dir,omitempty"`
+	AutoMerge   bool        `json:"auto_merge"`
 }
 
 // tokensJSON mirrors RunResult.Tokens for the JSON record. Pointer in
@@ -188,6 +195,10 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 		TaskID: t.ID, Wave: wave, Model: model, Effort: effort,
 	}
 
+	// AutoMerge is always false — the human owns the merge button. The field
+	// exists so JSON records and downstream readers can assert the invariant.
+	oc.AutoMerge = false
+
 	if opts.DryRun {
 		oc.Outcome = "skipped_dry_run"
 		return oc
@@ -213,6 +224,7 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 	res, err := adapter.Run(ctx, req)
 	oc.Result = res
 	oc.Duration = res.Duration
+	oc.ConfigDir = res.ConfigDir
 	oc.Outcome = classify(ctx, res, err)
 	oc.Err = err
 	if oc.Outcome != "success" && oc.Outcome != "skipped_dry_run" && oc.Result.Diagnostic != "" {
@@ -306,6 +318,8 @@ func emitJSONRecord(opts Options, oc TaskOutcome) {
 		Effort:     oc.Effort,
 		DurationMS: oc.Duration.Milliseconds(),
 		Diagnostic: oc.Result.Diagnostic,
+		ConfigDir:  oc.ConfigDir,
+		AutoMerge:  oc.AutoMerge,
 	}
 	if oc.Outcome == "skipped_dry_run" {
 		rec.Status = oc.Outcome

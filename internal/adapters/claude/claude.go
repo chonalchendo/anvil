@@ -35,6 +35,9 @@ func (a *Adapter) Name() string { return "claude-code" }
 // cmd.Cancel + cmd.WaitDelay on ctx-cancel, NDJSON parsing of usage/cost,
 // quota-message detection. Settings are layered via --settings argv so the
 // user's auth/session state in ~/.claude/ remains intact.
+//
+// Each Run creates a temporary CLAUDE_CONFIG_DIR so parallel tasks cannot
+// clobber each other's session/auth state. The dir is cleaned up after Wait.
 func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResult, error) {
 	bin, err := a.resolveBin()
 	if err != nil {
@@ -45,6 +48,14 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 	if err != nil {
 		return build.RunResult{}, fmt.Errorf("building settings JSON: %w", err)
 	}
+
+	// Isolate each spawn so parallel tasks cannot clobber each other's
+	// session/auth state. The dir is removed after the process exits.
+	configDir, err := os.MkdirTemp("", "anvil-claude-*")
+	if err != nil {
+		return build.RunResult{}, fmt.Errorf("creating per-spawn config dir: %w", err)
+	}
+	defer os.RemoveAll(configDir) //nolint:errcheck // cleanup; not load-bearing
 
 	runCtx := ctx
 	if req.Timeout > 0 {
@@ -72,6 +83,11 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 
 	cmd := exec.CommandContext(runCtx, bin, args...) //nolint:gosec // bin resolved from trusted sources: explicit field, $ANVIL_CLAUDE_BIN, or PATH lookup
 	cmd.Dir = req.Cwd
+	// Inject the per-spawn config dir into the child's environment. Using
+	// os.Environ() as the base ensures the child inherits PATH, HOME, and
+	// any credential env-vars the user set, while overriding CLAUDE_CONFIG_DIR
+	// for isolation. Auth mode is subscription (no ANTHROPIC_API_KEY override).
+	cmd.Env = append(os.Environ(), "CLAUDE_CONFIG_DIR="+configDir)
 	// Setpgid puts the child and all its descendants in a new process group so
 	// cancellation kills the whole tree (e.g. a `sleep` spawned by the shim),
 	// not just the top-level shell. Per go-conventions.md: cmd.Cancel +
@@ -136,6 +152,12 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 		// classifies as failed rather than success.
 		return res, fmt.Errorf("claude wait: %w (stderr: %s)", waitErr, strings.TrimSpace(stderrBuf.String()))
 	}
+
+	// Record the isolation metadata regardless of outcome so callers and
+	// telemetry can correlate logs. configDir is already being removed by
+	// the deferred RemoveAll, but the path is still meaningful at return time.
+	res.ConfigDir = configDir
+	res.AuthMode = "subscription" // no ANTHROPIC_API_KEY override; draws subscription limits
 
 	if quotaSeen {
 		return res, build.ErrQuotaExhausted

@@ -6,14 +6,16 @@ import (
 	"testing"
 )
 
-func TestBuild_DryRunJSON_EmitsReadyIssueRecords(t *testing.T) {
+func TestBuild_DryRunJSON_EmitsPlanEnvelope(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
 	createDemoIssue(t) // demo.foo: open, unblocked → ready
 
 	out := execCmd(t, "build", "--dry-run", "--json", "--project", "demo")
-	for _, want := range []string{`"task_id":"demo.foo"`, `"status":"skipped_dry_run"`} {
+	// --dry-run --json emits a single plan envelope so callers can assert
+	// per-task fields (config_dir uniqueness, auto_merge) without slurp mode.
+	for _, want := range []string{`"task_id":"demo.foo"`, `"config_dir":`, `"auto_merge":false`, `"tasks":`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in output:\n%s", want, out)
 		}
