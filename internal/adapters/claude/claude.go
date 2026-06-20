@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -260,6 +261,18 @@ var keychainCredential = func() ([]byte, bool) {
 	}
 	out, err := exec.Command("security", "find-generic-password", "-s", keychainService, "-w").Output()
 	if err != nil {
+		// Absent (item-not-found) is the expected API-key-mode / logged-out
+		// case, but a real failure (locked Keychain, denied access) lands here
+		// too. Log at debug so a downstream "Not logged in" spawn is
+		// diagnosable without spamming normal runs; stderr carries security(1)'s
+		// specific reason, which err alone ("exit status 44") does not.
+		var exitErr *exec.ExitError
+		stderr := ""
+		if errors.As(err, &exitErr) {
+			stderr = strings.TrimSpace(string(exitErr.Stderr))
+		}
+		slog.Debug("keychain credential lookup failed; isolated spawn falls back to inherited env auth",
+			"err", err, "stderr", stderr)
 		return nil, false
 	}
 	return bytes.TrimSpace(out), true
