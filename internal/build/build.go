@@ -51,8 +51,8 @@ type Summary struct {
 	Wall     time.Duration
 }
 
-// TaskOutcome is the per-task record held in memory. Sub-project 3 will
-// persist this shape to SQLite via internal/telemetry.
+// TaskOutcome is the per-task record held in memory. The driver projects it
+// onto vault.db build_tasks rows after a run; see build-orchestration-contract.
 type TaskOutcome struct {
 	TaskID    string
 	Wave      int
@@ -346,12 +346,13 @@ func toJSONRecord(oc TaskOutcome) jsonRecord {
 	return rec
 }
 
-// PlanJSON writes the dry-run plan envelope to w: one engine jsonRecord per
-// task wrapped in {"tasks": [...]}. The envelope (vs the live --json NDJSON
-// stream) lets callers assert per-task fields with a plain jq path; the per-task
-// shape stays the engine's jsonRecord so the driver never redefines it
+// PlanJSON writes the dry-run plan envelope to w: the run id plus one engine
+// jsonRecord per task wrapped in {"run_id": ..., "tasks": [...]}. The envelope
+// (vs the live --json NDJSON stream) lets callers assert per-task fields with a
+// plain jq path; the run id ties the plan to its persisted build_tasks rows. The
+// per-task shape stays the engine's jsonRecord so the driver never redefines it
 // (build-orchestration-contract: engine is the single source of the outcome shape).
-func PlanJSON(w io.Writer, waves [][]core.Task) error {
+func PlanJSON(w io.Writer, runID string, waves [][]core.Task) error {
 	recs := []jsonRecord{}
 	for wave, tasks := range waves {
 		for _, t := range tasks {
@@ -359,8 +360,9 @@ func PlanJSON(w io.Writer, waves [][]core.Task) error {
 		}
 	}
 	return json.NewEncoder(w).Encode(struct {
+		RunID string       `json:"run_id"`
 		Tasks []jsonRecord `json:"tasks"`
-	}{Tasks: recs})
+	}{RunID: runID, Tasks: recs})
 }
 
 // plannedConfigDir is the per-spawn CLAUDE_CONFIG_DIR the adapter would isolate

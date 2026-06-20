@@ -49,6 +49,35 @@ CREATE TABLE IF NOT EXISTS eval_runs (
     date      TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS eval_runs_skill_idx ON eval_runs(skill);
+-- build_runs / build_tasks are runtime-inserted by anvil build (like eval_runs),
+-- not extracted from vault markdown. No SchemaVersion bump: Open creates them via
+-- IF NOT EXISTS and ReindexFull never touches them, so there is nothing to backfill.
+CREATE TABLE IF NOT EXISTS build_runs (
+    run_id     TEXT PRIMARY KEY,
+    started_at TEXT NOT NULL,
+    project    TEXT,
+    milestone  TEXT,
+    dry_run    INTEGER NOT NULL DEFAULT 0,
+    tasks      INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS build_tasks (
+    run_id        TEXT NOT NULL,
+    task_id       TEXT NOT NULL,
+    wave          INTEGER NOT NULL,
+    model         TEXT NOT NULL,
+    effort        TEXT,
+    outcome       TEXT NOT NULL,
+    tokens_in     INTEGER NOT NULL DEFAULT 0,
+    tokens_out    INTEGER NOT NULL DEFAULT 0,
+    cache_read    INTEGER NOT NULL DEFAULT 0,
+    cache_write   INTEGER NOT NULL DEFAULT 0,
+    cost_usd      REAL NOT NULL DEFAULT 0,
+    duration_ms   INTEGER NOT NULL DEFAULT 0,
+    agent_time_ms INTEGER NOT NULL DEFAULT 0,
+    verify_exit   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (run_id, task_id)
+);
+CREATE INDEX IF NOT EXISTS build_tasks_run_idx ON build_tasks(run_id);
 CREATE VIRTUAL TABLE IF NOT EXISTS learning_fts USING fts5(id UNINDEXED, tldr);
 CREATE VIRTUAL TABLE IF NOT EXISTS artifact_fts USING fts5(id UNINDEXED, content);
 `
