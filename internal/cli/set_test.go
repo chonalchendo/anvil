@@ -673,15 +673,26 @@ func TestSet_ScalarMultipleArgs_Errors(t *testing.T) {
 
 func TestSet_UnknownField_ScalarPath(t *testing.T) {
 	vault := setupVault(t)
-	writeFixtureIssue(t, vault, "foo", "a", "A")
+	path := writeFixtureIssue(t, vault, "foo", "a", "A")
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"set", "issue", "foo.a", "ad_hoc_field", "value"})
 	var stderr bytes.Buffer
 	cmd.SetErr(&stderr)
 	cmd.SetOut(&stderr)
 	err := cmd.Execute()
-	if err != nil && !errors.Is(err, ErrSchemaInvalid) {
-		t.Errorf("expected ErrSchemaInvalid (or success), got %v", err)
+	if err == nil {
+		t.Fatal("expected error for undeclared field, got nil")
+	}
+	if !strings.Contains(err.Error(), "ad_hoc_field") {
+		t.Errorf("error should name the unknown field, got: %v", err)
+	}
+	// verify the field was not persisted
+	raw, readErr := os.ReadFile(path) //nolint:gosec // path is test-controlled
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if strings.Contains(string(raw), "ad_hoc_field") {
+		t.Error("undeclared field was written to the artifact despite error")
 	}
 }
 
