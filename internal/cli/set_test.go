@@ -284,6 +284,79 @@ func TestSet_IssueMilestone_RoundTrip(t *testing.T) {
 	}
 }
 
+// TestSet_UnsetOptionalScalar_DeletesKey asserts that passing an empty string
+// for an optional scalar (milestone, owner) deletes the key from the marshaled
+// file — read back from disk, not in-memory — rather than writing an empty or
+// malformed value. Pins anvil.0104.
+func TestSet_UnsetOptionalScalar_DeletesKey(t *testing.T) {
+	for _, tc := range []struct {
+		field string
+		seed  string
+	}{
+		{"milestone", "[[milestone.anvil.cli-substrate]]"},
+		{"owner", "conal"},
+	} {
+		t.Run(tc.field, func(t *testing.T) {
+			vault := setupVault(t)
+			writeFixtureIssue(t, vault, "anvil", "x", "X")
+			path := filepath.Join(vault, "70-issues", "anvil.x.md")
+
+			set := newRootCmd()
+			set.SetArgs([]string{"set", "issue", "anvil.x", tc.field, tc.seed})
+			if err := set.Execute(); err != nil {
+				t.Fatalf("seed set %s: %v", tc.field, err)
+			}
+
+			unset := newRootCmd()
+			unset.SetArgs([]string{"set", "issue", "anvil.x", tc.field, ""})
+			var out bytes.Buffer
+			unset.SetOut(&out)
+			unset.SetErr(&out)
+			if err := unset.Execute(); err != nil {
+				t.Fatalf("unset %s: %v\n%s", tc.field, err, out.String())
+			}
+
+			// Read back from disk: the raw bytes must not mention the field key.
+			raw, err := os.ReadFile(path) //nolint:gosec // path is test-controlled
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Contains(raw, []byte(tc.field+":")) {
+				t.Errorf("%s key still present on disk after unset:\n%s", tc.field, raw)
+			}
+			a, _ := core.LoadArtifact(path)
+			if _, ok := a.FrontMatter[tc.field]; ok {
+				t.Errorf("%s still in frontmatter after unset: %v", tc.field, a.FrontMatter[tc.field])
+			}
+		})
+	}
+}
+
+// TestSet_UnsetRequiredScalar_Rejected asserts that emptying a REQUIRED scalar
+// (title) is rejected by ValidateField's minLength:1 rather than deleting the
+// key — the empty-means-unset affordance must not bypass validation for
+// required fields. Pins the [high] regression guard for anvil.0104.
+func TestSet_UnsetRequiredScalar_Rejected(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "anvil", "x", "X")
+	path := filepath.Join(vault, "70-issues", "anvil.x.md")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "anvil.x", "title", ""})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected rejection emptying required field title, got success:\n%s", out.String())
+	}
+
+	// The key must survive on disk with its original value — no silent delete.
+	a, _ := core.LoadArtifact(path)
+	if got, _ := a.FrontMatter["title"].(string); got != "X" {
+		t.Errorf("title = %q after rejected unset, want unchanged %q", got, "X")
+	}
+}
+
 // TestSet_IssueMilestone_BareIDNormalised asserts that a bare project.slug id is
 // stored as the canonical [[milestone.project.slug]] wikilink, so the issue
 // remains reachable under --milestone filters and graph edges.
@@ -826,7 +899,8 @@ func TestSet_Issue_ByOrdinal(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	path := createIssueGetPath(t,
+	path := createIssueGetPath(
+		t,
 		"create", "issue",
 		"--title", "Set me by ordinal",
 		"--description", "d",

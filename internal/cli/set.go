@@ -30,7 +30,12 @@ func newSetCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set <type> <id> <field> [<value>...]",
 		Short: "Set a frontmatter field on a vault artifact",
-		Args:  namedArgs("anvil set <type> <id> <field> [<value>...]", []string{"<type>", "<id>", "<field>"}, 3, -1),
+		Long: "Set a frontmatter field on a vault artifact.\n\n" +
+			"Passing an empty string for an OPTIONAL scalar field (e.g. milestone, owner) " +
+			"unsets it: the key is deleted rather than written as an empty value. " +
+			"The JSON envelope reports status \"unset\" with to:null. " +
+			"Required fields reject an empty value (minLength:1) as before.",
+		Args: namedArgs("anvil set <type> <id> <field> [<value>...]", []string{"<type>", "<id>", "<field>"}, 3, -1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t, err := core.ParseType(args[0])
 			if err != nil {
@@ -76,6 +81,10 @@ func newSetCmd() *cobra.Command {
 			prev, hadPrev := a.FrontMatter[field]
 
 			result := setResult{ID: id, Path: path, Field: field, Status: "set"}
+			// fieldUnset is set to true when the caller passes an empty string for
+			// an OPTIONAL scalar field, meaning "remove this key". ValidateField is
+			// skipped in that path because the field is absent, not invalid.
+			var fieldUnset bool
 
 			switch kind {
 			case schema.KindScalar:
@@ -86,6 +95,26 @@ func newSetCmd() *cobra.Command {
 					return fmt.Errorf("%q is a scalar; expected exactly 1 value, got %d", field, len(values))
 				}
 				v := values[0]
+				// Empty string on an OPTIONAL scalar field means "unset": delete
+				// the key rather than writing a malformed or empty value. Required
+				// fields fall through so ValidateField's minLength:1 rejects "" as
+				// before — deleting a required key would write a schema-invalid
+				// artifact and skip validation. Check before normalization so
+				// "milestone" wrapping never runs on an empty slug.
+				if v == "" {
+					required, rerr := schema.FieldRequired(string(t), field)
+					if rerr != nil {
+						return fmt.Errorf("schema lookup: %w", rerr)
+					}
+					if !required {
+						delete(a.FrontMatter, field)
+						result.From = prev
+						result.To = nil
+						result.Status = "unset"
+						fieldUnset = true
+						break
+					}
+				}
 				if field == "milestone" {
 					v = normalizeMilestone(v)
 				}
@@ -258,8 +287,10 @@ func newSetCmd() *cobra.Command {
 				}
 			}
 
-			if err := schema.ValidateField(string(t), field, a.FrontMatter[field]); err != nil {
-				return renderSchemaErr(cmd, v, path, err, flagJSON)
+			if !fieldUnset {
+				if err := schema.ValidateField(string(t), field, a.FrontMatter[field]); err != nil {
+					return renderSchemaErr(cmd, v, path, err, flagJSON)
+				}
 			}
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("saving artifact: %w", err)
@@ -303,12 +334,14 @@ func newSetCmd() *cobra.Command {
 }
 
 type setResult struct {
-	ID     string `json:"id"`
-	Path   string `json:"path"`
-	Field  string `json:"field"`
-	From   any    `json:"from"`
-	To     any    `json:"to"`
-	Value  any    `json:"value,omitempty"`
+	ID    string `json:"id"`
+	Path  string `json:"path"`
+	Field string `json:"field"`
+	From  any    `json:"from"`
+	To    any    `json:"to"`
+	Value any    `json:"value,omitempty"`
+	// Status is one of: set, added, removed, unset. "unset" (clearing an
+	// optional scalar via empty string) carries to:null.
 	Status string `json:"status"`
 }
 
