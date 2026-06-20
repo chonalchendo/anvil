@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -45,6 +46,26 @@ func newBuildCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close() //nolint:errcheck // close in defer; error not actionable
+
+			// Exit predicate: a milestone-scoped run stops once every linked
+			// issue is resolved. The driver consults the deterministic
+			// done-signal (anvil.0102) before selecting work, so the loop has a
+			// principled stopping point rather than dispatching into an
+			// already-complete milestone. A slug absent from the index is not
+			// done — fall through to the filter, which yields the no-ready
+			// notice (build's --milestone tolerates unmatched slugs).
+			if flagMilestone != "" {
+				st, err := db.MilestoneStatus(flagMilestone)
+				switch {
+				case errors.Is(err, index.ErrArtifactNotInIndex):
+					// fall through
+				case err != nil:
+					return err
+				case st.Done:
+					cmd.PrintErrf("milestone %s is done (%d/%d resolved); nothing to dispatch\n", st.Milestone, st.Resolved, st.Total)
+					return nil
+				}
+			}
 
 			rows, err := db.ListReady(string(core.TypeIssue), index.QueryFilters{Project: flagProject})
 			if err != nil {

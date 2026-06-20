@@ -59,6 +59,23 @@ func TestBuild_MilestoneFilter_ExcludesUnmatchedIssue(t *testing.T) {
 	}
 }
 
+func TestBuild_DoneMilestone_ShortCircuits(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	writeFixtureMilestone(t, vault, "demo.m1", "open")
+	writeMilestoneIssue(t, vault, "demo.a", "resolved", "demo.m1")
+	execCmd(t, "reindex")
+
+	// Every linked issue is resolved → the build loop's exit predicate fires
+	// before selecting work, reporting the milestone done rather than the
+	// generic no-ready notice.
+	out := execCmd(t, "build", "--dry-run", "--project", "demo", "--milestone", "demo.m1")
+	if !strings.Contains(out, "milestone demo.m1 is done (1/1 resolved)") {
+		t.Errorf("expected done short-circuit; got:\n%s", out)
+	}
+}
+
 func TestBuild_RejectsPositionalArgs(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
