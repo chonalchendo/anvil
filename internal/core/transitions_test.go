@@ -58,3 +58,13 @@ func TestReverseTransitionFlagged(t *testing.T) {
 		t.Fatalf("expected reverse=true")
 	}
 }
+
+func TestMilestoneDoneToPlannedIsReverse(t *testing.T) {
+	tr, err := LookupTransition(TypeMilestone, "done", "planned")
+	if err != nil {
+		t.Fatalf("done→planned must be legal for milestones: %v", err)
+	}
+	if !tr.Reverse {
+		t.Fatalf("expected reverse=true for done→planned reopen")
+	}
+}
