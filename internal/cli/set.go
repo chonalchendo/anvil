@@ -243,15 +243,7 @@ func newSetCmd() *cobra.Command {
 				a.FrontMatter[field] = anchor
 
 			case schema.KindUnknown:
-				if flagAddSet || flagRemSet {
-					return fmt.Errorf("%q is not a known field; cannot use --add/--remove", field)
-				}
-				if len(values) != 1 {
-					return fmt.Errorf("%q is not a known field; expected exactly 1 value, got %d", field, len(values))
-				}
-				a.FrontMatter[field] = values[0]
-				result.From = prev
-				result.To = values[0]
+				return fmt.Errorf("%q is not a declared field on %s; set only accepts schema-declared fields", field, t)
 			}
 
 			if field == "tags" {
