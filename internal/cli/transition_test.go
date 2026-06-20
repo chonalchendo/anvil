@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -840,5 +841,27 @@ func TestTransition_Issue_ByOrdinal(t *testing.T) {
 	}
 	if got, _ := a.FrontMatter["status"].(string); got != "resolved" {
 		t.Fatalf("project-qualified ordinal: status = %q, want resolved", got)
+	}
+}
+
+func TestTransition_MissingArtifact_NotFound(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "ghost.0001.nope", "open"})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for missing artifact")
+	}
+	if !errors.Is(err, ErrArtifactNotFound) {
+		t.Errorf("err = %v, want ErrArtifactNotFound", err)
+	}
+	if msg := err.Error(); !strings.Contains(msg, "ghost.0001.nope") {
+		t.Errorf("error message %q does not name the missing id", msg)
 	}
 }

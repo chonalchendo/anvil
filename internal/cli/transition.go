@@ -46,7 +46,7 @@ func newTransitionCmd() *cobra.Command {
 			path := filepath.Join(v.Root, t.Dir(), id+".md")
 			a, err := core.LoadArtifact(path)
 			if err != nil {
-				return ErrArtifactNotFound
+				return &errArtifactNotFound{id: id}
 			}
 
 			from, _ := a.FrontMatter["status"].(string)

@@ -268,6 +268,9 @@ func TestSet_MissingArtifact_NotFound(t *testing.T) {
 	if !errors.Is(err, ErrArtifactNotFound) {
 		t.Errorf("err = %v, want ErrArtifactNotFound", err)
 	}
+	if msg := err.Error(); !strings.Contains(msg, "ghost") {
+		t.Errorf("error message %q does not name the missing id", msg)
+	}
 }
 
 func TestSet_IssueMilestone_RoundTrip(t *testing.T) {

@@ -13,6 +13,17 @@ import (
 // ErrArtifactNotFound is returned when the requested artifact file does not exist.
 var ErrArtifactNotFound = errors.New("artifact not found")
 
+// errArtifactNotFound wraps ErrArtifactNotFound with the missing id so the
+// error message names the offending id verbatim ("artifact not found: <id>").
+// The fixed prefix ("artifact") is first so fang's title-case transform
+// capitalises a real word rather than the id.
+type errArtifactNotFound struct{ id string }
+
+func (e *errArtifactNotFound) Error() string { return "artifact not found: " + e.id }
+func (e *errArtifactNotFound) Is(target error) bool {
+	return target == ErrArtifactNotFound
+}
+
 // ErrSchemaInvalid is returned when frontmatter fails JSON Schema validation.
 var ErrSchemaInvalid = errors.New("schema invalid")
 
