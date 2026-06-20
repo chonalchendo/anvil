@@ -58,7 +58,7 @@ func newSetCmd() *cobra.Command {
 			a, err := core.LoadArtifact(path)
 			if err != nil {
 				if os.IsNotExist(err) {
-					return &errArtifactNotFound{id: id}
+					return fmt.Errorf("%w: %s", ErrArtifactNotFound, id)
 				}
 				return fmt.Errorf("loading artifact: %w", err)
 			}

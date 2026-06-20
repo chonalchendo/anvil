@@ -50,7 +50,7 @@ func newMilestoneStatusCmd() *cobra.Command {
 			st, err := db.MilestoneStatus(args[0])
 			if err != nil {
 				if errors.Is(err, index.ErrArtifactNotInIndex) {
-					return &errArtifactNotFound{id: args[0]}
+					return fmt.Errorf("%w: %s", ErrArtifactNotFound, args[0])
 				}
 				return err
 			}
