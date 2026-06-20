@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,14 @@ import (
 
 	"github.com/chonalchendo/anvil/internal/build"
 )
+
+// TestMain stubs keychainCredential absent for the whole package: the real
+// security(1) shell-out can block on a macOS Keychain access prompt, which would
+// hang the shim-based Run tests. The fallback test installs its own value.
+func TestMain(m *testing.M) {
+	keychainCredential = func() ([]byte, bool) { return nil, false }
+	os.Exit(m.Run())
+}
 
 // shimPath returns the absolute path to a testdata shim script.
 func shimPath(t *testing.T, name string) string {
@@ -154,9 +163,9 @@ func TestSeedConfigDir_CopiesPresentEntries(t *testing.T) {
 }
 
 func TestSeedConfigDir_MissingSourceEntriesNotAnError(t *testing.T) {
-	// Mirrors the macOS-Keychain case: source dir exists but holds no
-	// .credentials.json (OAuth token lives in the Keychain, not on disk).
-	// A missing entry must be skipped, not a hard error.
+	// Source dir exists but holds no .credentials.json, and no Keychain
+	// credential is available (TestMain stubs it absent). A missing entry must
+	// be skipped, not a hard error, leaving dst empty.
 	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
 	dst := t.TempDir()
 
@@ -165,6 +174,31 @@ func TestSeedConfigDir_MissingSourceEntriesNotAnError(t *testing.T) {
 	}
 	if entries, _ := os.ReadDir(dst); len(entries) != 0 {
 		t.Errorf("dst should be empty when source has nothing to seed, got %d entries", len(entries))
+	}
+}
+
+func TestSeedConfigDir_KeychainFallbackWhenNoDiskCredential(t *testing.T) {
+	// The macOS case: source config dir has no .credentials.json (OAuth token
+	// is Keychain-backed). seedConfigDir must fall back to the Keychain and
+	// write the blob into the per-spawn dir, or the isolated spawn no-ops with
+	// "Not logged in" (anvil.0107).
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir()) // source: no .credentials.json on disk
+	dst := t.TempDir()
+
+	want := []byte(`{"token":"from-keychain"}`)
+	orig := keychainCredential
+	keychainCredential = func() ([]byte, bool) { return want, true }
+	t.Cleanup(func() { keychainCredential = orig })
+
+	if err := seedConfigDir(dst); err != nil {
+		t.Fatalf("seedConfigDir: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(dst, ".credentials.json")) //nolint:gosec // dst is our own t.TempDir; name is a hardcoded literal, not untrusted input
+	if err != nil {
+		t.Fatalf("expected .credentials.json seeded from keychain: %v", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("seeded credential = %q, want %q", got, want)
 	}
 }
 
