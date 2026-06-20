@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -60,11 +62,7 @@ type TaskOutcome struct {
 	Duration  time.Duration
 	Result    RunResult
 	Err       error
-	ConfigDir string // per-spawn CLAUDE_CONFIG_DIR; empty on dry-run
-	// AutoMerge is always false: the human owns the merge button.
-	// Carried in the record so downstream readers (telemetry, dry-run
-	// JSON) can assert the invariant without reading the source.
-	AutoMerge bool
+	ConfigDir string // per-spawn CLAUDE_CONFIG_DIR; the planned path on dry-run
 }
 
 // jsonRecord is the per-task line emitted to stdout in --json mode.
@@ -81,7 +79,10 @@ type jsonRecord struct {
 	Tokens      *tokensJSON `json:"tokens,omitempty"`
 	Diagnostic  string      `json:"diagnostic,omitempty"`
 	ConfigDir   string      `json:"config_dir,omitempty"`
-	AutoMerge   bool        `json:"auto_merge"`
+	// AutoMerge is a literal false: the human owns the merge button. Emitted
+	// so downstream readers (telemetry, dry-run plan) can assert the invariant
+	// without it being a control-flow field carried through the engine.
+	AutoMerge bool `json:"auto_merge"`
 }
 
 // tokensJSON mirrors RunResult.Tokens for the JSON record. Pointer in
@@ -195,12 +196,13 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 		TaskID: t.ID, Wave: wave, Model: model, Effort: effort,
 	}
 
-	// AutoMerge is always false — the human owns the merge button. The field
-	// exists so JSON records and downstream readers can assert the invariant.
-	oc.AutoMerge = false
-
 	if opts.DryRun {
 		oc.Outcome = "skipped_dry_run"
+		// No spawn happens, so no dir is minted. Surface the path the adapter
+		// would isolate to, derived from the task ID so it is deterministic and
+		// unique per task — making the per-spawn isolation guarantee observable
+		// in the plan without fabricating throwaway directories.
+		oc.ConfigDir = plannedConfigDir(t.ID)
 		return oc
 	}
 
@@ -311,6 +313,13 @@ func emitJSONRecord(opts Options, oc TaskOutcome) {
 	if !opts.JSON {
 		return
 	}
+	_ = json.NewEncoder(opts.Stdout).Encode(toJSONRecord(oc))
+}
+
+// toJSONRecord projects a TaskOutcome onto the wire shape. The single source of
+// truth for the per-task JSON shape — both the live --json stream and the
+// dry-run plan envelope (built by the driver) go through here.
+func toJSONRecord(oc TaskOutcome) jsonRecord {
 	rec := jsonRecord{
 		TaskID:     oc.TaskID,
 		Wave:       oc.Wave,
@@ -319,7 +328,7 @@ func emitJSONRecord(opts Options, oc TaskOutcome) {
 		DurationMS: oc.Duration.Milliseconds(),
 		Diagnostic: oc.Result.Diagnostic,
 		ConfigDir:  oc.ConfigDir,
-		AutoMerge:  oc.AutoMerge,
+		AutoMerge:  false, // literal invariant: the human owns the merge button
 	}
 	if oc.Outcome == "skipped_dry_run" {
 		rec.Status = oc.Outcome
@@ -334,5 +343,36 @@ func emitJSONRecord(opts Options, oc TaskOutcome) {
 			CacheWrite: oc.Result.Tokens.CacheWrite,
 		}
 	}
-	_ = json.NewEncoder(opts.Stdout).Encode(rec)
+	return rec
+}
+
+// PlanJSON writes the dry-run plan envelope to w: one engine jsonRecord per
+// task wrapped in {"tasks": [...]}. The envelope (vs the live --json NDJSON
+// stream) lets callers assert per-task fields with a plain jq path; the per-task
+// shape stays the engine's jsonRecord so the driver never redefines it
+// (build-orchestration-contract: engine is the single source of the outcome shape).
+func PlanJSON(w io.Writer, waves [][]core.Task) error {
+	recs := []jsonRecord{}
+	for wave, tasks := range waves {
+		for _, t := range tasks {
+			recs = append(recs, toJSONRecord(dispatchTask(context.Background(), t, wave, Options{DryRun: true})))
+		}
+	}
+	return json.NewEncoder(w).Encode(struct {
+		Tasks []jsonRecord `json:"tasks"`
+	}{Tasks: recs})
+}
+
+// plannedConfigDir is the per-spawn CLAUDE_CONFIG_DIR the adapter would isolate
+// to for a task, derived deterministically from the task ID. Used only to make
+// the isolation guarantee observable in the dry-run plan; the live adapter mints
+// its own dir via os.MkdirTemp.
+func plannedConfigDir(taskID string) string {
+	return filepath.Join(os.TempDir(), "anvil-claude-"+sanitizeID(taskID))
+}
+
+// sanitizeID replaces path separators in a task ID so it is safe as a single
+// path segment.
+func sanitizeID(id string) string {
+	return strings.NewReplacer("/", "-", string(filepath.Separator), "-").Replace(id)
 }
