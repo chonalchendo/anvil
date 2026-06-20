@@ -3,7 +3,6 @@ package cli
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/chonalchendo/anvil/internal/adapters/claude"
 	"github.com/chonalchendo/anvil/internal/build"
+	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
 )
@@ -166,9 +166,13 @@ func newBuildTasksCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			db, err := indexForRead(v)
+			// build_tasks is runtime-inserted, not derived from vault markdown, so
+			// open directly rather than via indexForRead — a stale .md elsewhere
+			// must not gate a query over runtime-only telemetry (matches the
+			// eval history read sibling, internal/cli/eval.go).
+			db, err := index.Open(index.DBPath(v.Root))
 			if err != nil {
-				return err
+				return fmt.Errorf("opening index: %w", err)
 			}
 			defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
@@ -177,7 +181,7 @@ func newBuildTasksCmd() *cobra.Command {
 				return err
 			}
 			if flagJSON {
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(rows)
+				return output.WriteListJSON(cmd.OutOrStdout(), rows, len(rows), len(rows))
 			}
 			if len(rows) == 0 {
 				cmd.PrintErrf("no telemetry for run %s\n", args[0])
@@ -190,7 +194,7 @@ func newBuildTasksCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit per-task telemetry as a JSON array")
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit per-task telemetry as the canonical list envelope")
 	return cmd
 }
 

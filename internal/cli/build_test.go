@@ -42,16 +42,20 @@ func TestBuild_DryRun_PersistsQueryableTelemetry(t *testing.T) {
 		t.Fatalf("plan envelope carried no run_id:\n%s", out)
 	}
 
-	// ...and its per-task rows are queryable with the telemetry columns present.
-	var rows []map[string]any
+	// ...and its per-task rows are queryable as the canonical list envelope with
+	// the telemetry columns present.
+	var env2 struct {
+		Items []map[string]any `json:"items"`
+		Total int              `json:"total"`
+	}
 	tasksOut := execCmd(t, "build", "tasks", env.RunID, "--json")
-	if err := json.Unmarshal([]byte(tasksOut), &rows); err != nil {
+	if err := json.Unmarshal([]byte(tasksOut), &env2); err != nil {
 		t.Fatalf("tasks output not JSON: %v\n%s", err, tasksOut)
 	}
-	if len(rows) != 1 {
-		t.Fatalf("got %d task rows, want 1:\n%s", len(rows), tasksOut)
+	if env2.Total != 1 || len(env2.Items) != 1 {
+		t.Fatalf("got total=%d items=%d, want 1:\n%s", env2.Total, len(env2.Items), tasksOut)
 	}
-	r := rows[0]
+	r := env2.Items[0]
 	if r["task_id"] != "demo.foo" {
 		t.Errorf("task_id = %v, want demo.foo", r["task_id"])
 	}
