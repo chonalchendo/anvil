@@ -93,7 +93,7 @@ func newBuildCmd() *cobra.Command {
 
 			// A real run claims + cuts each ready issue's canonical worktree
 			// before dispatch and pins it as the task Cwd, so the spawned worker
-			// lands its PR on the deterministic branch anvil/<slug> the engine
+			// lands its PR on the deterministic branch <project>/<slug> the engine
 			// already holds — `fleet status` correlation and the advance-gate
 			// (anvil.0112) then operate on a branch the driver knows rather than
 			// one it must trust the worker to derive. The driver owns this single
@@ -303,6 +303,14 @@ const buildClaimOwner = "anvil-build"
 // status write (mirroring the interactive transition) so a cut failure leaves
 // the issue open with no half-applied claim; any error aborts the run before an
 // agent spawns rather than dispatching a worker with no worktree.
+//
+// This is a deliberately thinner claim than the interactive `anvil transition
+// … in-progress`: it skips the goal-backfill gate, the reproduction_anchor
+// re-check, and the claim_session stamp. The frontier is the index ready-set
+// (unblocked, owner-less), so those interactive safeguards do not all hold; full
+// claim-gate parity for the build path is tracked in inbox
+// 2026-06-20-anvil-build-claim-skips-goal-anchor-claim-session-gates-the, not
+// silently dropped here.
 func claimAndCutForBuild(v *core.Vault, errW io.Writer, units []readyUnit, tasks []core.Task) error {
 	stamp := time.Now().UTC().Format("2006-01-02")
 	for i := range units {
