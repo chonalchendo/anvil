@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 	"time"
@@ -75,7 +76,8 @@ func newBuildCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			tasks := readyUnitsToTasks(selectReadyUnits(rows, flagMilestone))
+			units := selectReadyUnits(rows, flagMilestone)
+			tasks := readyUnitsToTasks(units)
 			if len(tasks) == 0 {
 				cmd.PrintErrln("no ready issues to dispatch")
 				return nil
@@ -86,6 +88,21 @@ func newBuildCmd() *cobra.Command {
 				cwd, err = filepath.Abs(".")
 				if err != nil {
 					return fmt.Errorf("resolving cwd: %w", err)
+				}
+			}
+
+			// A real run claims + cuts each ready issue's canonical worktree
+			// before dispatch and pins it as the task Cwd, so the spawned worker
+			// lands its PR on the deterministic branch anvil/<slug> the engine
+			// already holds — `fleet status` correlation and the advance-gate
+			// (anvil.0112) then operate on a branch the driver knows rather than
+			// one it must trust the worker to derive. The driver owns this single
+			// claim+cut (build-orchestration-contract: it owns work-selection and
+			// the vault writes that reserve it); completing-issue's build path
+			// skips its own. Dry-run never touches the vault or git.
+			if !flagDryRun {
+				if err := claimAndCutForBuild(v, cmd.ErrOrStderr(), units, tasks); err != nil {
+					return err
 				}
 			}
 
@@ -270,4 +287,43 @@ func readyUnitsToTasks(units []readyUnit) []core.Task {
 		})
 	}
 	return tasks
+}
+
+// buildClaimOwner is stamped on issues `anvil build` claims, marking the claim
+// as engine-initiated so a worker's completing-issue build path (and `anvil
+// fleet status`) can tell a build dispatch from an interactive claim.
+const buildClaimOwner = "anvil-build"
+
+// claimAndCutForBuild claims each ready issue open→in-progress under
+// buildClaimOwner and cuts its canonical worktree (<project>/<slug>), pinning that
+// worktree as the matching task's Cwd. units[i] and tasks[i] are the same
+// frontier in the same order. The driver — not the spawned worker — owns this
+// single claim+cut, so every worker lands its PR on the deterministic branch
+// the engine already holds (build-orchestration-contract). The cut precedes the
+// status write (mirroring the interactive transition) so a cut failure leaves
+// the issue open with no half-applied claim; any error aborts the run before an
+// agent spawns rather than dispatching a worker with no worktree.
+func claimAndCutForBuild(v *core.Vault, errW io.Writer, units []readyUnit, tasks []core.Task) error {
+	stamp := time.Now().UTC().Format("2006-01-02")
+	for i := range units {
+		a, err := core.LoadArtifact(units[i].Path)
+		if err != nil {
+			return fmt.Errorf("loading %s: %w", units[i].ID, err)
+		}
+		wt, err := doCutWorktree(errW, a, units[i].ID, "", "")
+		if err != nil {
+			return err
+		}
+		a.FrontMatter["status"] = "in-progress"
+		a.FrontMatter["owner"] = buildClaimOwner
+		a.FrontMatter["updated"] = stamp
+		if err := a.Save(); err != nil {
+			return fmt.Errorf("claiming %s: %w", units[i].ID, err)
+		}
+		if err := indexAfterSave(v, a); err != nil {
+			return fmt.Errorf("indexing claim of %s: %w", units[i].ID, err)
+		}
+		tasks[i].Cwd = wt
+	}
+	return nil
 }

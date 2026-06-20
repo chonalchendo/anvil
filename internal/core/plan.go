@@ -36,6 +36,11 @@ type Task struct {
 	Verify          string
 	SuccessCriteria []string
 	Body            string
+	// Cwd is the per-task working directory the adapter spawns into. `anvil
+	// build` sets it to the issue's cut worktree so the spawned worker lands its
+	// PR on the deterministic branch the driver already holds; empty falls back
+	// to the engine's global Cwd.
+	Cwd string
 }
 
 // PlanVerification holds plan-level pre/post commands.
