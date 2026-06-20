@@ -11,6 +11,9 @@ import (
 )
 
 // ErrArtifactNotFound is returned when the requested artifact file does not exist.
+// Wrap it with the missing id via fmt.Errorf("%w: %s", ErrArtifactNotFound, id)
+// so the message names the offending id ("artifact not found: <id>"); the fixed
+// prefix is first so fang's title-case transform capitalises a real word.
 var ErrArtifactNotFound = errors.New("artifact not found")
 
 // ErrSchemaInvalid is returned when frontmatter fails JSON Schema validation.

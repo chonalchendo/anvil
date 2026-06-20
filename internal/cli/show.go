@@ -172,7 +172,7 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, 
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return ErrArtifactNotFound
+			return fmt.Errorf("%w: %s", ErrArtifactNotFound, id)
 		}
 		return fmt.Errorf("loading artifact: %w", err)
 	}

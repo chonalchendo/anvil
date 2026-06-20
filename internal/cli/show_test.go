@@ -332,6 +332,9 @@ func TestShow_MissingArtifact_ReturnsSentinel(t *testing.T) {
 	if !errors.Is(err, ErrArtifactNotFound) {
 		t.Errorf("err = %v, want ErrArtifactNotFound", err)
 	}
+	if msg := err.Error(); !strings.Contains(msg, "nonexistent") {
+		t.Errorf("error message %q does not name the missing id", msg)
+	}
 }
 
 func TestShow_UnknownType_Errors(t *testing.T) {

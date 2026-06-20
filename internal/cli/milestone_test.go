@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -69,7 +70,14 @@ func TestMilestoneStatus_UnknownMilestone_Errors(t *testing.T) {
 	var buf strings.Builder
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
-	if err := cmd.Execute(); err == nil {
+	err := cmd.Execute()
+	if err == nil {
 		t.Fatalf("unknown milestone should error; got output: %s", buf.String())
+	}
+	if !errors.Is(err, ErrArtifactNotFound) {
+		t.Errorf("err = %v, want ErrArtifactNotFound", err)
+	}
+	if msg := err.Error(); !strings.Contains(msg, "demo.nope") {
+		t.Errorf("error message %q does not name the missing id", msg)
 	}
 }

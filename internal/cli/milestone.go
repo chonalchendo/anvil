@@ -2,11 +2,13 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/index"
 )
 
 // newMilestoneCmd groups milestone queries. `status` is the deterministic
@@ -47,6 +49,9 @@ func newMilestoneStatusCmd() *cobra.Command {
 
 			st, err := db.MilestoneStatus(args[0])
 			if err != nil {
+				if errors.Is(err, index.ErrArtifactNotInIndex) {
+					return fmt.Errorf("%w: %s", ErrArtifactNotFound, args[0])
+				}
 				return err
 			}
 
