@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -33,8 +34,17 @@ func (a *Adapter) Name() string { return "claude-code" }
 
 // Run spawns the Claude CLI for one task. Per spec §1: 8 MiB stdout scanner,
 // cmd.Cancel + cmd.WaitDelay on ctx-cancel, NDJSON parsing of usage/cost,
-// quota-message detection. Settings are layered via --settings argv so the
-// user's auth/session state in ~/.claude/ remains intact.
+// quota-message detection. Settings (thinking budget, skills allow-list) are
+// layered via --settings argv.
+//
+// Isolation + seeding (adapters.md "per-spawn state isolation is invariant"):
+// each Run mints a fresh CLAUDE_CONFIG_DIR so parallel tasks cannot clobber each
+// other's session/auth state, then SEEDS the user's credentials into it before
+// spawn. A bare empty config dir has no .credentials.json, so `claude -p`
+// returns "Not logged in" and does no work (commit 084f9f7). The dir is removed
+// after Wait. On macOS the OAuth token may live in the Keychain rather than on
+// disk; in that case there is nothing to seed and live auth remains a human gate
+// (see seedConfigDir).
 func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResult, error) {
 	bin, err := a.resolveBin()
 	if err != nil {
@@ -44,6 +54,20 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 	settingsArg, err := settingsJSON(req)
 	if err != nil {
 		return build.RunResult{}, fmt.Errorf("building settings JSON: %w", err)
+	}
+
+	// Isolate each spawn so parallel tasks cannot clobber each other's
+	// session/auth state. The dir is removed after the process exits.
+	configDir, err := os.MkdirTemp("", "anvil-claude-*")
+	if err != nil {
+		return build.RunResult{}, fmt.Errorf("creating per-spawn config dir: %w", err)
+	}
+	defer os.RemoveAll(configDir) //nolint:errcheck // cleanup; not load-bearing
+
+	// Seed credentials into the fresh dir BEFORE spawn — otherwise the empty
+	// dir strips auth and the spawn no-ops with "Not logged in".
+	if err := seedConfigDir(configDir); err != nil {
+		return build.RunResult{}, fmt.Errorf("seeding per-spawn config dir: %w", err)
 	}
 
 	runCtx := ctx
@@ -72,6 +96,11 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 
 	cmd := exec.CommandContext(runCtx, bin, args...) //nolint:gosec // bin resolved from trusted sources: explicit field, $ANVIL_CLAUDE_BIN, or PATH lookup
 	cmd.Dir = req.Cwd
+	// Point the child at the seeded per-spawn config dir. Using os.Environ() as
+	// the base ensures the child inherits PATH, HOME, and any credential
+	// env-vars the user set, while overriding CLAUDE_CONFIG_DIR for isolation.
+	// Auth mode is subscription (no ANTHROPIC_API_KEY override).
+	cmd.Env = append(os.Environ(), "CLAUDE_CONFIG_DIR="+configDir)
 	// Setpgid puts the child and all its descendants in a new process group so
 	// cancellation kills the whole tree (e.g. a `sleep` spawned by the shim),
 	// not just the top-level shell. Per go-conventions.md: cmd.Cancel +
@@ -137,6 +166,12 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 		return res, fmt.Errorf("claude wait: %w (stderr: %s)", waitErr, strings.TrimSpace(stderrBuf.String()))
 	}
 
+	// Record the isolation metadata regardless of outcome so callers and
+	// telemetry can correlate logs. configDir is already being removed by
+	// the deferred RemoveAll, but the path is still meaningful at return time.
+	res.ConfigDir = configDir
+	res.AuthMode = "subscription" // no ANTHROPIC_API_KEY override; draws subscription limits
+
 	if quotaSeen {
 		return res, build.ErrQuotaExhausted
 	}
@@ -160,6 +195,51 @@ func (a *Adapter) resolveBin() (string, error) {
 		return "", fmt.Errorf("claude binary not found on $PATH and $ANVIL_CLAUDE_BIN unset: %w", err)
 	}
 	return bin, nil
+}
+
+// seedConfigDir copies the user's auth/session state from their real Claude
+// config dir into the fresh per-spawn dir, so the isolated `claude -p` can still
+// authenticate (adapters.md: "credentials seeded in before spawn"). Source is
+// $CLAUDE_CONFIG_DIR if set, else ~/.claude — mirroring the install command's
+// resolution. A missing source entry is not an error: on macOS the OAuth token
+// lives in the Keychain (process-wide, not in the config dir), so there may be
+// nothing on disk to seed; the entries we do find still carry the session
+// pointer the CLI needs.
+func seedConfigDir(dst string) error {
+	src, err := sourceConfigDir()
+	if err != nil {
+		return err
+	}
+	// .credentials.json is the file-based OAuth/API token (Linux, and macOS
+	// when not Keychain-backed). The user-settings file carries config the
+	// spawn inherits. Copy each only if present.
+	for _, name := range []string{".credentials.json", "settings.json"} {
+		from := filepath.Join(src, name)
+		b, err := os.ReadFile(from) //nolint:gosec // path built from the user's own config dir
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("reading %s: %w", from, err)
+		}
+		if err := os.WriteFile(filepath.Join(dst, name), b, 0o600); err != nil { //nolint:gosec // dst is our own os.MkdirTemp dir; name is a hardcoded literal from a closed list, not untrusted input
+			return fmt.Errorf("writing %s: %w", name, err)
+		}
+	}
+	return nil
+}
+
+// sourceConfigDir resolves the user's real Claude config dir: $CLAUDE_CONFIG_DIR
+// if set, else ~/.claude.
+func sourceConfigDir() (string, error) {
+	if d := os.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
+		return d, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolving home dir: %w", err)
+	}
+	return filepath.Join(home, ".claude"), nil
 }
 
 // settingsJSON marshals the per-spawn settings to a JSON string for

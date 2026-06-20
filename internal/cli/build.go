@@ -64,13 +64,21 @@ func newBuildCmd() *cobra.Command {
 				}
 			}
 
-			// Text dry-run: the engine emits per-task records only in --json
-			// mode, so the driver lists the selected frontier here to honour
-			// the flag's promise. --json dry-run is left to the engine's records.
+			// Text dry-run: list the selected frontier.
 			if flagDryRun && !flagJSON {
 				for _, t := range tasks {
 					cmd.Println(t.ID)
 				}
+			}
+
+			// JSON dry-run: emit a single plan envelope so consumers can
+			// assert per-task fields (config_dir uniqueness, auto_merge) with
+			// a plain jq path rather than slurp-mode. The engine owns the
+			// per-task record shape and the planned per-spawn config dir; the
+			// driver only hands it the waves (build-orchestration-contract:
+			// driver selects work, engine owns dispatch mechanics).
+			if flagDryRun && flagJSON {
+				return build.PlanJSON(cmd.OutOrStdout(), [][]core.Task{tasks})
 			}
 
 			opts := build.Options{

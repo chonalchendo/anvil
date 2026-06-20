@@ -43,6 +43,14 @@ type RunResult struct {
 	// paths so build's --json record and stderr output can surface why a
 	// task failed without forcing the user into the agent's session log.
 	Diagnostic string
+	// ConfigDir is the CLAUDE_CONFIG_DIR the adapter used for this spawn.
+	// Populated by the adapter so telemetry and callers can correlate logs.
+	ConfigDir string
+	// AuthMode records how the spawn was authenticated ("subscription" or
+	// "api-key"). Subscription still draws subscription limits as of
+	// 2026-06-19; the billing split is provisional — re-verify before
+	// treating it as free.
+	AuthMode string
 }
 
 // TokenUsage is per-task token accounting reported by an adapter alongside RunResult.

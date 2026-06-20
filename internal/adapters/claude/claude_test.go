@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -127,6 +128,43 @@ func TestRun_CtxCancel_ReturnsCancelled(t *testing.T) {
 	// Shim sleeps 30s; if we got here in <30s the cancel propagated.
 	if res.Duration >= 30*time.Second {
 		t.Errorf("Duration = %v >= 30s — cancel did not propagate to subprocess", res.Duration)
+	}
+}
+
+func TestSeedConfigDir_CopiesPresentEntries(t *testing.T) {
+	src := t.TempDir()
+	dst := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", src)
+
+	if err := os.WriteFile(filepath.Join(src, ".credentials.json"), []byte(`{"token":"abc"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "settings.json"), []byte(`{"theme":"dark"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := seedConfigDir(dst); err != nil {
+		t.Fatalf("seedConfigDir: %v", err)
+	}
+	for _, name := range []string{".credentials.json", "settings.json"} {
+		if _, err := os.Stat(filepath.Join(dst, name)); err != nil {
+			t.Errorf("seeded dst missing %s: %v", name, err)
+		}
+	}
+}
+
+func TestSeedConfigDir_MissingSourceEntriesNotAnError(t *testing.T) {
+	// Mirrors the macOS-Keychain case: source dir exists but holds no
+	// .credentials.json (OAuth token lives in the Keychain, not on disk).
+	// A missing entry must be skipped, not a hard error.
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+	dst := t.TempDir()
+
+	if err := seedConfigDir(dst); err != nil {
+		t.Fatalf("seedConfigDir with empty source = %v, want nil", err)
+	}
+	if entries, _ := os.ReadDir(dst); len(entries) != 0 {
+		t.Errorf("dst should be empty when source has nothing to seed, got %d entries", len(entries))
 	}
 }
 
