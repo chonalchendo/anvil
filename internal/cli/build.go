@@ -1,10 +1,14 @@
 package cli
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -85,6 +89,9 @@ func newBuildCmd() *cobra.Command {
 				}
 			}
 
+			runID := newRunID()
+			startedAt := time.Now().UTC().Format(time.RFC3339)
+
 			// Text dry-run: list the selected frontier.
 			if flagDryRun && !flagJSON {
 				for _, t := range tasks {
@@ -92,23 +99,15 @@ func newBuildCmd() *cobra.Command {
 				}
 			}
 
-			// JSON dry-run: emit a single plan envelope so consumers can
-			// assert per-task fields (config_dir uniqueness, auto_merge) with
-			// a plain jq path rather than slurp-mode. The engine owns the
-			// per-task record shape and the planned per-spawn config dir; the
-			// driver only hands it the waves (build-orchestration-contract:
-			// driver selects work, engine owns dispatch mechanics).
-			if flagDryRun && flagJSON {
-				return build.PlanJSON(cmd.OutOrStdout(), [][]core.Task{tasks})
-			}
-
 			opts := build.Options{
 				Concurrency: flagConcurrency,
 				Cwd:         cwd,
 				DryRun:      flagDryRun,
-				JSON:        flagJSON,
-				Stdout:      cmd.OutOrStdout(),
-				Stderr:      cmd.ErrOrStderr(),
+				// Dry-run JSON is the plan envelope below, not the live NDJSON
+				// stream — so the engine stays quiet on stdout in that path.
+				JSON:   flagJSON && !flagDryRun,
+				Stdout: cmd.OutOrStdout(),
+				Stderr: cmd.ErrOrStderr(),
 				Router: build.Router{
 					"claude-": claude.New(""),
 				},
@@ -118,8 +117,29 @@ func newBuildCmd() *cobra.Command {
 			// advances across invocations as the human merges each PR and the
 			// next frontier unblocks — a single run must not dispatch a later
 			// wave while earlier PRs sit unmerged.
-			_, err = build.Build(cmd.Context(), [][]core.Task{tasks}, opts)
-			return err
+			sum, buildErr := build.Build(cmd.Context(), [][]core.Task{tasks}, opts)
+
+			// Persist per-task telemetry keyed by run, queryable via
+			// `anvil build tasks <run-id>`. The driver is where the engine's
+			// in-memory Summary meets the index (build-orchestration-contract).
+			// Build always returns a non-nil Summary (empty on a pre-wave cancel).
+			// A real build's exit still wins; a telemetry failure there only warns.
+			if terr := recordBuildTelemetry(db, runID, startedAt, flagProject, flagMilestone, flagDryRun, sum); terr != nil {
+				if buildErr != nil {
+					cmd.PrintErrf("warning: build telemetry not persisted: %v\n", terr)
+				} else {
+					return fmt.Errorf("persisting build telemetry: %w", terr)
+				}
+			}
+
+			// JSON dry-run: emit a single plan envelope so consumers can assert
+			// per-task fields (config_dir uniqueness, auto_merge) and the run id
+			// with a plain jq path rather than slurp-mode. The engine owns the
+			// per-task record shape; the driver only hands it the waves.
+			if flagDryRun && flagJSON {
+				return build.PlanJSON(cmd.OutOrStdout(), runID, [][]core.Task{tasks})
+			}
+			return buildErr
 		},
 	}
 
@@ -129,7 +149,93 @@ func newBuildCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "print the dispatched ready issues; do not call any adapter")
 	cmd.Flags().StringVar(&flagProject, "project", "", "restrict to ready issues in this project (exact match; default: all)")
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "restrict to ready issues under this milestone slug")
+	cmd.AddCommand(newBuildTasksCmd())
 	return cmd
+}
+
+// newBuildTasksCmd queries the per-task telemetry a build run persisted, keyed
+// by run id. Read-only over the index's build_tasks table.
+func newBuildTasksCmd() *cobra.Command {
+	var flagJSON bool
+	cmd := &cobra.Command{
+		Use:   "tasks <run-id>",
+		Short: "Show per-task telemetry for a build run",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			v, err := core.ResolveVault()
+			if err != nil {
+				return fmt.Errorf("resolving vault: %w", err)
+			}
+			db, err := indexForRead(v)
+			if err != nil {
+				return err
+			}
+			defer db.Close() //nolint:errcheck // close in defer; error not actionable
+
+			rows, err := db.BuildTasksByRun(args[0])
+			if err != nil {
+				return err
+			}
+			if flagJSON {
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(rows)
+			}
+			if len(rows) == 0 {
+				cmd.PrintErrf("no telemetry for run %s\n", args[0])
+				return nil
+			}
+			for _, r := range rows {
+				cmd.Printf("%s\t%s\t%s\t%d→%d tok\t$%.4f\texit %d\n",
+					r.TaskID, r.Model, r.Outcome, r.TokensIn, r.TokensOut, r.CostUSD, r.VerifyExit)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit per-task telemetry as a JSON array")
+	return cmd
+}
+
+// recordBuildTelemetry projects the engine's in-memory Summary onto build_runs /
+// build_tasks rows and persists them. Dry-run rows carry the planned model/effort
+// with zero token/cost columns so a plan is queryable like a real run.
+func recordBuildTelemetry(db *index.DB, runID, startedAt, project, milestone string, dryRun bool, sum *build.Summary) error {
+	tasks := make([]index.BuildTask, 0, len(sum.Outcomes))
+	for _, oc := range sum.Outcomes {
+		tasks = append(tasks, index.BuildTask{
+			RunID:       runID,
+			TaskID:      oc.TaskID,
+			Wave:        oc.Wave,
+			Model:       oc.Model,
+			Effort:      oc.Effort,
+			Outcome:     oc.Outcome,
+			TokensIn:    oc.Result.Tokens.Input,
+			TokensOut:   oc.Result.Tokens.Output,
+			CacheRead:   oc.Result.Tokens.CacheRead,
+			CacheWrite:  oc.Result.Tokens.CacheWrite,
+			CostUSD:     oc.Result.CostUSD,
+			DurationMS:  oc.Duration.Milliseconds(),
+			AgentTimeMS: oc.Result.AgentTime.Milliseconds(),
+			VerifyExit:  oc.Result.ExitCode,
+		})
+	}
+	if err := db.InsertBuildRun(index.BuildRun{
+		RunID:     runID,
+		StartedAt: startedAt,
+		Project:   project,
+		Milestone: milestone,
+		DryRun:    dryRun,
+		Tasks:     len(tasks),
+	}); err != nil {
+		return err
+	}
+	return db.InsertBuildTasks(tasks)
+}
+
+// newRunID returns a sortable, collision-resistant build run id: a UTC timestamp
+// prefix plus random suffix, so runs order chronologically and never collide.
+func newRunID() string {
+	var b [6]byte
+	_, _ = rand.Read(b[:]) // crypto/rand.Read never returns an error on supported platforms
+	return time.Now().UTC().Format("20060102T150405Z") + "-" + hex.EncodeToString(b[:])
 }
 
 // readyUnitsToTasks maps the priority-ordered ready frontier to dispatch tasks.

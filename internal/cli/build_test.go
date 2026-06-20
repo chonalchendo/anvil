@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -14,10 +15,52 @@ func TestBuild_DryRunJSON_EmitsPlanEnvelope(t *testing.T) {
 
 	out := execCmd(t, "build", "--dry-run", "--json", "--project", "demo")
 	// --dry-run --json emits a single plan envelope so callers can assert
-	// per-task fields (config_dir uniqueness, auto_merge) without slurp mode.
-	for _, want := range []string{`"task_id":"demo.foo"`, `"config_dir":`, `"auto_merge":false`, `"tasks":`} {
+	// per-task fields (config_dir uniqueness, auto_merge) and the run id without
+	// slurp mode.
+	for _, want := range []string{`"run_id":`, `"task_id":"demo.foo"`, `"config_dir":`, `"auto_merge":false`, `"tasks":`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in output:\n%s", want, out)
+		}
+	}
+}
+
+func TestBuild_DryRun_PersistsQueryableTelemetry(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t) // demo.foo: open, unblocked → ready
+
+	// A dry-run records a run keyed by run id...
+	var env struct {
+		RunID string `json:"run_id"`
+	}
+	out := execCmd(t, "build", "--dry-run", "--json", "--project", "demo")
+	if err := json.Unmarshal([]byte(out), &env); err != nil {
+		t.Fatalf("plan envelope not JSON: %v\n%s", err, out)
+	}
+	if env.RunID == "" {
+		t.Fatalf("plan envelope carried no run_id:\n%s", out)
+	}
+
+	// ...and its per-task rows are queryable with the telemetry columns present.
+	var rows []map[string]any
+	tasksOut := execCmd(t, "build", "tasks", env.RunID, "--json")
+	if err := json.Unmarshal([]byte(tasksOut), &rows); err != nil {
+		t.Fatalf("tasks output not JSON: %v\n%s", err, tasksOut)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("got %d task rows, want 1:\n%s", len(rows), tasksOut)
+	}
+	r := rows[0]
+	if r["task_id"] != "demo.foo" {
+		t.Errorf("task_id = %v, want demo.foo", r["task_id"])
+	}
+	if r["outcome"] != "skipped_dry_run" {
+		t.Errorf("outcome = %v, want skipped_dry_run", r["outcome"])
+	}
+	for _, col := range []string{"model", "tokens_in", "tokens_out", "cost_usd", "verify_exit"} {
+		if _, ok := r[col]; !ok {
+			t.Errorf("telemetry column %q absent from row:\n%s", col, tasksOut)
 		}
 	}
 }
