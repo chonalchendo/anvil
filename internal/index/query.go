@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/chonalchendo/anvil/internal/core"
 )
 
 // QueryFilters layers filters onto ListReady / ListOrphans. Empty fields are no-ops.
@@ -196,11 +198,15 @@ type MilestoneStatus struct {
 // issues linked to it via the `milestone` slot (relation 'milestone'). Done is
 // true only when the milestone has at least one linked issue and every one is
 // resolved, so an empty milestone reports done=false. Returns
-// ErrArtifactNotInIndex when the id is absent from the index, so a typo surfaces
-// rather than reporting a silent done=false.
+// ErrArtifactNotInIndex when the id is not a milestone in the index, so a typo —
+// or a non-milestone id — surfaces rather than reporting a silent done=false.
 func (d *DB) MilestoneStatus(milestoneID string) (MilestoneStatus, error) {
-	if _, err := d.GetArtifact(milestoneID); err != nil {
+	a, err := d.GetArtifact(milestoneID)
+	if err != nil {
 		return MilestoneStatus{}, err
+	}
+	if a.Type != string(core.TypeMilestone) {
+		return MilestoneStatus{}, ErrArtifactNotInIndex
 	}
 	const q = `
 SELECT

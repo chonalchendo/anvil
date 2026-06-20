@@ -154,6 +154,19 @@ func TestMilestoneStatusUnknownMilestoneErrors(t *testing.T) {
 	}
 }
 
+func TestMilestoneStatusNonMilestoneIDErrors(t *testing.T) {
+	db := openTestDB(t)
+	// A real id that is not a milestone (e.g. an issue id) must surface rather
+	// than aggregate zero links and report a silent done=false.
+	if err := db.UpsertArtifact(ArtifactRow{ID: "demo.i1", Type: "issue", Status: "open", Path: "/demo.i1.md"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := db.MilestoneStatus("demo.i1")
+	if !errors.Is(err, ErrArtifactNotInIndex) {
+		t.Fatalf("want ErrArtifactNotInIndex for non-milestone id, got %v", err)
+	}
+}
+
 func TestLinksFromAndTo(t *testing.T) {
 	db := openTestDB(t)
 	must := func(err error) {
