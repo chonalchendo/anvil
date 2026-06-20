@@ -1,6 +1,7 @@
 package index
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -91,6 +92,65 @@ func TestListOrphansFindsArtifactsWithNoIncomingLinks(t *testing.T) {
 	want := []string{"linker", "lonely"} // popular is referenced by linker
 	if diff := cmp.Diff(want, ids, cmpopts.SortSlices(func(x, y string) bool { return x < y })); diff != "" {
 		t.Fatalf("orphans mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func seedMilestone(t *testing.T, db *DB, milestone string, issueStatuses map[string]string) {
+	t.Helper()
+	must := func(err error) {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	must(db.UpsertArtifact(ArtifactRow{ID: milestone, Type: "milestone", Status: "open", Path: "/" + milestone + ".md"}))
+	for id, status := range issueStatuses {
+		must(db.UpsertArtifact(ArtifactRow{ID: id, Type: "issue", Status: status, Path: "/" + id + ".md"}))
+		must(db.ReplaceLinks(id, []LinkRow{{Source: id, Target: milestone, Relation: "milestone"}}))
+	}
+}
+
+func TestMilestoneStatusDerivesDoneFromLinkedIssues(t *testing.T) {
+	tests := []struct {
+		name     string
+		statuses map[string]string
+		want     MilestoneStatus
+	}{
+		{
+			name:     "open issues remain -> not done",
+			statuses: map[string]string{"i1": "resolved", "i2": "open"},
+			want:     MilestoneStatus{Milestone: "m", Resolved: 1, Total: 2, Done: false},
+		},
+		{
+			name:     "all resolved -> done",
+			statuses: map[string]string{"i1": "resolved", "i2": "resolved"},
+			want:     MilestoneStatus{Milestone: "m", Resolved: 2, Total: 2, Done: true},
+		},
+		{
+			name:     "no linked issues -> not done",
+			statuses: nil,
+			want:     MilestoneStatus{Milestone: "m", Resolved: 0, Total: 0, Done: false},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			db := openTestDB(t)
+			seedMilestone(t, db, "m", tc.statuses)
+			got, err := db.MilestoneStatus("m")
+			if err != nil {
+				t.Fatalf("MilestoneStatus: %v", err)
+			}
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Fatalf("status mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestMilestoneStatusUnknownMilestoneErrors(t *testing.T) {
+	db := openTestDB(t)
+	_, err := db.MilestoneStatus("does-not-exist")
+	if !errors.Is(err, ErrArtifactNotInIndex) {
+		t.Fatalf("want ErrArtifactNotInIndex, got %v", err)
 	}
 }
 
