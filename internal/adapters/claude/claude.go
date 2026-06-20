@@ -2,14 +2,17 @@ package claude
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -42,9 +45,9 @@ func (a *Adapter) Name() string { return "claude-code" }
 // other's session/auth state, then SEEDS the user's credentials into it before
 // spawn. A bare empty config dir has no .credentials.json, so `claude -p`
 // returns "Not logged in" and does no work (commit 084f9f7). The dir is removed
-// after Wait. On macOS the OAuth token may live in the Keychain rather than on
-// disk; in that case there is nothing to seed and live auth remains a human gate
-// (see seedConfigDir).
+// after Wait. On macOS the OAuth token lives in the login Keychain rather than
+// on disk; seedConfigDir pulls it from there so the isolated spawn authenticates
+// (anvil.0107).
 func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResult, error) {
 	bin, err := a.resolveBin()
 	if err != nil {
@@ -201,10 +204,9 @@ func (a *Adapter) resolveBin() (string, error) {
 // config dir into the fresh per-spawn dir, so the isolated `claude -p` can still
 // authenticate (adapters.md: "credentials seeded in before spawn"). Source is
 // $CLAUDE_CONFIG_DIR if set, else ~/.claude — mirroring the install command's
-// resolution. A missing source entry is not an error: on macOS the OAuth token
-// lives in the Keychain (process-wide, not in the config dir), so there may be
-// nothing on disk to seed; the entries we do find still carry the session
-// pointer the CLI needs.
+// resolution. When no file-based credential is present — the macOS case, where
+// the OAuth token lives in the login Keychain rather than on disk — the token is
+// pulled from the Keychain and written into the per-spawn dir (anvil.0107).
 func seedConfigDir(dst string) error {
 	src, err := sourceConfigDir()
 	if err != nil {
@@ -213,6 +215,7 @@ func seedConfigDir(dst string) error {
 	// .credentials.json is the file-based OAuth/API token (Linux, and macOS
 	// when not Keychain-backed). The user-settings file carries config the
 	// spawn inherits. Copy each only if present.
+	seededCreds := false
 	for _, name := range []string{".credentials.json", "settings.json"} {
 		from := filepath.Join(src, name)
 		b, err := os.ReadFile(from) //nolint:gosec // path built from the user's own config dir
@@ -225,8 +228,54 @@ func seedConfigDir(dst string) error {
 		if err := os.WriteFile(filepath.Join(dst, name), b, 0o600); err != nil { //nolint:gosec // dst is our own os.MkdirTemp dir; name is a hardcoded literal from a closed list, not untrusted input
 			return fmt.Errorf("writing %s: %w", name, err)
 		}
+		if name == ".credentials.json" {
+			seededCreds = true
+		}
+	}
+	// On macOS the OAuth token lives in the login Keychain, so the loop above
+	// seeds no credential and the isolated spawn would no-op with "Not logged
+	// in". Pull it from the Keychain into the per-spawn dir. Absent (API-key
+	// mode or logged out) → skip; the spawn surfaces its own auth error.
+	if !seededCreds {
+		if blob, ok := keychainCredential(); ok {
+			if err := os.WriteFile(filepath.Join(dst, ".credentials.json"), blob, 0o600); err != nil {
+				return fmt.Errorf("writing keychain credential: %w", err)
+			}
+		}
 	}
 	return nil
+}
+
+// keychainService is the service name Claude Code stores its OAuth credential
+// under in the macOS login Keychain (account = the login user).
+const keychainService = "Claude Code-credentials"
+
+// keychainCredential returns the Claude Code OAuth blob from the macOS login
+// Keychain and true when present. On non-macOS hosts, or when the item is absent
+// (API-key mode or logged out), it returns false — not an error, the spawn
+// surfaces its own auth failure. A package var so tests stub the security(1)
+// shell-out, which can otherwise block on a GUI access prompt.
+var keychainCredential = func() ([]byte, bool) {
+	if runtime.GOOS != "darwin" {
+		return nil, false
+	}
+	out, err := exec.Command("security", "find-generic-password", "-s", keychainService, "-w").Output()
+	if err != nil {
+		// Absent (item-not-found) is the expected API-key-mode / logged-out
+		// case, but a real failure (locked Keychain, denied access) lands here
+		// too. Log at debug so a downstream "Not logged in" spawn is
+		// diagnosable without spamming normal runs; stderr carries security(1)'s
+		// specific reason, which err alone ("exit status 44") does not.
+		var exitErr *exec.ExitError
+		stderr := ""
+		if errors.As(err, &exitErr) {
+			stderr = strings.TrimSpace(string(exitErr.Stderr))
+		}
+		slog.Debug("keychain credential lookup failed; isolated spawn falls back to inherited env auth",
+			"err", err, "stderr", stderr)
+		return nil, false
+	}
+	return bytes.TrimSpace(out), true
 }
 
 // sourceConfigDir resolves the user's real Claude config dir: $CLAUDE_CONFIG_DIR
