@@ -159,6 +159,26 @@ func newBuildCmd() *cobra.Command {
 					if buildErr == nil {
 						buildErr = rerr
 					}
+
+					// Respond phase: after review, spawn a responding-to-pr-review
+					// task per reviewed issue to drive each finding to an outcome and
+					// CI to green — the Layer-1 halt point, leaving the PR review-green
+					// awaiting the human merge. Like review, the controller owns the
+					// spawn and the phases decouple through gh state: the respond spawn
+					// rediscovers its PR and review findings via gh, so the engine
+					// threads no data between the review and respond spawns
+					// (build-orchestration-contract). Zero actionable findings → the
+					// respond task is a no-op that confirms CI-green and exits. No
+					// advance-gate and no second review pass: one review→respond cycle.
+					if respondTasks := respondTasksFromTasks(reviewTasks, reviewSum); len(respondTasks) > 0 {
+						respondOpts := opts
+						respondOpts.VerifyArtifact = nil
+						respondSum, rerr := build.Build(cmd.Context(), [][]core.Task{respondTasks}, respondOpts)
+						phases = append(phases, phaseSummary{phase: "respond", sum: respondSum})
+						if buildErr == nil {
+							buildErr = rerr
+						}
+					}
 				}
 			}
 
@@ -356,6 +376,36 @@ func reviewTasksFromTasks(completeTasks []core.Task, sum *build.Summary) []core.
 		})
 	}
 	return reviews
+}
+
+// respondTasksFromTasks builds the respond-phase wave: one responding-to-pr-review
+// task per review-phase task that ran (outcome "success"). Each respond task reuses
+// the issue's cut worktree and branch so the responding-to-pr-review skill discovers
+// the PR and its review findings via `gh pr list --head <branch>` — the engine
+// threads no data between the review and respond spawns; they decouple through gh
+// state (build-orchestration-contract). The spawn drives each finding to an outcome
+// (fix / skip-with-reason / push-back) and CI to green, then halts review-green
+// awaiting the human merge. A review task that did not succeed gets no respond task.
+func respondTasksFromTasks(reviewTasks []core.Task, sum *build.Summary) []core.Task {
+	responds := make([]core.Task, 0, len(reviewTasks))
+	for _, t := range reviewTasks {
+		if sum.Outcomes[t.ID].Outcome != "success" {
+			continue
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "Address the review findings on the open PR for anvil issue %s using the responding-to-pr-review skill, driving each finding to an outcome (fix / skip-with-reason / push-back) and CI to green. Halt at review-green; the human owns the merge.\n\n", t.ID)
+		fmt.Fprintf(&b, "Find the PR on its branch: gh pr list --head %s --state open.\n", t.Branch)
+		fmt.Fprintf(&b, "Issue branch: %s\n", t.Branch)
+
+		responds = append(responds, core.Task{
+			ID:           t.ID,
+			SkillsToLoad: []string{"responding-to-pr-review"},
+			Body:         b.String(),
+			Cwd:          t.Cwd,
+			Branch:       t.Branch,
+		})
+	}
+	return responds
 }
 
 // buildClaimOwner is stamped on issues `anvil build` claims, marking the claim

@@ -220,6 +220,87 @@ func TestReviewPhase_TelemetryTagsEachPhaseRow(t *testing.T) {
 	}
 }
 
+func TestRespondPhase_EmitsRespondTaskOnlyForReviewedSuccess(t *testing.T) {
+	// The review wave: foo's review ran (success), bar's did not.
+	reviewTasks := []core.Task{
+		{ID: "demo.foo", Cwd: "/wt/foo", Branch: "demo/foo"},
+		{ID: "demo.bar", Cwd: "/wt/bar", Branch: "demo/bar"},
+	}
+	sum := &build.Summary{Outcomes: map[string]build.TaskOutcome{
+		"demo.foo": {TaskID: "demo.foo", Outcome: "success"},
+		"demo.bar": {TaskID: "demo.bar", Outcome: "failed"},
+	}}
+
+	responds := respondTasksFromTasks(reviewTasks, sum)
+
+	// Only the reviewed-success task gets a respond task.
+	if len(responds) != 1 {
+		t.Fatalf("got %d respond tasks, want 1 (only the success)", len(responds))
+	}
+	r := responds[0]
+	if r.ID != "demo.foo" {
+		t.Errorf("respond task ID = %q, want demo.foo", r.ID)
+	}
+	if len(r.SkillsToLoad) != 1 || r.SkillsToLoad[0] != "responding-to-pr-review" {
+		t.Errorf("respond SkillsToLoad = %v, want [responding-to-pr-review]", r.SkillsToLoad)
+	}
+	// The phases decouple through gh state: the respond body points the skill at
+	// the branch, and the task reuses the issue's worktree so gh resolves the PR.
+	if r.Cwd != "/wt/foo" || r.Branch != "demo/foo" {
+		t.Errorf("respond Cwd/Branch = %q/%q, want /wt/foo/demo/foo", r.Cwd, r.Branch)
+	}
+	for _, want := range []string{"demo.foo", "responding-to-pr-review skill", "gh pr list --head demo/foo"} {
+		if !strings.Contains(r.Body, want) {
+			t.Errorf("respond body missing %q; got:\n%s", want, r.Body)
+		}
+	}
+}
+
+func TestRespondPhase_TelemetryTagsEachPhaseRow(t *testing.T) {
+	db, err := index.Open(filepath.Join(t.TempDir(), ".anvil", "vault.db"))
+	if err != nil {
+		t.Fatalf("open index: %v", err)
+	}
+	defer db.Close() //nolint:errcheck // test cleanup
+
+	// The full Layer-1 pipeline: complete → review → respond, each tagging its row.
+	phases := []phaseSummary{
+		{phase: "complete", sum: &build.Summary{Outcomes: map[string]build.TaskOutcome{
+			"demo.foo": {TaskID: "demo.foo", Model: "claude-sonnet-4-6", Outcome: "success"},
+		}}},
+		{phase: "review", sum: &build.Summary{Outcomes: map[string]build.TaskOutcome{
+			"demo.foo": {TaskID: "demo.foo", Model: "claude-sonnet-4-6", Outcome: "success"},
+		}}},
+		{phase: "respond", sum: &build.Summary{Outcomes: map[string]build.TaskOutcome{
+			"demo.foo": {TaskID: "demo.foo", Model: "claude-sonnet-4-6", Outcome: "success"},
+		}}},
+	}
+	if err := recordBuildTelemetry(db, "run-1", "2026-06-21T00:00:00Z", "demo", "", false, phases); err != nil {
+		t.Fatalf("record telemetry: %v", err)
+	}
+
+	rows, err := db.BuildTasksByRun("run-1")
+	if err != nil {
+		t.Fatalf("query telemetry: %v", err)
+	}
+	// Same task_id appears once per phase — a distinct row each, no PK collision.
+	if len(rows) != 3 {
+		t.Fatalf("got %d rows, want 3 (complete, review, respond for demo.foo)", len(rows))
+	}
+	got := map[string]bool{}
+	for _, r := range rows {
+		if r.TaskID != "demo.foo" {
+			t.Errorf("row task_id = %q, want demo.foo", r.TaskID)
+		}
+		got[r.Phase] = true
+	}
+	for _, phase := range []string{"complete", "review", "respond"} {
+		if !got[phase] {
+			t.Errorf("no telemetry row tagged phase %q; rows=%+v", phase, rows)
+		}
+	}
+}
+
 func TestReadyUnitsToTasks_MapsIDSkillAndStartContext(t *testing.T) {
 	units := []readyUnit{
 		{ID: "demo.a", Goal: "ship a", Severity: "high", Milestone: "demo.m1", Contracts: []string{"demo.c1"}, Path: "/v/demo.a.md"},
