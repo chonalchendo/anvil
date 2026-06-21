@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS build_runs (
 CREATE TABLE IF NOT EXISTS build_tasks (
     run_id        TEXT NOT NULL,
     task_id       TEXT NOT NULL,
+    phase         TEXT NOT NULL DEFAULT 'complete',
     wave          INTEGER NOT NULL,
     model         TEXT NOT NULL,
     effort        TEXT,
@@ -75,7 +76,7 @@ CREATE TABLE IF NOT EXISTS build_tasks (
     duration_ms   INTEGER NOT NULL DEFAULT 0,
     agent_time_ms INTEGER NOT NULL DEFAULT 0,
     verify_exit   INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (run_id, task_id)
+    PRIMARY KEY (run_id, task_id, phase)
 );
 CREATE INDEX IF NOT EXISTS build_tasks_run_idx ON build_tasks(run_id);
 CREATE VIRTUAL TABLE IF NOT EXISTS learning_fts USING fts5(id UNINDEXED, tldr);
