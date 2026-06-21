@@ -146,6 +146,82 @@ func TestBuild_TaskFailure_ReturnsErrBuildTaskFailed(t *testing.T) {
 	}
 }
 
+// oneTaskWave is a single-task fixture whose default fakeAdapter response is a
+// clean exit-0 success — so any "failed" outcome comes from the advance-gate.
+func oneTaskWave() [][]core.Task {
+	return [][]core.Task{{{
+		ID: "T1", Title: "Wave-0 task", Model: "claude-sonnet-4-6", Effort: "medium",
+		Body: "do T1", Verify: "true",
+	}}}
+}
+
+func TestBuild_AdvanceGate_ExitZeroNoPRIsFailed(t *testing.T) {
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{}} // default: exit 0
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: io.Discard,
+		Router:         Router{"claude-": fa},
+		VerifyArtifact: func(context.Context, core.Task) (bool, error) { return false, nil },
+	}
+	sum, err := Build(context.Background(), oneTaskWave(), opts)
+	if !errors.Is(err, ErrBuildTaskFailed) {
+		t.Fatalf("err = %v, want ErrBuildTaskFailed", err)
+	}
+	if got := sum.Outcomes["T1"].Outcome; got != "failed" {
+		t.Errorf("outcome = %q, want failed (exit 0 but no PR)", got)
+	}
+}
+
+func TestBuild_AdvanceGate_PRExistsIsSuccess(t *testing.T) {
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{}}
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: io.Discard,
+		Router:         Router{"claude-": fa},
+		VerifyArtifact: func(context.Context, core.Task) (bool, error) { return true, nil },
+	}
+	sum, err := Build(context.Background(), oneTaskWave(), opts)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if got := sum.Outcomes["T1"].Outcome; got != "success" {
+		t.Errorf("outcome = %q, want success (exit 0 with a PR)", got)
+	}
+}
+
+func TestBuild_AdvanceGate_VerifierErrorIsFailed(t *testing.T) {
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{}}
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: io.Discard,
+		Router:         Router{"claude-": fa},
+		VerifyArtifact: func(context.Context, core.Task) (bool, error) { return false, errors.New("gh exploded") },
+	}
+	sum, err := Build(context.Background(), oneTaskWave(), opts)
+	if !errors.Is(err, ErrBuildTaskFailed) {
+		t.Fatalf("err = %v, want ErrBuildTaskFailed", err)
+	}
+	if got := sum.Outcomes["T1"].Outcome; got != "failed" {
+		t.Errorf("outcome = %q, want failed (unverifiable artifact)", got)
+	}
+}
+
+func TestBuild_AdvanceGate_NilVerifierTrustsExitZero(t *testing.T) {
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{}}
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: io.Discard,
+		Router: Router{"claude-": fa}, // VerifyArtifact nil → gate disabled
+	}
+	sum, err := Build(context.Background(), oneTaskWave(), opts)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if got := sum.Outcomes["T1"].Outcome; got != "success" {
+		t.Errorf("outcome = %q, want success (no gate wired)", got)
+	}
+}
+
 func TestBuild_QuotaExhausted_AbortsWaveAndReturnsSentinel(t *testing.T) {
 	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
 		"do T1": {err: ErrQuotaExhausted},

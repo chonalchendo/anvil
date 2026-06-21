@@ -128,6 +128,11 @@ func newBuildCmd() *cobra.Command {
 				Router: build.Router{
 					"claude-": claude.New(""),
 				},
+				// Advance-gate: confirm each spawn opened a PR on the branch the
+				// driver cut before recording success — a no-op exit-0 worker is
+				// "failed", so the next frontier never unblocks on a phantom PR
+				// (anvil.0112). Skipped on dry-run (no spawn reaches classify).
+				VerifyArtifact: build.PRExistsForTask,
 			}
 			// The ready frontier is one wave: ready issues have no unresolved
 			// depends_on, so they are mutually independent. The dependency graph
