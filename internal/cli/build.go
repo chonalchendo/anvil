@@ -141,12 +141,33 @@ func newBuildCmd() *cobra.Command {
 			// wave while earlier PRs sit unmerged.
 			sum, buildErr := build.Build(cmd.Context(), [][]core.Task{tasks}, opts)
 
+			// Review phase: after complete passes the advance-gate (a PR exists on
+			// the engine-cut branch), spawn a reviewing-pr task per verified issue.
+			// The controller — not the worker — owns this spawn: a dispatched worker
+			// cannot sub-dispatch its own reviewer (build-orchestration-contract).
+			// The phases decouple through gh state — the review spawn discovers its
+			// PR via `gh pr list --head <branch>` — so the engine still threads no
+			// data between spawns. No advance-gate on review: it records a verdict,
+			// it opens no PR. Dry-run skips it (no real PR exists to review).
+			phases := []phaseSummary{{phase: "complete", sum: sum}}
+			if !flagDryRun {
+				if reviewTasks := reviewTasksFromTasks(tasks, sum); len(reviewTasks) > 0 {
+					reviewOpts := opts
+					reviewOpts.VerifyArtifact = nil
+					reviewSum, rerr := build.Build(cmd.Context(), [][]core.Task{reviewTasks}, reviewOpts)
+					phases = append(phases, phaseSummary{phase: "review", sum: reviewSum})
+					if buildErr == nil {
+						buildErr = rerr
+					}
+				}
+			}
+
 			// Persist per-task telemetry keyed by run, queryable via
 			// `anvil build tasks <run-id>`. The driver is where the engine's
 			// in-memory Summary meets the index (build-orchestration-contract).
 			// Build always returns a non-nil Summary (empty on a pre-wave cancel).
 			// A real build's exit still wins; a telemetry failure there only warns.
-			if terr := recordBuildTelemetry(db, runID, startedAt, flagProject, flagMilestone, flagDryRun, sum); terr != nil {
+			if terr := recordBuildTelemetry(db, runID, startedAt, flagProject, flagMilestone, flagDryRun, phases); terr != nil {
 				if buildErr != nil {
 					cmd.PrintErrf("warning: build telemetry not persisted: %v\n", terr)
 				} else {
@@ -210,8 +231,8 @@ func newBuildTasksCmd() *cobra.Command {
 				return nil
 			}
 			for _, r := range rows {
-				cmd.Printf("%s\t%s\t%s\t%d→%d tok\t$%.4f\texit %d\n",
-					r.TaskID, r.Model, r.Outcome, r.TokensIn, r.TokensOut, r.CostUSD, r.VerifyExit)
+				cmd.Printf("%s\t%s\t%s\t%s\t%d→%d tok\t$%.4f\texit %d\n",
+					r.TaskID, r.Phase, r.Model, r.Outcome, r.TokensIn, r.TokensOut, r.CostUSD, r.VerifyExit)
 			}
 			return nil
 		},
@@ -220,28 +241,42 @@ func newBuildTasksCmd() *cobra.Command {
 	return cmd
 }
 
-// recordBuildTelemetry projects the engine's in-memory Summary onto build_runs /
-// build_tasks rows and persists them. Dry-run rows carry the planned model/effort
-// with zero token/cost columns so a plan is queryable like a real run.
-func recordBuildTelemetry(db *index.DB, runID, startedAt, project, milestone string, dryRun bool, sum *build.Summary) error {
-	tasks := make([]index.BuildTask, 0, len(sum.Outcomes))
-	for _, oc := range sum.Outcomes {
-		tasks = append(tasks, index.BuildTask{
-			RunID:       runID,
-			TaskID:      oc.TaskID,
-			Wave:        oc.Wave,
-			Model:       oc.Model,
-			Effort:      oc.Effort,
-			Outcome:     oc.Outcome,
-			TokensIn:    oc.Result.Tokens.Input,
-			TokensOut:   oc.Result.Tokens.Output,
-			CacheRead:   oc.Result.Tokens.CacheRead,
-			CacheWrite:  oc.Result.Tokens.CacheWrite,
-			CostUSD:     oc.Result.CostUSD,
-			DurationMS:  oc.Duration.Milliseconds(),
-			AgentTimeMS: oc.Result.AgentTime.Milliseconds(),
-			VerifyExit:  oc.Result.ExitCode,
-		})
+// phaseSummary pairs a build phase ("complete" | "review") with the engine
+// Summary that phase produced, so the driver tags each telemetry row with the
+// phase that generated it. The engine stays phase-agnostic — it runs waves and
+// never names a phase; phase sequencing is the driver's (build-orchestration-contract).
+type phaseSummary struct {
+	phase string
+	sum   *build.Summary
+}
+
+// recordBuildTelemetry projects each phase's in-memory Summary onto build_runs /
+// build_tasks rows and persists them, tagging every row with its phase. Dry-run
+// rows carry the planned model/effort with zero token/cost columns so a plan is
+// queryable like a real run. The driver only appends a phase that ran, and
+// build.Build always returns a non-nil Summary, so every ph.sum is populated.
+func recordBuildTelemetry(db *index.DB, runID, startedAt, project, milestone string, dryRun bool, phases []phaseSummary) error {
+	tasks := []index.BuildTask{}
+	for _, ph := range phases {
+		for _, oc := range ph.sum.Outcomes {
+			tasks = append(tasks, index.BuildTask{
+				RunID:       runID,
+				TaskID:      oc.TaskID,
+				Phase:       ph.phase,
+				Wave:        oc.Wave,
+				Model:       oc.Model,
+				Effort:      oc.Effort,
+				Outcome:     oc.Outcome,
+				TokensIn:    oc.Result.Tokens.Input,
+				TokensOut:   oc.Result.Tokens.Output,
+				CacheRead:   oc.Result.Tokens.CacheRead,
+				CacheWrite:  oc.Result.Tokens.CacheWrite,
+				CostUSD:     oc.Result.CostUSD,
+				DurationMS:  oc.Duration.Milliseconds(),
+				AgentTimeMS: oc.Result.AgentTime.Milliseconds(),
+				VerifyExit:  oc.Result.ExitCode,
+			})
+		}
 	}
 	if err := db.InsertBuildRun(index.BuildRun{
 		RunID:     runID,
@@ -292,6 +327,35 @@ func readyUnitsToTasks(units []readyUnit) []core.Task {
 		})
 	}
 	return tasks
+}
+
+// reviewTasksFromTasks builds the review-phase wave: one reviewing-pr task per
+// complete-phase task the advance-gate passed (outcome "success" → a verified PR
+// exists on its branch). Each review task reuses the issue's cut worktree and
+// branch so the reviewing-pr skill discovers the PR via `gh pr list --head
+// <branch>` — the engine threads no data between the complete and review spawns;
+// they decouple through gh state (build-orchestration-contract). A task the gate
+// failed gets no review: there is no PR to review.
+func reviewTasksFromTasks(completeTasks []core.Task, sum *build.Summary) []core.Task {
+	reviews := make([]core.Task, 0, len(completeTasks))
+	for _, t := range completeTasks {
+		if sum.Outcomes[t.ID].Outcome != "success" {
+			continue
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "Review the open PR for anvil issue %s using the reviewing-pr skill, then record the structured review verdict. The human owns the merge.\n\n", t.ID)
+		fmt.Fprintf(&b, "Find the PR on its branch: gh pr list --head %s --state open.\n", t.Branch)
+		fmt.Fprintf(&b, "Issue branch: %s\n", t.Branch)
+
+		reviews = append(reviews, core.Task{
+			ID:           t.ID,
+			SkillsToLoad: []string{"reviewing-pr"},
+			Body:         b.String(),
+			Cwd:          t.Cwd,
+			Branch:       t.Branch,
+		})
+	}
+	return reviews
 }
 
 // buildClaimOwner is stamped on issues `anvil build` claims, marking the claim

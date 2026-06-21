@@ -3,8 +3,13 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/chonalchendo/anvil/internal/build"
+	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/index"
 )
 
 func TestBuild_DryRunJSON_EmitsPlanEnvelope(t *testing.T) {
@@ -135,6 +140,83 @@ func TestBuild_RejectsPositionalArgs(t *testing.T) {
 	cmd.SetErr(&buf)
 	if err := cmd.Execute(); err == nil {
 		t.Errorf("build takes no positional args; want error, got nil\noutput: %s", buf.String())
+	}
+}
+
+func TestReviewPhase_EmitsReviewTaskOnlyForVerifiedComplete(t *testing.T) {
+	// The complete wave: foo passed the advance-gate (a PR exists), bar did not.
+	completeTasks := []core.Task{
+		{ID: "demo.foo", Cwd: "/wt/foo", Branch: "demo/foo"},
+		{ID: "demo.bar", Cwd: "/wt/bar", Branch: "demo/bar"},
+	}
+	sum := &build.Summary{Outcomes: map[string]build.TaskOutcome{
+		"demo.foo": {TaskID: "demo.foo", Outcome: "success"},
+		"demo.bar": {TaskID: "demo.bar", Outcome: "failed"},
+	}}
+
+	reviews := reviewTasksFromTasks(completeTasks, sum)
+
+	// Only the verified-complete task gets a review task.
+	if len(reviews) != 1 {
+		t.Fatalf("got %d review tasks, want 1 (only the success)", len(reviews))
+	}
+	r := reviews[0]
+	if r.ID != "demo.foo" {
+		t.Errorf("review task ID = %q, want demo.foo", r.ID)
+	}
+	if len(r.SkillsToLoad) != 1 || r.SkillsToLoad[0] != "reviewing-pr" {
+		t.Errorf("review SkillsToLoad = %v, want [reviewing-pr]", r.SkillsToLoad)
+	}
+	// The phases decouple through gh state: the review body points the skill at
+	// the branch, and the task reuses the issue's worktree so gh resolves the PR.
+	if r.Cwd != "/wt/foo" || r.Branch != "demo/foo" {
+		t.Errorf("review Cwd/Branch = %q/%q, want /wt/foo/demo/foo", r.Cwd, r.Branch)
+	}
+	for _, want := range []string{"demo.foo", "reviewing-pr skill", "gh pr list --head demo/foo"} {
+		if !strings.Contains(r.Body, want) {
+			t.Errorf("review body missing %q; got:\n%s", want, r.Body)
+		}
+	}
+}
+
+func TestReviewPhase_TelemetryTagsEachPhaseRow(t *testing.T) {
+	db, err := index.Open(filepath.Join(t.TempDir(), ".anvil", "vault.db"))
+	if err != nil {
+		t.Fatalf("open index: %v", err)
+	}
+	defer db.Close() //nolint:errcheck // test cleanup
+
+	phases := []phaseSummary{
+		{phase: "complete", sum: &build.Summary{Outcomes: map[string]build.TaskOutcome{
+			"demo.foo": {TaskID: "demo.foo", Model: "claude-sonnet-4-6", Outcome: "success"},
+		}}},
+		{phase: "review", sum: &build.Summary{Outcomes: map[string]build.TaskOutcome{
+			"demo.foo": {TaskID: "demo.foo", Model: "claude-sonnet-4-6", Outcome: "success"},
+		}}},
+	}
+	if err := recordBuildTelemetry(db, "run-1", "2026-06-21T00:00:00Z", "demo", "", false, phases); err != nil {
+		t.Fatalf("record telemetry: %v", err)
+	}
+
+	rows, err := db.BuildTasksByRun("run-1")
+	if err != nil {
+		t.Fatalf("query telemetry: %v", err)
+	}
+	// Same task_id appears once per phase — a distinct row each, no PK collision.
+	if len(rows) != 2 {
+		t.Fatalf("got %d rows, want 2 (one complete, one review for demo.foo)", len(rows))
+	}
+	got := map[string]bool{}
+	for _, r := range rows {
+		if r.TaskID != "demo.foo" {
+			t.Errorf("row task_id = %q, want demo.foo", r.TaskID)
+		}
+		got[r.Phase] = true
+	}
+	for _, phase := range []string{"complete", "review"} {
+		if !got[phase] {
+			t.Errorf("no telemetry row tagged phase %q; rows=%+v", phase, rows)
+		}
 	}
 }
 

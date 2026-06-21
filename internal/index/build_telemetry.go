@@ -18,6 +18,7 @@ type BuildRun struct {
 type BuildTask struct {
 	RunID       string  `json:"run_id"`
 	TaskID      string  `json:"task_id"`
+	Phase       string  `json:"phase"` // "complete" | "review" — which build phase produced this row
 	Wave        int     `json:"wave"`
 	Model       string  `json:"model"`
 	Effort      string  `json:"effort"`
@@ -54,11 +55,11 @@ func (d *DB) InsertBuildTasks(tasks []BuildTask) error {
 	if err != nil {
 		return fmt.Errorf("begin build tasks tx: %w", err)
 	}
-	const q = `INSERT INTO build_tasks(run_id, task_id, wave, model, effort, outcome,
+	const q = `INSERT INTO build_tasks(run_id, task_id, phase, wave, model, effort, outcome,
 tokens_in, tokens_out, cache_read, cache_write, cost_usd, duration_ms, agent_time_ms, verify_exit)
-VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	for _, t := range tasks {
-		if _, err := tx.Exec(q, t.RunID, t.TaskID, t.Wave, t.Model, t.Effort, t.Outcome,
+		if _, err := tx.Exec(q, t.RunID, t.TaskID, t.Phase, t.Wave, t.Model, t.Effort, t.Outcome,
 			t.TokensIn, t.TokensOut, t.CacheRead, t.CacheWrite, t.CostUSD,
 			t.DurationMS, t.AgentTimeMS, t.VerifyExit); err != nil {
 			tx.Rollback() //nolint:errcheck,gosec // rollback before returning the insert error
@@ -71,11 +72,12 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	return nil
 }
 
-// BuildTasksByRun returns a run's per-task telemetry in wave then task-id order.
+// BuildTasksByRun returns a run's per-task telemetry ordered by phase, then wave,
+// then task-id — so a task's complete row precedes its review row.
 func (d *DB) BuildTasksByRun(runID string) ([]BuildTask, error) {
-	const q = `SELECT run_id, task_id, wave, model, effort, outcome,
+	const q = `SELECT run_id, task_id, phase, wave, model, effort, outcome,
 tokens_in, tokens_out, cache_read, cache_write, cost_usd, duration_ms, agent_time_ms, verify_exit
-FROM build_tasks WHERE run_id = ? ORDER BY wave, task_id`
+FROM build_tasks WHERE run_id = ? ORDER BY phase, wave, task_id`
 	rs, err := d.sql.Query(q, runID)
 	if err != nil {
 		return nil, fmt.Errorf("build tasks for %s: %w", runID, err)
@@ -84,7 +86,7 @@ FROM build_tasks WHERE run_id = ? ORDER BY wave, task_id`
 	out := []BuildTask{}
 	for rs.Next() {
 		var t BuildTask
-		if err := rs.Scan(&t.RunID, &t.TaskID, &t.Wave, &t.Model, &t.Effort, &t.Outcome,
+		if err := rs.Scan(&t.RunID, &t.TaskID, &t.Phase, &t.Wave, &t.Model, &t.Effort, &t.Outcome,
 			&t.TokensIn, &t.TokensOut, &t.CacheRead, &t.CacheWrite, &t.CostUSD,
 			&t.DurationMS, &t.AgentTimeMS, &t.VerifyExit); err != nil {
 			return nil, err
