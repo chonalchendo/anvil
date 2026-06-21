@@ -231,7 +231,7 @@ func newTransitionCmd() *cobra.Command {
 
 			var wtPath string
 			if cutWorktree {
-				p, err := doCutWorktree(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride)
+				p, _, err := doCutWorktree(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride)
 				if err != nil {
 					return printAndReturn(cmd, err)
 				}

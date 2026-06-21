@@ -128,6 +128,11 @@ func newBuildCmd() *cobra.Command {
 				Router: build.Router{
 					"claude-": claude.New(""),
 				},
+				// Advance-gate: confirm each spawn opened a PR on the branch the
+				// driver cut before recording success — a no-op exit-0 worker is
+				// "failed", so the next frontier never unblocks on a phantom PR
+				// (anvil.0112). Skipped on dry-run (no spawn reaches classify).
+				VerifyArtifact: build.PRExistsForTask,
 			}
 			// The ready frontier is one wave: ready issues have no unresolved
 			// depends_on, so they are mutually independent. The dependency graph
@@ -318,7 +323,7 @@ func claimAndCutForBuild(v *core.Vault, errW io.Writer, units []readyUnit, tasks
 		if err != nil {
 			return fmt.Errorf("loading %s: %w", units[i].ID, err)
 		}
-		wt, err := doCutWorktree(errW, a, units[i].ID, "", "")
+		wt, branch, err := doCutWorktree(errW, a, units[i].ID, "", "")
 		if err != nil {
 			return err
 		}
@@ -332,6 +337,10 @@ func claimAndCutForBuild(v *core.Vault, errW io.Writer, units []readyUnit, tasks
 			return fmt.Errorf("indexing claim of %s: %w", units[i].ID, err)
 		}
 		tasks[i].Cwd = wt
+		// The deterministic branch the advance-gate (anvil.0112) confirms a PR
+		// opened on — the key the driver already holds, so the gate looks it up
+		// rather than trusting the worker's worktree HEAD.
+		tasks[i].Branch = branch
 	}
 	return nil
 }

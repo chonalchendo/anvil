@@ -43,6 +43,13 @@ type Options struct {
 	Stdout      io.Writer
 	Stderr      io.Writer
 	Router      Router
+	// VerifyArtifact is the advance-gate: it confirms a spawn that exited 0
+	// actually produced its artifact (an open PR on the branch the driver cut)
+	// before the engine records "success". The engine never trusts exit 0 alone
+	// — a spawn that exits 0 with no PR is "failed", so the review phase only
+	// runs on a real PR (anvil.0112). nil disables the gate (dry-run, tests that
+	// don't exercise it); the driver wires PRExistsForTask for live runs.
+	VerifyArtifact func(ctx context.Context, t core.Task) (bool, error)
 }
 
 // Summary is what Build returns on success or any non-cancellation exit.
@@ -237,6 +244,23 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 	oc.ConfigDir = res.ConfigDir
 	oc.Outcome = classify(ctx, res, err)
 	oc.Err = err
+	// Advance-gate: only a clean exit-0 success is gated (quota/cancelled/failed
+	// already short-circuit). A spawn that exits 0 without opening its PR is
+	// "failed", not success — recording success on a no-op is the false positive
+	// this gate kills (anvil.0112). A verifier error is also "failed": an
+	// unverifiable artifact must never be trusted as success.
+	if oc.Outcome == "success" && opts.VerifyArtifact != nil {
+		switch ok, verr := opts.VerifyArtifact(ctx, t); {
+		case verr != nil:
+			oc.Outcome = "failed"
+			oc.Err = fmt.Errorf("advance-gate: %w", verr)
+			oc.Result.Diagnostic = "advance-gate: " + verr.Error()
+		case !ok:
+			oc.Outcome = "failed"
+			oc.Err = fmt.Errorf("advance-gate: task %s exited 0 but opened no PR", t.ID)
+			oc.Result.Diagnostic = "spawn exited 0 but opened no PR on its branch"
+		}
+	}
 	if oc.Outcome != "success" && oc.Outcome != "skipped_dry_run" && oc.Result.Diagnostic != "" {
 		fmt.Fprintf(opts.Stderr, "task %s [%s]: %s\n", oc.TaskID, oc.Outcome, oc.Result.Diagnostic)
 	}
