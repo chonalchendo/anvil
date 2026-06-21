@@ -280,11 +280,11 @@ func ghDeleteBranchReal(num int) error {
 // can emit it — the skill contract is "the claim tells you where to work" —
 // or a Structured error on failure so callers can uniformly refuse the
 // transition without writing to disk.
-func doCutWorktree(errW io.Writer, a *core.Artifact, id, pathOverride, branchOverride string) (string, error) {
+func doCutWorktree(errW io.Writer, a *core.Artifact, id, pathOverride, branchOverride string) (path, branch string, err error) {
 	project := projectFromArtifact(a, id)
 	slug := slugFromIssueID(id)
 	if project == "" || slug == "" {
-		return "", errfmt.NewStructured("cut_worktree_path_failed").
+		return "", "", errfmt.NewStructured("cut_worktree_path_failed").
 			Set("error", "issue id lacks `<project>.<slug>` shape").
 			Set("id", id)
 	}
@@ -292,21 +292,21 @@ func doCutWorktree(errW io.Writer, a *core.Artifact, id, pathOverride, branchOve
 	if wtPath == "" {
 		p, derr := defaultWorktreePath(project, slug)
 		if derr != nil {
-			return "", errfmt.NewStructured("cut_worktree_path_failed").Set("error", derr.Error())
+			return "", "", errfmt.NewStructured("cut_worktree_path_failed").Set("error", derr.Error())
 		}
 		wtPath = p
 	}
-	branch := branchOverride
+	branch = branchOverride
 	if branch == "" {
 		branch = project + "/" + slug
 	}
 	if err := cutWorktreeIfNeeded(errW, wtPath, branch); err != nil {
-		return "", errfmt.NewStructured("cut_worktree_failed").
+		return "", "", errfmt.NewStructured("cut_worktree_failed").
 			Set("path", wtPath).
 			Set("branch", branch).
 			Set("error", err.Error())
 	}
-	return wtPath, nil
+	return wtPath, branch, nil
 }
 
 // doLandPR derives the worktree path from the issue and runs landPR. When

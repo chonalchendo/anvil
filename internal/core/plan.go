@@ -41,6 +41,10 @@ type Task struct {
 	// PR on the deterministic branch the driver already holds; empty falls back
 	// to the engine's global Cwd.
 	Cwd string
+	// Branch is the deterministic <project>/<slug> branch the driver cut for this
+	// task. The engine's advance-gate confirms a PR opened on it before recording
+	// success (anvil.0112); empty when no worktree was cut (dry-run, tests).
+	Branch string
 }
 
 // PlanVerification holds plan-level pre/post commands.

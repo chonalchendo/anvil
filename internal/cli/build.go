@@ -323,7 +323,7 @@ func claimAndCutForBuild(v *core.Vault, errW io.Writer, units []readyUnit, tasks
 		if err != nil {
 			return fmt.Errorf("loading %s: %w", units[i].ID, err)
 		}
-		wt, err := doCutWorktree(errW, a, units[i].ID, "", "")
+		wt, branch, err := doCutWorktree(errW, a, units[i].ID, "", "")
 		if err != nil {
 			return err
 		}
@@ -337,6 +337,10 @@ func claimAndCutForBuild(v *core.Vault, errW io.Writer, units []readyUnit, tasks
 			return fmt.Errorf("indexing claim of %s: %w", units[i].ID, err)
 		}
 		tasks[i].Cwd = wt
+		// The deterministic branch the advance-gate (anvil.0112) confirms a PR
+		// opened on — the key the driver already holds, so the gate looks it up
+		// rather than trusting the worker's worktree HEAD.
+		tasks[i].Branch = branch
 	}
 	return nil
 }
