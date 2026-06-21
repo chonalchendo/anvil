@@ -48,6 +48,8 @@ Read the issue's `goal:` — its one-sentence terminal predicate — and hold it
 
 `--cut-worktree` fetches origin and branches from `origin/HEAD` so the new branch starts from the remote's current tip, not a potentially stale local HEAD. Offline or no-remote falls back to local HEAD with a warning — work continues. Handed a pre-cut worktree (e.g. fleet dispatch)? Pass `--worktree <path> --branch <branch>` matching it, or claim without `--cut-worktree` — a bare `--cut-worktree` derives the default path and would cut a duplicate.
 
+**Under `anvil build`, skip Phase 0 entirely.** The engine already claimed the issue (`in-progress`, owner `anvil-build`) and cut its `<project>/<slug>` worktree, spawning you inside it — so the deterministic branch is the one the driver holds. Re-claiming would fail the non-idempotent transition; re-cutting would duplicate. Detect it: `anvil show issue <id>` reports `in-progress` and your cwd is already the cut worktree. Just read `goal:` and go to Phase 1.
+
 The `in-progress` transition re-runs `reproduction_anchor` for bug issues, and refuses the claim unless `goal:` is set (backfill-on-claim for the pre-`goal` back-catalogue). A mismatch means the bug is stale or already fixed — surface and stop; do not paper over with `--force`.
 
 ## Phase 1 — Implement

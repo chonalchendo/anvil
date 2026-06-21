@@ -213,6 +213,14 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 		return oc
 	}
 
+	// Per-task Cwd wins over the global Options.Cwd: the driver pins each task's
+	// cut worktree here so the worker lands on the deterministic branch. The
+	// engine only routes the value — it never computes worktrees (it reads no
+	// vault); see contract.anvil.build-orchestration-contract.
+	cwd := t.Cwd
+	if cwd == "" {
+		cwd = opts.Cwd
+	}
 	req := RunRequest{
 		Model:       model,
 		Effort:      effort,
@@ -220,7 +228,7 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 		Skills:      t.SkillsToLoad,
 		Context:     t.ContextToLoad,
 		Files:       t.Files,
-		Cwd:         opts.Cwd,
+		Cwd:         cwd,
 		Timeout:     defaultRunTimeout,
 	}
 	res, err := adapter.Run(ctx, req)
