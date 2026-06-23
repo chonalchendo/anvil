@@ -69,6 +69,10 @@ Before the subagent reads the diff, instruct it to establish the design principl
 
 A diff can be correct and still leave the project's docs lying. Instruct the subagent to check, per change that alters an observable contract — a CLI flag or command name, a path, an output shape, a config key, a documented default or behaviour — whether the matching documentation moved with it: `README`, `CLAUDE.md`/`AGENTS.md`, the project's `docs/`, and any skill body that describes the changed surface. Documentation that now contradicts shipped behaviour is a cited finding — **high** (cite the stale `file:line` against the diff). A doc that needs updating but does not yet contradict behaviour is **medium**. Scope this to docs whose subject the diff actually touches — it is not a request to audit the whole doc tree.
 
+### Comment terseness
+
+Agent-authored code reads clean but its prose often rambles. Instruct the subagent to flag any comment or comment-like description the diff adds or edits — `//`-style comments, docstrings, data-model and field descriptions — that runs long or rambling where a terse line or two stating *why* would do. The human reads these on every review pass, so length is a real cost. A rambling agent-authored comment is a **medium** cited finding (cite the project's comment/context-scarcity rule); the suggestion names the tightened wording, it does not rewrite untouched comments.
+
 ### Regression provenance
 
 A correctness or behavioural defect the subagent finds needs provenance before severity — a defect the diff *introduces* is the author's to fix here; one it merely *surfaces* (a latent bug the change exposed) or *carries forward* (pre-existing, in code the diff did not touch) is real but usually outside this PR's scope. Instruct the subagent to establish this with `git blame` on the offending lines and `git log -S<symbol>`/`-G<regex>` over the touched paths, classifying each defect as **introduced by**, **made visible by**, or **carried forward by** the diff. It attaches a confidence — `clear`, `likely`, or `unknown` — and reports `unknown` when blame is ambiguous rather than inventing a cause. A defect the diff introduces is a **blocker**; a made-visible or carried-forward one is surfaced with its provenance at a severity matching its scope, not silently folded into the author's burden.
@@ -83,6 +87,8 @@ The subagent returns a structured report with one entry per finding:
   Provenance: <introduced | made-visible | carried-forward, confidence clear|likely|unknown — correctness/regression findings only>
   Suggest: <concrete patch or "surface to author">
 ```
+
+**Keep findings terse.** Instruct the subagent to write each claim and `Suggest:` as one tight sentence — the defect and the fix, no preamble, no restating the diff. A human and the `responding-to-pr-review` loop read every finding, so an over-long comment costs reader context on every PR; a finding that needs more than a sentence is two findings — split it.
 
 Severity bands (the subagent applies these; this skill interprets them downstream):
 

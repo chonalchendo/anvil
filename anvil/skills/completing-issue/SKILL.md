@@ -68,6 +68,8 @@ Make the minimal change that achieves the issue's `goal:` and passes every `## V
 
 No refactoring "while in the area." No helpers without a second use. No defensive code for unreachable states. Defer to the project's conventions (`CLAUDE.md`, `AGENTS.md`, style guides) for project-specific hard rules.
 
+Keep any comment you write terse — a line or two stating *why*, never a rambling paragraph. This covers all comment-like prose you author, not just `//` comments: docstrings, data-model and field descriptions, and the like. A human reads these when reviewing, so length is a cost.
+
 ## Phase 2 — Verify (max 5 cycles)
 
 Run the bundled verification runner against the issue. It parses `## Verification → ### Direct` then `### Indirect` (fenced bash blocks), runs each block as one script (lines share state), and emits a compact `PASS [Direct#N] <preview>` / `FAIL [Direct#N] <preview>` summary with up to 10 lines of failure output per fail.
@@ -99,7 +101,7 @@ Re-read the change once. Two checklists:
 - Dead or unused code added by the change.
 - Helpers introduced for a single caller.
 - Defensive code for states the type system already forbids.
-- Comments explaining *what* (the code already shows that) instead of *why*.
+- Comments explaining *what* (the code already shows that) instead of *why*, or comments and comment-like descriptions that ramble where a terse line or two would do.
 - New top-level dependencies pulled in without explicit need.
 - Edits outside the change's declared scope.
 
