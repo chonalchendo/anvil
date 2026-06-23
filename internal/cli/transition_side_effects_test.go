@@ -49,7 +49,7 @@ type sideFXStub struct {
 	mergeErr          error
 	mergeCalls        []int
 	deleteBranchErr   error
-	deleteBranchCalls []int
+	deleteBranchCalls []string
 }
 
 type (
@@ -122,8 +122,8 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		s.mergeCalls = append(s.mergeCalls, num)
 		return s.mergeErr
 	}
-	ghDeleteBranchFn = func(num int) error {
-		s.deleteBranchCalls = append(s.deleteBranchCalls, num)
+	ghDeleteBranchFn = func(branch string) error {
+		s.deleteBranchCalls = append(s.deleteBranchCalls, branch)
 		return s.deleteBranchErr
 	}
 	// Suppress real sleeps in tests; tests that care about poll behavior
@@ -362,8 +362,8 @@ func TestLandPRHappyPath(t *testing.T) {
 	if len(s.localBranchDeleteCalls) != 1 || s.localBranchDeleteCalls[0].Branch != "anvil/foo" || s.localBranchDeleteCalls[0].Dir != s.mainRoot {
 		t.Errorf("local branch delete calls = %v, want one {%s anvil/foo}", s.localBranchDeleteCalls, s.mainRoot)
 	}
-	if len(s.deleteBranchCalls) != 1 || s.deleteBranchCalls[0] != 42 {
-		t.Errorf("remote branch delete calls = %v, want [42]", s.deleteBranchCalls)
+	if len(s.deleteBranchCalls) != 1 || s.deleteBranchCalls[0] != "anvil/foo" {
+		t.Errorf("remote branch delete calls = %v, want [anvil/foo]", s.deleteBranchCalls)
 	}
 	// Audit line written.
 	body, err := os.ReadFile(filepath.Join(vault, "70-issues", "demo.foo.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
@@ -1132,5 +1132,44 @@ func TestLandPRMergeExitNonZeroButStateMerged(t *testing.T) {
 	}
 	if len(s.deleteBranchCalls) != 1 {
 		t.Errorf("branch delete must be called after confirmed-MERGED: %v", s.deleteBranchCalls)
+	}
+}
+
+// TestLandPRResolvesDespiteBranchDeleteFailure guards anvil.0110: once the PR is
+// confirmed MERGED, a failing branch-delete substep (e.g. the remote ref is
+// already gone) must not abort the land. The merge already landed, so cleanup is
+// best-effort — the verb warns and drives the issue to resolved rather than
+// stranding a merged PR with an in-progress issue.
+func TestLandPRResolvesDespiteBranchDeleteFailure(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	// Simulate the remote branch-delete failing post-merge (ref already gone).
+	s.deleteBranchErr = errors.New("gh api delete branch: exit status 1")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("land-pr must not abort on branch-delete failure: %v\nstderr: %s", err, stderr.String())
+	}
+	// Atomicity: the merge landed and the issue reaches resolved.
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v, want resolved (atomic land despite branch-delete failure)", a.FrontMatter["status"])
+	}
+	// The failure is surfaced as a warning, not swallowed.
+	if !strings.Contains(stderr.String(), "remote branch delete failed") {
+		t.Errorf("expected a branch-delete-failure warning, got: %s", stderr.String())
 	}
 }

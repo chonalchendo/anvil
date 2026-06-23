@@ -251,26 +251,29 @@ func ghPRMergeReal(num int) error {
 }
 
 // ghDeleteBranchReal deletes the remote branch for the merged PR via the gh
-// CLI. Called after the worktree is removed so git doesn't refuse the delete
-// while a worktree still references the branch.
-func ghDeleteBranchReal(num int) error {
+// CLI. The branch name is resolved by the caller (landPR holds it from the
+// pre-merge headRefName read), so this no longer re-queries `gh pr view
+// headRefName` — post-merge that query can return non-zero once the ref is
+// gone, which used to abort the land fatally (anvil.0110). Called after the
+// worktree is removed so git doesn't refuse the delete while a worktree still
+// references the branch. A ref that is already absent — GitHub's auto-delete of
+// merged head branches, or a prior manual delete — is treated as success: the
+// post-state is identical.
+func ghDeleteBranchReal(branch string) error {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return errGhUnavailable
 	}
-	n := strconv.Itoa(num)
-	cmd := exec.Command("gh", "pr", "view", n, "--json", "headRefName", "--jq", ".headRefName") //nolint:gosec // binary path resolved from trusted sources; not user input
-	out, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("gh pr view headRefName: %w", err)
-	}
-	branch := strings.TrimSpace(string(out))
 	if branch == "" {
-		return errors.New("gh pr view headRefName: empty branch name")
+		return errors.New("empty branch name")
 	}
 	del := exec.Command("gh", "api", "--method", "DELETE", //nolint:gosec // binary path resolved from trusted sources; not user input
 		"repos/{owner}/{repo}/git/refs/heads/"+branch)
 	if delOut, delErr := del.CombinedOutput(); delErr != nil {
-		return fmt.Errorf("gh api delete branch %s: %w: %s", branch, delErr, strings.TrimSpace(string(delOut)))
+		out := strings.TrimSpace(string(delOut))
+		if strings.Contains(out, "Reference does not exist") {
+			return nil
+		}
+		return fmt.Errorf("gh api delete branch %s: %w: %s", branch, delErr, out)
 	}
 	return nil
 }
@@ -314,9 +317,9 @@ func doCutWorktree(errW io.Writer, a *core.Artifact, id, pathOverride, branchOve
 // derived from the issue slug. Path derivation is a hard error: the audit line
 // claims "worktree removed" and we refuse to lie if we can't compute the
 // location.
-func doLandPR(a *core.Artifact, id string, prNum int, worktreeOverride string, localValidated bool) error {
+func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOverride string, localValidated bool) error {
 	if worktreeOverride != "" {
-		return landPR(prNum, worktreeOverride, localValidated)
+		return landPR(errW, prNum, worktreeOverride, localValidated)
 	}
 	project := projectFromArtifact(a, id)
 	slug := slugFromIssueID(id)
@@ -329,7 +332,7 @@ func doLandPR(a *core.Artifact, id string, prNum int, worktreeOverride string, l
 	if derr != nil {
 		return errfmt.NewStructured("land_pr_path_failed").Set("error", derr.Error())
 	}
-	return landPR(prNum, wtPath, localValidated)
+	return landPR(errW, prNum, wtPath, localValidated)
 }
 
 // landPR runs gate→merge→verify→remove-worktree→delete-local-branch→delete-remote-branch.
@@ -357,7 +360,7 @@ func doLandPR(a *core.Artifact, id string, prNum int, worktreeOverride string, l
 // localValidated skips the ghPRChecks gate when the operator has already
 // validated the work locally (e.g. with `just check`) and required CI is
 // genuinely unavailable. The caller is responsible for recording an audit line.
-func landPR(num int, worktreePath string, localValidated bool) error {
+func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) error {
 	type mergeState struct {
 		Mergeable        string `json:"mergeable"`
 		MergeStateStatus string `json:"mergeStateStatus"`
@@ -455,30 +458,32 @@ func landPR(num int, worktreePath string, localValidated bool) error {
 		}
 		return errfmt.NewStructured("land_pr_state_not_merged").Set("pr", num).Set("state", fin.State)
 	}
-	// PR is confirmed MERGED. Remove the worktree, then delete the local and
-	// remote branches. These are cleanup steps: failures are reported but the
-	// merge already landed. The local-branch delete runs after worktree removal
-	// (git refuses to delete a branch a worktree still references) and restores
-	// the parity the old `gh pr merge --delete-branch` provided — a successful
-	// land leaves neither a local nor a remote branch behind.
+	// Worktree removal stays fatal: a failure here usually means uncommitted
+	// work in the worktree, and surfacing it lets the operator recover that work
+	// rather than silently discard it. The branches, by contrast, only name a
+	// ref whose content is already merged.
 	if err := gitWorktreeRemoveFn(root, resolved); err != nil {
 		return errfmt.NewStructured("land_pr_worktree_remove_failed").
 			Set("pr", num).
 			Set("path", resolved).
 			Set("error", err.Error())
 	}
+	// The branch deletes are best-effort cleanup of a now-redundant ref: each
+	// failure is warned and skipped, never returned fatally, so a confirmed
+	// MERGED PR can never strand the issue in-progress (anvil.0110). The
+	// local-branch delete runs after worktree removal (git refuses to delete a
+	// branch a worktree still references); both restore the parity the old
+	// `gh pr merge --delete-branch` gave — a successful land leaves neither a
+	// local nor a remote branch behind.
 	if headBranch != "" {
 		if err := gitDeleteLocalBranchFn(root, headBranch); err != nil {
-			return errfmt.NewStructured("land_pr_local_branch_delete_failed").
-				Set("pr", num).
-				Set("branch", headBranch).
-				Set("error", err.Error())
+			fmt.Fprintf(errW, "warning: land-pr %d: local branch delete failed (%s): %v\n", num, headBranch, err)
 		}
-	}
-	if err := ghDeleteBranchFn(num); err != nil {
-		return errfmt.NewStructured("land_pr_branch_delete_failed").
-			Set("pr", num).
-			Set("error", err.Error())
+		if err := ghDeleteBranchFn(headBranch); err != nil {
+			fmt.Fprintf(errW, "warning: land-pr %d: remote branch delete failed (%s): %v\n", num, headBranch, err)
+		}
+	} else {
+		fmt.Fprintf(errW, "warning: land-pr %d: head branch unresolved; skipping branch cleanup\n", num)
 	}
 	return nil
 }

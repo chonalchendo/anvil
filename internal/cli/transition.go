@@ -239,7 +239,7 @@ func newTransitionCmd() *cobra.Command {
 			}
 
 			if landPRNum != 0 {
-				if err := doLandPR(a, id, landPRNum, worktreeOverride, localValidated); err != nil {
+				if err := doLandPR(cmd.ErrOrStderr(), a, id, landPRNum, worktreeOverride, localValidated); err != nil {
 					return printAndReturn(cmd, err)
 				}
 			}
