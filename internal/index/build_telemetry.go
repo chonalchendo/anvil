@@ -97,10 +97,9 @@ FROM build_tasks WHERE run_id = ? ORDER BY phase, wave, task_id`
 }
 
 // ListBuildRuns returns run-level records most-recent-first, optionally narrowed
-// to a project and/or milestone (empty filter matches all). started_at is the
-// run-id timestamp prefix, so ordering by it is chronological. Each filter is
-// expressed inline as an empty-or-match predicate so the query stays a single
-// static statement rather than concatenating clauses.
+// to a project and/or milestone (empty filter matches all). Each filter is an
+// inline empty-or-match predicate so the query stays one static statement
+// (avoids gosec G202 on concatenated clauses).
 func (d *DB) ListBuildRuns(project, milestone string) ([]BuildRun, error) {
 	const q = `SELECT run_id, started_at, project, milestone, dry_run, tasks FROM build_runs
 WHERE (? = '' OR project = ?) AND (? = '' OR milestone = ?)
