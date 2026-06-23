@@ -84,7 +84,7 @@ The subagent returns a structured report with one entry per finding:
   Suggest: <concrete patch or "surface to author">
 ```
 
-**Keep findings terse.** Instruct the subagent to write each claim and `Suggest:` as one tight sentence — the defect and the fix, no preamble, no restating the diff, no multi-paragraph justification. Brevity is a contract requirement: a human and the `responding-to-pr-review` loop read every finding, so an over-long comment costs reader context on every PR. A finding that needs more than a sentence is two findings or an over-explained one — split it or cut it.
+**Keep findings terse.** Instruct the subagent to write each claim and `Suggest:` as one tight sentence — the defect and the fix, no preamble, no restating the diff. A human and the `responding-to-pr-review` loop read every finding, so an over-long comment costs reader context on every PR; a finding that needs more than a sentence is two findings — split it.
 
 Severity bands (the subagent applies these; this skill interprets them downstream):
 
