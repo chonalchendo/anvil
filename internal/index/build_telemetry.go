@@ -95,3 +95,30 @@ FROM build_tasks WHERE run_id = ? ORDER BY phase, wave, task_id`
 	}
 	return out, rs.Err()
 }
+
+// ListBuildRuns returns run-level records most-recent-first, optionally narrowed
+// to a project and/or milestone (empty filter matches all). started_at is the
+// run-id timestamp prefix, so ordering by it is chronological. Each filter is
+// expressed inline as an empty-or-match predicate so the query stays a single
+// static statement rather than concatenating clauses.
+func (d *DB) ListBuildRuns(project, milestone string) ([]BuildRun, error) {
+	const q = `SELECT run_id, started_at, project, milestone, dry_run, tasks FROM build_runs
+WHERE (? = '' OR project = ?) AND (? = '' OR milestone = ?)
+ORDER BY started_at DESC, run_id DESC`
+	rs, err := d.sql.Query(q, project, project, milestone, milestone)
+	if err != nil {
+		return nil, fmt.Errorf("list build runs: %w", err)
+	}
+	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
+	out := []BuildRun{}
+	for rs.Next() {
+		var r BuildRun
+		var dryRun int
+		if err := rs.Scan(&r.RunID, &r.StartedAt, &r.Project, &r.Milestone, &dryRun, &r.Tasks); err != nil {
+			return nil, err
+		}
+		r.DryRun = dryRun != 0
+		out = append(out, r)
+	}
+	return out, rs.Err()
+}

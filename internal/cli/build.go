@@ -213,6 +213,57 @@ func newBuildCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagProject, "project", "", "restrict to ready issues in this project (exact match; default: all)")
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "restrict to ready issues under this milestone slug")
 	cmd.AddCommand(newBuildTasksCmd())
+	cmd.AddCommand(newBuildRunsCmd())
+	return cmd
+}
+
+// newBuildRunsCmd lists build runs most-recent-first, so a completed run's
+// run_id is retrievable for `anvil build tasks <run-id>`. Read-only over the
+// index's build_runs table, filterable by --project/--milestone.
+func newBuildRunsCmd() *cobra.Command {
+	var flagJSON bool
+	var flagProject, flagMilestone string
+	cmd := &cobra.Command{
+		Use:   "runs",
+		Short: "List build runs most-recent-first",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			v, err := core.ResolveVault()
+			if err != nil {
+				return fmt.Errorf("resolving vault: %w", err)
+			}
+			// build_runs is runtime-inserted, not derived from vault markdown, so
+			// open directly rather than via indexForRead — matches newBuildTasksCmd.
+			db, err := index.Open(index.DBPath(v.Root))
+			if err != nil {
+				return fmt.Errorf("opening index: %w", err)
+			}
+			defer db.Close() //nolint:errcheck // close in defer; error not actionable
+
+			rows, err := db.ListBuildRuns(flagProject, flagMilestone)
+			if err != nil {
+				return err
+			}
+			if flagJSON {
+				return output.WriteListJSON(cmd.OutOrStdout(), rows, len(rows), len(rows))
+			}
+			if len(rows) == 0 {
+				cmd.PrintErrln("no build runs")
+				return nil
+			}
+			for _, r := range rows {
+				dry := ""
+				if r.DryRun {
+					dry = "\tdry-run"
+				}
+				cmd.Printf("%s\t%s\t%s\t%d tasks%s\n", r.RunID, r.StartedAt, r.Milestone, r.Tasks, dry)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit build runs as the canonical list envelope")
+	cmd.Flags().StringVar(&flagProject, "project", "", "restrict to runs in this project (exact match)")
+	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "restrict to runs under this milestone slug")
 	return cmd
 }
 
