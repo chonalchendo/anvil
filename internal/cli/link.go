@@ -13,12 +13,13 @@ import (
 )
 
 func newLinkCmd() *cobra.Command {
-	var fromID, toID, externalURI string
+	var fromID, toID, externalURI, relation string
 	var unresolved, asJSON bool
 	cmd := &cobra.Command{
 		Use:   "link [<source-type> <source-id> <target-type> <target-id> | <source-type> <source-id> --external <uri>]",
 		Short: "Append a wikilink, an external URI (--external), or query the link graph (--from/--to/--unresolved)",
 		Example: "  anvil link issue demo.foo learning demo.gotcha\n" +
+			"  anvil link issue demo.foo issue demo.bar --relation depends_on\n" +
 			"  anvil link issue demo.foo --external https://github.com/x/y/pull/13\n" +
 			"  anvil link --from demo.foo --json",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -29,12 +30,17 @@ func newLinkCmd() *cobra.Command {
 				externalURI = trimmed
 			}
 
+			relationSet := cmd.Flags().Changed("relation")
 			readMode := fromID != "" || toID != "" || unresolved
 			if readMode {
-				if len(args) > 0 || externalURI != "" {
-					return fmt.Errorf("--from/--to/--unresolved cannot be combined with positional write args or --external")
+				if len(args) > 0 || externalURI != "" || relationSet {
+					return fmt.Errorf("--from/--to/--unresolved cannot be combined with positional write args, --external, or --relation")
 				}
 				return runLinkQuery(cmd, fromID, toID, unresolved, asJSON)
+			}
+
+			if relationSet && externalURI != "" {
+				return fmt.Errorf("--relation cannot be combined with --external")
 			}
 
 			if externalURI != "" {
@@ -71,6 +77,11 @@ func newLinkCmd() *cobra.Command {
 			if len(args) != 4 {
 				return fmt.Errorf("write form requires 4 args: source-type source-id target-type target-id")
 			}
+			switch relation {
+			case "related", "depends_on", "blocks":
+			default:
+				return fmt.Errorf("--relation must be related, depends_on, or blocks (got %q)", relation)
+			}
 			src, err := core.ParseType(args[0])
 			if err != nil {
 				return fmt.Errorf("source type: %w", err)
@@ -90,7 +101,7 @@ func newLinkCmd() *cobra.Command {
 			if tgt == core.TypeIssue {
 				tgtID = core.ResolveIssueArg(v, tgtID)
 			}
-			if err := core.AppendLink(v, src, srcID, tgt, tgtID); err != nil {
+			if err := core.AppendLink(v, src, srcID, tgt, tgtID, relation); err != nil {
 				return err
 			}
 			srcPath := filepath.Join(v.Root, src.Dir(), srcID+".md")
@@ -108,6 +119,7 @@ func newLinkCmd() *cobra.Command {
 	cmd.Flags().StringVar(&fromID, "from", "", "list outgoing edges from this artifact id")
 	cmd.Flags().StringVar(&toID, "to", "", "list incoming edges to this artifact id")
 	cmd.Flags().StringVar(&externalURI, "external", "", "append a free-form URI (commit sha, PR url, doc link) to source.external_links")
+	cmd.Flags().StringVar(&relation, "relation", "related", "edge slot for the 4-arg write form: related (default), depends_on, or blocks")
 	cmd.Flags().BoolVar(&unresolved, "unresolved", false, "list edges whose target is not in the vault")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON output")
 	return cmd
