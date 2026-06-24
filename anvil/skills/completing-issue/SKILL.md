@@ -68,7 +68,7 @@ Make the minimal change that achieves the issue's `goal:` and passes every `## V
 
 No refactoring "while in the area." No helpers without a second use. No defensive code for unreachable states. Defer to the project's conventions (`CLAUDE.md`, `AGENTS.md`, style guides) for project-specific hard rules.
 
-Keep any comment you write terse — a line or two stating *why*, never a rambling paragraph. This covers all comment-like prose you author, not just `//` comments: docstrings, data-model and field descriptions, and the like. A human reads these when reviewing, so length is a cost.
+Keep any comment you write or edit terse — a line or two stating *why*, never a rambling paragraph; rewrite a comment you touch that rambles so it reads concise. This covers all comment-like prose you author, not just `//` comments: docstrings, data-model and field descriptions, and the like. A human reads these when reviewing, so length is a cost.
 
 ## Phase 2 — Verify (max 5 cycles)
 
