@@ -53,6 +53,70 @@ func TestBuildTasksRoundTrip(t *testing.T) {
 	}
 }
 
+func TestListBuildRuns_OrderAndFilter(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), ".anvil", "vault.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
+
+	runs := []BuildRun{
+		{RunID: "r1", StartedAt: "2026-06-20T10:00:00Z", Project: "anvil", Milestone: "anvil.m1", Tasks: 2},
+		{RunID: "r2", StartedAt: "2026-06-20T12:00:00Z", Project: "anvil", Milestone: "anvil.m2", DryRun: true, Tasks: 1},
+		{RunID: "r3", StartedAt: "2026-06-20T11:00:00Z", Project: "burgh", Milestone: "burgh.m1", Tasks: 3},
+	}
+	for _, r := range runs {
+		if err := db.InsertBuildRun(r); err != nil {
+			t.Fatalf("InsertBuildRun %s: %v", r.RunID, err)
+		}
+	}
+
+	all, err := db.ListBuildRuns("", "")
+	if err != nil {
+		t.Fatalf("ListBuildRuns: %v", err)
+	}
+	// Most-recent-first by started_at: r2, r3, r1.
+	gotIDs := []string{all[0].RunID, all[1].RunID, all[2].RunID}
+	if diff := cmp.Diff([]string{"r2", "r3", "r1"}, gotIDs); diff != "" {
+		t.Errorf("order mismatch (-want +got):\n%s", diff)
+	}
+	if !all[0].DryRun {
+		t.Error("r2 should round-trip DryRun=true")
+	}
+
+	byProject, err := db.ListBuildRuns("anvil", "")
+	if err != nil {
+		t.Fatalf("ListBuildRuns(anvil): %v", err)
+	}
+	if diff := cmp.Diff([]string{"r2", "r1"}, []string{byProject[0].RunID, byProject[1].RunID}); diff != "" {
+		t.Errorf("project filter mismatch (-want +got):\n%s", diff)
+	}
+
+	byMilestone, err := db.ListBuildRuns("", "burgh.m1")
+	if err != nil {
+		t.Fatalf("ListBuildRuns(milestone): %v", err)
+	}
+	if len(byMilestone) != 1 || byMilestone[0].RunID != "r3" {
+		t.Errorf("milestone filter: want [r3], got %+v", byMilestone)
+	}
+}
+
+func TestListBuildRuns_EmptyIsNotNil(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), ".anvil", "vault.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
+
+	got, err := db.ListBuildRuns("", "")
+	if err != nil {
+		t.Fatalf("ListBuildRuns: %v", err)
+	}
+	if got == nil {
+		t.Error("want non-nil empty slice, got nil")
+	}
+}
+
 func TestBuildTasksByRun_UnknownRunIsEmptyNotNil(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), ".anvil", "vault.db"))
 	if err != nil {
