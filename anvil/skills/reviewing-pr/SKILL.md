@@ -71,7 +71,7 @@ A diff can be correct and still leave the project's docs lying. Instruct the sub
 
 ### Comment terseness
 
-Agent-authored code reads clean but its prose often rambles. Instruct the subagent to flag any comment or comment-like description the diff adds or edits — `//`-style comments, docstrings, data-model and field descriptions — that runs long or rambling where a terse line or two stating *why* would do. The human reads these on every review pass, so length is a real cost. A rambling agent-authored comment is a **medium** cited finding (cite the project's comment/context-scarcity rule); the suggestion names the tightened wording, it does not rewrite untouched comments.
+Agent-authored code reads clean but its prose often rambles. Instruct the subagent to flag any comment or comment-like description the diff adds or edits — `//`-style comments, docstrings, data-model and field descriptions — that runs long or rambling where a terse line or two stating *why* would do. The human reads these on every review pass, so length is a real cost. A rambling agent-authored comment is a **medium** cited finding (cite the project's comment/context-scarcity rule); the `Suggest:` gives the rewritten concise comment in full, not a note to tighten — but only for comments the diff touches, never untouched ones.
 
 ### Regression provenance
 
