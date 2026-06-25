@@ -175,6 +175,46 @@ func TestLink_AnyPair_WritesToRelated(t *testing.T) {
 	}
 }
 
+// TestLink_RelationDependsOn writes a typed dependency edge into depends_on[]
+// rather than related[], so `anvil list issue --ready` and Obsidian both see it.
+func TestLink_RelationDependsOn(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "Dependent A")
+	writeFixtureIssue(t, vault, "foo", "b", "Prereq B")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"link", "issue", "foo.a", "issue", "foo.b", "--relation", "depends_on"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("link --relation depends_on: %v", err)
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dep, _ := a.FrontMatter["depends_on"].([]any)
+	if len(dep) != 1 || dep[0] != "[[issue.foo.b]]" {
+		t.Errorf("depends_on = %v, want [[issue.foo.b]]", dep)
+	}
+	if _, ok := a.FrontMatter["related"]; ok {
+		t.Errorf("related should be untouched, got %v", a.FrontMatter["related"])
+	}
+}
+
+func TestLink_RelationDependsOn_RejectsUnknownRelation(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "Dependent A")
+	writeFixtureIssue(t, vault, "foo", "b", "Prereq B")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"link", "issue", "foo.a", "issue", "foo.b", "--relation", "milestone"})
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected error rejecting --relation milestone, got: %s", buf.String())
+	}
+}
+
 // TestLink_IssueToContract confirms Option-A contract routing: an issue can
 // link to its governing contract and the wikilink lands in related[].
 func TestLink_IssueToContract(t *testing.T) {

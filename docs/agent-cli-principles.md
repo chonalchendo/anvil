@@ -32,7 +32,7 @@ Use sentinel errors from `internal/cli/errors.go` so the error shape is consiste
 
 ## 6. Safe retries (idempotence)
 
-`anvil create <type> --slug X` with identical content is a no-op: print the existing artifact ID and exit 0. Content drift (same slug, different field values) is an error unless `--update` is passed. Re-running `anvil link <type> <id> --to <type> <id>` with the same pair is a no-op. Agents retry on transient failures; idempotence prevents duplicate artifacts.
+`anvil create <type> --slug X` with identical content is a no-op: print the existing artifact ID and exit 0. Content drift (same slug, different field values) is an error unless `--update` is passed. Re-running `anvil link <type> <id> <type> <id>` with the same pair is a no-op. Agents retry on transient failures; idempotence prevents duplicate artifacts.
 
 ## 7. Composability
 

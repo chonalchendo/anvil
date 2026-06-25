@@ -21,7 +21,7 @@ func mustWriteIssue(t *testing.T, v *Vault, id string) {
 func TestAppendLink_DefaultsToRelated(t *testing.T) {
 	v := newScaffolded(t)
 	mustWriteIssue(t, v, "anvil.x")
-	if err := AppendLink(v, TypeIssue, "anvil.x", TypeLearning, "anvil.gotcha"); err != nil {
+	if err := AppendLink(v, TypeIssue, "anvil.x", TypeLearning, "anvil.gotcha", "related"); err != nil {
 		t.Fatal(err)
 	}
 	a, _ := LoadArtifact(filepath.Join(v.Root, "70-issues", "anvil.x.md"))
@@ -31,11 +31,27 @@ func TestAppendLink_DefaultsToRelated(t *testing.T) {
 	}
 }
 
+func TestAppendLink_TypedDependsOnField(t *testing.T) {
+	v := newScaffolded(t)
+	mustWriteIssue(t, v, "anvil.x")
+	if err := AppendLink(v, TypeIssue, "anvil.x", TypeIssue, "anvil.b", "depends_on"); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := LoadArtifact(filepath.Join(v.Root, "70-issues", "anvil.x.md"))
+	dep, _ := a.FrontMatter["depends_on"].([]any)
+	if len(dep) != 1 || dep[0] != "[[issue.anvil.b]]" {
+		t.Errorf("expected one depends_on link, got %v", dep)
+	}
+	if _, ok := a.FrontMatter["related"]; ok {
+		t.Errorf("related should be untouched when writing depends_on: %v", a.FrontMatter["related"])
+	}
+}
+
 func TestAppendLink_Idempotent(t *testing.T) {
 	v := newScaffolded(t)
 	mustWriteIssue(t, v, "anvil.x")
 	for i := 0; i < 2; i++ {
-		if err := AppendLink(v, TypeIssue, "anvil.x", TypeLearning, "anvil.gotcha"); err != nil {
+		if err := AppendLink(v, TypeIssue, "anvil.x", TypeLearning, "anvil.gotcha", "related"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -48,7 +64,7 @@ func TestAppendLink_Idempotent(t *testing.T) {
 
 func TestAppendLink_MissingSource_Errors(t *testing.T) {
 	v := newScaffolded(t)
-	if err := AppendLink(v, TypeIssue, "ghost", TypeLearning, "anvil.gotcha"); err == nil {
+	if err := AppendLink(v, TypeIssue, "ghost", TypeLearning, "anvil.gotcha", "related"); err == nil {
 		t.Error("expected error for missing source")
 	}
 }

@@ -19,7 +19,7 @@ anvil promote    <id> [flags]                # promote an inbox entry to a typed
 anvil create     <type> [flags]              # type ∈ {inbox, issue, plan, milestone, decision, learning, sweep, thread, session}
 anvil show       <type> <id>
 anvil list       <type> [--filters]
-anvil link       <type> <id> --to <type> <id>
+anvil link       <type> <id> <type> <id> [--relation depends_on|blocks]   # write edge (default related[]); --from/--to/--unresolved query
 anvil set        <type> <id> <field> <value>
 anvil tags       add | list | define
 anvil index      <id> | --tags <facet/value,...>   # related artifacts by shared facets + links
