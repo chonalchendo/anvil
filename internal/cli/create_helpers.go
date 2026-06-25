@@ -1,7 +1,10 @@
 package cli
 
 import (
+	"fmt"
 	"strings"
+
+	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
@@ -94,8 +97,33 @@ func createLongDescription() string {
 		"Supported types: " + strings.Join(names, ", ") + "\n\n" +
 		"Body authoring: pass --body <literal>, --body-file <path>, or --body - " +
 		"(reads stdin). The full artifact lands in one call — no follow-up edit.\n\n" +
+		"Required body sections: learning bodies need " + strings.Join(core.RequiredLearningSections, " / ") + "; " +
+		"issue bodies need " + strings.Join(core.RequiredIssueSections, " / ") + " (in order). " +
+		"Faceted tags (domain/, activity/, pattern/) must reuse existing vault values or pass --allow-new-facet. " +
+		"Run 'anvil create <type> --show-template' to print the skeleton before composing.\n\n" +
 		"Validation: create always validates the frontmatter it just wrote. " +
 		"When --body / --body-file / --body - / --from supplies a body, body " +
 		"sections and wikilink targets are validated too; a failure rolls back " +
 		"the write. Running 'anvil validate <path>' afterward is unnecessary."
+}
+
+// runShowTemplate prints the required body skeleton and tag rules an author
+// needs before composing, then exits — moving create's section/facet checks
+// from a post-hoc rollback to an up-front affordance. Only learning and issue
+// carry a required-section template.
+func runShowTemplate(cmd *cobra.Command, t core.Type) error {
+	var sections []string
+	switch t {
+	case core.TypeLearning:
+		sections = core.RequiredLearningSections
+	case core.TypeIssue:
+		sections = core.RequiredIssueSections
+	default:
+		return fmt.Errorf("--show-template: no required body template for %s (learning, issue)", t)
+	}
+	w := cmd.OutOrStdout()
+	fmt.Fprintln(w, core.ScaffoldSections(sections))
+	fmt.Fprintln(w, "# tags: faceted values (domain/, activity/, pattern/) must already exist in the vault —")
+	fmt.Fprintln(w, "# run `anvil tags list --prefix domain/` to see them, or pass --allow-new-facet=<facet> to introduce one.")
+	return nil
 }

@@ -89,17 +89,20 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 
 	if authoredBody {
 		a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
+		// Point structural body failures at the up-front skeleton so an author
+		// who hit the post-hoc rollback knows how to see the required shape.
+		templateFix := fmt.Sprintf("run `anvil create %s --show-template` to print the required body skeleton + tag rules", t)
 		switch t {
 		case core.TypeIssue:
 			for _, vErr := range core.ValidateIssue(a) {
-				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
 			}
 			for _, vErr := range core.ValidateIssueVerbs(body, verbPathValidator(cmd.Root())) {
 				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 			}
 		case core.TypeLearning:
 			for _, vErr := range core.ValidateLearning(a, nil) {
-				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
 			}
 		}
 		for _, link := range core.ResolveBodyLinks(v, body) {
