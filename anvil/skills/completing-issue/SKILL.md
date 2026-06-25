@@ -64,15 +64,15 @@ anvil show issue <id> --json \
 anvil show contract <id> --body   # for each id printed
 ```
 
+Treat each `## Does not` as a hard boundary (crossing one → **Scope-change protocol**); apply its `## Code design` as you write. No contract resolves → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
+
 **Load linked system-design(s) next.** Same pattern — the design body carries subsystem boundaries, invariants, and risk signals that contracts don't repeat:
 
 ```bash
 anvil show issue <id> --json \
   | jq -r '.related[]? | select(startswith("[[system-design.")) | ltrimstr("[[system-design.") | rtrimstr("]]")'
-anvil show system-design <id> --body   # for each id printed; check its status — a non-active design is stale, treat its constraints as advisory
+anvil show system-design <id> --body   # for each id printed; check its status — a non-`active` design (superseded/retired) isn't governing, treat its constraints as advisory
 ```
-
-Treat each `## Does not` as a hard boundary (crossing one → **Scope-change protocol**); apply its `## Code design` as you write. No contract resolves → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
 
 Make the minimal change that achieves the issue's `goal:` and passes every `## Verification` check (`## Acceptance criteria`, when present, is a prose aid — not the gate). Stay within the issue's declared file set (or `<declared-files>` when dispatched by `dispatching-issue-fleet`). See **Scope-change protocol** below if the work outgrows declared scope.
 
