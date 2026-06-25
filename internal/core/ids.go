@@ -345,14 +345,9 @@ func NextID(v *Vault, t Type, in IDInputs) (string, error) {
 
 // uniqueID returns base, or base-2, base-3, ... whichever does not yet exist on disk.
 func uniqueID(v *Vault, t Type, base string) (string, error) {
-	pathFor := func(id string) string {
-		if t == TypeSystemDesign {
-			if dot := strings.Index(id, "."); dot >= 0 {
-				return t.Path(v.Root, id[:dot], id)
-			}
-		}
-		return filepath.Join(v.Root, t.Dir(), id+".md")
-	}
+	// Path resolves every AllocatesID form: <Dir>/<id>.md for flat types,
+	// the nested <project>/system-design.<shard>.md for system-design shards.
+	pathFor := func(id string) string { return t.Path(v.Root, "", id) }
 	if !fileExists(pathFor(base)) {
 		return base, nil
 	}

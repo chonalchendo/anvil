@@ -88,6 +88,8 @@ product_design: "[[product-design.<project>]]"
 authorized_by: ["[[decision...]]"]
 ```
 
+Addressable as `system-design.<project>` (per-project singleton) or `system-design.<project>.<shard>` (one per subsystem); both resolve in `show`/`list`/wikilinks.
+
 Body absorbs: tech stack, key invariants, risks, boundary diagrams, revisions. Mermaid diagrams stay first-class body content.
 
 ### `milestone`
@@ -319,7 +321,7 @@ Wikilinks are vault-global, not project-scoped. Because the project name is part
 ```
 ~/anvil-vault/
 ├── 00-inbox/
-├── 05-projects/<project>/        # product-design.md + system-design.md
+├── 05-projects/<project>/        # product-design.md + system-design[.<shard>].md
 ├── 10-sessions/{raw,distilled}/
 ├── 20-learnings/
 ├── 30-decisions/

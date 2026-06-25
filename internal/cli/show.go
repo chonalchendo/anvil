@@ -317,17 +317,9 @@ func emitIncomingText(cmd *cobra.Command, incoming map[string][]incomingEdge) {
 // Other types compose <Dir>/<id>.md.
 func resolveArtifactPath(vaultRoot string, t core.Type, id string) string {
 	if t == core.TypeSystemDesign {
-		// Strip type prefix if present (wikilink form not caught by the show guard)
-		bare := strings.TrimPrefix(id, string(t)+".")
-		dot := strings.Index(bare, ".")
-		if dot < 0 {
-			// Bare project: legacy singleton 05-projects/<project>/system-design.md
-			return filepath.Join(vaultRoot, t.Dir(), bare, string(t)+".md")
-		}
-		// <project>.<shard>: 05-projects/<project>/system-design.<shard>.md
-		project := bare[:dot]
-		shard := bare[dot+1:]
-		return filepath.Join(vaultRoot, t.Dir(), project, string(t)+"."+shard+".md")
+		// Strip the type prefix (wikilink form not caught by the show guard); Path
+		// resolves both the legacy singleton and the <project>.<shard> forms.
+		return t.Path(vaultRoot, "", strings.TrimPrefix(id, string(t)+"."))
 	}
 	if t.AllocatesID() {
 		return filepath.Join(vaultRoot, t.Dir(), id+".md")

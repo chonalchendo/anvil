@@ -32,6 +32,66 @@ func writeFixtureSingleton(t *testing.T, vault, project string, typ core.Type, t
 	return path
 }
 
+// writeFixtureShard writes a sharded system-design at
+// <vault>/05-projects/<project>/system-design.<shard>.md.
+func writeFixtureShard(t *testing.T, vault, project, shard, title string) string {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(vault, "05-projects", project), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+		t.Fatal(err)
+	}
+	path := filepath.Join(vault, "05-projects", project, "system-design."+shard+".md")
+	a := &core.Artifact{
+		Path: path,
+		FrontMatter: map[string]any{
+			"type": "system-design", "title": title, "description": "fixture description",
+			"created": "2026-05-12", "status": "active", "project": project,
+			"tags": []any{"type/system-design"},
+		},
+		Body: "## Context\n\nfixture body.\n",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// Sharded system-design must resolve via show by <project>.<shard> and the
+// wikilink-qualified form, and list alongside the legacy singleton.
+func TestSystemDesign_ShardResolvesAndCoexistsWithSingleton(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureSingleton(t, vault, "anvil", core.TypeSystemDesign, "Anvil SD")
+	writeFixtureShard(t, vault, "anvil", "build", "Anvil Build SD")
+
+	for _, id := range []string{"anvil.build", "system-design.anvil.build"} {
+		out, _, err := runCmd(t, newRootCmd(), "show", "system-design", id)
+		if err != nil {
+			t.Fatalf("show %q: %v\nout: %s", id, err, out)
+		}
+		if !strings.Contains(out, "Anvil Build SD") {
+			t.Errorf("show %q missing shard title:\n%s", id, out)
+		}
+	}
+
+	// Singleton still resolves by bare project.
+	out, _, err := runCmd(t, newRootCmd(), "show", "system-design", "anvil")
+	if err != nil || !strings.Contains(out, "Anvil SD") {
+		t.Fatalf("singleton show: err=%v out=%s", err, out)
+	}
+
+	out, _, err = runCmd(t, newRootCmd(), "list", "system-design", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := unmarshalListEnvelope(t, out)
+	ids := map[string]bool{}
+	for _, it := range env.Items {
+		ids[it.ID] = true
+	}
+	if !ids["anvil"] || !ids["anvil.build"] {
+		t.Errorf("want both anvil (singleton) and anvil.build (shard); got %v", ids)
+	}
+}
+
 func TestList_ProductDesign_ReturnsSingletons(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureSingleton(t, vault, "foo", core.TypeProductDesign, "Foo PD")

@@ -376,7 +376,9 @@ func collectArtifactPaths(vaultRoot string, t core.Type) ([]string, error) {
 			}
 			for _, f := range files {
 				name := f.Name()
-				if !f.IsDir() && strings.HasPrefix(name, prefix) && strings.HasSuffix(name, ".md") {
+				// prefix+"." matches both system-design.md (singleton) and
+				// system-design.<shard>.md, while excluding system-design-foo.md.
+				if !f.IsDir() && strings.HasPrefix(name, prefix+".") && strings.HasSuffix(name, ".md") {
 					out = append(out, filepath.Join(dir, pe.Name(), name))
 				}
 			}
