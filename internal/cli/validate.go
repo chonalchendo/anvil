@@ -282,11 +282,12 @@ func typeFromArtifactPath(path string) (core.Type, error) {
 			return t, nil
 		}
 	}
-	// Singleton case: parent is the project dir under 05-projects/.
+	// Singletons and shards live at 05-projects/<project>/<type>[.<shard>].md.
 	if filepath.Base(filepath.Dir(filepath.Dir(path))) == "05-projects" {
 		stem := strings.TrimSuffix(filepath.Base(path), ".md")
 		for _, t := range core.AllTypes {
-			if string(t) == stem {
+			// exact match (singleton) or prefix match (shard: <type>.<shard>)
+			if string(t) == stem || strings.HasPrefix(stem, string(t)+".") {
 				return t, nil
 			}
 		}

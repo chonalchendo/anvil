@@ -110,7 +110,7 @@ func TestType_AllocatesID(t *testing.T) {
 		TypeSweep:         true,
 		TypeSession:       true,
 		TypeProductDesign: false,
-		TypeSystemDesign:  false,
+		TypeSystemDesign:  true,
 	}
 	for tp, want := range cases {
 		if got := tp.AllocatesID(); got != want {
@@ -162,7 +162,8 @@ func TestType_Path(t *testing.T) {
 		want    string
 	}{
 		{TypeProductDesign, "anvil", "ignored", "/v/05-projects/anvil/product-design.md"},
-		{TypeSystemDesign, "anvil", "ignored", "/v/05-projects/anvil/system-design.md"},
+		{TypeSystemDesign, "anvil", "anvil.auth", "/v/05-projects/anvil/system-design.auth.md"},
+		{TypeSystemDesign, "anvil", "", "/v/05-projects/anvil/system-design.md"}, // legacy singleton
 		{TypeIssue, "anvil", "anvil.foo", "/v/70-issues/anvil.foo.md"},
 		{TypeSweep, "", "0001-cli", "/v/50-sweeps/0001-cli.md"},
 		{TypeInbox, "", "2026-05-04T12-00-00-x", "/v/00-inbox/2026-05-04T12-00-00-x.md"},

@@ -311,9 +311,24 @@ func emitIncomingText(cmd *cobra.Command, incoming map[string][]incomingEdge) {
 }
 
 // resolveArtifactPath maps a CLI (type, id) pair to its on-disk path.
-// Singletons accept either the bare project slug or the qualified
-// "<type>.<project>" wikilink form; non-singletons compose <Dir>/<id>.md.
+// system-design accepts bare project (legacy singleton), <project>.<shard>,
+// or either prefixed with "system-design.".
+// product-design (singleton) accepts bare project or "product-design.<project>".
+// Other types compose <Dir>/<id>.md.
 func resolveArtifactPath(vaultRoot string, t core.Type, id string) string {
+	if t == core.TypeSystemDesign {
+		// Strip type prefix if present (wikilink form not caught by the show guard)
+		bare := strings.TrimPrefix(id, string(t)+".")
+		dot := strings.Index(bare, ".")
+		if dot < 0 {
+			// Bare project: legacy singleton 05-projects/<project>/system-design.md
+			return filepath.Join(vaultRoot, t.Dir(), bare, string(t)+".md")
+		}
+		// <project>.<shard>: 05-projects/<project>/system-design.<shard>.md
+		project := bare[:dot]
+		shard := bare[dot+1:]
+		return filepath.Join(vaultRoot, t.Dir(), project, string(t)+"."+shard+".md")
+	}
 	if t.AllocatesID() {
 		return filepath.Join(vaultRoot, t.Dir(), id+".md")
 	}

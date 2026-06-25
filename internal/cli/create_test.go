@@ -1458,11 +1458,11 @@ func TestCreate_SystemDesign_WritesValidFile(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "system-design", "--title", "Anvil system design", "--description", "test description"})
+	cmd.SetArgs([]string{"create", "system-design", "--title", "Anvil system design", "--description", "test description", "--slug", "auth"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	path := filepath.Join(vault, "05-projects", "foo", "system-design.md")
+	path := filepath.Join(vault, "05-projects", "foo", "system-design.auth.md")
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		t.Fatalf("expected file at %s: %v", path, err)

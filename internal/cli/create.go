@@ -195,6 +195,11 @@ func newCreateCmd() *cobra.Command {
 			// errors.Join keeps the tier single-pass: a missing --title no longer
 			// short-circuits ahead of a simultaneous --description/--goal cap
 			// overage, so the author sees every pre-resolution violation at once.
+			// system-design shards are identified by their slug; allow --title to
+			// be omitted when --slug is present by defaulting title to the slug.
+			if t == core.TypeSystemDesign && flagTitle == "" && flagSlug != "" {
+				flagTitle = flagSlug
+			}
 			var titleErr error
 			if t != core.TypeSession && flagTitle == "" {
 				titleErr = fmt.Errorf("--title is required for %s", t)
@@ -233,10 +238,9 @@ func newCreateCmd() *cobra.Command {
 				return err
 			}
 
-			// Derive description from title when omitted for spine types that
-			// require it, mirroring promote's single-step stub behaviour (see
-			// promote.go: Description: title). The author refines via anvil set.
-			if flagDescription == "" && (t == core.TypeIssue || t == core.TypeMilestone) {
+			// Derive description from title when omitted for types that require it.
+			// The author refines via anvil set.
+			if flagDescription == "" && (t == core.TypeIssue || t == core.TypeMilestone || t == core.TypeSystemDesign) {
 				flagDescription = flagTitle
 			}
 

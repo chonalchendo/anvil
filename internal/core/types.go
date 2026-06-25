@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 )
 
 // Type names a vault artifact type. The set is closed in v0.1.
@@ -58,14 +59,10 @@ func (t Type) Dir() string {
 }
 
 // AllocatesID reports whether create should call NextID for this type.
-// Singletons (product-design, system-design) write to a fixed per-project
-// filename and return false; every other type returns true.
+// product-design is a per-project singleton and returns false.
+// system-design allocates per-shard IDs (<project>.<shard>) and returns true.
 func (t Type) AllocatesID() bool {
-	switch t {
-	case TypeProductDesign, TypeSystemDesign:
-		return false
-	}
-	return true
+	return t != TypeProductDesign
 }
 
 // SupportsProject reports whether the type's schema accepts a `project:`
@@ -93,12 +90,27 @@ func TypesSupportingProject() []string {
 	return out
 }
 
-// Path returns the absolute artifact path under vaultRoot. Singletons
-// (product-design, system-design) ignore id and use a fixed per-project
-// filename; other types compose <Dir>/<id>.md.
+// Path returns the absolute artifact path under vaultRoot.
+// product-design (singleton) ignores id and writes to 05-projects/<project>/product-design.md.
+// system-design with id=<project>.<shard> writes to 05-projects/<project>/system-design.<shard>.md;
+// id without a dot (bare project or empty) falls back to the legacy singleton path.
+// Other types compose <Dir>/<id>.md.
 func (t Type) Path(vaultRoot, project, id string) string {
 	if !t.AllocatesID() {
 		return filepath.Join(vaultRoot, t.Dir(), project, string(t)+".md")
+	}
+	if t == TypeSystemDesign {
+		dot := strings.Index(id, ".")
+		if dot < 0 {
+			// Bare project or empty id — legacy singleton path.
+			proj := id
+			if proj == "" {
+				proj = project
+			}
+			return filepath.Join(vaultRoot, t.Dir(), proj, string(t)+".md")
+		}
+		proj, shard := id[:dot], id[dot+1:]
+		return filepath.Join(vaultRoot, t.Dir(), proj, string(t)+"."+shard+".md")
 	}
 	return filepath.Join(vaultRoot, t.Dir(), id+".md")
 }

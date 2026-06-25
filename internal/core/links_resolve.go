@@ -95,13 +95,13 @@ func checkWikilinkTarget(v *Vault, field, target string) (UnresolvedLink, bool) 
 	if err != nil {
 		return UnresolvedLink{}, false
 	}
-	// Singleton types (product-design, system-design) encode the project name
-	// as the wikilink id: [[product-design.burgh]] → project=burgh. Use the
-	// canonical singleton path (05-projects/<project>/<type>.md) rather than
-	// the generic id+".md" path that applies to all other types.
+	// Singletons (product-design) and project-nested types (system-design) need
+	// the canonical 05-projects/ path, not the generic <Dir>/<id>.md path.
+	// t.Path handles both: product-design uses project param; system-design
+	// parses id as <project>.<shard> (or bare project for the legacy singleton).
 	var path string
-	if !t.AllocatesID() {
-		path = t.Path(v.Root, id, "")
+	if !t.AllocatesID() || t == TypeSystemDesign {
+		path = t.Path(v.Root, id, id)
 	} else {
 		path = filepath.Join(v.Root, t.Dir(), id+".md")
 	}

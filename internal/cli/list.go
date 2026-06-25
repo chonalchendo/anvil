@@ -351,11 +351,38 @@ func hasTagSubstring(tags any, sub string) bool {
 }
 
 // collectArtifactPaths returns absolute paths of artifacts of type t under
-// vaultRoot. Singletons (product-design, system-design) live one directory
-// deeper at 05-projects/<project>/<type>.md and are discovered by walking;
-// every other type is a flat <Dir>/<id>.md layout.
+// vaultRoot. product-design (singleton) and system-design live one level deeper
+// at 05-projects/<project>/<type>[.<shard>].md; every other type is flat.
 func collectArtifactPaths(vaultRoot string, t core.Type) ([]string, error) {
 	dir := filepath.Join(vaultRoot, t.Dir())
+	if t == core.TypeSystemDesign {
+		// Walk project subdirs and collect system-design.md and system-design.<shard>.md
+		projEntries, err := os.ReadDir(dir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil, nil
+			}
+			return nil, fmt.Errorf("reading %s: %w", dir, err)
+		}
+		prefix := string(t)
+		var out []string
+		for _, pe := range projEntries {
+			if !pe.IsDir() {
+				continue
+			}
+			files, err := os.ReadDir(filepath.Join(dir, pe.Name()))
+			if err != nil {
+				return nil, fmt.Errorf("reading %s: %w", filepath.Join(dir, pe.Name()), err)
+			}
+			for _, f := range files {
+				name := f.Name()
+				if !f.IsDir() && strings.HasPrefix(name, prefix) && strings.HasSuffix(name, ".md") {
+					out = append(out, filepath.Join(dir, pe.Name(), name))
+				}
+			}
+		}
+		return out, nil
+	}
 	if t.AllocatesID() {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
@@ -373,7 +400,7 @@ func collectArtifactPaths(vaultRoot string, t core.Type) ([]string, error) {
 		}
 		return out, nil
 	}
-	// Singleton: 05-projects/<project>/<type>.md
+	// Singleton (product-design): 05-projects/<project>/<type>.md
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -396,11 +423,22 @@ func collectArtifactPaths(vaultRoot string, t core.Type) ([]string, error) {
 }
 
 // listIDFor returns the id surfaced in list output. For singletons the id is
-// the project slug (the parent dir name); for other types it is the filename
-// stem.
+// the project slug (the parent dir name); for system-design it is derived from
+// the project dir and filename; for other types it is the filename stem.
 func listIDFor(t core.Type, path string) string {
 	if !t.AllocatesID() {
 		return filepath.Base(filepath.Dir(path))
+	}
+	if t == core.TypeSystemDesign {
+		project := filepath.Base(filepath.Dir(path))
+		stem := strings.TrimSuffix(filepath.Base(path), ".md")
+		if stem == string(t) {
+			// legacy singleton: system-design.md → project slug
+			return project
+		}
+		// sharded: system-design.<shard>.md → <project>.<shard>
+		shard := strings.TrimPrefix(stem, string(t)+".")
+		return project + "." + shard
 	}
 	return strings.TrimSuffix(filepath.Base(path), ".md")
 }

@@ -299,7 +299,7 @@ func DeterministicID(t Type, in IDInputs) (string, error) {
 	case TypeInbox:
 		date := time.Now().UTC().Format("2006-01-02")
 		return fmt.Sprintf("%s-%s", date, slug), nil
-	case TypeIssue, TypePlan, TypeMilestone, TypeContract:
+	case TypeIssue, TypePlan, TypeMilestone, TypeContract, TypeSystemDesign:
 		if in.Project == "" {
 			return "", fmt.Errorf("project required for %s", t)
 		}
@@ -343,15 +343,22 @@ func NextID(v *Vault, t Type, in IDInputs) (string, error) {
 	return uniqueID(v, t, base)
 }
 
-// uniqueID returns base, or base-2, base-3, ... whichever does not yet exist as <dir>/<id>.md.
+// uniqueID returns base, or base-2, base-3, ... whichever does not yet exist on disk.
 func uniqueID(v *Vault, t Type, base string) (string, error) {
-	dir := filepath.Join(v.Root, t.Dir())
-	if !fileExists(filepath.Join(dir, base+".md")) {
+	pathFor := func(id string) string {
+		if t == TypeSystemDesign {
+			if dot := strings.Index(id, "."); dot >= 0 {
+				return t.Path(v.Root, id[:dot], id)
+			}
+		}
+		return filepath.Join(v.Root, t.Dir(), id+".md")
+	}
+	if !fileExists(pathFor(base)) {
 		return base, nil
 	}
 	for i := 2; i < 1000; i++ {
 		candidate := fmt.Sprintf("%s-%d", base, i)
-		if !fileExists(filepath.Join(dir, candidate+".md")) {
+		if !fileExists(pathFor(candidate)) {
 			return candidate, nil
 		}
 	}
