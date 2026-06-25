@@ -54,6 +54,8 @@ The `in-progress` transition re-runs `reproduction_anchor` for bug issues, and r
 
 ## Phase 1 — Implement
 
+Aim for code that's easy to reason about — **atomic** (one concern in one place), **composable** (parts snap together without hidden coupling), **simple** (the least machinery that solves the problem). This is the default bar in any language ("pythonic" is one name for it); `docs/code-design.md` carries the module-level principles. It is the positive goal the prohibitions below serve, and what the review pass measures the diff against.
+
 **Load the governing contract(s) first.** An issue's routing links name the contracts bounding its slice — per-component guardrails (`## Does not`, `## Code design`) the house docs don't carry:
 
 ```bash

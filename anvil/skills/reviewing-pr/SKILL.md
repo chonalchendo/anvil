@@ -7,6 +7,8 @@ description: "Use to gate every PR before merge with an independent review. Trig
 
 Your job is to dispatch a **fresh general-purpose subagent** that reviews one PR against the repo's standards, and to surface its findings so `responding-to-pr-review` can drive them to resolution. You do not review the PR yourself — independent context is half the value.
 
+The bar every review measures against: code a human or agent can reason about — **atomic** (one concern in one place), **composable** (parts snap together without hidden coupling), **simple** (the least machinery that solves the problem). It holds in any language; `docs/code-design.md` carries the module-level principles. The rubric below operationalises it.
+
 ## Iron Law
 
 **Review in a fresh subagent, not in this session.** The author's reasoning chain biases the review. If you find yourself reading the diff and forming an opinion before dispatch, stop — that's the failure mode this skill exists to prevent.
@@ -61,7 +63,7 @@ If no linked issue resolves, the subagent records that it could not and skips go
 
 The standards docs catch rule violations; they miss working-but-needlessly-complex code that breaks no documented rule — a diff can be correct, CI-green, and still a tangle. Instruct the subagent to also ask, per meaningful change: is there a behavior-preserving reframing that deletes whole branches, helpers, or layers? Does an added abstraction earn its keep, or is it a pass-through? Did a cohesive module get more coupled or stateful? A simplification finding that cites a Hard Rule (`no abstraction without need`, `no helper without a second use`, `context is scarce`) is a cited finding — **high**, not a taste nit. Scope the suggestion to naming the simpler shape; a reviewer flags it, it does not authorize a refactor beyond the PR's goal.
 
-The underlying bar is: code a human or agent can reason about — atomic, composable, simple. Atomic means one concern in one place; composable means parts snap together without hidden coupling; simple means the least machinery that solves the problem. Instruct the subagent to measure the diff against this bar.
+Instruct the subagent to measure the diff against the reasonable-code bar stated at the top of this skill — atomic, composable, simple.
 
 Before the subagent reads the diff, instruct it to establish the design principles **already on display** in the codebase: read 1–2 sibling implementations of the same component type the PR touches (e.g. a sibling command, handler, task plugin, skill body), derive the house shape from those siblings, then judge the diff for conformance. Documented conventions lag the code; live siblings are the freshest spec. A deviation from sibling shape is a cited finding — **high** when it adds coupling or layers the siblings avoid, **medium** when it is a style inconsistency with no coupling cost (cite the sibling `file:line` whose shape the diff deviates from).
 
