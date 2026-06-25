@@ -2631,3 +2631,61 @@ func TestCreateIssue_AcceptanceFlag(t *testing.T) {
 		t.Errorf("frontmatter fails schema: %v", err)
 	}
 }
+
+// --show-template prints the required skeleton + tag rules and exits without
+// --title or any vault write — the up-front affordance for the post-hoc
+// rejection 0120 fixes.
+func TestCreate_Learning_ShowTemplate(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	cmd := newRootCmd()
+	var out bytes.Buffer
+	cmd.SetArgs([]string{"create", "learning", "--show-template"})
+	cmd.SetOut(&out)
+	cmd.SetErr(&bytes.Buffer{})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("show-template: %v", err)
+	}
+	got := out.String()
+	for _, want := range append(append([]string{}, core.RequiredLearningSections...), "domain/", "activity/") {
+		if !strings.Contains(got, want) {
+			t.Errorf("output missing %q; got:\n%s", want, got)
+		}
+	}
+	if entries, _ := os.ReadDir(filepath.Join(vault, "20-learnings")); len(entries) != 0 {
+		t.Errorf("show-template wrote %d file(s); want none", len(entries))
+	}
+}
+
+func TestCreate_ShowTemplate_UnsupportedType(t *testing.T) {
+	setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "decision", "--show-template"})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("show-template on decision: want error, got nil")
+	}
+}
+
+// A headings-less authored body still rolls back, but the rejection now points
+// at --show-template so the author can see the required shape.
+func TestCreate_Learning_BodyMissingHeadings_RejectionPointsToShowTemplate(t *testing.T) {
+	setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	cmd := newRootCmd()
+	var errBuf bytes.Buffer
+	cmd.SetArgs([]string{"create", "learning", "--title", "no headings", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity", "--body", "no required headings here"})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&errBuf)
+	if err := cmd.Execute(); !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
+	}
+	if !strings.Contains(errBuf.String(), "show-template") {
+		t.Errorf("rejection missing show-template hint; got:\n%s", errBuf.String())
+	}
+}

@@ -71,6 +71,7 @@ func newCreateCmd() *cobra.Command {
 		flagMilestone        string
 		flagAcceptance       []string
 		flagKind             string
+		flagShowTemplate     bool
 	)
 
 	cmd := &cobra.Command{
@@ -82,6 +83,14 @@ func newCreateCmd() *cobra.Command {
 			t, err := core.ParseType(args[0])
 			if err != nil {
 				return err
+			}
+
+			// --show-template surfaces the required body skeleton + tag rules
+			// before composing, so create's section/facet checks don't land as
+			// a post-hoc rollback. Short-circuits ahead of --title and vault
+			// resolution: it touches nothing.
+			if flagShowTemplate {
+				return runShowTemplate(cmd, t)
 			}
 
 			// Stop --project from silently no-op'ing on types whose schema rejects
@@ -279,14 +288,7 @@ func newCreateCmd() *cobra.Command {
 				}
 				userAuthoredBody = cmd.Flags().Changed("body") || cmd.Flags().Changed("body-file") || body != ""
 				if body == "" && !cmd.Flags().Changed("body") && !cmd.Flags().Changed("body-file") {
-					var sections []string
-					switch t {
-					case core.TypeLearning:
-						sections = core.RequiredLearningSections
-					case core.TypeIssue:
-						sections = core.RequiredIssueSections
-					}
-					body = core.ScaffoldSections(sections)
+					body = core.ScaffoldSections(sectionsForType(t))
 				}
 			}
 
@@ -458,6 +460,7 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "milestone slug or wikilink to assign (issue only)")
 	cmd.Flags().StringArrayVar(&flagAcceptance, "acceptance", nil, "acceptance criterion to add (repeatable; issue only)")
 	cmd.Flags().StringVar(&flagKind, "kind", "", "contract kind, a registered label (required for contract; register via `anvil contract kinds add`)")
+	cmd.Flags().BoolVar(&flagShowTemplate, "show-template", false, "print the required body skeleton + tag rules for <type> and exit (learning, issue)")
 
 	return cmd
 }
