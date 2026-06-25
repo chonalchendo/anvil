@@ -107,18 +107,27 @@ func createLongDescription() string {
 		"the write. Running 'anvil validate <path>' afterward is unnecessary."
 }
 
+// sectionsForType returns the required body headings for the types that carry
+// a scaffold (learning, issue), or nil for the rest. Shared by the no-body
+// scaffold path and --show-template so the two can't drift.
+func sectionsForType(t core.Type) []string {
+	switch t {
+	case core.TypeLearning:
+		return core.RequiredLearningSections
+	case core.TypeIssue:
+		return core.RequiredIssueSections
+	default:
+		return nil
+	}
+}
+
 // runShowTemplate prints the required body skeleton and tag rules an author
 // needs before composing, then exits — moving create's section/facet checks
 // from a post-hoc rollback to an up-front affordance. Only learning and issue
 // carry a required-section template.
 func runShowTemplate(cmd *cobra.Command, t core.Type) error {
-	var sections []string
-	switch t {
-	case core.TypeLearning:
-		sections = core.RequiredLearningSections
-	case core.TypeIssue:
-		sections = core.RequiredIssueSections
-	default:
+	sections := sectionsForType(t)
+	if sections == nil {
 		return fmt.Errorf("--show-template: no required body template for %s (learning, issue)", t)
 	}
 	w := cmd.OutOrStdout()

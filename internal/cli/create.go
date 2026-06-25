@@ -288,14 +288,7 @@ func newCreateCmd() *cobra.Command {
 				}
 				userAuthoredBody = cmd.Flags().Changed("body") || cmd.Flags().Changed("body-file") || body != ""
 				if body == "" && !cmd.Flags().Changed("body") && !cmd.Flags().Changed("body-file") {
-					var sections []string
-					switch t {
-					case core.TypeLearning:
-						sections = core.RequiredLearningSections
-					case core.TypeIssue:
-						sections = core.RequiredIssueSections
-					}
-					body = core.ScaffoldSections(sections)
+					body = core.ScaffoldSections(sectionsForType(t))
 				}
 			}
 
