@@ -88,6 +88,8 @@ product_design: "[[product-design.<project>]]"
 authorized_by: ["[[decision...]]"]
 ```
 
+Addressable as `system-design.<project>` (per-project) or `system-design.<project>.<shard>` (per subsystem); both sit flat in `05-projects/` and resolve in show/list/wikilinks.
+
 Body absorbs: tech stack, key invariants, risks, boundary diagrams, revisions. Mermaid diagrams stay first-class body content.
 
 ### `milestone`
@@ -296,7 +298,7 @@ User-authored. Anthropic spec at top level + Anvil `metadata:` block. Out of CLI
 
 ## IDs and naming
 
-Slug-based across most artifacts. Wikilink form: `<type>.<project>.<slug>`; filename: `<project>.<slug>.md` within the type folder. **Issues** carry a per-project ordinal: id `<project>.NNNN.<slug>`, filename `<project>.NNNN.<slug>.md` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Legacy long-slug issue files (no ordinal) still resolve.
+Slug-based across most artifacts. Wikilink form: `<type>.<project>.<slug>`; filename: `<project>.<slug>.md` within the type folder. **Issues** carry a per-project ordinal: id `<project>.NNNN.<slug>`, filename `<project>.NNNN.<slug>.md` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Legacy long-slug issue files (no ordinal) still resolve. **Design docs** (`product-design`, `system-design`) share the flat `05-projects/` folder, so their filename keeps the type prefix to disambiguate: `<type>.<project>[.<shard>].md` (e.g. `system-design.burgh.md`, `system-design.anvil.build.md`).
 
 Examples:
 
@@ -319,7 +321,7 @@ Wikilinks are vault-global, not project-scoped. Because the project name is part
 ```
 ~/anvil-vault/
 ├── 00-inbox/
-├── 05-projects/<project>/        # product-design.md + system-design.md
+├── 05-projects/                  # flat: product-design.<project>.md + system-design.<project>[.<shard>].md
 ├── 10-sessions/{raw,distilled}/
 ├── 20-learnings/
 ├── 30-decisions/

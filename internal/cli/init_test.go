@@ -81,7 +81,7 @@ func TestInit_WritesBasesAndEnablesPlugin(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	for _, n := range []string{"vault-overview", "issues", "learnings", "decisions", "plans", "milestones"} {
+	for _, n := range []string{"vault-overview", "issues", "learnings", "decisions", "plans", "milestones", "designs"} {
 		if _, err := os.Stat(filepath.Join(dir, "90-bases", n+".base")); err != nil {
 			t.Errorf("missing base %s: %v", n, err)
 		}
