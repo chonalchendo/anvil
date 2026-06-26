@@ -351,29 +351,11 @@ func hasTagSubstring(tags any, sub string) bool {
 }
 
 // collectArtifactPaths returns absolute paths of artifacts of type t under
-// vaultRoot. Singletons (product-design, system-design) live one directory
-// deeper at 05-projects/<project>/<type>.md and are discovered by walking;
-// every other type is a flat <Dir>/<id>.md layout.
+// vaultRoot. All types use a flat <Dir>/<id>.md layout; design types
+// (product-design, system-design) are filtered by filename prefix so listing
+// one type does not include the other.
 func collectArtifactPaths(vaultRoot string, t core.Type) ([]string, error) {
 	dir := filepath.Join(vaultRoot, t.Dir())
-	if t.AllocatesID() {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			if os.IsNotExist(err) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("reading %s: %w", dir, err)
-		}
-		var out []string
-		for _, e := range entries {
-			if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-				continue
-			}
-			out = append(out, filepath.Join(dir, e.Name()))
-		}
-		return out, nil
-	}
-	// Singleton: 05-projects/<project>/<type>.md
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -381,27 +363,24 @@ func collectArtifactPaths(vaultRoot string, t core.Type) ([]string, error) {
 		}
 		return nil, fmt.Errorf("reading %s: %w", dir, err)
 	}
-	leaf := string(t) + ".md"
+	prefix := string(t) + "."
 	var out []string
 	for _, e := range entries {
-		if !e.IsDir() {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 			continue
 		}
-		p := filepath.Join(dir, e.Name(), leaf)
-		if _, err := os.Stat(p); err == nil {
-			out = append(out, p)
+		// 05-projects/ holds both product-design and system-design; filter by
+		// type prefix so listing one does not leak the other.
+		if (t == core.TypeProductDesign || t == core.TypeSystemDesign) && !strings.HasPrefix(e.Name(), prefix) {
+			continue
 		}
+		out = append(out, filepath.Join(dir, e.Name()))
 	}
 	return out, nil
 }
 
-// listIDFor returns the id surfaced in list output. For singletons the id is
-// the project slug (the parent dir name); for other types it is the filename
-// stem.
-func listIDFor(t core.Type, path string) string {
-	if !t.AllocatesID() {
-		return filepath.Base(filepath.Dir(path))
-	}
+// listIDFor returns the id surfaced in list output: the filename stem.
+func listIDFor(_ core.Type, path string) string {
 	return strings.TrimSuffix(filepath.Base(path), ".md")
 }
 

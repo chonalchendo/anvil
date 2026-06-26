@@ -58,13 +58,9 @@ func (t Type) Dir() string {
 }
 
 // AllocatesID reports whether create should call NextID for this type.
-// Singletons (product-design, system-design) write to a fixed per-project
-// filename and return false; every other type returns true.
+// All types return true; product-design and system-design are flat files
+// in 05-projects/ whose id embeds the type prefix (e.g. product-design.anvil).
 func (t Type) AllocatesID() bool {
-	switch t {
-	case TypeProductDesign, TypeSystemDesign:
-		return false
-	}
 	return true
 }
 
@@ -93,13 +89,9 @@ func TypesSupportingProject() []string {
 	return out
 }
 
-// Path returns the absolute artifact path under vaultRoot. Singletons
-// (product-design, system-design) ignore id and use a fixed per-project
-// filename; other types compose <Dir>/<id>.md.
-func (t Type) Path(vaultRoot, project, id string) string {
-	if !t.AllocatesID() {
-		return filepath.Join(vaultRoot, t.Dir(), project, string(t)+".md")
-	}
+// Path returns the absolute artifact path under vaultRoot: <Dir>/<id>.md.
+// The project parameter is kept for call-site compatibility.
+func (t Type) Path(vaultRoot, _ string, id string) string {
 	return filepath.Join(vaultRoot, t.Dir(), id+".md")
 }
 

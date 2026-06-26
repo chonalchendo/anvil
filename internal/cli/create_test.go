@@ -1274,7 +1274,8 @@ func TestCreate_ProductDesign_WritesValidFile(t *testing.T) {
 		t.Fatalf("create: %v\n%s", err, out.String())
 	}
 
-	path := filepath.Join(vault, "05-projects", "foo", "product-design.md")
+	// Flat layout: 05-projects/product-design.<project>.md
+	path := filepath.Join(vault, "05-projects", "product-design.foo.md")
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		t.Fatalf("expected file at %s: %v", path, err)
@@ -1314,7 +1315,8 @@ func TestCreate_ProductDesign_Idempotent(t *testing.T) {
 		t.Fatalf("first create: %v", err)
 	}
 
-	path := filepath.Join(vault, "05-projects", "foo", "product-design.md")
+	// Flat layout: 05-projects/product-design.<project>.md
+	path := filepath.Join(vault, "05-projects", "product-design.foo.md")
 	statBefore, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)
@@ -1334,13 +1336,13 @@ func TestCreate_ProductDesign_Idempotent(t *testing.T) {
 	if second["status"] != "already_exists" {
 		t.Errorf("status = %q, want already_exists", second["status"])
 	}
-	if second["id"] != "product-design" {
-		t.Errorf("id = %q, want product-design (singleton convention)", second["id"])
+	if second["id"] != "product-design.foo" {
+		t.Errorf("id = %q, want product-design.foo", second["id"])
 	}
 
 	statAfter, _ := os.Stat(path)
 	if !statBefore.ModTime().Equal(statAfter.ModTime()) {
-		t.Errorf("mtime changed on idempotent singleton re-run")
+		t.Errorf("mtime changed on idempotent re-run")
 	}
 }
 
@@ -1350,7 +1352,7 @@ func TestCreate_ProductDesign_RequiresProject(t *testing.T) {
 	t.Chdir(t.TempDir()) // not a git repo
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "product-design", "--title", "X"})
+	cmd.SetArgs([]string{"create", "product-design"})
 	var stderr bytes.Buffer
 	cmd.SetErr(&stderr)
 	cmd.SetOut(&stderr)
@@ -1462,7 +1464,8 @@ func TestCreate_SystemDesign_WritesValidFile(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	path := filepath.Join(vault, "05-projects", "foo", "system-design.md")
+	// Flat layout: 05-projects/system-design.<project>.md
+	path := filepath.Join(vault, "05-projects", "system-design.foo.md")
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		t.Fatalf("expected file at %s: %v", path, err)

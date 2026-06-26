@@ -52,13 +52,24 @@ func newShowCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			if t.AllocatesID() && t != core.TypeIssue {
+			switch t {
+			case core.TypeProductDesign, core.TypeSystemDesign:
+				// Design-type IDs embed the type prefix (e.g. system-design.burgh).
+				// Qualify a bare project/shard arg by prepending the type prefix so
+				// both "burgh" and "system-design.burgh" resolve to the same file.
+				prefix := string(t) + "."
+				if !strings.HasPrefix(args[1], prefix) {
+					args[1] = prefix + args[1]
+				}
+			case core.TypeIssue:
+				// handled below
+			default:
+				// Strip the "<type>." prefix from wikilink form when the remainder
+				// still contains a dot — proves the input is "<type>.<project>.<slug>"
+				// rather than the bare ID "<type>.<project>".
 				prefix := string(t) + "."
 				if strings.HasPrefix(args[1], prefix) {
 					candidate := strings.TrimPrefix(args[1], prefix)
-					// Guard: only strip when remainder still contains "." —
-					// proves the input is "<type>.<project>.<slug>", not the
-					// bare ID "<type>.<project>" where project equals type name.
 					if strings.Contains(candidate, ".") {
 						args[1] = candidate
 					}
@@ -310,15 +321,9 @@ func emitIncomingText(cmd *cobra.Command, incoming map[string][]incomingEdge) {
 	}
 }
 
-// resolveArtifactPath maps a CLI (type, id) pair to its on-disk path.
-// Singletons accept either the bare project slug or the qualified
-// "<type>.<project>" wikilink form; non-singletons compose <Dir>/<id>.md.
+// resolveArtifactPath maps a CLI (type, id) pair to its on-disk path: <Dir>/<id>.md.
 func resolveArtifactPath(vaultRoot string, t core.Type, id string) string {
-	if t.AllocatesID() {
-		return filepath.Join(vaultRoot, t.Dir(), id+".md")
-	}
-	project := strings.TrimPrefix(id, string(t)+".")
-	return filepath.Join(vaultRoot, t.Dir(), project, string(t)+".md")
+	return filepath.Join(vaultRoot, t.Dir(), id+".md")
 }
 
 // runShowSkill prints the embedded SKILL.md body for the named bundled skill.

@@ -162,18 +162,18 @@ func TestResolveBodyLinks_PlaceholderWikilinkLiteral(t *testing.T) {
 	}
 }
 
-// TestResolveLinks_SingletonDesignDocPresent asserts that a valid
+// TestResolveLinks_DesignDocPresent asserts that a valid
 // [[product-design.<project>]] or [[system-design.<project>]] wikilink resolves
-// correctly. Singletons live at 05-projects/<project>/<type>.md, not at
-// <dir>/<id>.md, so the resolver must use the singleton path.
-func TestResolveLinks_SingletonDesignDocPresent(t *testing.T) {
+// correctly under the flat layout: 05-projects/<type>.<project>.md.
+func TestResolveLinks_DesignDocPresent(t *testing.T) {
 	v := newScaffolded(t)
+	if err := os.MkdirAll(filepath.Join(v.Root, "05-projects"), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+		t.Fatal(err)
+	}
 	project := "burgh"
 	for _, typ := range []Type{TypeProductDesign, TypeSystemDesign} {
-		p := typ.Path(v.Root, project, "")
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
-			t.Fatal(err)
-		}
+		id := string(typ) + "." + project
+		p := typ.Path(v.Root, project, id)
 		if err := os.WriteFile(p, []byte("---\ntype: "+string(typ)+"\n---\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 			t.Fatal(err)
 		}

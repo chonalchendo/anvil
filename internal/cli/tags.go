@@ -267,7 +267,8 @@ func buildTagRows(v *core.Vault, source, typeFlag, prefix string) ([]tagRow, boo
 
 // walkTags accumulates tag counts under dir. If typeFilter is set, only
 // artifacts whose frontmatter `type` equals *typeFilter are counted —
-// this catches the 05-projects directory which holds two singleton types.
+// this prevents 05-projects/ (which holds both design types) from being
+// counted for the wrong type.
 func walkTags(dir string, typeFilter *core.Type, counts map[string]int) error {
 	return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {

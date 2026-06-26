@@ -285,7 +285,34 @@ type IDInputs struct {
 // DeterministicID returns the slug-keyed ID a given type would receive
 // before any collision-suffix is applied. Returns an error for decisions
 // (which require a vault scan to allocate an ordinal).
+//
+// Design types (product-design, system-design) derive their IDs from the type
+// name and project only: product-design.<project> or
+// system-design.<project>[.<slug>]. They are handled before the slug validation
+// because they don't require a title.
 func DeterministicID(t Type, in IDInputs) (string, error) {
+	switch t {
+	case TypeProductDesign:
+		// ID is always <type>.<project> — no slug component.
+		if in.Project == "" {
+			return "", fmt.Errorf("project required for %s", t)
+		}
+		return fmt.Sprintf("%s.%s", t, in.Project), nil
+	case TypeSystemDesign:
+		// ID is <type>.<project> for the singleton, or <type>.<project>.<slug>
+		// for a named shard (explicit --slug only; title does not derive a shard).
+		if in.Project == "" {
+			return "", fmt.Errorf("project required for %s", t)
+		}
+		if in.Slug == "" {
+			return fmt.Sprintf("%s.%s", t, in.Project), nil
+		}
+		if err := ValidateSlug(in.Slug); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("%s.%s.%s", t, in.Project, in.Slug), nil
+	}
+
 	slug := in.Slug
 	if slug == "" {
 		slug = Slugify(in.Title)

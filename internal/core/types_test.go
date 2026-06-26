@@ -99,22 +99,10 @@ func TestType_Dir_DesignTypes(t *testing.T) {
 }
 
 func TestType_AllocatesID(t *testing.T) {
-	cases := map[Type]bool{
-		TypeInbox:         true,
-		TypeIssue:         true,
-		TypePlan:          true,
-		TypeMilestone:     true,
-		TypeDecision:      true,
-		TypeLearning:      true,
-		TypeThread:        true,
-		TypeSweep:         true,
-		TypeSession:       true,
-		TypeProductDesign: false,
-		TypeSystemDesign:  false,
-	}
-	for tp, want := range cases {
-		if got := tp.AllocatesID(); got != want {
-			t.Errorf("%s.AllocatesID() = %v, want %v", tp, got, want)
+	// All types allocate IDs; design types embed the type prefix in their IDs.
+	for _, tp := range AllTypes {
+		if !tp.AllocatesID() {
+			t.Errorf("%s.AllocatesID() = false, want true", tp)
 		}
 	}
 }
@@ -161,8 +149,8 @@ func TestType_Path(t *testing.T) {
 		id      string
 		want    string
 	}{
-		{TypeProductDesign, "anvil", "ignored", "/v/05-projects/anvil/product-design.md"},
-		{TypeSystemDesign, "anvil", "ignored", "/v/05-projects/anvil/system-design.md"},
+		{TypeProductDesign, "anvil", "product-design.anvil", "/v/05-projects/product-design.anvil.md"},
+		{TypeSystemDesign, "anvil", "system-design.anvil", "/v/05-projects/system-design.anvil.md"},
 		{TypeIssue, "anvil", "anvil.foo", "/v/70-issues/anvil.foo.md"},
 		{TypeSweep, "", "0001-cli", "/v/50-sweeps/0001-cli.md"},
 		{TypeInbox, "", "2026-05-04T12-00-00-x", "/v/00-inbox/2026-05-04T12-00-00-x.md"},
