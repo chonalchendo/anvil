@@ -5,7 +5,7 @@ description: "Use when a PR has review findings to address — a reviewing-pr su
 
 # Responding to PR Review
 
-Your job is to drive every review finding — inline thread or thread-less report — to an outcome (fix / skip / push-back) and CI to green, then either surface the PR for the human's merge **decision** or, once that decision is an explicit per-PR approval, run the merge **mechanics** yourself (`--land-pr`, never raw `gh pr merge`) plus the land → distil → handoff tail. `dispatching-issue-fleet`'s human-owns-the-merge-button law is preserved as that per-PR decision gate — it bans the agent from *deciding* the merge, not from *executing* one the human just approved.
+Your job is to drive every review finding — inline thread or thread-less report — to an outcome (fix / skip / push-back) and CI to green, then either surface the PR for the human's merge **decision** or, on an explicit per-PR approval, run the merge **mechanics** yourself: `--land-pr`, then distil + handoff, never raw `gh pr merge`. `dispatching-issue-fleet`'s human-owns-the-merge-button law is preserved as that per-PR decision gate — it bans the agent from *deciding* the merge, not from *executing* one the human just approved.
 
 ## Iron Law
 
@@ -92,24 +92,22 @@ After every finding has an outcome AND CI is green on the latest SHA AND no new 
 **Wait for the response.** This is the one preserved human gate — the merge *decision*. "Merge on green" said earlier does not pre-authorize it; each PR gets its own explicit go, and silence is never approval.
 
 - **`skip` / `hold`** → leave the PR open, surface the url, return. The human drives it later.
-- **`yes`** → land via the gated verb (never raw `gh pr merge`), then run the land tail:
+- **`yes`** → run these steps in order, then stop. Never raw `gh pr merge`. (Mirrors `driving-build-loop` Phases 4–6.)
 
-```bash
-anvil transition issue <id> resolved --land-pr <n>
-```
+1. **Land** — the gated verb that merges and resolves in one call:
 
-One call gates on mergeable + CI-green, removes the worktree, squash-merges, verifies MERGED, and resolves the issue. The `<id>` is the issue whose completion opened this PR — its branch is `<project>/<issue-slug>` and its url was stamped via `anvil link issue <id> --external`. On a branch-only setup the verb refuses (`land_pr_worktree_missing`); merge is then the human's.
+   ```bash
+   anvil transition issue <id> resolved --land-pr <n>
+   ```
 
-Then run the land tail, mirroring `driving-build-loop` Phases 5–6:
-
-1. **REQUIRED SUB-SKILL:** `distilling-learning` — offer, don't force: *"This run resolved `<id>`. Distil a learning? (`distilling-learning`)"*. Bar is compounding, not record-keeping; "nothing worth distilling" is valid; never auto-distil.
-2. **REQUIRED SUB-SKILL:** `handing-off-session` — write the load-ready handoff capturing what landed and what's still open.
-
-Then surface the merged PR url and stop.
+   It gates on mergeable + CI-green, removes the worktree, squash-merges, verifies MERGED, and resolves the issue. `<id>` is the issue whose completion opened this PR — branch `<project>/<issue-slug>`, url stamped via `anvil link issue <id> --external`. On a branch-only setup the verb refuses (`land_pr_worktree_missing`); the human merges instead.
+2. **Distil** — fire `distilling-learning` (REQUIRED SUB-SKILL). Offer, don't force: *"This run resolved `<id>`. Distil a learning?"*. "Nothing worth distilling" is valid; never auto-distil.
+3. **Hand off** — fire `handing-off-session` (REQUIRED SUB-SKILL): write the load-ready handoff of what landed and what's still open.
+4. Surface the merged PR url.
 
 ## Autonomous / dispatched mode never reaches the gate
 
-The land tail runs only on an explicit per-PR approval typed by a human. A fleet- or `anvil-issue-worker`-dispatched completion stops at PR-opened and never fires this skill, so the gate is unreachable without an interactive human; an autonomous orchestrator owns its own post-merge. No standing or blanket pre-approval authorizes a later PR — every merge decision is per-PR.
+The land-on-approval steps run only on an explicit per-PR approval typed by a human. A fleet- or `anvil-issue-worker`-dispatched completion stops at PR-opened and never fires this skill, so the gate is unreachable without an interactive human; an autonomous orchestrator owns its own post-merge. No standing or blanket pre-approval authorizes a later PR — every merge decision is per-PR.
 
 ## What NOT to do
 
