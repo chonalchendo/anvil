@@ -27,6 +27,11 @@ type RunRequest struct {
 	Files       []string
 	Cwd         string
 	Timeout     time.Duration
+	// DisallowedTools is the per-phase tool wall (Channel A): tools the spawn
+	// physically cannot use. Empty = full tool set. The driver sets it per phase
+	// (e.g. review excludes Edit/Write so it cannot mutate the diff it judges);
+	// the adapter translates it into the CLI's --disallowedTools flag.
+	DisallowedTools []string
 }
 
 // RunResult is what the adapter reports back. On the error path the adapter

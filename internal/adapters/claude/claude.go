@@ -96,6 +96,12 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 	if req.Cwd != "" {
 		args = append(args, "--add-dir", req.Cwd)
 	}
+	// Channel-A tool wall: the model physically cannot use these tools. The flag
+	// accepts a comma-or-space-separated list; one comma-joined value is
+	// unambiguous regardless of the following args.
+	if len(req.DisallowedTools) > 0 {
+		args = append(args, "--disallowedTools", strings.Join(req.DisallowedTools, ","))
+	}
 
 	cmd := exec.CommandContext(runCtx, bin, args...) //nolint:gosec // bin resolved from trusted sources: explicit field, $ANVIL_CLAUDE_BIN, or PATH lookup
 	cmd.Dir = req.Cwd

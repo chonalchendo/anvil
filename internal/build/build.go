@@ -229,14 +229,15 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 		cwd = opts.Cwd
 	}
 	req := RunRequest{
-		Model:       model,
-		Effort:      effort,
-		Instruction: assembleInstruction(t),
-		Skills:      t.SkillsToLoad,
-		Context:     t.ContextToLoad,
-		Files:       t.Files,
-		Cwd:         cwd,
-		Timeout:     defaultRunTimeout,
+		Model:           model,
+		Effort:          effort,
+		Instruction:     assembleInstruction(t),
+		Skills:          t.SkillsToLoad,
+		Context:         t.ContextToLoad,
+		Files:           t.Files,
+		Cwd:             cwd,
+		Timeout:         defaultRunTimeout,
+		DisallowedTools: t.DisallowedTools,
 	}
 	res, err := adapter.Run(ctx, req)
 	oc.Result = res
