@@ -45,6 +45,10 @@ type Task struct {
 	// task. The engine's advance-gate confirms a PR opened on it before recording
 	// success (anvil.0112); empty when no worktree was cut (dry-run, tests).
 	Branch string
+	// DisallowedTools is the per-phase tool wall the driver assigns (e.g. the
+	// review phase excludes Edit/Write). Routed verbatim into the spawn's
+	// RunRequest; empty = full tool set.
+	DisallowedTools []string
 }
 
 // PlanVerification holds plan-level pre/post commands.

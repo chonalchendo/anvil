@@ -328,6 +328,10 @@ func reviewTasksFromTasks(completeTasks []core.Task, sum *build.Summary) []core.
 			Body:         b.String(),
 			Cwd:          t.Cwd,
 			Branch:       t.Branch,
+			// The review box judges a diff; the wall makes "cannot mutate the code
+			// it reviews" a harness guarantee, not a prompt hope (anvil.0117).
+			// complete and respond keep the full set — both must edit code.
+			DisallowedTools: []string{"Edit", "Write"},
 		})
 	}
 	return reviews

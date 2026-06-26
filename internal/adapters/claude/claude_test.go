@@ -202,6 +202,47 @@ func TestSeedConfigDir_KeychainFallbackWhenNoDiskCredential(t *testing.T) {
 	}
 }
 
+// runRecordingArgv spawns the argv-recording shim with req and returns the
+// argv the adapter handed the subprocess (one element per arg).
+func runRecordingArgv(t *testing.T, req build.RunRequest) []string {
+	t.Helper()
+	argvFile := filepath.Join(t.TempDir(), "argv")
+	t.Setenv("ANVIL_SHIM_ARGV_FILE", argvFile)
+	req.Model, req.Cwd, req.Timeout = "claude-sonnet-4-6", t.TempDir(), 10*time.Second
+	if _, err := New(shimPath(t, "shim_argv.sh")).Run(context.Background(), req); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	raw, err := os.ReadFile(argvFile) //nolint:gosec // argvFile is our own t.TempDir path
+	if err != nil {
+		t.Fatalf("reading recorded argv: %v", err)
+	}
+	return strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
+}
+
+// argValue returns the single argument following flag in argv, or "" if absent.
+func argValue(argv []string, flag string) string {
+	for i, a := range argv {
+		if a == flag && i+1 < len(argv) {
+			return argv[i+1]
+		}
+	}
+	return ""
+}
+
+// The review phase's per-phase tool wall must reach the spawned claude -p argv
+// as --disallowedTools; complete/respond (no wall) must carry no such flag.
+func TestRun_DisallowedToolsWall_ReachesArgv(t *testing.T) {
+	if got := argValue(runRecordingArgv(t, build.RunRequest{DisallowedTools: []string{"Edit", "Write"}}), "--disallowedTools"); got != "Edit,Write" {
+		t.Errorf("--disallowedTools = %q, want \"Edit,Write\"", got)
+	}
+	full := runRecordingArgv(t, build.RunRequest{})
+	for _, a := range full {
+		if a == "--disallowedTools" {
+			t.Errorf("no-wall spawn carried --disallowedTools; argv = %v", full)
+		}
+	}
+}
+
 func TestSettingsJSON_BudgetAndSkills(t *testing.T) {
 	req := build.RunRequest{Effort: "medium", Skills: []string{"alpha", "beta"}}
 	got, err := settingsJSON(req)
