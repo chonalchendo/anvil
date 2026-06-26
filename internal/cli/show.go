@@ -37,7 +37,7 @@ func newShowCmd() *cobra.Command {
 		Use:     "show <type> <id>",
 		Short:   "Display a vault artifact (body included by default for bounded types: inbox, decision, issue, sweep; pass --no-body to suppress, or --body to opt in for plan). Also accepts type=skill to print a bundled SKILL.md body.",
 		Args:    namedArgs("anvil show <type> <id>", []string{"<type>", "<id>"}, 2, 2),
-		Example: "  anvil show issue issue-42\n  anvil show issue issue-42 --no-body\n  anvil show issue issue-42 --json\n  anvil show plan ANV-142\n  anvil show plan ANV-142 --task T3\n  anvil show plan ANV-142 --task T3 --body\n  anvil show skill capturing-inbox",
+		Example: "  anvil show issue issue-42\n  anvil show issue issue-42 --no-body\n  anvil show issue issue-42 --json\n  anvil show issue issue-42 --links contract --body\n  anvil show plan ANV-142\n  anvil show plan ANV-142 --task T3\n  anvil show plan ANV-142 --task T3 --body\n  anvil show skill capturing-inbox",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Skills are bundled, not vault artifacts — short-circuit before
 			// ParseType so `anvil show skill <name>` reads from the embedded
@@ -307,11 +307,9 @@ func resolveArtifactPath(vaultRoot string, t core.Type, id string) string {
 	return filepath.Join(vaultRoot, t.Dir(), id+".md")
 }
 
-// canonicalArtifactID normalises a raw id/arg (CLI arg or wikilink target) to
-// the on-disk basename for type t: design types keep the "<type>." prefix for
-// global uniqueness, issues canonicalise through the shared resolver (qualified,
-// project-ordinal, and bare forms), everything else strips the redundant
-// "<type>." wikilink prefix.
+// canonicalArtifactID maps a raw id/wikilink-target to type t's on-disk
+// basename. Design types keep the "<type>." prefix (global uniqueness); issues
+// route through the shared resolver; others strip the redundant prefix.
 func canonicalArtifactID(v *core.Vault, t core.Type, raw string) string {
 	switch t {
 	case core.TypeProductDesign, core.TypeSystemDesign:
