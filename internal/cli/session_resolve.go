@@ -38,7 +38,7 @@ func resolveCurrentSession() (id, path, source string, err error) {
 	if err != nil {
 		return "", "", "", fmt.Errorf("resolving vault: %w", err)
 	}
-	return id, core.TypeSession.Path(v.Root, "", id), source, nil
+	return id, core.TypeSession.Path(v.Root, id), source, nil
 }
 
 // codexRolloutID extracts the session id trailing the timestamp in a Codex

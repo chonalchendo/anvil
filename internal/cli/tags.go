@@ -189,14 +189,8 @@ func buildTagRows(v *core.Vault, source, typeFlag, prefix string) ([]tagRow, boo
 		if typeFilter != nil {
 			types = []core.Type{*typeFilter}
 		}
-		seenDirs := map[string]struct{}{}
 		for _, t := range types {
-			dir := filepath.Join(v.Root, t.Dir())
-			if _, dup := seenDirs[dir]; dup {
-				continue
-			}
-			seenDirs[dir] = struct{}{}
-			if err := walkTags(dir, typeFilter, used); err != nil {
+			if err := walkTags(filepath.Join(v.Root, t.Dir()), used); err != nil {
 				return nil, false, err
 			}
 		}
@@ -265,10 +259,9 @@ func buildTagRows(v *core.Vault, source, typeFlag, prefix string) ([]tagRow, boo
 	return rows, glossaryLoaded, nil
 }
 
-// walkTags accumulates tag counts under dir. If typeFilter is set, only
-// artifacts whose frontmatter `type` equals *typeFilter are counted —
-// this catches the 05-projects directory which holds two singleton types.
-func walkTags(dir string, typeFilter *core.Type, counts map[string]int) error {
+// walkTags accumulates tag counts under dir. Each type owns a type-pure folder,
+// so every .md under dir belongs to that type — no per-file type check needed.
+func walkTags(dir string, counts map[string]int) error {
 	return filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -282,12 +275,6 @@ func walkTags(dir string, typeFilter *core.Type, counts map[string]int) error {
 		a, err := core.LoadArtifact(path)
 		if err != nil {
 			return fmt.Errorf("loading %s: %w", path, err)
-		}
-		if typeFilter != nil {
-			tStr, _ := a.FrontMatter["type"].(string)
-			if tStr != string(*typeFilter) {
-				return nil
-			}
 		}
 		raw, ok := a.FrontMatter["tags"].([]any)
 		if !ok {

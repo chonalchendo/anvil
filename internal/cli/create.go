@@ -196,7 +196,10 @@ func newCreateCmd() *cobra.Command {
 			// short-circuits ahead of a simultaneous --description/--goal cap
 			// overage, so the author sees every pre-resolution violation at once.
 			var titleErr error
-			if t != core.TypeSession && flagTitle == "" {
+			// Session and design types don't derive their ID from the title, so
+			// --title is optional for them. All other types require it.
+			noTitleRequired := t == core.TypeSession || t == core.TypeProductDesign || t == core.TypeSystemDesign
+			if !noTitleRequired && flagTitle == "" {
 				titleErr = fmt.Errorf("--title is required for %s", t)
 			}
 			if err := errors.Join(titleErr, checkFieldCaps(t, flagDescription, flagGoal)); err != nil {
@@ -269,6 +272,16 @@ func newCreateCmd() *cobra.Command {
 				for _, e := range preValidationErrors {
 					e.Path = path
 				}
+			}
+
+			// Design types don't require --title; fall back to the id so the
+			// schema's minLength constraint is satisfied without a user-supplied
+			// title. The author refines via anvil set.
+			if (t == core.TypeProductDesign || t == core.TypeSystemDesign) && flagTitle == "" {
+				flagTitle = id
+			}
+			if flagDescription == "" && (t == core.TypeProductDesign || t == core.TypeSystemDesign) {
+				flagDescription = id
 			}
 
 			var body string

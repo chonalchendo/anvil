@@ -154,21 +154,15 @@ func newValidateCmd() *cobra.Command {
 // signal list.go's matchesFilters uses — so scoping is robust to a misfiled
 // artifact (filename slug != declared project), which is exactly the hygiene
 // defect validate exists to surface; a path-based filter would let such a file
-// slip the scope. Two cases lack a frontmatter project to read, so they fall
-// back to the path: a parse failure (a == nil, no frontmatter loaded) keyed off
-// the filename prefix, and a singleton (product-design / system-design, which
-// carry no `project` field) keyed off its parent dir <dir>/<slug>/<type>.md.
-func artifactInProject(a *core.Artifact, path string, t core.Type, slug string) bool {
+// slip the scope. When frontmatter is missing (parse failure) the function falls
+// back to the filename prefix.
+func artifactInProject(a *core.Artifact, path string, _ core.Type, slug string) bool {
 	if a != nil {
 		if p, ok := a.FrontMatter["project"].(string); ok && p != "" {
 			return p == slug
 		}
 	}
-	if t.AllocatesID() {
-		return strings.HasPrefix(filepath.Base(path), slug+".")
-	}
-	// Singleton: parent dir is the project slug.
-	return filepath.Base(filepath.Dir(path)) == slug
+	return strings.HasPrefix(filepath.Base(path), slug+".")
 }
 
 // verbPathValidator builds a core.VerbPathValidator backed by cobra's command
@@ -266,29 +260,16 @@ func vaultRootFromArtifactPath(path string) (string, error) {
 			return filepath.Dir(parent), nil
 		}
 	}
-	// Singletons (product-design, system-design) live at
-	// <vault>/05-projects/<project>/<type>.md — one level deeper.
-	if filepath.Base(filepath.Dir(parent)) == "05-projects" {
-		return filepath.Dir(filepath.Dir(parent)), nil
-	}
 	return "", errfmt.NewNotInVault(path)
 }
 
-// typeFromArtifactPath infers the Type from the artifact's parent dir.
+// typeFromArtifactPath infers the Type from the artifact's parent dir. Every
+// type — designs included — owns a type-pure folder, so the dir maps to one type.
 func typeFromArtifactPath(path string) (core.Type, error) {
 	parent := filepath.Base(filepath.Dir(path))
 	for _, t := range core.AllTypes {
 		if t.Dir() == parent {
 			return t, nil
-		}
-	}
-	// Singleton case: parent is the project dir under 05-projects/.
-	if filepath.Base(filepath.Dir(filepath.Dir(path))) == "05-projects" {
-		stem := strings.TrimSuffix(filepath.Base(path), ".md")
-		for _, t := range core.AllTypes {
-			if string(t) == stem {
-				return t, nil
-			}
 		}
 	}
 	return "", errfmt.NewNotInVault(path)

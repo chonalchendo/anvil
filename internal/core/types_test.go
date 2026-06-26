@@ -91,30 +91,13 @@ func TestParseType_AcceptsDesignTypes(t *testing.T) {
 }
 
 func TestType_Dir_DesignTypes(t *testing.T) {
-	for _, tp := range []Type{TypeProductDesign, TypeSystemDesign} {
-		if got := tp.Dir(); got != "05-projects" {
-			t.Errorf("%s.Dir() = %q, want %q", tp, got, "05-projects")
-		}
-	}
-}
-
-func TestType_AllocatesID(t *testing.T) {
-	cases := map[Type]bool{
-		TypeInbox:         true,
-		TypeIssue:         true,
-		TypePlan:          true,
-		TypeMilestone:     true,
-		TypeDecision:      true,
-		TypeLearning:      true,
-		TypeThread:        true,
-		TypeSweep:         true,
-		TypeSession:       true,
-		TypeProductDesign: false,
-		TypeSystemDesign:  false,
+	cases := map[Type]string{
+		TypeProductDesign: "05-product-designs",
+		TypeSystemDesign:  "06-system-designs",
 	}
 	for tp, want := range cases {
-		if got := tp.AllocatesID(); got != want {
-			t.Errorf("%s.AllocatesID() = %v, want %v", tp, got, want)
+		if got := tp.Dir(); got != want {
+			t.Errorf("%s.Dir() = %q, want %q", tp, got, want)
 		}
 	}
 }
@@ -156,20 +139,20 @@ func TestTypesSupportingProject_IncludesLearningAndDecision(t *testing.T) {
 func TestType_Path(t *testing.T) {
 	root := "/v"
 	cases := []struct {
-		tp      Type
-		project string
-		id      string
-		want    string
+		tp   Type
+		id   string
+		want string
 	}{
-		{TypeProductDesign, "anvil", "ignored", "/v/05-projects/anvil/product-design.md"},
-		{TypeSystemDesign, "anvil", "ignored", "/v/05-projects/anvil/system-design.md"},
-		{TypeIssue, "anvil", "anvil.foo", "/v/70-issues/anvil.foo.md"},
-		{TypeSweep, "", "0001-cli", "/v/50-sweeps/0001-cli.md"},
-		{TypeInbox, "", "2026-05-04T12-00-00-x", "/v/00-inbox/2026-05-04T12-00-00-x.md"},
+		{TypeProductDesign, "product-design.anvil", "/v/05-product-designs/product-design.anvil.md"},
+		{TypeSystemDesign, "system-design.anvil", "/v/06-system-designs/system-design.anvil.md"},
+		{TypeSystemDesign, "system-design.anvil.build", "/v/06-system-designs/system-design.anvil.build.md"},
+		{TypeIssue, "anvil.foo", "/v/70-issues/anvil.foo.md"},
+		{TypeSweep, "0001-cli", "/v/50-sweeps/0001-cli.md"},
+		{TypeInbox, "2026-05-04T12-00-00-x", "/v/00-inbox/2026-05-04T12-00-00-x.md"},
 	}
 	for _, c := range cases {
-		if got := c.tp.Path(root, c.project, c.id); got != c.want {
-			t.Errorf("%s.Path(%q,%q,%q) = %q, want %q", c.tp, root, c.project, c.id, got, c.want)
+		if got := c.tp.Path(root, c.id); got != c.want {
+			t.Errorf("%s.Path(%q,%q) = %q, want %q", c.tp, root, c.id, got, c.want)
 		}
 	}
 }

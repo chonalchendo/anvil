@@ -53,17 +53,26 @@ func newShowCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			if t.AllocatesID() && t != core.TypeIssue {
+			switch t {
+			case core.TypeProductDesign, core.TypeSystemDesign:
+				// Design-type ids keep the type prefix (e.g. system-design.burgh)
+				// for global uniqueness. Qualify a bare project/shard arg by
+				// prepending the type prefix so both "burgh" and the already-
+				// prefixed wikilink form "system-design.burgh" resolve to the
+				// same file.
 				prefix := string(t) + "."
-				if strings.HasPrefix(args[1], prefix) {
-					candidate := strings.TrimPrefix(args[1], prefix)
-					// Guard: only strip when remainder still contains "." —
-					// proves the input is "<type>.<project>.<slug>", not the
-					// bare ID "<type>.<project>" where project equals type name.
-					if strings.Contains(candidate, ".") {
-						args[1] = candidate
-					}
+				if !strings.HasPrefix(args[1], prefix) {
+					args[1] = prefix + args[1]
 				}
+			case core.TypeIssue:
+				// handled below
+			default:
+				// The subcommand already names the type, so a leading "<type>."
+				// in a non-design arg is always the redundant wikilink prefix —
+				// strip it unconditionally. Resolves both shard-style ids
+				// ("decision.topic.0001-slug" → "topic.0001-slug") and bare ids
+				// (left untouched, no prefix to strip).
+				args[1] = strings.TrimPrefix(args[1], string(t)+".")
 			}
 			// Issue args (qualified "issue."-prefix, project-qualified ordinal,
 			// bare ordinal) canonicalise through one helper shared with the
@@ -318,15 +327,9 @@ func emitIncomingText(cmd *cobra.Command, incoming map[string][]incomingEdge) {
 	}
 }
 
-// resolveArtifactPath maps a CLI (type, id) pair to its on-disk path.
-// Singletons accept either the bare project slug or the qualified
-// "<type>.<project>" wikilink form; non-singletons compose <Dir>/<id>.md.
+// resolveArtifactPath maps a CLI (type, id) pair to its on-disk path: <Dir>/<id>.md.
 func resolveArtifactPath(vaultRoot string, t core.Type, id string) string {
-	if t.AllocatesID() {
-		return filepath.Join(vaultRoot, t.Dir(), id+".md")
-	}
-	project := strings.TrimPrefix(id, string(t)+".")
-	return filepath.Join(vaultRoot, t.Dir(), project, string(t)+".md")
+	return filepath.Join(vaultRoot, t.Dir(), id+".md")
 }
 
 // runShowSkill prints the embedded SKILL.md body for the named bundled skill.

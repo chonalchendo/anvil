@@ -1,0 +1,60 @@
+filters:
+  and:
+    - file.inFolder("05-product-designs") || file.inFolder("06-system-designs")
+    - file.ext == "md"
+properties:
+  file.name:
+    displayName: Design
+  file.ctime:
+    displayName: Created
+  file.mtime:
+    displayName: Updated
+  note.title:
+    displayName: Title
+  note.type:
+    displayName: Type
+  note.status:
+    displayName: Status
+  note.project:
+    displayName: Project
+  note.product_design:
+    displayName: Product design
+views:
+  - type: table
+    name: System designs
+    filters:
+      and:
+        - type == "system-design"
+    order:
+      - title
+      - file.name
+      - project
+      - status
+      - product_design
+    sort:
+      - property: project
+        direction: ASC
+  - type: table
+    name: Product designs
+    filters:
+      and:
+        - type == "product-design"
+    order:
+      - title
+      - file.name
+      - project
+      - status
+    sort:
+      - property: project
+        direction: ASC
+  - type: table
+    name: All designs
+    order:
+      - title
+      - file.name
+      - type
+      - project
+      - status
+    sort:
+      - property: project
+        direction: ASC

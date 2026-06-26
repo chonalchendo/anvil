@@ -49,23 +49,14 @@ func (t Type) Dir() string {
 		return "50-sweeps"
 	case TypeSession:
 		return "10-sessions"
-	case TypeProductDesign, TypeSystemDesign:
-		return "05-projects"
+	case TypeProductDesign:
+		return "05-product-designs"
+	case TypeSystemDesign:
+		return "06-system-designs"
 	case TypeContract:
 		return "75-contracts"
 	}
 	panic(fmt.Sprintf("unknown type %q", t))
-}
-
-// AllocatesID reports whether create should call NextID for this type.
-// Singletons (product-design, system-design) write to a fixed per-project
-// filename and return false; every other type returns true.
-func (t Type) AllocatesID() bool {
-	switch t {
-	case TypeProductDesign, TypeSystemDesign:
-		return false
-	}
-	return true
 }
 
 // SupportsProject reports whether the type's schema accepts a `project:`
@@ -93,13 +84,8 @@ func TypesSupportingProject() []string {
 	return out
 }
 
-// Path returns the absolute artifact path under vaultRoot. Singletons
-// (product-design, system-design) ignore id and use a fixed per-project
-// filename; other types compose <Dir>/<id>.md.
-func (t Type) Path(vaultRoot, project, id string) string {
-	if !t.AllocatesID() {
-		return filepath.Join(vaultRoot, t.Dir(), project, string(t)+".md")
-	}
+// Path returns the absolute artifact path under vaultRoot: <Dir>/<id>.md.
+func (t Type) Path(vaultRoot, id string) string {
 	return filepath.Join(vaultRoot, t.Dir(), id+".md")
 }
 

@@ -15,7 +15,8 @@ import (
 // VaultDirs lists every directory Scaffold creates under the vault root.
 var VaultDirs = []string{
 	"00-inbox",
-	"05-projects",
+	"05-product-designs",
+	"06-system-designs",
 	"10-sessions/raw",
 	"10-sessions/distilled",
 	"20-learnings",

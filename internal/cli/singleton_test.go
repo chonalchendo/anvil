@@ -9,14 +9,17 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-// writeFixtureSingleton writes a singleton artifact (product-design or
-// system-design) to <vault>/05-projects/<project>/<type>.md.
-func writeFixtureSingleton(t *testing.T, vault, project string, typ core.Type, title string) string {
+// writeFixtureDesign writes a flat design artifact to its type's own folder.
+// Design ids keep the type prefix for global uniqueness, so the on-disk file is
+// <vault>/<type.Dir()>/<type>.<project>.md.
+func writeFixtureDesign(t *testing.T, vault, project string, typ core.Type, title string) string {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Join(vault, "05-projects", project), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+	dir := filepath.Join(vault, typ.Dir())
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	path := filepath.Join(vault, "05-projects", project, string(typ)+".md")
+	id := string(typ) + "." + project
+	path := filepath.Join(dir, id+".md")
 	a := &core.Artifact{
 		Path: path,
 		FrontMatter: map[string]any{
@@ -32,12 +35,12 @@ func writeFixtureSingleton(t *testing.T, vault, project string, typ core.Type, t
 	return path
 }
 
-func TestList_ProductDesign_ReturnsSingletons(t *testing.T) {
+func TestList_ProductDesign_ReturnsFlatFiles(t *testing.T) {
 	vault := setupVault(t)
-	writeFixtureSingleton(t, vault, "foo", core.TypeProductDesign, "Foo PD")
-	writeFixtureSingleton(t, vault, "bar", core.TypeProductDesign, "Bar PD")
-	// system-design in the same dir must not leak into product-design output.
-	writeFixtureSingleton(t, vault, "foo", core.TypeSystemDesign, "Foo SD")
+	writeFixtureDesign(t, vault, "foo", core.TypeProductDesign, "Foo PD")
+	writeFixtureDesign(t, vault, "bar", core.TypeProductDesign, "Bar PD")
+	// system-design lives in its own folder; it must not appear here.
+	writeFixtureDesign(t, vault, "foo", core.TypeSystemDesign, "Foo SD")
 
 	cmd := newRootCmd()
 	out, _, err := runCmd(t, cmd, "list", "product-design", "--json")
@@ -58,15 +61,15 @@ func TestList_ProductDesign_ReturnsSingletons(t *testing.T) {
 			t.Errorf("project empty for %+v", it)
 		}
 	}
-	if !ids["bar"] || !ids["foo"] {
+	if !ids["product-design.bar"] || !ids["product-design.foo"] {
 		t.Errorf("missing ids: %v", ids)
 	}
 }
 
-func TestList_SystemDesign_ReturnsSingletons(t *testing.T) {
+func TestList_SystemDesign_ReturnsFlatFiles(t *testing.T) {
 	vault := setupVault(t)
-	writeFixtureSingleton(t, vault, "foo", core.TypeSystemDesign, "Foo SD")
-	writeFixtureSingleton(t, vault, "foo", core.TypeProductDesign, "Foo PD")
+	writeFixtureDesign(t, vault, "foo", core.TypeSystemDesign, "Foo SD")
+	writeFixtureDesign(t, vault, "foo", core.TypeProductDesign, "Foo PD")
 
 	cmd := newRootCmd()
 	out, _, err := runCmd(t, cmd, "list", "system-design", "--json")
@@ -77,14 +80,14 @@ func TestList_SystemDesign_ReturnsSingletons(t *testing.T) {
 	if env.Total != 1 {
 		t.Fatalf("total=%d, want 1; items=%+v", env.Total, env.Items)
 	}
-	if env.Items[0].Type != "system-design" || env.Items[0].ID != "foo" {
-		t.Errorf("got %+v, want type=system-design id=foo", env.Items[0])
+	if env.Items[0].Type != "system-design" || env.Items[0].ID != "system-design.foo" {
+		t.Errorf("got %+v, want type=system-design id=system-design.foo", env.Items[0])
 	}
 }
 
 func TestShow_ProductDesign_ResolvesByProject(t *testing.T) {
 	vault := setupVault(t)
-	writeFixtureSingleton(t, vault, "foo", core.TypeProductDesign, "Foo PD")
+	writeFixtureDesign(t, vault, "foo", core.TypeProductDesign, "Foo PD")
 
 	cmd := newRootCmd()
 	out, _, err := runCmd(t, cmd, "show", "product-design", "foo")
@@ -98,7 +101,7 @@ func TestShow_ProductDesign_ResolvesByProject(t *testing.T) {
 
 func TestShow_ProductDesign_ResolvesByQualifiedID(t *testing.T) {
 	vault := setupVault(t)
-	writeFixtureSingleton(t, vault, "foo", core.TypeProductDesign, "Foo PD")
+	writeFixtureDesign(t, vault, "foo", core.TypeProductDesign, "Foo PD")
 
 	cmd := newRootCmd()
 	out, _, err := runCmd(t, cmd, "show", "product-design", "product-design.foo")
@@ -112,7 +115,7 @@ func TestShow_ProductDesign_ResolvesByQualifiedID(t *testing.T) {
 
 func TestShow_SystemDesign_ResolvesByProject(t *testing.T) {
 	vault := setupVault(t)
-	writeFixtureSingleton(t, vault, "foo", core.TypeSystemDesign, "Foo SD")
+	writeFixtureDesign(t, vault, "foo", core.TypeSystemDesign, "Foo SD")
 
 	cmd := newRootCmd()
 	out, _, err := runCmd(t, cmd, "show", "system-design", "foo")
@@ -124,14 +127,13 @@ func TestShow_SystemDesign_ResolvesByProject(t *testing.T) {
 	}
 }
 
-func TestValidate_DetectsBadSingleton(t *testing.T) {
+func TestValidate_DetectsBadDesignDoc(t *testing.T) {
 	vault := setupVault(t)
-	// Plant a singleton with invalid status — should be caught by validate.
-	if err := os.MkdirAll(filepath.Join(vault, "05-projects", "foo"), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+	if err := os.MkdirAll(filepath.Join(vault, "05-product-designs"), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	bad := &core.Artifact{
-		Path: filepath.Join(vault, "05-projects", "foo", "product-design.md"),
+		Path: filepath.Join(vault, "05-product-designs", "product-design.foo.md"),
 		FrontMatter: map[string]any{
 			"type": "product-design", "title": "x", "created": "2026-04-29",
 			"description": "x", "status": "totally-bogus",
@@ -145,7 +147,7 @@ func TestValidate_DetectsBadSingleton(t *testing.T) {
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"validate", vault})
 	if err := cmd.Execute(); err == nil {
-		t.Error("expected validation error for bad singleton, got nil")
+		t.Error("expected validation error for bad design doc, got nil")
 	}
 }
 
