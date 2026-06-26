@@ -5,7 +5,7 @@ description: "Use when a PR has review findings to address — a reviewing-pr su
 
 # Responding to PR Review
 
-Your job is to drive every review finding — inline thread or thread-less report — to an outcome (fix / skip / push-back) and CI to green, then surface the PR url back. You do **not** merge — `dispatching-issue-fleet`'s Iron Law (human owns the merge button) applies here too.
+Your job is to drive every review finding — inline thread or thread-less report — to an outcome (fix / skip / push-back) and CI to green, then either surface the PR for the human's merge **decision** or, on an explicit per-PR approval, run the merge **mechanics** yourself: `--land-pr`, then distil + handoff, never raw `gh pr merge`. `dispatching-issue-fleet`'s human-owns-the-merge-button law is preserved as that per-PR decision gate — it bans the agent from *deciding* the merge, not from *executing* one the human just approved.
 
 ## Iron Law
 
@@ -76,20 +76,42 @@ bash ~/.claude/skills/completing-issue/scripts/wait-for-pr.sh --pr <n> [--repo o
 Branch on `state`:
 - `merged` or `closed` — done; surface the PR url and return.
 - `conflicting` — rebase or merge the base branch, force-push, then re-invoke the poller.
-- `ci_passed` — CI green, no blockers, PR unmerged; surface the PR url for the human to merge and return.
+- `ci_passed` — CI green, no blockers, PR unmerged; proceed to Phase 5 (merge gate).
 - `review_blocked` — re-fetch inline comments and loop Phase 2-3.
 - `ci_failed` — investigate the failed check, fix, push, then re-invoke the poller.
 - `timeout` — surface to the user; a human reviewer that never lands is their call, not an infinite poll.
 
 The default 900 s / 15 min timeout is a poll budget, not a merge deadline.
 
-## Halt at green
+## Phase 5 — Merge gate (per-PR decision)
 
-After every finding has an outcome AND CI is green on the latest SHA AND no new reviewer activity within the poll budget: stop. Surface the PR url. The human merges.
+After every finding has an outcome AND CI is green on the latest SHA AND no new reviewer activity within the poll budget, present the PR and ask — its own paragraph, do not bundle:
+
+> PR #`<n>` (`<issue-id>`) is review-green and CI-green: `<title>`. Merge it? (yes / skip / hold for changes)
+
+**Wait for the response.** This is the one preserved human gate — the merge *decision*. "Merge on green" said earlier does not pre-authorize it; each PR gets its own explicit go, and silence is never approval.
+
+- **`skip` / `hold`** → leave the PR open, surface the url, return. The human drives it later.
+- **`yes`** → run these steps in order, then stop. Never raw `gh pr merge`. (Mirrors `driving-build-loop` Phases 4–6.)
+
+1. **Land** — the gated verb that merges and resolves in one call:
+
+   ```bash
+   anvil transition issue <id> resolved --land-pr <n>
+   ```
+
+   It gates on mergeable + CI-green, removes the worktree, squash-merges, verifies MERGED, and resolves the issue. `<id>` is the issue whose completion opened this PR — branch `<project>/<issue-slug>`, url stamped via `anvil link issue <id> --external`. On a branch-only setup the verb refuses (`land_pr_worktree_missing`); the human merges instead.
+2. **Distil** — fire `distilling-learning` (REQUIRED SUB-SKILL). Offer, don't force: *"This run resolved `<id>`. Distil a learning?"*. "Nothing worth distilling" is valid; never auto-distil.
+3. **Hand off** — fire `handing-off-session` (REQUIRED SUB-SKILL): write the load-ready handoff of what landed and what's still open.
+4. Surface the merged PR url.
+
+## Autonomous / dispatched mode never reaches the gate
+
+The land-on-approval steps run only on an explicit per-PR approval typed by a human. A fleet- or `anvil-issue-worker`-dispatched completion stops at PR-opened and never fires this skill, so the gate is unreachable without an interactive human; an autonomous orchestrator owns its own post-merge. No standing or blanket pre-approval authorizes a later PR — every merge decision is per-PR.
 
 ## What NOT to do
 
-- Do not merge. Even on green. Even if the user said "merge on green" — confirm intent first.
+- Do not merge unprompted, and never via raw `gh pr merge` — land only through `--land-pr` after an explicit per-PR approval. "Merge on green" said once does not pre-authorize the batch; each PR needs its own go.
 - Do not skip with "nitpick" when the nit cites a documented repo rule (see Phase 2 nitpick policy).
 - Do not paraphrase the reviewer's findings in the reply. Cite the SHA; the diff speaks.
 - Do not loop past the poll budget without surfacing to the user. A human reviewer that never lands is a signal to surface to the user, not infinite poll.

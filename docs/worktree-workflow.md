@@ -44,7 +44,7 @@ Unit tests assert *some* string appears in output; they don't assert it's runnab
 
 Do not poll PRs on a fixed interval — each wakeup past the 300 s prompt-cache window pays a full context reload.
 
-- If the user said something equivalent to "monitor until merge" / "wait for it to land" / "babysit the PR", treat that as standing approval: once the review + CI are green and the PR is mergeable, run the [Post-merge cleanup](#post-merge-cleanup-sequence-matters) sequence without a further prompt.
+- If the user said something equivalent to "monitor until merge" / "wait for it to land" / "babysit the PR", that authorizes *monitoring*, not unprompted merging: poll until review + CI are green and the PR is mergeable, then surface it for the human's per-PR go. The agent lands only on that explicit approval — `responding-to-pr-review`'s merge gate for skill-driven PRs, the [Post-merge cleanup](#post-merge-cleanup-sequence-matters) sequence otherwise. Babysit is not standing approval to merge.
 - Otherwise: schedule **at most one** wakeup (≥ 2 h), check once, then stop and surface "awaiting your call" rather than looping.
 - Exception: a blocking CI job expected to finish in ≤ 5 min may be checked immediately once without a scheduled wakeup.
 
