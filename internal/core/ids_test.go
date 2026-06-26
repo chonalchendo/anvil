@@ -164,6 +164,11 @@ func TestDeterministicID(t *testing.T) {
 		{"thread", TypeThread, IDInputs{Title: "auth retries"}, "auth-retries"},
 		{"learning", TypeLearning, IDInputs{Title: "Slogger gotcha"}, "slogger-gotcha"},
 		{"sweep", TypeSweep, IDInputs{Title: "Drop python2"}, "drop-python2"},
+		// Design ids keep the type prefix so a product-design and a system-design
+		// for the same project stay globally distinct (no artifacts.id collision).
+		{"product-design", TypeProductDesign, IDInputs{Project: "foo"}, "product-design.foo"},
+		{"system-design singleton", TypeSystemDesign, IDInputs{Project: "foo"}, "system-design.foo"},
+		{"system-design shard", TypeSystemDesign, IDInputs{Project: "foo", Slug: "build"}, "system-design.foo.build"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

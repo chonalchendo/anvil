@@ -164,24 +164,24 @@ func TestResolveBodyLinks_PlaceholderWikilinkLiteral(t *testing.T) {
 
 // TestResolveLinks_DesignDocPresent asserts that a [[product-design.<project>]]
 // or [[system-design.<project>[.<shard>]]] wikilink resolves under the per-type
-// flat layout: the folder carries the type and the file id is the bare
-// project[.shard], so the portion after the type prefix is the on-disk id.
+// flat layout. Design ids keep the type prefix for global uniqueness, so the
+// on-disk id is the full wikilink target (e.g. system-design.burgh).
 func TestResolveLinks_DesignDocPresent(t *testing.T) {
 	v := newScaffolded(t)
-	project := "burgh"
-	for _, typ := range []Type{TypeProductDesign, TypeSystemDesign} {
-		p := typ.Path(v.Root, project, project)
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(p, []byte("---\ntype: "+string(typ)+"\n---\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
-			t.Fatal(err)
-		}
+	files := map[Type][]string{
+		TypeProductDesign: {"product-design.burgh"},
+		TypeSystemDesign:  {"system-design.burgh", "system-design.anvil.build"},
 	}
-	// A system-design shard resolves through the same generic path: id anvil.build.
-	shard := TypeSystemDesign.Path(v.Root, "anvil", "anvil.build")
-	if err := os.WriteFile(shard, []byte("---\ntype: system-design\n---\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
-		t.Fatal(err)
+	for typ, ids := range files {
+		for _, id := range ids {
+			p := typ.Path(v.Root, id)
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(p, []byte("---\ntype: "+string(typ)+"\n---\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+				t.Fatal(err)
+			}
+		}
 	}
 	fm := map[string]any{
 		"product_design": "[[product-design.burgh]]",

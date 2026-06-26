@@ -102,15 +102,6 @@ func TestType_Dir_DesignTypes(t *testing.T) {
 	}
 }
 
-func TestType_AllocatesID(t *testing.T) {
-	// All types allocate IDs; design types key off a bare project[.shard] id.
-	for _, tp := range AllTypes {
-		if !tp.AllocatesID() {
-			t.Errorf("%s.AllocatesID() = false, want true", tp)
-		}
-	}
-}
-
 func TestType_SupportsProject(t *testing.T) {
 	cases := map[Type]bool{
 		TypeIssue:         true,
@@ -148,21 +139,20 @@ func TestTypesSupportingProject_IncludesLearningAndDecision(t *testing.T) {
 func TestType_Path(t *testing.T) {
 	root := "/v"
 	cases := []struct {
-		tp      Type
-		project string
-		id      string
-		want    string
+		tp   Type
+		id   string
+		want string
 	}{
-		{TypeProductDesign, "anvil", "anvil", "/v/05-product-designs/anvil.md"},
-		{TypeSystemDesign, "anvil", "anvil", "/v/06-system-designs/anvil.md"},
-		{TypeSystemDesign, "anvil", "anvil.build", "/v/06-system-designs/anvil.build.md"},
-		{TypeIssue, "anvil", "anvil.foo", "/v/70-issues/anvil.foo.md"},
-		{TypeSweep, "", "0001-cli", "/v/50-sweeps/0001-cli.md"},
-		{TypeInbox, "", "2026-05-04T12-00-00-x", "/v/00-inbox/2026-05-04T12-00-00-x.md"},
+		{TypeProductDesign, "product-design.anvil", "/v/05-product-designs/product-design.anvil.md"},
+		{TypeSystemDesign, "system-design.anvil", "/v/06-system-designs/system-design.anvil.md"},
+		{TypeSystemDesign, "system-design.anvil.build", "/v/06-system-designs/system-design.anvil.build.md"},
+		{TypeIssue, "anvil.foo", "/v/70-issues/anvil.foo.md"},
+		{TypeSweep, "0001-cli", "/v/50-sweeps/0001-cli.md"},
+		{TypeInbox, "2026-05-04T12-00-00-x", "/v/00-inbox/2026-05-04T12-00-00-x.md"},
 	}
 	for _, c := range cases {
-		if got := c.tp.Path(root, c.project, c.id); got != c.want {
-			t.Errorf("%s.Path(%q,%q,%q) = %q, want %q", c.tp, root, c.project, c.id, got, c.want)
+		if got := c.tp.Path(root, c.id); got != c.want {
+			t.Errorf("%s.Path(%q,%q) = %q, want %q", c.tp, root, c.id, got, c.want)
 		}
 	}
 }

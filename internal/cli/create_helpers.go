@@ -16,21 +16,19 @@ import (
 // is the slug-keyed DeterministicID. Path defaults to the type's slug-based
 // location unless the allocator already resolved it (issues).
 func resolveCreateIDPath(v *core.Vault, t core.Type, project, title, topic, slug string) (id, path string, err error) {
-	switch {
-	case t == core.TypeDecision:
+	switch t {
+	case core.TypeDecision:
 		id, err = core.NextID(v, t, core.IDInputs{Title: title, Project: project, Topic: topic, Slug: slug})
-	case t == core.TypeIssue:
+	case core.TypeIssue:
 		id, path, err = core.AllocateIssueID(v, project, title, slug)
-	case t.AllocatesID():
-		id, err = core.DeterministicID(t, core.IDInputs{Title: title, Project: project, Slug: slug})
 	default:
-		id = string(t)
+		id, err = core.DeterministicID(t, core.IDInputs{Title: title, Project: project, Slug: slug})
 	}
 	if err != nil {
 		return "", "", invalidSlugError(slug, err)
 	}
 	if path == "" {
-		path = t.Path(v.Root, project, id)
+		path = t.Path(v.Root, id)
 	}
 	return id, path, nil
 }

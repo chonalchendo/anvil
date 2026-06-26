@@ -59,13 +59,6 @@ func (t Type) Dir() string {
 	panic(fmt.Sprintf("unknown type %q", t))
 }
 
-// AllocatesID reports whether create should call NextID for this type.
-// All types return true; design types are flat files in their own type-named
-// folder (05-product-designs/, 06-system-designs/) keyed by a bare id.
-func (t Type) AllocatesID() bool {
-	return true
-}
-
 // SupportsProject reports whether the type's schema accepts a `project:`
 // frontmatter field. Types that return false (inbox, session, sweep, thread)
 // are deliberately cross-project — inbox predates project assignment, sessions
@@ -92,8 +85,7 @@ func TypesSupportingProject() []string {
 }
 
 // Path returns the absolute artifact path under vaultRoot: <Dir>/<id>.md.
-// The project parameter is kept for call-site compatibility.
-func (t Type) Path(vaultRoot, _ string, id string) string {
+func (t Type) Path(vaultRoot, id string) string {
 	return filepath.Join(vaultRoot, t.Dir(), id+".md")
 }
 

@@ -88,7 +88,7 @@ product_design: "[[product-design.<project>]]"
 authorized_by: ["[[decision...]]"]
 ```
 
-Addressable as `system-design.<project>` (per-project) or `system-design.<project>.<shard>` (per subsystem); files sit flat in `06-system-designs/` (id `<project>[.<shard>]`, no type prefix) and resolve in show/list/wikilinks.
+Addressable as `system-design.<project>` (per-project) or `system-design.<project>.<shard>` (per subsystem); files sit flat in `06-system-designs/` (id keeps the type prefix, e.g. `system-design.burgh.md`) and resolve in show/list/wikilinks.
 
 Body absorbs: tech stack, key invariants, risks, boundary diagrams, revisions. Mermaid diagrams stay first-class body content.
 
@@ -298,7 +298,7 @@ User-authored. Anthropic spec at top level + Anvil `metadata:` block. Out of CLI
 
 ## IDs and naming
 
-Slug-based across most artifacts. Wikilink form: `<type>.<project>.<slug>`; filename: `<project>.<slug>.md` within the type folder. **Issues** carry a per-project ordinal: id `<project>.NNNN.<slug>`, filename `<project>.NNNN.<slug>.md` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Legacy long-slug issue files (no ordinal) still resolve. **Design docs** (`product-design`, `system-design`) each own a type-named folder (`05-product-designs/`, `06-system-designs/`), so the folder carries the type and the id drops the prefix like every other type: `<project>.md` for product-design, `<project>[.<shard>].md` for system-design (e.g. `06-system-designs/burgh.md`, `06-system-designs/anvil.build.md`).
+Slug-based across most artifacts. Wikilink form: `<type>.<project>.<slug>`; filename: `<project>.<slug>.md` within the type folder. **Issues** carry a per-project ordinal: id `<project>.NNNN.<slug>`, filename `<project>.NNNN.<slug>.md` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Legacy long-slug issue files (no ordinal) still resolve. **Design docs** (`product-design`, `system-design`) each own a type-named folder (`05-product-designs/`, `06-system-designs/`), but **keep the type prefix in the id** so a product-design and a system-design for the same project don't collide on the index's global `artifacts.id` key: id `<type>.<project>[.<shard>]`, filename `<type>.<project>[.<shard>].md` (e.g. `05-product-designs/product-design.anvil.md`, `06-system-designs/system-design.anvil.build.md`).
 
 Examples:
 
@@ -321,8 +321,8 @@ Wikilinks are vault-global, not project-scoped. Because the project name is part
 ```
 ~/anvil-vault/
 ├── 00-inbox/
-├── 05-product-designs/           # flat: <project>.md
-├── 06-system-designs/            # flat: <project>[.<shard>].md
+├── 05-product-designs/           # flat: product-design.<project>.md
+├── 06-system-designs/            # flat: system-design.<project>[.<shard>].md
 ├── 10-sessions/{raw,distilled}/
 ├── 20-learnings/
 ├── 30-decisions/
