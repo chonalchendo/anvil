@@ -53,33 +53,7 @@ func newShowCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			switch t {
-			case core.TypeProductDesign, core.TypeSystemDesign:
-				// Design-type ids keep the type prefix (e.g. system-design.burgh)
-				// for global uniqueness. Qualify a bare project/shard arg by
-				// prepending the type prefix so both "burgh" and the already-
-				// prefixed wikilink form "system-design.burgh" resolve to the
-				// same file.
-				prefix := string(t) + "."
-				if !strings.HasPrefix(args[1], prefix) {
-					args[1] = prefix + args[1]
-				}
-			case core.TypeIssue:
-				// handled below
-			default:
-				// The subcommand already names the type, so a leading "<type>."
-				// in a non-design arg is always the redundant wikilink prefix —
-				// strip it unconditionally. Resolves both shard-style ids
-				// ("decision.topic.0001-slug" → "topic.0001-slug") and bare ids
-				// (left untouched, no prefix to strip).
-				args[1] = strings.TrimPrefix(args[1], string(t)+".")
-			}
-			// Issue args (qualified "issue."-prefix, project-qualified ordinal,
-			// bare ordinal) canonicalise through one helper shared with the
-			// set/transition write paths so all three accept identical forms.
-			if t == core.TypeIssue {
-				args[1] = core.ResolveIssueArg(v, args[1])
-			}
+			args[1] = canonicalArtifactID(v, t, args[1])
 			if flagBody && flagNoBody {
 				return fmt.Errorf("--body and --no-body are mutually exclusive")
 			}
@@ -110,10 +84,11 @@ func newShowCmd() *cobra.Command {
 				return runShowValidate(cmd, v, t, args[1], flagJSON)
 			}
 			if flagLinks != "" {
-				if _, err := core.ParseType(flagLinks); err != nil {
+				lt, err := core.ParseType(flagLinks)
+				if err != nil {
 					return fmt.Errorf("--links: unknown type %q", flagLinks)
 				}
-				return runShowLinks(cmd, v, t, args[1], flagLinks, flagJSON)
+				return runShowLinks(cmd, v, t, args[1], lt, flagJSON, flagBody)
 			}
 			return runShow(cmd, v, t, args[1], flagJSON, includeBody, !flagNoIncoming)
 		},
@@ -126,7 +101,7 @@ func newShowCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagWaves, "waves", false, "render plan waves as mermaid (plan only)")
 	cmd.Flags().StringVar(&flagTask, "task", "", "scope output to a single task (plan only; compose with --body for the section text)")
 	cmd.Flags().BoolVar(&flagNoIncoming, "no-incoming", false, "suppress the Incoming links section (artifacts whose related[]/etc. point at this one)")
-	cmd.Flags().StringVar(&flagLinks, "links", "", "print wikilink targets of the given type (one per line; --json emits a JSON array)")
+	cmd.Flags().StringVar(&flagLinks, "links", "", "print wikilink targets of the given type (one per line; --json emits a JSON array; add --body to expand each target's body)")
 	return cmd
 }
 
@@ -332,6 +307,26 @@ func resolveArtifactPath(vaultRoot string, t core.Type, id string) string {
 	return filepath.Join(vaultRoot, t.Dir(), id+".md")
 }
 
+// canonicalArtifactID normalises a raw id/arg (CLI arg or wikilink target) to
+// the on-disk basename for type t: design types keep the "<type>." prefix for
+// global uniqueness, issues canonicalise through the shared resolver (qualified,
+// project-ordinal, and bare forms), everything else strips the redundant
+// "<type>." wikilink prefix.
+func canonicalArtifactID(v *core.Vault, t core.Type, raw string) string {
+	switch t {
+	case core.TypeProductDesign, core.TypeSystemDesign:
+		prefix := string(t) + "."
+		if !strings.HasPrefix(raw, prefix) {
+			return prefix + raw
+		}
+		return raw
+	case core.TypeIssue:
+		return core.ResolveIssueArg(v, raw)
+	default:
+		return strings.TrimPrefix(raw, string(t)+".")
+	}
+}
+
 // runShowSkill prints the embedded SKILL.md body for the named bundled skill.
 // Source-of-truth is the binary's embed.FS — same content `anvil install
 // skills` deposits to ~/.claude/skills/<name>/SKILL.md — so output is stable
@@ -360,10 +355,20 @@ func runShowSkill(cmd *cobra.Command, name string) error {
 	return nil
 }
 
+// linkBody is one resolved linked artifact under --links <type> --body: the
+// wikilink target id, its frontmatter status (so a non-active design reads as
+// advisory), and its capped body.
+type linkBody struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
+	Body   string `json:"body"`
+}
+
 // runShowLinks filters an artifact's frontmatter for wikilinks of the requested
 // type and emits their targets (without [[ ]] brackets) one per line, or as a
-// JSON array under --json. Empty result exits 0 with no output (text) or [].
-func runShowLinks(cmd *cobra.Command, vault *core.Vault, t core.Type, artifactID, linkType string, asJSON bool) error {
+// JSON array under --json. With --body each target's body is loaded and printed
+// instead (see emitLinkBodies). Empty result exits 0 with no output (text) or [].
+func runShowLinks(cmd *cobra.Command, vault *core.Vault, t core.Type, artifactID string, linkType core.Type, asJSON, includeBody bool) error {
 	path := resolveArtifactPath(vault.Root, t, artifactID)
 	a, err := core.LoadArtifact(path)
 	if err != nil {
@@ -373,7 +378,7 @@ func runShowLinks(cmd *cobra.Command, vault *core.Vault, t core.Type, artifactID
 		return fmt.Errorf("loading artifact: %w", err)
 	}
 
-	prefix := "[[" + linkType + "."
+	prefix := "[[" + string(linkType) + "."
 	seen := make(map[string]bool)
 	targets := make([]string, 0)
 	for _, fmval := range a.FrontMatter {
@@ -398,6 +403,10 @@ func runShowLinks(cmd *cobra.Command, vault *core.Vault, t core.Type, artifactID
 	}
 	sort.Strings(targets)
 
+	if includeBody {
+		return emitLinkBodies(cmd, vault, linkType, targets, asJSON)
+	}
+
 	w := cmd.OutOrStdout()
 	if asJSON {
 		b, err := json.Marshal(targets)
@@ -409,6 +418,57 @@ func runShowLinks(cmd *cobra.Command, vault *core.Vault, t core.Type, artifactID
 	}
 	for _, target := range targets {
 		fmt.Fprintln(w, target)
+	}
+	return nil
+}
+
+// emitLinkBodies loads each resolved link target's body (capped at
+// showBodyLineCap, same as `show <type> --body`) and emits them: a header
+// carrying id + status per body in text mode, or a JSON array of linkBody under
+// --json. The count goes to stderr (composability: prose off the data stream)
+// so a large fan-out is visible, not silent.
+func emitLinkBodies(cmd *cobra.Command, v *core.Vault, linkType core.Type, targets []string, asJSON bool) error {
+	bodies := make([]linkBody, 0, len(targets))
+	for _, target := range targets {
+		id := canonicalArtifactID(v, linkType, target)
+		a, err := core.LoadArtifact(resolveArtifactPath(v.Root, linkType, id))
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("%w: %s", ErrArtifactNotFound, target)
+			}
+			return fmt.Errorf("loading linked artifact %s: %w", target, err)
+		}
+		body := strings.TrimPrefix(a.Body, "\n")
+		if lines := strings.Split(body, "\n"); body != "" && len(lines) > showBodyLineCap {
+			body = strings.Join(lines[:showBodyLineCap], "\n")
+			cmd.PrintErrln(output.BodyClipHint(showBodyLineCap, len(lines), a.Path))
+		}
+		status, _ := a.FrontMatter["status"].(string)
+		bodies = append(bodies, linkBody{ID: target, Status: status, Body: body})
+	}
+
+	noun := string(linkType)
+	if len(bodies) != 1 {
+		noun += "s"
+	}
+	cmd.PrintErrf("%d %s\n", len(bodies), noun)
+
+	w := cmd.OutOrStdout()
+	if asJSON {
+		b, err := json.Marshal(bodies)
+		if err != nil {
+			return fmt.Errorf("marshaling link bodies: %w", err)
+		}
+		fmt.Fprintln(w, string(b))
+		return nil
+	}
+	for _, lb := range bodies {
+		status := lb.Status
+		if status == "" {
+			status = "unset"
+		}
+		fmt.Fprintf(w, "=== %s (status: %s) ===\n", lb.ID, status)
+		fmt.Fprintln(w, lb.Body)
 	}
 	return nil
 }

@@ -59,12 +59,11 @@ Aim for code that's easy to reason about — **atomic** (one concern in one plac
 **Load the governing contract(s) and system-design(s) first.** Contracts bound the slice (`## Does not`, `## Code design`); a linked system-design carries subsystem invariants and risk maps the house docs don't carry:
 
 ```bash
-anvil show issue <id> --links contract        # one id per line; empty = none
-anvil show contract <id> --body               # for each id printed
-
-anvil show issue <id> --links system-design   # one id per line; empty = none
-anvil show system-design <id> --body          # for each id printed; note its status field
+anvil show issue <id> --links contract --body        # each contract body, headed by id + status; empty = none
+anvil show issue <id> --links system-design --body   # each system-design body, headed by id + status; empty = none
 ```
+
+Each `--body` call resolves the linked ids and prints their bodies in one shot (count hint on stderr); drop `--body` for ids-only, add `--json` for `[{id, status, body}]`.
 
 Treat each contract's `## Does not` as a hard boundary (crossing one → **Scope-change protocol**); apply its `## Code design` as you write. No contract resolves → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
 
