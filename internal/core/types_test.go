@@ -91,15 +91,19 @@ func TestParseType_AcceptsDesignTypes(t *testing.T) {
 }
 
 func TestType_Dir_DesignTypes(t *testing.T) {
-	for _, tp := range []Type{TypeProductDesign, TypeSystemDesign} {
-		if got := tp.Dir(); got != "05-projects" {
-			t.Errorf("%s.Dir() = %q, want %q", tp, got, "05-projects")
+	cases := map[Type]string{
+		TypeProductDesign: "05-product-designs",
+		TypeSystemDesign:  "06-system-designs",
+	}
+	for tp, want := range cases {
+		if got := tp.Dir(); got != want {
+			t.Errorf("%s.Dir() = %q, want %q", tp, got, want)
 		}
 	}
 }
 
 func TestType_AllocatesID(t *testing.T) {
-	// All types allocate IDs; design types embed the type prefix in their IDs.
+	// All types allocate IDs; design types key off a bare project[.shard] id.
 	for _, tp := range AllTypes {
 		if !tp.AllocatesID() {
 			t.Errorf("%s.AllocatesID() = false, want true", tp)
@@ -149,8 +153,9 @@ func TestType_Path(t *testing.T) {
 		id      string
 		want    string
 	}{
-		{TypeProductDesign, "anvil", "product-design.anvil", "/v/05-projects/product-design.anvil.md"},
-		{TypeSystemDesign, "anvil", "system-design.anvil", "/v/05-projects/system-design.anvil.md"},
+		{TypeProductDesign, "anvil", "anvil", "/v/05-product-designs/anvil.md"},
+		{TypeSystemDesign, "anvil", "anvil", "/v/06-system-designs/anvil.md"},
+		{TypeSystemDesign, "anvil", "anvil.build", "/v/06-system-designs/anvil.build.md"},
 		{TypeIssue, "anvil", "anvil.foo", "/v/70-issues/anvil.foo.md"},
 		{TypeSweep, "", "0001-cli", "/v/50-sweeps/0001-cli.md"},
 		{TypeInbox, "", "2026-05-04T12-00-00-x", "/v/00-inbox/2026-05-04T12-00-00-x.md"},

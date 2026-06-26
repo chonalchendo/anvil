@@ -95,13 +95,7 @@ func checkWikilinkTarget(v *Vault, field, target string) (UnresolvedLink, bool) 
 	if err != nil {
 		return UnresolvedLink{}, false
 	}
-	// Design-type IDs embed the type prefix (e.g. system-design.burgh), so the
-	// file id is the full wikilink target, not the portion after the type prefix.
-	fileID := id
-	if t == TypeProductDesign || t == TypeSystemDesign {
-		fileID = target
-	}
-	path := filepath.Join(v.Root, t.Dir(), fileID+".md")
+	path := filepath.Join(v.Root, t.Dir(), id+".md")
 	if _, err := os.Stat(path); err == nil {
 		return UnresolvedLink{}, false
 	}

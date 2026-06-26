@@ -53,27 +53,16 @@ func newShowCmd() *cobra.Command {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 			switch t {
-			case core.TypeProductDesign, core.TypeSystemDesign:
-				// Design-type IDs embed the type prefix (e.g. system-design.burgh).
-				// Qualify a bare project/shard arg by prepending the type prefix so
-				// both "burgh" and "system-design.burgh" resolve to the same file.
-				prefix := string(t) + "."
-				if !strings.HasPrefix(args[1], prefix) {
-					args[1] = prefix + args[1]
-				}
 			case core.TypeIssue:
 				// handled below
 			default:
-				// Strip the "<type>." prefix from wikilink form when the remainder
-				// still contains a dot — proves the input is "<type>.<project>.<slug>"
-				// rather than the bare ID "<type>.<project>".
-				prefix := string(t) + "."
-				if strings.HasPrefix(args[1], prefix) {
-					candidate := strings.TrimPrefix(args[1], prefix)
-					if strings.Contains(candidate, ".") {
-						args[1] = candidate
-					}
-				}
+				// The subcommand already names the type, so a leading "<type>."
+				// in the arg is always the redundant wikilink prefix — strip it
+				// unconditionally. This resolves both shard forms
+				// ("system-design.anvil.build" → "anvil.build") and singletons
+				// ("system-design.burgh" → "burgh"), whose bare id has no
+				// internal dot. Bare ids pass through untouched.
+				args[1] = strings.TrimPrefix(args[1], string(t)+".")
 			}
 			// Issue args (qualified "issue."-prefix, project-qualified ordinal,
 			// bare ordinal) canonicalise through one helper shared with the

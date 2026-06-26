@@ -9,15 +9,19 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-// writeFixtureDesign writes a flat design artifact to
-// <vault>/05-projects/<type>.<project>.md.
-func writeFixtureDesign(t *testing.T, vault, project string, typ core.Type, title string) string {
+// writeFixtureDesign writes a flat design artifact keyed by a bare id to the
+// type's own folder: <vault>/<type.Dir()>/<id>.md.
+func writeFixtureDesign(t *testing.T, vault, id string, typ core.Type, title string) string {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Join(vault, "05-projects"), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+	dir := filepath.Join(vault, typ.Dir())
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	id := string(typ) + "." + project
-	path := filepath.Join(vault, "05-projects", id+".md")
+	project := id
+	if dot := strings.IndexByte(id, '.'); dot >= 0 {
+		project = id[:dot]
+	}
+	path := filepath.Join(dir, id+".md")
 	a := &core.Artifact{
 		Path: path,
 		FrontMatter: map[string]any{
@@ -37,7 +41,7 @@ func TestList_ProductDesign_ReturnsFlatFiles(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureDesign(t, vault, "foo", core.TypeProductDesign, "Foo PD")
 	writeFixtureDesign(t, vault, "bar", core.TypeProductDesign, "Bar PD")
-	// system-design in the same dir must not leak into product-design output.
+	// system-design lives in its own folder; it must not appear here.
 	writeFixtureDesign(t, vault, "foo", core.TypeSystemDesign, "Foo SD")
 
 	cmd := newRootCmd()
@@ -59,7 +63,7 @@ func TestList_ProductDesign_ReturnsFlatFiles(t *testing.T) {
 			t.Errorf("project empty for %+v", it)
 		}
 	}
-	if !ids["product-design.bar"] || !ids["product-design.foo"] {
+	if !ids["bar"] || !ids["foo"] {
 		t.Errorf("missing ids: %v", ids)
 	}
 }
@@ -78,8 +82,8 @@ func TestList_SystemDesign_ReturnsFlatFiles(t *testing.T) {
 	if env.Total != 1 {
 		t.Fatalf("total=%d, want 1; items=%+v", env.Total, env.Items)
 	}
-	if env.Items[0].Type != "system-design" || env.Items[0].ID != "system-design.foo" {
-		t.Errorf("got %+v, want type=system-design id=system-design.foo", env.Items[0])
+	if env.Items[0].Type != "system-design" || env.Items[0].ID != "foo" {
+		t.Errorf("got %+v, want type=system-design id=foo", env.Items[0])
 	}
 }
 
@@ -127,11 +131,11 @@ func TestShow_SystemDesign_ResolvesByProject(t *testing.T) {
 
 func TestValidate_DetectsBadDesignDoc(t *testing.T) {
 	vault := setupVault(t)
-	if err := os.MkdirAll(filepath.Join(vault, "05-projects"), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+	if err := os.MkdirAll(filepath.Join(vault, "05-product-designs"), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	bad := &core.Artifact{
-		Path: filepath.Join(vault, "05-projects", "product-design.foo.md"),
+		Path: filepath.Join(vault, "05-product-designs", "foo.md"),
 		FrontMatter: map[string]any{
 			"type": "product-design", "title": "x", "created": "2026-04-29",
 			"description": "x", "status": "totally-bogus",

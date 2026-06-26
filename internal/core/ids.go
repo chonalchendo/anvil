@@ -286,31 +286,31 @@ type IDInputs struct {
 // before any collision-suffix is applied. Returns an error for decisions
 // (which require a vault scan to allocate an ordinal).
 //
-// Design types (product-design, system-design) derive their IDs from the type
-// name and project only: product-design.<project> or
-// system-design.<project>[.<slug>]. They are handled before the slug validation
-// because they don't require a title.
+// Design types (product-design, system-design) derive their IDs from the
+// project only — the type-named folder carries the type, so the id drops the
+// prefix: <project> (product-design) or <project>[.<slug>] (system-design).
+// They are handled before the slug validation because they don't require a title.
 func DeterministicID(t Type, in IDInputs) (string, error) {
 	switch t {
 	case TypeProductDesign:
-		// ID is always <type>.<project> — no slug component.
+		// ID is the bare project slug — one product-design per project.
 		if in.Project == "" {
 			return "", fmt.Errorf("project required for %s", t)
 		}
-		return fmt.Sprintf("%s.%s", t, in.Project), nil
+		return in.Project, nil
 	case TypeSystemDesign:
-		// ID is <type>.<project> for the singleton, or <type>.<project>.<slug>
-		// for a named shard (explicit --slug only; title does not derive a shard).
+		// ID is <project> for the singleton, or <project>.<slug> for a named
+		// shard (explicit --slug only; title does not derive a shard).
 		if in.Project == "" {
 			return "", fmt.Errorf("project required for %s", t)
 		}
 		if in.Slug == "" {
-			return fmt.Sprintf("%s.%s", t, in.Project), nil
+			return in.Project, nil
 		}
 		if err := ValidateSlug(in.Slug); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("%s.%s.%s", t, in.Project, in.Slug), nil
+		return fmt.Sprintf("%s.%s", in.Project, in.Slug), nil
 	}
 
 	slug := in.Slug

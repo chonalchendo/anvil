@@ -263,20 +263,10 @@ func vaultRootFromArtifactPath(path string) (string, error) {
 	return "", errfmt.NewNotInVault(path)
 }
 
-// typeFromArtifactPath infers the Type from the artifact's parent dir.
-// For 05-projects/ both design types share the directory, so the type is
-// disambiguated from the filename prefix (e.g. system-design.burgh.md).
+// typeFromArtifactPath infers the Type from the artifact's parent dir. Every
+// type — designs included — owns a type-pure folder, so the dir maps to one type.
 func typeFromArtifactPath(path string) (core.Type, error) {
 	parent := filepath.Base(filepath.Dir(path))
-	if parent == "05-projects" {
-		stem := strings.TrimSuffix(filepath.Base(path), ".md")
-		for _, t := range core.AllTypes {
-			if t.Dir() == "05-projects" && strings.HasPrefix(stem, string(t)+".") {
-				return t, nil
-			}
-		}
-		return "", errfmt.NewNotInVault(path)
-	}
 	for _, t := range core.AllTypes {
 		if t.Dir() == parent {
 			return t, nil

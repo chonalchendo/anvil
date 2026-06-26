@@ -1,6 +1,6 @@
 filters:
   and:
-    - file.inFolder("05-projects")
+    - file.inFolder("05-product-designs") || file.inFolder("06-system-designs")
     - file.ext == "md"
 properties:
   file.name:

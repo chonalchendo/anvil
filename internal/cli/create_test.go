@@ -1274,8 +1274,8 @@ func TestCreate_ProductDesign_WritesValidFile(t *testing.T) {
 		t.Fatalf("create: %v\n%s", err, out.String())
 	}
 
-	// Flat layout: 05-projects/product-design.<project>.md
-	path := filepath.Join(vault, "05-projects", "product-design.foo.md")
+	// Per-type folder, bare id: 05-product-designs/<project>.md
+	path := filepath.Join(vault, "05-product-designs", "foo.md")
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		t.Fatalf("expected file at %s: %v", path, err)
@@ -1315,8 +1315,8 @@ func TestCreate_ProductDesign_Idempotent(t *testing.T) {
 		t.Fatalf("first create: %v", err)
 	}
 
-	// Flat layout: 05-projects/product-design.<project>.md
-	path := filepath.Join(vault, "05-projects", "product-design.foo.md")
+	// Per-type folder, bare id: 05-product-designs/<project>.md
+	path := filepath.Join(vault, "05-product-designs", "foo.md")
 	statBefore, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)
@@ -1336,8 +1336,8 @@ func TestCreate_ProductDesign_Idempotent(t *testing.T) {
 	if second["status"] != "already_exists" {
 		t.Errorf("status = %q, want already_exists", second["status"])
 	}
-	if second["id"] != "product-design.foo" {
-		t.Errorf("id = %q, want product-design.foo", second["id"])
+	if second["id"] != "foo" {
+		t.Errorf("id = %q, want foo", second["id"])
 	}
 
 	statAfter, _ := os.Stat(path)
@@ -1464,8 +1464,8 @@ func TestCreate_SystemDesign_WritesValidFile(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	// Flat layout: 05-projects/system-design.<project>.md
-	path := filepath.Join(vault, "05-projects", "system-design.foo.md")
+	// Per-type folder, bare id: 06-system-designs/<project>.md
+	path := filepath.Join(vault, "06-system-designs", "foo.md")
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		t.Fatalf("expected file at %s: %v", path, err)
@@ -1478,6 +1478,47 @@ func TestCreate_SystemDesign_WritesValidFile(t *testing.T) {
 	}
 	if err := schema.Validate("system-design", a.FrontMatter); err != nil {
 		t.Errorf("frontmatter fails schema: %v", err)
+	}
+}
+
+func TestCreate_SystemDesign_Shard_WritesBareShardID(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"create", "system-design", "--slug", "build", "--description", "shard", "--json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("create shard: %v\n%s", err, out.String())
+	}
+	var res map[string]string
+	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
+		t.Fatal(err)
+	}
+	// Bare shard id (no type prefix), landed in the system-design folder.
+	if res["id"] != "foo.build" {
+		t.Errorf("id = %q, want foo.build", res["id"])
+	}
+	wantPath := filepath.Join(vault, "06-system-designs", "foo.build.md")
+	if res["path"] != wantPath {
+		t.Errorf("path = %q, want %q", res["path"], wantPath)
+	}
+	if _, err := core.LoadArtifact(wantPath); err != nil {
+		t.Fatalf("expected file at %s: %v", wantPath, err)
+	}
+
+	// Singleton resolves by bare id AND wikilink form via the same generic path.
+	for _, arg := range []string{"foo.build", "system-design.foo.build"} {
+		show := newRootCmd()
+		var sout bytes.Buffer
+		show.SetOut(&sout)
+		show.SetArgs([]string{"show", "system-design", arg})
+		if err := show.Execute(); err != nil {
+			t.Errorf("show system-design %q: %v\n%s", arg, err, sout.String())
+		}
 	}
 }
 

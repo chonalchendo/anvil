@@ -49,8 +49,10 @@ func (t Type) Dir() string {
 		return "50-sweeps"
 	case TypeSession:
 		return "10-sessions"
-	case TypeProductDesign, TypeSystemDesign:
-		return "05-projects"
+	case TypeProductDesign:
+		return "05-product-designs"
+	case TypeSystemDesign:
+		return "06-system-designs"
 	case TypeContract:
 		return "75-contracts"
 	}
@@ -58,8 +60,8 @@ func (t Type) Dir() string {
 }
 
 // AllocatesID reports whether create should call NextID for this type.
-// All types return true; product-design and system-design are flat files
-// in 05-projects/ whose id embeds the type prefix (e.g. product-design.anvil).
+// All types return true; design types are flat files in their own type-named
+// folder (05-product-designs/, 06-system-designs/) keyed by a bare id.
 func (t Type) AllocatesID() bool {
 	return true
 }

@@ -351,9 +351,8 @@ func hasTagSubstring(tags any, sub string) bool {
 }
 
 // collectArtifactPaths returns absolute paths of artifacts of type t under
-// vaultRoot. All types use a flat <Dir>/<id>.md layout; design types
-// (product-design, system-design) are filtered by filename prefix so listing
-// one type does not include the other.
+// vaultRoot. Every type — designs included — lives in its own type-pure
+// <Dir>/<id>.md folder, so a plain ReadDir of the type's folder is exhaustive.
 func collectArtifactPaths(vaultRoot string, t core.Type) ([]string, error) {
 	dir := filepath.Join(vaultRoot, t.Dir())
 	entries, err := os.ReadDir(dir)
@@ -363,15 +362,9 @@ func collectArtifactPaths(vaultRoot string, t core.Type) ([]string, error) {
 		}
 		return nil, fmt.Errorf("reading %s: %w", dir, err)
 	}
-	prefix := string(t) + "."
 	var out []string
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
-			continue
-		}
-		// 05-projects/ holds both product-design and system-design; filter by
-		// type prefix so listing one does not leak the other.
-		if (t == core.TypeProductDesign || t == core.TypeSystemDesign) && !strings.HasPrefix(e.Name(), prefix) {
 			continue
 		}
 		out = append(out, filepath.Join(dir, e.Name()))
