@@ -775,3 +775,126 @@ func TestShow_Issue_ByOrdinal(t *testing.T) {
 		t.Errorf("show issue 1 resolved to %v, want %q", got["id"], id)
 	}
 }
+
+// writeIssuWithLinks creates a fixture issue whose frontmatter carries the
+// given wikilink fields so --links tests can assert against known targets.
+func writeIssueWithLinks(t *testing.T, vault, project, slug string, extraFields map[string]any) {
+	t.Helper()
+	id := project + "." + slug
+	path := filepath.Join(vault, "70-issues", id+".md")
+	fm := map[string]any{
+		"type": "issue", "title": "linked issue", "description": "d",
+		"created": "2026-01-01", "updated": "2026-01-01",
+		"status": "open", "project": project, "severity": "medium",
+		"tags": []any{"domain/dev-tools"}, "goal": "g",
+	}
+	for k, v := range extraFields {
+		fm[k] = v
+	}
+	a := &core.Artifact{Path: path, FrontMatter: fm, Body: "## Problem\n\nbody.\n"}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestShowLinks_Text: --links <type> prints the matched wikilink targets one
+// per line and exits 0. The milestone scalar field is covered here.
+func TestShowLinks_Text(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueWithLinks(t, vault, "foo", "bar", map[string]any{
+		"milestone": "[[milestone.foo.some-milestone]]",
+	})
+	out, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "milestone")
+	if err != nil {
+		t.Fatalf("show --links milestone: %v", err)
+	}
+	want := "milestone.foo.some-milestone\n"
+	if out != want {
+		t.Errorf("got %q, want %q", out, want)
+	}
+}
+
+// TestShowLinks_EmptyExitsZero: a valid type with no matching links exits 0
+// with no output rather than returning an error.
+func TestShowLinks_EmptyExitsZero(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueWithLinks(t, vault, "foo", "bar", nil)
+	out, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "contract")
+	if err != nil {
+		t.Fatalf("show --links contract (no matches) must exit 0, got: %v", err)
+	}
+	if out != "" {
+		t.Errorf("expected empty output, got %q", out)
+	}
+}
+
+// TestShowLinks_JSON: --links --json emits a JSON array of matched targets.
+func TestShowLinks_JSON(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueWithLinks(t, vault, "foo", "bar", map[string]any{
+		"milestone": "[[milestone.foo.some-milestone]]",
+	})
+	out, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "milestone", "--json")
+	if err != nil {
+		t.Fatalf("show --links milestone --json: %v", err)
+	}
+	var got []string
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if len(got) != 1 || got[0] != "milestone.foo.some-milestone" {
+		t.Errorf("got %v, want [\"milestone.foo.some-milestone\"]", got)
+	}
+}
+
+// TestShowLinks_JSONEmpty: --links --json with no matches emits [] (not null).
+func TestShowLinks_JSONEmpty(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueWithLinks(t, vault, "foo", "bar", nil)
+	out, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "contract", "--json")
+	if err != nil {
+		t.Fatalf("show --links contract --json (no matches) must exit 0, got: %v", err)
+	}
+	var got []string
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if len(got) != 0 {
+		t.Errorf("got %v, want []", got)
+	}
+}
+
+// TestShowLinks_ArrayField: wikilinks in an array field (e.g. related) are
+// returned alongside scalar-field links.
+func TestShowLinks_ArrayField(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueWithLinks(t, vault, "foo", "bar", map[string]any{
+		"related": []any{
+			"[[contract.foo.c1]]",
+			"[[issue.foo.other]]",
+			"[[contract.foo.c2]]",
+		},
+	})
+	out, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "contract")
+	if err != nil {
+		t.Fatalf("show --links contract: %v", err)
+	}
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(lines) != 2 || lines[0] != "contract.foo.c1" || lines[1] != "contract.foo.c2" {
+		t.Errorf("got lines %v, want [contract.foo.c1, contract.foo.c2]", lines)
+	}
+}
+
+// TestShowLinks_UnknownType: an unrecognised type string returns a non-zero
+// exit with an informative error rather than empty output.
+func TestShowLinks_UnknownType(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueWithLinks(t, vault, "foo", "bar", nil)
+	_, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "no-such-type")
+	if err == nil {
+		t.Fatal("expected error for unknown --links type")
+	}
+	if !strings.Contains(err.Error(), "no-such-type") {
+		t.Errorf("error should name the bad type, got: %v", err)
+	}
+}

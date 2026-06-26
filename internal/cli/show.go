@@ -30,6 +30,7 @@ func newShowCmd() *cobra.Command {
 		flagWaves      bool
 		flagTask       string
 		flagNoIncoming bool
+		flagLinks      string
 	)
 
 	cmd := &cobra.Command{
@@ -99,6 +100,12 @@ func newShowCmd() *cobra.Command {
 			if flagValidate && (t == core.TypeIssue || t == core.TypeMilestone) {
 				return runShowValidate(cmd, v, t, args[1], flagJSON)
 			}
+			if flagLinks != "" {
+				if _, err := core.ParseType(flagLinks); err != nil {
+					return fmt.Errorf("--links: unknown type %q", flagLinks)
+				}
+				return runShowLinks(cmd, v, t, args[1], flagLinks, flagJSON)
+			}
 			return runShow(cmd, v, t, args[1], flagJSON, includeBody, !flagNoIncoming)
 		},
 	}
@@ -110,6 +117,7 @@ func newShowCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagWaves, "waves", false, "render plan waves as mermaid (plan only)")
 	cmd.Flags().StringVar(&flagTask, "task", "", "scope output to a single task (plan only; compose with --body for the section text)")
 	cmd.Flags().BoolVar(&flagNoIncoming, "no-incoming", false, "suppress the Incoming links section (artifacts whose related[]/etc. point at this one)")
+	cmd.Flags().StringVar(&flagLinks, "links", "", "print wikilink targets of the given type (one per line; --json emits a JSON array)")
 	return cmd
 }
 
@@ -347,6 +355,74 @@ func runShowSkill(cmd *cobra.Command, name string) error {
 	}
 	fmt.Fprint(cmd.OutOrStdout(), string(data))
 	return nil
+}
+
+// runShowLinks filters an artifact's frontmatter for wikilinks of the requested
+// type and emits their targets (without [[ ]] brackets) one per line, or as a
+// JSON array under --json. Empty result exits 0 with no output (text) or [].
+func runShowLinks(cmd *cobra.Command, vault *core.Vault, t core.Type, artifactID, linkType string, asJSON bool) error {
+	path := resolveArtifactPath(vault.Root, t, artifactID)
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("%w: %s", ErrArtifactNotFound, artifactID)
+		}
+		return fmt.Errorf("loading artifact: %w", err)
+	}
+
+	prefix := "[[" + linkType + "."
+	seen := make(map[string]bool)
+	targets := make([]string, 0)
+	for _, fmval := range a.FrontMatter {
+		switch typed := fmval.(type) {
+		case string:
+			if target, ok := wikilinkTarget(typed, prefix); ok && !seen[target] {
+				seen[target] = true
+				targets = append(targets, target)
+			}
+		case []any:
+			for _, elem := range typed {
+				s, ok := elem.(string)
+				if !ok {
+					continue
+				}
+				if target, ok := wikilinkTarget(s, prefix); ok && !seen[target] {
+					seen[target] = true
+					targets = append(targets, target)
+				}
+			}
+		}
+	}
+	sort.Strings(targets)
+
+	w := cmd.OutOrStdout()
+	if asJSON {
+		b, err := json.Marshal(targets)
+		if err != nil {
+			return fmt.Errorf("marshaling links output: %w", err)
+		}
+		fmt.Fprintln(w, string(b))
+		return nil
+	}
+	for _, target := range targets {
+		fmt.Fprintln(w, target)
+	}
+	return nil
+}
+
+// wikilinkTarget returns the inner target of a wikilink if s has the form
+// [[prefix<rest>]] (non-empty rest, closing ]]). Used to filter frontmatter
+// fields by type prefix without re-invoking the full wikilink regex.
+func wikilinkTarget(s, prefix string) (string, bool) {
+	if !strings.HasPrefix(s, prefix) || !strings.HasSuffix(s, "]]") {
+		return "", false
+	}
+	// Strip surrounding [[ and ]] — prefix already begins with [[.
+	inner := s[2 : len(s)-2]
+	if inner == "" {
+		return "", false
+	}
+	return inner, true
 }
 
 func emitFrontMatterText(cmd *cobra.Command, fm map[string]any) {
