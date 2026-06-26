@@ -90,7 +90,7 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 - `anvil set` array fields via `schema.FieldKind` dispatch (`--add` / `--remove`).
 - `anvil inbox promote <id> --as <type>` — single-step, idempotent.
 - `anvil show <type> --validate` parity for issue + milestone (schema re-validation + `core.ResolveLinks`; `ErrUnresolvedLinks`).
-- `product-design` / `system-design` as CLI types — singletons at `05-projects/<project>/<type>.md`.
+- `product-design` / `system-design` as CLI types — flat in per-type folders (`05-product-designs/product-design.<project>.md`, `06-system-designs/system-design.<project>[.<shard>].md`).
 - `sweep.tmpl` — `--scope` + explicit `--breaking`.
 - `milestone.tmpl` — `acceptance: []` seeded.
 - `anvil tags list` (2026-05-05) — `--type`, `--prefix`, `--json`.

@@ -31,7 +31,7 @@ const metaKeySchemaVersion = "schema_version"
 //	1: learning_fts (FTS5 over learning TL;DR)
 //	2: artifact_fts (FTS5 over issue/milestone description+goal for content-aware dedup)
 //	3: tags (facet rows for `anvil index` relatedness)
-//	4: design-type flat layout (product-design → 05-product-designs/<project>.md, system-design → 06-system-designs/<project>[.<shard>].md; ids drop the type prefix)
+//	4: design-type per-type flat folders (product-design → 05-product-designs/product-design.<project>.md, system-design → 06-system-designs/system-design.<project>[.<shard>].md; ids keep the type prefix for global artifacts.id uniqueness)
 const SchemaVersion = 4
 
 // GetSchemaVersion returns the stored schema version, or 0 when unset (a DB

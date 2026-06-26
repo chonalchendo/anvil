@@ -121,7 +121,7 @@ graph TB
     end
 
     subgraph Vault["Vault (~/anvil-vault/)"]
-        Projects[05-projects/<br/>product-design + system-design]
+        Designs[05-product-designs/ + 06-system-designs/<br/>product + system design]
         Learnings[20-learnings/]
         Decisions[30-decisions/]
         UserSkills[40-skills/]
@@ -202,8 +202,8 @@ idea → research → product-design → system-design → milestones → first 
 
 - **Idea**: free-form conversation with the agent about what to build. No skill required; this is just talking.
 - **Research** (optional): the agent uses web tools to investigate the domain, prior art, technical feasibility. Outputs go to `~/.anvil/projects/<n>/research/` for reference.
-- **Product design**: `writing-product-design` skill walks the user through what and why. Produces `~/anvil-vault/05-projects/<n>/product-design.md` with target users, problem statement, success metrics, and an initial milestone roadmap.
-- **System design**: `writing-system-design` skill covers how. Produces `~/anvil-vault/05-projects/<n>/system-design.md` referencing the product design. Each meaningful architectural choice becomes a `decision` artifact, captured via `decision-making`.
+- **Product design**: `writing-product-design` skill walks the user through what and why. Produces `~/anvil-vault/05-product-designs/product-design.<n>.md` with target users, problem statement, success metrics, and an initial milestone roadmap.
+- **System design**: `writing-system-design` skill covers how. Produces `~/anvil-vault/06-system-designs/system-design.<n>.md` referencing the product design. Each meaningful architectural choice becomes a `decision` artifact, captured via `decision-making`.
 - **Milestones**: `defining-milestone` skill produces individual milestone artifacts in `~/anvil-vault/85-milestones/`. Fires from inside `writing-product-design` (during the roadmap conversation) and standalone (when adding a new milestone later).
 - **First plan**: `planning` skill produces a plan that targets the first milestones, sized for current attention. The plan references milestones, not the other way around.
 
@@ -578,15 +578,13 @@ The single Obsidian vault. Curated knowledge artifacts only. Git-versioned at th
 │   ├── core-plugins.json
 │   └── plugins/
 ├── 00-inbox/                        human capture only; AI writer never touches
-├── 05-projects/                     per-project design artifacts (the load-bearing top of the chain)
-│   ├── payment-service/
-│   │   ├── product-design.md        what & why for this project
-│   │   ├── system-design.md         how it fits together
-│   │   └── README.md                links to milestones, plans, recent work
-│   ├── api-gateway/
-│   │   ├── product-design.md
-│   │   └── system-design.md
-│   └── ...
+├── 05-product-designs/              flat, one per project — the load-bearing top of the chain
+│   ├── product-design.payment-service.md
+│   └── product-design.api-gateway.md
+├── 06-system-designs/               flat, one per subsystem
+│   ├── system-design.payment-service.md
+│   ├── system-design.payment-service.ledger.md
+│   └── system-design.api-gateway.md
 ├── 10-sessions/
 │   ├── raw/                         AI-generated session transcripts (status: raw)
 │   └── distilled/                   sessions whose insights were promoted (kept as provenance)
@@ -628,9 +626,9 @@ The single Obsidian vault. Curated knowledge artifacts only. Git-versioned at th
 └── .gitignore
 ```
 
-**Folder numbering rationale.** PARA-style numeric prefixes give sort stability across filesystems and signal lifecycle direction. `00-inbox` (capture) → `05-projects` (architectural top, read first) → `10-sessions` (raw AI output) → `20-80` (curated artifacts) → `85-milestones` (structural backbone, sits between artifacts and navigation) → `90-bases` (navigation) → `99-archive`. The numbering is deliberately PARA-flavored without claiming PARA semantics.
+**Folder numbering rationale.** PARA-style numeric prefixes give sort stability across filesystems and signal lifecycle direction. `00-inbox` (capture) → `05-product-designs` / `06-system-designs` (architectural top, read first) → `10-sessions` (raw AI output) → `20-80` (curated artifacts) → `85-milestones` (structural backbone, sits between artifacts and navigation) → `90-bases` (navigation) → `99-archive`. The numbering is deliberately PARA-flavored without claiming PARA semantics.
 
-The `05-projects/` folder is intentionally placed near the top — it's the design-driven hierarchy's load-bearing layer. When someone opens the vault and asks "what is this project?", they should land here before anything else. The `85-milestones/` folder sits just before navigation because milestones bridge the design (above) and the operational artifacts (below).
+The design folders (`05-product-designs/`, `06-system-designs/`) are intentionally placed near the top — they're the design-driven hierarchy's load-bearing layer. When someone opens the vault and asks "what is this project?", they should land here before anything else. The `85-milestones/` folder sits just before navigation because milestones bridge the design (above) and the operational artifacts (below).
 
 **Filename convention.** Within each folder, files are flat with Dendron-flavored topic prefixes (`{topic}.{slug}.md`). Decisions add MADR's `nnnn-` numeric prefix (`auth.0007-use-jwt.md`). No deep nesting; topic prefixes give grouping without folder hierarchy.
 
