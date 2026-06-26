@@ -56,15 +56,19 @@ The `in-progress` transition re-runs `reproduction_anchor` for bug issues, and r
 
 Aim for code that's easy to reason about — **atomic** (one concern in one place), **composable** (parts snap together without hidden coupling), **simple** (the least machinery that solves the problem). This is the default bar in any language ("pythonic" is one name for it); `docs/code-design.md` carries the module-level principles. It is the positive goal the prohibitions below serve, and what the review pass measures the diff against.
 
-**Load the governing contract(s) first.** An issue's routing links name the contracts bounding its slice — per-component guardrails (`## Does not`, `## Code design`) the house docs don't carry:
+**Load the governing contract(s) and system-design(s) first.** Contracts bound the slice (`## Does not`, `## Code design`); a linked system-design carries subsystem invariants and risk maps the house docs don't carry:
 
 ```bash
-anvil show issue <id> --json \
-  | jq -r '.related[]? | select(startswith("[[contract.")) | ltrimstr("[[contract.") | rtrimstr("]]")'
-anvil show contract <id> --body   # for each id printed
+anvil show issue <id> --links contract        # one id per line; empty = none
+anvil show contract <id> --body               # for each id printed
+
+anvil show issue <id> --links system-design   # one id per line; empty = none
+anvil show system-design <id> --body          # for each id printed; note its status field
 ```
 
-Treat each `## Does not` as a hard boundary (crossing one → **Scope-change protocol**); apply its `## Code design` as you write. No contract resolves → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
+Treat each contract's `## Does not` as a hard boundary (crossing one → **Scope-change protocol**); apply its `## Code design` as you write. No contract resolves → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
+
+A system-design with `status` other than `active` is advisory — flag it before implementation and do not treat its constraints as authoritative.
 
 Make the minimal change that achieves the issue's `goal:` and passes every `## Verification` check (`## Acceptance criteria`, when present, is a prose aid — not the gate). Stay within the issue's declared file set (or `<declared-files>` when dispatched by `dispatching-issue-fleet`). See **Scope-change protocol** below if the work outgrows declared scope.
 
