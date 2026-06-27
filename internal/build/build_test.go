@@ -172,6 +172,46 @@ func TestBuild_AdvanceGate_ExitZeroNoPRIsFailed(t *testing.T) {
 	}
 }
 
+func TestBuild_AdvanceGate_PreservesWorkerDiagnostic(t *testing.T) {
+	// Worker exits 0 with its own reason but opens no PR; the gate must keep that
+	// reason, not clobber it with the generic gate string (anvil.0139).
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
+		"do T1": {res: RunResult{ExitCode: 0, Diagnostic: "blocked: scope outgrew the issue"}},
+	}}
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: io.Discard,
+		Router:         Router{"claude-": fa},
+		VerifyArtifact: func(context.Context, core.Task) (bool, error) { return false, nil },
+	}
+	sum, err := Build(context.Background(), oneTaskWave(), opts)
+	if !errors.Is(err, ErrBuildTaskFailed) {
+		t.Fatalf("err = %v, want ErrBuildTaskFailed", err)
+	}
+	if got := sum.Outcomes["T1"].Result.Diagnostic; got != "blocked: scope outgrew the issue" {
+		t.Errorf("diagnostic = %q, want the worker's reason preserved", got)
+	}
+}
+
+func TestBuild_AdvanceGate_NoPRFallsBackToGateString(t *testing.T) {
+	// Worker exits 0 silently (no last message); the gate string is the only
+	// signal, so it fills the empty diagnostic as a fallback.
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{}} // default: exit 0, no diagnostic
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: io.Discard,
+		Router:         Router{"claude-": fa},
+		VerifyArtifact: func(context.Context, core.Task) (bool, error) { return false, nil },
+	}
+	sum, err := Build(context.Background(), oneTaskWave(), opts)
+	if !errors.Is(err, ErrBuildTaskFailed) {
+		t.Fatalf("err = %v, want ErrBuildTaskFailed", err)
+	}
+	if got := sum.Outcomes["T1"].Result.Diagnostic; got != "spawn exited 0 but opened no PR on its branch" {
+		t.Errorf("diagnostic = %q, want the gate-string fallback", got)
+	}
+}
+
 func TestBuild_AdvanceGate_PRExistsIsSuccess(t *testing.T) {
 	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{}}
 	opts := Options{

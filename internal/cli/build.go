@@ -251,6 +251,7 @@ func recordBuildTelemetry(db *index.DB, runID, startedAt, project, milestone str
 				DurationMS:  oc.Duration.Milliseconds(),
 				AgentTimeMS: oc.Result.AgentTime.Milliseconds(),
 				VerifyExit:  oc.Result.ExitCode,
+				Diagnostic:  oc.Result.Diagnostic,
 			})
 		}
 	}
