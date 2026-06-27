@@ -256,10 +256,9 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 	// this gate kills (anvil.0112). A verifier error is also "failed": an
 	// unverifiable artifact must never be trusted as success.
 	if oc.Outcome == "success" && opts.VerifyArtifact != nil {
-		// The gate verdict lives in oc.Err + oc.Outcome; the worker's own last
-		// message (adapter-set Diagnostic) is *why* it produced no PR, so keep it
-		// and only fall back to the generic gate string when the worker said
-		// nothing — overwriting it destroyed the only diagnosable signal (anvil.0139).
+		// Preserve the adapter-set worker Diagnostic (its reason for no PR); fall
+		// back to the generic gate string only when the worker said nothing —
+		// overwriting it destroyed the only diagnosable signal (anvil.0139).
 		switch ok, verr := opts.VerifyArtifact(ctx, t); {
 		case verr != nil:
 			oc.Outcome = "failed"
