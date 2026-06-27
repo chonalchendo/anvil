@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -896,5 +897,82 @@ func TestShowLinks_UnknownType(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "no-such-type") {
 		t.Errorf("error should name the bad type, got: %v", err)
+	}
+}
+
+// writeContract drops a minimal contract artifact on disk so --links --body can
+// resolve and load it. The contract id strips the "contract." prefix in its
+// filename (75-contracts/<project>.<slug>.md).
+func writeContract(t *testing.T, vault, project, slug, status, body string) {
+	t.Helper()
+	id := project + "." + slug
+	dir := filepath.Join(vault, "75-contracts")
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for traversable dirs
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, id+".md")
+	fm := map[string]any{
+		"type": "contract", "title": "c", "description": "d",
+		"created": "2026-01-01", "updated": "2026-01-01",
+		"status": status, "project": project,
+	}
+	a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestShowLinks_BodyText: --links <type> --body prints each target's body under
+// a header carrying its id + status, with the count hint on stderr.
+func TestShowLinks_BodyText(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueWithLinks(t, vault, "foo", "bar", map[string]any{
+		"related": []any{"[[contract.foo.c1]]", "[[contract.foo.c2]]"},
+	})
+	writeContract(t, vault, "foo", "c1", "active", "## Does not\n\nc1 boundary.\n")
+	writeContract(t, vault, "foo", "c2", "deprecated", "## Does not\n\nc2 boundary.\n")
+
+	out, errOut, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "contract", "--body")
+	if err != nil {
+		t.Fatalf("show --links contract --body: %v", err)
+	}
+	for _, want := range []string{
+		"=== contract.foo.c1 (status: active) ===",
+		"=== contract.foo.c2 (status: deprecated) ===",
+		"c1 boundary.", "c2 boundary.",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("stdout missing %q\ngot:\n%s", want, out)
+		}
+	}
+	if !strings.Contains(errOut, "2 contracts") {
+		t.Errorf("expected count hint on stderr, got: %q", errOut)
+	}
+}
+
+// TestShowLinks_BodyJSON: --links --body --json emits a structured array of
+// {id, status, body}, not concatenated markdown.
+func TestShowLinks_BodyJSON(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueWithLinks(t, vault, "foo", "bar", map[string]any{
+		"related": []any{"[[contract.foo.c1]]"},
+	})
+	writeContract(t, vault, "foo", "c1", "active", "## Does not\n\nc1 boundary.\n")
+
+	out, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "contract", "--body", "--json")
+	if err != nil {
+		t.Fatalf("show --links contract --body --json: %v", err)
+	}
+	var got []struct {
+		ID, Status, Body string
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if len(got) != 1 || got[0].ID != "contract.foo.c1" || got[0].Status != "active" {
+		t.Fatalf("got %+v", got)
+	}
+	if !strings.Contains(got[0].Body, "## Does not") {
+		t.Errorf("body missing contract content: %q", got[0].Body)
 	}
 }
