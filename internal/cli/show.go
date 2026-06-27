@@ -220,8 +220,8 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, 
 	}
 
 	emitFrontMatterText(cmd, a.FrontMatter)
-	// Body before incoming so a --body load surfaces the does/does-not guardrail
-	// first, not buried under a ~100-line incoming-links wall (anvil.0129).
+	// Body before incoming so a --body or default-body load surfaces the artifact
+	// body first, not buried under the incoming-links wall (anvil.0129).
 	if includeBody && out.Body != nil {
 		fmt.Fprintln(w, "---")
 		fmt.Fprintln(w, *out.Body)
