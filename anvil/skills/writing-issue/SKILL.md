@@ -245,21 +245,25 @@ Required body sections (enforced by `create`):
 
 ---
 
-## Phase 4b — Link governing contract(s)
+## Phase 4b — Link governing contract(s) and system-design
 
-After the issue is created, check whether any contract governs its slice:
+After the issue is created, link the governing context a worker loads at issue-start (`completing-issue` Phase 1, via `--links … --body`) and a reviewer uses as a rubric (`reviewing-pr`).
 
-```bash
-anvil list contract --json
-```
-
-For each contract whose scope description matches the issue's domain, create the routing link:
+**Contract(s)** — `anvil list contract --json`; for each whose scope description matches the issue's domain:
 
 ```bash
 anvil link issue <issue-id> contract <contract-id>
 ```
 
-This is the Option-A routing association: a worker completing the issue discovers its governing contract via this link and loads it as a work-time guardrail (`completing-issue`) and review rubric (`reviewing-pr`). If no contract matches, skip silently — do not invent a link.
+**System-design** — `anvil list system-design --json`; match the issue's subsystem on `project` equality (designs are sharded as `system-design.<project>[.<shard>]`):
+
+```bash
+anvil link issue <issue-id> system-design <project>   # bare project id — link prepends the type
+```
+
+Pass the **bare** id (`burgh`), not the canonical prefixed id from the list (`system-design.burgh`): `anvil link` prepends the target type itself, so a prefixed id double-links to an unresolvable target the read-side cannot load.
+
+This is the Option-A routing association. If nothing matches, skip silently — do not invent a link.
 
 ---
 
