@@ -317,7 +317,7 @@ User-authored. Anthropic spec at top level + Anvil `metadata:` block. Out of CLI
 
 ## IDs and naming
 
-Slug-based across most artifacts. Wikilink form: `<type>.<project>.<slug>`; filename: `<project>.<slug>.md` within the type folder. **Issues** carry a per-project ordinal: id `<project>.NNNN.<slug>`, filename `<project>.NNNN.<slug>.md` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Legacy long-slug issue files (no ordinal) still resolve. **Design docs** (`product-design`, `system-design`) each own a type-named folder (`05-product-designs/`, `06-system-designs/`), but **keep the type prefix in the id** so a product-design and a system-design for the same project don't collide on the index's global `artifacts.id` key: id `<type>.<project>[.<shard>]`, filename `<type>.<project>[.<shard>].md` (e.g. `05-product-designs/product-design.anvil.md`, `06-system-designs/system-design.anvil.build.md`).
+Slug-based across most artifacts. Wikilink form: `<type>.<project>.<slug>`; filename: `<project>.<slug>.md` within the type folder. **Issues** carry a per-project ordinal: id `<project>.NNNN.<slug>`, filename `<project>.NNNN.<slug>.md` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Legacy long-slug issue files (no ordinal) still resolve. **Design docs** (`product-design`, `system-design`) each own a type-named folder (`05-product-designs/`, `06-system-designs/`), but **keep the type prefix in the id** so a product-design and a system-design for the same project don't collide on the index's global `artifacts.id` key: id `<type>.<project>[.<shard>]`, filename `<type>.<project>[.<shard>].md` (e.g. `05-product-designs/product-design.anvil.md`, `06-system-designs/system-design.anvil.build.md`). **Conventions** keep the type prefix for the same reason but are project-agnostic: id `convention.<slug>`, filename `convention.<slug>.md` (e.g. `35-conventions/convention.python.md`).
 
 Examples:
 
@@ -325,6 +325,7 @@ Examples:
 - `[[issue.anvil.0042.fix-inbox-suggested-type]]` → `70-issues/anvil.0042.fix-inbox-suggested-type.md`
 - `[[plan.anvil.streaming-token-counter]]` → `80-plans/anvil.streaming-token-counter.md`
 - `[[decision.anvil.0001-go-rewrite]]` → `30-decisions/anvil.0001-go-rewrite.md`
+- `[[convention.python]]` → `35-conventions/convention.python.md`
 
 Two rules:
 
