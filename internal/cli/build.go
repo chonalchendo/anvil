@@ -310,15 +310,15 @@ func readyUnitsToTasks(units []readyUnit) []core.Task {
 // hit, so the spawn's context stays lean.
 const learningInjectionLimit = 5
 
-// injectLearnings enriches each complete-phase task body with the vault learnings
-// most related to its issue. A headless `claude -p` worker cannot sub-dispatch the
-// anvil-learnings-researcher (build-orchestration-contract: workers cannot spawn a
-// sub-subagent), so the interactive read side of the learning loop is blind to it.
-// The driver — which already owns the vault/index reads — closes the gap: it
-// pre-fetches via the same relatedness index `anvil index --type learning` uses
-// (RelatedByID) and folds the result into the task body the worker starts from.
-// Best-effort and never fatal: a query error leaves the task un-enriched and an
-// unloadable learning is skipped — missing learnings must not abort a build.
+// injectLearnings folds each complete task's most-related vault learnings into
+// its body, so a headless worker — which cannot sub-dispatch the
+// anvil-learnings-researcher — still starts from what the vault knows. The driver
+// owns the vault read (build-orchestration-contract) and queries the same
+// relatedness index `anvil index --type learning` uses (RelatedByID). Learnings
+// are deliberately not project-scoped: the index ranks by shared facets, so a
+// cross-cutting learning surfaces by relevance regardless of project — matching
+// the researcher's own unscoped query. Best-effort: a query error or unloadable
+// learning is skipped, never fatal — missing learnings must not abort a build.
 func injectLearnings(db *index.DB, tasks []core.Task) {
 	for i := range tasks {
 		rows, err := db.RelatedByID(tasks[i].ID, index.QueryFilters{})
@@ -328,9 +328,8 @@ func injectLearnings(db *index.DB, tasks []core.Task) {
 		var b strings.Builder
 		n := 0
 		for _, r := range rows {
-			// A retracted learning is known-false; never inject it. The headless
-			// worker cannot push back interactively, so only the still-trusted
-			// tiers ride along.
+			// Skip only retracted (known-false) learnings; stale and draft still
+			// ride along under the weigh-against-present-code disclaimer below.
 			if r.Type != string(core.TypeLearning) || r.Status == "retracted" {
 				continue
 			}
@@ -341,8 +340,18 @@ func injectLearnings(db *index.DB, tasks []core.Task) {
 			title, _ := a.FrontMatter["title"].(string)
 			conf, _ := a.FrontMatter["confidence"].(string)
 			updated, _ := a.FrontMatter["updated"].(string)
+			// The schema requires a "## TL;DR"; collapse it to one line. Absence
+			// means a malformed learning — surfaced as a bare title, not a failure.
+			tldr := ""
+			if k := strings.Index(a.Body, "## TL;DR"); k >= 0 {
+				rest := a.Body[k+len("## TL;DR"):]
+				if j := strings.Index(rest, "\n## "); j >= 0 {
+					rest = rest[:j]
+				}
+				tldr = strings.Join(strings.Fields(rest), " ")
+			}
 			fmt.Fprintf(&b, "\n- %s · confidence:%s · updated:%s\n  %s\n  Source: %s\n",
-				title, conf, updated, learningTLDR(a.Body), r.ID)
+				title, conf, updated, tldr, r.ID)
 			if n++; n >= learningInjectionLimit {
 				break
 			}
@@ -354,23 +363,6 @@ func injectLearnings(db *index.DB, tasks []core.Task) {
 			"Vault learnings related to this issue (relevance-ranked). Each was true when written; weigh it against the present code before acting.\n" +
 			b.String()
 	}
-}
-
-// learningTLDR returns a learning body's "## TL;DR" section collapsed to a single
-// line. Empty when the heading is absent — the schema requires it
-// (RequiredLearningSections), so absence means a malformed learning, which
-// injectLearnings surfaces as a bare title rather than failing the run.
-func learningTLDR(body string) string {
-	const h = "## TL;DR"
-	i := strings.Index(body, h)
-	if i < 0 {
-		return ""
-	}
-	rest := body[i+len(h):]
-	if j := strings.Index(rest, "\n## "); j >= 0 {
-		rest = rest[:j]
-	}
-	return strings.Join(strings.Fields(rest), " ")
 }
 
 // reviewTasksFromTasks builds the review-phase wave: one reviewing-pr task per
