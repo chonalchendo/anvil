@@ -86,6 +86,11 @@ type jsonRecord struct {
 	Tokens      *tokensJSON `json:"tokens,omitempty"`
 	Diagnostic  string      `json:"diagnostic,omitempty"`
 	ConfigDir   string      `json:"config_dir,omitempty"`
+	// Instruction is the assembled prompt body the spawn would receive. Emitted
+	// only in the dry-run plan (PlanJSON) so a `--dry-run --json` reader can
+	// inspect the task context — e.g. assert injected learnings — without
+	// spawning; the live NDJSON stream leaves it empty (omitempty drops it).
+	Instruction string `json:"instruction,omitempty"`
 	// AutoMerge is a literal false: the human owns the merge button. Emitted
 	// so downstream readers (telemetry, dry-run plan) can assert the invariant
 	// without it being a control-flow field carried through the engine.
@@ -389,7 +394,9 @@ func PlanJSON(w io.Writer, runID string, waves [][]core.Task) error {
 	recs := []jsonRecord{}
 	for wave, tasks := range waves {
 		for _, t := range tasks {
-			recs = append(recs, toJSONRecord(dispatchTask(context.Background(), t, wave, Options{DryRun: true})))
+			rec := toJSONRecord(dispatchTask(context.Background(), t, wave, Options{DryRun: true}))
+			rec.Instruction = assembleInstruction(t)
+			recs = append(recs, rec)
 		}
 	}
 	return json.NewEncoder(w).Encode(struct {

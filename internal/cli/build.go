@@ -81,6 +81,7 @@ func newBuildCmd() *cobra.Command {
 				cmd.PrintErrln("no ready issues to dispatch")
 				return nil
 			}
+			injectLearnings(db, tasks)
 
 			cwd := flagCwd
 			if cwd == "" {
@@ -302,6 +303,74 @@ func readyUnitsToTasks(units []readyUnit) []core.Task {
 		})
 	}
 	return tasks
+}
+
+// learningInjectionLimit caps how many related learnings ride into one complete
+// task body — the load-bearing few the researcher would surface, not every facet
+// hit, so the spawn's context stays lean.
+const learningInjectionLimit = 5
+
+// injectLearnings enriches each complete-phase task body with the vault learnings
+// most related to its issue. A headless `claude -p` worker cannot sub-dispatch the
+// anvil-learnings-researcher (build-orchestration-contract: workers cannot spawn a
+// sub-subagent), so the interactive read side of the learning loop is blind to it.
+// The driver — which already owns the vault/index reads — closes the gap: it
+// pre-fetches via the same relatedness index `anvil index --type learning` uses
+// (RelatedByID) and folds the result into the task body the worker starts from.
+// Best-effort and never fatal: a query error leaves the task un-enriched and an
+// unloadable learning is skipped — missing learnings must not abort a build.
+func injectLearnings(db *index.DB, tasks []core.Task) {
+	for i := range tasks {
+		rows, err := db.RelatedByID(tasks[i].ID, index.QueryFilters{})
+		if err != nil {
+			continue
+		}
+		var b strings.Builder
+		n := 0
+		for _, r := range rows {
+			// A retracted learning is known-false; never inject it. The headless
+			// worker cannot push back interactively, so only the still-trusted
+			// tiers ride along.
+			if r.Type != string(core.TypeLearning) || r.Status == "retracted" {
+				continue
+			}
+			a, err := core.LoadArtifact(r.Path)
+			if err != nil {
+				continue
+			}
+			title, _ := a.FrontMatter["title"].(string)
+			conf, _ := a.FrontMatter["confidence"].(string)
+			updated, _ := a.FrontMatter["updated"].(string)
+			fmt.Fprintf(&b, "\n- %s · confidence:%s · updated:%s\n  %s\n  Source: %s\n",
+				title, conf, updated, learningTLDR(a.Body), r.ID)
+			if n++; n >= learningInjectionLimit {
+				break
+			}
+		}
+		if n == 0 {
+			continue
+		}
+		tasks[i].Body += "\n## Prior learnings\n" +
+			"Vault learnings related to this issue (relevance-ranked). Each was true when written; weigh it against the present code before acting.\n" +
+			b.String()
+	}
+}
+
+// learningTLDR returns a learning body's "## TL;DR" section collapsed to a single
+// line. Empty when the heading is absent — the schema requires it
+// (RequiredLearningSections), so absence means a malformed learning, which
+// injectLearnings surfaces as a bare title rather than failing the run.
+func learningTLDR(body string) string {
+	const h = "## TL;DR"
+	i := strings.Index(body, h)
+	if i < 0 {
+		return ""
+	}
+	rest := body[i+len(h):]
+	if j := strings.Index(rest, "\n## "); j >= 0 {
+		rest = rest[:j]
+	}
+	return strings.Join(strings.Fields(rest), " ")
 }
 
 // reviewTasksFromTasks builds the review-phase wave: one reviewing-pr task per

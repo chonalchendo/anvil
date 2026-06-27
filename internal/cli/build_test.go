@@ -327,3 +327,63 @@ func TestReadyUnitsToTasks_MapsIDSkillAndStartContext(t *testing.T) {
 		t.Errorf("task[1].Body should omit empty milestone/contracts; got:\n%s", tasks[1].Body)
 	}
 }
+
+// writeFixtureLearning saves a learning sharing tag with a slug-derived id and a
+// TL;DR an injection assertion can match. Direct Save → caller reindexes.
+func writeFixtureLearning(t *testing.T, vault, slug, title, tldr, tag string) {
+	t.Helper()
+	a := &core.Artifact{
+		Path: filepath.Join(vault, "20-learnings", slug+".md"),
+		FrontMatter: map[string]any{
+			"type": "learning", "title": title, "status": "verified",
+			"confidence": "high", "created": "2026-01-01", "updated": "2026-01-02",
+			"tags": []any{tag},
+		},
+		Body: "\n## TL;DR\n" + tldr + "\n\n## Evidence\nn/a\n\n## Caveats\nn/a\n",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A headless build worker cannot sub-dispatch the learnings researcher, so the
+// driver pre-fetches the related learnings and folds them into the complete task
+// body. The dry-run plan exposes the assembled instruction, so the relevant
+// learning must surface there for the issue it shares a facet with.
+func TestBuildLearningsInjection_SurfacesRelatedLearningInCompleteTask(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t) // demo.foo: open, ready, tag domain/dev-tools
+
+	writeFixtureLearning(t, vault, "reindex-after-direct-save",
+		"Reindex after a direct Save or the tags table is stale",
+		"A direct Artifact.Save bypasses write-through; the index stays stale until reindex.",
+		"domain/dev-tools") // shares demo.foo's facet → related
+	execCmd(t, "reindex")
+
+	out := execCmd(t, "build", "--dry-run", "--json", "--project", "demo")
+	var env struct {
+		Tasks []struct {
+			TaskID      string `json:"task_id"`
+			Instruction string `json:"instruction"`
+		} `json:"tasks"`
+	}
+	if err := json.Unmarshal([]byte(out), &env); err != nil {
+		t.Fatalf("plan envelope not JSON: %v\n%s", err, out)
+	}
+	if len(env.Tasks) != 1 || env.Tasks[0].TaskID != "demo.foo" {
+		t.Fatalf("got tasks %+v, want one demo.foo:\n%s", env.Tasks, out)
+	}
+	body := env.Tasks[0].Instruction
+	for _, want := range []string{
+		"## Prior learnings",
+		"reindex-after-direct-save",                     // Source id
+		"confidence:high",                               // weighing metadata
+		"A direct Artifact.Save bypasses write-through", // the TL;DR insight
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("complete task instruction missing %q; got:\n%s", want, body)
+		}
+	}
+}
