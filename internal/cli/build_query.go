@@ -93,8 +93,12 @@ func newBuildTasksCmd() *cobra.Command {
 				return nil
 			}
 			for _, r := range rows {
-				cmd.Printf("%s\t%s\t%s\t%s\t%d→%d tok\t$%.4f\texit %d\n",
-					r.TaskID, r.Phase, r.Model, r.Outcome, r.TokensIn, r.TokensOut, r.CostUSD, r.VerifyExit)
+				diag := ""
+				if r.Diagnostic != "" {
+					diag = "\t" + r.Diagnostic
+				}
+				cmd.Printf("%s\t%s\t%s\t%s\t%d→%d tok\t$%.4f\texit %d%s\n",
+					r.TaskID, r.Phase, r.Model, r.Outcome, r.TokensIn, r.TokensOut, r.CostUSD, r.VerifyExit, diag)
 			}
 			return nil
 		},

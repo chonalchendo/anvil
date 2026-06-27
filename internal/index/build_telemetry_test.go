@@ -29,6 +29,7 @@ func TestBuildTasksRoundTrip(t *testing.T) {
 		{
 			RunID: "run-1", TaskID: "anvil.b", Wave: 1, Model: "claude-opus-4-8", Effort: "high",
 			Outcome: "failed", TokensIn: 200, TokensOut: 80, VerifyExit: 1,
+			Diagnostic: "blocked: scope outgrew the issue",
 		},
 	}
 	if err := db.InsertBuildTasks(want); err != nil {

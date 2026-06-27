@@ -256,15 +256,22 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 	// this gate kills (anvil.0112). A verifier error is also "failed": an
 	// unverifiable artifact must never be trusted as success.
 	if oc.Outcome == "success" && opts.VerifyArtifact != nil {
+		// Preserve the adapter-set worker Diagnostic (its reason for no PR); fall
+		// back to the generic gate string only when the worker said nothing —
+		// overwriting it destroyed the only diagnosable signal (anvil.0139).
 		switch ok, verr := opts.VerifyArtifact(ctx, t); {
 		case verr != nil:
 			oc.Outcome = "failed"
 			oc.Err = fmt.Errorf("advance-gate: %w", verr)
-			oc.Result.Diagnostic = "advance-gate: " + verr.Error()
+			if oc.Result.Diagnostic == "" {
+				oc.Result.Diagnostic = "advance-gate: " + verr.Error()
+			}
 		case !ok:
 			oc.Outcome = "failed"
 			oc.Err = fmt.Errorf("advance-gate: task %s exited 0 but opened no PR", t.ID)
-			oc.Result.Diagnostic = "spawn exited 0 but opened no PR on its branch"
+			if oc.Result.Diagnostic == "" {
+				oc.Result.Diagnostic = "spawn exited 0 but opened no PR on its branch"
+			}
 		}
 	}
 	if oc.Outcome != "success" && oc.Outcome != "skipped_dry_run" && oc.Result.Diagnostic != "" {
