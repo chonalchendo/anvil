@@ -579,6 +579,29 @@ func TestShow_IncomingEdges(t *testing.T) {
 	}
 }
 
+// TestShow_BodyPrecedesIncoming guards the anvil.0129 fix: a body-included show
+// emits the artifact body before the Incoming links block, so a guardrail load
+// surfaces constraints first rather than under the backlinks wall.
+func TestShow_BodyPrecedesIncoming(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	writeFixtureIssueDated(t, vault, "demo", "source-issue", "Source issue", "2026-01-01")
+	writeFixtureIssueDated(t, vault, "demo", "target-issue", "Target issue", "2026-01-02")
+	execCmd(t, "reindex")
+	execCmd(t, "link", "issue", "demo.source-issue", "issue", "demo.target-issue")
+
+	text := execCmd(t, "show", "issue", "demo.target-issue")
+	body := strings.Index(text, "## Problem")
+	incoming := strings.Index(text, "Incoming links:")
+	if body < 0 || incoming < 0 {
+		t.Fatalf("want both body and incoming sections, got body=%d incoming=%d:\n%s", body, incoming, text)
+	}
+	if body > incoming {
+		t.Errorf("body (## Problem @%d) should precede Incoming links (@%d):\n%s", body, incoming, text)
+	}
+}
+
 // TestShow_NoIncomingFlagSuppresses asserts --no-incoming removes the section
 // (text) and drops the JSON key entirely (`omitempty`).
 func TestShow_NoIncomingFlagSuppresses(t *testing.T) {

@@ -220,11 +220,13 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, 
 	}
 
 	emitFrontMatterText(cmd, a.FrontMatter)
-	emitIncomingText(cmd, out.Incoming)
+	// Body before incoming so a --body or default-body load surfaces the artifact
+	// body first, not buried under the incoming-links wall (anvil.0129).
 	if includeBody && out.Body != nil {
 		fmt.Fprintln(w, "---")
-		fmt.Fprint(w, *out.Body)
+		fmt.Fprintln(w, *out.Body)
 	}
+	emitIncomingText(cmd, out.Incoming)
 	return nil
 }
 
