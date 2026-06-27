@@ -125,6 +125,25 @@ Plural per project (many contracts, one per component-family — e.g. `data`, `a
 
 `kind` here is a registry-validated label, not the fixed enum that milestone's `kind` is: an unregistered kind is rejected at create time (mirrors the tag-facet gate), keeping the set typo-safe and discoverable. Register with `anvil contract kinds add <name>` (idempotent; optional `--desc`); list with `anvil contract kinds list`. Kinds are stored in the glossary `kind/` facet — that is storage only, so `anvil tags add kind/…` is rejected in favour of the dedicated verb.
 
+### `convention`
+
+```yaml
+type: convention
+status: draft | active | deprecated | superseded
+# no project: conventions are project-agnostic by construction (additionalProperties: false rejects it)
+```
+
+Project-agnostic, tool/language-keyed code/style specs (`convention.python`, `convention.sql`) — the single source of truth a contract or project doc *links* rather than restates. Id keeps the type prefix (`convention.<slug>`, file `convention.<slug>.md`) for global uniqueness, like the design types; created via `anvil create convention --slug <tool>` with no `--project`. `description` is the always-on layer in `anvil list convention --json`; the rules live in the body, loaded on demand. Authored/sharpened via the `writing-convention` skill.
+
+**Information architecture — decision / convention / contract / skill.** These four divide cleanly and must not duplicate each other:
+
+- **decision** — *why/when* a rule changed (the changelog, with reversal triggers).
+- **convention** — the standing cross-project spec. Authored once; the canonical content.
+- **contract `## Code design`** — *links* the governing convention(s) plus this component's project-specific deltas.
+- **skill** — a thin behavioural loader that *points at* a convention; it never forks the convention's content.
+
+The rule of thumb: when a contract, skill, or project `CLAUDE.md` would restate a convention's rules, link `[[convention.<slug>]]` instead.
+
 ### `issue`
 
 ```yaml
@@ -326,6 +345,7 @@ Wikilinks are vault-global, not project-scoped. Because the project name is part
 ├── 10-sessions/{raw,distilled}/
 ├── 20-learnings/
 ├── 30-decisions/
+├── 35-conventions/               # flat: convention.<slug>.md (project-agnostic)
 ├── 40-skills/<skill>/            # vault skills (user-authored)
 ├── 50-sweeps/
 ├── 60-threads/

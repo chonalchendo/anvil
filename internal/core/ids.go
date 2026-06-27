@@ -335,6 +335,12 @@ func DeterministicID(t Type, in IDInputs) (string, error) {
 		return fmt.Sprintf("%s.%s", in.Project, slug), nil
 	case TypeThread, TypeLearning, TypeSweep:
 		return slug, nil
+	case TypeConvention:
+		// Conventions are project-agnostic, slug-keyed, and keep the type prefix
+		// in the id (convention.<slug>) for the same reason design types do — the
+		// index keys on a global artifacts.id, and the bare slug ("python") would
+		// collide with same-named artifacts of other types.
+		return fmt.Sprintf("%s.%s", t, slug), nil
 	case TypeDecision:
 		return "", fmt.Errorf("decision IDs are not deterministic (ordinal-scoped)")
 	}
