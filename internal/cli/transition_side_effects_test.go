@@ -61,12 +61,20 @@ type (
 func stubSideFX(t *testing.T) *sideFXStub {
 	t.Helper()
 	s := &sideFXStub{
-		listEntries:  map[string]worktreeInfo{},
-		mainRoot:     "/repo",
+		listEntries: map[string]worktreeInfo{},
+		// A real directory: landPR os.Chdir's here before worktree removal.
+		mainRoot:     t.TempDir(),
 		homeDir:      "/home/anvil",
 		originHEAD:   "origin/master",
 		viewByField:  map[string][]byte{},
 		viewByFieldE: map[string]error{},
+	}
+
+	// landPR os.Chdir's to mainRoot; restore cwd so it doesn't leak to later
+	// tests that resolve paths (e.g. go.mod) relative to the working dir.
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	prevList := gitWorktreeListFn
@@ -144,6 +152,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		ghPRMergeFn = prevMerge
 		ghDeleteBranchFn = prevDeleteBranch
 		mergeabilityPollSleep = prevSleep
+		_ = os.Chdir(origWd)
 	})
 	return s
 }
@@ -911,7 +920,7 @@ func TestLandPRDetectsWorktreeViaHeadBranch(t *testing.T) {
 		t.Errorf("merge calls = %v, want [42]", s.mergeCalls)
 	}
 	if len(s.removeCalls) != 1 || s.removeCalls[0].Path != "/worktrees/fleet-custom-slug" {
-		t.Errorf("remove calls = %v, want [{/repo /worktrees/fleet-custom-slug}]", s.removeCalls)
+		t.Errorf("remove calls = %v, want one with Path /worktrees/fleet-custom-slug", s.removeCalls)
 	}
 }
 
@@ -1171,5 +1180,69 @@ func TestLandPRResolvesDespiteBranchDeleteFailure(t *testing.T) {
 	// The failure is surfaced as a warning, not swallowed.
 	if !strings.Contains(stderr.String(), "remote branch delete failed") {
 		t.Errorf("expected a branch-delete-failure warning, got: %s", stderr.String())
+	}
+}
+
+// TestLandPRChdirsToRootBeforeWorktreeRemoval guards anvil.0131: --land-pr is
+// naturally fired from inside the issue worktree. landPR must move cwd to root
+// before removing that worktree, so substeps inheriting cwd (ghDeleteBranchFn,
+// the post-doLandPR open-PR check) don't shell out from the deleted directory
+// and fail with "Unable to read current working directory".
+func TestLandPRChdirsToRootBeforeWorktreeRemoval(t *testing.T) {
+	root := t.TempDir()
+	deadCwd := t.TempDir()
+
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(orig) })
+	if err := os.Chdir(deadCwd); err != nil {
+		t.Fatal(err)
+	}
+
+	rootInfo, err := os.Stat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := stubSideFX(t)
+	s.mainRoot = root
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: deadCwd}
+
+	// Simulate the real worktree removal destroying the process's original cwd.
+	gitWorktreeRemoveFn = func(_, _ string) error { return os.RemoveAll(deadCwd) }
+	// A substep that inherits cwd: record where it actually runs. os.Getwd in a
+	// Go parent stays resolvable after the dir is unlinked (only a subprocess
+	// like gh fails), so assert the cwd is root via SameFile — without the fix
+	// it is the now-removed worktree and the Stat fails.
+	var substepErr error
+	substepAtRoot := false
+	ghDeleteBranchFn = func(_ string) error {
+		wd, e := os.Getwd()
+		if e != nil {
+			substepErr = e
+			return e
+		}
+		info, e := os.Stat(wd)
+		if e != nil {
+			substepErr = e
+			return e
+		}
+		substepAtRoot = os.SameFile(rootInfo, info)
+		return nil
+	}
+
+	if err := landPR(&bytes.Buffer{}, 42, deadCwd, false); err != nil {
+		t.Fatalf("landPR returned error: %v", err)
+	}
+	if substepErr != nil {
+		t.Errorf("branch-delete substep saw an unresolvable cwd: %v", substepErr)
+	}
+	if !substepAtRoot {
+		t.Errorf("branch-delete substep did not run from root %s", root)
 	}
 }

@@ -435,6 +435,13 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) e
 	if rerr != nil {
 		return errfmt.NewStructured("land_pr_main_worktree_lookup_failed").Set("error", rerr.Error())
 	}
+	// Move the process cwd to root before removing the worktree: --land-pr is
+	// naturally fired from inside the issue worktree, and substeps that inherit
+	// cwd (ghDeleteBranchFn, the post-doLandPR open-PR check) would otherwise
+	// shell out from the just-deleted directory and fail with a getwd error.
+	if cherr := os.Chdir(root); cherr != nil {
+		return errfmt.NewStructured("land_pr_chdir_root_failed").Set("root", root).Set("error", cherr.Error())
+	}
 	// Merge before removing the worktree so the process's cwd remains valid
 	// throughout. gh pr merge may exit non-zero even when the merge lands
 	// (post-merge checkout fails when master is checked out in the main
