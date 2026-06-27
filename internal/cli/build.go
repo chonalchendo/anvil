@@ -81,6 +81,7 @@ func newBuildCmd() *cobra.Command {
 				cmd.PrintErrln("no ready issues to dispatch")
 				return nil
 			}
+			injectLearnings(db, tasks)
 
 			cwd := flagCwd
 			if cwd == "" {
@@ -302,6 +303,66 @@ func readyUnitsToTasks(units []readyUnit) []core.Task {
 		})
 	}
 	return tasks
+}
+
+// learningInjectionLimit caps how many related learnings ride into one complete
+// task body — the load-bearing few the researcher would surface, not every facet
+// hit, so the spawn's context stays lean.
+const learningInjectionLimit = 5
+
+// injectLearnings folds each complete task's most-related vault learnings into
+// its body, so a headless worker — which cannot sub-dispatch the
+// anvil-learnings-researcher — still starts from what the vault knows. The driver
+// owns the vault read (build-orchestration-contract) and queries the same
+// relatedness index `anvil index --type learning` uses (RelatedByID). Learnings
+// are deliberately not project-scoped: the index ranks by shared facets, so a
+// cross-cutting learning surfaces by relevance regardless of project — matching
+// the researcher's own unscoped query. Best-effort: a query error or unloadable
+// learning is skipped, never fatal — missing learnings must not abort a build.
+func injectLearnings(db *index.DB, tasks []core.Task) {
+	for i := range tasks {
+		rows, err := db.RelatedByID(tasks[i].ID, index.QueryFilters{})
+		if err != nil {
+			continue
+		}
+		var b strings.Builder
+		n := 0
+		for _, r := range rows {
+			// Skip only retracted (known-false) learnings; stale and draft still
+			// ride along under the weigh-against-present-code disclaimer below.
+			if r.Type != string(core.TypeLearning) || r.Status == "retracted" {
+				continue
+			}
+			a, err := core.LoadArtifact(r.Path)
+			if err != nil {
+				continue
+			}
+			title, _ := a.FrontMatter["title"].(string)
+			conf, _ := a.FrontMatter["confidence"].(string)
+			updated, _ := a.FrontMatter["updated"].(string)
+			// The schema requires a "## TL;DR"; collapse it to one line. Absence
+			// means a malformed learning — surfaced as a bare title, not a failure.
+			tldr := ""
+			if k := strings.Index(a.Body, "## TL;DR"); k >= 0 {
+				rest := a.Body[k+len("## TL;DR"):]
+				if j := strings.Index(rest, "\n## "); j >= 0 {
+					rest = rest[:j]
+				}
+				tldr = strings.Join(strings.Fields(rest), " ")
+			}
+			fmt.Fprintf(&b, "\n- %s · confidence:%s · updated:%s\n  %s\n  Source: %s\n",
+				title, conf, updated, tldr, r.ID)
+			if n++; n >= learningInjectionLimit {
+				break
+			}
+		}
+		if n == 0 {
+			continue
+		}
+		tasks[i].Body += "\n## Prior learnings\n" +
+			"Vault learnings related to this issue (relevance-ranked). Each was true when written; weigh it against the present code before acting.\n" +
+			b.String()
+	}
 }
 
 // reviewTasksFromTasks builds the review-phase wave: one reviewing-pr task per
