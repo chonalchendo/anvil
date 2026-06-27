@@ -41,7 +41,7 @@ Present one line per review-green PR — issue id, PR number, title — so the o
 
 ## Phase 4 — Merge gate (per PR)
 
-For each review-green PR, in turn, present it and ask — own paragraph, do not bundle:
+For each review-green PR, in turn, present it with a **completion summary — what landed** (a few lines: *what was done*, *why this shape*, *what to watch*; not a changelog). When the merge call is contestable — a real merge/hold fork — **frame the fork before recommending**: name the options, surface the rejected alternative *and why it fails*, give the discriminating fact, then recommend one direction rather than a bare menu (stay silent when the call is trivial; legible means clearer, not longer). Then ask — own paragraph, do not bundle:
 
 > PR #`<n>` (`<issue-id>`) is review-green: `<title>`. Merge it? (yes / skip / hold for changes)
 

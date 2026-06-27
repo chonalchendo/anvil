@@ -56,6 +56,8 @@ The `in-progress` transition re-runs `reproduction_anchor` for bug issues, and r
 
 Aim for code that's easy to reason about — **atomic** (one concern in one place), **composable** (parts snap together without hidden coupling), **simple** (the least machinery that solves the problem). This is the default bar in any language ("pythonic" is one name for it); `docs/code-design.md` carries the module-level principles. It is the positive goal the prohibitions below serve, and what the review pass measures the diff against.
 
+**Frame the fork, then recommend.** When a *genuine* fork arises — a choice that shapes structure the human will later have to steer — make it legible in a few lines *before* recommending: name the options plainly, state the tension, surface the rejected alternative *and why it fails*, and give the one fact that discriminates. Then recommend a single direction — don't hand back a menu. A default, not a template: stay silent on trivial choices, never manufacture tension to fill slots, and keep it brief — legible means clearer, not longer.
+
 **Load the governing contract(s) and system-design(s) first.** Contracts bound the slice (`## Does not`, `## Code design`); a linked system-design carries subsystem invariants and risk maps the house docs don't carry:
 
 ```bash
@@ -148,7 +150,9 @@ Immediately after the PR opens, stamp its URL onto the issue so staleness detect
 anvil link issue <id> --external <pr-url>
 ```
 
-Surface the PR url. The issue stays `in-progress` until the human approves and merges. Once approved, when the issue has a dedicated worktree, the atomic merge+resolve verb is:
+Surface the PR url, then a **completion summary — what landed.** Give the human a short, auditable account they needn't re-derive: *what was done*, *why this shape* (the fork you resolved), and *what to watch* (the risk or follow-up). Same register as the fork beat — a few lines, not a changelog.
+
+The issue stays `in-progress` until the human approves and merges. Once approved, when the issue has a dedicated worktree, the atomic merge+resolve verb is:
 
 ```bash
 anvil transition issue <id> resolved --land-pr <pr-number>

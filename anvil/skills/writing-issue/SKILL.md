@@ -110,6 +110,8 @@ Compare the converged proposal (fuzzy path) or the decisive-path's stated propos
 
 Never skip the gate to issue creation.
 
+**Frame the fork, then recommend.** When the gate forks — log-vs-stop, build-now-vs-defer, this milestone vs that — make it legible in a few lines *before* recommending: name the options plainly, state the tension, surface the rejected alternative *and why it fails*, and give the one fact that discriminates. Then recommend a single direction — don't hand back a bare menu. A default, not a template: stay silent on trivial choices, never manufacture tension to fill slots, and keep it brief — legible means clearer, not longer.
+
 ---
 
 ## Phase 3 — Pressure-test (fuzzy path only)
