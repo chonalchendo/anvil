@@ -137,8 +137,8 @@ Project-agnostic, tool/language-keyed code/style specs (`convention.python`, `co
 
 **Information architecture — decision / convention / contract / skill.** These four divide cleanly and must not duplicate each other:
 
-- **decision** — *why/when* a rule changed (the changelog, with reversal triggers).
-- **convention** — the standing cross-project spec. Authored once; the canonical content.
+- **decision** — *why/when* a rule changed (the changelog, with reversal triggers). A `decision --topic <slug>` thread linking `[[convention.<slug>]]` is the convention's append-only changelog.
+- **convention** — the standing cross-project spec; the canonical content. A **mutable current-state doc**, not an append-only thread: edit in place (git carries routine history), and route a change worth a *why*-record to a linked decision. The convention is the rolled-up current-state view of its decision thread.
 - **contract `## Code design`** — *links* the governing convention(s) plus this component's project-specific deltas.
 - **skill** — a thin behavioural loader that *points at* a convention; it never forks the convention's content.
 

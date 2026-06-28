@@ -105,6 +105,8 @@ anvil set convention convention.<slug> updated <today-iso>
 anvil validate
 ```
 
+A convention is a **mutable current-state doc**, not an append-only thread — edit in place so a reader gets the current rule in one read. Don't grow an in-doc changelog: git carries routine edit history. For a rule change that warrants a *why*-record (a reversal trigger, a rule that bit you), file a `decision --topic <slug>` linking `[[convention.<slug>]]` — the decision thread is the changelog, the convention is its rolled-up current-state view.
+
 ---
 
 ## Non-goals
