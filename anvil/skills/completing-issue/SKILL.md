@@ -32,6 +32,8 @@ You enter holding:
 
 If `## Verification` is missing either subsection or its entries are non-predicate-shaped ("feature works" rather than "command X exits 0 / output contains Y"), halt and hand back to `writing-issue`. Do not improvise checks — the issue spec is the contract.
 
+**The Iron Law binds to the governing contract's verification strategy.** The contract's `## Verification` — **Direct** (in-tree suites) + **Indirect (live)** (the change exercised through the real artifact) — is the strategy the issue's predicates instantiate, so the gate enforces a *reviewed* strategy, not an author-time predicate that can contradict the runtime. Load the contract (Phase 1) and hold its Indirect strategy as the bar the issue's Indirect predicate is measured against. No contract governs → the universal bars (`writing-issue`) apply, and a predicate that plainly drives a proxy path is grounds to halt and hand back to `writing-issue`, not chase an impossible check.
+
 ## Running delegated on a cheaper model
 
 For a one-off completion, the main agent can dispatch this skill to an isolated subagent on a cheaper model (e.g. Opus main → Sonnet worker) — fill and fire `dispatch-single.md`. It stops at PR-opened with no review-respond loop. The N-parallel case is `dispatching-issue-fleet`.

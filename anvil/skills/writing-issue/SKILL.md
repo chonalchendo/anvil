@@ -180,6 +180,16 @@ Compose the **goal** first: one sentence, ≤120 chars, naming what "done" means
 
 **Feasibility gate for prescribed mechanisms.** If any AC or `## Verification` block names a specific tool, CLI command, or runtime behaviour as the mechanism, verify runtime feasibility before the issue lands: run the one command that proves the mechanism works (or fails) in this environment. If it fails, either rewrite the AC as an outcome and drop the mechanism, or split out a feasibility spike issue. Prescribing an unverified mechanism defers the discovery cost to `completing-issue` — after a fleet dispatch, a review, and multiple responder rounds have already run.
 
+**Draw verification from the governing contract — don't invent predicates.** The contract's `## Verification` carries the strategy: a **Direct** part (in-tree suites) and an **Indirect (live)** part (the change exercised through the built/served artifact). Identify the governing contract *before* authoring the body (`anvil list contract` → `anvil show contract <id> --body`; the link is recorded in Phase 4b) and write this issue's `### Direct`/`### Indirect` as the concrete instance — the contract names the strategy, the issue writes the command. No contract governs → author from the universal bars below.
+
+Every predicate, contract-drawn or not, satisfies the universal bars:
+
+- **Same code path** — the predicate travels the real system's path, not a proxy/metadata path that happens to be green (a dev check that can't reach the prod registry the goal lives in doesn't verify the goal).
+- **Exercise, not presence** — assert on behaviour (output, a returned value, a side-effect), never that a source file contains a string. The carve-out is a doc/skill-body change with no runtime behaviour: there, grep the *built/installed* artifact, never the source tree.
+- **Create the unmet condition first** — prescribe a pre-step so the check fails *before* the change and passes *after* (a `max(A)==max(B)` freshness check is false-green when prior state already aligned both sides).
+- **Anchor structurally** — assert against parsed structure (`jq` path, a typed field, an equality), not a bare substring grep.
+- **Feasibility gate** — run each prescribed command in this environment before the issue lands (the gate stated above), so a block copied from a sibling never ships unrunnable.
+
 Author the body up front and pass it to `create` via `--body-file` (or `--body -` for piped stdin). `create` validates the frontmatter AND body (required H2s, wikilink targets) and rolls back the write on failure — no separate `anvil validate` step. The `## Verification` block uses fenced bash; the format is specified below.
 
 ````bash
@@ -238,7 +248,7 @@ Required body sections (enforced by `create`):
 - `## Non-goals` — from Phase 3 smallest-viable (fuzzy) or stated up front (decisive).
 - `## Verification` — operational checks in fenced bash blocks. Two subsections, both required:
   - `### Direct` — fenced `bash` block with ≥1 line. Each line must exit 0. Typically unit/integration tests run against the dev tree.
-  - `### Indirect` — fenced `bash` block with ≥1 line. Each line must exit 0. Live invocations against the built/installed/served artifact; bake the predicate into the command (`grep -q "X"`, `jq -r .field`, `[ ... = ... ]`). `completing-issue` re-runs these against the installed binary in its Phase 4 build gate — they catch behavioral gaps the Direct checks can't see. Each predicate must exercise behaviour and assert on observed output or side-effects — presence-only checks (grepping source files) do not count. **Expected-non-zero / set -e safety:** the runner executes each block under `bash -ec` (`set -e`), so `cmd; [ "$?" -ne 0 ]` is unsafe — `set -e` aborts at the failing `cmd` before the assertion runs, producing a false-FAIL. Use `! cmd` instead: it asserts the command exits non-zero and is `set -e`-safe.
+  - `### Indirect` — fenced `bash` block with ≥1 line. Each line must exit 0. Live invocations against the built/installed/served artifact; bake the predicate into the command (`grep -q "X"`, `jq -r .field`, `[ ... = ... ]`). `completing-issue` re-runs these against the installed binary in its Phase 4 build gate — they catch behavioral gaps the Direct checks can't see. Each predicate honours the universal bars above (chiefly exercise-not-presence). **Expected-non-zero / set -e safety:** the runner executes each block under `bash -ec` (`set -e`), so `cmd; [ "$?" -ne 0 ]` is unsafe — `set -e` aborts at the failing `cmd` before the assertion runs, producing a false-FAIL. Use `! cmd` instead: it asserts the command exits non-zero and is `set -e`-safe.
 - `## Links` — to milestone, design docs, related issues. Use `[[wikilink]]` form. Targets must resolve (the file must exist) or `create` rejects.
 
 `anvil validate <path>` remains useful as a re-check after edits (e.g. after `anvil set ... acceptance --add`), but it is **not** required after `create` when the body was supplied via `--body-file` / `--body -`.
