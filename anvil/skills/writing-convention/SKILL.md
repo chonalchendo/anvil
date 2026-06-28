@@ -109,6 +109,14 @@ A convention is a **mutable current-state doc**, not an append-only thread — e
 
 ---
 
+## Surfacing at write-time (optional, per-repo)
+
+A convention only enforces if it reaches the agent *as it writes* the matching code. The contract rail (`anvil show contract <id> --links convention --body`, read by `completing-issue` and `reviewing-pr`) covers issue work; for editor-driven edits a project can add a `PreToolUse` hook that injects the convention directly.
+
+The pattern: match the edited `file_path` by extension (`*.py`, `*.sql`, …) → inject `anvil show convention convention.<lang> --body` as `additionalContext` → dedup once per session via a sentinel file → `permissionDecision: defer` (never approve/deny). The hook is per-repo build infra — it may hardcode the repo's paths and extension map, so it lives in the project, not in this skill.
+
+---
+
 ## Non-goals
 
 - Project-specific boundaries — that is a contract (`writing-contract`), which *links* this convention.

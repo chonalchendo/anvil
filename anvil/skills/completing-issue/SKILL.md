@@ -67,7 +67,7 @@ anvil show issue <id> --links system-design --body   # each system-design body, 
 
 Each `--body` call resolves the linked ids and prints their bodies in one shot (count hint on stderr); drop `--body` for ids-only, add `--json` for `[{id, status, body}]`.
 
-Treat each contract's `## Does not` as a hard boundary (crossing one → **Scope-change protocol**); apply its `## Code design` as you write. No contract resolves → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
+Treat each contract's `## Does not` as a hard boundary (crossing one → **Scope-change protocol**); apply its `## Code design` as you write. A contract's `## Code design` links the house-wide conventions governing its languages (`[[convention.X]]`). Pull their bodies on the same rail: for each loaded contract, `anvil show contract <contract-id> --links convention --body` resolves its body-linked conventions in one call (the second hop after issue→contract). Hold them as binding style for the code you write — a `*.py`/`*.sql`/etc. edit follows `convention.<lang>`. No contract resolves → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
 
 A system-design with `status` other than `active` is advisory — flag it before implementation and do not treat its constraints as authoritative.
 

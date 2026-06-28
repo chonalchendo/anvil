@@ -47,8 +47,8 @@ Every contract body follows this skeleton:
 
 ## Code design
 
-- <component-specific style rule, file/package shape, or pattern to follow or avoid>.
-- House-wide rules live in <docs/link> — don't duplicate them here; reference only.
+- <component-specific design delta: how *this* component is shaped — file/package layout, a pattern to follow or avoid, an entry-seam rule>.
+- House-wide language/tool style: `[[convention.<lang>]]` (canonical cross-project spec) — link, never restate.
 
 ## Decision tree
 
@@ -61,7 +61,9 @@ When in doubt: <brief heuristic for the hardest boundary call>.
 
 The `## Precedents` section is append-only. Never rewrite a precedent; add a new one.
 
-`## Code design` is **optional but always considered** — omit it only when the component has no conventions that differ from the project's house-wide rules. If a future agent would have to guess at patterns, file layout, or idioms specific to this component, write them here.
+`## Code design` holds *component-specific design deltas* (how this component is shaped) **+** `[[convention.<lang>]]` links to the house-wide style — never restated house-wide rules.
+
+**The discriminating test** — a rule belongs in a `[[convention.X]]`, not the contract, iff it would be copy-pasted verbatim into another project's contract. If it is specific to *this* component's architecture, it stays in the contract. So: "use module-alias imports" is house-wide → it lives in `convention.python` and the contract just links it; "config is bound once at the `--env` entry seam" is this component's shape → it stays in the contract. The section is **optional but always considered** — omit only when the component has neither a design delta nor a governing convention to link.
 
 ---
 
@@ -134,7 +136,7 @@ anvil show contract <id>        # read current body
 - **New precedent** — a boundary was violated or clarified by a real issue or PR. Append to `## Precedents`.
 - **Sharpen a does-not** — an existing `does not` entry is ambiguous or incomplete. Edit the entry in-place; do not add a redundant entry.
 - **New does-not** — a boundary omission was found. Append to `## Does not`. If it was discovered via an issue/PR, also add a `## Precedents` entry.
-- **Code design rule** — a component-specific style, pattern, or layout convention surfaced during implementation. Add to `## Code design`; add the section if it doesn't exist yet.
+- **Code design rule** — a pattern surfaced during implementation. Apply the discriminating test: a *component-specific* delta goes in `## Code design` (add the section if absent); a rule that would copy-paste verbatim into another project belongs in a `[[convention.<lang>]]` (author via `writing-convention`, then link it here).
 
 ### Phase 3 — Apply the update
 

@@ -364,9 +364,9 @@ type linkBody struct {
 	Body   string `json:"body"`
 }
 
-// runShowLinks filters an artifact's frontmatter for wikilinks of the requested
-// type and emits their targets (without [[ ]] brackets) one per line, or as a
-// JSON array under --json. With --body each target's body is loaded and printed
+// runShowLinks filters an artifact's frontmatter and body for wikilinks of the
+// requested type and emits their targets (without [[ ]] brackets) one per line,
+// or as a JSON array under --json. With --body each target's body is loaded and printed
 // instead (see emitLinkBodies). Empty result exits 0 with no output (text) or [].
 func runShowLinks(cmd *cobra.Command, vault *core.Vault, t core.Type, artifactID string, linkType core.Type, asJSON, includeBody bool) error {
 	path := resolveArtifactPath(vault.Root, t, artifactID)
@@ -399,6 +399,15 @@ func runShowLinks(cmd *cobra.Command, vault *core.Vault, t core.Type, artifactID
 					targets = append(targets, target)
 				}
 			}
+		}
+	}
+	// Body wikilinks are real edges too: a contract links its governing
+	// conventions from `## Code design` prose, not a frontmatter slot. Surface
+	// them on the same rail so loading a contract yields its conventions.
+	for _, target := range core.BodyWikilinkTargetsOfType(a.Body, linkType) {
+		if !seen[target] {
+			seen[target] = true
+			targets = append(targets, target)
 		}
 	}
 	sort.Strings(targets)
