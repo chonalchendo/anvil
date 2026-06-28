@@ -50,6 +50,16 @@ Every contract body follows this skeleton:
 - <component-specific design delta: how *this* component is shaped — file/package layout, a pattern to follow or avoid, an entry-seam rule>.
 - House-wide language/tool style: `[[convention.<lang>]]` (canonical cross-project spec) — link, never restate.
 
+## Verification
+
+How a change under this contract is proven to work — the strategy an issue's `## Verification` predicates are drawn from, not invented per issue.
+
+### Direct
+- <in-tree checks for this component: the unit / e2e / regression suites and how to run them>.
+
+### Indirect (live)
+- <how you exercise a change for real under this boundary, driven through the built/installed/served artifact: e.g. ping the endpoint and assert the response / run the CLI verb / query the downstream table>.
+
 ## Decision tree
 
 When in doubt: <brief heuristic for the hardest boundary call>.
@@ -64,6 +74,14 @@ The `## Precedents` section is append-only. Never rewrite a precedent; add a new
 `## Code design` holds *component-specific design deltas* (how this component is shaped) **+** `[[convention.<lang>]]` links to the house-wide style — never restated house-wide rules.
 
 **The discriminating test** — a rule belongs in a `[[convention.X]]`, not the contract, iff it would be copy-pasted verbatim into another project's contract. If it is specific to *this* component's architecture, it stays in the contract. So: "use module-alias imports" is house-wide → it lives in `convention.python` and the contract just links it; "config is bound once at the `--env` entry seam" is this component's shape → it stays in the contract. The section is **optional but always considered** — omit only when the component has neither a design delta nor a governing convention to link.
+
+`## Verification` holds the component's **testing strategy** (Direct + Indirect). Verification is keyed by what the component *is*, not its language: an API is verified by hitting the endpoint in Python or Go, while one language verifies a CLI, a pipeline, and an API three different ways — so it lives here, not in the language convention (style only). The **Indirect (live)** part is the live check `completing-issue`'s Iron Law gates on; record any system topology it must respect (e.g. the prod registry is unreachable from dev → a vs-prod check is a prod-time step). An issue draws its predicates from these parts (`writing-issue` loads the contract): the contract names the strategy, the issue writes the command.
+
+**Deriving the strategy — read it off the contract, don't pick a methodology:**
+
+- **Direct** = the `## Does not` invariants + each `## Precedents` entry as a regression test + the component's failure mode (data-integrity → assert a downstream value; response shape → assert the typed model; idempotency → run twice, assert stable).
+- **Indirect** = the component's real entry point (HTTP route / CLI verb / landed table) + the most-downstream **non-proxy** observable that proves the change worked.
+- Test discipline and style (test-first, given-when-then, framework idiom) are inherited from the house practice / language convention — never re-decided per contract.
 
 ---
 
@@ -94,7 +112,7 @@ Identify the component's boundary from at least two of:
 
 Draft the `## Does` and `## Does not` lists before writing the file. The `## Decision tree` entry is one sentence capturing the hardest boundary call — skip it if no non-obvious case has surfaced yet.
 
-For `## Code design`, apply the guess heuristic above and extract those rules now.
+For `## Code design`, apply the guess heuristic above and extract those rules now. For `## Verification`, name the component's Direct and Indirect strategy from what the component *is* — how its tests run, and how a change is exercised live through the real artifact.
 
 ### Phase 3 — Create the contract
 
@@ -137,6 +155,7 @@ anvil show contract <id>        # read current body
 - **Sharpen a does-not** — an existing `does not` entry is ambiguous or incomplete. Edit the entry in-place; do not add a redundant entry.
 - **New does-not** — a boundary omission was found. Append to `## Does not`. If it was discovered via an issue/PR, also add a `## Precedents` entry.
 - **Code design rule** — a pattern surfaced during implementation. Apply the discriminating test: a *component-specific* delta goes in `## Code design` (add the section if absent); a rule that would copy-paste verbatim into another project belongs in a `[[convention.<lang>]]` (author via `writing-convention`, then link it here).
+- **Verification strategy** — a Direct or Indirect check the component needs surfaced (a regression suite to name, a live-exercise step a recent issue had to invent). Add to `## Verification` (add the section if absent) so the next issue draws it instead of re-deriving it.
 
 ### Phase 3 — Apply the update
 

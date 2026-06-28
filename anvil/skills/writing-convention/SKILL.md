@@ -72,6 +72,8 @@ anvil list convention            # confirm none exists for this tool/language
 
 Ground the convention in real, observed rules, not invented ideals. Pull from existing per-repo `CLAUDE.md` / `docs/*-conventions.md` across projects and consolidate the overlap — the point is to author once what was drifting in N places. Strip project-specific examples so the spec stays project-agnostic.
 
+**Test-code style is research-grounded, not guessed.** When the convention covers how tests are written (framework idiom, given-when-then, test-first) — the style a contract's `## Verification` inherits — don't author it from priors. Run a quick `researching`-skill subagent to corroborate the proposed style against your training data **and** current sources, taking only recognised industry experts (not arbitrary blogs). Confirm the proposal with the human before it lands.
+
 ### Phase 3 — Create
 
 ```bash
