@@ -461,6 +461,16 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) e
 	if fin.State != "MERGED" {
 		// Surface the merge error when available; fall back to state mismatch.
 		if mergeErr != nil {
+			// "Base branch was modified" is the transient race — master moved under
+			// the PR between the mergeability check and the merge. State is left intact
+			// above, so the land is safe to re-run; surface a distinct retryable code,
+			// not the generic terminal one (anvil.0140).
+			if strings.Contains(mergeErr.Error(), "Base branch was modified") {
+				return errfmt.NewStructured("land_pr_base_modified").
+					Set("pr", num).
+					Set("error", mergeErr.Error()).
+					Set("fix_hint", "transient base-modified race; re-run the same --land-pr to retry")
+			}
 			return errfmt.NewStructured("land_pr_merge_failed").Set("pr", num).Set("error", mergeErr.Error())
 		}
 		return errfmt.NewStructured("land_pr_state_not_merged").Set("pr", num).Set("state", fin.State)
