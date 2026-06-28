@@ -77,11 +77,16 @@ The `## Precedents` section is append-only. Never rewrite a precedent; add a new
 
 `## Verification` holds the component's **testing strategy** (Direct + Indirect). Verification is keyed by what the component *is*, not its language: an API is verified by hitting the endpoint in Python or Go, while one language verifies a CLI, a pipeline, and an API three different ways — so it lives here, not in the language convention (style only). The **Indirect (live)** part is the live check `completing-issue`'s Iron Law gates on; record any system topology it must respect (e.g. the prod registry is unreachable from dev → a vs-prod check is a prod-time step). An issue draws its predicates from these parts (`writing-issue` loads the contract): the contract names the strategy, the issue writes the command.
 
-**Deriving the strategy — read it off the contract, don't pick a methodology:**
+**Deriving the strategy — read the *targets* off the contract, ground the *approach* in three sources:**
+
+The *what-to-verify* is read off the contract — don't invent it:
 
 - **Direct** = the `## Does not` invariants + each `## Precedents` entry as a regression test + the component's failure mode (data-integrity → assert a downstream value; response shape → assert the typed model; idempotency → run twice, assert stable).
 - **Indirect** = the component's real entry point (HTTP route / CLI verb / landed table) + the most-downstream **non-proxy** observable that proves the change worked.
-- Test discipline and style (test-first, given-when-then, framework idiom) are inherited from the house practice / language convention — never re-decided per contract.
+
+The *how-to-verify* — the strategy keyed to what the component *is* (you verify an API vs an ingest job vs an infra/deploy path three different ways) — is grounded in **three sources, not the repo alone**: the **repo** (its invariants, real entry points, existing suites — above), your **training data** (the recognised approach for the component type — contract/endpoint tests for an API boundary, golden round-trip / data-quality assertions for ingest, smoke-after-deploy + idempotency for infra), and **online research** (corroborate the approach against current sources, taking only recognised industry experts, not arbitrary blogs). When the approach for a component type isn't already settled, run a `researching` subagent before naming the strategy.
+
+Test discipline and *style* (test-first, given-when-then, framework idiom) are **not** re-grounded here — they are inherited from the language convention (`[[convention.<lang>]]`), which research-grounds the style once. This skill grounds the verification *strategy*; the convention grounds the test *style*.
 
 ---
 
