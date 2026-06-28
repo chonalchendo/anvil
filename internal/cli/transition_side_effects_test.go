@@ -587,7 +587,7 @@ func TestLandPRTransientMergeRaceIsRetryable(t *testing.T) {
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
 	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
 	// master moved under the PR between the mergeability check and the merge.
-	s.mergeErr = errors.New("gh pr merge: exit status 1: GraphQL: Base branch was modified. Review and try the merge again.")
+	s.mergeErr = errors.New("gh pr merge: exit status 1: GraphQL: Base branch was modified. Review and try the merge again")
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
