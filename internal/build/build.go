@@ -43,6 +43,10 @@ type Options struct {
 	Stdout      io.Writer
 	Stderr      io.Writer
 	Router      Router
+	// Phase is an opaque driver tag echoed onto each --json record so a consumer
+	// sees which build phase produced the row; the engine never interprets or
+	// sequences it (build-orchestration-contract: not part of TaskOutcome).
+	Phase string
 	// VerifyArtifact is the advance-gate: it confirms a spawn that exited 0
 	// actually produced its artifact (an open PR on the branch the driver cut)
 	// before the engine records "success". The engine never trusts exit 0 alone
@@ -76,6 +80,7 @@ type TaskOutcome struct {
 type jsonRecord struct {
 	TaskID      string      `json:"task_id"`
 	Wave        int         `json:"wave"`
+	Phase       string      `json:"phase,omitempty"` // driver-assigned build phase that produced this record
 	Model       string      `json:"model"`
 	Effort      string      `json:"effort"`
 	Outcome     string      `json:"outcome,omitempty"`
@@ -218,6 +223,12 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 		return oc
 	}
 
+	// Liveness: announce the spawn before the adapter blocks, so a long or hung
+	// worker is distinguishable from a healthy one mid-run rather than only at the
+	// phase summary (anvil.0138). Best-effort stderr, like the failure diagnostic;
+	// the phase context comes from the driver's banner preceding these lines.
+	fmt.Fprintf(opts.Stderr, "task %s: dispatched\n", t.ID)
+
 	adapter, err := selectAdapter(opts.Router, model)
 	if err != nil {
 		oc.Outcome = "failed"
@@ -358,7 +369,9 @@ func emitJSONRecord(opts Options, oc TaskOutcome) {
 	if !opts.JSON {
 		return
 	}
-	_ = json.NewEncoder(opts.Stdout).Encode(toJSONRecord(oc))
+	rec := toJSONRecord(oc)
+	rec.Phase = opts.Phase // driver tag stamped here, not in toJSONRecord (PlanJSON has no phase)
+	_ = json.NewEncoder(opts.Stdout).Encode(rec)
 }
 
 // toJSONRecord projects a TaskOutcome onto the wire shape. The single source of
