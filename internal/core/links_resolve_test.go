@@ -112,6 +112,21 @@ func TestResolveLinks_Stable(t *testing.T) {
 	}
 }
 
+// TestBodyWikilinkTargetsOfType covers the contract→convention body rail:
+// body `[[convention.X]]` links are surfaced (full target, deduped, first-seen
+// order), other types and fenced/aliased links are filtered as the indexer does.
+func TestBodyWikilinkTargetsOfType(t *testing.T) {
+	body := "Style: [[convention.python]] and [[convention.sql|SQL]].\n" +
+		"Unrelated: [[issue.anvil.foo]].\n" +
+		"Repeat: [[convention.python]].\n" +
+		"```\n[[convention.fenced]]\n```\n"
+	got := BodyWikilinkTargetsOfType(body, TypeConvention)
+	want := []string{"convention.python", "convention.sql"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
 // TestResolveBodyLinks_FencedWikilinkSkipped asserts that a wikilink inside a
 // fenced code block is not flagged as unresolved — it is illustrative text,
 // not a live vault reference.

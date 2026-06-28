@@ -51,6 +51,10 @@ anvil show contract <id> --body   # for each id printed
 
 Instruct the subagent to treat each contract's `does not` constraints as a **blocker-severity rubric**: any diff line that crosses a `does not` boundary is a blocker finding, cited against the contract id and the specific constraint text. If no contract links resolve (issue has no routing link, or the issue cannot be found), skip this step — the rubric is empty, not an error.
 
+### Convention rubric
+
+A contract's `## Code design` links the house-wide conventions governing its languages (`[[convention.X]]`). Instruct the subagent to load them on the same rail — `anvil show contract <id> --links convention --body` resolves the body-linked conventions in one call — and to treat a convention rule the diff violates as a cited finding against `convention.<lang>` (**high** by default; **blocker** when the violation lands a correctness or test-fragility regression the convention exists to prevent). Discover conventions through the contract links (or `CLAUDE.md`'s index when no contract resolves) — never assume a fixed `convention.python`; the same skill ships into repos with no Python at all.
+
 ### Goal validation
 
 Beyond reading the standards docs, the dispatch prompt carries one explicit task — the standards are necessary but not sufficient, and a clean diff can still fail to deliver the issue it closes. Instruct the subagent to resolve the PR's linked issue — from the PR body's issue reference or the branch slug — and run `anvil show issue <id> --json` to read its `goal:`, the one-sentence terminal predicate. It judges whether the diff plainly achieves that goal and reports a shortfall as a Phase 3 finding — **blocker** when the goal is plainly unmet. When the issue also carries `acceptance[]` (an optional prose aid post-`goal:`), check each criterion too. Name the lookup; do not paste the goal or ACs into the dispatch prompt (the subagent fetches them — same context discipline as the standards docs).

@@ -68,6 +68,35 @@ func ResolveLinks(v *Vault, fm map[string]any) []UnresolvedLink {
 	return out
 }
 
+// BodyWikilinkTargetsOfType scans body (outside fenced code blocks) for
+// `[[t.id]]` wikilinks and returns each distinct full target (e.g.
+// "convention.python"), in first-seen order. Body wikilinks are real graph
+// edges — a contract links its conventions from `## Code design` prose, not a
+// frontmatter slot — so a caller surfacing an artifact's links of a type must
+// include them, not just frontmatter. A trailing `|alias` and surrounding
+// whitespace are stripped to match the indexer's normalization.
+func BodyWikilinkTargetsOfType(body string, t Type) []string {
+	prefix := string(t) + "."
+	matches := wikilinkRe.FindAllStringSubmatch(StripFencedBlocks(body), -1)
+	seen := make(map[string]struct{})
+	var out []string
+	for _, m := range matches {
+		target := strings.TrimSpace(m[1])
+		if bar := strings.IndexByte(target, '|'); bar >= 0 {
+			target = strings.TrimSpace(target[:bar])
+		}
+		if !strings.HasPrefix(target, prefix) || len(target) == len(prefix) {
+			continue
+		}
+		if _, ok := seen[target]; ok {
+			continue
+		}
+		seen[target] = struct{}{}
+		out = append(out, target)
+	}
+	return out
+}
+
 // checkWikilink returns (link, true) if s contains a wikilink whose target
 // resolves to a known type but the file is missing. Strings without a
 // wikilink, and wikilinks with unknown type prefixes, return (_, false).
