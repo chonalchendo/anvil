@@ -218,7 +218,7 @@ func newCreateCmd() *cobra.Command {
 			// Resolve project slug: --project overrides auto-detection.
 			// inbox and decision may proceed without a project.
 			project := flagProject
-			if project == "" && t != core.TypeInbox && t != core.TypeDecision && t != core.TypeThread && t != core.TypeLearning && t != core.TypeSweep {
+			if project == "" && t != core.TypeInbox && t != core.TypeDecision && t != core.TypeThread && t != core.TypeLearning && t != core.TypeSweep && t != core.TypeConvention {
 				p, err := core.ResolveProject()
 				if err != nil {
 					if errors.Is(err, core.ErrNoProject) {
@@ -239,7 +239,7 @@ func newCreateCmd() *cobra.Command {
 			// Derive description from title when omitted for spine types that
 			// require it, mirroring promote's single-step stub behaviour (see
 			// promote.go: Description: title). The author refines via anvil set.
-			if flagDescription == "" && (t == core.TypeIssue || t == core.TypeMilestone) {
+			if flagDescription == "" && (t == core.TypeIssue || t == core.TypeMilestone || t == core.TypeConvention) {
 				flagDescription = flagTitle
 			}
 

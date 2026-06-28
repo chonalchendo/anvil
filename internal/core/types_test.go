@@ -23,12 +23,13 @@ func TestParseType_Unknown(t *testing.T) {
 
 func TestType_Dir(t *testing.T) {
 	cases := map[Type]string{
-		TypeInbox:     "00-inbox",
-		TypeIssue:     "70-issues",
-		TypePlan:      "80-plans",
-		TypeMilestone: "85-milestones",
-		TypeDecision:  "30-decisions",
-		TypeContract:  "75-contracts",
+		TypeInbox:      "00-inbox",
+		TypeIssue:      "70-issues",
+		TypePlan:       "80-plans",
+		TypeMilestone:  "85-milestones",
+		TypeDecision:   "30-decisions",
+		TypeContract:   "75-contracts",
+		TypeConvention: "35-conventions",
 	}
 	for tp, want := range cases {
 		if got := tp.Dir(); got != want {
@@ -115,6 +116,7 @@ func TestType_SupportsProject(t *testing.T) {
 		TypeSession:       false,
 		TypeSweep:         false,
 		TypeThread:        false,
+		TypeConvention:    false,
 	}
 	for tp, want := range cases {
 		if got := tp.SupportsProject(); got != want {
@@ -146,6 +148,7 @@ func TestType_Path(t *testing.T) {
 		{TypeProductDesign, "product-design.anvil", "/v/05-product-designs/product-design.anvil.md"},
 		{TypeSystemDesign, "system-design.anvil", "/v/06-system-designs/system-design.anvil.md"},
 		{TypeSystemDesign, "system-design.anvil.build", "/v/06-system-designs/system-design.anvil.build.md"},
+		{TypeConvention, "convention.python", "/v/35-conventions/convention.python.md"},
 		{TypeIssue, "anvil.foo", "/v/70-issues/anvil.foo.md"},
 		{TypeSweep, "0001-cli", "/v/50-sweeps/0001-cli.md"},
 		{TypeInbox, "2026-05-04T12-00-00-x", "/v/00-inbox/2026-05-04T12-00-00-x.md"},

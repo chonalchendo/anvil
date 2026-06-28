@@ -314,7 +314,7 @@ func resolveArtifactPath(vaultRoot string, t core.Type, id string) string {
 // route through the shared resolver; others strip the redundant prefix.
 func canonicalArtifactID(v *core.Vault, t core.Type, raw string) string {
 	switch t {
-	case core.TypeProductDesign, core.TypeSystemDesign:
+	case core.TypeProductDesign, core.TypeSystemDesign, core.TypeConvention:
 		prefix := string(t) + "."
 		if !strings.HasPrefix(raw, prefix) {
 			return prefix + raw

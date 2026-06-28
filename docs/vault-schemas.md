@@ -125,6 +125,25 @@ Plural per project (many contracts, one per component-family — e.g. `data`, `a
 
 `kind` here is a registry-validated label, not the fixed enum that milestone's `kind` is: an unregistered kind is rejected at create time (mirrors the tag-facet gate), keeping the set typo-safe and discoverable. Register with `anvil contract kinds add <name>` (idempotent; optional `--desc`); list with `anvil contract kinds list`. Kinds are stored in the glossary `kind/` facet — that is storage only, so `anvil tags add kind/…` is rejected in favour of the dedicated verb.
 
+### `convention`
+
+```yaml
+type: convention
+status: draft | active | deprecated | superseded
+# no project: conventions are project-agnostic by construction (additionalProperties: false rejects it)
+```
+
+Project-agnostic, tool/language-keyed code/style specs (`convention.python`, `convention.sql`) — the single source of truth a contract or project doc *links* rather than restates. Id keeps the type prefix (`convention.<slug>`, file `convention.<slug>.md`) for global uniqueness, like the design types; created via `anvil create convention --slug <tool>` with no `--project`. `description` is the always-on layer in `anvil list convention --json`; the rules live in the body, loaded on demand. Authored/sharpened via the `writing-convention` skill.
+
+**Information architecture — decision / convention / contract / skill.** These four divide cleanly and must not duplicate each other:
+
+- **decision** — *why/when* a rule changed (the changelog, with reversal triggers). A `decision --topic <slug>` thread linking `[[convention.<slug>]]` is the convention's append-only changelog.
+- **convention** — the standing cross-project spec; the canonical content. A **mutable current-state doc**, not an append-only thread: edit in place (git carries routine history), and route a change worth a *why*-record to a linked decision. The convention is the rolled-up current-state view of its decision thread.
+- **contract `## Code design`** — *links* the governing convention(s) plus this component's project-specific deltas.
+- **skill** — a thin behavioural loader that *points at* a convention; it never forks the convention's content.
+
+The rule of thumb: when a contract, skill, or project `CLAUDE.md` would restate a convention's rules, link `[[convention.<slug>]]` instead.
+
 ### `issue`
 
 ```yaml
@@ -298,7 +317,7 @@ User-authored. Anthropic spec at top level + Anvil `metadata:` block. Out of CLI
 
 ## IDs and naming
 
-Slug-based across most artifacts. Wikilink form: `<type>.<project>.<slug>`; filename: `<project>.<slug>.md` within the type folder. **Issues** carry a per-project ordinal: id `<project>.NNNN.<slug>`, filename `<project>.NNNN.<slug>.md` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Legacy long-slug issue files (no ordinal) still resolve. **Design docs** (`product-design`, `system-design`) each own a type-named folder (`05-product-designs/`, `06-system-designs/`), but **keep the type prefix in the id** so a product-design and a system-design for the same project don't collide on the index's global `artifacts.id` key: id `<type>.<project>[.<shard>]`, filename `<type>.<project>[.<shard>].md` (e.g. `05-product-designs/product-design.anvil.md`, `06-system-designs/system-design.anvil.build.md`).
+Slug-based across most artifacts. Wikilink form: `<type>.<project>.<slug>`; filename: `<project>.<slug>.md` within the type folder. **Issues** carry a per-project ordinal: id `<project>.NNNN.<slug>`, filename `<project>.NNNN.<slug>.md` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Legacy long-slug issue files (no ordinal) still resolve. **Design docs** (`product-design`, `system-design`) each own a type-named folder (`05-product-designs/`, `06-system-designs/`), but **keep the type prefix in the id** so a product-design and a system-design for the same project don't collide on the index's global `artifacts.id` key: id `<type>.<project>[.<shard>]`, filename `<type>.<project>[.<shard>].md` (e.g. `05-product-designs/product-design.anvil.md`, `06-system-designs/system-design.anvil.build.md`). **Conventions** keep the type prefix for the same reason but are project-agnostic: id `convention.<slug>`, filename `convention.<slug>.md` (e.g. `35-conventions/convention.python.md`).
 
 Examples:
 
@@ -306,6 +325,7 @@ Examples:
 - `[[issue.anvil.0042.fix-inbox-suggested-type]]` → `70-issues/anvil.0042.fix-inbox-suggested-type.md`
 - `[[plan.anvil.streaming-token-counter]]` → `80-plans/anvil.streaming-token-counter.md`
 - `[[decision.anvil.0001-go-rewrite]]` → `30-decisions/anvil.0001-go-rewrite.md`
+- `[[convention.python]]` → `35-conventions/convention.python.md`
 
 Two rules:
 
@@ -326,6 +346,7 @@ Wikilinks are vault-global, not project-scoped. Because the project name is part
 ├── 10-sessions/{raw,distilled}/
 ├── 20-learnings/
 ├── 30-decisions/
+├── 35-conventions/               # flat: convention.<slug>.md (project-agnostic)
 ├── 40-skills/<skill>/            # vault skills (user-authored)
 ├── 50-sweeps/
 ├── 60-threads/
