@@ -43,11 +43,9 @@ type Options struct {
 	Stdout      io.Writer
 	Stderr      io.Writer
 	Router      Router
-	// Phase is an opaque label the driver assigns to this run ("complete" |
-	// "review" | "respond"); the engine never interprets or sequences it, it only
-	// echoes it onto each per-task JSON record so a --json consumer can see which
-	// build phase produced the row (build-orchestration-contract: phase is a
-	// driver tag, not part of TaskOutcome).
+	// Phase is an opaque driver tag echoed onto each --json record so a consumer
+	// sees which build phase produced the row; the engine never interprets or
+	// sequences it (build-orchestration-contract: not part of TaskOutcome).
 	Phase string
 	// VerifyArtifact is the advance-gate: it confirms a spawn that exited 0
 	// actually produced its artifact (an open PR on the branch the driver cut)
