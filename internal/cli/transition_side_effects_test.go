@@ -574,6 +574,46 @@ func TestLandPRRefusesWhenFinalStateNotMerged(t *testing.T) {
 	}
 }
 
+func TestLandPRTransientMergeRaceIsRetryable(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"BEHIND"}`)
+	s.viewByField["state"] = []byte(`{"state":"OPEN"}`)
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	// master moved under the PR between the mergeability check and the merge.
+	s.mergeErr = errors.New("gh pr merge: exit status 1: GraphQL: Base branch was modified. Review and try the merge again")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	}
+	// Distinct retryable code, not the generic land_pr_merge_failed.
+	if !strings.Contains(stdout.String(), "land_pr_base_modified") {
+		t.Errorf("missing retryable race code: %s", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "land_pr_merge_failed") {
+		t.Errorf("transient race must not surface as the generic terminal code: %s", stdout.String())
+	}
+	// Retryable in place: worktree intact, issue still in-progress.
+	if len(s.removeCalls) != 0 {
+		t.Errorf("worktree must survive a transient race: %v", s.removeCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "in-progress" {
+		t.Errorf("status = %v, want in-progress (unchanged)", a.FrontMatter["status"])
+	}
+}
+
 func TestLandPRRejectedOnWrongEdge(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
