@@ -128,6 +128,7 @@ func newBuildCmd() *cobra.Command {
 				Router: build.Router{
 					"claude-": claude.New(""),
 				},
+				Phase: "complete",
 				// Advance-gate: confirm each spawn opened a PR on the branch the
 				// driver cut before recording success — a no-op exit-0 worker is
 				// "failed", so the next frontier never unblocks on a phantom PR
@@ -139,6 +140,9 @@ func newBuildCmd() *cobra.Command {
 			// advances across invocations as the human merges each PR and the
 			// next frontier unblocks — a single run must not dispatch a later
 			// wave while earlier PRs sit unmerged.
+			if !flagDryRun {
+				cmd.PrintErrf("build: complete phase — %d task(s)\n", len(tasks))
+			}
 			sum, buildErr := build.Build(cmd.Context(), [][]core.Task{tasks}, opts)
 
 			// Review phase: after complete passes the advance-gate (a PR exists on
@@ -149,13 +153,15 @@ func newBuildCmd() *cobra.Command {
 			// PR via `gh pr list --head <branch>` — so the engine still threads no
 			// data between spawns. No advance-gate on review: it records a verdict,
 			// it opens no PR. Dry-run skips it (no real PR exists to review).
-			phases := []phaseSummary{{phase: "complete", sum: sum}}
+			phases := []phaseSummary{{phase: opts.Phase, sum: sum}}
 			if !flagDryRun {
 				if reviewTasks := reviewTasksFromTasks(tasks, sum); len(reviewTasks) > 0 {
 					reviewOpts := opts
 					reviewOpts.VerifyArtifact = nil
+					reviewOpts.Phase = "review"
+					cmd.PrintErrf("build: review phase — %d task(s)\n", len(reviewTasks))
 					reviewSum, rerr := build.Build(cmd.Context(), [][]core.Task{reviewTasks}, reviewOpts)
-					phases = append(phases, phaseSummary{phase: "review", sum: reviewSum})
+					phases = append(phases, phaseSummary{phase: reviewOpts.Phase, sum: reviewSum})
 					if buildErr == nil {
 						buildErr = rerr
 					}
@@ -173,8 +179,10 @@ func newBuildCmd() *cobra.Command {
 					if respondTasks := respondTasksFromTasks(reviewTasks, reviewSum); len(respondTasks) > 0 {
 						respondOpts := opts
 						respondOpts.VerifyArtifact = nil
+						respondOpts.Phase = "respond"
+						cmd.PrintErrf("build: respond phase — %d task(s)\n", len(respondTasks))
 						respondSum, rerr := build.Build(cmd.Context(), [][]core.Task{respondTasks}, respondOpts)
-						phases = append(phases, phaseSummary{phase: "respond", sum: respondSum})
+						phases = append(phases, phaseSummary{phase: respondOpts.Phase, sum: respondSum})
 						if buildErr == nil {
 							buildErr = rerr
 						}

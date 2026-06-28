@@ -337,6 +337,46 @@ func TestBuild_DiagnosticOnFailure_InJSONAndStderr(t *testing.T) {
 	}
 }
 
+func TestBuild_StreamsPhaseAndDispatch(t *testing.T) {
+	// The driver-assigned phase rides each --json record, and every live task
+	// announces its dispatch on stderr so a run is legible mid-flight (anvil.0138).
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{}}
+	var stdout, stderr strings.Builder
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(), JSON: true, Phase: "review",
+		Stdout: &stdout, Stderr: &stderr,
+		Router: Router{"claude-": fa},
+	}
+	if _, err := Build(context.Background(), twoTaskWaves(), opts); err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if got := strings.Count(stdout.String(), `"phase":"review"`); got != 2 {
+		t.Errorf("phase on JSON records = %d, want 2; got:\n%s", got, stdout.String())
+	}
+	for _, id := range []string{"T1", "T2"} {
+		if !strings.Contains(stderr.String(), "task "+id+": dispatched") {
+			t.Errorf("stderr missing dispatch line for %s; got:\n%s", id, stderr.String())
+		}
+	}
+}
+
+func TestBuild_DryRunHasNoDispatchLine(t *testing.T) {
+	// Dry-run is a plan, not a live run: it spawns nothing, so no dispatch line.
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{}}
+	var stdout, stderr strings.Builder
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(), JSON: true, DryRun: true, Phase: "complete",
+		Stdout: &stdout, Stderr: &stderr,
+		Router: Router{"claude-": fa},
+	}
+	if _, err := Build(context.Background(), twoTaskWaves(), opts); err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if strings.Contains(stderr.String(), "dispatched") {
+		t.Errorf("dry-run streamed a dispatch line; got:\n%s", stderr.String())
+	}
+}
+
 func TestBuild_JSONRecord_IncludesTokensAndCost(t *testing.T) {
 	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
 		"do T1": {res: RunResult{
