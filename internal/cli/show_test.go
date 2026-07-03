@@ -479,7 +479,7 @@ func TestShowValidate_Issue_BadSchema_GreppableFailLine(t *testing.T) {
 func TestShowValidate_NonIssueMilestoneType(t *testing.T) {
 	vault := setupVault(t)
 	dir := filepath.Join(vault, "75-contracts")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	p := filepath.Join(dir, "foo.contract.md")
