@@ -80,7 +80,7 @@ func newShowCmd() *cobra.Command {
 			if t == core.TypePlan && (flagValidate || flagWaves) {
 				return runShowPlan(cmd, v, args[1], flagValidate, flagWaves)
 			}
-			if flagValidate && (t == core.TypeIssue || t == core.TypeMilestone) {
+			if flagValidate {
 				return runShowValidate(cmd, v, t, args[1], flagJSON)
 			}
 			if flagLinks != "" {
@@ -97,7 +97,7 @@ func newShowCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
 	cmd.Flags().BoolVar(&flagBody, "body", false, "include body (capped at 500 lines); opt-in for plan, default for bounded types")
 	cmd.Flags().BoolVar(&flagNoBody, "no-body", false, "exclude body (frontmatter only); overrides per-type default")
-	cmd.Flags().BoolVar(&flagValidate, "validate", false, "validate artifact (plan: full DAG; issue/milestone: schema + wikilinks)")
+	cmd.Flags().BoolVar(&flagValidate, "validate", false, "validate artifact (plan: full DAG; other types: schema + wikilinks)")
 	cmd.Flags().BoolVar(&flagWaves, "waves", false, "render plan waves as mermaid (plan only)")
 	cmd.Flags().StringVar(&flagTask, "task", "", "scope output to a single task (plan only; compose with --body for the section text)")
 	cmd.Flags().BoolVar(&flagNoIncoming, "no-incoming", false, "suppress the Incoming links section (artifacts whose related[]/etc. point at this one)")
