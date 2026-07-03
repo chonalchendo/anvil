@@ -68,6 +68,8 @@ anvil hydrate <id>   # the assembled closure; each node headed `=== <type> <id> 
 
 A dangling spine edge makes `hydrate` exit non-zero and name the broken edge — the issue is **structurally unhydratable**. A broken milestone or design edge means the grounding this change needs is not loadable: surface the named edge and hand back to repair the spine rather than implement against a partial box (a bad issue→milestone link is the spine-link guard's domain). A peripheral dangling edge (a stale learning link) — note it and proceed.
 
+Note which of the hydrated nodes you actually consult while implementing (read the body, applied its constraints) versus which stayed unopened after the initial dump — Phase 5 emits this as the **context manifest**, the diagnostic for a wrong completion: available-but-unread names a reading-discipline gap, an empty/broken box for a required object names a box-authoring gap.
+
 From the opened box: treat each contract's `## Does not` as a hard boundary (crossing one → **Scope-change protocol**) and apply its `## Code design` as you write. A contract's `## Code design` binds the house conventions surfaced alongside it — a `*.py`/`*.sql`/etc. edit follows `convention.<lang>`. A design node with `status` other than `active` is advisory — flag it before implementation, do not treat its constraints as authoritative. No contract in the box → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
 
 Make the minimal change that achieves the issue's `goal:` and passes every `## Verification` check (`## Acceptance criteria`, when present, is a prose aid — not the gate). Stay within the issue's declared file set (or `<declared-files>` when dispatched by `dispatching-issue-fleet`). See **Scope-change protocol** below if the work outgrows declared scope.
@@ -139,8 +141,18 @@ tmpl=$(ls {.github/,docs/,}{PULL_REQUEST_TEMPLATE,pull_request_template}.md 2>/d
 - **Template found** → fill its sections from the diff and the issue's `goal:`, then append `closes #<issue-number>`. Pass the filled template as `--body`, preserving its headers so a reviewer gets the structure they rely on.
 - **No template** → `--body "<one-paragraph + closes #<issue-number>>"`.
 
+**Append the context manifest.** Re-run `anvil hydrate <id>` and list every `=== <type> <id> (status: <s>) ===` header it emitted as the **available** set (grounded — the box `anvil hydrate` actually assembled, not a self-reported list). Mark each `used` if you read its body and applied it in Phase 1, else `unread`. Append this as a `## Context box` section of the PR body — the delta between available and used is the diagnostic surfaced above:
+
+```text
+## Context box
+Assembled by `anvil hydrate <id>` (<N> spine nodes).
+- [x] issue <id> — available, used
+- [x] milestone <mid> — available, used
+- [ ] contract <cid> — available, unread
+```
+
 ```bash
-gh pr create --title "<conventional-commit summary>" --body "<filled template | one-paragraph, + closes #<issue-number>>"
+gh pr create --title "<conventional-commit summary>" --body "<filled template | one-paragraph, + closes #<issue-number>> + the Context box section above"
 ```
 
 Immediately after the PR opens, stamp its URL onto the issue so staleness detection can map the two:
