@@ -20,6 +20,13 @@ func TestWalkability(t *testing.T) {
 		// broken: milestone link dangles.
 		writeHydrateIssue(t, vault, "foo.broken", map[string]any{"milestone": "[[milestone.foo.ghost]]"})
 
+		// transitive-broken: issue→milestone resolves, but milestone→design dangles;
+		// the issue must report NOT walkable and name that depth>1 edge.
+		writeHydrateIssue(t, vault, "foo.transitive", map[string]any{"milestone": "[[milestone.foo.mt]]"})
+		writeHydrateMilestone(t, vault, "foo.mt",
+			map[string]any{"product_design": "[[product-design.foo.ghost]]"},
+			"## Why now\n\nreal milestone body.\n")
+
 		// empty: milestone resolves but its body is a stub (blank).
 		writeHydrateIssue(t, vault, "foo.empty", map[string]any{"milestone": "[[milestone.foo.me]]"})
 		writeHydrateMilestone(t, vault, "foo.me", nil, "")
@@ -38,6 +45,9 @@ func TestWalkability(t *testing.T) {
 		}
 		if !strings.Contains(out, "foo.empty NOT walkable") || !strings.Contains(out, "milestone foo.me (stub body)") {
 			t.Errorf("expected foo.empty to name the empty milestone edge, got:\n%s", out)
+		}
+		if !strings.Contains(out, "foo.transitive NOT walkable") || !strings.Contains(out, "product-design.foo.ghost") {
+			t.Errorf("expected foo.transitive to name the dangling transitive design edge, got:\n%s", out)
 		}
 	})
 

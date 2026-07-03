@@ -1,21 +1,19 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-// issueWalkability is one issue's spine-walk verdict: whether every edge from
-// the issue resolves (Walkable) and, when not, which edges are broken
-// (dangling link) or empty (resolves but the target body is a stub). Reuses
-// hydrate's assembleHydration walk — this is the same walk aggregated over
-// every issue in the vault rather than run for one.
+// issueWalkability is one issue's spine-walk verdict: Walkable iff every spine
+// edge resolves to a non-stub body; otherwise BrokenEdges (dangling links) and
+// EmptyEdges (resolved but stub) name the gaps.
 type issueWalkability struct {
 	ID          string   `json:"id"`
 	Walkable    bool     `json:"walkable"`
@@ -43,7 +41,7 @@ func newWalkabilityCmd() *cobra.Command {
 			return emitWalkability(cmd, report, flagJSON)
 		},
 	}
-	cmd.Flags().BoolVar(&flagJSON, "json", false, `emit JSON envelope: {"items":[...],"total":<int>,"returned":<int>,"truncated":<bool>}`)
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit the standard bounded-list JSON envelope")
 	cmd.Flags().StringVar(&flagProject, "project", "", "filter to one project's issues (exact match)")
 	return cmd
 }
@@ -105,22 +103,7 @@ func walkabilityOf(id string, h *hydration) issueWalkability {
 // beneath its issue.
 func emitWalkability(cmd *cobra.Command, report []issueWalkability, asJSON bool) error {
 	if asJSON {
-		items := report
-		if items == nil {
-			items = []issueWalkability{}
-		}
-		env := struct {
-			Items     []issueWalkability `json:"items"`
-			Total     int                `json:"total"`
-			Returned  int                `json:"returned"`
-			Truncated bool               `json:"truncated"`
-		}{items, len(items), len(items), false}
-		b, err := json.Marshal(env)
-		if err != nil {
-			return fmt.Errorf("marshalling json: %w", err)
-		}
-		fmt.Fprintln(cmd.OutOrStdout(), string(b))
-		return nil
+		return output.WriteListJSON(cmd.OutOrStdout(), report, len(report), len(report))
 	}
 
 	w := cmd.OutOrStdout()
