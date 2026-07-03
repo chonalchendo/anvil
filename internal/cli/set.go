@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -94,14 +95,14 @@ func newSetCmd() *cobra.Command {
 				if len(values) != 1 {
 					return fmt.Errorf("%q is a scalar; expected exactly 1 value, got %d", field, len(values))
 				}
-				v := values[0]
+				sv := values[0]
 				// Empty string on an OPTIONAL scalar field means "unset": delete
 				// the key rather than writing a malformed or empty value. Required
 				// fields fall through so ValidateField's minLength:1 rejects "" as
 				// before — deleting a required key would write a schema-invalid
 				// artifact and skip validation. Check before normalization so
 				// "milestone" wrapping never runs on an empty slug.
-				if v == "" {
+				if sv == "" {
 					required, rerr := schema.FieldRequired(string(t), field)
 					if rerr != nil {
 						return fmt.Errorf("schema lookup: %w", rerr)
@@ -116,11 +117,15 @@ func newSetCmd() *cobra.Command {
 					}
 				}
 				if field == "milestone" {
-					v = normalizeMilestone(v)
+					resolved, rerr := resolveMilestoneLink(v, a, sv)
+					if rerr != nil {
+						return rerr
+					}
+					sv = resolved
 				}
-				a.FrontMatter[field] = v
+				a.FrontMatter[field] = sv
 				result.From = prev
-				result.To = v
+				result.To = sv
 
 			case schema.KindArray:
 				switch {
@@ -372,6 +377,31 @@ func singleOrSlice(v []any) any {
 		return v[0]
 	}
 	return v
+}
+
+// resolveMilestoneLink rejects an issue→milestone edge that does not resolve on
+// disk, so the spine's most load-bearing link fails at write time instead of
+// rotting until a --links --body read. A project-less slug is retried with the
+// artifact's own project injected before it is rejected.
+func resolveMilestoneLink(v *core.Vault, a *core.Artifact, raw string) (string, error) {
+	slug := strings.TrimPrefix(strings.TrimSuffix(strings.TrimPrefix(raw, "[["), "]]"), "milestone.")
+	if milestoneFileExists(v, slug) {
+		return normalizeMilestone(slug), nil
+	}
+	if project, _ := a.FrontMatter["project"].(string); project != "" && !strings.HasPrefix(slug, project+".") {
+		if injected := project + "." + slug; milestoneFileExists(v, injected) {
+			return normalizeMilestone(injected), nil
+		}
+	}
+	return "", fmt.Errorf(
+		"milestone %q does not resolve to a milestone in the vault; pass [[milestone.<project>.<slug>]] pointing to an existing milestone",
+		raw,
+	)
+}
+
+func milestoneFileExists(v *core.Vault, id string) bool {
+	_, err := os.Stat(resolveArtifactPath(v.Root, core.TypeMilestone, id))
+	return err == nil
 }
 
 // arrayValue normalises a frontmatter value into []any. yaml.v3 may decode

@@ -100,8 +100,11 @@ func emitLinkBodies(cmd *cobra.Command, v *core.Vault, linkType core.Type, targe
 		id := canonicalArtifactID(v, linkType, target)
 		a, err := core.LoadArtifact(resolveArtifactPath(v.Root, linkType, id))
 		if err != nil {
+			// One dangling spine edge must not abort the whole context load:
+			// name the broken edge on stderr and keep loading the rest.
 			if os.IsNotExist(err) {
-				return fmt.Errorf("%w: %s", ErrArtifactNotFound, target)
+				cmd.PrintErrf("warn: skipping broken %s link %s (target not found)\n", linkType, target)
+				continue
 			}
 			return fmt.Errorf("loading linked artifact %s: %w", target, err)
 		}

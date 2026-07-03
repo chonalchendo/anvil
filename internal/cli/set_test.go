@@ -276,6 +276,7 @@ func TestSet_MissingArtifact_NotFound(t *testing.T) {
 func TestSet_IssueMilestone_RoundTrip(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "anvil", "x", "X")
+	writeFixtureMilestone(t, vault, "anvil.cli-substrate", "planned")
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"set", "issue", "anvil.x", "milestone", "[[milestone.anvil.cli-substrate]]"})
 	if err := cmd.Execute(); err != nil {
@@ -302,6 +303,7 @@ func TestSet_UnsetOptionalScalar_DeletesKey(t *testing.T) {
 		t.Run(tc.field, func(t *testing.T) {
 			vault := setupVault(t)
 			writeFixtureIssue(t, vault, "anvil", "x", "X")
+			writeFixtureMilestone(t, vault, "anvil.cli-substrate", "planned")
 			path := filepath.Join(vault, "70-issues", "anvil.x.md")
 
 			set := newRootCmd()
@@ -366,6 +368,7 @@ func TestSet_UnsetRequiredScalar_Rejected(t *testing.T) {
 func TestSet_IssueMilestone_BareIDNormalised(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "anvil", "x", "X")
+	writeFixtureMilestone(t, vault, "anvil.cli-substrate", "planned")
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"set", "issue", "anvil.x", "milestone", "anvil.cli-substrate"})
 	if err := cmd.Execute(); err != nil {
@@ -374,6 +377,42 @@ func TestSet_IssueMilestone_BareIDNormalised(t *testing.T) {
 	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "anvil.x.md"))
 	if got, _ := a.FrontMatter["milestone"].(string); got != "[[milestone.anvil.cli-substrate]]" {
 		t.Errorf("got %q, want %q", got, "[[milestone.anvil.cli-substrate]]")
+	}
+}
+
+// TestSet_IssueMilestone_UnresolvableRejected pins the write-time guard: a
+// milestone link whose target does not resolve on disk is rejected with an error
+// naming the offending value, so the spine edge fails loudly at write time
+// rather than rotting until a --links --body read.
+func TestSet_IssueMilestone_UnresolvableRejected(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "anvil", "x", "X")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "anvil.x", "milestone", "anvil.no-such-milestone"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected rejection for unresolvable milestone link")
+	}
+	if !strings.Contains(err.Error(), "no-such-milestone") {
+		t.Errorf("error must name the unresolved edge, got: %v", err)
+	}
+}
+
+// TestSet_IssueMilestone_ProjectInjected pins that a project-less slug resolves
+// by injecting the issue's own project: "cli-substrate" on an anvil issue is
+// stored as [[milestone.anvil.cli-substrate]] when that milestone exists.
+func TestSet_IssueMilestone_ProjectInjected(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "anvil", "x", "X")
+	writeFixtureMilestone(t, vault, "anvil.cli-substrate", "planned")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "anvil.x", "milestone", "cli-substrate"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", "anvil.x.md"))
+	if got, _ := a.FrontMatter["milestone"].(string); got != "[[milestone.anvil.cli-substrate]]" {
+		t.Errorf("got %q, want [[milestone.anvil.cli-substrate]]", got)
 	}
 }
 
@@ -889,6 +928,7 @@ func TestSet_LegacyArtifactMissingRequiredField_Succeeds(t *testing.T) {
 	if err := a.Save(); err != nil {
 		t.Fatal(err)
 	}
+	writeFixtureMilestone(t, vault, "foo.some-milestone", "planned")
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"set", "issue", id, "milestone", "foo.some-milestone", "--json"})
@@ -908,10 +948,11 @@ func TestSet_LegacyArtifactMissingRequiredField_Succeeds(t *testing.T) {
 // TestShow_Issue_ByOrdinal: a bare ordinal ("0001") resolves to the full issue
 // ID on the set write path, matching the read path the fix unified them with.
 func TestSet_Issue_ByOrdinal(t *testing.T) {
-	setupVault(t)
+	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
+	writeFixtureMilestone(t, vault, "foo.cli-substrate", "planned")
 
 	path := createIssueGetPath(
 		t,
