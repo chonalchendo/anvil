@@ -36,6 +36,32 @@ func runShowLinks(cmd *cobra.Command, vault *core.Vault, t core.Type, artifactID
 		return fmt.Errorf("loading artifact: %w", err)
 	}
 
+	targets := linkTargetsOfType(a, linkType)
+
+	if includeBody {
+		return emitLinkBodies(cmd, vault, linkType, targets, asJSON)
+	}
+
+	w := cmd.OutOrStdout()
+	if asJSON {
+		b, err := json.Marshal(targets)
+		if err != nil {
+			return fmt.Errorf("marshaling links output: %w", err)
+		}
+		fmt.Fprintln(w, string(b))
+		return nil
+	}
+	for _, target := range targets {
+		fmt.Fprintln(w, target)
+	}
+	return nil
+}
+
+// linkTargetsOfType returns the distinct wikilink targets of linkType declared
+// by artifact a — both frontmatter slots (string or []any fields) and body prose
+// (a contract links its conventions from `## Code design`, not a frontmatter
+// slot) — as full `type.id` targets, sorted. Both surfaces are real graph edges.
+func linkTargetsOfType(a *core.Artifact, linkType core.Type) []string {
 	prefix := "[[" + string(linkType) + "."
 	seen := make(map[string]bool)
 	targets := make([]string, 0)
@@ -59,9 +85,6 @@ func runShowLinks(cmd *cobra.Command, vault *core.Vault, t core.Type, artifactID
 			}
 		}
 	}
-	// Body wikilinks are real edges too: a contract links its governing
-	// conventions from `## Code design` prose, not a frontmatter slot. Surface
-	// them on the same rail so loading a contract yields its conventions.
 	for _, target := range core.BodyWikilinkTargetsOfType(a.Body, linkType) {
 		if !seen[target] {
 			seen[target] = true
@@ -69,24 +92,7 @@ func runShowLinks(cmd *cobra.Command, vault *core.Vault, t core.Type, artifactID
 		}
 	}
 	sort.Strings(targets)
-
-	if includeBody {
-		return emitLinkBodies(cmd, vault, linkType, targets, asJSON)
-	}
-
-	w := cmd.OutOrStdout()
-	if asJSON {
-		b, err := json.Marshal(targets)
-		if err != nil {
-			return fmt.Errorf("marshaling links output: %w", err)
-		}
-		fmt.Fprintln(w, string(b))
-		return nil
-	}
-	for _, target := range targets {
-		fmt.Fprintln(w, target)
-	}
-	return nil
+	return targets
 }
 
 // emitLinkBodies loads each resolved link target's body (capped at
