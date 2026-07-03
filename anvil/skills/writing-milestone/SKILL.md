@@ -104,7 +104,7 @@ anvil set milestone <id> product_design "[[product-design.<project>]]"
 anvil set milestone <id> system_design "[[system-design.<project>]]"
 ```
 
-Both calls land in dedicated typed slots. If a system-design doesn't yet exist, omit the second call.
+Both calls land in dedicated typed slots. The `system_design` slot is the milestone's governing spine edge — issues scoped under it inherit that design as their box grounding. Make an absent link an **explicit decision**, never a silent omission: attach the governing design, or affirm to the user that no design governs this milestone's scope ("no design governs this slice") before leaving the slot empty.
 
 ---
 

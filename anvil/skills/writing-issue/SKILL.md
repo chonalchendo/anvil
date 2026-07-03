@@ -289,7 +289,7 @@ anvil link issue <issue-id> system-design <project>   # bare project id — link
 
 Pass the **bare** id (`burgh`), not the canonical prefixed id from the list (`system-design.burgh`): `anvil link` prepends the target type itself, so a prefixed id double-links to an unresolvable target the read-side cannot load.
 
-This is the Option-A routing association. If nothing matches, skip silently — do not invent a link.
+This is the Option-A routing association, and the issue's governing spine edge — `completing-issue` walks it to hydrate the box, so a missing link is a box that hydrates thin. Make it an **explicit decision**, never an unremarked omission: when the subsystem has a governing design, attach it; when none legitimately governs this slice, affirm that to the user in one line ("no design governs this slice") rather than dropping the link unnoticed. Don't invent a link to satisfy the check.
 
 ---
 
