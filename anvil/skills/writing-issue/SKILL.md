@@ -102,7 +102,7 @@ Goal: a one-sentence shared understanding of what is being proposed. Without it,
 
 Compare the converged proposal (fuzzy path) or the decisive-path's stated proposal against `~/anvil-vault/85-milestones/`, filtered by the project's `project` frontmatter.
 
-- **Match found** → record the milestone id; continue (Phase 3 if fuzzy, Phase 4 if decisive).
+- **Match found** → record the milestone id; continue to Phase 2b, then Phase 3 if fuzzy or Phase 4 if decisive.
 - **No match, idea is small or orthogonal** → offer the user two exits:
   - (a) log a `decision` artifact with `status: rejected` (one paragraph: what was considered, why rejected). See "Terminal states" below for the CLI sequence.
   - (b) stop without an artifact (inbox source, if any, stays as-is for later resumption).
@@ -111,6 +111,22 @@ Compare the converged proposal (fuzzy path) or the decisive-path's stated propos
 Never skip the gate to issue creation.
 
 **Frame the fork, then recommend.** When the gate forks — log-vs-stop, build-now-vs-defer, this milestone vs that — make it legible in a few lines *before* recommending: name the options plainly, state the tension, surface the rejected alternative *and why it fails*, and give the one fact that discriminates. Then recommend a single direction — don't hand back a bare menu. A default, not a template: stay silent on trivial choices, never manufacture tension to fill slots, and keep it brief — legible means clearer, not longer.
+
+---
+
+## Phase 2b — Read the upstream design closure (always)
+
+Issues authored against a milestone with no design read come out bare — missing the implementation grounding that lives one hop up the spine (product-design/system-design), discovered only at completion instead of at authoring. Read that closure now, before drafting `## Problem`:
+
+```bash
+anvil show milestone <id> --body                     # the milestone's own objectives/non-goals
+anvil show milestone <id> --links product-design --body
+anvil show milestone <id> --links system-design --body
+```
+
+Hold whichever bodies resolve as authoring context — let them ground `## Problem` prose in the real implementation constraints and sharpen `## Non-goals`, and note which subsystem governs so Phase 4b's link targets the same one. **Read, don't copy**: the box stays reachable-not-stored — no design paragraph gets pasted into the issue body, only prose the read informed.
+
+Neither link resolves (milestone carries no `product_design`/`system_design`) → nothing to read; continue.
 
 ---
 
