@@ -328,6 +328,53 @@ func TestReadyUnitsToTasks_MapsIDSkillAndStartContext(t *testing.T) {
 	}
 }
 
+// A dispatched build task must carry the linked-context *bodies* (milestone
+// objectives, design bodies) the interactive path opens via `anvil hydrate`, not
+// the bare identifiers readyUnitsToTasks alone carries — else the
+// milestone→designs edge stays orphaned at the headless completion (anvil.0154).
+func TestInjectHydratedContextDispatchTask(t *testing.T) {
+	t.Run("task body carries the linked milestone and design bodies", func(t *testing.T) {
+		vault := setupVault(t)
+		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"milestone": "[[milestone.foo.m1]]"})
+		writeHydrateMilestone(t, vault, "foo.m1",
+			map[string]any{"product_design": "[[product-design.foo]]"},
+			"## Why now\n\nMILESTONE_OBJECTIVE_PHRASE only in the milestone body.\n")
+		writeHydrateDesign(t, vault, "foo", core.TypeProductDesign,
+			"## Vision\n\nDESIGN_BODY_PHRASE only in the design body.\n")
+
+		tasks := readyUnitsToTasks([]readyUnit{{
+			ID: "foo.i1", Goal: "ship it", Severity: "medium", Milestone: "foo.m1",
+			Path: filepath.Join(vault, "70-issues", "foo.i1.md"),
+		}})
+		// readyUnitsToTasks carries only the milestone *slug*, not its body.
+		if strings.Contains(tasks[0].Body, "MILESTONE_OBJECTIVE_PHRASE") {
+			t.Fatal("precondition: bare start-context should not carry the milestone body")
+		}
+		injectHydratedContext(&core.Vault{Root: vault}, tasks)
+		for _, want := range []string{"## Hydrated context", "MILESTONE_OBJECTIVE_PHRASE", "DESIGN_BODY_PHRASE"} {
+			if !strings.Contains(tasks[0].Body, want) {
+				t.Errorf("dispatch task body missing linked-body marker %q; got:\n%s", want, tasks[0].Body)
+			}
+		}
+	})
+
+	t.Run("broken spine edge degrades in-body, does not abort the build", func(t *testing.T) {
+		vault := setupVault(t)
+		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"milestone": "[[milestone.foo.ghost]]"})
+
+		tasks := readyUnitsToTasks([]readyUnit{{
+			ID: "foo.i1", Goal: "ship it", Severity: "medium",
+			Path: filepath.Join(vault, "70-issues", "foo.i1.md"),
+		}})
+		injectHydratedContext(&core.Vault{Root: vault}, tasks)
+		for _, want := range []string{"structurally unhydratable", "milestone.foo.ghost"} {
+			if !strings.Contains(tasks[0].Body, want) {
+				t.Errorf("broken-edge task body missing %q; got:\n%s", want, tasks[0].Body)
+			}
+		}
+	})
+}
+
 // writeFixtureLearning saves a learning sharing tag with a slug-derived id and a
 // TL;DR an injection assertion can match. Direct Save → caller reindexes.
 func writeFixtureLearning(t *testing.T, vault, slug, title, tldr, tag string) {

@@ -85,12 +85,29 @@ func nodeOf(t core.Type, id string, a *core.Artifact) spineNode {
 }
 
 func runHydrate(cmd *cobra.Command, v *core.Vault, issueID string) error {
+	h, err := assembleHydration(v, issueID)
+	if err != nil {
+		return err
+	}
+	emitHydration(cmd, h.nodes)
+	if len(h.broken) > 0 {
+		return brokenSpineError(h.broken)
+	}
+	return nil
+}
+
+// assembleHydration walks the methodology spine from issueID and returns the
+// accumulated closure (resolved nodes + any broken edges). One walk feeds both
+// consumers: the `hydrate` command emits it, the `build` driver folds it into a
+// dispatch task body — so an interactive and a headless implementer open the
+// same box.
+func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 	iss, err := core.LoadArtifact(resolveArtifactPath(v.Root, core.TypeIssue, issueID))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("%w: %s", ErrArtifactNotFound, issueID)
+			return nil, fmt.Errorf("%w: %s", ErrArtifactNotFound, issueID)
 		}
-		return fmt.Errorf("loading issue: %w", err)
+		return nil, fmt.Errorf("loading issue: %w", err)
 	}
 
 	h := &hydration{nodes: []spineNode{nodeOf(core.TypeIssue, issueID, iss)}}
@@ -100,7 +117,7 @@ func runHydrate(cmd *cobra.Command, v *core.Vault, issueID string) error {
 	for _, mt := range linkTargetsOfType(iss, core.TypeMilestone) {
 		ms, err := h.walk(v, issueSrc, core.TypeMilestone, mt)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if ms == nil {
 			continue
@@ -109,7 +126,7 @@ func runHydrate(cmd *cobra.Command, v *core.Vault, issueID string) error {
 		for _, dtype := range []core.Type{core.TypeProductDesign, core.TypeSystemDesign} {
 			for _, dt := range linkTargetsOfType(ms, dtype) {
 				if _, err := h.walk(v, msSrc, dtype, dt); err != nil {
-					return err
+					return nil, err
 				}
 			}
 		}
@@ -119,14 +136,14 @@ func runHydrate(cmd *cobra.Command, v *core.Vault, issueID string) error {
 	for _, ct := range linkTargetsOfType(iss, core.TypeContract) {
 		c, err := h.walk(v, issueSrc, core.TypeContract, ct)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if c == nil {
 			continue
 		}
 		for _, cv := range linkTargetsOfType(c, core.TypeConvention) {
 			if _, err := h.walk(v, "contract "+ct, core.TypeConvention, cv); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
@@ -134,15 +151,11 @@ func runHydrate(cmd *cobra.Command, v *core.Vault, issueID string) error {
 	// issue → prior learnings
 	for _, lt := range linkTargetsOfType(iss, core.TypeLearning) {
 		if _, err := h.walk(v, issueSrc, core.TypeLearning, lt); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	emitHydration(cmd, h.nodes)
-	if len(h.broken) > 0 {
-		return brokenSpineError(h.broken)
-	}
-	return nil
+	return h, nil
 }
 
 // emitHydration prints each node's body under a `=== <type> <id> (status) ===`
@@ -151,11 +164,7 @@ func runHydrate(cmd *cobra.Command, v *core.Vault, issueID string) error {
 func emitHydration(cmd *cobra.Command, nodes []spineNode) {
 	w := cmd.OutOrStdout()
 	for _, n := range nodes {
-		status := n.Status
-		if status == "" {
-			status = "unset"
-		}
-		fmt.Fprintf(w, "=== %s %s (status: %s) ===\n", n.Type, n.ID, status)
+		fmt.Fprintln(w, closureHeader(n))
 		body := n.Body
 		if lines := strings.Split(body, "\n"); body != "" && len(lines) > showBodyLineCap {
 			body = strings.Join(lines[:showBodyLineCap], "\n")
@@ -164,6 +173,17 @@ func emitHydration(cmd *cobra.Command, nodes []spineNode) {
 		fmt.Fprintln(w, body)
 	}
 	cmd.PrintErrf("hydrated %d spine node(s)\n", len(nodes))
+}
+
+// closureHeader formats a spine node's bundle header — `=== <type> <id> (status:
+// <s>) ===`. Shared by the `hydrate` emit and the `build` driver's task-body
+// fold so both bundles read identically.
+func closureHeader(n spineNode) string {
+	status := n.Status
+	if status == "" {
+		status = "unset"
+	}
+	return fmt.Sprintf("=== %s %s (status: %s) ===", n.Type, n.ID, status)
 }
 
 // brokenSpineError names every dangling spine edge so the failure is actionable

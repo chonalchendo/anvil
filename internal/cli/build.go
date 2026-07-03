@@ -81,6 +81,7 @@ func newBuildCmd() *cobra.Command {
 				cmd.PrintErrln("no ready issues to dispatch")
 				return nil
 			}
+			injectHydratedContext(v, tasks)
 			injectLearnings(db, tasks)
 
 			cwd := flagCwd
@@ -312,6 +313,43 @@ func readyUnitsToTasks(units []readyUnit) []core.Task {
 		})
 	}
 	return tasks
+}
+
+// injectHydratedContext folds each dispatch task's spine-closure bodies into its
+// prompt — the milestone objectives, its design bodies, the issue's
+// contracts→conventions, and prior learnings — the same box `anvil hydrate`
+// opens for an interactive agent in completing-issue Phase 1. Without it, the
+// headless worker starts from the bare identifiers readyUnitsToTasks carries and
+// the milestone→designs edge never opens (anvil.0154). The driver owns the vault
+// read (build-orchestration-contract); the engine never sees it. A broken spine
+// edge does not abort the build — the worker gets what resolved, tagged
+// structurally unhydratable so it treats the box as partial. An unloadable issue
+// is skipped: its identifiers already rode in via readyUnitsToTasks.
+func injectHydratedContext(v *core.Vault, tasks []core.Task) {
+	for i := range tasks {
+		h, err := assembleHydration(v, tasks[i].ID)
+		if err != nil {
+			continue
+		}
+		var b strings.Builder
+		for _, n := range h.nodes {
+			b.WriteString(closureHeader(n))
+			b.WriteByte('\n')
+			body := n.Body
+			if lines := strings.Split(body, "\n"); body != "" && len(lines) > showBodyLineCap {
+				body = strings.Join(lines[:showBodyLineCap], "\n") + "\n… (body clipped)"
+			}
+			b.WriteString(body)
+			b.WriteByte('\n')
+		}
+		tasks[i].Body += "\n## Hydrated context\n" +
+			"The issue's assembled spine closure — the box `anvil hydrate` opens. Weigh it as the grounding for this change.\n\n" +
+			b.String()
+		if len(h.broken) > 0 {
+			tasks[i].Body += "\nThe box is structurally unhydratable at these edges — treat the closure as partial:\n" +
+				brokenSpineError(h.broken).Error() + "\n"
+		}
+	}
 }
 
 // learningInjectionLimit caps how many related learnings ride into one complete
