@@ -60,18 +60,15 @@ Aim for code that's easy to reason about — **atomic** (one concern in one plac
 
 **Frame the fork, then recommend.** When a *genuine* fork arises — a choice that shapes structure the human will later have to steer — make it legible in a few lines *before* recommending: name the options plainly, state the tension, surface the rejected alternative *and why it fails*, and give the one fact that discriminates. Then recommend a single direction — don't hand back a menu. A default, not a template: stay silent on trivial choices, never manufacture tension to fill slots, and keep it brief — legible means clearer, not longer.
 
-**Load the governing contract(s) and system-design(s) first.** Contracts bound the slice (`## Does not`, `## Code design`); a linked system-design carries subsystem invariants and risk maps the house docs don't carry:
+**Open the issue's context box first.** One call assembles the full spine closure — the issue, its milestone (objectives/non-goals), the milestone's design bodies, the issue's contracts→conventions, and prior learnings — as bodies, walking the reliable milestone spine rather than best-effort one-hop links:
 
 ```bash
-anvil show issue <id> --links contract --body        # each contract body, headed by id + status; empty = none
-anvil show issue <id> --links system-design --body   # each system-design body, headed by id + status; empty = none
+anvil hydrate <id>   # the assembled closure; each node headed `=== <type> <id> (status: <s>) ===`, bodies to stdout
 ```
 
-Each `--body` call resolves the linked ids and prints their bodies in one shot (count hint on stderr); drop `--body` for ids-only, add `--json` for `[{id, status, body}]`.
+A dangling spine edge makes `hydrate` exit non-zero and name the broken edge — the issue is **structurally unhydratable**. A broken milestone or design edge means the grounding this change needs is not loadable: surface the named edge and hand back to repair the spine rather than implement against a partial box (a bad issue→milestone link is the spine-link guard's domain). A peripheral dangling edge (a stale learning link) — note it and proceed.
 
-Treat each contract's `## Does not` as a hard boundary (crossing one → **Scope-change protocol**); apply its `## Code design` as you write. A contract's `## Code design` links the house-wide conventions governing its languages (`[[convention.X]]`). Pull their bodies on the same rail: for each loaded contract, `anvil show contract <contract-id> --links convention --body` resolves its body-linked conventions in one call (the second hop after issue→contract). Hold them as binding style for the code you write — a `*.py`/`*.sql`/etc. edit follows `convention.<lang>`. No contract resolves → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
-
-A system-design with `status` other than `active` is advisory — flag it before implementation and do not treat its constraints as authoritative.
+From the opened box: treat each contract's `## Does not` as a hard boundary (crossing one → **Scope-change protocol**) and apply its `## Code design` as you write. A contract's `## Code design` binds the house conventions surfaced alongside it — a `*.py`/`*.sql`/etc. edit follows `convention.<lang>`. A design node with `status` other than `active` is advisory — flag it before implementation, do not treat its constraints as authoritative. No contract in the box → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
 
 Make the minimal change that achieves the issue's `goal:` and passes every `## Verification` check (`## Acceptance criteria`, when present, is a prose aid — not the gate). Stay within the issue's declared file set (or `<declared-files>` when dispatched by `dispatching-issue-fleet`). See **Scope-change protocol** below if the work outgrows declared scope.
 
