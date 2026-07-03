@@ -240,6 +240,13 @@ func checkDeadClaim(v *core.Vault, id string, a *core.Artifact, worktrees map[st
 	if _, _, ok := uniqueSubstringWorktree(worktrees, id); ok {
 		return nil
 	}
+	// Alive if a worktree's directory matches the issue's slug regardless of
+	// what its branch was renamed to — doCutWorktree names the worktree
+	// directory after slugFromIssueID(id) (defaultWorktreePath), so the
+	// directory, not the branch, is the durable worktree↔issue mapping.
+	if worktreePathMatchesIssue(worktrees, id) {
+		return nil
+	}
 	// Alive if there is an open PR linked via external_links.
 	for _, url := range prLinks(a) {
 		state, err := ghPRStateByURLFn(url)
@@ -269,6 +276,21 @@ func checkDeadClaim(v *core.Vault, id string, a *core.Artifact, worktrees map[st
 		Evidence: fmt.Sprintf("in-progress with claim_session %s but no live worktree or open PR", claimSession),
 		Fix:      fmt.Sprintf("anvil transition issue %s open", id),
 	}
+}
+
+// worktreePathMatchesIssue reports whether any known worktree's directory
+// basename equals the issue's slug. defaultWorktreePath names a cut worktree's
+// directory after slugFromIssueID(id), and that name never changes even when
+// the branch inside it is later renamed off the slug — so it is the durable
+// worktree↔issue mapping, unlike the branch-name matches above.
+func worktreePathMatchesIssue(worktrees map[string]worktreeInfo, id string) bool {
+	slug := slugFromIssueID(id)
+	for _, wt := range worktrees {
+		if filepath.Base(wt.path) == slug {
+			return true
+		}
+	}
+	return false
 }
 
 // claimSessionLive reports whether claimSession has a session file whose
