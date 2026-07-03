@@ -973,6 +973,29 @@ func TestShowLinks_BodyText(t *testing.T) {
 	}
 }
 
+// TestShowLinks_BodyDegradesOnBrokenEdge pins the read-side graph-integrity
+// guarantee: one dangling link must not abort the whole --links --body load.
+// The broken edge is named on stderr and the loader exits 0, still emitting the
+// resolvable link's body.
+func TestShowLinks_BodyDegradesOnBrokenEdge(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueWithLinks(t, vault, "foo", "bar", map[string]any{
+		"related": []any{"[[contract.foo.c1]]", "[[contract.foo.missing]]"},
+	})
+	writeContract(t, vault, "foo", "c1", "active", "## Does not\n\nc1 boundary.\n")
+
+	out, errOut, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "contract", "--body")
+	if err != nil {
+		t.Fatalf("broken edge must degrade, not abort: %v", err)
+	}
+	if !strings.Contains(out, "c1 boundary.") {
+		t.Errorf("resolvable link should still load, got:\n%s", out)
+	}
+	if !strings.Contains(errOut, "contract.foo.missing") {
+		t.Errorf("stderr must name the broken edge, got: %q", errOut)
+	}
+}
+
 // TestShowLinks_BodyJSON: --links --body --json emits a structured array of
 // {id, status, body}, not concatenated markdown.
 func TestShowLinks_BodyJSON(t *testing.T) {
