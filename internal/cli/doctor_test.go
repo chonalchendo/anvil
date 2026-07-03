@@ -272,6 +272,55 @@ func TestDoctorDeadClaim_LiveWorktreeSuppresses(t *testing.T) {
 	}
 }
 
+// TestDoctorDeadClaim_RenamedBranchWorktreeSuppresses verifies that a live
+// worktree is matched by its directory (the durable worktree↔issue mapping),
+// not by branch name — a branch renamed off the issue slug must not false-
+// positive a dead-claim. Regression for anvil.0146.
+func TestDoctorDeadClaim_RenamedBranchWorktreeSuppresses(t *testing.T) {
+	vault := setupVault(t)
+	v := &core.Vault{Root: vault}
+
+	id := "foo.renamed-0005"
+	path := filepath.Join(vault, "70-issues", id+".md")
+	a := &core.Artifact{
+		Path: path,
+		FrontMatter: map[string]any{
+			"type":          "issue",
+			"title":         "renamed branch claim",
+			"status":        "in-progress",
+			"project":       "foo",
+			"created":       "2026-06-01",
+			"updated":       "2026-06-01",
+			"severity":      "medium",
+			"claim_session": "live-session-uuid",
+		},
+		Body: fixtureIssueBody,
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Worktree is live on disk, keyed under a branch renamed off the issue
+	// slug — only the worktree directory name still matches.
+	oldWT := gitWorktreeListFn
+	t.Cleanup(func() { gitWorktreeListFn = oldWT })
+	gitWorktreeListFn = func() (map[string]worktreeInfo, error) {
+		return map[string]worktreeInfo{
+			"foo/harden-renamed-0005-orphan-filter": {path: "/tmp/foo-worktrees/renamed-0005"},
+		}, nil
+	}
+
+	findings, err := runDoctor(v, "foo")
+	if err != nil {
+		t.Fatalf("runDoctor: %v", err)
+	}
+	for _, f := range findings {
+		if f.Kind == "dead-claim" && f.ID == id {
+			t.Errorf("unexpected dead-claim finding for issue with live worktree on renamed branch")
+		}
+	}
+}
+
 // TestDoctorDeadClaim_CurrentSessionSuppresses verifies that a claim held by
 // the session running doctor is never flagged, even with no worktree or PR.
 func TestDoctorDeadClaim_CurrentSessionSuppresses(t *testing.T) {
