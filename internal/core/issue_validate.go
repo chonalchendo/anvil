@@ -26,7 +26,12 @@ type VerbPathValidator func(tokens []string) (bad string, ok bool)
 // token names no registered command. Only lines inside a code fence (between
 // opening ``` and closing ```) are scanned. Returns nil without scanning when
 // validate is nil (caller has no command tree to check against).
-func lintVerificationVerbs(body string, validate VerbPathValidator) []error {
+//
+// introducedIn is checked before an unresolved token is reported as an error:
+// a verb the issue's own goal/title names is the one it is introducing, not a
+// stale one, so it passes even though validate rejects it (the command tree
+// doesn't know about it yet — that's the point of the issue).
+func lintVerificationVerbs(body string, validate VerbPathValidator, introducedIn string) []error {
 	if validate == nil {
 		return nil
 	}
@@ -59,6 +64,9 @@ func lintVerificationVerbs(body string, validate VerbPathValidator) []error {
 			continue
 		}
 		if _, already := seen[bad]; already {
+			continue
+		}
+		if verbIntroduced(bad, introducedIn) {
 			continue
 		}
 		seen[bad] = struct{}{}
@@ -149,8 +157,23 @@ func ValidateIssue(a *Artifact) []error {
 // so a stale nested subcommand (`anvil project init`) is caught, not just a
 // bogus top-level verb. Call this from CLI layers that own the cobra tree; pass
 // the result through the same errfmt pipeline as ValidateIssue.
-func ValidateIssueVerbs(body string, validate VerbPathValidator) []error {
-	return lintVerificationVerbs(body, validate)
+//
+// goal and title are the issue's own frontmatter fields — the escape hatch for
+// a feature issue introducing a new subcommand: an unresolved verb named there
+// is what the issue is *for*, not drift, so it's accepted rather than rejected.
+func ValidateIssueVerbs(body, goal, title string, validate VerbPathValidator) []error {
+	return lintVerificationVerbs(body, validate, goal+" "+title)
+}
+
+// verbIntroduced reports whether bad appears as a whole word in text (the
+// issue's goal+title) — the signal that the issue is introducing that verb
+// rather than citing a stale one.
+func verbIntroduced(bad, text string) bool {
+	if bad == "" {
+		return false
+	}
+	re := regexp.MustCompile(`(?i)\b` + regexp.QuoteMeta(bad) + `\b`)
+	return re.MatchString(text)
 }
 
 // verificationSpan returns the body slice from the "## Verification" heading to

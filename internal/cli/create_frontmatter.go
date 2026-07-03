@@ -97,7 +97,9 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 			for _, vErr := range core.ValidateIssue(a) {
 				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
 			}
-			for _, vErr := range core.ValidateIssueVerbs(body, verbPathValidator(cmd.Root())) {
+			goal, _ := fm["goal"].(string)
+			title, _ := fm["title"].(string)
+			for _, vErr := range core.ValidateIssueVerbs(body, goal, title, verbPathValidator(cmd.Root())) {
 				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 			}
 		case core.TypeLearning:

@@ -223,7 +223,9 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 		for _, vErr := range core.ValidateIssue(a) {
 			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 		}
-		for _, vErr := range core.ValidateIssueVerbs(a.Body, verbs) {
+		goal, _ := a.FrontMatter["goal"].(string)
+		title, _ := a.FrontMatter["title"].(string)
+		for _, vErr := range core.ValidateIssueVerbs(a.Body, goal, title, verbs) {
 			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 		}
 	}
