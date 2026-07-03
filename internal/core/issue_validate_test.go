@@ -218,7 +218,7 @@ func validatorFixture() VerbPathValidator { return fixtureVerbValidator(fixtureT
 
 func TestValidateIssueVerbs_UnknownVerb_Rejected(t *testing.T) {
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil frobnicate widget\n```\n\n### Indirect\n```bash\nanvil frobnicate widget\n```\n\n## Links\n"
-	errs := ValidateIssueVerbs(body, validatorFixture())
+	errs := ValidateIssueVerbs(body, "", "", validatorFixture())
 	if len(errs) == 0 {
 		t.Fatal("expected error for unknown anvil verb 'frobnicate'")
 	}
@@ -238,7 +238,7 @@ func TestValidateIssueVerbs_NestedUnknownSubcommand_Rejected(t *testing.T) {
 	// not a registered subcommand. The deepest token must be validated, not just
 	// the top-level verb.
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil project init scratch\n```\n\n### Indirect\n```bash\nanvil project init scratch\n```\n\n## Links\n"
-	errs := ValidateIssueVerbs(body, validatorFixture())
+	errs := ValidateIssueVerbs(body, "", "", validatorFixture())
 	if len(errs) == 0 {
 		t.Fatal("expected error for nested unknown subcommand 'anvil project init'")
 	}
@@ -257,7 +257,7 @@ func TestValidateIssueVerbs_NestedKnownSubcommand_Accepted(t *testing.T) {
 	// `anvil project adopt` is a real nested path; its trailing positional arg
 	// (`scratch`) must not be mistaken for a bogus subcommand.
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil project adopt scratch\n```\n\n### Indirect\n```bash\nanvil create issue --title t\n```\n\n## Links\n"
-	errs := ValidateIssueVerbs(body, validatorFixture())
+	errs := ValidateIssueVerbs(body, "", "", validatorFixture())
 	if len(errs) != 0 {
 		t.Errorf("known nested path must be accepted, got: %v", errs)
 	}
@@ -266,7 +266,7 @@ func TestValidateIssueVerbs_NestedKnownSubcommand_Accepted(t *testing.T) {
 func TestValidateIssueVerbs_UnknownVerb_DeduplicatedAcrossFences(t *testing.T) {
 	// The same bogus verb in both Direct and Indirect should only be reported once.
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil bogus\n```\n\n### Indirect\n```bash\nanvil bogus\n```\n\n## Links\n"
-	errs := ValidateIssueVerbs(body, validatorFixture())
+	errs := ValidateIssueVerbs(body, "", "", validatorFixture())
 	if len(errs) != 1 {
 		t.Errorf("expected exactly 1 error for duplicate unknown verb, got %d: %v", len(errs), errs)
 	}
@@ -274,7 +274,7 @@ func TestValidateIssueVerbs_UnknownVerb_DeduplicatedAcrossFences(t *testing.T) {
 
 func TestValidateIssueVerbs_KnownVerb_Accepted(t *testing.T) {
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil create issue --title t\n```\n\n### Indirect\n```bash\nanvil list issue\n```\n\n## Links\n"
-	errs := ValidateIssueVerbs(body, validatorFixture())
+	errs := ValidateIssueVerbs(body, "", "", validatorFixture())
 	if len(errs) != 0 {
 		t.Errorf("known verbs must be accepted, got: %v", errs)
 	}
@@ -284,7 +284,7 @@ func TestValidateIssueVerbs_ChainedInvocation_Rejected(t *testing.T) {
 	// A non-line-start invocation (`x && anvil bogus`) must still be caught: the
 	// regex anchors on a word boundary, not line start.
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue && anvil bogus\n```\n\n### Indirect\n```bash\necho $(anvil bogus)\n```\n\n## Links\n"
-	errs := ValidateIssueVerbs(body, validatorFixture())
+	errs := ValidateIssueVerbs(body, "", "", validatorFixture())
 	if len(errs) == 0 {
 		t.Fatal("expected error for chained/substituted unknown verb")
 	}
@@ -298,7 +298,7 @@ func TestValidateIssueVerbs_ChainedInvocation_Rejected(t *testing.T) {
 func TestValidateIssueVerbs_AnvilOutsideFence_Ignored(t *testing.T) {
 	// `anvil bogus` mentioned in prose (outside a code fence) must not be flagged.
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\nRun anvil bogus to test.\n\n### Direct\n```bash\nanvil create issue\n```\n\n### Indirect\n```bash\nanvil list issue\n```\n\n## Links\n"
-	errs := ValidateIssueVerbs(body, validatorFixture())
+	errs := ValidateIssueVerbs(body, "", "", validatorFixture())
 	if len(errs) != 0 {
 		t.Errorf("anvil verb outside fence must be ignored, got: %v", errs)
 	}
@@ -307,7 +307,7 @@ func TestValidateIssueVerbs_AnvilOutsideFence_Ignored(t *testing.T) {
 func TestValidateIssueVerbs_AnvilOutsideVerificationSpan_Ignored(t *testing.T) {
 	// `anvil bogus` in ## Problem (outside the Verification span) must not fire.
 	body := "\n## Problem\n```bash\nanvil bogus\n```\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil create issue\n```\n\n### Indirect\n```bash\nanvil list issue\n```\n\n## Links\n"
-	errs := ValidateIssueVerbs(body, validatorFixture())
+	errs := ValidateIssueVerbs(body, "", "", validatorFixture())
 	if len(errs) != 0 {
 		t.Errorf("anvil verb outside Verification span must be ignored, got: %v", errs)
 	}
@@ -317,9 +317,57 @@ func TestValidateIssueVerbs_NilValidator_SkipsCheck(t *testing.T) {
 	// Passing nil skips the verb-lint so callers without a command tree can safely
 	// call ValidateIssueVerbs without panicking.
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil totally-fake-verb\n```\n\n### Indirect\n```bash\ntrue\n```\n\n## Links\n"
-	errs := ValidateIssueVerbs(body, nil)
+	errs := ValidateIssueVerbs(body, "", "", nil)
 	if len(errs) != 0 {
 		t.Errorf("nil validator must skip check, got: %v", errs)
+	}
+}
+
+func TestValidateIssueVerbs_IntroducedVerb_Accepted(t *testing.T) {
+	// The escape hatch: a feature issue citing the subcommand it is introducing
+	// (named in goal/title) must not be rejected, even though the command tree
+	// doesn't know about it yet.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil hydrate issue\n```\n\n### Indirect\n```bash\nanvil hydrate issue\n```\n\n## Links\n"
+	goal := "anvil hydrate <issue> assembles the linked-context closure"
+	title := "anvil hydrate issue — assemble the linked context"
+	errs := ValidateIssueVerbs(body, goal, title, validatorFixture())
+	if len(errs) != 0 {
+		t.Errorf("verb named in goal/title must be accepted, got: %v", errs)
+	}
+}
+
+func TestValidateIssueVerbs_StaleVerb_StillRejectedDespiteGoalTitle(t *testing.T) {
+	// The escape hatch must not swallow a genuinely stale/unrelated verb: one
+	// absent from goal/title still fails even though the issue has unrelated
+	// goal/title text naming a different (introduced) verb.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil project init scratch\n```\n\n### Indirect\n```bash\nanvil project init scratch\n```\n\n## Links\n"
+	goal := "anvil hydrate <issue> assembles the linked-context closure"
+	title := "anvil hydrate issue — assemble the linked context"
+	errs := ValidateIssueVerbs(body, goal, title, validatorFixture())
+	if len(errs) == 0 {
+		t.Fatal("expected stale nested subcommand 'anvil project init' to still be rejected")
+	}
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Error(), "init") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected 'init' named in error, got: %v", errs)
+	}
+}
+
+func TestValidateIssueVerbs_StaleVerb_SuppressedWhenTokenInGoalTitle(t *testing.T) {
+	// Pins the accepted v0.1 limitation: when a stale token's whole word also
+	// appears (unrelated) in goal/title, the escape hatch suppresses the error —
+	// a false-green we take rather than tightening the whole-word match.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil project init scratch\n```\n\n### Indirect\n```bash\nanvil project init scratch\n```\n\n## Links\n"
+	goal := "reindex must run init before the first list call"
+	title := "anvil init drift — unrelated mention of the stale token"
+	errs := ValidateIssueVerbs(body, goal, title, validatorFixture())
+	if len(errs) != 0 {
+		t.Errorf("accepted limitation: stale 'init' is suppressed when its token appears in goal/title, got: %v", errs)
 	}
 }
 
