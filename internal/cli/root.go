@@ -75,6 +75,7 @@ func newRootCmd() *cobra.Command {
 		newMilestoneCmd(),
 		newShowCmd(),
 		newHydrateCmd(),
+		newWalkabilityCmd(),
 		newListCmd(),
 		newLinkCmd(),
 		newSetCmd(),
