@@ -285,9 +285,6 @@ func checkDeadClaim(v *core.Vault, id string, a *core.Artifact, worktrees map[st
 // worktree↔issue mapping, unlike the branch-name matches above.
 func worktreePathMatchesIssue(worktrees map[string]worktreeInfo, id string) bool {
 	slug := slugFromIssueID(id)
-	if slug == "" {
-		return false
-	}
 	for _, wt := range worktrees {
 		if filepath.Base(wt.path) == slug {
 			return true
