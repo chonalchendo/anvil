@@ -358,6 +358,19 @@ func TestValidateIssueVerbs_StaleVerb_StillRejectedDespiteGoalTitle(t *testing.T
 	}
 }
 
+func TestValidateIssueVerbs_StaleVerb_SuppressedWhenTokenInGoalTitle(t *testing.T) {
+	// Pins the accepted v0.1 limitation: when a stale token's whole word also
+	// appears (unrelated) in goal/title, the escape hatch suppresses the error —
+	// a false-green we take rather than tightening the whole-word match.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\nanvil project init scratch\n```\n\n### Indirect\n```bash\nanvil project init scratch\n```\n\n## Links\n"
+	goal := "reindex must run init before the first list call"
+	title := "anvil init drift — unrelated mention of the stale token"
+	errs := ValidateIssueVerbs(body, goal, title, validatorFixture())
+	if len(errs) != 0 {
+		t.Errorf("accepted limitation: stale 'init' is suppressed when its token appears in goal/title, got: %v", errs)
+	}
+}
+
 func TestValidateIssue_NestedHeredocFence_AcceptedFalsePositive(t *testing.T) {
 	// ACCEPTED LIMITATION (docs/issue-spec.md depth-aware runner contract): the
 	// write-time check is line-level parity, not depth-aware. A heredoc holding a

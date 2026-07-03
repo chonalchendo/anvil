@@ -66,6 +66,10 @@ func lintVerificationVerbs(body string, validate VerbPathValidator, introducedIn
 		if _, already := seen[bad]; already {
 			continue
 		}
+		// Accepted v0.1 limitation: a common-English anvil verb (link/show/set/
+		// run/build/install) that appears unrelated in goal/title silences a
+		// genuinely stale token here — a false-green we take over tightening the
+		// match (phrase-adjacency breaks nested verbs like `anvil session gc`).
 		if verbIntroduced(bad, introducedIn) {
 			continue
 		}
