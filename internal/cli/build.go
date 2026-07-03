@@ -323,8 +323,10 @@ func readyUnitsToTasks(units []readyUnit) []core.Task {
 // the milestone→designs edge never opens (anvil.0154). The driver owns the vault
 // read (build-orchestration-contract); the engine never sees it. A broken spine
 // edge does not abort the build — the worker gets what resolved, tagged
-// structurally unhydratable so it treats the box as partial. An unloadable issue
-// is skipped: its identifiers already rode in via readyUnitsToTasks.
+// structurally unhydratable so it treats the box as partial. A load error
+// anywhere on the spine (the issue or a linked node) skips the fold — the task
+// keeps readyUnitsToTasks' bare start-context, which the worker re-hydrates at
+// completion.
 func injectHydratedContext(v *core.Vault, tasks []core.Task) {
 	for i := range tasks {
 		h, err := assembleHydration(v, tasks[i].ID)
@@ -335,9 +337,9 @@ func injectHydratedContext(v *core.Vault, tasks []core.Task) {
 		for _, n := range h.nodes {
 			b.WriteString(closureHeader(n))
 			b.WriteByte('\n')
-			body := n.Body
-			if lines := strings.Split(body, "\n"); body != "" && len(lines) > showBodyLineCap {
-				body = strings.Join(lines[:showBodyLineCap], "\n") + "\n… (body clipped)"
+			body, _, clipped := clipBody(n.Body)
+			if clipped {
+				body += "\n… (body clipped)"
 			}
 			b.WriteString(body)
 			b.WriteByte('\n')

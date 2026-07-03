@@ -165,14 +165,25 @@ func emitHydration(cmd *cobra.Command, nodes []spineNode) {
 	w := cmd.OutOrStdout()
 	for _, n := range nodes {
 		fmt.Fprintln(w, closureHeader(n))
-		body := n.Body
-		if lines := strings.Split(body, "\n"); body != "" && len(lines) > showBodyLineCap {
-			body = strings.Join(lines[:showBodyLineCap], "\n")
-			cmd.PrintErrln(output.BodyClipHint(showBodyLineCap, len(lines), n.Path))
+		body, total, clipped := clipBody(n.Body)
+		if clipped {
+			cmd.PrintErrln(output.BodyClipHint(showBodyLineCap, total, n.Path))
 		}
 		fmt.Fprintln(w, body)
 	}
 	cmd.PrintErrf("hydrated %d spine node(s)\n", len(nodes))
+}
+
+// clipBody truncates body to showBodyLineCap lines, returning the (possibly
+// clipped) text, the original line count, and whether it clipped — so each
+// consumer renders its own clip hint (a stderr line here, an inline marker in
+// the build fold).
+func clipBody(body string) (clipped string, total int, wasClipped bool) {
+	lines := strings.Split(body, "\n")
+	if body == "" || len(lines) <= showBodyLineCap {
+		return body, len(lines), false
+	}
+	return strings.Join(lines[:showBodyLineCap], "\n"), len(lines), true
 }
 
 // closureHeader formats a spine node's bundle header — `=== <type> <id> (status:
