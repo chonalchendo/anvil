@@ -12,9 +12,10 @@ import (
 	"github.com/chonalchendo/anvil/internal/schema"
 )
 
-// runShowValidate handles `anvil show <type> <id> --validate` for issue and
-// milestone. Schema and link-resolution errors aggregate: both are reported,
-// and the returned error is non-nil if either fails.
+// runShowValidate handles `anvil show <type> <id> --validate` for any
+// non-plan type (plan routes to runShowPlan for full-DAG validation). Schema
+// and link-resolution errors aggregate: both are reported, and the returned
+// error is non-nil if either fails.
 func runShowValidate(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON bool) error {
 	path := filepath.Join(v.Root, t.Dir(), id+".md")
 	a, err := core.LoadArtifact(path)
@@ -41,7 +42,7 @@ func runShowValidate(cmd *cobra.Command, v *core.Vault, t core.Type, id string, 
 	} else {
 		emitFrontMatterText(cmd, a.FrontMatter)
 		if schemaErr != nil {
-			cmd.PrintErrln("schema:", schemaErr)
+			cmd.PrintErrln("schema: fail:", schemaErr)
 		} else {
 			cmd.PrintErrln("schema: ok")
 		}

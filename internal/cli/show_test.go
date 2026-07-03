@@ -450,6 +450,62 @@ func TestShowValidate_Issue_BadSchema(t *testing.T) {
 	}
 }
 
+func TestShowValidate_Issue_BadSchema_GreppableFailLine(t *testing.T) {
+	vault := setupVault(t)
+	p := filepath.Join(vault, "70-issues", "foo.bad.md")
+	a := &core.Artifact{
+		Path: p,
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "x", "description": "fixture description", "created": "2026-04-29",
+			"status": "open", "project": "foo",
+		},
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"show", "issue", "foo.bad", "--validate"})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected error for bad schema")
+	}
+	if !strings.Contains(stderr.String(), "schema: fail") {
+		t.Errorf("expected greppable \"schema: fail\" line, got:\n%s", stderr.String())
+	}
+}
+
+func TestShowValidate_NonIssueMilestoneType(t *testing.T) {
+	vault := setupVault(t)
+	dir := filepath.Join(vault, "75-contracts")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(dir, "foo.contract.md")
+	a := &core.Artifact{
+		Path: p,
+		FrontMatter: map[string]any{
+			"type": "contract", "title": "C", "description": "fixture description", "created": "2026-04-29",
+			"status": "active", "project": "foo", "kind": "platform",
+		},
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"show", "contract", "foo.contract", "--validate"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected clean validate, got %v\n%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "schema: ok") {
+		t.Errorf("expected greppable \"schema: ok\" line, got:\n%s", out.String())
+	}
+}
+
 func TestShowValidate_StdoutVsStderr(t *testing.T) {
 	vault := setupVault(t)
 	p := filepath.Join(vault, "70-issues", "foo.bad.md")
