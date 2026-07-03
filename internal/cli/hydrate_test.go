@@ -70,6 +70,50 @@ func writeHydrateDesign(t *testing.T, vault, project string, typ core.Type, body
 	}
 }
 
+// writeHydrateContract seeds a contract whose `## Code design` body links a
+// convention (contracts link conventions from prose, not a frontmatter slot).
+func writeHydrateContract(t *testing.T, vault, id, conventionTarget string) {
+	t.Helper()
+	dir := filepath.Join(vault, "75-contracts")
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for traversable dirs
+		t.Fatal(err)
+	}
+	a := &core.Artifact{
+		Path: filepath.Join(dir, id+".md"),
+		FrontMatter: map[string]any{
+			"type": "contract", "title": id, "description": "fixture",
+			"created": "2026-07-01", "updated": "2026-07-01",
+			"status": "active", "project": "foo", "kind": "data", "tags": []any{},
+		},
+		Body: "## Code design\n\nGoverned by [[" + conventionTarget + "]].\n",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// writeHydrateConvention seeds a convention (prefix-retaining id) with a
+// caller-controlled body.
+func writeHydrateConvention(t *testing.T, vault, slug, body string) {
+	t.Helper()
+	dir := filepath.Join(vault, core.TypeConvention.Dir())
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for traversable dirs
+		t.Fatal(err)
+	}
+	id := string(core.TypeConvention) + "." + slug
+	a := &core.Artifact{
+		Path: filepath.Join(dir, id+".md"),
+		FrontMatter: map[string]any{
+			"type": "convention", "title": id, "description": "fixture",
+			"created": "2026-07-01", "updated": "2026-07-01", "status": "active", "tags": []any{},
+		},
+		Body: body,
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestHydrate(t *testing.T) {
 	t.Run("bundle carries linked milestone and design body text", func(t *testing.T) {
 		vault := setupVault(t)
@@ -89,6 +133,22 @@ func TestHydrate(t *testing.T) {
 			if !strings.Contains(out, want) {
 				t.Errorf("bundle missing %q\n%s", want, out)
 			}
+		}
+	})
+
+	t.Run("closure walks the contract to its body-linked convention", func(t *testing.T) {
+		vault := setupVault(t)
+		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"related": []any{"[[contract.foo.boundaries]]"}})
+		writeHydrateContract(t, vault, "foo.boundaries", "convention.go-style")
+		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nCONVENTION_MARKER for the contract hop.\n")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if !strings.Contains(out, "CONVENTION_MARKER") {
+			t.Errorf("bundle missing contract-linked convention body\n%s", out)
 		}
 	})
 

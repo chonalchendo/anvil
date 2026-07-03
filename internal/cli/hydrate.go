@@ -45,10 +45,11 @@ type spineNode struct {
 }
 
 // brokenEdge is a declared spine wikilink whose target does not resolve on disk.
+// Target carries the full type-qualified wikilink (e.g. milestone.foo.ghost), so
+// the edge type needs no separate field.
 type brokenEdge struct {
 	Source string // "<type> <id>" of the artifact declaring the edge
-	Field  string // the linked type (milestone, contract, convention, learning, …)
-	Target string // the wikilink target that failed to resolve
+	Target string // the type-qualified wikilink target that failed to resolve
 }
 
 // hydration accumulates the assembled closure and any broken edges as the walk
@@ -69,7 +70,7 @@ func (h *hydration) walk(v *core.Vault, sourceDesc string, linkType core.Type, t
 	a, err := core.LoadArtifact(resolveArtifactPath(v.Root, linkType, id))
 	if err != nil {
 		if os.IsNotExist(err) {
-			h.broken = append(h.broken, brokenEdge{Source: sourceDesc, Field: string(linkType), Target: target})
+			h.broken = append(h.broken, brokenEdge{Source: sourceDesc, Target: target})
 			return nil, nil
 		}
 		return nil, fmt.Errorf("loading %s %s: %w", linkType, target, err)
@@ -171,7 +172,7 @@ func brokenSpineError(broken []brokenEdge) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d broken spine edge(s):", len(broken))
 	for _, e := range broken {
-		fmt.Fprintf(&b, "\n  %s → %s [[%s]] (target not found)", e.Source, e.Field, e.Target)
+		fmt.Fprintf(&b, "\n  %s → [[%s]] (target not found)", e.Source, e.Target)
 	}
 	return errors.New(b.String())
 }
