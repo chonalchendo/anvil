@@ -116,7 +116,7 @@ Never skip the gate to issue creation.
 
 ## Phase 2b — Read the upstream design closure (always)
 
-Issues authored against a milestone with no design read come out bare — missing the implementation grounding that lives one hop up the spine (product-design/system-design), discovered only at completion instead of at authoring. Hydrate and read that closure now, before drafting `## Problem`:
+Issues authored against a milestone with no design read come out bare — missing the implementation grounding that lives one hop up the spine (product-design/system-design), discovered only at completion instead of at authoring. Read that closure now, before drafting `## Problem`:
 
 ```bash
 anvil show milestone <id> --body                     # the milestone's own objectives/non-goals
@@ -126,7 +126,7 @@ anvil show milestone <id> --links system-design --body
 
 Hold whichever bodies resolve as authoring context — let them ground `## Problem` prose in the real implementation constraints and sharpen `## Non-goals`, and note which subsystem governs so Phase 4b's link targets the same one. **Read, don't copy**: the box stays reachable-not-stored — no design paragraph gets pasted into the issue body, only prose the read informed.
 
-Neither link resolves (milestone carries no `product_design`/`system_design`) → nothing to read; continue. Surfacing that gap as an explicit authoring decision, rather than a silent skip, is a separate concern (Phase 4b).
+Neither link resolves (milestone carries no `product_design`/`system_design`) → nothing to read; continue.
 
 ---
 
