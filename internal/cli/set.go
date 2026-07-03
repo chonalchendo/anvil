@@ -379,21 +379,18 @@ func singleOrSlice(v []any) any {
 	return v
 }
 
-// resolveMilestoneLink normalises a milestone value to the canonical
-// [[milestone.<project>.<slug>]] wikilink and verifies it resolves on disk, so
-// the most load-bearing spine edge fails loudly at write time rather than
-// rotting silently until a --links --body read. A project-less slug that only
-// resolves after injecting the artifact's own project is rewritten; a
-// fully-qualified cross-project link resolves as-is. No form on disk → a
-// named-edge error naming the value that did not resolve.
+// resolveMilestoneLink rejects an issue→milestone edge that does not resolve on
+// disk, so the spine's most load-bearing link fails at write time instead of
+// rotting until a --links --body read. A project-less slug is retried with the
+// artifact's own project injected before it is rejected.
 func resolveMilestoneLink(v *core.Vault, a *core.Artifact, raw string) (string, error) {
 	slug := strings.TrimPrefix(strings.TrimSuffix(strings.TrimPrefix(raw, "[["), "]]"), "milestone.")
 	if milestoneFileExists(v, slug) {
-		return "[[milestone." + slug + "]]", nil
+		return normalizeMilestone(slug), nil
 	}
 	if project, _ := a.FrontMatter["project"].(string); project != "" && !strings.HasPrefix(slug, project+".") {
 		if injected := project + "." + slug; milestoneFileExists(v, injected) {
-			return "[[milestone." + injected + "]]", nil
+			return normalizeMilestone(injected), nil
 		}
 	}
 	return "", fmt.Errorf(
