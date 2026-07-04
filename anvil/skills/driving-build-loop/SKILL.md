@@ -53,15 +53,11 @@ anvil transition issue <id> resolved --land-pr <n>
 
 One call gates on mergeable + CI-green, removes the worktree, squash-merges, verifies MERGED, and resolves the issue. On `skip`/`hold`, leave the PR open and move on — a held PR is the operator's to drive (e.g. `responding-to-pr-review`); do not re-review it here. Never `gh pr merge` directly; `--land-pr` is the gated path.
 
-## Phase 5 — Distil the run (offer, don't force)
+## Phase 5 — Distil the run (on merge)
 
 **REQUIRED SUB-SKILL:** Use distilling-learning.
 
-The run just landed verified changes — the system's most learning-rich event. Offer one harvest over what merged:
-
-> This loop landed `<k>` PR(s). Distil a learning? (`distilling-learning`)
-
-Bar is compounding, not record-keeping — a gotcha, confirmed approach, or dead end a future agent would act on. "Nothing worth distilling" is valid. The capture stays operator-validated; never auto-distil.
+The run just landed verified changes — the system's most learning-rich event. The operator drives this loop attended, so **auto-distil compounding learnings** via `distilling-learning`'s attended autonomous mode — no offer, no prompt. Hold its **high-value bar**: distil only when you can name the specific future failure the learning prevents; most loops clear it for nothing, and a marginal learning pollutes retrieval, so default to silence.
 
 ## Phase 6 — Hand off, then loop
 
