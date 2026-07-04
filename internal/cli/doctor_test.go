@@ -625,6 +625,80 @@ func TestDoctorFinishedMilestone(t *testing.T) {
 	}
 }
 
+// runFinishedMilestoneCheck builds a vault with one milestone at the given
+// status/kind and a single resolved child, then reports whether doctor emits a
+// finished-milestone finding for it. kind "" omits the field.
+func runFinishedMilestoneCheck(t *testing.T, status, kind string) bool {
+	t.Helper()
+	vault := setupVault(t)
+	v := &core.Vault{Root: vault}
+
+	msSlug := "anvil.test-milestone"
+	fm := map[string]any{
+		"type":    "milestone",
+		"title":   "test milestone",
+		"status":  status,
+		"project": "anvil",
+		"created": "2026-06-01",
+		"updated": "2026-06-01",
+	}
+	if kind != "" {
+		fm["kind"] = kind
+	}
+	ms := &core.Artifact{Path: filepath.Join(vault, "85-milestones", msSlug+".md"), FrontMatter: fm, Body: "## Goal\n\nAll done.\n"}
+	if err := ms.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	child := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", "anvil.done-issue.md"),
+		FrontMatter: map[string]any{
+			"type":      "issue",
+			"title":     "done issue",
+			"status":    "resolved",
+			"project":   "anvil",
+			"created":   "2026-06-01",
+			"updated":   "2026-06-01",
+			"severity":  "medium",
+			"milestone": "[[milestone." + msSlug + "]]",
+		},
+		Body: fixtureIssueBody,
+	}
+	if err := child.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	oldWT := gitWorktreeListFn
+	t.Cleanup(func() { gitWorktreeListFn = oldWT })
+	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+
+	findings, err := runDoctor(v, "anvil")
+	if err != nil {
+		t.Fatalf("runDoctor: %v", err)
+	}
+	for _, f := range findings {
+		if f.Kind == "finished-milestone" && f.ID == msSlug {
+			return true
+		}
+	}
+	return false
+}
+
+// A planned milestone reaches done directly, so all-issues-resolved at planned
+// is finished — the gap doctor missed by gating only on in-progress.
+func TestDoctorFinishedMilestone_Planned(t *testing.T) {
+	if !runFinishedMilestoneCheck(t, "planned", "scoped") {
+		t.Error("planned milestone with all issues resolved should be flagged finished")
+	}
+}
+
+// Buckets have no terminal done state; all issues resolved must not flag them.
+func TestDoctorFinishedMilestone_BucketNotFlagged(t *testing.T) {
+	if runFinishedMilestoneCheck(t, "planned", "bucket") {
+		t.Error("bucket milestone must not be flagged finished")
+	}
+}
+
 // TestDoctorOrphanWorktree verifies that an anvil/ worktree whose branch has
 // a merged PR produces an orphan-worktree finding.
 func TestDoctorOrphanWorktree(t *testing.T) {

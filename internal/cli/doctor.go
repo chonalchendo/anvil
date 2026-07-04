@@ -316,12 +316,20 @@ func claimSessionLive(v *core.Vault, claimSession string, now time.Time) bool {
 	return now.Sub(started) < sessionLivenessWindow
 }
 
-// checkFinishedMilestone returns a finding when an in-progress milestone has
+// checkFinishedMilestone returns a finding when a not-yet-done milestone has
 // every child issue resolved or abandoned. Returns nil for milestones that are
-// not in-progress, have open work, or have no children.
+// already terminal, are buckets, have open work, or have no children.
 func checkFinishedMilestone(msPath string, a *core.Artifact, children []childIssue) *doctorFinding {
 	status, _ := a.FrontMatter["status"].(string)
-	if status != "in-progress" {
+	// planned and in-progress both precede done: milestones transition
+	// planned → done directly, so a planned milestone with all issues
+	// resolved is finished too, not only an in-progress one.
+	if status != "planned" && status != "in-progress" {
+		return nil
+	}
+	// Buckets are rolling trackers with no terminal done state; all issues
+	// resolved never means finished for them.
+	if kind, _ := a.FrontMatter["kind"].(string); kind == "bucket" {
 		return nil
 	}
 	msID := strings.TrimSuffix(filepath.Base(msPath), ".md")
