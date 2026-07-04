@@ -101,7 +101,7 @@ After every finding has an outcome AND CI is green on the latest SHA AND no new 
    ```
 
    It gates on mergeable + CI-green, removes the worktree, squash-merges, verifies MERGED, and resolves the issue. `<id>` is the issue whose completion opened this PR — branch `<project>/<issue-slug>`, url stamped via `anvil link issue <id> --external`. On a branch-only setup the verb refuses (`land_pr_worktree_missing`); the human merges instead.
-2. **Distil** — fire `distilling-learning` (REQUIRED SUB-SKILL). Offer, don't force: *"This run resolved `<id>`. Distil a learning?"*. "Nothing worth distilling" is valid; never auto-distil.
+2. **Distil** — fire `distilling-learning` (REQUIRED SUB-SKILL) in its attended autonomous mode: **auto-distil compounding learnings**, no offer or prompt. Hold its **high-value bar**: distil only when you can name the specific future failure it prevents; most runs clear it for nothing, and a marginal learning pollutes retrieval, so default to silence.
 3. **Hand off** — fire `handing-off-session` (REQUIRED SUB-SKILL): write the load-ready handoff of what landed and what's still open.
 4. Surface the merged PR url.
 

@@ -38,6 +38,31 @@ The terminal contract is retrieval: every learning must be reachable later via `
 
 ---
 
+## Autonomous mode (trigger-invoked, attended)
+
+When an **attended** end-of-run trigger invokes this skill — `completing-issue`, `dispatching-issue-fleet`, `driving-build-loop`, `responding-to-pr-review` — the operator is present but must not be prompted per run. Resolve this skill's three human gates from the **compounding bar** instead of asking, and distil only what clears it.
+
+**The bar — high-value only, default to silence.** Most runs produce *no* learning; distilling is the rare exception, not a closing ritual. The bar is one question: **can you name the specific future failure this prevents?** — the concrete wrong path a later agent takes *without* it (repeats a dead end, ships a regression, burns a cycle rediscovering a non-obvious gotcha or a hard-won working approach). If you cannot name that failure in one sentence, it does not clear the bar — stay silent.
+
+A marginal learning is **negative value, not neutral**. It dilutes retrieval: the next agent querying learnings gets noise mixed with signal and reasons from worse context. That active downside — not mere clutter — is why the bar is high; when in doubt, do not distil. `refreshing-learnings` is a backstop for what slips through, not a licence to lower the bar.
+
+Does **not** clear the bar (never distil these):
+
+- A restatement of what happened, or of what the code, git history, or the issue already records.
+- A one-off fact true only of this issue, with no reuse beyond it.
+- General knowledge the model already holds (a language idiom, a documented API).
+- A claim an existing learning already covers — sharpen that one (Phase 4), never add a near-duplicate.
+
+Gate substitutes (do not confirm any of these with the operator):
+
+- **Phase 2 draft-list →** pick title / `diataxis` / `confidence` from the rubric yourself. `confidence` stays `low` (unverified), so the capture reads as provisional.
+- **Phase 4 dedup →** run the dedup search and let it decide: a material match is sharpened, not duplicated; only a distinct claim is created.
+- **Phase 3 / 6 tags & glossary →** reuse existing vocabulary only, and reach for an existing `pattern/*` value so the capture stays cross-domain-retrievable. Never invent a new facet or glossary term autonomously — if only a novel tag would fit, distil without it and leave the vocabulary to a human.
+
+**Attended-only.** An unattended / dispatched trigger (fleet worker, headless orchestrator) does **not** enter this mode — no human is present to see or override what lands, so it stages candidates for later human harvest, unchanged ([[learning.unattended-loops-make-unattended-mistakes-independent-verifi]]). Explicit operator invocation ("let's distil") runs the interactive gates below as written.
+
+---
+
 ## Phase 1 — Identify the source
 
 A named external artifact is **optional**. When the claim crystallised in-session, the source is the live conversation (the **Reflection** row) — no thread, plan, or transcript is required. Otherwise confirm one of the following with the user, then read the relevant files:
