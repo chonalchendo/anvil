@@ -114,6 +114,29 @@ func writeHydrateConvention(t *testing.T, vault, slug, body string) {
 	}
 }
 
+// writeHydrateLearning seeds a learning (id is the bare slug — learnings drop the
+// type prefix on disk) with a caller-controlled body so tests can assert its
+// `## TL;DR` reaches the digest.
+func writeHydrateLearning(t *testing.T, vault, slug, body string) {
+	t.Helper()
+	dir := filepath.Join(vault, core.TypeLearning.Dir())
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for traversable dirs
+		t.Fatal(err)
+	}
+	id := slug
+	a := &core.Artifact{
+		Path: filepath.Join(dir, id+".md"),
+		FrontMatter: map[string]any{
+			"type": "learning", "title": id, "description": "fixture",
+			"created": "2026-07-01", "updated": "2026-07-01", "status": "verified", "tags": []any{},
+		},
+		Body: body,
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestHydrate(t *testing.T) {
 	t.Run("bundle carries linked milestone and design body text", func(t *testing.T) {
 		vault := setupVault(t)
@@ -149,6 +172,36 @@ func TestHydrate(t *testing.T) {
 		}
 		if !strings.Contains(out, "CONVENTION_MARKER") {
 			t.Errorf("bundle missing contract-linked convention body\n%s", out)
+		}
+	})
+
+	t.Run("--tldr emits frontmatter and TL;DR, suppressing full bodies", func(t *testing.T) {
+		vault := setupVault(t)
+		writeHydrateIssue(t, vault, "foo.i1", map[string]any{
+			"milestone": "[[milestone.foo.m1]]",
+			"related":   []any{"[[learning.gotcha]]"},
+		})
+		writeHydrateMilestone(t, vault, "foo.m1", map[string]any{},
+			"## Why now\n\nMILESTONE_BODY_MARKER that must not appear in the digest.\n")
+		writeHydrateLearning(t, vault, "gotcha",
+			"## TL;DR\n\nLEARNING_TLDR_MARKER the digest keeps.\n\n## Evidence\n\nEVIDENCE_MARKER the digest drops.\n")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1", "--tldr")
+		if err != nil {
+			t.Fatalf("hydrate --tldr: %v", err)
+		}
+		// Headers and spine order preserved; frontmatter (goal) carries the summary.
+		for _, want := range []string{"=== issue foo.i1", "fixture goal is done", "LEARNING_TLDR_MARKER"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("digest missing %q\n%s", want, out)
+			}
+		}
+		// Full bodies and below-TL;DR learning sections are dropped.
+		for _, unwanted := range []string{"MILESTONE_BODY_MARKER", "EVIDENCE_MARKER"} {
+			if strings.Contains(out, unwanted) {
+				t.Errorf("digest leaked full-body text %q\n%s", unwanted, out)
+			}
 		}
 	})
 

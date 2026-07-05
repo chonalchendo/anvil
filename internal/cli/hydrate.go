@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
 	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
@@ -28,20 +29,27 @@ func newHydrateCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			return runHydrate(cmd, v, canonicalArtifactID(v, core.TypeIssue, args[0]))
+			tldr, err := cmd.Flags().GetBool("tldr")
+			if err != nil {
+				return err
+			}
+			return runHydrate(cmd, v, canonicalArtifactID(v, core.TypeIssue, args[0]), tldr)
 		},
 	}
+	cmd.Flags().Bool("tldr", false, "emit each spine node's frontmatter + ## TL;DR only, not its full body — the cheap boundary map to --body-drill from")
 	return cmd
 }
 
 // spineNode is one resolved artifact in the assembled closure: its type, canonical
-// id, frontmatter status (so a non-active design reads as advisory), and body.
+// id, frontmatter status (so a non-active design reads as advisory), body, and the
+// parsed frontmatter (the --tldr digest renders it in place of the body).
 type spineNode struct {
-	Type   core.Type
-	ID     string
-	Status string
-	Body   string
-	Path   string
+	Type        core.Type
+	ID          string
+	Status      string
+	Body        string
+	Path        string
+	FrontMatter map[string]any
 }
 
 // brokenEdge is a declared spine wikilink whose target does not resolve on disk.
@@ -81,15 +89,15 @@ func (h *hydration) walk(v *core.Vault, sourceDesc string, linkType core.Type, t
 
 func nodeOf(t core.Type, id string, a *core.Artifact) spineNode {
 	status, _ := a.FrontMatter["status"].(string)
-	return spineNode{Type: t, ID: id, Status: status, Body: strings.TrimPrefix(a.Body, "\n"), Path: a.Path}
+	return spineNode{Type: t, ID: id, Status: status, Body: strings.TrimPrefix(a.Body, "\n"), Path: a.Path, FrontMatter: a.FrontMatter}
 }
 
-func runHydrate(cmd *cobra.Command, v *core.Vault, issueID string) error {
+func runHydrate(cmd *cobra.Command, v *core.Vault, issueID string, tldr bool) error {
 	h, err := assembleHydration(v, issueID)
 	if err != nil {
 		return err
 	}
-	emitHydration(cmd, h.nodes)
+	emitHydration(cmd, h.nodes, tldr)
 	if len(h.broken) > 0 {
 		return brokenSpineError(h.broken)
 	}
@@ -158,13 +166,20 @@ func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 	return h, nil
 }
 
-// emitHydration prints each node's body under a `=== <type> <id> (status) ===`
-// header to stdout, capping each body at showBodyLineCap. Prose (clip hints, the
-// node count) goes to stderr so a large fan-out doesn't pollute the bundle.
-func emitHydration(cmd *cobra.Command, nodes []spineNode) {
+// emitHydration prints each node under a `=== <type> <id> (status) ===` header to
+// stdout. Full mode prints the body capped at showBodyLineCap; --tldr prints the
+// compact digest (frontmatter + any `## TL;DR`) instead — the cheap boundary map an
+// agent scans to judge relevance before drilling into a load-bearing body. Prose
+// (clip hints, the node count) goes to stderr so a large fan-out doesn't pollute
+// the bundle.
+func emitHydration(cmd *cobra.Command, nodes []spineNode, tldr bool) {
 	w := cmd.OutOrStdout()
 	for _, n := range nodes {
 		fmt.Fprintln(w, closureHeader(n))
+		if tldr {
+			fmt.Fprint(w, compactBody(n))
+			continue
+		}
 		body, total, clipped := clipBody(n.Body)
 		if clipped {
 			cmd.PrintErrln(output.BodyClipHint(showBodyLineCap, total, n.Path))
@@ -172,6 +187,27 @@ func emitHydration(cmd *cobra.Command, nodes []spineNode) {
 		fmt.Fprintln(w, body)
 	}
 	cmd.PrintErrf("hydrated %d spine node(s)\n", len(nodes))
+}
+
+// compactBody renders a node's --tldr digest: its frontmatter (the labels layer —
+// title, description, goal, status carry the relevance signal) followed by the
+// body's `## TL;DR` section (heading through the text before the next `## `) when
+// one exists. Only learnings carry a TL;DR; every other node type falls back to
+// frontmatter alone, which is where its one-line summary already lives.
+func compactBody(n spineNode) string {
+	var b strings.Builder
+	if fm, err := yaml.Marshal(n.FrontMatter); err == nil {
+		b.Write(fm)
+	}
+	if k := strings.Index(n.Body, "## TL;DR"); k >= 0 {
+		tldr := n.Body[k:]
+		if j := strings.Index(tldr[len("## TL;DR"):], "\n## "); j >= 0 {
+			tldr = tldr[:len("## TL;DR")+j]
+		}
+		b.WriteString(strings.TrimRight(tldr, "\n"))
+		b.WriteByte('\n')
+	}
+	return b.String()
 }
 
 // clipBody truncates body to showBodyLineCap lines, returning the (possibly
