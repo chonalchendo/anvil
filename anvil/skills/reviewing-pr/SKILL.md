@@ -39,6 +39,19 @@ The subagent reads **this project's own** standards — never a hardcoded doc pa
 
 Do not name `docs/<x>.md` paths or restate their content in the dispatch prompt — hardcoding one repo's layout dangles in every other, and restating burns context and drifts from source. Name the entry point (`CLAUDE.md`); the subagent follows its index.
 
+### Rubric gate
+
+The rubric axes below are a **closed checklist**, not a menu. Before the subagent reads the diff, the dispatch must assemble every axis that resolves, and the subagent must load each one before judging the diff — a review that judged the diff with a resolvable rubric left unloaded is incomplete and gets re-dispatched, not accepted:
+
+| Rubric | Resolves from | Skips only when |
+| --- | --- | --- |
+| Contract | the issue's `[[contract.*]]` routing links | no contract link resolves |
+| Convention | the contract's `## Code design` → `[[convention.*]]` | no contract, or it links no conventions |
+| Governing design | `anvil hydrate <issue-id>` (milestone + design spine) | hydrate reports no milestone/design links |
+| Goal validation | the issue's `goal:` predicate | no linked issue resolves |
+
+Each axis's own subsection below carries the full loading recipe. A skip is a **recorded fact** the subagent states in its report ("no contract link resolved") — never a silent omission, so a rubric that had nothing to load reads differently from one that was never opened. The four resolvable axes are the gate; the judgment axes that follow (structural simplification, documentation staleness, comment terseness, regression provenance) always apply and need no resolution step.
+
 ### Contract rubric
 
 Before dispatching, load the contracts linked to the PR's issue (via the routing link `writing-issue` establishes) — resolve them from the issue's own routing links, not the vault-wide list:
