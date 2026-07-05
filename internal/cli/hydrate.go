@@ -36,7 +36,7 @@ func newHydrateCmd() *cobra.Command {
 			return runHydrate(cmd, v, canonicalArtifactID(v, core.TypeIssue, args[0]), tldr)
 		},
 	}
-	cmd.Flags().Bool("tldr", false, "emit each spine node's frontmatter + ## TL;DR only, not its full body — the cheap boundary map to --body-drill from")
+	cmd.Flags().Bool("tldr", false, "emit each spine node's frontmatter + ## TL;DR only instead of full bodies — a compact boundary map to scan before drilling into a node with `anvil show <type> <id> --body`")
 	return cmd
 }
 
