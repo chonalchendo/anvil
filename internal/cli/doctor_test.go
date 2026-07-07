@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -696,6 +697,93 @@ func TestDoctorFinishedMilestone_Planned(t *testing.T) {
 func TestDoctorFinishedMilestone_BucketNotFlagged(t *testing.T) {
 	if runFinishedMilestoneCheck(t, "planned", "bucket") {
 		t.Error("bucket milestone must not be flagged finished")
+	}
+}
+
+// runContractRailCheck builds a vault with one contract (given status/body)
+// and, when withConvention is set, one convention artifact, then reports
+// whether doctor emits a contract-empty-convention-rail finding for it.
+func runContractRailCheck(t *testing.T, status, body string, withConvention bool) bool {
+	t.Helper()
+	vault := setupVault(t)
+	v := &core.Vault{Root: vault}
+
+	if withConvention {
+		if err := os.MkdirAll(filepath.Join(vault, "35-conventions"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		conv := &core.Artifact{
+			Path: filepath.Join(vault, "35-conventions", "convention.go.md"),
+			FrontMatter: map[string]any{
+				"type":    "convention",
+				"title":   "go convention",
+				"status":  "active",
+				"created": "2026-06-01",
+				"updated": "2026-06-01",
+			},
+			Body: "## Rules\n\nSome rules.\n",
+		}
+		if err := conv.Save(); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := os.MkdirAll(filepath.Join(vault, "75-contracts"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ct := &core.Artifact{
+		Path: filepath.Join(vault, "75-contracts", "contract.anvil.engine.md"),
+		FrontMatter: map[string]any{
+			"type":    "contract",
+			"title":   "engine contract",
+			"status":  status,
+			"project": "anvil",
+			"created": "2026-06-01",
+			"updated": "2026-06-01",
+		},
+		Body: body,
+	}
+	if err := ct.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	oldWT := gitWorktreeListFn
+	t.Cleanup(func() { gitWorktreeListFn = oldWT })
+	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+
+	findings, err := runDoctor(v, "anvil")
+	if err != nil {
+		t.Fatalf("runDoctor: %v", err)
+	}
+	for _, f := range findings {
+		if f.Kind == "contract-empty-convention-rail" && f.ID == "contract.anvil.engine" {
+			return true
+		}
+	}
+	return false
+}
+
+func TestDoctorContractEmptyConventionRail(t *testing.T) {
+	if !runContractRailCheck(t, "active", "## Does\n\n- Stuff.\n", true) {
+		t.Error("active contract with no convention links should be flagged")
+	}
+}
+
+func TestDoctorContractConventionRail_LinkedNotFlagged(t *testing.T) {
+	if runContractRailCheck(t, "active", "## Code design\n\n- Follow [[convention.go]].\n", true) {
+		t.Error("contract linking a convention must not be flagged")
+	}
+}
+
+func TestDoctorContractConventionRail_InactiveNotFlagged(t *testing.T) {
+	if runContractRailCheck(t, "draft", "## Does\n\n- Stuff.\n", true) {
+		t.Error("non-active contract must not be flagged")
+	}
+}
+
+func TestDoctorContractConventionRail_NoConventionsInVault(t *testing.T) {
+	if runContractRailCheck(t, "active", "## Does\n\n- Stuff.\n", false) {
+		t.Error("vault with no conventions must yield no rail findings")
 	}
 }
 
