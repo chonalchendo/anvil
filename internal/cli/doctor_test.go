@@ -709,7 +709,7 @@ func runContractRailCheck(t *testing.T, status, body string, withConvention bool
 	v := &core.Vault{Root: vault}
 
 	if withConvention {
-		if err := os.MkdirAll(filepath.Join(vault, "35-conventions"), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(vault, "35-conventions"), 0o750); err != nil {
 			t.Fatal(err)
 		}
 		conv := &core.Artifact{
@@ -728,7 +728,7 @@ func runContractRailCheck(t *testing.T, status, body string, withConvention bool
 		}
 	}
 
-	if err := os.MkdirAll(filepath.Join(vault, "75-contracts"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(vault, "75-contracts"), 0o750); err != nil {
 		t.Fatal(err)
 	}
 	ct := &core.Artifact{
