@@ -4,6 +4,10 @@ This file is the contract for a fleet worker dispatched as a **plain subagent**,
 
 The Phase 3 **implementer** does *not* read this file — it runs as the bundled `anvil-issue-worker` agent (`anvil/agents/anvil-issue-worker.md`), whose frontmatter is the single source of the *implementer* contract. This is the *responder's* contract. The two workers run different skills, so the contracts are deliberately separate documents, not mirror copies of one rulebook.
 
+## No-wait execution (mandatory)
+
+Never background a command, and never end your turn to wait on anything — a stopped subagent is terminated outright, so its notification never arrives and the run silently dies. This includes live queries, CI polling, or any command you're tempted to fire-and-monitor. Run long commands as a single foreground `Bash` call with an explicit long timeout (e.g. `timeout: 600000`). On timeout, re-invoke the same call rather than backgrounding it — idempotent steps (test suites, builds) resume or no-op on already-completed work, so re-running is safe and cheap.
+
 ## Stop at fixes-pushed (no CI-wait loop)
 
 You run `responding-to-pr-review` to drive the handed `<findings>` to resolution — but **stop the moment your fixes are pushed**. Do **not** run that skill's "wait for CI / halt at green" phase. The orchestrator owns the green gate (Phase 5 step 3), exactly as the Phase 3 implementer stops at `gh pr create` and the orchestrator owns the review. Push your fixes, emit the PR url, and terminate; CI settles on the orchestrator's watch.

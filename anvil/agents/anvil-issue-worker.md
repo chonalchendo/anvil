@@ -17,6 +17,10 @@ The orchestrator already claimed the issue `in-progress` (stamping its owner) an
 
 Drive `completing-issue` to an opened PR, then HALT. Do NOT invoke `responding-to-pr-review`. Do NOT poll, monitor, or wait on CI or CodeRabbit. The moment `gh pr create` returns a url, emit it and terminate — the human runs review separately. This stop-at-PR-opened rule is the whole point: the fleet's review-respond polling loop is where one-off workers hang.
 
+## No-wait execution (mandatory)
+
+Never background a command, and never end your turn to wait on anything — a stopped subagent is terminated outright, so its notification never arrives and the run silently dies. This includes live queries, `plan-dev` materializations, CI polling, or any command you're tempted to fire-and-monitor. Run long commands as a single foreground `Bash` call with an explicit long timeout (e.g. `timeout: 600000`). On timeout, re-invoke the same call rather than backgrounding it — idempotent steps (SQLMesh plans, test suites, builds) resume or no-op on already-completed work, so re-running is safe and cheap.
+
 ## Pre-edit worktree invariant
 
 Work in the dispatched worktree path on the dispatched branch. Before every edit, `git rev-parse --show-toplevel` must equal that path exactly — else halt with `Blocker: write-outside-worktree (toplevel=<actual>)`. Not self-correctable.
