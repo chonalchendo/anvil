@@ -172,7 +172,7 @@ anvil transition issue <id> resolved --land-pr <pr-number>
 
 One call gates on mergeable + CI-green, removes the worktree, squash-merges, verifies MERGED, and resolves with an audit line — so a session boundary cannot split merge from resolve. The human fires it; the agent never does. On a branch-only setup the verb refuses (`land_pr_worktree_missing`) before merging — merge manually, then `anvil transition issue <id> resolved`.
 
-**REQUIRED SUB-SKILL:** Use reviewing-pr to run the default independent review pass, then responding-to-pr-review to drive its findings to resolution — unless you were dispatched to stop at PR-opened (by `dispatching-issue-fleet`, or as an `anvil-issue-worker` via `dispatch-single.md`), where the orchestrator owns review and runs that chain itself.
+**REQUIRED SUB-SKILL:** Use reviewing-pr to run the default independent review pass, then responding-to-pr-review to drive its findings to resolution — unless you were dispatched to stop at PR-opened (e.g. by `dispatching-issue-fleet`, as an `anvil-issue-worker` via `dispatch-single.md`, or by `anvil build`), where the orchestrator owns review and runs that chain itself.
 
 When a responding-to-pr-review loop needs to wait for CI or a reviewer pass, invoke the out-of-band poller **once** instead of polling in-agent:
 

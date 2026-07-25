@@ -23,10 +23,15 @@ Prompt body:
 
 ## After the worker returns — the chain is yours
 
-The worker halts at PR-opened by contract: in-subagent review polling is where one-off workers hang, and a subagent cannot dispatch the reviewer sub-subagent anyway. So the rest of the chain runs **in your main thread**, never delegated back into a worker. A `Blocker:` line instead of a PR url ends the run here — record it and stop.
+The worker halts at PR-opened by contract: in-subagent review polling is where one-off workers hang, and a subagent cannot dispatch the reviewer sub-subagent anyway. So the rest of the chain runs **in your main thread**, never delegated back into a worker.
+
+The worker's last line decides what happens next:
+
+- **A PR url** — run the two steps below.
+- **`Blocker: <one line>`** — record it and stop. The issue stays `in-progress` for a human.
+- **Anything else** (malformed return, dead worker) — read `git log --stat <branch>` for the `wip:` checkpoint commits it left, then re-dispatch or take over in your main thread.
 
 1. **Review** — fire `reviewing-pr` on the returned PR. It dispatches a fresh `anvil-pr-reviewer` and hands back structured findings.
-2. **Respond** — fire `responding-to-pr-review` with that report. Every finding gets an outcome: apply, skip-with-reason, or push-back.
-3. **Merge** — the human decides, per PR. On approval: `anvil transition issue <id> resolved --land-pr <n>`, which gates on mergeable + CI-green, merges, verifies, removes the worktree, and resolves in one call.
+2. **Respond** — on any blocker/high/actionable-medium, fire `responding-to-pr-review` with that report; an all-≤low report goes straight to the merge decision. That skill drives each finding to an outcome and then carries the per-PR merge gate itself — `--land-pr`, distil, handoff. Do not re-run those here.
 
-Steps 1 and 2 are not optional politeness — they are the independent-review and human-merge gates, the named defense against dispatch shipping unreviewed work. Skipping them because CI is green defeats the point of dispatching at all.
+Step 1 is the independent-review gate, and `responding-to-pr-review`'s merge gate is the human one. Neither is optional politeness: they are the named defense against dispatch shipping unreviewed work, and skipping them because CI is green defeats the point of dispatching at all.
