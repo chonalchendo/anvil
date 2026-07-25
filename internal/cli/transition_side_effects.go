@@ -25,6 +25,7 @@ var (
 	gitMainRootFn          = gitMainRootReal
 	gitFetchOriginFn       = gitFetchOriginReal
 	gitResolveOriginHEADFn = gitResolveOriginHEADReal
+	resolveProjectRepoFn   = resolveProjectRepoReal
 	ghPRViewJSONFn         = ghPRViewJSONReal
 	ghPRChecksFn           = ghPRChecksReal
 	ghPRMergeFn            = ghPRMergeReal
@@ -97,19 +98,29 @@ func gitWorktreeAddReal(repoDir, path, branch, startPoint string) error {
 	return nil
 }
 
-func gitFetchOriginReal() error {
-	out, err := exec.Command("git", "fetch", "origin").CombinedOutput() //nolint:gosec // binary path resolved from trusted sources; not user input
-	if err != nil {
+// gitFetchOriginReal runs `git fetch origin` from repoDir (the resolved
+// project repo), not the caller's ambient cwd.
+func gitFetchOriginReal(repoDir string) error {
+	cmd := exec.Command("git", "fetch", "origin") //nolint:gosec // binary path resolved from trusted sources; not user input
+	if repoDir != "" {
+		cmd.Dir = repoDir
+	}
+	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git fetch origin: %w: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
 
 // gitResolveOriginHEADReal resolves the symbolic ref origin/HEAD to a concrete
-// remote-tracking ref (e.g. "origin/master"). Returns an error when the remote
-// does not exist or has no HEAD — the caller falls back to local HEAD.
-func gitResolveOriginHEADReal() (string, error) {
-	out, err := exec.Command("git", "rev-parse", "--abbrev-ref", "origin/HEAD").Output() //nolint:gosec // binary path resolved from trusted sources; not user input
+// remote-tracking ref (e.g. "origin/master"), run from repoDir. Returns an
+// error when the remote does not exist or has no HEAD — the caller falls back
+// to local HEAD.
+func gitResolveOriginHEADReal(repoDir string) (string, error) {
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "origin/HEAD") //nolint:gosec // binary path resolved from trusted sources; not user input
+	if repoDir != "" {
+		cmd.Dir = repoDir
+	}
+	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("git rev-parse origin/HEAD: %w", err)
 	}
@@ -118,6 +129,27 @@ func gitResolveOriginHEADReal() (string, error) {
 		return "", errors.New("git rev-parse origin/HEAD: empty output")
 	}
 	return ref, nil
+}
+
+// resolveProjectRepoReal resolves the on-disk repo for a project via the
+// `~/Development/<project>` convention (the sibling of
+// `~/Development/<project>-worktrees` used by defaultWorktreePath). Refuses
+// with an error rather than silently falling back to the caller's cwd — the
+// bug this guards against is a worktree silently cut from whatever repo the
+// invoking session happens to be standing in.
+func resolveProjectRepoReal(project string) (string, error) {
+	home, err := userHomeFn()
+	if err != nil {
+		return "", err
+	}
+	dir := filepath.Join(home, "Development", project)
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return "", fmt.Errorf("project repo not found at %s (expected `~/Development/%s`)", dir, project)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
+		return "", fmt.Errorf("%s is not a git repo (no .git)", dir)
+	}
+	return dir, nil
 }
 
 func gitWorktreeRemoveReal(repoDir, path string) error {
@@ -149,15 +181,16 @@ func gitDeleteLocalBranchReal(repoDir, branch string) error {
 }
 
 // cutWorktreeIfNeeded creates `git worktree add path -b branch [startPoint]`
-// unless an entry already matches (idempotent). Errors on path/branch mismatch
-// with an existing worktree, or on git failure. Uses fleet.go's
-// gitWorktreeListFn (branch-keyed map).
+// from repoDir unless an entry already matches (idempotent). Errors on
+// path/branch mismatch with an existing worktree, or on git failure. Uses
+// fleet.go's gitWorktreeListFn (branch-keyed map).
 //
-// It fetches origin before cutting so the new branch starts from the remote's
-// current tip via origin/HEAD rather than a potentially stale local HEAD.
-// Offline, no-remote, or an unset origin/HEAD is non-fatal: a warning lands on
-// errW (the command's stderr) and the worktree falls back to local HEAD.
-func cutWorktreeIfNeeded(errW io.Writer, path, branch string) error {
+// It fetches origin (from repoDir) before cutting so the new branch starts
+// from the remote's current tip via origin/HEAD rather than a potentially
+// stale local HEAD. Offline, no-remote, or an unset origin/HEAD is non-fatal:
+// a warning lands on errW (the command's stderr) and the worktree falls back
+// to local HEAD.
+func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string) error {
 	worktrees, err := gitWorktreeListFn()
 	if err != nil {
 		return err
@@ -175,14 +208,14 @@ func cutWorktreeIfNeeded(errW io.Writer, path, branch string) error {
 	}
 	// Fetch origin so the new branch starts from the remote tip.
 	startPoint := ""
-	if ferr := gitFetchOriginFn(); ferr != nil {
+	if ferr := gitFetchOriginFn(repoDir); ferr != nil {
 		fmt.Fprintf(errW, "warning: git fetch origin failed (%v); branching from local HEAD\n", ferr)
-	} else if ref, rerr := gitResolveOriginHEADFn(); rerr != nil {
+	} else if ref, rerr := gitResolveOriginHEADFn(repoDir); rerr != nil {
 		fmt.Fprintf(errW, "warning: resolving origin/HEAD failed (%v); branching from local HEAD\n", rerr)
 	} else {
 		startPoint = ref
 	}
-	return gitWorktreeAddFn("", path, branch, startPoint)
+	return gitWorktreeAddFn(repoDir, path, branch, startPoint)
 }
 
 // gitMainRootReal returns the main worktree's root directory by deriving it
@@ -215,6 +248,12 @@ func doCutWorktree(errW io.Writer, a *core.Artifact, id, pathOverride, branchOve
 			Set("error", "issue id lacks `<project>.<slug>` shape").
 			Set("id", id)
 	}
+	repoDir, rerr := resolveProjectRepoFn(project)
+	if rerr != nil {
+		return "", "", errfmt.NewStructured("cut_worktree_repo_unresolved").
+			Set("project", project).
+			Set("error", rerr.Error())
+	}
 	wtPath := pathOverride
 	if wtPath == "" {
 		p, derr := defaultWorktreePath(project, slug)
@@ -227,7 +266,7 @@ func doCutWorktree(errW io.Writer, a *core.Artifact, id, pathOverride, branchOve
 	if branch == "" {
 		branch = project + "/" + slug
 	}
-	if err := cutWorktreeIfNeeded(errW, wtPath, branch); err != nil {
+	if err := cutWorktreeIfNeeded(errW, repoDir, wtPath, branch); err != nil {
 		return "", "", errfmt.NewStructured("cut_worktree_failed").
 			Set("path", wtPath).
 			Set("branch", branch).

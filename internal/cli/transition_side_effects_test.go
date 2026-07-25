@@ -39,8 +39,13 @@ type sideFXStub struct {
 
 	fetchErr      error
 	fetchCalls    int
+	fetchDirs     []string
 	originHEAD    string
 	originHEADErr error
+
+	repoDir     string
+	repoDirErr  error
+	repoDirArgs []string
 
 	viewByField       map[string][]byte
 	viewByFieldE      map[string]error
@@ -84,6 +89,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 	prevMain := gitMainRootFn
 	prevFetch := gitFetchOriginFn
 	prevOriginHEAD := gitResolveOriginHEADFn
+	prevResolveRepo := resolveProjectRepoFn
 	prevHome := userHomeFn
 	prevView := ghPRViewJSONFn
 	prevChecks := ghPRChecksFn
@@ -107,11 +113,25 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		return s.localBranchDeleteErr
 	}
 	gitMainRootFn = func() (string, error) { return s.mainRoot, s.mainErr }
-	gitFetchOriginFn = func() error {
+	gitFetchOriginFn = func(dir string) error {
 		s.fetchCalls++
+		s.fetchDirs = append(s.fetchDirs, dir)
 		return s.fetchErr
 	}
-	gitResolveOriginHEADFn = func() (string, error) { return s.originHEAD, s.originHEADErr }
+	gitResolveOriginHEADFn = func(_ string) (string, error) { return s.originHEAD, s.originHEADErr }
+	// Default mirrors the `~/Development/<project>` convention used by
+	// defaultWorktreePath, but from a static homeDir rather than userHomeFn
+	// (so tests exercising homeErr aren't coupled to repo resolution).
+	resolveProjectRepoFn = func(project string) (string, error) {
+		s.repoDirArgs = append(s.repoDirArgs, project)
+		if s.repoDirErr != nil {
+			return "", s.repoDirErr
+		}
+		if s.repoDir != "" {
+			return s.repoDir, nil
+		}
+		return filepath.Join(s.homeDir, "Development", project), nil
+	}
 	userHomeFn = func() (string, error) { return s.homeDir, s.homeErr }
 	ghPRViewJSONFn = func(_ int, fields string) ([]byte, error) {
 		if e := s.viewByFieldE[fields]; e != nil {
@@ -146,6 +166,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		gitMainRootFn = prevMain
 		gitFetchOriginFn = prevFetch
 		gitResolveOriginHEADFn = prevOriginHEAD
+		resolveProjectRepoFn = prevResolveRepo
 		userHomeFn = prevHome
 		ghPRViewJSONFn = prevView
 		ghPRChecksFn = prevChecks
@@ -837,6 +858,109 @@ func TestCutWorktreeRefusesWhenHomeLookupFails(t *testing.T) {
 	a := loadIssueDoc(t, vault, "demo.foo")
 	if a.FrontMatter["status"] != "open" {
 		t.Errorf("status = %v after refusal, want open (unchanged)", a.FrontMatter["status"])
+	}
+}
+
+// TestCutWorktreeResolvesRepoFromProject verifies anvil.0184: the worktree is
+// cut from the issue's project repo (resolved via resolveProjectRepoFn), not
+// from whatever repo the caller's ambient cwd happens to belong to. Every
+// repo-touching call — worktree add, fetch, origin/HEAD resolution — must
+// carry the resolved repoDir, not "" (which git would resolve from cwd).
+func TestCutWorktreeResolvesRepoFromProject(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	s.repoDir = "/Users/conal/Development/demo"
+
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree")
+
+	if len(s.repoDirArgs) != 1 || s.repoDirArgs[0] != "demo" {
+		t.Fatalf("resolveProjectRepoFn calls = %v, want one call for project %q", s.repoDirArgs, "demo")
+	}
+	if len(s.addCalls) != 1 || s.addCalls[0].Dir != s.repoDir {
+		t.Fatalf("add call dir = %q, want resolved repo %q (calls: %+v)", s.addCalls[0].Dir, s.repoDir, s.addCalls)
+	}
+	if len(s.fetchDirs) != 1 || s.fetchDirs[0] != s.repoDir {
+		t.Errorf("fetch dir = %v, want [%s]", s.fetchDirs, s.repoDir)
+	}
+}
+
+// TestCutWorktreeRefusesWhenRepoUnresolved verifies anvil.0184's refusal
+// path: when the issue's project repo cannot be resolved (missing directory,
+// not a git repo), the transition refuses loudly instead of silently cutting
+// from the caller's cwd repo.
+func TestCutWorktreeRefusesWhenRepoUnresolved(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	s.repoDirErr = errors.New("project repo not found at /Users/conal/Development/demo")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "cut_worktree_repo_unresolved") {
+		t.Errorf("missing error code: %s", stdout.String())
+	}
+	if len(s.addCalls) != 0 {
+		t.Errorf("expected zero add calls when repo unresolved, got %+v", s.addCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "open" {
+		t.Errorf("status = %v after refusal, want open (unchanged)", a.FrontMatter["status"])
+	}
+}
+
+func TestResolveProjectRepoRealRefusesMissingDir(t *testing.T) {
+	prevHome := userHomeFn
+	t.Cleanup(func() { userHomeFn = prevHome })
+	userHomeFn = func() (string, error) { return t.TempDir(), nil }
+
+	if _, err := resolveProjectRepoReal("does-not-exist"); err == nil {
+		t.Error("want error for a project with no `~/Development/<project>` dir")
+	}
+}
+
+func TestResolveProjectRepoRealRefusesNonGitDir(t *testing.T) {
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, "Development", "plain"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	prevHome := userHomeFn
+	t.Cleanup(func() { userHomeFn = prevHome })
+	userHomeFn = func() (string, error) { return home, nil }
+
+	if _, err := resolveProjectRepoReal("plain"); err == nil {
+		t.Error("want error for a directory without .git")
+	}
+}
+
+func TestResolveProjectRepoRealResolvesGitDir(t *testing.T) {
+	home := t.TempDir()
+	repo := filepath.Join(home, "Development", "demo")
+	if err := os.MkdirAll(filepath.Join(repo, ".git"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	prevHome := userHomeFn
+	t.Cleanup(func() { userHomeFn = prevHome })
+	userHomeFn = func() (string, error) { return home, nil }
+
+	got, err := resolveProjectRepoReal("demo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != repo {
+		t.Errorf("resolveProjectRepoReal = %q, want %q", got, repo)
 	}
 }
 
