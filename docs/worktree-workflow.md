@@ -4,7 +4,7 @@ Applies to every task in the anvil repo — non-negotiable.
 
 ## Cutting a Worktree
 
-**Issue-backed work:** skip the manual sequence — `anvil transition issue <id> in-progress --owner <name> --cut-worktree` claims, fetches, and branches from `origin/HEAD` in one call, emitting the worktree path. The manual sequence below remains for issueless tasks.
+**Issue-backed work:** skip the manual sequence — `anvil transition issue <id> in-progress --owner <name> --cut-worktree` claims, fetches, and branches from `origin/HEAD` in one call, emitting the worktree path. It resolves the repo from the issue's `project` (`~/Development/<project>`, or the cwd repo when that *is* the project), never from whatever repo you happen to be standing in, and refuses with `cut_worktree_repo_unresolved` when neither resolves. The manual sequence below remains for issueless tasks.
 
 ```bash
 git -C ~/Development/anvil fetch origin
