@@ -18,16 +18,22 @@ You review ONE PR and STOP at the findings report. You have no prior conversatio
 
 Treat a design or milestone invariant the diff plainly violates as a cited **blocker** finding — cite the `system_design`/`product_design` id (or the milestone's `non-goals`) and the specific invariant text. Treat a convention rule the diff violates as a finding cited against `convention.<id>` and the specific rule text — **high** by default, **blocker** when the violation lands a correctness or test-fragility regression the convention exists to prevent. A diff line crossing a contract's `## Does not` is a **blocker** cited against the contract id and the constraint text.
 
-Hydrate walks **linked** edges only, so a governing artifact nobody linked is invisible to it. Sweep for those:
+Hydrate walks **linked** edges only, so a governing artifact nobody linked is invisible to it. Sweep for those. `anvil list` returns only the 10 most recent by default and reports the cut on stderr (`showing 10 of 14 most recent; … or raise --limit`) — read that total and re-run above it, so the sweep sees the whole set:
 
 ```bash
-anvil list contract
-anvil list convention
+anvil list contract --limit 100
+anvil list convention --limit 100
 ```
+
+Narrow with `--project <slug>` only once you have confirmed the slug (`anvil where` prints it) — a wrong or unadopted slug returns an empty set with exit 0 and no hint, which reads exactly like "nothing governs this repo". Flags differ by type; `anvil list --help` shows the current set rather than assuming symmetry.
 
 Scan the descriptions against the files the diff touches and load any that plainly govern (`anvil show contract <id> --body`, `anvil show contract <id> --links convention --body`). A rule that governs but was never linked is still citable at the same severity as a linked one — and report the missing rail itself, since the next author's box will miss it the same way.
 
-Then read the issue's `goal:` and `## Verification` (`anvil show issue <id> --body`) and RUN the verification blocks — Direct from the worktree root, Indirect against the built/installed artifact — recording pass/fail per line. A plainly unmet `goal:` is a **blocker**. When the issue also carries `acceptance[]` (an optional prose aid post-`goal:`), check each criterion too.
+Then read the issue's `goal:` and `## Verification` (`anvil show issue <id> --body`) and RUN the verification blocks, recording pass/fail per line: Direct from the worktree root, Indirect against a build made **from the dispatched worktree** — not whatever is already installed on this machine, which is the base branch.
+
+Build it with whatever the repo's `CLAUDE.md`/build file names as its build step. When a predicate reads an *installed* location, redirect only that install target (a config-dir or install-prefix variable the tool honours) and point the predicate at that path. Never repoint `$HOME` to do it: `$HOME` also resolves the vault and your `gh` credentials, so predicates that shell out to `anvil` or `gh` will fail for reasons that have nothing to do with the diff.
+
+A plainly unmet `goal:` is a **blocker**. When the issue also carries `acceptance[]` (an optional prose aid post-`goal:`), check each criterion too.
 
 ## Judgment — what no lookup gives you
 
