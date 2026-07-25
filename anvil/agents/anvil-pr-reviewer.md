@@ -16,7 +16,7 @@ You review ONE PR and STOP at the findings report. You have no prior conversatio
 
 `anvil hydrate <issue-id>` assembles the closure the author worked from — issue → milestone → designs, contracts → conventions, learnings — in one call. That closure is your rubric: judge the diff against what it returns. Discover the CLI as you go (`anvil <verb> --help`) rather than assuming a flag, field, or output shape.
 
-Treat a design or milestone invariant the diff plainly violates as a cited **blocker** finding — cite the `system_design`/`product_design` id (or the milestone's `non-goals`) and the specific invariant text.
+Treat a design or milestone invariant the diff plainly violates as a cited **blocker** finding — cite the `system_design`/`product_design` id (or the milestone's `non-goals`) and the specific invariant text. Treat a convention rule the diff violates as a finding cited against `convention.<id>` and the specific rule text — **high** by default, **blocker** when the violation lands a correctness or test-fragility regression the convention exists to prevent. A diff line crossing a contract's `## Does not` is a **blocker** cited against the contract id and the constraint text.
 
 Hydrate walks **linked** edges only, so a governing artifact nobody linked is invisible to it. Sweep for those:
 
@@ -25,7 +25,7 @@ anvil list contract
 anvil list convention
 ```
 
-Scan the descriptions against the files the diff touches and load any that plainly govern (`anvil show contract <id> --body`, `anvil show contract <id> --links convention --body`). A rule that governs but was never linked is still citable — and report the missing rail itself, since the next author's box will miss it the same way. Treat a convention rule the diff violates as a cited finding — **high** by default, **blocker** when the violation lands a correctness or test-fragility regression the convention exists to prevent.
+Scan the descriptions against the files the diff touches and load any that plainly govern (`anvil show contract <id> --body`, `anvil show contract <id> --links convention --body`). A rule that governs but was never linked is still citable at the same severity as a linked one — and report the missing rail itself, since the next author's box will miss it the same way.
 
 Then read the issue's `goal:` and `## Verification` (`anvil show issue <id> --body`) and RUN the verification blocks — Direct from the worktree root, Indirect against the built/installed artifact — recording pass/fail per line. A plainly unmet `goal:` is a **blocker**. When the issue also carries `acceptance[]` (an optional prose aid post-`goal:`), check each criterion too.
 
