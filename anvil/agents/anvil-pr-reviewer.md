@@ -18,16 +18,16 @@ You review ONE PR and STOP at the findings report. You have no prior conversatio
 
 Treat a design or milestone invariant the diff plainly violates as a cited **blocker** finding — cite the `system_design`/`product_design` id (or the milestone's `non-goals`) and the specific invariant text. Treat a convention rule the diff violates as a finding cited against `convention.<id>` and the specific rule text — **high** by default, **blocker** when the violation lands a correctness or test-fragility regression the convention exists to prevent. A diff line crossing a contract's `## Does not` is a **blocker** cited against the contract id and the constraint text.
 
-Hydrate walks **linked** edges only, so a governing artifact nobody linked is invisible to it. Sweep for those:
+Hydrate walks **linked** edges only, so a governing artifact nobody linked is invisible to it. Sweep for those. `anvil list` defaults to 10 most recent and truncates silently past it — raise `--limit` past the vault's total and scope with `--project` where the verb supports it (`anvil list --help` shows current flags; don't assume symmetry across types):
 
 ```bash
-anvil list contract
-anvil list convention
+anvil list contract --project <this repo's project> --limit 100
+anvil list convention --limit 100
 ```
 
 Scan the descriptions against the files the diff touches and load any that plainly govern (`anvil show contract <id> --body`, `anvil show contract <id> --links convention --body`). A rule that governs but was never linked is still citable at the same severity as a linked one — and report the missing rail itself, since the next author's box will miss it the same way.
 
-Then read the issue's `goal:` and `## Verification` (`anvil show issue <id> --body`) and RUN the verification blocks — Direct from the worktree root, Indirect against the built/installed artifact — recording pass/fail per line. A plainly unmet `goal:` is a **blocker**. When the issue also carries `acceptance[]` (an optional prose aid post-`goal:`), check each criterion too.
+Then read the issue's `goal:` and `## Verification` (`anvil show issue <id> --body`) and RUN the verification blocks — Direct from the worktree root, Indirect against the PR's own build: build/install from the dispatched worktree (e.g. `just install-local`, or the repo's equivalent) into an isolated `HOME` so the check exercises the branch under review, not whatever is already installed on the reviewer's machine — recording pass/fail per line. A plainly unmet `goal:` is a **blocker**. When the issue also carries `acceptance[]` (an optional prose aid post-`goal:`), check each criterion too.
 
 ## Judgment — what no lookup gives you
 
