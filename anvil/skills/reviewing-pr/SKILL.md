@@ -30,7 +30,7 @@ If the diff is >800 LOC or touches >10 files, surface the size to the user befor
 
 ## Phase 2 — Dispatch fresh subagent
 
-Fire one Agent-tool call with `subagent_type=anvil-pr-reviewer` (`anvil/agents/anvil-pr-reviewer.md`). Its frontmatter pins the review **model** so the review never silently inherits this session's, and its body carries the whole recipe — the four-axis rubric gate and how each resolves, the always-on judgment axes, the findings format, the return contract. Restating any of it here is how the two copies drift; the dispatch prompt carries **fill-ins only**:
+Fire one Agent-tool call with `subagent_type=anvil-pr-reviewer` (`anvil/agents/anvil-pr-reviewer.md`). Its frontmatter pins the review **model** so the review never silently inherits this session's, and its body owns the review itself — it loads the context box with `anvil hydrate`, sweeps for governing artifacts nobody linked, and carries the judgment axes, findings format, and return contract. Restating any of it here is how the two copies drift; the dispatch prompt carries **fill-ins only**:
 
 - PR number and repo
 - the linked issue id (from the PR body's reference or the branch slug) — or state that none resolves
@@ -43,7 +43,7 @@ Fallback: if the agent type is unavailable (freshly installed agents need a sess
 
 ## Phase 3 — Findings contract
 
-The report shape, the severity bands (**blocker** / **high** / **medium** / **low**), and the rule that an uncited finding drops one band all belong to the reviewer contract — it applies them, this skill only interprets them below. Its return closes with three accounting lines, `Rubric loads:` / `Verification:` / `Findings:`, which are what Phase 4 routes on.
+The report shape, the severity bands (**blocker** / **high** / **medium** / **low**), and the rule that an uncited finding drops one band all belong to the reviewer contract — it applies them, this skill only interprets them below. Its return closes with three accounting lines, `Context loaded:` / `Verification:` / `Findings:`, which are what Phase 4 routes on.
 
 ## Phase 4 — Interpret findings
 
@@ -51,7 +51,7 @@ Read the subagent's report and route:
 
 - **All findings ≤low and CI green** — surface "no actionable findings" to the user; the PR is ready for the human's merge decision.
 - **Any blocker/high, or actionable medium** — fire `responding-to-pr-review`, handing it **the structured report (Phase 3 findings) and the subagent id**. These findings are thread-less, so its loop drives each through apply / skip-with-reason / push-back exactly as it does a human reviewer's inline threads — a blocker gets implemented, not summarized. The subagent id keys the post-resolution summary so the audit trail survives the handoff.
-- **A resolvable rubric axis reported unloaded** — the `Rubric loads:` line skips an axis whose source plainly resolves (a contract link the issue does carry, a spine `hydrate` does assemble). The review judged the diff with part of its gate shut; re-dispatch rather than accept it. A skip the line *justifies* ("no contract link resolved") is a recorded fact, not a defect.
+- **`Context loaded:` reports a gap that plainly resolves** — hydrate failed on a dangling spine edge, or the sweep skipped a contract/convention that governs the touched files. The review judged the diff with part of its context shut; re-dispatch rather than accept it. A gap the line *justifies* ("no contract governs these files") is a recorded fact, not a defect — and a missing rail the reviewer reports is a link to repair, not a re-dispatch.
 - **Subagent malformed return** (not the reviewer contract's findings format) — re-dispatch once with a tightened prompt naming the format verbatim. If the second dispatch also malforms, stop and surface a handoff-required failure to the user; log the malformation via `anvil create inbox` and wait for manual review or a later retry. Do **not** fall back to main-session review — that defeats the Iron Law.
 
 Do **not** silently drop findings the subagent surfaced. A finding you judge wrong or out-of-scope goes in an explicit **Dismissed** bucket in the report you surface — the finding plus a one-line reason — kept visible so the human can override; disagreement is recorded, not erased. Findings you act on route through the responding-to-pr-review loop. The audit trail matters more than the disagreement.
