@@ -26,6 +26,7 @@ func loadIssueDoc(t *testing.T, vault, id string) *core.Artifact {
 type sideFXStub struct {
 	listEntries            map[string]worktreeInfo
 	listErr                error
+	listDirs               []string
 	addErr                 error
 	addCalls               []addCall
 	removeErr              error
@@ -97,7 +98,8 @@ func stubSideFX(t *testing.T) *sideFXStub {
 	prevDeleteBranch := ghDeleteBranchFn
 	prevSleep := mergeabilityPollSleep
 
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) {
+	gitWorktreeListFn = func(dir string) (map[string]worktreeInfo, error) {
+		s.listDirs = append(s.listDirs, dir)
 		return s.listEntries, s.listErr
 	}
 	gitWorktreeAddFn = func(dir, path, branch, startPoint string) error {
@@ -873,7 +875,7 @@ func TestCutWorktreeResolvesRepoFromProject(t *testing.T) {
 	createDemoIssue(t)
 
 	s := stubSideFX(t)
-	s.repoDir = "/Users/conal/Development/demo"
+	s.repoDir = filepath.Join(t.TempDir(), "Development", "demo")
 
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree")
 
@@ -888,6 +890,49 @@ func TestCutWorktreeResolvesRepoFromProject(t *testing.T) {
 	}
 }
 
+// TestCutWorktreeListsFromResolvedRepo pins the idempotency pre-check to the
+// resolved project repo. Listing from the caller's ambient cwd let a
+// same-branch worktree in the *caller's* repo short-circuit the cut, so the
+// command returned a wrong-repo worktree as success — the silent path
+// anvil.0184's goal rules out.
+func TestCutWorktreeListsFromResolvedRepo(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	s.repoDir = filepath.Join(t.TempDir(), "Development", "demo")
+
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree")
+
+	if len(s.listDirs) != 1 || s.listDirs[0] != s.repoDir {
+		t.Fatalf("worktree list dirs = %v, want [%s] (ambient cwd listing reopens the wrong-repo cut)", s.listDirs, s.repoDir)
+	}
+}
+
+// TestResolveProjectRepoAcceptsCwdWhenItIsTheProject covers a checkout living
+// outside the `~/Development/<project>` convention: the cwd is accepted only
+// when its toplevel basename matches the project, so a correct-repo caller is
+// not refused while an arbitrary cwd still is.
+func TestResolveProjectRepoAcceptsCwdWhenItIsTheProject(t *testing.T) {
+	prevHome, prevTop := userHomeFn, gitToplevelFn
+	t.Cleanup(func() { userHomeFn, gitToplevelFn = prevHome, prevTop })
+	userHomeFn = func() (string, error) { return t.TempDir(), nil } // no Development/demo
+
+	elsewhere := filepath.Join(t.TempDir(), "src", "demo")
+	gitToplevelFn = func() (string, error) { return elsewhere, nil }
+	got, err := resolveProjectRepoReal("demo")
+	if err != nil || got != elsewhere {
+		t.Fatalf("resolveProjectRepoReal(demo) = %q, %v; want %q, nil", got, err, elsewhere)
+	}
+
+	gitToplevelFn = func() (string, error) { return filepath.Join(t.TempDir(), "src", "mentat"), nil }
+	if _, err := resolveProjectRepoReal("demo"); err == nil {
+		t.Fatal("resolveProjectRepoReal(demo) from a mentat cwd = nil error, want refusal")
+	}
+}
+
 // TestCutWorktreeRefusesWhenRepoUnresolved verifies anvil.0184's refusal
 // path: when the issue's project repo cannot be resolved (missing directory,
 // not a git repo), the transition refuses loudly instead of silently cutting
@@ -899,7 +944,7 @@ func TestCutWorktreeRefusesWhenRepoUnresolved(t *testing.T) {
 	createDemoIssue(t)
 
 	s := stubSideFX(t)
-	s.repoDirErr = errors.New("project repo not found at /Users/conal/Development/demo")
+	s.repoDirErr = errors.New("project repo not found (expected `~/Development/demo`)")
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--json"})

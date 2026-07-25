@@ -283,7 +283,7 @@ func swapFleetStubs(
 	comments map[int]int,
 ) func() {
 	origWT, origPush, origPR, origCom := gitWorktreeListFn, gitPushStateFn, ghPRViewFn, ghPRCommentsFn
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) {
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) {
 		if worktrees == nil {
 			return map[string]worktreeInfo{}, nil
 		}

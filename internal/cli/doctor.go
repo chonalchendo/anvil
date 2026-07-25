@@ -110,7 +110,7 @@ func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 		return nil, fmt.Errorf("reading issues: %w", err)
 	}
 
-	worktrees, _ := gitWorktreeListFn() // best-effort
+	worktrees, _ := gitWorktreeListFn("") // best-effort
 
 	children := make([]childIssue, 0, len(issuePaths))
 	for _, p := range issuePaths {

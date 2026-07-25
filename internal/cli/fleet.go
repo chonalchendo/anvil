@@ -149,7 +149,7 @@ func buildFleetRows(v *core.Vault) ([]fleetRow, error) {
 		return nil, err
 	}
 
-	worktrees, _ := gitWorktreeListFn() // best-effort; empty map is fine
+	worktrees, _ := gitWorktreeListFn("") // best-effort; empty map is fine
 
 	var rows []fleetRow
 	for _, p := range paths {
@@ -320,11 +320,15 @@ type worktreeInfo struct {
 // map keyed by branch name ("anvil/<slug>"). Worktrees without a branch (e.g.
 // detached HEAD) are skipped because the fleet workflow assumes each task
 // runs on its own branch. Bare worktrees are similarly skipped.
-func gitWorktreeListReal() (map[string]worktreeInfo, error) {
+// repoDir scopes the listing to a specific repo; "" keeps the caller's
+// ambient cwd, which is what the fleet/doctor read-only views want.
+func gitWorktreeListReal(repoDir string) (map[string]worktreeInfo, error) {
 	if _, err := exec.LookPath("git"); err != nil {
 		return nil, err
 	}
-	out, err := exec.Command("git", "worktree", "list", "--porcelain").Output()
+	cmd := exec.Command("git", "worktree", "list", "--porcelain") //nolint:gosec // binary path resolved from trusted sources; not user input
+	cmd.Dir = repoDir
+	out, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}

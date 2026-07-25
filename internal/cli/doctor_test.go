@@ -90,7 +90,7 @@ func TestDoctorDeadClaim(t *testing.T) {
 	// No worktrees, no open PRs, and doctor runs from a different session.
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
 	t.Setenv(envSessionID, "some-other-session")
 
 	// No external_links on this issue — dead claim with no PR.
@@ -142,7 +142,7 @@ func TestDoctorDeadClaim_MergedBranchRecommendsResolve(t *testing.T) {
 
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
 	t.Setenv(envSessionID, "some-other-session")
 
 	// The conventional branch anvil/merged-fix-0020 has a merged PR.
@@ -201,7 +201,7 @@ func TestDoctorDeadClaim_NoMergedBranchRecommendsOpen(t *testing.T) {
 
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
 	t.Setenv(envSessionID, "some-other-session")
 
 	oldMerged := ghMergedPRForBranchFn
@@ -256,7 +256,7 @@ func TestDoctorDeadClaim_LiveWorktreeSuppresses(t *testing.T) {
 	// The slug is the part after the first "." in the issue id.
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) {
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) {
 		return map[string]worktreeInfo{
 			"anvil/live-0003": {path: "/tmp/live-0003"},
 		}, nil
@@ -305,7 +305,7 @@ func TestDoctorDeadClaim_RenamedBranchWorktreeSuppresses(t *testing.T) {
 	// slug — only the worktree directory name still matches.
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) {
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) {
 		return map[string]worktreeInfo{
 			"foo/harden-renamed-0005-orphan-filter": {path: "/tmp/foo-worktrees/renamed-0005"},
 		}, nil
@@ -350,7 +350,7 @@ func TestDoctorDeadClaim_CurrentSessionSuppresses(t *testing.T) {
 
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
 	t.Setenv(envSessionID, "this-session-uuid")
 
 	findings, err := runDoctor(v, "foo")
@@ -392,7 +392,7 @@ func TestDoctorDeadClaim_OtherProjectSkipped(t *testing.T) {
 
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
 	t.Setenv(envSessionID, "some-other-session")
 
 	findings, err := runDoctor(v, "foo")
@@ -472,7 +472,7 @@ func TestDoctorDeadClaim_LiveSessionSuppresses(t *testing.T) {
 
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
 	t.Setenv(envSessionID, "some-other-session")
 
 	findings, err := runDoctor(v, "foo")
@@ -498,7 +498,7 @@ func TestDoctorDeadClaim_StaleSessionFlagged(t *testing.T) {
 
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
 	t.Setenv(envSessionID, "some-other-session")
 
 	findings, err := runDoctor(v, "foo")
@@ -529,7 +529,7 @@ func TestDoctorDeadClaim_SessionWithoutStartedAtFlagged(t *testing.T) {
 
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
 	t.Setenv(envSessionID, "some-other-session")
 
 	findings, err := runDoctor(v, "foo")
@@ -606,7 +606,7 @@ func TestDoctorFinishedMilestone(t *testing.T) {
 	// No worktrees.
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
 
 	findings, err := runDoctor(v, "anvil")
 	if err != nil {
@@ -671,7 +671,7 @@ func runFinishedMilestoneCheck(t *testing.T, status, kind string) bool {
 
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
 
 	findings, err := runDoctor(v, "anvil")
 	if err != nil {
@@ -749,7 +749,7 @@ func runContractRailCheck(t *testing.T, status, body string, withConvention bool
 
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
 
 	findings, err := runDoctor(v, "anvil")
 	if err != nil {
@@ -795,7 +795,7 @@ func TestDoctorOrphanWorktree(t *testing.T) {
 
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) {
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) {
 		return map[string]worktreeInfo{
 			"anvil/orphaned-slug": {path: "/tmp/orphaned"},
 		}, nil
@@ -832,7 +832,7 @@ func TestDoctorOrphanWorktree_NoMergedPRNotFlagged(t *testing.T) {
 
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) {
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) {
 		return map[string]worktreeInfo{
 			"anvil/in-flight-slug": {path: "/tmp/in-flight"},
 		}, nil
@@ -886,7 +886,7 @@ func TestDoctorJSON_Envelope(t *testing.T) {
 
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
 
 	cmd := newRootCmd()
 	stdout, _, err := runCmd(t, cmd, "doctor", "--json")
@@ -945,7 +945,7 @@ func TestDoctorJSON_EmptyFindings(t *testing.T) {
 
 	oldWT := gitWorktreeListFn
 	t.Cleanup(func() { gitWorktreeListFn = oldWT })
-	gitWorktreeListFn = func() (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
 
 	cmd := newRootCmd()
 	stdout, _, err := runCmd(t, cmd, "doctor", "--json")

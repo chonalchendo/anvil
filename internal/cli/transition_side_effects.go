@@ -26,6 +26,7 @@ var (
 	gitFetchOriginFn       = gitFetchOriginReal
 	gitResolveOriginHEADFn = gitResolveOriginHEADReal
 	resolveProjectRepoFn   = resolveProjectRepoReal
+	gitToplevelFn          = gitToplevelReal
 	ghPRViewJSONFn         = ghPRViewJSONReal
 	ghPRChecksFn           = ghPRChecksReal
 	ghPRMergeFn            = ghPRMergeReal
@@ -102,9 +103,7 @@ func gitWorktreeAddReal(repoDir, path, branch, startPoint string) error {
 // project repo), not the caller's ambient cwd.
 func gitFetchOriginReal(repoDir string) error {
 	cmd := exec.Command("git", "fetch", "origin") //nolint:gosec // binary path resolved from trusted sources; not user input
-	if repoDir != "" {
-		cmd.Dir = repoDir
-	}
+	cmd.Dir = repoDir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git fetch origin: %w: %s", err, strings.TrimSpace(string(out)))
 	}
@@ -117,9 +116,7 @@ func gitFetchOriginReal(repoDir string) error {
 // to local HEAD.
 func gitResolveOriginHEADReal(repoDir string) (string, error) {
 	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "origin/HEAD") //nolint:gosec // binary path resolved from trusted sources; not user input
-	if repoDir != "" {
-		cmd.Dir = repoDir
-	}
+	cmd.Dir = repoDir
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("git rev-parse origin/HEAD: %w", err)
@@ -137,19 +134,35 @@ func gitResolveOriginHEADReal(repoDir string) (string, error) {
 // with an error rather than silently falling back to the caller's cwd — the
 // bug this guards against is a worktree silently cut from whatever repo the
 // invoking session happens to be standing in.
+//
+// The cwd is accepted only when it *is* the project's repo (toplevel basename
+// == project), which covers a checkout living outside the convention path
+// without reopening the wrong-repo cut.
 func resolveProjectRepoReal(project string) (string, error) {
 	home, err := userHomeFn()
 	if err != nil {
 		return "", err
 	}
 	dir := filepath.Join(home, "Development", project)
-	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+	if info, serr := os.Stat(dir); serr != nil || !info.IsDir() {
+		if top, terr := gitToplevelFn(); terr == nil && filepath.Base(top) == project {
+			return top, nil
+		}
 		return "", fmt.Errorf("project repo not found at %s (expected `~/Development/%s`)", dir, project)
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
 		return "", fmt.Errorf("%s is not a git repo (no .git)", dir)
 	}
 	return dir, nil
+}
+
+// gitToplevelReal returns the repo root of the caller's cwd.
+func gitToplevelReal() (string, error) {
+	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output() //nolint:gosec // binary path resolved from trusted sources; not user input
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func gitWorktreeRemoveReal(repoDir, path string) error {
@@ -191,7 +204,7 @@ func gitDeleteLocalBranchReal(repoDir, branch string) error {
 // a warning lands on errW (the command's stderr) and the worktree falls back
 // to local HEAD.
 func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string) error {
-	worktrees, err := gitWorktreeListFn()
+	worktrees, err := gitWorktreeListFn(repoDir)
 	if err != nil {
 		return err
 	}
@@ -380,7 +393,7 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) e
 		}
 	}
 	if resolved == "" && headBranch != "" {
-		if worktrees, lerr := gitWorktreeListFn(); lerr == nil {
+		if worktrees, lerr := gitWorktreeListFn(""); lerr == nil {
 			if info, ok := worktrees[headBranch]; ok {
 				resolved = info.path
 			}
