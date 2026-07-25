@@ -20,3 +20,13 @@ Fill these per-call values into the dispatch prompt — the agent file carries t
 Prompt body:
 
 > Complete anvil issue `<issue-id>`. Worktree: `<worktree-path>` on branch `<branch>`. Declared files (estimate, grep to confirm): `<declared-files>`.
+
+## After the worker returns — the chain is yours
+
+The worker halts at PR-opened by contract: in-subagent review polling is where one-off workers hang, and a subagent cannot dispatch the reviewer sub-subagent anyway. So the rest of the chain runs **in your main thread**, never delegated back into a worker. A `Blocker:` line instead of a PR url ends the run here — record it and stop.
+
+1. **Review** — fire `reviewing-pr` on the returned PR. It dispatches a fresh `anvil-pr-reviewer` and hands back structured findings.
+2. **Respond** — fire `responding-to-pr-review` with that report. Every finding gets an outcome: apply, skip-with-reason, or push-back.
+3. **Merge** — the human decides, per PR. On approval: `anvil transition issue <id> resolved --land-pr <n>`, which gates on mergeable + CI-green, merges, verifies, removes the worktree, and resolves in one call.
+
+Steps 1 and 2 are not optional politeness — they are the independent-review and human-merge gates, the named defense against dispatch shipping unreviewed work. Skipping them because CI is green defeats the point of dispatching at all.
