@@ -108,21 +108,23 @@ func checkWikilink(v *Vault, field, s string) (UnresolvedLink, bool) {
 	return checkWikilinkTarget(v, field, m[1])
 }
 
-func checkWikilinkTarget(v *Vault, field, target string) (UnresolvedLink, bool) {
-	// A target containing id-illegal chars (<, >, or whitespace) is a
-	// documentation placeholder — it can never be a real artifact id, so
-	// treat it as literal text rather than a resolvable link.
+// wikilinkTargetPath maps a wikilink target (`type.id`, brackets already
+// stripped) to the file that would hold it. ok is false when the target cannot
+// name an artifact at all: id-illegal chars (<, >, whitespace) mark a
+// documentation placeholder, and a missing dot or unknown type prefix is not a
+// vault reference.
+func wikilinkTargetPath(v *Vault, target string) (string, bool) {
 	if strings.ContainsAny(target, "<> \t\n") {
-		return UnresolvedLink{}, false
+		return "", false
 	}
 	dot := strings.IndexByte(target, '.')
 	if dot < 0 {
-		return UnresolvedLink{}, false
+		return "", false
 	}
 	prefix, id := target[:dot], target[dot+1:]
 	t, err := ParseType(prefix)
 	if err != nil {
-		return UnresolvedLink{}, false
+		return "", false
 	}
 	// Design-type and convention ids keep the type prefix (e.g. system-design.burgh,
 	// convention.python) for global uniqueness, so the on-disk id is the full
@@ -131,7 +133,27 @@ func checkWikilinkTarget(v *Vault, field, target string) (UnresolvedLink, bool) 
 	if t == TypeProductDesign || t == TypeSystemDesign || t == TypeConvention {
 		fileID = target
 	}
-	path := filepath.Join(v.Root, t.Dir(), fileID+".md")
+	return filepath.Join(v.Root, t.Dir(), fileID+".md"), true
+}
+
+// WikilinkTargetExists reports whether target names an artifact file present
+// in v. It is a predicate, not a reporter: ResolveLinks returns nothing both
+// for "resolves" and for "not a link at all", so a write path asking "may I
+// embed this edge?" must not read its empty result as existence.
+func WikilinkTargetExists(v *Vault, target string) bool {
+	path, ok := wikilinkTargetPath(v, target)
+	if !ok {
+		return false
+	}
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func checkWikilinkTarget(v *Vault, field, target string) (UnresolvedLink, bool) {
+	path, ok := wikilinkTargetPath(v, target)
+	if !ok {
+		return UnresolvedLink{}, false
+	}
 	if _, err := os.Stat(path); err == nil {
 		return UnresolvedLink{}, false
 	}

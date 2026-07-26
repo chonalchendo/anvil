@@ -136,6 +136,15 @@ func newLinkCmd() *cobra.Command {
 // disk, so both the printed form and the bare form are tried and whichever
 // resolves wins.
 func resolveLinkTarget(v *core.Vault, tgt core.Type, id string) (string, error) {
+	// An id carrying <, >, or whitespace is an unsubstituted documentation
+	// placeholder (e.g. `anvil link issue <id> system-design <project>` copied
+	// verbatim). No artifact id can contain these, so refuse before consulting
+	// the resolver — the link indexer would still write the edge, leaving a
+	// dead one `show --validate` cannot see.
+	if i := strings.IndexAny(id, "<> \t\n"); i >= 0 {
+		return "", fmt.Errorf("target id %q contains %q, which no artifact id may contain; substitute the real id `anvil list %s` prints",
+			id, id[i:i+1], tgt)
+	}
 	candidates := []string{id}
 	if bare, found := strings.CutPrefix(id, string(tgt)+"."); found && bare != "" {
 		candidates = append(candidates, bare)
@@ -143,9 +152,9 @@ func resolveLinkTarget(v *core.Vault, tgt core.Type, id string) (string, error) 
 	tried := make([]string, 0, len(candidates))
 	for _, c := range candidates {
 		target := fmt.Sprintf("%s.%s", tgt, c)
-		// Defer to the resolver `--validate` uses, so the write path and the
+		// Same on-disk lookup `--validate` uses, so the write path and the
 		// validator can never disagree about what a live edge is.
-		if len(core.ResolveLinks(v, map[string]any{"related": "[[" + target + "]]"})) == 0 {
+		if core.WikilinkTargetExists(v, target) {
 			return c, nil
 		}
 		tried = append(tried, "[["+target+"]]")

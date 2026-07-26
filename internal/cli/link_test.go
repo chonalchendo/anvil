@@ -161,7 +161,7 @@ func TestLink_ExternalRejectsWhitespaceOnly(t *testing.T) {
 func TestLink_AnyPair_WritesToRelated(t *testing.T) {
 	vault := setupVault(t)
 	writeFixturePlan(t, vault, "foo", "q2", "Q2")
-	writeFixtureDecision(t, vault, "auth.0001-x")
+	writeFixtureTyped(t, vault, "30-decisions", "decision", "auth.0001-x")
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"link", "plan", "foo.q2", "decision", "auth.0001-x"})
 	if err := cmd.Execute(); err != nil {
@@ -368,11 +368,6 @@ func writeFixtureTyped(t *testing.T, vault, dir, typ, id string) {
 	}
 }
 
-func writeFixtureDecision(t *testing.T, vault, id string) {
-	t.Helper()
-	writeFixtureTyped(t, vault, "30-decisions", "decision", id)
-}
-
 // TestLink_CanonicalPrefixedTargetId pins the fix for the double-prefix trap:
 // convention and design ids keep their type prefix on disk, so the id every
 // anvil surface prints must produce the same edge as the bare form rather than
@@ -439,6 +434,51 @@ func TestLink_RejectsMissingTarget(t *testing.T) {
 	}
 	if related, ok := a.FrontMatter["related"]; ok {
 		t.Errorf("related written despite refusal: %v", related)
+	}
+}
+
+// TestLink_RejectsPlaceholderTarget pins the dead-edge hole the existence guard
+// alone left open: `core.WikilinkTargetExists` reports false for an id carrying
+// <, >, or whitespace (it can never name an artifact), but the link indexer's
+// `^\[\[([^\]]+)\]\]$` still matches those tokens — so an unsubstituted
+// `writing-issue` Phase 4b placeholder would land a real graph edge to nothing
+// while `show --validate` stayed green.
+func TestLink_RejectsPlaceholderTarget(t *testing.T) {
+	cases := []struct {
+		name    string
+		tgtType string
+		tgtID   string
+	}{
+		{"angle-bracket placeholder", "system-design", "<project>"},
+		{"whitespace in id", "convention", "sqlmesh bad"},
+		{"prefixed placeholder", "system-design", "system-design.<project>"},
+		{"tab in id", "convention", "sqlmesh\tbad"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vault := setupVault(t)
+			writeFixturePlan(t, vault, "foo", "q2", "Q2")
+
+			cmd := newRootCmd()
+			cmd.SetArgs([]string{"link", "plan", "foo.q2", tc.tgtType, tc.tgtID})
+			cmd.SetOut(&bytes.Buffer{})
+			cmd.SetErr(&bytes.Buffer{})
+			err := cmd.Execute()
+			if err == nil {
+				t.Fatalf("expected error linking to placeholder %q", tc.tgtID)
+			}
+			// The message quotes the id with %q, so a tab arrives escaped.
+			if !strings.Contains(err.Error(), fmt.Sprintf("%q", tc.tgtID)) {
+				t.Errorf("error %q does not name the offending target %q", err, tc.tgtID)
+			}
+			a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if related, ok := a.FrontMatter["related"]; ok {
+				t.Errorf("related written despite refusal: %v", related)
+			}
+		})
 	}
 }
 

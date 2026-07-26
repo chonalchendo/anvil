@@ -300,3 +300,38 @@ func TestResolveBodyLinks_TwoFencedBlocksProseInBetween(t *testing.T) {
 		t.Errorf("expected 0 unresolved, got %v", got)
 	}
 }
+
+// TestWikilinkTargetExists pins the predicate/reporter split: ResolveLinks
+// returns nothing both for "resolves" and for "not a link at all", so a write
+// path must not read its empty result as existence. Every non-artifact form —
+// placeholder, whitespace, no dot, unknown type — is false here.
+func TestWikilinkTargetExists(t *testing.T) {
+	v := newScaffolded(t)
+	writeBlankIssue(t, v, "anvil.real")
+	cp := filepath.Join(v.Root, TypeConvention.Dir(), "convention.sqlmesh.md")
+	if err := os.MkdirAll(filepath.Dir(cp), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cp, []byte("---\ntype: convention\n---\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		target string
+		want   bool
+	}{
+		{"issue.anvil.real", true},
+		{"convention.sqlmesh", true},
+		{"issue.anvil.ghost", false},
+		{"system-design.<project>", false},
+		{"convention.sqlmesh bad", false},
+		{"convention.sqlmesh\tbad", false},
+		{"nodot", false},
+		{"notatype.thing", false},
+	}
+	for _, tc := range cases {
+		if got := WikilinkTargetExists(v, tc.target); got != tc.want {
+			t.Errorf("WikilinkTargetExists(%q) = %v, want %v", tc.target, got, tc.want)
+		}
+	}
+}
