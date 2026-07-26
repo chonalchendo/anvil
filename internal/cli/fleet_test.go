@@ -65,6 +65,56 @@ func TestRollupCI(t *testing.T) {
 	}
 }
 
+// TestRollupCI_StatusContext covers the legacy Commit Status shape (CircleCI
+// and friends): only `state` is populated, `conclusion`/`status` are empty.
+// Reading conclusion alone pends a green StatusContext forever.
+func TestRollupCI_StatusContext(t *testing.T) {
+	cases := []struct {
+		name string
+		in   []ghStatusCheck
+		want string
+	}{
+		{"empty-rollup", nil, ""},
+		{"green-StatusContext-no-conclusion", []ghStatusCheck{
+			{State: "SUCCESS"},
+		}, "success"},
+		{"pending-StatusContext", []ghStatusCheck{
+			{State: "PENDING"},
+		}, "pending"},
+		{"failing-StatusContext", []ghStatusCheck{
+			{State: "FAILURE"},
+		}, "failure"},
+		{"errored-StatusContext", []ghStatusCheck{
+			{State: "ERROR"},
+		}, "failure"},
+		{"startup-failure-is-failure", []ghStatusCheck{
+			{Conclusion: "STARTUP_FAILURE", Status: "COMPLETED"},
+		}, "failure"},
+		{"green-CheckRun-plus-pending-StatusContext", []ghStatusCheck{
+			{Conclusion: "SUCCESS", Status: "COMPLETED"},
+			{State: "PENDING"},
+		}, "pending"},
+		{"green-CheckRun-plus-green-StatusContext", []ghStatusCheck{
+			{Conclusion: "SUCCESS", Status: "COMPLETED"},
+			{State: "SUCCESS"},
+		}, "success"},
+		{"failing-StatusContext-beats-green-CheckRun", []ghStatusCheck{
+			{Conclusion: "SUCCESS", Status: "COMPLETED"},
+			{State: "FAILURE"},
+		}, "failure"},
+		{"unclassifiable-entry-is-not-pending", []ghStatusCheck{
+			{Conclusion: "SKIPPED", Status: "COMPLETED"},
+		}, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := rollupCI(tc.in); got != tc.want {
+				t.Errorf("got %q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 // TestBuildFleetRows_MatchesIssuesToWorktrees stubs out every shell-out and
 // verifies the matching path: in-progress issues with a candidate branch
 // that names a known worktree get filled rows; others get a "no matching
