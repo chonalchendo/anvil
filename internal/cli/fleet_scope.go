@@ -8,7 +8,8 @@ import (
 // scopeViolations returns the elements of changed that no declared entry covers.
 // Declared entries are globs — `*` (any number of them), `?`, and brace
 // alternation `{a,b}` — because dispatch prompts routinely carry that notation;
-// treating them literally false-flags correctly-scoped files.
+// treating them literally false-flags correctly-scoped files. A declared
+// directory covers everything beneath it, so a new file lands in scope.
 func scopeViolations(declared, changed []string) []string {
 	var patterns []string
 	for _, d := range declared {
@@ -23,9 +24,9 @@ func scopeViolations(declared, changed []string) []string {
 	return outside
 }
 
-// matchesAny reports whether path matches any brace-free glob pattern. A
-// malformed pattern falls back to literal comparison rather than silently
-// covering nothing.
+// matchesAny reports whether path matches any brace-free glob pattern, either
+// as a glob or as a directory the path sits beneath. A malformed pattern falls
+// back to literal comparison rather than silently covering nothing.
 func matchesAny(patterns []string, path string) bool {
 	for _, p := range patterns {
 		if p == path {
@@ -34,8 +35,26 @@ func matchesAny(patterns []string, path string) bool {
 		if ok, err := filepath.Match(p, path); err == nil && ok {
 			return true
 		}
+		if d := dirPrefix(p); d != "" && strings.HasPrefix(path, d) {
+			return true
+		}
 	}
 	return false
+}
+
+// dirPrefix returns the "everything beneath here" prefix a declared entry
+// denotes, or "" when the entry names a file. Dispatch prompts write the
+// directory both ways — `pkg/` and a bare package root `pkg` — so a final
+// segment carrying no `.` counts as a directory too. The prefix always ends in
+// `/`: `pkg` must not swallow `pkgtools/x.go`.
+func dirPrefix(p string) string {
+	if strings.HasSuffix(p, "/") {
+		return p
+	}
+	if strings.Contains(filepath.Base(p), ".") {
+		return ""
+	}
+	return p + "/"
 }
 
 // expandBraces expands brace alternation into one pattern per alternative:
