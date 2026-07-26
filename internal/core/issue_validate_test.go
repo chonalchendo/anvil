@@ -295,6 +295,42 @@ func TestValidateIssueVerbs_ChainedInvocation_Rejected(t *testing.T) {
 	}
 }
 
+func TestValidateIssueVerbs_NonAnvilShellLines_Ignored(t *testing.T) {
+	// The anvil.0168 reproduction set: shell content around a legitimate anvil
+	// call. `anvil` inside a path is not an invocation; words after a pipe or
+	// separator belong to another command; a shell comment is prose.
+	lines := []string{
+		"cd ~/Development/anvil && just install",
+		"cd ~/Development/anvil && go test ./internal/...",
+		"anvil list issue --json | grep -c ready",
+		"anvil validate 2>&1 | sed -n '1p'",
+		"tmp=$(mktemp -d); anvil validate --vault $tmp",
+		"# anvil frobnicate is what this issue introduces",
+		"ls ~/anvil-worktrees/",
+		// `anvil` as a flag value, and as the last word on a line: neither may
+		// consume the following token / line as its arguments.
+		"go run ./cmd/anvil create issue --project anvil --title t --tags domain/x",
+		"anvil create issue --project anvil",
+		"test -f \"$d/70-issues/anvil.t.md\"",
+	}
+	fence := strings.Join(lines, "\n")
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\n" + fence + "\n```\n\n### Indirect\n```bash\ntrue\n```\n\n## Links\n"
+	errs := ValidateIssueVerbs(body, "", "", validatorFixture())
+	if len(errs) != 0 {
+		t.Errorf("non-anvil shell lines must raise no unknown-subcommand findings, got: %v", errs)
+	}
+}
+
+func TestValidateIssueVerbs_GenuineTypo_StillRejectedAmongShellNoise(t *testing.T) {
+	// The 0077 guarantee must survive the narrowing: a real typo'd subcommand in
+	// a line that also carries a pipe is still reported.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ncd ~/Development/anvil && anvil project init scratch | tee log\n```\n\n### Indirect\n```bash\ntrue\n```\n\n## Links\n"
+	errs := ValidateIssueVerbs(body, "", "", validatorFixture())
+	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "init") {
+		t.Errorf("expected exactly one error naming 'init', got: %v", errs)
+	}
+}
+
 func TestValidateIssueVerbs_AnvilOutsideFence_Ignored(t *testing.T) {
 	// `anvil bogus` mentioned in prose (outside a code fence) must not be flagged.
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\nRun anvil bogus to test.\n\n### Direct\n```bash\nanvil create issue\n```\n\n### Indirect\n```bash\nanvil list issue\n```\n\n## Links\n"
