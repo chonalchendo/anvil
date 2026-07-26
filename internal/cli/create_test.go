@@ -837,7 +837,8 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 			refused: true, wantMsg: "verification Direct block 1 is unrunnable here (exit 127",
 		},
 		{
-			name: "indirect not executable", direct: "true", indirect: "\"$TMPDIR\"",
+			// A directory is on disk and readable but not executable: exit 126.
+			name: "indirect not executable", direct: "true", indirect: "\"$probeDir\"",
 			refused: true, wantMsg: "(exit 126",
 		},
 	}
@@ -846,9 +847,14 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 			vault := setupVault(t)
 			repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 			t.Setenv("HOME", t.TempDir())
+			probeDir := t.TempDir()
 			t.Chdir(repo)
 
-			stderr, err := runCreateIssueBody(t, "probe", feasibilityBody(tc.direct, tc.indirect))
+			// $TMPDIR is unset on Linux CI, so the scripts take their scratch
+			// path from the test rather than the environment.
+			body := feasibilityBody(tc.direct, tc.indirect)
+			body = strings.ReplaceAll(body, "$probeDir", probeDir)
+			stderr, err := runCreateIssueBody(t, "probe", body)
 			created := filepath.Join(vault, "70-issues", "foo.0001.probe.md")
 			if !tc.refused {
 				if err != nil {
@@ -925,7 +931,7 @@ func TestCreate_Issue_HeredocH2DoesNotSkipTheBlock(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	indirect := "cat <<'EOF' > \"$TMPDIR/mini.md\"\n## Links to the mini doc\n- none\nEOF\ntrue"
+	indirect := "cat <<'EOF' > \"" + t.TempDir() + "/mini.md\"\n## Links to the mini doc\n- none\nEOF\ntrue"
 	stderr, err := runCreateIssueBody(t, "probe", feasibilityBody("true", indirect))
 	if !errors.Is(err, ErrSchemaInvalid) {
 		t.Fatalf("err = %v, want ErrSchemaInvalid — the post-heredoc block must be extracted and run\nstderr: %s", err, stderr)
