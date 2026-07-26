@@ -522,6 +522,7 @@ type promoteJSONResult struct {
 
 func runPromoteJSON(t *testing.T, args ...string) promoteJSONResult {
 	t.Helper()
+	isolateRootEnv(t)
 	cmd := newRootCmd()
 	cmd.SetArgs(append([]string{"promote"}, args...))
 	var out bytes.Buffer
@@ -820,6 +821,7 @@ type promoteIssueResult struct {
 
 func runPromoteIssueJSON(t *testing.T, args ...string) promoteIssueResult {
 	t.Helper()
+	isolateRootEnv(t)
 	cmd := newRootCmd()
 	cmd.SetArgs(append([]string{"promote"}, args...))
 	var out bytes.Buffer

@@ -19,9 +19,10 @@ import (
 //     path is deterministic regardless of the host's gh auth state. Tests that
 //     exercise the refusal path re-stub via stubGhPRList.
 //
-// Vault and project selectors are cleared here for ambient inheritance; the
-// per-test leak (the root command exports its --vault/--project flags into the
-// environment) is neutralised by isolateRootEnv.
+// Vault and project selectors are cleared here so no test inherits an ambient
+// ANVIL_VAULT/ANVIL_PROJECT from the developer's shell; the per-test leak (the
+// root command exports its --vault/--project flags into the environment) is
+// neutralised by isolateRootEnv.
 func TestMain(m *testing.M) {
 	home, err := os.MkdirTemp("", "anvil-cli-test-home")
 	if err != nil {
@@ -35,9 +36,7 @@ func TestMain(m *testing.M) {
 		"ANVIL_VAULT":       "",
 		"ANVIL_PROJECT":     "",
 	} {
-		if err := os.Setenv(k, v); err != nil {
-			panic(err)
-		}
+		_ = os.Setenv(k, v)
 	}
 
 	ghPRListFn = func(_ string) (string, error) { return "", nil }
