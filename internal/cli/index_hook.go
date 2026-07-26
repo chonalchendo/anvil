@@ -97,7 +97,7 @@ func indexForRead(v *core.Vault) (*index.DB, error) {
 			}
 		case errors.Is(err, index.ErrIndexStale):
 			db.Close() //nolint:errcheck,gosec // close in defer; error not actionable
-			return nil, errfmt.NewIndexStale()
+			return nil, errfmt.NewIndexStale(err.Error())
 		default:
 			db.Close() //nolint:errcheck,gosec // close in defer; error not actionable
 			return nil, fmt.Errorf("freshness check: %w", err)

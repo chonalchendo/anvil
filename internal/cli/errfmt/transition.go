@@ -48,9 +48,15 @@ func NewTransitionFlagRequired(typ, id, from, to, flag string) *Structured {
 }
 
 // NewIndexStale signals that the vault has been edited externally and the
-// vault.db needs `anvil reindex`.
-func NewIndexStale() *Structured {
-	return NewStructured("index_stale").Set("hint", "anvil reindex")
+// vault.db needs `anvil reindex`. detail carries the underlying freshness
+// error's message (which names the offending path) so it reaches the CLI
+// output, not just library callers that inspect the wrapped error directly.
+func NewIndexStale(detail string) *Structured {
+	s := NewStructured("index_stale").Set("hint", "anvil reindex")
+	if detail != "" {
+		s.Set("detail", detail) //nolint:errcheck // builder method; final *Structured returned below
+	}
+	return s
 }
 
 // NewOpenPRBlocksResolve builds the structured error returned when an issue's

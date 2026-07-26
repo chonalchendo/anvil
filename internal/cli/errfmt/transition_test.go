@@ -2,6 +2,7 @@ package errfmt_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -56,6 +57,37 @@ func TestTransitionFlagRequiredErrorMessage(t *testing.T) {
 	e := errfmt.NewTransitionFlagRequired("issue", "demo.foo", "open", "in-progress", "owner")
 	if e.Error() == "" {
 		t.Fatalf("Error() returned empty string")
+	}
+}
+
+func TestNewIndexStaleCarriesPathInDetail(t *testing.T) {
+	e := errfmt.NewIndexStale("vault index stale: 70-issues/demo.0001.x.md no longer exists on disk (last reindex 2026-07-26T00:00:00Z)")
+	if !strings.Contains(e.Error(), "demo.0001.x.md") {
+		t.Fatalf("Error() must surface the offending path, got %q", e.Error())
+	}
+	b, _ := json.Marshal(e)
+	var parsed map[string]any
+	if err := json.Unmarshal(b, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if parsed["code"] != "index_stale" {
+		t.Errorf("index_stale JSON: %v", parsed)
+	}
+	detail, ok := parsed["detail"].(string)
+	if !ok || !strings.Contains(detail, "demo.0001.x.md") {
+		t.Errorf("expected detail field naming the path, got %v", parsed)
+	}
+}
+
+func TestNewIndexStale_NoDetailOmitsField(t *testing.T) {
+	e := errfmt.NewIndexStale("")
+	b, _ := json.Marshal(e)
+	var parsed map[string]any
+	if err := json.Unmarshal(b, &parsed); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := parsed["detail"]; ok {
+		t.Errorf("detail should be omitted when empty, got %v", parsed)
 	}
 }
 

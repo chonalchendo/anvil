@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -117,6 +118,7 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 	// drifting nows.
 	now := time.Now()
 	stalePath := ""
+	onDisk := make(map[string]struct{})
 	walkErr := filepath.WalkDir(vaultRoot, func(path string, dEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -132,10 +134,12 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 		if !strings.HasSuffix(path, ".md") {
 			return nil
 		}
-		if skipAbs != "" {
-			if abs, aerr := filepath.Abs(path); aerr == nil && abs == skipAbs {
-				return nil
-			}
+		abs, aerr := filepath.Abs(path)
+		if aerr == nil {
+			onDisk[abs] = struct{}{}
+		}
+		if skipAbs != "" && abs == skipAbs {
+			return nil
 		}
 		info, ierr := dEntry.Info()
 		if ierr != nil {
@@ -156,11 +160,19 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 	if walkErr != nil {
 		return fmt.Errorf("walk vault: %w", walkErr)
 	}
-	// Also catch deletes: vault dir mtime advances on a removed file even
-	// though the file itself is gone. This arm intentionally honours future
-	// mtimes: callers signal external drift by stamping the root a moment
-	// ahead of now (see markVaultExternallyStale), so guarding it would
-	// suppress drift absorption.
+	// Compare the indexed file set against what's actually on disk, so a
+	// deleted file is caught directly rather than inferred from the vault
+	// directory's mtime advancing.
+	if deleted, derr := d.firstDeletedArtifactPath(onDisk, skipAbs); derr != nil {
+		return derr
+	} else if deleted != "" {
+		return fmt.Errorf("%w: %s no longer exists on disk (last reindex %s)", ErrIndexStale, deleted, stamp.Format(time.RFC3339))
+	}
+	// Also catch other structural drift (e.g. an add/rename this pass didn't
+	// otherwise see): vault dir mtime advances on any such change. This arm
+	// intentionally honours future mtimes: callers signal external drift by
+	// stamping the root a moment ahead of now (see markVaultExternallyStale),
+	// so guarding it would suppress drift absorption.
 	info, err := os.Stat(vaultRoot)
 	if err != nil {
 		return fmt.Errorf("stat vault: %w", err)
@@ -169,6 +181,36 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 		return fmt.Errorf("%w: %s changed after last reindex (%s)", ErrIndexStale, vaultRoot, stamp.Format(time.RFC3339))
 	}
 	return nil
+}
+
+// firstDeletedArtifactPath returns the first indexed artifact path that is no
+// longer present on disk (deterministic ordering by id), or "" if every
+// indexed path still exists. skipAbs excludes the file the caller just wrote
+// (already known to exist; a stale row for it would be a race, not a delete).
+func (d *DB) firstDeletedArtifactPath(onDisk map[string]struct{}, skipAbs string) (string, error) {
+	indexed, err := d.allArtifactPaths()
+	if err != nil {
+		return "", fmt.Errorf("check deleted artifacts: %w", err)
+	}
+	ids := make([]string, 0, len(indexed))
+	for id := range indexed {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		path := indexed[id]
+		abs, aerr := filepath.Abs(path)
+		if aerr != nil {
+			abs = path
+		}
+		if abs == skipAbs {
+			continue
+		}
+		if _, ok := onDisk[abs]; !ok {
+			return path, nil
+		}
+	}
+	return "", nil
 }
 
 // skipFutureMtime reports whether a walked file's mtime post-dates the check's

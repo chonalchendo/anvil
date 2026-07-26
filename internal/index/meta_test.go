@@ -173,6 +173,48 @@ func TestCheckFreshnessFutureVaultDirMtimeIsStale(t *testing.T) {
 	}
 }
 
+// A deleted vault file must be caught directly by comparing the indexed path
+// set against what's on disk — not inferred from the vault directory's mtime,
+// which is a signal indistinguishable from any other clock anomaly.
+func TestCheckFreshnessDetectsDeletedFileDirectly(t *testing.T) {
+	vault := t.TempDir()
+	path := filepath.Join(vault, "gone.md")
+	if err := os.WriteFile(path, []byte("v1"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+
+	dbPath := filepath.Join(vault, ".anvil", "vault.db")
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
+	if err := db.UpsertArtifact(ArtifactRow{ID: "demo.gone", Type: "issue", Status: "open", Path: path}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetLastReindex(time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove the file without bumping the vault directory's mtime, so the
+	// directory-mtime arm alone would miss it.
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-1 * time.Hour)
+	if err := os.Chtimes(vault, old, old); err != nil {
+		t.Fatal(err)
+	}
+
+	err = db.CheckFreshness(vault)
+	if !errors.Is(err, ErrIndexStale) {
+		t.Fatalf("expected ErrIndexStale on deleted file, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "gone.md") {
+		t.Fatalf("stale error must name the deleted path, got %q", err)
+	}
+}
+
 // The stale error has to name the offending file, or the operator can't find
 // what to reindex around.
 func TestCheckFreshnessNamesStaleFile(t *testing.T) {
