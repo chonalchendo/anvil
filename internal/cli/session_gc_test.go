@@ -148,6 +148,22 @@ func TestSessionGC_EmptyVault_ReportsZero(t *testing.T) {
 	}
 }
 
+// gc deletes indexed session artifacts. Without a reindex the rows outlive
+// their files and the read path's delete detection aborts every subsequent
+// read verb — a routine command bricking the vault.
+func TestSessionGC_LeavesIndexReadable(t *testing.T) {
+	vault := setupVault(t)
+	writeSessionFixtureWithRetention(t, vault, "gc-indexed", "2026-01-01", "")
+	execCmd(t, "reindex")
+
+	if _, _, err := runCmd(t, newRootCmd(), "session", "gc"); err != nil {
+		t.Fatalf("session gc: %v", err)
+	}
+	if _, stderr, err := runCmd(t, newRootCmd(), "list", "issue", "--ready"); err != nil {
+		t.Fatalf("read verb after gc must still work: %v\nstderr: %s", err, stderr)
+	}
+}
+
 func TestSessionGC_Live_RemovesExpiredAndReportsCount(t *testing.T) {
 	vault := setupVault(t)
 

@@ -60,8 +60,10 @@ func TestTransitionFlagRequiredErrorMessage(t *testing.T) {
 	}
 }
 
-func TestNewIndexStaleCarriesPathInDetail(t *testing.T) {
-	e := errfmt.NewIndexStale("vault index stale: 70-issues/demo.0001.x.md no longer exists on disk (last reindex 2026-07-26T00:00:00Z)")
+// The offending path is the one thing an agent acts on, so it has to be its
+// own field rather than prose an agent regexes out of the message.
+func TestNewIndexStaleCarriesPathAsAField(t *testing.T) {
+	e := errfmt.NewIndexStale("/v/70-issues/demo.0001.x.md")
 	if !strings.Contains(e.Error(), "demo.0001.x.md") {
 		t.Fatalf("Error() must surface the offending path, got %q", e.Error())
 	}
@@ -73,21 +75,8 @@ func TestNewIndexStaleCarriesPathInDetail(t *testing.T) {
 	if parsed["code"] != "index_stale" {
 		t.Errorf("index_stale JSON: %v", parsed)
 	}
-	detail, ok := parsed["detail"].(string)
-	if !ok || !strings.Contains(detail, "demo.0001.x.md") {
-		t.Errorf("expected detail field naming the path, got %v", parsed)
-	}
-}
-
-func TestNewIndexStale_NoDetailOmitsField(t *testing.T) {
-	e := errfmt.NewIndexStale("")
-	b, _ := json.Marshal(e)
-	var parsed map[string]any
-	if err := json.Unmarshal(b, &parsed); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := parsed["detail"]; ok {
-		t.Errorf("detail should be omitted when empty, got %v", parsed)
+	if parsed["path"] != "/v/70-issues/demo.0001.x.md" {
+		t.Errorf("expected a verbatim path field, got %v", parsed)
 	}
 }
 

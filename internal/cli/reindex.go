@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -78,6 +79,15 @@ populated after the fact, and removing them would be destructive.`,
 				default:
 					cmd.PrintErrf("WARN: stray artifact-named file at vault root: %s (%d bytes; move into the canonical <NN>-<type>/ dir)\n", s.Path, s.Size)
 					kept = append(kept, s)
+				}
+			}
+			// Pruning happens after the reindex stamped its start time, and a
+			// removal at the vault root advances the root's mtime past that
+			// stamp — so without a re-stamp the very next read verb aborts on
+			// a stale index, having just been told the index was rebuilt.
+			if len(pruned) > 0 {
+				if err := db.SetLastReindex(time.Now()); err != nil {
+					return fmt.Errorf("re-stamping after prune: %w", err)
 				}
 			}
 

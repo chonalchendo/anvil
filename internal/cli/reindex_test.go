@@ -130,6 +130,24 @@ func TestReindexPruneStubs(t *testing.T) {
 	}
 }
 
+// Pruning removes files at the vault root, advancing its mtime past the stamp
+// the reindex just wrote. Same class as `session gc`: a command that deletes
+// vault files must leave the index readable, or it reports success and bricks
+// the next read.
+func TestReindexPruneStubs_LeavesIndexReadable(t *testing.T) {
+	vault := setupVault(t)
+	if err := os.WriteFile(filepath.Join(vault, "issue.demo.empty.md"), []byte{}, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+
+	if _, _, err := runCmd(t, newRootCmd(), "reindex", "--prune-stubs"); err != nil {
+		t.Fatalf("reindex --prune-stubs: %v", err)
+	}
+	if _, stderr, err := runCmd(t, newRootCmd(), "list", "issue", "--ready"); err != nil {
+		t.Fatalf("read verb after prune must still work: %v\nstderr: %s", err, stderr)
+	}
+}
+
 func TestReindexPruneStubsJSON(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)

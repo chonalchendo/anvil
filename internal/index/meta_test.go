@@ -215,6 +215,44 @@ func TestCheckFreshnessDetectsDeletedFileDirectly(t *testing.T) {
 	}
 }
 
+// Reading a vault through a symlinked ancestor (the macOS /tmp →
+// /private/tmp case) must not report its live files as deleted: the walked
+// paths differ from the indexed ones by symlink resolution alone.
+func TestCheckFreshnessSymlinkedVaultRootIsNotStale(t *testing.T) {
+	base := t.TempDir()
+	realParent := filepath.Join(base, "real")
+	vault := filepath.Join(realParent, "vault")
+	if err := os.MkdirAll(vault, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	linkParent := filepath.Join(base, "link")
+	if err := os.Symlink(realParent, linkParent); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	path := filepath.Join(vault, "live.md")
+	if err := os.WriteFile(path, []byte("v1"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+	db, err := Open(filepath.Join(vault, ".anvil", "vault.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
+	// Indexed under the resolved path, as a prior reindex would have stored it.
+	if err := db.UpsertArtifact(ArtifactRow{ID: "demo.live", Type: "issue", Status: "open", Path: path}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetLastReindex(time.Now()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Same vault, reached through the symlinked ancestor.
+	if err := db.CheckFreshness(filepath.Join(linkParent, "vault")); err != nil {
+		t.Fatalf("symlinked vault root must not read as stale, got %v", err)
+	}
+}
+
 // The stale error has to name the offending file, or the operator can't find
 // what to reindex around.
 func TestCheckFreshnessNamesStaleFile(t *testing.T) {

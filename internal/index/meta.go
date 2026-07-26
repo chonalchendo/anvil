@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -17,11 +16,26 @@ import (
 // ErrLastReindexUnset means SetLastReindex has not been called yet.
 var ErrLastReindexUnset = errors.New("last reindex stamp unset")
 
-// ErrIndexStale means the vault has drifted from the index: either a .md file
-// or the vault directory itself has an mtime newer than the stored
-// last-reindex stamp. Errors wrapping it name the offending path. Callers
-// should run `anvil reindex` and retry.
+// ErrIndexStale means the vault has drifted from the index: a .md file or the
+// vault directory itself has an mtime newer than the stored last-reindex
+// stamp, or an indexed artifact's file is no longer on disk. Callers should
+// run `anvil reindex` and retry.
 var ErrIndexStale = errors.New("vault index stale")
+
+// StaleError is the concrete shape every ErrIndexStale takes. Path is the
+// offending file (or the vault root) as its own field, so the CLI can surface
+// it structurally instead of making agents regex it back out of the message.
+type StaleError struct {
+	Path   string
+	Reason string
+	Stamp  time.Time
+}
+
+func (e *StaleError) Error() string {
+	return fmt.Sprintf("%s: %s %s (last reindex %s)", ErrIndexStale, e.Path, e.Reason, e.Stamp.Format(time.RFC3339))
+}
+
+func (e *StaleError) Unwrap() error { return ErrIndexStale }
 
 const metaKeyLastReindex = "last_reindex"
 
@@ -86,7 +100,8 @@ func (d *DB) GetLastReindex() (time.Time, error) {
 }
 
 // CheckFreshness returns ErrIndexStale if any .md file under vaultRoot is
-// newer than the stored last-reindex stamp. ErrLastReindexUnset on first run.
+// newer than the stored last-reindex stamp, or an indexed artifact's file is
+// no longer on disk. ErrLastReindexUnset on first run.
 //
 // Why walk the tree: in-place edits to existing files don't bump the parent
 // directory's mtime on macOS APFS or Linux ext4 — only structural changes
@@ -118,7 +133,6 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 	// drifting nows.
 	now := time.Now()
 	stalePath := ""
-	onDisk := make(map[string]struct{})
 	walkErr := filepath.WalkDir(vaultRoot, func(path string, dEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -134,12 +148,10 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 		if !strings.HasSuffix(path, ".md") {
 			return nil
 		}
-		abs, aerr := filepath.Abs(path)
-		if aerr == nil {
-			onDisk[abs] = struct{}{}
-		}
-		if skipAbs != "" && abs == skipAbs {
-			return nil
+		if skipAbs != "" {
+			if abs, aerr := filepath.Abs(path); aerr == nil && abs == skipAbs {
+				return nil
+			}
 		}
 		info, ierr := dEntry.Info()
 		if ierr != nil {
@@ -155,18 +167,19 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 		return nil
 	})
 	if errors.Is(walkErr, errStaleSentinel) {
-		return fmt.Errorf("%w: %s modified after last reindex (%s)", ErrIndexStale, stalePath, stamp.Format(time.RFC3339))
+		return &StaleError{Path: stalePath, Reason: "modified after last reindex", Stamp: stamp}
 	}
 	if walkErr != nil {
 		return fmt.Errorf("walk vault: %w", walkErr)
 	}
-	// Compare the indexed file set against what's actually on disk, so a
-	// deleted file is caught directly rather than inferred from the vault
-	// directory's mtime advancing.
-	if deleted, derr := d.firstDeletedArtifactPath(onDisk, skipAbs); derr != nil {
+	// Catch deletes directly: a removed file leaves nothing for the walk to
+	// stat, so the only evidence is an indexed path that no longer resolves.
+	deleted, derr := d.firstDeletedArtifactPath()
+	if derr != nil {
 		return derr
-	} else if deleted != "" {
-		return fmt.Errorf("%w: %s no longer exists on disk (last reindex %s)", ErrIndexStale, deleted, stamp.Format(time.RFC3339))
+	}
+	if deleted != "" {
+		return &StaleError{Path: deleted, Reason: "no longer exists on disk", Stamp: stamp}
 	}
 	// Also catch other structural drift (e.g. an add/rename this pass didn't
 	// otherwise see): vault dir mtime advances on any such change. This arm
@@ -178,39 +191,38 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 		return fmt.Errorf("stat vault: %w", err)
 	}
 	if info.ModTime().After(stamp) {
-		return fmt.Errorf("%w: %s changed after last reindex (%s)", ErrIndexStale, vaultRoot, stamp.Format(time.RFC3339))
+		return &StaleError{Path: vaultRoot, Reason: "changed after last reindex", Stamp: stamp}
 	}
 	return nil
 }
 
-// firstDeletedArtifactPath returns the first indexed artifact path that is no
-// longer present on disk (deterministic ordering by id), or "" if every
-// indexed path still exists. skipAbs excludes the file the caller just wrote
-// (already known to exist; a stale row for it would be a race, not a delete).
-func (d *DB) firstDeletedArtifactPath(onDisk map[string]struct{}, skipAbs string) (string, error) {
+// firstDeletedArtifactPath returns the indexed path of the lexicographically
+// first artifact id whose file is gone, or "" when every indexed path still
+// resolves. Ordering by id keeps the error deterministic across runs.
+//
+// Lstat'ing the stored paths directly — rather than diffing them against the
+// walk — keeps this free of path-normalisation coupling: filepath.Abs cleans
+// but does not resolve symlinks, so a vault reached through a symlinked
+// ancestor (the macOS /tmp → /private/tmp case) walks to paths that never
+// match what a prior reindex stored.
+//
+// The write-through hook's just-saved file needs no exemption: it is on disk
+// by the time this runs.
+func (d *DB) firstDeletedArtifactPath() (string, error) {
 	indexed, err := d.allArtifactPaths()
 	if err != nil {
 		return "", fmt.Errorf("check deleted artifacts: %w", err)
 	}
-	ids := make([]string, 0, len(indexed))
-	for id := range indexed {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	for _, id := range ids {
-		path := indexed[id]
-		abs, aerr := filepath.Abs(path)
-		if aerr != nil {
-			abs = path
-		}
-		if abs == skipAbs {
+	missingID, missingPath := "", ""
+	for id, path := range indexed {
+		if _, serr := os.Lstat(path); !errors.Is(serr, fs.ErrNotExist) {
 			continue
 		}
-		if _, ok := onDisk[abs]; !ok {
-			return path, nil
+		if missingID == "" || id < missingID {
+			missingID, missingPath = id, path
 		}
 	}
-	return "", nil
+	return missingPath, nil
 }
 
 // skipFutureMtime reports whether a walked file's mtime post-dates the check's
