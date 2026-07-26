@@ -20,6 +20,7 @@ func jsonUnmarshal(t *testing.T, s string, v any) error {
 // Fails the test if the command returns an error.
 func execCmd(t *testing.T, args ...string) string {
 	t.Helper()
+	isolateRootEnv(t)
 	cmd := newRootCmd()
 	cmd.SetArgs(args)
 	var out bytes.Buffer

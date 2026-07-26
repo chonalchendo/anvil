@@ -13,6 +13,7 @@ import (
 // runArgs executes a fresh root command with args, capturing stdout.
 func runArgs(t *testing.T, args ...string) (string, error) {
 	t.Helper()
+	isolateRootEnv(t)
 	cmd := newRootCmd()
 	var out bytes.Buffer
 	cmd.SetOut(&out)

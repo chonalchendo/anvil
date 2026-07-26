@@ -10,16 +10,6 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-// TestMain installs a process-wide no-PR stub so every test that crosses the
-// `transition issue ... resolved` codepath gets a deterministic answer
-// regardless of the host's gh state. CI runners have gh installed but
-// unauthenticated; without the stub those tests would hit live gh and fail.
-// Tests that exercise the refusal path re-stub explicitly via stubGhPRList.
-func TestMain(m *testing.M) {
-	ghPRListFn = func(_ string) (string, error) { return "", nil }
-	os.Exit(m.Run())
-}
-
 // stubGhPRList swaps ghPRListFn for the duration of a test. fn receives the
 // branch passed to gh and returns (url, error).
 func stubGhPRList(t *testing.T, fn func(branch string) (string, error)) {
