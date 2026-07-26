@@ -268,6 +268,18 @@ func matchesFilters(f listFilters, status, project, diataxis, confidence, severi
 
 func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool, t core.Type, fields []string) error {
 	returned := len(items)
+	// Hint precedes both paths so a --json caller piping stdout to a parser
+	// still sees on stderr that the result set was capped.
+	suggestions := []string{"--since/--until", "--status", "--tag"}
+	if t.SupportsProject() {
+		suggestions = append(suggestions, "--project")
+	}
+	if t == core.TypeIssue {
+		suggestions = append(suggestions, "--milestone")
+	}
+	if hint := output.TruncationHint("most recent", returned, total, suggestions); hint != "" {
+		cmd.PrintErrln(hint)
+	}
 	if asJSON {
 		if len(fields) > 0 {
 			return writeProjectedListJSON(cmd.OutOrStdout(), items, total, returned, fields)
@@ -283,16 +295,6 @@ func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool, t co
 			milestone = "—"
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", item.ID, item.Status, milestone, firstNonEmpty(item.Description, item.Title))
-	}
-	suggestions := []string{"--since/--until", "--status", "--tag"}
-	if t.SupportsProject() {
-		suggestions = append(suggestions, "--project")
-	}
-	if t == core.TypeIssue {
-		suggestions = append(suggestions, "--milestone")
-	}
-	if hint := output.TruncationHint("most recent", returned, total, suggestions); hint != "" {
-		cmd.PrintErrln(hint)
 	}
 	return nil
 }

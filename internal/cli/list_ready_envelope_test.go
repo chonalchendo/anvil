@@ -97,7 +97,12 @@ func TestListReadyJSON_TotalIsUnboundedMatchCount(t *testing.T) {
 		)
 	}
 
-	out := execCmd(t, "list", "issue", "--ready", "--json", "--limit", "2")
+	// Streams captured separately here: a truncated result set writes a hint to
+	// stderr, and execCmd merges the two buffers, which would corrupt the parse.
+	out, _, runErr := runCmd(t, newRootCmd(), "list", "issue", "--ready", "--json", "--limit", "2")
+	if runErr != nil {
+		t.Fatalf("list --ready --json --limit 2: %v", runErr)
+	}
 	var env struct {
 		Items     []map[string]any `json:"items"`
 		Total     int              `json:"total"`
