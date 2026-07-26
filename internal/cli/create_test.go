@@ -779,6 +779,69 @@ func TestCreate_Issue_BodyFile_RejectsBadWikilink_RollsBack(t *testing.T) {
 	}
 }
 
+// TestCreate_Issue_RejectsFailingVerificationBlock asserts the anvil.0196
+// feasibility gate: a Verification block that fails when actually executed
+// in this environment refuses the create, rather than shipping as an
+// unexecuted green predicate.
+func TestCreate_Issue_RejectsFailingVerificationBlock(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	body := "## Problem\nx\n## Non-goals\n- x\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\nexit 3\n```\n\n## Links\n- none\n"
+	bodyPath := filepath.Join(t.TempDir(), "issue-body.md")
+	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "issue",
+		"--title", "probe",
+		"--description", "test",
+		"--goal", "goal",
+		"--body-file", bodyPath,
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	})
+	var stderr bytes.Buffer
+	cmd.SetErr(&stderr)
+	err := cmd.Execute()
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
+	}
+	if !strings.Contains(stderr.String(), "Indirect block 1") {
+		t.Errorf("stderr should name the failing block, got: %s", stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(vault, "70-issues", "foo.probe.md")); !os.IsNotExist(err) {
+		t.Errorf("file should not be created; stat err = %v", err)
+	}
+}
+
+// TestCreate_Issue_PassingVerificationBlock_Succeeds is the positive case:
+// blocks that actually pass in this environment don't block the create.
+func TestCreate_Issue_PassingVerificationBlock_Succeeds(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	body := "## Problem\nx\n## Non-goals\n- x\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\ntrue\n```\n\n## Links\n- none\n"
+	path := createIssueGetPath(t,
+		"create", "issue",
+		"--title", "probe-pass",
+		"--description", "test",
+		"--goal", "goal",
+		"--body", body,
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+	)
+	if _, err := core.LoadArtifact(path); err != nil {
+		t.Fatalf("expected issue to be created: %v", err)
+	}
+}
+
 // TestCreate_Issue_BodyFile_RejectsBareProjectSlugWikilink asserts that a body
 // wikilink in the bare `project.slug` form (e.g. [[anvil.consolidate-anvil-surface]])
 // is rejected at create time. The link-indexer only indexes `type.project.slug`

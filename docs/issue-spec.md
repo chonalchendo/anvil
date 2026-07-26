@@ -21,6 +21,8 @@ A prose checklist, if useful. **Not required** — `goal:` owns the terminal pre
 
 Two required subsections, each containing one or more fenced bash blocks whose lines are shell commands. Each command must exit 0 to count as passing. No DSL — the predicate lives inside the command itself (`grep -q`, `jq`, `test`, `[ ... = ... ]`).
 
+**Feasibility is enforced mechanically, not just advised.** `anvil create issue` (and `--update`) actually runs every `### Direct`/`### Indirect` fenced-bash block in the authoring environment and refuses the create if any exits non-zero — so a predicate that has never run cannot ship as a green Iron Law gate. Each block runs under `set -e` (lines share state; the first failing line fails the block), capped at 60s. Keep blocks to the one command that proves feasibility; a full suite (`just check`) belongs in Direct only if it fits that budget.
+
 ### Direct (unit/integration)
 
 Tests run against the dev tree / working copy: unit tests, integration tests, lint, type-check, schema-validate. Cheap to run, cheap to iterate.

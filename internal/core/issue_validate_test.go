@@ -445,3 +445,39 @@ func TestValidateIssue_NestedHeredocFence_AcceptedFalsePositive(t *testing.T) {
 		t.Skip("nested-heredoc false-positive no longer reproduces — depth-awareness may have landed; re-evaluate the accepted limitation")
 	}
 }
+
+func TestVerificationBlocks_ExtractsDirectAndIndirect(t *testing.T) {
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\nexit 3\n```\n\n## Links\n"
+	direct := VerificationBlocks(body, "Direct")
+	indirect := VerificationBlocks(body, "Indirect")
+	if len(direct) != 1 || direct[0] != "true\n" {
+		t.Fatalf("direct = %q, want [%q]", direct, "true\n")
+	}
+	if len(indirect) != 1 || indirect[0] != "exit 3\n" {
+		t.Fatalf("indirect = %q, want [%q]", indirect, "exit 3\n")
+	}
+}
+
+func TestVerificationBlocks_NoFencedBlock_ReturnsNil(t *testing.T) {
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n"
+	if got := VerificationBlocks(body, "Direct"); got != nil {
+		t.Errorf("Direct = %v, want nil", got)
+	}
+	if got := VerificationBlocks(body, "Indirect"); got != nil {
+		t.Errorf("Indirect = %v, want nil", got)
+	}
+}
+
+func TestVerificationBlocks_NestedFenceInBlockDoesNotEndCaptureEarly(t *testing.T) {
+	// A nested ```bash fence inside the Indirect block (no nested "## "
+	// heading, so verificationSpan's own heredoc limitation doesn't fire)
+	// must not truncate the outer block's capture.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\ncat <<'EOF2' > /tmp/mini.md\n```bash\ntrue\n```\nEOF2\necho done\n```\n\n## Links\n"
+	indirect := VerificationBlocks(body, "Indirect")
+	if len(indirect) != 1 {
+		t.Fatalf("indirect = %v, want 1 block", indirect)
+	}
+	if !strings.Contains(indirect[0], "echo done") {
+		t.Errorf("indirect[0] = %q, want it to include the tail of the block", indirect[0])
+	}
+}

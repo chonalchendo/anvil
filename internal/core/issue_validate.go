@@ -226,6 +226,88 @@ func verbIntroduced(bad, text string) bool {
 	return re.MatchString(text)
 }
 
+// bashFenceOpenRE matches an exact ```bash fence opener (optional trailing
+// whitespace only) — the same shape run-verification.sh requires.
+var bashFenceOpenRE = regexp.MustCompile(`^` + "```" + `bash[ \t]*$`)
+
+// VerificationBlocks returns the ```bash fenced blocks under the "### <label>"
+// heading of the body's "## Verification" section (label: "Direct" or
+// "Indirect"), preserving each block's raw lines. Section membership and
+// fence depth are tracked together in one pass — mirroring
+// completing-issue/scripts/run-verification.sh's awk extractor — so a block's
+// own content may hold nested ``` fences and ##/### lines (e.g. a heredoc
+// carrying a mini issue doc) without those inner markers being mistaken for
+// real structure. Both checks (section, fence) only fire at depth 0: a
+// heading line inside a still-open fence is body text, not a new subsection.
+// A subsection with no fenced block returns nil — absence is not this
+// function's concern, only extraction of what's present.
+//
+// Inherits verificationSpan's known limitation: a heredoc block whose payload
+// includes its own "## " line (a mini issue doc nested inside a check) is
+// read as the real next H2, truncating the span early — the same accepted
+// false-positive ValidateIssue's fence-balance check documents above.
+func VerificationBlocks(body, label string) []string {
+	span := verificationSpan(body)
+	if span == "" {
+		return nil
+	}
+	headingRE := regexp.MustCompile(`^### ` + regexp.QuoteMeta(label) + `([^A-Za-z]|$)`)
+
+	var blocks []string
+	var buf strings.Builder
+	inSection, inBlock := false, false
+	depth := 0
+	for _, line := range strings.Split(span, "\n") {
+		if strings.HasPrefix(line, "```") {
+			switch {
+			case len(line) > 3 && isAlpha(line[3]):
+				if inSection && depth == 0 && bashFenceOpenRE.MatchString(line) {
+					inBlock = true
+					depth = 1
+					buf.Reset()
+					continue
+				}
+				depth++
+				if inBlock {
+					buf.WriteString(line)
+					buf.WriteByte('\n')
+				}
+			case inBlock && depth == 1:
+				blocks = append(blocks, buf.String())
+				inBlock = false
+				depth = 0
+			default:
+				if depth > 0 {
+					depth--
+				}
+				if inBlock {
+					buf.WriteString(line)
+					buf.WriteByte('\n')
+				}
+			}
+			continue
+		}
+		if depth == 0 {
+			switch {
+			case headingRE.MatchString(line):
+				inSection = true
+				continue
+			case inSection && (strings.HasPrefix(line, "### ") || strings.HasPrefix(line, "## ")):
+				inSection = false
+			}
+		}
+		if inBlock {
+			buf.WriteString(line)
+			buf.WriteByte('\n')
+		}
+	}
+	return blocks
+}
+
+func isAlpha(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
+}
+
 // verificationSpan returns the body slice from the "## Verification" heading to
 // the next "## " heading (or end of body). Empty if Verification is absent —
 // the missing-heading check above already reports that.

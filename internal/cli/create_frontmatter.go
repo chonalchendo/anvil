@@ -102,6 +102,17 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 			for _, vErr := range core.ValidateIssueVerbs(body, goal, title, verbPathValidator(cmd.Root())) {
 				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 			}
+			// Feasibility gate (anvil.0196): only meaningful once the verb
+			// lint above is clean — a body citing a stale subcommand fails
+			// there with a sharper message than the shell's own "command not
+			// found", and skipping the exec here means an unrunnable body
+			// doesn't pay the block-execution timeout on top.
+			if len(failures) == len(preErrors) {
+				for _, vErr := range runFeasibilityGate(body) {
+					failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).
+						WithFix("run the block yourself in this environment, fix the predicate or the code it verifies, then retry"))
+				}
+			}
 		case core.TypeLearning:
 			for _, vErr := range core.ValidateLearning(a, nil) {
 				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
