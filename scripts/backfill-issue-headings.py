@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
-"""Throwaway backfill script — anvil.0203.161-back-catalogue-issues-fail-the.
+r"""Throwaway backfill script — anvil.0203.161-back-catalogue-issues-fail-the.
 
 Inserts stub required-headings into pre-schema issue bodies so `anvil validate`
 stops flagging `issue body missing required heading`. Each inserted stub is
-visibly marked `_Backfilled stub_` per the issue's non-goal. Not shipped code —
-run once, then discard.
+visibly marked `_Backfilled stub_` per the issue's non-goal. Not shipped code,
+and not wired into the binary — it is retained as the audit and reproducibility
+record for a 51-file mutation to a vault that is only loosely versioned.
+
+`find_pos` is a first-occurrence search over the whole body. It is *not*
+`ValidateIssue`'s ordered scan (which advances past each match and searches the
+remaining suffix); on a corpus where each required heading appears at most once
+the two agree, which is why this was safe here.
 
 Manifest format: one `<path>\t<comma-separated-missing-headings>` line per
 affected file. Derive it from a live vault with:
@@ -22,13 +28,19 @@ import sys
 
 ORDER = ["## Problem", "## Non-goals", "## Verification", "### Direct", "### Indirect", "## Links"]
 
+_MARK = (
+    "_Backfilled stub_ — heading inserted to satisfy the required-heading schema; "
+    "not authored at creation time."
+)
+_VERIF = _MARK + " Any checks the author recorded are in the sections above (e.g. `## Acceptance criteria`)."
+
 STUBS = {
-    "## Problem": '## Problem\n\n_Backfilled stub — this issue predates the required-heading schema; no ## Problem section was authored originally._\n',
-    "## Non-goals": '## Non-goals\n\n_Backfilled stub — this issue predates the required-heading schema; no ## Non-goals section was authored originally._\n',
-    "## Verification": '## Verification\n',
-    "### Direct": '### Direct (unit/integration)\n_Backfilled stub — this issue predates the Verification schema; no direct check was authored originally._\n',
-    "### Indirect": '### Indirect (live smoke)\n_Backfilled stub — this issue predates the Verification schema; no indirect check was authored originally._\n',
-    "## Links": '## Links\n\n_Backfilled stub — no links section was authored originally._\n',
+    "## Problem": f"## Problem\n\n{_MARK}\n",
+    "## Non-goals": f"## Non-goals\n\n{_MARK}\n",
+    "## Verification": "## Verification\n",
+    "### Direct": f"### Direct (unit/integration)\n{_VERIF}\n",
+    "### Indirect": f"### Indirect (live smoke)\n{_VERIF}\n",
+    "## Links": f"## Links\n\n{_MARK}\n",
 }
 
 
@@ -41,7 +53,7 @@ def find_pos(body, heading):
     return -1
 
 
-def backfill(body, missing):
+def backfill(body, missing, path="<body>"):
     present_pos = {h: find_pos(body, h) for h in ORDER if h not in missing}
 
     groups = []
@@ -57,12 +69,20 @@ def backfill(body, missing):
         groups.append((cur, None))
 
     for group, anchor in reversed(groups):
-        stub = "\n" + "\n".join(STUBS[h] for h in group)
+        # No leading "\n": the anchor position already sits after a blank line, so
+        # prepending one produced a doubled blank line.
+        stub = "\n".join(STUBS[h] for h in group).rstrip("\n")
         if anchor is not None:
             pos = present_pos[anchor]
-            body = body[:pos] + stub.rstrip("\n") + "\n\n" + body[pos:]
+            # find_pos returns -1 for an absent anchor; body[:-1] would silently
+            # splice before the final character instead of failing.
+            assert pos >= 0, f"anchor {anchor} not found in {path}"
+            body = body[:pos] + stub + "\n\n" + body[pos:]
         else:
-            body = body.rstrip("\n") + "\n" + stub.rstrip("\n") + "\n"
+            # An empty body is already just the blank line after the frontmatter
+            # fence, so it needs one newline, not a fresh blank line.
+            head = body.rstrip("\n")
+            body = head + ("\n\n" if head else "\n") + stub + "\n"
     return body
 
 
@@ -84,7 +104,7 @@ def main():
         else:
             frontmatter, body = "", content
 
-        new_body = backfill(body, missing)
+        new_body = backfill(body, missing, path)
         if new_body != body:
             with open(path, "w") as f:
                 f.write(frontmatter + new_body)
