@@ -90,14 +90,14 @@ while true; do
         exit 0
     fi
 
-    # One fetch yields state, merged, mergeable_state, and the head SHA used for the CI lookup.
+    # One fetch yields state, merged, and mergeable_state.
     pr_fields=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" \
-        --jq '"\(.state)\t\(.merged)\t\(.mergeable_state)\t\(.head.sha)"' 2>/dev/null) || {
+        --jq '"\(.state)\t\(.merged)\t\(.mergeable_state)"' 2>/dev/null) || {
         echo "Warning: gh api call failed; retrying in ${POLL_INTERVAL}s" >&2
         sleep "$POLL_INTERVAL"
         continue
     }
-    IFS=$'\t' read -r pr_state pr_merged pr_mergeable_state head_sha <<< "$pr_fields"
+    IFS=$'\t' read -r pr_state pr_merged pr_mergeable_state <<< "$pr_fields"
 
     # Terminal: merged.
     if [[ "$pr_merged" == "true" ]]; then
@@ -119,27 +119,25 @@ while true; do
         exit 0
     fi
 
-    # CI status on the head SHA: any failure wins; success only when nothing pends.
-    ci_conclusion="null"
-    if [[ -n "$head_sha" ]]; then
-        checks_json=$(gh api "repos/${REPO}/commits/${head_sha}/check-runs" \
-            --jq '[.check_runs[] | select(.conclusion != null) | .conclusion]' 2>/dev/null) || checks_json="[]"
+    # CI on the PR: GitHub Actions writes Check Runs, CircleCI/Travis write legacy
+    # Commit Statuses — the rollup returns both. Failure wins; pending holds; green
+    # needs at least one green and nothing pending. Check Runs carry status +
+    # conclusion, Commit Statuses carry only state — read both or one platform never settles.
+    ci_state=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json statusCheckRollup --jq '
+        (.statusCheckRollup // [])
+        | if any(.conclusion == "FAILURE" or .conclusion == "TIMED_OUT" or .conclusion == "STARTUP_FAILURE"
+                 or .state == "FAILURE" or .state == "ERROR") then "failure"
+          elif any(.status == "QUEUED" or .status == "IN_PROGRESS" or .state == "PENDING") then "pending"
+          elif any(.conclusion == "SUCCESS" or .state == "SUCCESS") then "success"
+          else "none"
+          end' 2>/dev/null) || ci_state="none"
 
-        if printf '%s' "$checks_json" | grep -q '"failure"\|"timed_out"\|"startup_failure"'; then
-            emit "ci_failed" "false" '"failure"' "0" "false"
-            exit 0
-        elif printf '%s' "$checks_json" | grep -q '"success"'; then
-            pending=$(gh api "repos/${REPO}/commits/${head_sha}/check-runs" \
-                --jq '[.check_runs[] | select(.status == "in_progress" or .status == "queued")] | length' 2>/dev/null) || pending=0
-            if [[ "$pending" == "0" ]]; then
-                ci_conclusion='"success"'
-            else
-                ci_conclusion='"pending"'
-            fi
-        elif printf '%s' "$checks_json" | grep -q '.'; then
-            ci_conclusion='"pending"'
-        fi
-    fi
+    ci_conclusion="null"
+    case "$ci_state" in
+        failure) emit "ci_failed" "false" '"failure"' "0" "false"; exit 0 ;;
+        pending) ci_conclusion='"pending"' ;;
+        success) ci_conclusion='"success"' ;;
+    esac
 
     # Unresolved review threads (the accurate "blocking review" signal): catches
     # COMMENTED + inline reviews, which a CHANGES_REQUESTED-state count misses,
