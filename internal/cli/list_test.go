@@ -286,6 +286,77 @@ func TestList_TruncationHintOnStderr(t *testing.T) {
 	}
 }
 
+func TestList_TruncationHintOnStderr_JSON(t *testing.T) {
+	newTestVaultWithIssues(t, 15)
+	cmd := newRootCmd()
+	out, errOut, err := runCmd(t, cmd, "list", "issue", "--limit", "5", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errOut, "showing 5 of 15") {
+		t.Errorf("expected truncation hint on stderr, got %q", errOut)
+	}
+	// stdout stays pure JSON so a piped consumer's parse is unaffected.
+	env := unmarshalListEnvelope(t, out)
+	if !env.Truncated || env.Returned != 5 || env.Total != 15 {
+		t.Errorf("envelope=%+v want truncated=true returned=5 total=15", env)
+	}
+}
+
+func TestList_TruncationHintOnStderr_JSONProjected(t *testing.T) {
+	newTestVaultWithIssues(t, 15)
+	cmd := newRootCmd()
+	out, errOut, err := runCmd(t, cmd, "list", "issue", "--limit", "5", "--json", "--fields", "id,status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errOut, "showing 5 of 15") {
+		t.Errorf("expected truncation hint on stderr, got %q", errOut)
+	}
+	var env struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal([]byte(out), &env); err != nil {
+		t.Fatalf("stdout not valid JSON: %v (%q)", err, out)
+	}
+	if len(env.Items) != 5 {
+		t.Errorf("got %d items, want 5", len(env.Items))
+	}
+}
+
+// The hint is a footer: in a terminal, stdout and stderr land in one stream, so
+// a hint emitted before the rows would scroll off the top of a long table.
+func TestList_TruncationHintIsFooterInMergedStream(t *testing.T) {
+	newTestVaultWithIssues(t, 15)
+	cmd := newRootCmd()
+	var merged bytes.Buffer
+	cmd.SetOut(&merged)
+	cmd.SetErr(&merged)
+	cmd.SetArgs([]string{"list", "issue", "--limit", "5"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimRight(merged.String(), "\n"), "\n")
+	if len(lines) != 6 {
+		t.Fatalf("want 5 rows + 1 hint, got %d lines: %q", len(lines), lines)
+	}
+	if !strings.Contains(lines[len(lines)-1], "showing 5 of 15") {
+		t.Errorf("hint is not the last line; want footer position. merged=%q", lines)
+	}
+}
+
+func TestList_NoHintWhenComplete_JSON(t *testing.T) {
+	newTestVaultWithIssues(t, 3)
+	cmd := newRootCmd()
+	_, errOut, err := runCmd(t, cmd, "list", "issue", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if errOut != "" {
+		t.Errorf("expected empty stderr, got %q", errOut)
+	}
+}
+
 func TestList_NoHintWhenComplete(t *testing.T) {
 	newTestVaultWithIssues(t, 3)
 	cmd := newRootCmd()
