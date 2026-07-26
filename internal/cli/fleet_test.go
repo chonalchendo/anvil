@@ -36,6 +36,10 @@ func TestParseWorktreePorcelain_MultipleEntries(t *testing.T) {
 	}
 }
 
+// TestRollupCI covers both rollup shapes in one table. GitHub Actions writes
+// Check Runs (status + conclusion); CircleCI and other legacy integrations
+// write Commit Statuses — the `StatusContext` cases — which carry only state.
+// Reading conclusion alone pends a green StatusContext forever.
 func TestRollupCI(t *testing.T) {
 	cases := []struct {
 		name string
@@ -55,40 +59,33 @@ func TestRollupCI(t *testing.T) {
 		{"cancelled-is-failure", []ghStatusCheck{
 			{Conclusion: "CANCELLED", Status: "COMPLETED"},
 		}, "failure"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := rollupCI(tc.in); got != tc.want {
-				t.Errorf("got %q want %q", got, tc.want)
-			}
-		})
-	}
-}
-
-// TestRollupCI_StatusContext covers the legacy Commit Status shape (CircleCI
-// and friends): only `state` is populated, `conclusion`/`status` are empty.
-// Reading conclusion alone pends a green StatusContext forever.
-func TestRollupCI_StatusContext(t *testing.T) {
-	cases := []struct {
-		name string
-		in   []ghStatusCheck
-		want string
-	}{
-		{"empty-rollup", nil, ""},
+		{"startup-failure-is-failure", []ghStatusCheck{
+			{Conclusion: "STARTUP_FAILURE", Status: "COMPLETED"},
+		}, "failure"},
+		{"queued-is-pending", []ghStatusCheck{{Status: "QUEUED"}}, "pending"},
+		{"waiting-is-pending", []ghStatusCheck{{Status: "WAITING"}}, "pending"},
+		{"requested-is-pending", []ghStatusCheck{{Status: "REQUESTED"}}, "pending"},
+		{"checkrun-pending-status-is-pending", []ghStatusCheck{{Status: "PENDING"}}, "pending"},
+		{"skipped-is-success", []ghStatusCheck{
+			{Conclusion: "SKIPPED", Status: "COMPLETED"},
+		}, "success"},
+		{"neutral-is-success", []ghStatusCheck{
+			{Conclusion: "NEUTRAL", Status: "COMPLETED"},
+		}, "success"},
 		{"green-StatusContext-no-conclusion", []ghStatusCheck{
 			{State: "SUCCESS"},
 		}, "success"},
 		{"pending-StatusContext", []ghStatusCheck{
 			{State: "PENDING"},
 		}, "pending"},
+		{"expected-StatusContext-is-pending", []ghStatusCheck{
+			{State: "EXPECTED"},
+		}, "pending"},
 		{"failing-StatusContext", []ghStatusCheck{
 			{State: "FAILURE"},
 		}, "failure"},
 		{"errored-StatusContext", []ghStatusCheck{
 			{State: "ERROR"},
-		}, "failure"},
-		{"startup-failure-is-failure", []ghStatusCheck{
-			{Conclusion: "STARTUP_FAILURE", Status: "COMPLETED"},
 		}, "failure"},
 		{"green-CheckRun-plus-pending-StatusContext", []ghStatusCheck{
 			{Conclusion: "SUCCESS", Status: "COMPLETED"},
@@ -102,8 +99,8 @@ func TestRollupCI_StatusContext(t *testing.T) {
 			{Conclusion: "SUCCESS", Status: "COMPLETED"},
 			{State: "FAILURE"},
 		}, "failure"},
-		{"unclassifiable-entry-is-not-pending", []ghStatusCheck{
-			{Conclusion: "SKIPPED", Status: "COMPLETED"},
+		{"unclassifiable-entry-is-blank", []ghStatusCheck{
+			{Conclusion: "ACTION_REQUIRED", Status: "COMPLETED"},
 		}, ""},
 	}
 	for _, tc := range cases {
@@ -112,6 +109,31 @@ func TestRollupCI_StatusContext(t *testing.T) {
 				t.Errorf("got %q want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// TestRollupCI_DecodesLiveStatusContextJSON drives the verbatim bytes
+// `gh pr view 141 --repo chonalchendo/mentat --json statusCheckRollup`
+// returned (2026-07-26, CircleCI green) through the same decode + reduce path
+// ghPRViewReal uses. The struct-literal table above cannot catch a wrong or
+// missing json tag — every case there bypasses encoding/json — so a green
+// CircleCI PR would still roll up as pending with the tags broken.
+func TestRollupCI_DecodesLiveStatusContextJSON(t *testing.T) {
+	const live = `{"statusCheckRollup":[` +
+		`{"__typename":"StatusContext","context":"ci/circleci: changes","startedAt":"2026-07-25T23:52:47Z","state":"SUCCESS","targetUrl":"https://circleci.com/gh/chonalchendo/mentat/614"},` +
+		`{"__typename":"StatusContext","context":"ci/circleci: check-mentat-connectors","startedAt":"2026-07-25T23:53:39Z","state":"SUCCESS","targetUrl":"https://circleci.com/gh/chonalchendo/mentat/616"},` +
+		`{"__typename":"StatusContext","context":"ci/circleci: ci-ok","startedAt":"2026-07-25T23:52:56Z","state":"SUCCESS","targetUrl":"https://circleci.com/gh/chonalchendo/mentat/615"},` +
+		`{"__typename":"StatusContext","context":"ci/circleci: imports","startedAt":"2026-07-25T23:53:08Z","state":"SUCCESS","targetUrl":"https://circleci.com/gh/chonalchendo/mentat/617"}]}`
+
+	var pr ghPRSnapshot
+	if err := json.Unmarshal([]byte(live), &pr); err != nil {
+		t.Fatalf("unmarshal live rollup: %v", err)
+	}
+	if len(pr.StatusCheckRoll) != 4 {
+		t.Fatalf("decoded %d entries, want 4", len(pr.StatusCheckRoll))
+	}
+	if got := rollupCI(pr.StatusCheckRoll); got != "success" {
+		t.Errorf("rollupCI on live CircleCI rollup = %q, want %q", got, "success")
 	}
 }
 

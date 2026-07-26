@@ -430,7 +430,16 @@ func ghPRViewReal(dir, branch string) (*ghPRSnapshot, error) {
 // rollupCI reduces a statusCheckRollup to one verdict: failure > pending >
 // success > "" (nothing classifiable). Each arm reads the Check Run fields
 // and the Commit Status field, because the rollup interleaves both shapes.
-// Mirrors the jq reducer in skills/completing-issue/scripts/wait-for-pr.sh.
+// Mirrors the jq reducer in skills/completing-issue/scripts/wait-for-pr.sh,
+// plus CANCELLED, which that reducer omits (follow-up).
+//
+// The pending arm is the complement of "finished", not a whitelist: a Check
+// Run status is any of QUEUED/IN_PROGRESS/WAITING/PENDING/REQUESTED/COMPLETED,
+// so anything non-empty that is not COMPLETED is still running. Enumerating
+// the running states instead leaks WAITING and REQUESTED into "" (no checks),
+// which `anvil fleet status` renders identically to "no CI configured".
+// NEUTRAL and SKIPPED are green — `gh pr checks` passes both, so a
+// path-filtered workflow that skipped must not read as no-CI.
 func rollupCI(rolls []ghStatusCheck) string {
 	if len(rolls) == 0 {
 		return ""
@@ -442,9 +451,11 @@ func rollupCI(rolls []ghStatusCheck) string {
 			r.Conclusion == "TIMED_OUT" || r.Conclusion == "STARTUP_FAILURE" ||
 			r.State == "FAILURE" || r.State == "ERROR":
 			hasFailure = true
-		case r.Status == "IN_PROGRESS" || r.Status == "QUEUED" || r.State == "PENDING":
+		case (r.Status != "" && r.Status != "COMPLETED") ||
+			r.State == "PENDING" || r.State == "EXPECTED":
 			hasPending = true
-		case r.Conclusion == "SUCCESS" || r.State == "SUCCESS":
+		case r.Conclusion == "SUCCESS" || r.Conclusion == "NEUTRAL" ||
+			r.Conclusion == "SKIPPED" || r.State == "SUCCESS":
 			hasSuccess = true
 		}
 	}
