@@ -20,10 +20,10 @@ This section encodes harness behaviour, not skill behaviour: it is duplicated in
 
 ## Pre-gate cwd anchor (mandatory)
 
-The Bash tool resets cwd between calls, so a `cd` in one call never carries into the next — this bites the verification and build gates below (`## Verification` blocks, the build made from the dispatched worktree), not just edits: a gate silently run from wherever the shell defaults to reports green against the base branch, not the diff. Every gate invocation must be a single Bash call that starts `cd <dispatched-worktree-path> &&` — the literal path from your dispatch prompt, never a value derived from the current shell (`git rev-parse --show-toplevel` resolves to wherever you happen to be and cannot detect the drift).
+The Bash tool resets cwd between calls, so a `cd` in one call never carries into the next — this bites every verification or build gate below (the project's test suite, lint run, local install, or a `## Verification` block), not just edits: a gate silently run from wherever the shell defaults to reports green against the base branch, not the diff. Every gate invocation must be a single Bash call that starts `cd <dispatched-worktree-path> &&` — the literal path from your dispatch prompt, never a value derived from the current shell (`git rev-parse --show-toplevel` resolves to wherever you happen to be and cannot detect the drift). Read the repo's `CLAUDE.md`/`AGENTS.md` entry point for the project's actual gate commands — never assume a fixed toolchain.
 
 ```bash
-cd <dispatched-worktree-path> && just check
+cd <dispatched-worktree-path> && <the project's check command>
 ```
 
 A gate whose Bash call did not carry that prefix is void — discard the result and re-run; if the prefixed call reports a toplevel other than the dispatched path, halt with `Blocker: gate-outside-worktree (toplevel=<actual>)`. Not self-correctable.

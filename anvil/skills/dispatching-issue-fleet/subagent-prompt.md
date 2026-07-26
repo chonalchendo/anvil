@@ -42,10 +42,10 @@ Treat the check as a structural invariant, not a sanity tip.
 
 ## Pre-gate cwd anchor (mandatory)
 
-The Bash tool resets cwd between calls, so a `cd` in one call never carries into the next — this bites verification and build gates (`just check`, `just install-local`, `go test`, any `## Verification` block), not just edits: a gate silently run from wherever the shell defaults to reports green against the main checkout, not against the fixes you just pushed. Every gate invocation must be a single Bash call that starts `cd <worktree-path> &&` — the literal path from your dispatch prompt, never a value derived from the current shell (`git rev-parse --show-toplevel` resolves to wherever you happen to be and cannot detect the drift).
+The Bash tool resets cwd between calls, so a `cd` in one call never carries into the next — this bites every verification or build gate (the project's test suite, lint run, local install, or a `## Verification` block), not just edits: a gate silently run from wherever the shell defaults to reports green against the main checkout, not against the fixes you just pushed. Every gate invocation must be a single Bash call that starts `cd <worktree-path> &&` — the literal path from your dispatch prompt, never a value derived from the current shell (`git rev-parse --show-toplevel` resolves to wherever you happen to be and cannot detect the drift). Read the repo's `CLAUDE.md`/`AGENTS.md` entry point for the project's actual gate commands — never assume a fixed toolchain.
 
 ```bash
-cd <worktree-path> && just check
+cd <worktree-path> && <the project's check command>
 ```
 
 A gate whose Bash call did not carry that prefix is void — discard the result and re-run; if the prefixed call reports a toplevel other than `<worktree-path>`, halt with `Blocker: gate-outside-worktree (toplevel=<actual>)`. Not self-correctable.
