@@ -154,13 +154,30 @@ func expandBraces(p string) []string {
 }
 
 // splitCSV splits a comma-separated string into trimmed, non-empty tokens.
+// Commas inside brace alternation (`a/met_{growth,health}.sql`) separate
+// alternatives, not tokens, so they do not split.
 func splitCSV(s string) []string {
 	var out []string
-	for _, f := range strings.Split(s, ",") {
-		f = strings.TrimSpace(f)
-		if f != "" {
-			out = append(out, f)
+	depth, start := 0, 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '{':
+			depth++
+		case '}':
+			if depth > 0 {
+				depth--
+			}
+		case ',':
+			if depth == 0 {
+				if f := strings.TrimSpace(s[start:i]); f != "" {
+					out = append(out, f)
+				}
+				start = i + 1
+			}
 		}
+	}
+	if f := strings.TrimSpace(s[start:]); f != "" {
+		out = append(out, f)
 	}
 	return out
 }

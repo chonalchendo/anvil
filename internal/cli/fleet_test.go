@@ -114,6 +114,9 @@ func TestSplitCSV(t *testing.T) {
 		{"", nil},
 		{"a", []string{"a"}},
 		{",a,", []string{"a"}},
+		{"a/met_{growth,health}.sql,b.py", []string{"a/met_{growth,health}.sql", "b.py"}},
+		{"a/{x,{y,z}}.sql", []string{"a/{x,{y,z}}.sql"}},
+		{"a/}x,b.py", []string{"a/}x", "b.py"}},
 	}
 	for _, tc := range cases {
 		got := splitCSV(tc.in)
