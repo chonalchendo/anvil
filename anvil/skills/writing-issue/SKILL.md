@@ -284,10 +284,10 @@ anvil link issue <issue-id> contract <contract-id>
 **System-design** — `anvil list system-design --json`; match the issue's subsystem on `project` equality (designs are sharded as `system-design.<project>[.<shard>]`):
 
 ```bash
-anvil link issue <issue-id> system-design <project>   # bare project id — link prepends the type
+anvil link issue <issue-id> system-design <project>   # bare `burgh` or canonical `system-design.burgh` — both resolve
 ```
 
-Pass the **bare** id (`burgh`), not the canonical prefixed id from the list (`system-design.burgh`): `anvil link` prepends the target type itself, so a prefixed id double-links to an unresolvable target the read-side cannot load.
+Substitute the real ids: `anvil link` refuses a target still carrying `<`, `>`, or whitespace rather than writing a dead edge.
 
 This is the Option-A routing association and the issue's governing spine edge that `completing-issue` walks to hydrate the box. Make a missing link an **explicit decision**: attach the governing design, or affirm to the user in one line that none governs this slice ("no design governs this slice") — never a silent skip. Don't invent a link to satisfy the check.
 

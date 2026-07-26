@@ -101,6 +101,10 @@ func newLinkCmd() *cobra.Command {
 			if tgt == core.TypeIssue {
 				tgtID = core.ResolveIssueArg(v, tgtID)
 			}
+			tgtID, err = resolveLinkTarget(v, tgt, tgtID)
+			if err != nil {
+				return err
+			}
 			if err := core.AppendLink(v, src, srcID, tgt, tgtID, relation); err != nil {
 				return err
 			}
@@ -123,6 +127,40 @@ func newLinkCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&unresolved, "unresolved", false, "list edges whose target is not in the vault")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON output")
 	return cmd
+}
+
+// resolveLinkTarget returns the target id `AppendLink` should embed in its
+// `[[<type>.<id>]]` wikilink, and refuses a target with no artifact on disk so
+// a dead edge cannot be written in the first place. `anvil list` prints
+// type-prefixed ids for every type but only some types keep that prefix on
+// disk, so both the printed form and the bare form are tried and whichever
+// resolves wins.
+func resolveLinkTarget(v *core.Vault, tgt core.Type, id string) (string, error) {
+	// An id carrying <, >, or whitespace is an unsubstituted documentation
+	// placeholder (e.g. `anvil link issue <id> system-design <project>` copied
+	// verbatim). No artifact id can contain these, so refuse before consulting
+	// the resolver — the link indexer would still write the edge, leaving a
+	// dead one `show --validate` cannot see.
+	if i := strings.IndexAny(id, "<> \t\n"); i >= 0 {
+		return "", fmt.Errorf("target id %q contains %q, which no artifact id may contain; substitute the real id `anvil list %s` prints",
+			id, id[i:i+1], tgt)
+	}
+	candidates := []string{id}
+	if bare, found := strings.CutPrefix(id, string(tgt)+"."); found && bare != "" {
+		candidates = append(candidates, bare)
+	}
+	tried := make([]string, 0, len(candidates))
+	for _, c := range candidates {
+		target := fmt.Sprintf("%s.%s", tgt, c)
+		// Same on-disk lookup `--validate` uses, so the write path and the
+		// validator can never disagree about what a live edge is.
+		if core.WikilinkTargetExists(v, target) {
+			return c, nil
+		}
+		tried = append(tried, "[["+target+"]]")
+	}
+	return "", fmt.Errorf("no %s artifact for %q (tried %s); pass the id `anvil list %s` prints",
+		tgt, id, strings.Join(tried, " and "), tgt)
 }
 
 type linkRowOut struct {
