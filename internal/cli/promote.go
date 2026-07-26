@@ -34,8 +34,13 @@ func newPromoteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "promote <id>",
 		Short: "Promote an inbox entry to a typed artifact",
-		Long:  "Operates on inbox entries (the only promotable type today). --as selects the target type.",
-		Args:  cobra.ExactArgs(1),
+		Long: "Operates on inbox entries (the only promotable type today). --as selects the target type.\n\n" +
+			"EXECUTES CODE: promoting to an issue routes through create's validation, which runs " +
+			"every `### Direct`/`### Indirect` bash block in the body's `## Verification` section. " +
+			"Those blocks run in the current environment with your privileges, cwd and environment " +
+			"variables — they are not sandboxed, and their side effects survive a refused promote. " +
+			"Pass --skip-verify-predicates to opt out.",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := args[0]
 
@@ -77,6 +82,7 @@ func newPromoteCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolVar(&flagSkipVerifyPredicates, "skip-verify-predicates", false, skipVerifyPredicatesFlagUsage)
 	cmd.Flags().StringVar(&flagAs, "as", "", "promotion target type (issue|thread|learning|discard)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	cmd.Flags().StringSliceVar(&flagTags, "tags", nil, "tags to seed on promoted artifact")

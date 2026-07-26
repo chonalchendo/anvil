@@ -232,32 +232,30 @@ var bashFenceOpenRE = regexp.MustCompile(`^` + "```" + `bash[ \t]*$`)
 
 // VerificationBlocks returns the ```bash fenced blocks under the "### <label>"
 // heading of the body's "## Verification" section (label: "Direct" or
-// "Indirect"), preserving each block's raw lines. Section membership and
-// fence depth are tracked together in one pass — mirroring
-// completing-issue/scripts/run-verification.sh's awk extractor — so a block's
-// own content may hold nested ``` fences and ##/### lines (e.g. a heredoc
-// carrying a mini issue doc) without those inner markers being mistaken for
-// real structure. Both checks (section, fence) only fire at depth 0: a
-// heading line inside a still-open fence is body text, not a new subsection.
-// A subsection with no fenced block returns nil — absence is not this
-// function's concern, only extraction of what's present.
+// "Indirect"), preserving each block's raw lines.
 //
-// Inherits verificationSpan's known limitation: a heredoc block whose payload
-// includes its own "## " line (a mini issue doc nested inside a check) is
-// read as the real next H2, truncating the span early — the same accepted
-// false-positive ValidateIssue's fence-balance check documents above.
-func VerificationBlocks(body, label string) []string {
-	span := verificationSpan(body)
-	if span == "" {
-		return nil
-	}
+// It walks the whole body in one pass rather than slicing with
+// verificationSpan, because that helper's `strings.Index(rest, "\n## ")` scan
+// is fence-blind: a heredoc payload carrying its own "## " line (a mini issue
+// doc nested inside a check) truncates the span mid-block, and the blocks past
+// the cut are then silently dropped — a gate that skips predicates is the
+// defect class the create-time feasibility gate exists to end (anvil.0196).
+// Here every structural marker — the opening "## Verification", the "### "
+// subsection headings, the closing "## " — is only honoured at fence depth 0,
+// so nested markers are read as the block content they are.
+//
+// A subsection with no fenced block returns nil — absence is not this
+// function's concern, only extraction of what's present. An unterminated fence
+// leaves the extraction unknowable, so it returns an error rather than a
+// truncated block list: the caller must fail closed.
+func VerificationBlocks(body, label string) ([]string, error) {
 	headingRE := regexp.MustCompile(`^### ` + regexp.QuoteMeta(label) + `([^A-Za-z]|$)`)
 
 	var blocks []string
 	var buf strings.Builder
-	inSection, inBlock := false, false
+	started, inSection, inBlock := false, false, false
 	depth := 0
-	for _, line := range strings.Split(span, "\n") {
+	for _, line := range strings.Split(body, "\n") {
 		if strings.HasPrefix(line, "```") {
 			switch {
 			case len(line) > 3 && isAlpha(line[3]):
@@ -268,31 +266,35 @@ func VerificationBlocks(body, label string) []string {
 					continue
 				}
 				depth++
-				if inBlock {
-					buf.WriteString(line)
-					buf.WriteByte('\n')
-				}
 			case inBlock && depth == 1:
 				blocks = append(blocks, buf.String())
 				inBlock = false
 				depth = 0
+				continue
 			default:
 				if depth > 0 {
 					depth--
 				}
-				if inBlock {
-					buf.WriteString(line)
-					buf.WriteByte('\n')
-				}
+			}
+			if inBlock {
+				buf.WriteString(line)
+				buf.WriteByte('\n')
 			}
 			continue
 		}
 		if depth == 0 {
 			switch {
+			case !started:
+				if strings.HasPrefix(line, "## Verification") {
+					started = true
+				}
+				continue
+			case strings.HasPrefix(line, "## "):
+				return blocks, nil
 			case headingRE.MatchString(line):
 				inSection = true
 				continue
-			case inSection && (strings.HasPrefix(line, "### ") || strings.HasPrefix(line, "## ")):
+			case strings.HasPrefix(line, "### "):
 				inSection = false
 			}
 		}
@@ -301,7 +303,10 @@ func VerificationBlocks(body, label string) []string {
 			buf.WriteByte('\n')
 		}
 	}
-	return blocks
+	if inBlock {
+		return nil, fmt.Errorf("issue body has an unterminated ``` fence inside Verification %s; the remaining blocks cannot be extracted", label)
+	}
+	return blocks, nil
 }
 
 func isAlpha(b byte) bool {
@@ -311,14 +316,35 @@ func isAlpha(b byte) bool {
 // verificationSpan returns the body slice from the "## Verification" heading to
 // the next "## " heading (or end of body). Empty if Verification is absent —
 // the missing-heading check above already reports that.
+//
+// Fence depth is tracked so a "## " line inside a still-open fence — a heredoc
+// payload carrying a mini issue doc — is read as the block content it is,
+// rather than cutting the section short. A truncated span made the fence-
+// balance check below refuse valid bodies and made the verb lint read less
+// than VerificationBlocks executes; the two must agree on where the section
+// ends.
 func verificationSpan(body string) string {
-	start := strings.Index(body, "## Verification")
-	if start < 0 {
-		return ""
+	var span strings.Builder
+	started := false
+	depth := 0
+	for _, line := range strings.Split(body, "\n") {
+		switch {
+		case strings.HasPrefix(line, "```"):
+			if len(line) > 3 && isAlpha(line[3]) {
+				depth++
+			} else if depth > 0 {
+				depth--
+			}
+		case depth > 0:
+		case !started:
+			started = strings.HasPrefix(line, "## Verification")
+		case strings.HasPrefix(line, "## "):
+			return span.String()
+		}
+		if started {
+			span.WriteString(line)
+			span.WriteByte('\n')
+		}
 	}
-	rest := body[start:]
-	if next := strings.Index(rest[len("## Verification"):], "\n## "); next >= 0 {
-		return rest[:len("## Verification")+next]
-	}
-	return rest
+	return span.String()
 }

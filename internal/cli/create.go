@@ -474,6 +474,7 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringArrayVar(&flagAcceptance, "acceptance", nil, "acceptance criterion to add (repeatable; issue only)")
 	cmd.Flags().StringVar(&flagKind, "kind", "", "contract kind, a registered label (required for contract; register via `anvil contract kinds add`)")
 	cmd.Flags().BoolVar(&flagShowTemplate, "show-template", false, "print the required body skeleton + tag rules for <type> and exit (learning, issue)")
+	cmd.Flags().BoolVar(&flagSkipVerifyPredicates, "skip-verify-predicates", false, skipVerifyPredicatesFlagUsage)
 
 	return cmd
 }

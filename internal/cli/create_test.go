@@ -779,66 +779,171 @@ func TestCreate_Issue_BodyFile_RejectsBadWikilink_RollsBack(t *testing.T) {
 	}
 }
 
-// TestCreate_Issue_RejectsFailingVerificationBlock asserts the anvil.0196
-// feasibility gate: a Verification block that fails when actually executed
-// in this environment refuses the create, rather than shipping as an
-// unexecuted green predicate.
-func TestCreate_Issue_RejectsFailingVerificationBlock(t *testing.T) {
-	vault := setupVault(t)
-	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
-	t.Chdir(repo)
-
-	body := "## Problem\nx\n## Non-goals\n- x\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\nexit 3\n```\n\n## Links\n- none\n"
-	bodyPath := filepath.Join(t.TempDir(), "issue-body.md")
-	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
-		t.Fatal(err)
-	}
-
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{
-		"create", "issue",
-		"--title", "probe",
-		"--description", "test",
-		"--goal", "goal",
-		"--body-file", bodyPath,
-		"--tags", "domain/dev-tools",
-		"--allow-new-facet=domain",
-	})
-	var stderr bytes.Buffer
-	cmd.SetErr(&stderr)
-	err := cmd.Execute()
-	if !errors.Is(err, ErrSchemaInvalid) {
-		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
-	}
-	if !strings.Contains(stderr.String(), "Indirect block 1") {
-		t.Errorf("stderr should name the failing block, got: %s", stderr.String())
-	}
-	if _, err := os.Stat(filepath.Join(vault, "70-issues", "foo.probe.md")); !os.IsNotExist(err) {
-		t.Errorf("file should not be created; stat err = %v", err)
-	}
+// feasibilityBody renders a minimal schema-valid issue body carrying the given
+// Direct and Indirect scripts, for the anvil.0196 feasibility-gate tests.
+func feasibilityBody(direct, indirect string) string {
+	return "## Problem\nx\n## Non-goals\n- x\n## Verification\n\n### Direct\n```bash\n" + direct +
+		"\n```\n\n### Indirect\n```bash\n" + indirect + "\n```\n\n## Links\n- none\n"
 }
 
-// TestCreate_Issue_PassingVerificationBlock_Succeeds is the positive case:
-// blocks that actually pass in this environment don't block the create.
-func TestCreate_Issue_PassingVerificationBlock_Succeeds(t *testing.T) {
-	setupVault(t)
-	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
-	t.Chdir(repo)
-
-	body := "## Problem\nx\n## Non-goals\n- x\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\ntrue\n```\n\n## Links\n- none\n"
-	path := createIssueGetPath(t,
+// runCreateIssueBody creates an issue with the given body and extra flags,
+// returning everything it wrote to stderr and the command error.
+func runCreateIssueBody(t *testing.T, title, body string, extra ...string) (string, error) {
+	t.Helper()
+	cmd := newRootCmd()
+	args := []string{
 		"create", "issue",
-		"--title", "probe-pass",
+		"--title", title,
 		"--description", "test",
 		"--goal", "goal",
 		"--body", body,
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
-	)
-	if _, err := core.LoadArtifact(path); err != nil {
-		t.Fatalf("expected issue to be created: %v", err)
+	}
+	cmd.SetArgs(append(args, extra...))
+	var stderr, stdout bytes.Buffer
+	cmd.SetErr(&stderr)
+	cmd.SetOut(&stdout)
+	err := cmd.Execute()
+	return stderr.String(), err
+}
+
+// TestCreate_Issue_FeasibilityGateVerdicts pins the anvil.0196 gate's verdict
+// model. An Indirect block asserts POST-fix behaviour, so it is expected to be
+// red at authoring time: exit 0 there is the false-green the gate exists to
+// kill, while any other non-zero exit is the healthy shape and must be
+// accepted. Direct is usually the repo's already-green suite, so only
+// runnability (126/127) is checked there.
+func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
+	tests := []struct {
+		name     string
+		direct   string
+		indirect string
+		refused  bool
+		wantMsg  string
+	}{
+		{name: "indirect red is the healthy shape", direct: "true", indirect: "exit 3"},
+		{name: "direct non-zero is not the gate's business", direct: "exit 4", indirect: "exit 3"},
+		{
+			name: "indirect already passes", direct: "true", indirect: "true",
+			refused: true, wantMsg: "verification Indirect block 1 already passes (exit 0)",
+		},
+		{
+			name: "indirect command not found", direct: "true", indirect: "definitely-not-a-command",
+			refused: true, wantMsg: "verification Indirect block 1 is unrunnable here (exit 127",
+		},
+		{
+			name: "direct command not found", direct: "definitely-not-a-command", indirect: "exit 3",
+			refused: true, wantMsg: "verification Direct block 1 is unrunnable here (exit 127",
+		},
+		{
+			name: "indirect not executable", direct: "true", indirect: "\"$TMPDIR\"",
+			refused: true, wantMsg: "(exit 126",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			vault := setupVault(t)
+			repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+			t.Setenv("HOME", t.TempDir())
+			t.Chdir(repo)
+
+			stderr, err := runCreateIssueBody(t, "probe", feasibilityBody(tc.direct, tc.indirect))
+			created := filepath.Join(vault, "70-issues", "foo.0001.probe.md")
+			if !tc.refused {
+				if err != nil {
+					t.Fatalf("err = %v, want nil\nstderr: %s", err, stderr)
+				}
+				if _, statErr := os.Stat(created); statErr != nil {
+					t.Errorf("issue should exist at %s: %v", created, statErr)
+				}
+				return
+			}
+			if !errors.Is(err, ErrSchemaInvalid) {
+				t.Fatalf("err = %v, want ErrSchemaInvalid\nstderr: %s", err, stderr)
+			}
+			if !strings.Contains(stderr, tc.wantMsg) {
+				t.Errorf("stderr should contain %q, got: %s", tc.wantMsg, stderr)
+			}
+			if _, statErr := os.Stat(created); !os.IsNotExist(statErr) {
+				t.Errorf("file should not be created; stat err = %v", statErr)
+			}
+		})
+	}
+}
+
+// TestCreate_Issue_FeasibilityGateAnnouncesEachBlock: the gate runs unsandboxed
+// author-supplied shell, so it must say so as it happens
+// (convention.cli-tooling rule 3 — bootstrappable from the surface alone).
+func TestCreate_Issue_FeasibilityGateAnnouncesEachBlock(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	stderr, _ := runCreateIssueBody(t, "probe", feasibilityBody("true", "exit 3"))
+	for _, want := range []string{
+		"anvil: running verification Direct block 1 in this environment",
+		"anvil: running verification Indirect block 1 in this environment",
+		"not sandboxed)",
+	} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr should contain %q, got: %s", want, stderr)
+		}
+	}
+}
+
+// TestCreate_Issue_SkipVerifyPredicates opts out of the gate: a body the gate
+// would refuse lands, because the escape hatch is opt-OUT (the gate stays the
+// default) rather than the opt-in flag the issue argues against.
+func TestCreate_Issue_SkipVerifyPredicates(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	stderr, err := runCreateIssueBody(t, "probe", feasibilityBody("true", "true"), "--skip-verify-predicates")
+	if err != nil {
+		t.Fatalf("err = %v, want nil\nstderr: %s", err, stderr)
+	}
+	if strings.Contains(stderr, "running verification") {
+		t.Errorf("no block should have run, got: %s", stderr)
+	}
+	if _, statErr := os.Stat(filepath.Join(vault, "70-issues", "foo.0001.probe.md")); statErr != nil {
+		t.Errorf("issue should exist: %v", statErr)
+	}
+}
+
+// TestCreate_Issue_HeredocH2DoesNotSkipTheBlock is the regression for the
+// gate's own false-green: a "## " line inside a heredoc used to truncate the
+// Verification span, so the block was never extracted and never run — and the
+// create succeeded with an unexecuted predicate. It must now be judged like
+// any other block (here: exit 0, so refused).
+func TestCreate_Issue_HeredocH2DoesNotSkipTheBlock(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(repo)
+
+	indirect := "cat <<'EOF' > \"$TMPDIR/mini.md\"\n## Links to the mini doc\n- none\nEOF\ntrue"
+	stderr, err := runCreateIssueBody(t, "probe", feasibilityBody("true", indirect))
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid — the post-heredoc block must be extracted and run\nstderr: %s", err, stderr)
+	}
+	if !strings.Contains(stderr, "verification Indirect block 1 already passes (exit 0)") {
+		t.Errorf("stderr should judge the heredoc-carrying block, got: %s", stderr)
+	}
+}
+
+// TestCreateLongDescription_DisclosesCodeExecution: an agent that has never
+// seen `create` must learn from --help alone that it executes body bash
+// unsandboxed and is not retry-safe (convention.cli-tooling rule 3).
+func TestCreateLongDescription_DisclosesCodeExecution(t *testing.T) {
+	long := createLongDescription()
+	for _, want := range []string{"EXECUTES CODE", "NOT sandboxed", "retry-safe", "--skip-verify-predicates"} {
+		if !strings.Contains(long, want) {
+			t.Errorf("create --help should disclose %q; got:\n%s", want, long)
+		}
 	}
 }
 
