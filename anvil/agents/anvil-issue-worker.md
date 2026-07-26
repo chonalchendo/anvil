@@ -31,6 +31,14 @@ This section encodes harness behaviour, not skill behaviour: it is duplicated in
 
 Work in the dispatched worktree path on the dispatched branch. Before every edit, `git rev-parse --show-toplevel` must equal that path exactly — else halt with `Blocker: write-outside-worktree (toplevel=<actual>)`. Not self-correctable.
 
+## Pre-gate cwd anchor (mandatory)
+
+The Bash tool resets cwd between calls, so a `cd` in one call never carries into the next — this bites verification and build gates (`just check`, `just install-local`, `go test`, any `## Verification` block), not just edits: a gate silently run from wherever the shell defaults to reports green against the main checkout, not your change. Before every such gate, derive the worktree root fresh and run the `cd` plus the gate in the SAME Bash call — never split them across calls, and never hardcode a path (including your own dispatched worktree path) inside the predicate itself.
+
+```bash
+cd <dispatched-worktree-path> && just check
+```
+
 ## Scope-change check (PRE-EDIT INVARIANT)
 
 Before editing any file, grep to confirm it is within the declared file set. Before committing, verify the LOC delta does not materially exceed the issue estimate. If either check fails, **halt immediately** with:

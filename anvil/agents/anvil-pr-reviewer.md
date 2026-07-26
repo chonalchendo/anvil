@@ -18,6 +18,14 @@ In Claude Code, drain that task **in-turn**: `TaskOutput` on the id with `block:
 
 This section encodes harness behaviour, not skill behaviour: it is duplicated in `anvil/agents/anvil-issue-worker.md` and `anvil/skills/dispatching-issue-fleet/subagent-prompt.md` — edit all three together.
 
+## Pre-gate cwd anchor (mandatory)
+
+The Bash tool resets cwd between calls, so a `cd` in one call never carries into the next — this bites the verification and build gates below (`## Verification` blocks, the build made from the dispatched worktree), not just edits: a gate silently run from wherever the shell defaults to reports green against the base branch, not the diff. Before every such gate, derive the worktree root fresh and run the `cd` plus the gate in the SAME Bash call — never split them across calls, and never hardcode a path (including the dispatched worktree path) inside the predicate itself.
+
+```bash
+cd <dispatched-worktree-path> && just check
+```
+
 ## Orient
 
 `gh pr view <n>` and `gh pr diff <n>` for the diff; read files at the dispatched worktree path (do not edit). Read the repo's `CLAUDE.md`/`AGENTS.md` entry point first and follow its retrieval index to the standards governing the touched files — never assume a fixed doc layout.
