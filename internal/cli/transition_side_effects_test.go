@@ -411,6 +411,126 @@ func TestLandPRHappyPath(t *testing.T) {
 	}
 }
 
+// TestLandPRAutoClaimsOpenIssueWithOwner covers the dispatched-worker land
+// path: the issue is never claimed in-progress, and --land-pr --owner claims
+// and resolves it in one call rather than refusing with illegal_transition.
+func TestLandPRAutoClaimsOpenIssueWithOwner(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	// Issue is left open — no prior `in-progress --owner` claim.
+
+	s := stubSideFX(t)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+
+	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--owner", "claude")
+
+	if len(s.mergeCalls) != 1 || s.mergeCalls[0] != 42 {
+		t.Errorf("merge calls = %v", s.mergeCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v, want resolved", a.FrontMatter["status"])
+	}
+	if a.FrontMatter["owner"] != "claude" {
+		t.Errorf("owner = %v, want claude", a.FrontMatter["owner"])
+	}
+}
+
+// TestLandPRAutoClaimsOpenIssueWithoutOwner asserts --land-pr alone (no
+// --owner) is enough to auto-claim an unclaimed open issue: --land-pr is
+// itself the explicit opt-in, matching the issue's non-goal that only the
+// unclaimed-open case auto-claims (not an owner-gated variant of it).
+func TestLandPRAutoClaimsOpenIssueWithoutOwner(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+
+	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
+
+	if len(s.mergeCalls) != 1 || s.mergeCalls[0] != 42 {
+		t.Errorf("merge calls = %v", s.mergeCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v, want resolved", a.FrontMatter["status"])
+	}
+}
+
+// TestLandPRLeavesInProgressOwnerUntouched covers the non-goal: auto-claim
+// applies only to the unclaimed-open case. An issue already in-progress
+// under another owner takes the normal in-progress → resolved edge, and
+// --land-pr must not overwrite its existing owner.
+func TestLandPRLeavesInProgressOwnerUntouched(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "alice")
+
+	s := stubSideFX(t)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+
+	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
+
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v, want resolved", a.FrontMatter["status"])
+	}
+	if a.FrontMatter["owner"] != "alice" {
+		t.Errorf("owner = %v, want alice (untouched by land-pr)", a.FrontMatter["owner"])
+	}
+}
+
+// TestLandPRAutoClaimFailedMergeLeavesIssueOpen asserts atomicity: an
+// auto-claim attempt whose land fails a gate leaves the issue open, not
+// stuck claimed-but-unresolved.
+func TestLandPRAutoClaimFailedMergeLeavesIssueOpen(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"CONFLICTING","mergeStateStatus":"DIRTY"}`)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--owner", "claude", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "land_pr_not_mergeable") {
+		t.Errorf("missing error code: %s", stdout.String())
+	}
+	if len(s.mergeCalls) != 0 {
+		t.Errorf("merge should not have been called: %v", s.mergeCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "open" {
+		t.Errorf("status = %v, want open (unchanged; claim never persisted)", a.FrontMatter["status"])
+	}
+	if _, ok := a.FrontMatter["owner"]; ok {
+		t.Errorf("owner = %v, want unset (claim never persisted)", a.FrontMatter["owner"])
+	}
+}
+
 func TestLandPRRefusesWhenNotMergeable(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)

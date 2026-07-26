@@ -161,10 +161,23 @@ func newTransitionCmd() *cobra.Command {
 				})
 			}
 
-			tr, err := core.LookupTransition(t, from, to)
-			if err != nil {
-				e := errfmt.NewIllegalTransition(string(t), id, from, to, core.LegalNext(t, from))
-				return printAndReturn(cmd, e)
+			// --land-pr is itself the explicit opt-in (like --force/--local-validated)
+			// that auto-claims an unclaimed open issue, so dispatched workers that
+			// stop at PR-opened land in one call instead of a separate claim first.
+			// An issue in-progress under another owner still refuses below. Owner
+			// (if passed) is stamped into frontmatter but only persisted by the
+			// single Save() after doLandPR succeeds, so a failed land leaves the
+			// issue on disk exactly as it was: open.
+			autoClaimLandPR := t == core.TypeIssue && to == "resolved" && landPRNum != 0 && from == "open"
+			var tr core.Transition
+			if autoClaimLandPR {
+				tr = core.Transition{From: from, To: to}
+			} else {
+				tr, err = core.LookupTransition(t, from, to)
+				if err != nil {
+					e := errfmt.NewIllegalTransition(string(t), id, from, to, core.LegalNext(t, from))
+					return printAndReturn(cmd, e)
+				}
 			}
 
 			flagValues := map[string]string{"owner": owner, "reason": reason}
@@ -305,6 +318,13 @@ func newTransitionCmd() *cobra.Command {
 				if localValidated {
 					extra = " (--local-validated: CI gate bypassed on operator attestation)"
 				}
+				if autoClaimLandPR {
+					if owner != "" {
+						extra += fmt.Sprintf(" (auto-claimed from open with --owner %s)", owner)
+					} else {
+						extra += " (auto-claimed from open)"
+					}
+				}
 				audit := fmt.Sprintf("\n> resolved --land-pr %d %s: merged via squash + branch deleted%s\n", landPRNum, stamp, extra)
 				if !strings.HasSuffix(a.Body, "\n") {
 					a.Body += "\n"
@@ -345,7 +365,7 @@ func newTransitionCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&cutWorktree, "cut-worktree", false, "create the conventional worktree+branch before transitioning (issue → in-progress only)")
 	cmd.Flags().StringVar(&worktreeOverride, "worktree", "", "override the derived worktree path (used with --cut-worktree or --land-pr)")
 	cmd.Flags().StringVar(&branchOverride, "branch", "", "override the derived branch name (used with --cut-worktree)")
-	cmd.Flags().IntVar(&landPRNum, "land-pr", 0, "PR number to land: verify-mergeable + CI-green, squash-merge, verify MERGED, remove worktree, delete branch, then transition (issue → resolved only)")
+	cmd.Flags().IntVar(&landPRNum, "land-pr", 0, "PR number to land: verify-mergeable + CI-green, squash-merge, verify MERGED, remove worktree, delete branch, then transition (issue → resolved only); auto-claims an unclaimed open issue atomically (--owner optional, stamped if given)")
 	cmd.Flags().BoolVar(&localValidated, "local-validated", false, "bypass the CI-green gate when used with --land-pr; for use when required CI is genuinely unavailable and the operator has validated locally (audit-logged)")
 	return cmd
 }
