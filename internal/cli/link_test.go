@@ -64,6 +64,7 @@ func writeFixturePlan(t *testing.T, vault, project, slug, title string) string {
 func TestLink_PlanToMilestone(t *testing.T) {
 	vault := setupVault(t)
 	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureMilestone(t, vault, "foo.m1-bar", "planned")
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"link", "plan", "foo.q2", "milestone", "foo.m1-bar"})
@@ -160,6 +161,7 @@ func TestLink_ExternalRejectsWhitespaceOnly(t *testing.T) {
 func TestLink_AnyPair_WritesToRelated(t *testing.T) {
 	vault := setupVault(t)
 	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureDecision(t, vault, "auth.0001-x")
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"link", "plan", "foo.q2", "decision", "auth.0001-x"})
 	if err := cmd.Execute(); err != nil {
@@ -343,6 +345,100 @@ func TestLink_ShortIdResolution_NonZeroOnMiss(t *testing.T) {
 	cmd.SetArgs([]string{"link", "issue", "foo.9999", "contract", "foo.data-bounds"})
 	if err := cmd.Execute(); err == nil {
 		t.Fatalf("expected non-zero exit for missing short id foo.9999 in vault %s", vault)
+	}
+}
+
+// writeFixtureTyped writes a minimal artifact of type typ into dir. Link-target
+// resolution only needs the file to exist, so the frontmatter stays skeletal.
+func writeFixtureTyped(t *testing.T, vault, dir, typ, id string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(vault, dir), 0o755); err != nil { //nolint:gosec // test fixture; 0755 matches vault convention
+		t.Fatal(err)
+	}
+	a := &core.Artifact{
+		Path: filepath.Join(vault, dir, id+".md"),
+		FrontMatter: map[string]any{
+			"type": typ, "title": id, "description": "fixture description",
+			"created": "2026-01-01", "updated": "2026-01-01", "status": "active",
+		},
+		Body: "fixture body\n",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeFixtureDecision(t *testing.T, vault, id string) {
+	t.Helper()
+	writeFixtureTyped(t, vault, "30-decisions", "decision", id)
+}
+
+// TestLink_CanonicalPrefixedTargetId pins the fix for the double-prefix trap:
+// convention and design ids keep their type prefix on disk, so the id every
+// anvil surface prints must produce the same edge as the bare form rather than
+// a doubled, unresolvable one.
+func TestLink_CanonicalPrefixedTargetId(t *testing.T) {
+	cases := []struct {
+		name       string
+		tgtType    string
+		tgtID      string
+		wantTarget string
+	}{
+		{"convention canonical", "convention", "convention.sqlmesh", "[[convention.sqlmesh]]"},
+		{"convention bare", "convention", "sqlmesh", "[[convention.sqlmesh]]"},
+		{"system-design canonical", "system-design", "system-design.foo", "[[system-design.foo]]"},
+		{"system-design bare", "system-design", "foo", "[[system-design.foo]]"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vault := setupVault(t)
+			writeFixturePlan(t, vault, "foo", "q2", "Q2")
+			writeFixtureTyped(t, vault, "35-conventions", "convention", "convention.sqlmesh")
+			writeFixtureDesign(t, vault, "foo", core.TypeSystemDesign, "Foo SD")
+
+			cmd := newRootCmd()
+			cmd.SetArgs([]string{"link", "plan", "foo.q2", tc.tgtType, tc.tgtID})
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("link plan→%s %s: %v", tc.tgtType, tc.tgtID, err)
+			}
+			a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			related, _ := a.FrontMatter["related"].([]any)
+			if len(related) != 1 || related[0] != tc.wantTarget {
+				t.Errorf("related = %v, want [%s]", related, tc.wantTarget)
+			}
+		})
+	}
+}
+
+// TestLink_RejectsMissingTarget pins the second half: a dead edge is refused at
+// write time, and the error names both forms tried so the caller can tell a
+// typo from a missing artifact.
+func TestLink_RejectsMissingTarget(t *testing.T) {
+	vault := setupVault(t)
+	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"link", "plan", "foo.q2", "convention", "convention.nope"})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error linking to a missing convention")
+	}
+	for _, want := range []string{"[[convention.convention.nope]]", "[[convention.nope]]"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not name %s", err, want)
+		}
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if related, ok := a.FrontMatter["related"]; ok {
+		t.Errorf("related written despite refusal: %v", related)
 	}
 }
 
