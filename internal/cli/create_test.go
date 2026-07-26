@@ -19,6 +19,7 @@ import (
 func setupVault(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
+	isolateRootEnv(t)
 	t.Setenv("ANVIL_VAULT", dir)
 	v := &core.Vault{Root: dir}
 	if err := v.Scaffold(); err != nil {

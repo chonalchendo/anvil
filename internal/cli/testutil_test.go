@@ -15,6 +15,7 @@ import (
 // runCmd executes cmd with args, capturing stdout and stderr separately.
 func runCmd(t *testing.T, cmd *cobra.Command, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
+	isolateRootEnv(t)
 	var outBuf, errBuf bytes.Buffer
 	cmd.SetOut(&outBuf)
 	cmd.SetErr(&errBuf)
@@ -141,6 +142,7 @@ func newTestVaultWithMixedInbox(t *testing.T) string {
 // JSON doesn't contain a path.
 func createIssueGetPath(t *testing.T, args ...string) string {
 	t.Helper()
+	isolateRootEnv(t)
 	cmd := newRootCmd()
 	args = append(args, "--json")
 	var out bytes.Buffer
