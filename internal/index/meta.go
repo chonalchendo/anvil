@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -89,6 +90,10 @@ func (d *DB) GetLastReindex() (time.Time, error) {
 // (create/delete/rename) do. A vault-root stat alone misses an external
 // editor saving over an existing artifact, which is exactly the kind of
 // drift this check exists to surface.
+//
+// Modification times in the future are ignored: they can't describe an edit
+// that already happened, and they are newer than every stamp reindex can ever
+// write, so honouring them wedges the index permanently stale.
 func (d *DB) CheckFreshness(vaultRoot string) error {
 	return d.CheckFreshnessExcept(vaultRoot, "")
 }
@@ -108,6 +113,10 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 			skipAbs = abs
 		}
 	}
+	// One clock read for the whole walk, so files aren't compared against
+	// drifting nows.
+	now := time.Now()
+	stalePath := ""
 	walkErr := filepath.WalkDir(vaultRoot, func(path string, dEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -132,13 +141,17 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 		if ierr != nil {
 			return ierr
 		}
+		if futureMtime(path, info.ModTime(), now) {
+			return nil
+		}
 		if info.ModTime().After(stamp) {
+			stalePath = path
 			return errStaleSentinel
 		}
 		return nil
 	})
 	if errors.Is(walkErr, errStaleSentinel) {
-		return ErrIndexStale
+		return fmt.Errorf("%w: %s modified after last reindex (%s)", ErrIndexStale, stalePath, stamp.Format(time.RFC3339))
 	}
 	if walkErr != nil {
 		return fmt.Errorf("walk vault: %w", walkErr)
@@ -149,10 +162,24 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 	if err != nil {
 		return fmt.Errorf("stat vault: %w", err)
 	}
-	if info.ModTime().After(stamp) {
-		return ErrIndexStale
+	if !futureMtime(vaultRoot, info.ModTime(), now) && info.ModTime().After(stamp) {
+		return fmt.Errorf("%w: %s changed after last reindex (%s)", ErrIndexStale, vaultRoot, stamp.Format(time.RFC3339))
 	}
 	return nil
+}
+
+// futureMtime reports whether mtime post-dates the check's clock read, and
+// warns when it does. Such a timestamp can't record an edit that has already
+// happened; more importantly it is newer than any stamp `anvil reindex` can
+// write (reindex stamps time.Now()), so counting it as drift would leave the
+// index stale forever with no operator-reachable fix.
+func futureMtime(path string, mtime, now time.Time) bool {
+	if !mtime.After(now) {
+		return false
+	}
+	slog.Warn("ignoring future modification time in freshness check",
+		"path", path, "mtime", mtime.Format(time.RFC3339), "now", now.Format(time.RFC3339))
+	return true
 }
 
 // errStaleSentinel short-circuits the walk on first stale file. Internal —
