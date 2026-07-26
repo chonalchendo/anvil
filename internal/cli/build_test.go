@@ -339,7 +339,7 @@ func TestInjectHydratedContextDispatchTask(t *testing.T) {
 		writeHydrateMilestone(t, vault, "foo.m1",
 			map[string]any{"product_design": "[[product-design.foo]]"},
 			"## Why now\n\nMILESTONE_OBJECTIVE_PHRASE only in the milestone body.\n")
-		writeHydrateDesign(t, vault, "foo", core.TypeProductDesign,
+		writeHydrateDesign(t, vault, "foo", core.TypeProductDesign, nil,
 			"## Vision\n\nDESIGN_BODY_PHRASE only in the design body.\n")
 
 		tasks := readyUnitsToTasks([]readyUnit{{

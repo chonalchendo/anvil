@@ -60,7 +60,7 @@ Aim for code that's easy to reason about — **atomic** (one concern in one plac
 
 **Frame the fork, then recommend.** When a *genuine* fork arises — a choice that shapes structure the human will later have to steer — make it legible in a few lines *before* recommending: name the options plainly, state the tension, surface the rejected alternative *and why it fails*, and give the one fact that discriminates. Then recommend a single direction — don't hand back a menu. A default, not a template: stay silent on trivial choices, never manufacture tension to fill slots, and keep it brief — legible means clearer, not longer.
 
-**Open the issue's context box first.** One call assembles the full spine closure — the issue, its milestone (objectives/non-goals), the milestone's design bodies, the issue's contracts→conventions, and prior learnings — walking the reliable milestone spine rather than best-effort one-hop links. Scan the compact digest first — each node's frontmatter + `## TL;DR`, the cheap boundary map — then drill into the one or two load-bearing bodies, rather than paying the full-body dump up front (tokens are the budget; most bodies go unread):
+**Open the issue's context box first.** One call assembles the full spine closure — the issue, its milestone (objectives/non-goals), the milestone's design bodies, the conventions those designs and the issue's contracts govern by, and prior learnings — walking the reliable milestone spine rather than best-effort one-hop links. Scan the compact digest first — each node's frontmatter + `## TL;DR`, the cheap boundary map — then drill into the one or two load-bearing bodies, rather than paying the full-body dump up front (tokens are the budget; most bodies go unread):
 
 ```bash
 anvil hydrate <id> --tldr   # scan: each node's frontmatter + ## TL;DR, headed `=== <type> <id> (status: <s>) ===`
@@ -144,7 +144,7 @@ tmpl=$(ls {.github/,docs/,}{PULL_REQUEST_TEMPLATE,pull_request_template}.md 2>/d
 - **Template found** → fill its sections from the diff and the issue's `goal:`, then append `closes #<issue-number>`. Pass the filled template as `--body`, preserving its headers so a reviewer gets the structure they rely on.
 - **No template** → `--body "<one-paragraph + closes #<issue-number>>"`.
 
-**Append the context manifest.** Re-run `anvil hydrate <id> --tldr` (the manifest needs only the headers, so scan the cheap digest) and list every `=== <type> <id> (status: <s>) ===` header it emitted as the **available** set (grounded — the box `anvil hydrate` actually assembled, not a self-reported list). Mark each `used` if you read its body and applied it in Phase 1, else `unread`. Append this as a `## Context box` section of the PR body — the delta between available and used is the diagnostic surfaced above:
+**Append the context manifest.** Re-run `anvil hydrate <id> --tldr` (the manifest needs only the headers, so scan the cheap digest) and list every `=== <type> <id> (status: <s>) ===` header it emitted as the **available** set (grounded — the box `anvil hydrate` actually assembled, not a self-reported list). Mark each `used` if you read its body and applied it in Phase 1, `unread` if you skipped it, and `empty` when the header carried the `, empty` suffix — that node had no body to read, so it is not a reading-discipline gap. Append this as a `## Context box` section of the PR body — the delta between available and used is the diagnostic surfaced above:
 
 ```text
 ## Context box
@@ -152,6 +152,7 @@ Assembled by `anvil hydrate <id>` (<N> spine nodes).
 - [x] issue <id> — available, used
 - [x] milestone <mid> — available, used
 - [ ] contract <cid> — available, unread
+- [—] product-design <did> — empty, nothing to read
 ```
 
 ```bash

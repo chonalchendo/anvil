@@ -14,14 +14,14 @@ import (
 )
 
 // newHydrateCmd assembles an issue's methodology-spine context closure into one
-// bundle of linked bodies: the issue, its milestone, the milestone's designs,
-// the issue's contracts→conventions, and its prior learnings. A spine edge whose
-// target does not resolve on disk makes the command exit non-zero naming it,
-// rather than silently omitting it.
+// bundle of linked bodies: the issue, its milestone, the milestone's designs, the
+// conventions those designs and the issue's contracts govern by, and its prior
+// learnings. A spine edge whose target does not resolve on disk makes the command
+// exit non-zero naming it, rather than silently omitting it.
 func newHydrateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "hydrate <issue>",
-		Short:   "Assemble an issue's linked-context closure (issue → milestone → designs, contracts → conventions, learnings) as bodies; a dangling spine edge exits non-zero naming it",
+		Short:   "Assemble an issue's linked-context closure (issue → milestone → designs → conventions, contracts → conventions, learnings) as bodies; a dangling spine edge exits non-zero naming it",
 		Args:    namedArgs("anvil hydrate <issue>", []string{"<issue>"}, 1, 1),
 		Example: "  anvil hydrate anvil.0148.assemble-the-linked",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -61,10 +61,13 @@ type brokenEdge struct {
 }
 
 // hydration accumulates the assembled closure and any broken edges as the walk
-// descends the fixed methodology spine.
+// descends the fixed methodology spine. seen keys the nodes already emitted, so a
+// convention reachable by two rails (a contract and a design) enters the bundle
+// once — a duplicated body is pure context cost to the reader.
 type hydration struct {
 	nodes  []spineNode
 	broken []brokenEdge
+	seen   map[string]bool
 }
 
 // walk resolves target of linkType declared by sourceDesc via forward file
@@ -83,7 +86,10 @@ func (h *hydration) walk(v *core.Vault, sourceDesc string, linkType core.Type, t
 		}
 		return nil, fmt.Errorf("loading %s %s: %w", linkType, target, err)
 	}
-	h.nodes = append(h.nodes, nodeOf(linkType, id, a))
+	if key := string(linkType) + " " + id; !h.seen[key] {
+		h.seen[key] = true
+		h.nodes = append(h.nodes, nodeOf(linkType, id, a))
+	}
 	return a, nil
 }
 
@@ -118,10 +124,13 @@ func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 		return nil, fmt.Errorf("loading issue: %w", err)
 	}
 
-	h := &hydration{nodes: []spineNode{nodeOf(core.TypeIssue, issueID, iss)}}
+	h := &hydration{
+		nodes: []spineNode{nodeOf(core.TypeIssue, issueID, iss)},
+		seen:  map[string]bool{string(core.TypeIssue) + " " + issueID: true},
+	}
 	issueSrc := "issue " + issueID
 
-	// issue → milestone → {product-design, system-design}
+	// issue → milestone → {product-design, system-design} → convention
 	for _, mt := range linkTargetsOfType(iss, core.TypeMilestone) {
 		ms, err := h.walk(v, issueSrc, core.TypeMilestone, mt)
 		if err != nil {
@@ -133,7 +142,14 @@ func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 		msSrc := "milestone " + mt
 		for _, dtype := range []core.Type{core.TypeProductDesign, core.TypeSystemDesign} {
 			for _, dt := range linkTargetsOfType(ms, dtype) {
-				if _, err := h.walk(v, msSrc, dtype, dt); err != nil {
+				d, err := h.walk(v, msSrc, dtype, dt)
+				if err != nil {
+					return nil, err
+				}
+				if d == nil {
+					continue
+				}
+				if err := h.descendConventions(v, string(dtype)+" "+dt, d); err != nil {
 					return nil, err
 				}
 			}
@@ -149,10 +165,8 @@ func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 		if c == nil {
 			continue
 		}
-		for _, cv := range linkTargetsOfType(c, core.TypeConvention) {
-			if _, err := h.walk(v, "contract "+ct, core.TypeConvention, cv); err != nil {
-				return nil, err
-			}
+		if err := h.descendConventions(v, "contract "+ct, c); err != nil {
+			return nil, err
 		}
 	}
 
@@ -164,6 +178,19 @@ func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 	}
 
 	return h, nil
+}
+
+// descendConventions walks an artifact's convention links — the shared last hop of
+// both governing rails. A design carries the house style every issue under it must
+// obey, so reaching conventions only through a contract left them unreachable for
+// any issue whose repo declares no contract.
+func (h *hydration) descendConventions(v *core.Vault, sourceDesc string, a *core.Artifact) error {
+	for _, cv := range linkTargetsOfType(a, core.TypeConvention) {
+		if _, err := h.walk(v, sourceDesc, core.TypeConvention, cv); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // emitHydration prints each node under a `=== <type> <id> (status) ===` header to
@@ -223,20 +250,19 @@ func clipBody(body string) (clipped string, total int, wasClipped bool) {
 }
 
 // closureHeader formats a spine node's bundle header — `=== <type> <id> (status:
-// <s>) ===`, with an `, empty` suffix when the node has no body. Shared by the
-// `hydrate` emit and the `build` driver's task-body fold so both bundles read
-// identically. The suffix lets a downstream manifest (e.g. completing-issue's
-// context-box used/unread accounting) tell an empty-bodied node — nothing to
-// read — from one that was merely left unread; without it both look identical.
+// <s>[, empty]) ===`. Shared by the `hydrate` emit and the `build` driver's
+// task-body fold. The `empty` suffix keeps a node with nothing to read distinct
+// from one merely left unread.
 func closureHeader(n spineNode) string {
 	status := n.Status
 	if status == "" {
 		status = "unset"
 	}
+	suffix := ""
 	if strings.TrimSpace(n.Body) == "" {
-		return fmt.Sprintf("=== %s %s (status: %s, empty) ===", n.Type, n.ID, status)
+		suffix = ", empty"
 	}
-	return fmt.Sprintf("=== %s %s (status: %s) ===", n.Type, n.ID, status)
+	return fmt.Sprintf("=== %s %s (status: %s%s) ===", n.Type, n.ID, status, suffix)
 }
 
 // brokenSpineError names every dangling spine edge so the failure is actionable

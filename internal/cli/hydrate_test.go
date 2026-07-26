@@ -47,23 +47,28 @@ func writeHydrateMilestone(t *testing.T, vault, id string, links map[string]any,
 	}
 }
 
-// writeHydrateDesign seeds a product/system-design (prefix-retaining id) with a
+// writeHydrateDesign seeds a product/system-design (prefix-retaining id) with the
+// given links (e.g. "related": []any{"[[convention.go-style]]"}) and a
 // caller-controlled body. The design dirs are not scaffolded, so mkdir first.
-func writeHydrateDesign(t *testing.T, vault, project string, typ core.Type, body string) {
+func writeHydrateDesign(t *testing.T, vault, project string, typ core.Type, links map[string]any, body string) {
 	t.Helper()
 	dir := filepath.Join(vault, typ.Dir())
 	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for traversable dirs
 		t.Fatal(err)
 	}
 	id := string(typ) + "." + project
+	fm := map[string]any{
+		"type": string(typ), "title": id, "description": "fixture description",
+		"created": "2026-07-01", "status": "active", "project": project,
+		"tags": []any{"type/" + string(typ)},
+	}
+	for k, v := range links {
+		fm[k] = v
+	}
 	a := &core.Artifact{
-		Path: filepath.Join(dir, id+".md"),
-		FrontMatter: map[string]any{
-			"type": string(typ), "title": id, "description": "fixture description",
-			"created": "2026-07-01", "status": "active", "project": project,
-			"tags": []any{"type/" + string(typ)},
-		},
-		Body: body,
+		Path:        filepath.Join(dir, id+".md"),
+		FrontMatter: fm,
+		Body:        body,
 	}
 	if err := a.Save(); err != nil {
 		t.Fatal(err)
@@ -144,7 +149,7 @@ func TestHydrate(t *testing.T) {
 		writeHydrateMilestone(t, vault, "foo.m1",
 			map[string]any{"product_design": "[[product-design.foo]]"},
 			"## Why now\n\nMILESTONE_MARKER_PHRASE spanning the spine.\n")
-		writeHydrateDesign(t, vault, "foo", core.TypeProductDesign,
+		writeHydrateDesign(t, vault, "foo", core.TypeProductDesign, nil,
 			"## Vision\n\nPRODUCT_DESIGN_MARKER_PHRASE for the closure.\n")
 
 		cmd := newRootCmd()
@@ -172,6 +177,52 @@ func TestHydrate(t *testing.T) {
 		}
 		if !strings.Contains(out, "CONVENTION_MARKER") {
 			t.Errorf("bundle missing contract-linked convention body\n%s", out)
+		}
+	})
+
+	t.Run("closure walks the design to its linked convention with no contract rail", func(t *testing.T) {
+		vault := setupVault(t)
+		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"milestone": "[[milestone.foo.m1]]"})
+		writeHydrateMilestone(t, vault, "foo.m1",
+			map[string]any{"product_design": "[[product-design.foo]]"},
+			"## Why now\n\nmilestone body.\n")
+		writeHydrateDesign(t, vault, "foo", core.TypeProductDesign,
+			map[string]any{"related": []any{"[[convention.go-style]]"}},
+			"## Vision\n\ndesign body.\n")
+		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nDESIGN_CONVENTION_MARKER for the design hop.\n")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if !strings.Contains(out, "DESIGN_CONVENTION_MARKER") {
+			t.Errorf("bundle missing design-linked convention body\n%s", out)
+		}
+	})
+
+	t.Run("a convention on both rails enters the closure once", func(t *testing.T) {
+		vault := setupVault(t)
+		writeHydrateIssue(t, vault, "foo.i1", map[string]any{
+			"milestone": "[[milestone.foo.m1]]",
+			"related":   []any{"[[contract.foo.boundaries]]"},
+		})
+		writeHydrateMilestone(t, vault, "foo.m1",
+			map[string]any{"product_design": "[[product-design.foo]]"},
+			"## Why now\n\nmilestone body.\n")
+		writeHydrateDesign(t, vault, "foo", core.TypeProductDesign,
+			map[string]any{"related": []any{"[[convention.go-style]]"}},
+			"## Vision\n\ndesign body.\n")
+		writeHydrateContract(t, vault, "foo.boundaries", "convention.go-style")
+		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nshared by both rails.\n")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if got := strings.Count(out, "=== convention convention.go-style"); got != 1 {
+			t.Errorf("convention reachable by both rails emitted %d times, want 1\n%s", got, out)
 		}
 	})
 
@@ -205,13 +256,13 @@ func TestHydrate(t *testing.T) {
 		}
 	})
 
-	t.Run("empty-bodied node header is marked empty, distinct from an unread node with content", func(t *testing.T) {
+	t.Run("empty-bodied node header is marked empty", func(t *testing.T) {
 		vault := setupVault(t)
 		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"milestone": "[[milestone.foo.m1]]"})
 		writeHydrateMilestone(t, vault, "foo.m1",
 			map[string]any{"product_design": "[[product-design.foo]]"},
 			"## Why now\n\nMILESTONE_BODY_HAS_CONTENT.\n")
-		writeHydrateDesign(t, vault, "foo", core.TypeProductDesign, "")
+		writeHydrateDesign(t, vault, "foo", core.TypeProductDesign, nil, "")
 
 		cmd := newRootCmd()
 		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
@@ -246,7 +297,7 @@ func TestHydrate(t *testing.T) {
 		writeHydrateMilestone(t, vault, "foo.m1",
 			map[string]any{"system_design": "[[system-design.foo]]"},
 			"## Why now\n\nmilestone body.\n")
-		writeHydrateDesign(t, vault, "foo", core.TypeSystemDesign,
+		writeHydrateDesign(t, vault, "foo", core.TypeSystemDesign, nil,
 			"## Architecture\n\nSYSTEM_DESIGN_MARKER for the forward-resolution check.\n")
 
 		cmd := newRootCmd()

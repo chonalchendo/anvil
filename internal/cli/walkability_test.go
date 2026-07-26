@@ -15,7 +15,7 @@ func TestWalkability(t *testing.T) {
 		writeHydrateMilestone(t, vault, "foo.mw",
 			map[string]any{"product_design": "[[product-design.foo]]"},
 			"## Why now\n\nreal milestone body.\n")
-		writeHydrateDesign(t, vault, "foo", "product-design", "## Vision\n\nreal design body.\n")
+		writeHydrateDesign(t, vault, "foo", "product-design", nil, "## Vision\n\nreal design body.\n")
 
 		// broken: milestone link dangles.
 		writeHydrateIssue(t, vault, "foo.broken", map[string]any{"milestone": "[[milestone.foo.ghost]]"})
