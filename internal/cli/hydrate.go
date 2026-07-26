@@ -223,12 +223,18 @@ func clipBody(body string) (clipped string, total int, wasClipped bool) {
 }
 
 // closureHeader formats a spine node's bundle header — `=== <type> <id> (status:
-// <s>) ===`. Shared by the `hydrate` emit and the `build` driver's task-body
-// fold so both bundles read identically.
+// <s>) ===`, with an `, empty` suffix when the node has no body. Shared by the
+// `hydrate` emit and the `build` driver's task-body fold so both bundles read
+// identically. The suffix lets a downstream manifest (e.g. completing-issue's
+// context-box used/unread accounting) tell an empty-bodied node — nothing to
+// read — from one that was merely left unread; without it both look identical.
 func closureHeader(n spineNode) string {
 	status := n.Status
 	if status == "" {
 		status = "unset"
+	}
+	if strings.TrimSpace(n.Body) == "" {
+		return fmt.Sprintf("=== %s %s (status: %s, empty) ===", n.Type, n.ID, status)
 	}
 	return fmt.Sprintf("=== %s %s (status: %s) ===", n.Type, n.ID, status)
 }

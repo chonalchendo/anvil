@@ -205,6 +205,27 @@ func TestHydrate(t *testing.T) {
 		}
 	})
 
+	t.Run("empty-bodied node header is marked empty, distinct from an unread node with content", func(t *testing.T) {
+		vault := setupVault(t)
+		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"milestone": "[[milestone.foo.m1]]"})
+		writeHydrateMilestone(t, vault, "foo.m1",
+			map[string]any{"product_design": "[[product-design.foo]]"},
+			"## Why now\n\nMILESTONE_BODY_HAS_CONTENT.\n")
+		writeHydrateDesign(t, vault, "foo", core.TypeProductDesign, "")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if !strings.Contains(out, "=== product-design product-design.foo (status: active, empty) ===") {
+			t.Errorf("empty-bodied design node header missing the `empty` marker\n%s", out)
+		}
+		if strings.Contains(out, "=== milestone foo.m1 (status: planned, empty)") {
+			t.Errorf("milestone with real body wrongly marked empty\n%s", out)
+		}
+	})
+
 	t.Run("dangling spine target exits non-zero naming the broken edge", func(t *testing.T) {
 		vault := setupVault(t)
 		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"milestone": "[[milestone.foo.ghost]]"})
