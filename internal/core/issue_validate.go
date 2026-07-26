@@ -7,15 +7,35 @@ import (
 )
 
 // anvilInvocationRE matches an `anvil <args...>` invocation inside a code fence
-// and captures the remainder of the line after `anvil`. The boundary is `\b`
-// rather than line-start, so command-chained forms (`x && anvil bogus`) and
-// substitutions (`$(anvil bogus)`) are caught too. The trailing capture is the
-// raw argument string, tokenised and walked against the command tree below.
-var anvilInvocationRE = regexp.MustCompile(`\banvil\s+([^\n]*)`)
+// and captures the remainder of the line after `anvil`. `anvil` must sit in
+// *command position* — line start, or after whitespace, a shell separator, or a
+// path separator — so chained forms (`x && anvil bogus`), substitutions
+// (`$(anvil bogus)`) and path-prefixed forms (`./bin/anvil bogus`, the mandated
+// smoke-gate shape) are all caught. `/` is in the class deliberately: a path
+// *fragment* like `cd ~/Development/anvil && just install` matches too, but
+// simpleCommandArgs then breaks at the `&&` and yields no tokens, so the false
+// positive that motivated this change stays dead without blinding the check to
+// `./bin/anvil <verb>`.
+//
+// The capture stops at a shell separator rather than running to end of line.
+// Matches are non-overlapping, so a run-to-EOL capture would let the path
+// fragment in `cd ~/Development/anvil && anvil project init` swallow the genuine
+// invocation behind it and report nothing. Stopping early re-anchors the scan on
+// the next command. Nothing is lost: simpleCommandArgs discards post-separator
+// words anyway. Horizontal whitespace only, so a line-trailing `anvil` does not
+// swallow the next line as its arguments.
+var anvilInvocationRE = regexp.MustCompile(`(?m)(?:^|[ \t;&|(/])anvil[ \t]+([^\n;&|]*)`)
+
+// plausibleVerbRE is the shape a real anvil subcommand token can take. A
+// reported token that fails it (`$tmp`, `<id>`, `2`, `""`) is shell debris the
+// tokeniser mis-read, not a stale verb — dropping it keeps a genuine typo
+// (`anvil craete issue`) reportable while silencing the noise.
+var plausibleVerbRE = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
 // VerbPathValidator reports whether the anvil command described by tokens — the
-// whitespace-split words following `anvil` on a fence line — names a real path
-// through the command tree. It returns the offending subcommand token and false
+// leading positional run following `anvil` on a fence line, flags and anything
+// past a shell operator already stripped by simpleCommandArgs — names a real
+// path through the command tree. It returns the offending subcommand token and false
 // when a token sits in command position but matches no registered subcommand;
 // "" and true otherwise. The CLI layer builds this from cobra (which owns the
 // command tree); core stays cobra-free, mirroring the existing core/CLI split.
@@ -50,6 +70,9 @@ func lintVerificationVerbs(body string, validate VerbPathValidator, introducedIn
 			continue
 		}
 		if inFence {
+			if strings.HasPrefix(trimmed, "#") {
+				continue // shell comment: prose, not an invocation
+			}
 			codeLines.WriteString(line)
 			codeLines.WriteByte('\n')
 		}
@@ -58,9 +81,15 @@ func lintVerificationVerbs(body string, validate VerbPathValidator, introducedIn
 	var errs []error
 	seen := make(map[string]struct{})
 	for _, m := range anvilInvocationRE.FindAllStringSubmatch(codeLines.String(), -1) {
-		tokens := strings.Fields(m[1])
-		bad, ok := validate(tokens)
+		args := simpleCommandArgs(m[1])
+		if len(args) == 0 {
+			continue
+		}
+		bad, ok := validate(args)
 		if ok {
+			continue
+		}
+		if !plausibleVerbRE.MatchString(bad) {
 			continue
 		}
 		if _, already := seen[bad]; already {
@@ -77,6 +106,23 @@ func lintVerificationVerbs(body string, validate VerbPathValidator, introducedIn
 		errs = append(errs, fmt.Errorf("verification block cites unknown anvil subcommand %q — fix the command or update the issue", bad))
 	}
 	return errs
+}
+
+// simpleCommandArgs returns the leading subcommand-path words after `anvil`:
+// tokens up to the first shell operator or the first flag. Words past an
+// operator belong to a *different* command (this is what flagged `grep`, `sed`,
+// `just`); words past a flag are flag values (`--project burgh`). A subcommand
+// path is always positional and precedes its flags, so stopping there loses
+// nothing — and an empty result means `anvil` was itself a flag value.
+func simpleCommandArgs(rest string) []string {
+	var tokens []string
+	for _, tok := range strings.Fields(rest) {
+		if strings.ContainsAny(tok, "|;&<>#`") || strings.HasPrefix(tok, "-") {
+			break
+		}
+		tokens = append(tokens, tok)
+	}
+	return tokens
 }
 
 // RequiredIssueSections is the ordered set of headings validate enforces on

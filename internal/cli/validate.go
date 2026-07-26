@@ -169,7 +169,7 @@ func artifactInProject(a *core.Artifact, path string, _ core.Type, slug string) 
 // tree, so the Verification verb-lint validates the full `anvil <verb>
 // <subverb>...` path, not just the top-level token. Cobra's Find walks the
 // tree and returns the deepest matched command plus the unconsumed args; a path
-// is bogus when that command still has subcommands and the next non-flag arg
+// is bogus when that command still has subcommands and the first unconsumed arg
 // names none of them (e.g. `anvil project init` — `project` is real, `init` is
 // not). A leaf command (`anvil create issue`) consumes its trailing args as
 // flags/positionals, so those never count as subcommand candidates.
@@ -182,13 +182,10 @@ func verbPathValidator(root *cobra.Command) core.VerbPathValidator {
 		if !cmd.HasSubCommands() {
 			return "", true
 		}
-		for _, tok := range rest {
-			if strings.HasPrefix(tok, "-") {
-				continue // a flag, not a subcommand candidate
-			}
-			// First non-flag arg sits in subcommand position but Find did not
-			// descend into it, so it names no registered subcommand.
-			return strings.Trim(tok, "()\"';|&"), false
+		if len(rest) > 0 {
+			// tokens are positional-only, so rest[0] sits in subcommand position
+			// yet Find did not descend into it: it names no registered subcommand.
+			return strings.Trim(rest[0], "()\"';"), false
 		}
 		return "", true
 	}
