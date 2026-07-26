@@ -19,7 +19,7 @@ func readyUnitsToTasks(units []readyUnit) []core.Task {
 	tasks := make([]core.Task, 0, len(units))
 	for _, u := range units {
 		var b strings.Builder
-		fmt.Fprintf(&b, "Complete anvil issue %s end-to-end to PR-opened using the completing-issue skill. The human owns the merge.\n\n", u.ID)
+		fmt.Fprintf(&b, "Complete anvil issue %s end-to-end to a verified tree using the completing-issue skill; the driver lands it. The human owns the merge.\n\n", u.ID)
 		fmt.Fprintf(&b, "Goal: %s\n", u.Goal)
 		fmt.Fprintf(&b, "Severity: %s\n", u.Severity)
 		if u.Milestone != "" {

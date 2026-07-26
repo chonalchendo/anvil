@@ -129,11 +129,13 @@ func newBuildCmd() *cobra.Command {
 					"claude-": claude.New(""),
 				},
 				Phase: "complete",
-				// Advance-gate: confirm each spawn opened a PR on the branch the
-				// driver cut before recording success — a no-op exit-0 worker is
-				// "failed", so the next frontier never unblocks on a phantom PR
-				// (anvil.0112). Skipped on dry-run (no spawn reaches classify).
-				VerifyArtifact: build.PRExistsForTask,
+				// Advance-gate: ensure a PR exists on the branch the driver cut
+				// before recording success — landing the spawn's verified diff
+				// itself when the spawn left it unlanded (anvil.0162). A no-op
+				// exit-0 worker is still "failed", so the next frontier never
+				// unblocks on a phantom PR (anvil.0112). Skipped on dry-run (no
+				// spawn reaches classify).
+				VerifyArtifact: build.EnsurePRForTask,
 			}
 			// The ready frontier is one wave: ready issues have no unresolved
 			// depends_on, so they are mutually independent. The dependency graph

@@ -47,12 +47,15 @@ type Options struct {
 	// sees which build phase produced the row; the engine never interprets or
 	// sequences it (build-orchestration-contract: not part of TaskOutcome).
 	Phase string
-	// VerifyArtifact is the advance-gate: it confirms a spawn that exited 0
+	// VerifyArtifact is the advance-gate: it ensures a spawn that exited 0
 	// actually produced its artifact (an open PR on the branch the driver cut)
 	// before the engine records "success". The engine never trusts exit 0 alone
 	// — a spawn that exits 0 with no PR is "failed", so the review phase only
-	// runs on a real PR (anvil.0112). nil disables the gate (dry-run, tests that
-	// don't exercise it); the driver wires PRExistsForTask for live runs.
+	// runs on a real PR (anvil.0112). It is not a pure predicate: the wired
+	// implementation *lands* the spawn's diff when unlanded (commit + push + `gh
+	// pr create`), so wiring a hook here grants it git write authority over
+	// t.Cwd. nil disables the gate (dry-run, tests that don't exercise it); the
+	// driver wires EnsurePRForTask for live runs.
 	VerifyArtifact func(ctx context.Context, t core.Task) (bool, error)
 }
 
