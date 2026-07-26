@@ -72,9 +72,24 @@ func expandBraces(p string) []string {
 	return []string{p}
 }
 
-// splitCSV splits a comma-separated string into trimmed, non-empty tokens.
-// Commas inside brace alternation (`a/met_{growth,health}.sql`) separate
-// alternatives, not tokens, so they do not split.
+// splitLiteralCSV splits a comma-separated string into trimmed, non-empty
+// tokens. Every comma separates, because the tokens name literal paths.
+func splitLiteralCSV(s string) []string {
+	var out []string
+	for _, f := range strings.Split(s, ",") {
+		if f = strings.TrimSpace(f); f != "" {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// splitCSV splits a comma-separated string of glob patterns into trimmed,
+// non-empty tokens. Commas inside brace alternation
+// (`a/met_{growth,health}.sql`) separate alternatives, not tokens, so they do
+// not split. An unbalanced `{` degrades the whole string to literal comma
+// splitting: a typo must not swallow every following entry and re-arm the
+// spurious out-of-scope report this splitting exists to prevent.
 func splitCSV(s string) []string {
 	var out []string
 	depth, start := 0, 0
@@ -94,6 +109,9 @@ func splitCSV(s string) []string {
 				start = i + 1
 			}
 		}
+	}
+	if depth != 0 {
+		return splitLiteralCSV(s)
 	}
 	if f := strings.TrimSpace(s[start:]); f != "" {
 		out = append(out, f)

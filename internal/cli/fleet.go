@@ -67,7 +67,7 @@ func newFleetScopeAuditCmd() *cobra.Command {
 		Short:        "Flag changed files that fall outside an issue's declared-files allowlist",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			outside := scopeViolations(splitCSV(declared), splitCSV(changed))
+			outside := scopeViolations(splitCSV(declared), splitLiteralCSV(changed))
 			w := cmd.OutOrStdout()
 			if len(outside) == 0 {
 				fmt.Fprintln(w, "scope: clean")
@@ -79,8 +79,8 @@ func newFleetScopeAuditCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&declared, "declared", "", "comma-separated declared-files allowlist")
-	cmd.Flags().StringVar(&changed, "changed", "", "comma-separated changed files on the branch")
+	cmd.Flags().StringVar(&declared, "declared", "", "comma-separated declared-files allowlist; entries are globs — *, ?, and brace alternation {a,b} (e.g. src/{a,b}_*.sql). ** is not supported; * does not cross /")
+	cmd.Flags().StringVar(&changed, "changed", "", "comma-separated changed files on the branch; entries are literal paths, not globs")
 	_ = cmd.MarkFlagRequired("declared")
 	_ = cmd.MarkFlagRequired("changed")
 	return cmd
