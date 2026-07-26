@@ -86,19 +86,71 @@ func newFleetScopeAuditCmd() *cobra.Command {
 	return cmd
 }
 
-// scopeViolations returns the elements of changed that are not in declared.
+// scopeViolations returns the elements of changed that no declared entry covers.
+// Declared entries are globs — `*` (any number of them), `?`, and brace
+// alternation `{a,b}` — because dispatch prompts routinely carry that notation;
+// treating them literally false-flags correctly-scoped files.
 func scopeViolations(declared, changed []string) []string {
-	allowSet := make(map[string]bool, len(declared))
-	for _, f := range declared {
-		allowSet[f] = true
+	var patterns []string
+	for _, d := range declared {
+		patterns = append(patterns, expandBraces(d)...)
 	}
 	var outside []string
 	for _, f := range changed {
-		if !allowSet[f] {
+		if !matchesAny(patterns, f) {
 			outside = append(outside, f)
 		}
 	}
 	return outside
+}
+
+// matchesAny reports whether path matches any brace-free glob pattern. A
+// malformed pattern falls back to literal comparison rather than silently
+// covering nothing.
+func matchesAny(patterns []string, path string) bool {
+	for _, p := range patterns {
+		if p == path {
+			return true
+		}
+		if ok, err := filepath.Match(p, path); err == nil && ok {
+			return true
+		}
+	}
+	return false
+}
+
+// expandBraces expands brace alternation into one pattern per alternative:
+// `a{b,c}d` -> [abd, acd], nesting included. An unbalanced brace yields the
+// pattern unchanged so it still matches literally.
+func expandBraces(p string) []string {
+	open := strings.IndexByte(p, '{')
+	if open < 0 {
+		return []string{p}
+	}
+	var alts []string
+	depth, start := 0, open+1
+	for i := open; i < len(p); i++ {
+		switch p[i] {
+		case '{':
+			depth++
+		case ',':
+			if depth == 1 {
+				alts = append(alts, p[start:i])
+				start = i + 1
+			}
+		case '}':
+			depth--
+			if depth == 0 {
+				alts = append(alts, p[start:i])
+				var out []string
+				for _, a := range alts {
+					out = append(out, expandBraces(p[:open]+a+p[i+1:])...)
+				}
+				return out
+			}
+		}
+	}
+	return []string{p}
 }
 
 // splitCSV splits a comma-separated string into trimmed, non-empty tokens.

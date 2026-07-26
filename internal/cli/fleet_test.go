@@ -54,12 +54,51 @@ func TestScopeViolations(t *testing.T) {
 		{"no-declared", nil, []string{"x.go"}, []string{"x.go"}},
 		{"empty-changed", []string{"a.py"}, nil, nil},
 		{"multiple-violations", []string{"a.py"}, []string{"b.py", "c.py"}, []string{"b.py", "c.py"}},
+		{"single-star", []string{"internal/cli/*.go"}, []string{"internal/cli/fleet.go"}, nil},
+		{
+			"multi-star",
+			[]string{"a/test_*industry*.yaml"},
+			[]string{"a/test_agg_fundamentals__industry_valuation.yaml", "b/other.py"},
+			[]string{"b/other.py"},
+		},
+		{"question-mark", []string{"a/v?.sql"}, []string{"a/v1.sql", "a/v10.sql"}, []string{"a/v10.sql"}},
+		{
+			"brace-alternation",
+			[]string{"a/met_{growth,health}.sql"},
+			[]string{"a/met_growth.sql", "a/met_health.sql", "a/met_valuation.sql"},
+			[]string{"a/met_valuation.sql"},
+		},
+		{"brace-with-star", []string{"a/{x,y}_*.sql"}, []string{"a/y_rel.sql"}, nil},
+		{"star-does-not-cross-separator", []string{"a/*.go"}, []string{"a/b/c.go"}, []string{"a/b/c.go"}},
+		{"unbalanced-brace-is-literal", []string{"a/{x.go"}, []string{"a/{x.go", "a/x.go"}, []string{"a/x.go"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := scopeViolations(tc.declared, tc.changed)
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("scopeViolations (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestExpandBraces(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want []string
+	}{
+		{"no-braces", "a/b.go", []string{"a/b.go"}},
+		{"one-group", "met_{growth,health,valuation}.sql", []string{"met_growth.sql", "met_health.sql", "met_valuation.sql"}},
+		{"two-groups", "{a,b}/{x,y}.go", []string{"a/x.go", "a/y.go", "b/x.go", "b/y.go"}},
+		{"nested", "m_{a,b{c,d}}.sql", []string{"m_a.sql", "m_bc.sql", "m_bd.sql"}},
+		{"empty-alternative", "f{,_test}.go", []string{"f.go", "f_test.go"}},
+		{"unbalanced", "a/{x.go", []string{"a/{x.go"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if diff := cmp.Diff(tc.want, expandBraces(tc.in)); diff != "" {
+				t.Errorf("expandBraces (-want +got):\n%s", diff)
 			}
 		})
 	}
