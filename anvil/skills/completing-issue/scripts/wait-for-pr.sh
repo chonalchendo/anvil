@@ -119,25 +119,48 @@ while true; do
         exit 0
     fi
 
-    # CI status on the head SHA: any failure wins; success only when nothing pends.
+    # CI status on the head SHA. Two APIs report it and a repo may use either:
+    # GitHub Actions writes Check Runs, older platforms (CircleCI, Travis) write
+    # legacy Commit Statuses. Read both — a repo that swaps platforms otherwise
+    # leaves one of them permanently silent. Any failure wins; success needs both
+    # APIs to be non-pending and at least one of them to be green.
     ci_conclusion="null"
     if [[ -n "$head_sha" ]]; then
         checks_json=$(gh api "repos/${REPO}/commits/${head_sha}/check-runs" \
             --jq '[.check_runs[] | select(.conclusion != null) | .conclusion]' 2>/dev/null) || checks_json="[]"
 
+        checks_state="none"
         if printf '%s' "$checks_json" | grep -q '"failure"\|"timed_out"\|"startup_failure"'; then
-            emit "ci_failed" "false" '"failure"' "0" "false"
-            exit 0
+            checks_state="failure"
         elif printf '%s' "$checks_json" | grep -q '"success"'; then
             pending=$(gh api "repos/${REPO}/commits/${head_sha}/check-runs" \
                 --jq '[.check_runs[] | select(.status == "in_progress" or .status == "queued")] | length' 2>/dev/null) || pending=0
             if [[ "$pending" == "0" ]]; then
-                ci_conclusion='"success"'
+                checks_state="success"
             else
-                ci_conclusion='"pending"'
+                checks_state="pending"
             fi
-        elif printf '%s' "$checks_json" | grep -q '.'; then
+        elif printf '%s' "$checks_json" | grep -q '"'; then
+            # Conclusions we don't classify (neutral, cancelled, action_required):
+            # treat as still-settling rather than green. An empty array is no
+            # signal at all — the case that used to pin this to "pending" forever.
+            checks_state="pending"
+        fi
+
+        # The combined status is "success" only when every context's latest state
+        # is success, so a synthetic always-green aggregate context cannot carry it
+        # alone. Zero statuses is folded to "none" because GitHub reports that as
+        # "pending", which is indistinguishable from a real in-flight build.
+        status_state=$(gh api "repos/${REPO}/commits/${head_sha}/status" \
+            --jq 'if (.statuses | length) == 0 then "none" else .state end' 2>/dev/null) || status_state="none"
+
+        if [[ "$checks_state" == "failure" || "$status_state" == "failure" || "$status_state" == "error" ]]; then
+            emit "ci_failed" "false" '"failure"' "0" "false"
+            exit 0
+        elif [[ "$checks_state" == "pending" || "$status_state" == "pending" ]]; then
             ci_conclusion='"pending"'
+        elif [[ "$checks_state" == "success" || "$status_state" == "success" ]]; then
+            ci_conclusion='"success"'
         fi
     fi
 
