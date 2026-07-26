@@ -2,7 +2,7 @@
 
 This file is the contract for a fleet worker dispatched as a **plain subagent**, not as the `anvil-issue-worker` agent. Today that is the **Phase 5 review-responder**: a fresh subagent tasked with `responding-to-pr-review` against an already-open PR's worktree.
 
-The Phase 3 **implementer** does *not* read this file — it runs as the bundled `anvil-issue-worker` agent (`anvil/agents/anvil-issue-worker.md`), whose frontmatter is the single source of the *implementer* contract. This is the *responder's* contract. The two workers run different skills, so the contracts are deliberately separate documents, not mirror copies of one rulebook. The one exception is § No-wait execution: it encodes harness behaviour rather than skill behaviour, so it must be kept in sync with the copies in `anvil/agents/anvil-issue-worker.md` and `anvil/agents/anvil-pr-reviewer.md`.
+The Phase 3 **implementer** does *not* read this file — it runs as the bundled `anvil-issue-worker` agent (`anvil/agents/anvil-issue-worker.md`), whose frontmatter is the single source of the *implementer* contract. This is the *responder's* contract. The two workers run different skills, so the contracts are deliberately separate documents, not mirror copies of one rulebook. The exceptions are § No-wait execution and § Pre-gate cwd anchor: both encode harness behaviour rather than skill behaviour, so each must be kept in sync with its copies in `anvil/agents/anvil-issue-worker.md` and `anvil/agents/anvil-pr-reviewer.md`.
 
 ## No-wait execution (mandatory)
 
@@ -39,6 +39,18 @@ If the output does not equal `<worktree-path>` exactly, halt with `Blocker: writ
 - The next subagent that hits the same leak might not catch it before pushing.
 
 Treat the check as a structural invariant, not a sanity tip.
+
+## Pre-gate cwd anchor (mandatory)
+
+The Bash tool resets cwd between calls, so a `cd` in one call never carries into the next — this bites verification and build gates (`just check`, `just install-local`, `go test`, any `## Verification` block), not just edits: a gate silently run from wherever the shell defaults to reports green against the main checkout, not against the fixes you just pushed. Every gate invocation must be a single Bash call that starts `cd <worktree-path> &&` — the literal path from your dispatch prompt, never a value derived from the current shell (`git rev-parse --show-toplevel` resolves to wherever you happen to be and cannot detect the drift).
+
+```bash
+cd <worktree-path> && just check
+```
+
+A gate whose Bash call did not carry that prefix is void — discard the result and re-run; if the prefixed call reports a toplevel other than `<worktree-path>`, halt with `Blocker: gate-outside-worktree (toplevel=<actual>)`. Not self-correctable.
+
+This section encodes harness behaviour, not skill behaviour: it is duplicated in the other two dispatched-worker contracts (`anvil/agents/anvil-issue-worker.md`, `anvil/agents/anvil-pr-reviewer.md`) — edit all three together.
 
 ## Final-line self-check (PRE-TERMINATE INVARIANT)
 

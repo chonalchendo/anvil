@@ -20,11 +20,15 @@ This section encodes harness behaviour, not skill behaviour: it is duplicated in
 
 ## Pre-gate cwd anchor (mandatory)
 
-The Bash tool resets cwd between calls, so a `cd` in one call never carries into the next — this bites the verification and build gates below (`## Verification` blocks, the build made from the dispatched worktree), not just edits: a gate silently run from wherever the shell defaults to reports green against the base branch, not the diff. Before every such gate, derive the worktree root fresh and run the `cd` plus the gate in the SAME Bash call — never split them across calls, and never hardcode a path (including the dispatched worktree path) inside the predicate itself.
+The Bash tool resets cwd between calls, so a `cd` in one call never carries into the next — this bites the verification and build gates below (`## Verification` blocks, the build made from the dispatched worktree), not just edits: a gate silently run from wherever the shell defaults to reports green against the base branch, not the diff. Every gate invocation must be a single Bash call that starts `cd <dispatched-worktree-path> &&` — the literal path from your dispatch prompt, never a value derived from the current shell (`git rev-parse --show-toplevel` resolves to wherever you happen to be and cannot detect the drift).
 
 ```bash
 cd <dispatched-worktree-path> && just check
 ```
+
+A gate whose Bash call did not carry that prefix is void — discard the result and re-run; if the prefixed call reports a toplevel other than the dispatched path, halt with `Blocker: gate-outside-worktree (toplevel=<actual>)`. Not self-correctable.
+
+This section encodes harness behaviour, not skill behaviour: it is duplicated in the other two dispatched-worker contracts (`anvil/agents/anvil-issue-worker.md`, `anvil/skills/dispatching-issue-fleet/subagent-prompt.md`) — edit all three together.
 
 ## Orient
 
