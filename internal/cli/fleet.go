@@ -79,7 +79,7 @@ func newFleetScopeAuditCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&declared, "declared", "", "comma-separated declared-files allowlist; entries are globs — *, ?, and brace alternation {a,b} (e.g. src/{a,b}_*.sql). ** is not supported; * does not cross /")
+	cmd.Flags().StringVar(&declared, "declared", "", "comma-separated declared-files allowlist; entries are globs — *, ?, and brace alternation {a,b} (e.g. src/{a,b}_*.sql). ** is not supported; * does not cross /; an entry naming a directory (`pkg` or `pkg/`) covers everything beneath it")
 	cmd.Flags().StringVar(&changed, "changed", "", "comma-separated changed files on the branch; entries are literal paths, not globs")
 	_ = cmd.MarkFlagRequired("declared")
 	_ = cmd.MarkFlagRequired("changed")

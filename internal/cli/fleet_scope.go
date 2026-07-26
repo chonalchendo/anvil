@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -8,7 +9,8 @@ import (
 // scopeViolations returns the elements of changed that no declared entry covers.
 // Declared entries are globs — `*` (any number of them), `?`, and brace
 // alternation `{a,b}` — because dispatch prompts routinely carry that notation;
-// treating them literally false-flags correctly-scoped files.
+// treating them literally false-flags correctly-scoped files. A declared
+// directory covers everything beneath it, so a new file lands in scope.
 func scopeViolations(declared, changed []string) []string {
 	var patterns []string
 	for _, d := range declared {
@@ -23,19 +25,44 @@ func scopeViolations(declared, changed []string) []string {
 	return outside
 }
 
-// matchesAny reports whether path matches any brace-free glob pattern. A
-// malformed pattern falls back to literal comparison rather than silently
-// covering nothing.
-func matchesAny(patterns []string, path string) bool {
+// matchesAny reports whether f matches any brace-free glob pattern, either as a
+// glob or as a directory f sits beneath. A malformed pattern falls back to
+// literal comparison rather than silently covering nothing.
+func matchesAny(patterns []string, f string) bool {
+	// The prefix test below is byte-level, so an uncleaned `pkg/../../etc/shadow`
+	// reads as sitting beneath a declared `pkg` and escapes the gate. Clean for
+	// that test only: the exact and glob comparisons must keep seeing the path
+	// exactly as `git diff --name-only` reported it.
+	cleaned := path.Clean(f)
 	for _, p := range patterns {
-		if p == path {
+		if p == f {
 			return true
 		}
-		if ok, err := filepath.Match(p, path); err == nil && ok {
+		if ok, err := filepath.Match(p, f); err == nil && ok {
+			return true
+		}
+		if d := dirPrefix(p); d != "" && strings.HasPrefix(cleaned, d) {
 			return true
 		}
 	}
 	return false
+}
+
+// dirPrefix returns the "everything beneath here" prefix a declared entry
+// denotes. Dispatch prompts write the directory both ways — `pkg/` and a bare
+// package root `pkg` — and a dotted final segment is no evidence of a file
+// (`.github` is a directory), so every non-empty entry gets a prefix. Brace
+// expansion can yield an empty pattern (`{,pkg}`), which must cover nothing.
+// The prefix always ends in `/`, so a prefix excludes siblings rather than
+// substrings: `pkg` cannot swallow `pkgtools/x.go`, nor `a/b.go` `a/b.go.bak`.
+func dirPrefix(p string) string {
+	if p == "" {
+		return ""
+	}
+	if strings.HasSuffix(p, "/") {
+		return p
+	}
+	return p + "/"
 }
 
 // expandBraces expands brace alternation into one pattern per alternative:

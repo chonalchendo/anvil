@@ -67,6 +67,26 @@ func TestScopeViolations(t *testing.T) {
 		{"brace-with-star", []string{"a/{x,y}_*.sql"}, []string{"a/y_rel.sql"}, nil},
 		{"star-does-not-cross-separator", []string{"a/*.go"}, []string{"a/b/c.go"}, []string{"a/b/c.go"}},
 		{"unbalanced-brace-is-literal", []string{"a/{x.go"}, []string{"a/{x.go", "a/x.go"}, []string{"a/x.go"}},
+		{"declared-dir-trailing-slash", []string{"pkg/"}, []string{"pkg/src/mod.py"}, nil},
+		{"declared-dir-bare-root", []string{"pkg"}, []string{"pkg/src/mod.py"}, nil},
+		{"declared-dir-covers-any-depth", []string{"tests"}, []string{"tests/a/b/c_test.py"}, nil},
+		{"declared-dir-brace-alternation", []string{"internal/{build,cli}/"}, []string{"internal/cli/x.go", "internal/schema/y.go"}, []string{"internal/schema/y.go"}},
+		{"declared-dir-excludes-sibling", []string{"pkg/"}, []string{"other/file.py"}, []string{"other/file.py"}},
+		{
+			"declared-dir-is-not-a-substring",
+			[]string{"pkg"},
+			[]string{"pkgtools/x.go", "src/pkg/y.go"},
+			[]string{"pkgtools/x.go", "src/pkg/y.go"},
+		},
+		{"declared-file-is-not-a-prefix", []string{"a/b.go"}, []string{"a/b.go.bak"}, []string{"a/b.go.bak"}},
+		{"declared-dotted-dir", []string{".github"}, []string{".github/workflows/ci.yml"}, nil},
+		{"declared-dotted-dir-trailing-slash", []string{".github/"}, []string{".github/workflows/ci.yml"}, nil},
+		{"declared-dotted-dir-excludes-sibling", []string{".github"}, []string{".githubbed/x.yml"}, []string{".githubbed/x.yml"}},
+		{"declared-dot-in-mid-path-dir", []string{"a.b/c"}, []string{"a.b/c/d.go"}, nil},
+		{"empty-pattern-covers-nothing", []string{"{,pkg}"}, []string{"other/x.go"}, []string{"other/x.go"}},
+		{"empty-pattern-sibling-still-covers", []string{"{,pkg}"}, []string{"pkg/x.go"}, nil},
+		{"dotdot-escapes-declared-dir", []string{"pkg"}, []string{"pkg/../../etc/shadow"}, []string{"pkg/../../etc/shadow"}},
+		{"dotdot-resolving-back-inside-is-covered", []string{"pkg"}, []string{"pkg/sub/../x.go"}, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
