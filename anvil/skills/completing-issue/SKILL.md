@@ -130,7 +130,7 @@ For a change with runtime behaviour, an Indirect block whose predicates only ass
 
 ## Phase 5 — Open PR or report failure
 
-**Under `anvil build`, your deliverable is a verified tree, not a PR.** The driver lands it: after your spawn exits 0, its advance-gate stages, commits, and pushes whatever sits on the deterministic branch and opens the PR itself. Landing is a harness step precisely because a headless worker that judges "implement X" done after editing routinely never reaches its own commit — work and its landing must not be able to diverge. So run every gate above (`## Verification` Direct + Indirect, the build-and-install gate) and stop; committing yourself is harmless (the driver lands only what is unlanded), but leaving a verified tree uncommitted is no longer a dropped task. A spawn that produced *no* diff still fails the gate — an empty PR is never manufactured.
+**A verified tree is the deliverable; the PR is how you hand it over.** If your prompt says a driver lands the work, run every gate above (`## Verification` Direct + Indirect, the build-and-install gate) and stop there — the harness stages, commits and pushes whatever sits on the branch and opens the PR itself, precisely because a headless worker that judges "implement X" done after editing routinely never reaches its own commit. Committing yourself is harmless (the driver lands only what is unlanded), and leaving a verified tree uncommitted is not a dropped task. No diff at all still fails the gate — an empty PR is never manufactured. Otherwise, open the PR yourself as below.
 
 **On verify + build-gate success:**
 

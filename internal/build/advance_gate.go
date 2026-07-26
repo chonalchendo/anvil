@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os/exec"
 
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-// PRExistsForTask is the engine's production advance-gate: it ensures an open PR
+// EnsurePRForTask is the engine's production advance-gate: it ensures an open PR
 // exists for the deterministic branch the driver cut for the task (t.Branch),
 // landing the spawn's verified diff itself when the spawn left it unlanded. The
 // driver wires it into Options.VerifyArtifact — for the complete phase only, so
@@ -33,20 +34,28 @@ import (
 // success. The command inherits the parent env; it must never run under the
 // spawn's isolated CLAUDE_CONFIG_DIR, which strips gh auth on Keychain-backed
 // macOS.
-func PRExistsForTask(ctx context.Context, t core.Task) (bool, error) {
+func EnsurePRForTask(ctx context.Context, t core.Task) (bool, error) {
 	if t.Branch == "" {
 		return false, fmt.Errorf("task %s has no branch to check for a PR", t.ID)
+	}
+	// Cwd is optional to the engine — it falls back to Options.Cwd — but not
+	// here: every git command below would run with cmd.Dir unset, i.e. in the
+	// driver's own checkout on master. CLAUDE.md forbids committing there.
+	if t.Cwd == "" {
+		return false, fmt.Errorf("task %s has no worktree to land from", t.ID)
 	}
 	open, err := openPRExists(ctx, t)
 	if err != nil || open {
 		return open, err
 	}
-	if err := landTaskDiff(ctx, t); err != nil {
+	url, err := landTaskDiff(ctx, t)
+	if err != nil {
 		if errors.Is(err, errNothingToLand) {
 			return false, nil
 		}
 		return false, fmt.Errorf("landing task %s: %w", t.ID, err)
 	}
+	slog.Info("build: driver landed task", "task", t.ID, "branch", t.Branch, "pr", url)
 	return openPRExists(ctx, t)
 }
 

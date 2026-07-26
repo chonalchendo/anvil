@@ -22,6 +22,7 @@ if [ "$1" = "pr" ] && [ "$2" = "list" ]; then
 fi
 if [ "$1" = "pr" ] && [ "$2" = "create" ]; then
   echo "$@" > "$GH_STATE/created"
+  echo "https://github.com/anvil/test/pull/1"
   exit 0
 fi
 echo "unexpected gh invocation: $*" >&2
@@ -58,12 +59,18 @@ func mustRun(t *testing.T, dir, name string, args ...string) string {
 func gitFixture(t *testing.T, branch string) (clone, ghState string) {
 	t.Helper()
 	root := t.TempDir()
+	// Seal the fixture off from the developer's ambient git config before the
+	// first git call: core.hooksPath, init.templateDir and friends would
+	// otherwise leak into a test that drives production git.
+	t.Setenv("GIT_CONFIG_GLOBAL", filepath.Join(root, "gitconfig"))
+	t.Setenv("GIT_CONFIG_SYSTEM", os.DevNull)
+
 	origin := filepath.Join(root, "origin.git")
 	mustRun(t, root, "git", "init", "--bare", "--initial-branch=master", origin)
 
 	clone = filepath.Join(root, "work")
 	mustRun(t, root, "git", "clone", origin, clone)
-	for _, kv := range [][2]string{{"user.email", "build@anvil.test"}, {"user.name", "anvil build"}, {"commit.gpgsign", "false"}} {
+	for _, kv := range [][2]string{{"user.email", "build@anvil.test"}, {"user.name", "anvil build"}} {
 		mustRun(t, clone, "git", "config", kv[0], kv[1])
 	}
 	if err := os.WriteFile(filepath.Join(clone, "README.md"), []byte("base\n"), 0o600); err != nil {
@@ -103,7 +110,7 @@ func TestBuild_DriverLandsUncommittedVerifiedDiff(t *testing.T) {
 		Stdout:         io.Discard,
 		Stderr:         io.Discard,
 		Router:         Router{"claude-": &editorAdapter{file: "landed.txt", content: "worker edit\n"}},
-		VerifyArtifact: PRExistsForTask,
+		VerifyArtifact: EnsurePRForTask,
 	}
 	task := core.Task{ID: "anvil.0162.demo", Model: "claude-sonnet-4-6", Body: "edit", Cwd: clone, Branch: branch}
 
@@ -144,7 +151,7 @@ func TestBuild_NoDiffStaysFailed(t *testing.T) {
 		Stdout:         io.Discard,
 		Stderr:         io.Discard,
 		Router:         Router{"claude-": &fakeAdapter{}},
-		VerifyArtifact: PRExistsForTask,
+		VerifyArtifact: EnsurePRForTask,
 	}
 	task := core.Task{ID: "anvil.0162.empty", Model: "claude-sonnet-4-6", Body: "nothing", Cwd: clone, Branch: branch}
 
@@ -154,5 +161,74 @@ func TestBuild_NoDiffStaysFailed(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(ghState, "created")); err == nil {
 		t.Error("gh pr create ran for a spawn that produced no diff")
+	}
+}
+
+// TestLandTaskDiff_ReturnsPRURL: the landing hands back the url `gh pr create`
+// printed, so the caller can stamp the PR onto the issue the worker no longer
+// stamps itself.
+func TestLandTaskDiff_ReturnsPRURL(t *testing.T) {
+	const branch = "anvil/0162-url"
+	clone, _ := gitFixture(t, branch)
+	writeFile(t, clone, "landed.txt", "worker edit\n")
+
+	url, err := landTaskDiff(context.Background(), core.Task{ID: "anvil.0162.url", Cwd: clone, Branch: branch})
+	if err != nil {
+		t.Fatalf("landTaskDiff: %v", err)
+	}
+	if url != "https://github.com/anvil/test/pull/1" {
+		t.Errorf("url = %q, want the url gh printed", url)
+	}
+}
+
+// TestLandTaskDiff_RefusesNeverCommitPath: `git add -A` sweeps in whatever the
+// spawn left behind, so a staged path from docs/git-conventions.md § "What Never
+// to Commit" must block the landing rather than ride into master's history.
+func TestLandTaskDiff_RefusesNeverCommitPath(t *testing.T) {
+	const branch = "anvil/0162-secret"
+	clone, ghState := gitFixture(t, branch)
+	writeFile(t, clone, "landed.txt", "worker edit\n")
+	writeFile(t, clone, ".env", "ANTHROPIC_API_KEY=sk-real\n")
+
+	_, err := landTaskDiff(context.Background(), core.Task{ID: "anvil.0162.secret", Cwd: clone, Branch: branch})
+	if err == nil {
+		t.Fatal("landTaskDiff accepted a staged .env")
+	}
+	if !strings.Contains(err.Error(), ".env") {
+		t.Errorf("error does not name the offending path: %v", err)
+	}
+	if log := mustRun(t, clone, "git", "log", "--oneline"); strings.Count(strings.TrimSpace(log), "\n") != 0 {
+		t.Errorf("a commit was made despite the refusal:\n%s", log)
+	}
+	if _, err := os.Stat(filepath.Join(ghState, "created")); err == nil {
+		t.Error("gh pr create ran despite the refusal")
+	}
+}
+
+// TestLandTaskDiff_RefusesHeadOffDriverBranch: a spawn that switched HEAD would
+// otherwise get a PR on t.Branch that does not contain the measured work — a
+// false success the re-check would then record.
+func TestLandTaskDiff_RefusesHeadOffDriverBranch(t *testing.T) {
+	const branch = "anvil/0162-head"
+	clone, ghState := gitFixture(t, branch)
+	mustRun(t, clone, "git", "checkout", "-b", "spawn-wandered")
+	writeFile(t, clone, "landed.txt", "worker edit\n")
+
+	_, err := landTaskDiff(context.Background(), core.Task{ID: "anvil.0162.head", Cwd: clone, Branch: branch})
+	if err == nil {
+		t.Fatal("landTaskDiff landed from a HEAD that is not the driver's branch")
+	}
+	if !strings.Contains(err.Error(), branch) {
+		t.Errorf("error does not name the driver's branch: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(ghState, "created")); err == nil {
+		t.Error("gh pr create ran from the wrong HEAD")
+	}
+}
+
+func writeFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
