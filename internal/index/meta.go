@@ -93,7 +93,7 @@ func (d *DB) GetLastReindex() (time.Time, error) {
 // editor saving over an existing artifact, which is exactly the kind of
 // drift this check exists to surface.
 //
-// Modification times ahead of the clock are ignored — see skipFutureMtime.
+// File modification times ahead of the clock are ignored — see skipFutureMtime.
 func (d *DB) CheckFreshness(vaultRoot string) error {
 	return d.CheckFreshnessExcept(vaultRoot, "")
 }
@@ -157,25 +157,27 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 		return fmt.Errorf("walk vault: %w", walkErr)
 	}
 	// Also catch deletes: vault dir mtime advances on a removed file even
-	// though the file itself is gone. The trade: a future root mtime
-	// suppresses this arm until the clock passes it, so a delete taken in that
-	// window is served from the index until the next reindex — preferred over
-	// wedging every command stale with no operator-reachable fix.
+	// though the file itself is gone. This arm intentionally honours future
+	// mtimes: callers signal external drift by stamping the root a moment
+	// ahead of now (see markVaultExternallyStale), so guarding it would
+	// suppress drift absorption.
 	info, err := os.Stat(vaultRoot)
 	if err != nil {
 		return fmt.Errorf("stat vault: %w", err)
 	}
-	if !skipFutureMtime(vaultRoot, info.ModTime(), now) && info.ModTime().After(stamp) {
+	if info.ModTime().After(stamp) {
 		return fmt.Errorf("%w: %s changed after last reindex (%s)", ErrIndexStale, vaultRoot, stamp.Format(time.RFC3339))
 	}
 	return nil
 }
 
-// skipFutureMtime reports whether mtime post-dates the check's clock read, and
-// warns when it does. Such a timestamp can't record an edit that has already
-// happened; more importantly it is newer than any stamp `anvil reindex` can
-// write (reindex stamps time.Now()), so counting it as drift would leave the
-// index stale forever with no operator-reachable fix.
+// skipFutureMtime reports whether a walked file's mtime post-dates the check's
+// clock read, and warns when it does. Such a timestamp can't record an edit
+// that has already happened; more importantly it is newer than any stamp
+// `anvil reindex` can write (reindex stamps time.Now()), so counting it as
+// drift would leave the index stale forever with no operator-reachable fix.
+// It guards the file walk only — never the vault-root stat, whose future-mtime
+// behaviour is load-bearing for drift absorption.
 func skipFutureMtime(path string, mtime, now time.Time) bool {
 	if !mtime.After(now) {
 		return false

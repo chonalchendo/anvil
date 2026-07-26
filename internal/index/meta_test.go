@@ -149,8 +149,10 @@ func TestCheckFreshnessIgnoresFutureMtimeFile(t *testing.T) {
 	}
 }
 
-// Same wedge via the vault-root stat arm of the check.
-func TestCheckFreshnessIgnoresFutureVaultDirMtime(t *testing.T) {
+// The root arm is the opposite case: callers signal external drift by stamping
+// the vault root slightly ahead of now, so a future root mtime must still read
+// as stale or drift absorption stops working.
+func TestCheckFreshnessFutureVaultDirMtimeIsStale(t *testing.T) {
 	vault := t.TempDir()
 	dbPath := filepath.Join(vault, ".anvil", "vault.db")
 	db, err := Open(dbPath)
@@ -161,13 +163,13 @@ func TestCheckFreshnessIgnoresFutureVaultDirMtime(t *testing.T) {
 	if err := db.SetLastReindex(time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	future := time.Now().Add(24 * time.Hour)
+	future := time.Now().Add(1 * time.Second)
 	if err := os.Chtimes(vault, future, future); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := db.CheckFreshness(vault); err != nil {
-		t.Fatalf("future vault dir mtime must not be drift, got %v", err)
+	if err := db.CheckFreshness(vault); !errors.Is(err, ErrIndexStale) {
+		t.Fatalf("expected ErrIndexStale on future vault dir mtime, got %v", err)
 	}
 }
 
