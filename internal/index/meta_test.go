@@ -119,8 +119,7 @@ func TestCheckFreshnessReturnsErrIndexStaleWhenExistingFileEdited(t *testing.T) 
 	}
 }
 
-// A future mtime is newer than every stamp reindex can write (reindex stamps
-// time.Now()), so counting it as drift would leave the index stale forever.
+// A future mtime must not read as drift — see skipFutureMtime.
 func TestCheckFreshnessIgnoresFutureMtimeFile(t *testing.T) {
 	vault := t.TempDir()
 	future := time.Now().Add(24 * time.Hour)

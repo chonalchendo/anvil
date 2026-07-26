@@ -16,8 +16,10 @@ import (
 // ErrLastReindexUnset means SetLastReindex has not been called yet.
 var ErrLastReindexUnset = errors.New("last reindex stamp unset")
 
-// ErrIndexStale means the vault directory mtime is newer than the stored
-// last-reindex stamp. Callers should run `anvil reindex` and retry.
+// ErrIndexStale means the vault has drifted from the index: either a .md file
+// or the vault directory itself has an mtime newer than the stored
+// last-reindex stamp. Errors wrapping it name the offending path. Callers
+// should run `anvil reindex` and retry.
 var ErrIndexStale = errors.New("vault index stale")
 
 const metaKeyLastReindex = "last_reindex"
@@ -91,9 +93,7 @@ func (d *DB) GetLastReindex() (time.Time, error) {
 // editor saving over an existing artifact, which is exactly the kind of
 // drift this check exists to surface.
 //
-// Modification times in the future are ignored: they can't describe an edit
-// that already happened, and they are newer than every stamp reindex can ever
-// write, so honouring them wedges the index permanently stale.
+// Modification times ahead of the clock are ignored — see skipFutureMtime.
 func (d *DB) CheckFreshness(vaultRoot string) error {
 	return d.CheckFreshnessExcept(vaultRoot, "")
 }
@@ -141,7 +141,7 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 		if ierr != nil {
 			return ierr
 		}
-		if futureMtime(path, info.ModTime(), now) {
+		if skipFutureMtime(path, info.ModTime(), now) {
 			return nil
 		}
 		if info.ModTime().After(stamp) {
@@ -157,23 +157,26 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 		return fmt.Errorf("walk vault: %w", walkErr)
 	}
 	// Also catch deletes: vault dir mtime advances on a removed file even
-	// though the file itself is gone.
+	// though the file itself is gone. The trade: a future root mtime
+	// suppresses this arm until the clock passes it, so a delete taken in that
+	// window is served from the index until the next reindex — preferred over
+	// wedging every command stale with no operator-reachable fix.
 	info, err := os.Stat(vaultRoot)
 	if err != nil {
 		return fmt.Errorf("stat vault: %w", err)
 	}
-	if !futureMtime(vaultRoot, info.ModTime(), now) && info.ModTime().After(stamp) {
+	if !skipFutureMtime(vaultRoot, info.ModTime(), now) && info.ModTime().After(stamp) {
 		return fmt.Errorf("%w: %s changed after last reindex (%s)", ErrIndexStale, vaultRoot, stamp.Format(time.RFC3339))
 	}
 	return nil
 }
 
-// futureMtime reports whether mtime post-dates the check's clock read, and
+// skipFutureMtime reports whether mtime post-dates the check's clock read, and
 // warns when it does. Such a timestamp can't record an edit that has already
 // happened; more importantly it is newer than any stamp `anvil reindex` can
 // write (reindex stamps time.Now()), so counting it as drift would leave the
 // index stale forever with no operator-reachable fix.
-func futureMtime(path string, mtime, now time.Time) bool {
+func skipFutureMtime(path string, mtime, now time.Time) bool {
 	if !mtime.After(now) {
 		return false
 	}
