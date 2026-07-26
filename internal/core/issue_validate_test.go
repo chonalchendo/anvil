@@ -281,8 +281,13 @@ func TestValidateIssueVerbs_KnownVerb_Accepted(t *testing.T) {
 }
 
 func TestValidateIssueVerbs_ChainedInvocation_Rejected(t *testing.T) {
-	// A non-line-start invocation (`x && anvil bogus`) must still be caught: the
-	// regex anchors on a word boundary, not line start.
+	// A non-line-start invocation (`x && anvil bogus`) must still be caught.
+	// Verification fences routinely chain setup onto the call under test
+	// (`cd $tmp && anvil ...`) or capture it (`echo $(anvil ...)`), so anchoring
+	// on line start alone would blind the lint to most real invocations. The
+	// anchor is an explicit separator class instead: the char before `anvil` must
+	// be a shell separator, whitespace, or a path separator — never a word char,
+	// which is what keeps `anvil` inside a longer word or path segment out.
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue && anvil bogus\n```\n\n### Indirect\n```bash\necho $(anvil bogus)\n```\n\n## Links\n"
 	errs := ValidateIssueVerbs(body, "", "", validatorFixture())
 	if len(errs) == 0 {
@@ -323,11 +328,20 @@ func TestValidateIssueVerbs_NonAnvilShellLines_Ignored(t *testing.T) {
 
 func TestValidateIssueVerbs_GenuineTypo_StillRejectedAmongShellNoise(t *testing.T) {
 	// The 0077 guarantee must survive the narrowing: a real typo'd subcommand in
-	// a line that also carries a pipe is still reported.
-	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ncd ~/Development/anvil && anvil project init scratch | tee log\n```\n\n### Indirect\n```bash\ntrue\n```\n\n## Links\n"
+	// a line that also carries a pipe is still reported. The second line pins the
+	// path-prefixed form: `./bin/anvil <verb>` is the mandated smoke-gate shape
+	// (docs/worktree-workflow.md), so dropping `/` from the command-position class
+	// would silently unlint every smoke fence in the vault.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ncd ~/Development/anvil && anvil project init scratch | tee log\n./bin/anvil frobnicate widget\n```\n\n### Indirect\n```bash\ntrue\n```\n\n## Links\n"
 	errs := ValidateIssueVerbs(body, "", "", validatorFixture())
-	if len(errs) != 1 || !strings.Contains(errs[0].Error(), "init") {
-		t.Errorf("expected exactly one error naming 'init', got: %v", errs)
+	if len(errs) != 2 {
+		t.Fatalf("expected exactly two errors ('init' and 'frobnicate'), got %d: %v", len(errs), errs)
+	}
+	joined := errs[0].Error() + " " + errs[1].Error()
+	for _, want := range []string{"init", "frobnicate"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("expected an error naming %q, got: %v", want, errs)
+		}
 	}
 }
 

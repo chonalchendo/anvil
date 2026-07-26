@@ -8,13 +8,23 @@ import (
 
 // anvilInvocationRE matches an `anvil <args...>` invocation inside a code fence
 // and captures the remainder of the line after `anvil`. `anvil` must sit in
-// *command position* — line start, or after whitespace or a shell separator —
-// so chained forms (`x && anvil bogus`) and substitutions (`$(anvil bogus)`)
-// are still caught while a path fragment (`cd ~/Development/anvil && just
-// install`) is not; reading that `&&` as a subcommand produced most of the
-// false positives. Horizontal whitespace only, so a line-trailing `anvil` does
-// not swallow the next line as its arguments.
-var anvilInvocationRE = regexp.MustCompile(`(?m)(?:^|[ \t;&|(])anvil[ \t]+([^\n]*)`)
+// *command position* — line start, or after whitespace, a shell separator, or a
+// path separator — so chained forms (`x && anvil bogus`), substitutions
+// (`$(anvil bogus)`) and path-prefixed forms (`./bin/anvil bogus`, the mandated
+// smoke-gate shape) are all caught. `/` is in the class deliberately: a path
+// *fragment* like `cd ~/Development/anvil && just install` matches too, but
+// simpleCommandArgs then breaks at the `&&` and yields no tokens, so the false
+// positive that motivated this change stays dead without blinding the check to
+// `./bin/anvil <verb>`.
+//
+// The capture stops at a shell separator rather than running to end of line.
+// Matches are non-overlapping, so a run-to-EOL capture would let the path
+// fragment in `cd ~/Development/anvil && anvil project init` swallow the genuine
+// invocation behind it and report nothing. Stopping early re-anchors the scan on
+// the next command. Nothing is lost: simpleCommandArgs discards post-separator
+// words anyway. Horizontal whitespace only, so a line-trailing `anvil` does not
+// swallow the next line as its arguments.
+var anvilInvocationRE = regexp.MustCompile(`(?m)(?:^|[ \t;&|(/])anvil[ \t]+([^\n;&|]*)`)
 
 // plausibleVerbRE is the shape a real anvil subcommand token can take. A
 // reported token that fails it (`$tmp`, `<id>`, `2`, `""`) is shell debris the
@@ -23,8 +33,9 @@ var anvilInvocationRE = regexp.MustCompile(`(?m)(?:^|[ \t;&|(])anvil[ \t]+([^\n]
 var plausibleVerbRE = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
 // VerbPathValidator reports whether the anvil command described by tokens — the
-// whitespace-split words following `anvil` on a fence line — names a real path
-// through the command tree. It returns the offending subcommand token and false
+// leading positional run following `anvil` on a fence line, flags and anything
+// past a shell operator already stripped by simpleCommandArgs — names a real
+// path through the command tree. It returns the offending subcommand token and false
 // when a token sits in command position but matches no registered subcommand;
 // "" and true otherwise. The CLI layer builds this from cobra (which owns the
 // command tree); core stays cobra-free, mirroring the existing core/CLI split.
