@@ -268,8 +268,9 @@ func matchesFilters(f listFilters, status, project, diataxis, confidence, severi
 
 func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool, t core.Type, fields []string) error {
 	returned := len(items)
-	// Hint precedes both paths so a --json caller piping stdout to a parser
-	// still sees on stderr that the result set was capped.
+	// Computed above both paths so a --json caller piping stdout to a parser
+	// still sees on stderr that the result set was capped; deferred so it
+	// stays a footer under the text table in a merged terminal stream.
 	suggestions := []string{"--since/--until", "--status", "--tag"}
 	if t.SupportsProject() {
 		suggestions = append(suggestions, "--project")
@@ -278,7 +279,7 @@ func emitList(cmd *cobra.Command, items []listItem, total int, asJSON bool, t co
 		suggestions = append(suggestions, "--milestone")
 	}
 	if hint := output.TruncationHint("most recent", returned, total, suggestions); hint != "" {
-		cmd.PrintErrln(hint)
+		defer cmd.PrintErrln(hint)
 	}
 	if asJSON {
 		if len(fields) > 0 {

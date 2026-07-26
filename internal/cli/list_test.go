@@ -324,6 +324,27 @@ func TestList_TruncationHintOnStderr_JSONProjected(t *testing.T) {
 	}
 }
 
+// The hint is a footer: in a terminal, stdout and stderr land in one stream, so
+// a hint emitted before the rows would scroll off the top of a long table.
+func TestList_TruncationHintIsFooterInMergedStream(t *testing.T) {
+	newTestVaultWithIssues(t, 15)
+	cmd := newRootCmd()
+	var merged bytes.Buffer
+	cmd.SetOut(&merged)
+	cmd.SetErr(&merged)
+	cmd.SetArgs([]string{"list", "issue", "--limit", "5"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimRight(merged.String(), "\n"), "\n")
+	if len(lines) != 6 {
+		t.Fatalf("want 5 rows + 1 hint, got %d lines: %q", len(lines), lines)
+	}
+	if !strings.Contains(lines[len(lines)-1], "showing 5 of 15") {
+		t.Errorf("hint is not the last line; want footer position. merged=%q", lines)
+	}
+}
+
 func TestList_NoHintWhenComplete_JSON(t *testing.T) {
 	newTestVaultWithIssues(t, 3)
 	cmd := newRootCmd()

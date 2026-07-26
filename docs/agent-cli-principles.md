@@ -40,10 +40,10 @@ CLI output flows cleanly to downstream tools. All content goes to stdout; all di
 
 ## 8. Bounded responses
 
-`anvil list <type>` defaults to `--limit 50`. When the result set is truncated, print a narrowing hint on stderr: available filter flags and how to raise the limit. Example:
+`anvil list <type>` defaults to `--limit 10`. When the result set is truncated, print a narrowing hint on stderr: available filter flags and how to raise the limit. The hint is a footer — it follows the rows so it reads as a closing note under the table, and it goes to stderr on every path (including `--json`) so a piped parser still learns the set was capped. Example:
 
 ```
-(showing 50 of 312 issues — narrow with --status, --milestone, or --limit N)
+showing 10 of 312 most recent; narrow with --since/--until, --status, --tag, --project, --milestone, or raise --limit
 ```
 
 `anvil show` on a type with a large body field should print a summary view by default and accept `--body` for the artifact body (capped). Unbounded output breaks agent context budgets.
