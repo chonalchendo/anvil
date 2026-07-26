@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,8 +16,10 @@ import (
 // ErrLastReindexUnset means SetLastReindex has not been called yet.
 var ErrLastReindexUnset = errors.New("last reindex stamp unset")
 
-// ErrIndexStale means the vault directory mtime is newer than the stored
-// last-reindex stamp. Callers should run `anvil reindex` and retry.
+// ErrIndexStale means the vault has drifted from the index: either a .md file
+// or the vault directory itself has an mtime newer than the stored
+// last-reindex stamp. Errors wrapping it name the offending path. Callers
+// should run `anvil reindex` and retry.
 var ErrIndexStale = errors.New("vault index stale")
 
 const metaKeyLastReindex = "last_reindex"
@@ -89,6 +92,8 @@ func (d *DB) GetLastReindex() (time.Time, error) {
 // (create/delete/rename) do. A vault-root stat alone misses an external
 // editor saving over an existing artifact, which is exactly the kind of
 // drift this check exists to surface.
+//
+// File modification times ahead of the clock are ignored — see skipFutureMtime.
 func (d *DB) CheckFreshness(vaultRoot string) error {
 	return d.CheckFreshnessExcept(vaultRoot, "")
 }
@@ -108,6 +113,10 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 			skipAbs = abs
 		}
 	}
+	// One clock read for the whole walk, so files aren't compared against
+	// drifting nows.
+	now := time.Now()
+	stalePath := ""
 	walkErr := filepath.WalkDir(vaultRoot, func(path string, dEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -132,27 +141,50 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 		if ierr != nil {
 			return ierr
 		}
+		if skipFutureMtime(path, info.ModTime(), now) {
+			return nil
+		}
 		if info.ModTime().After(stamp) {
+			stalePath = path
 			return errStaleSentinel
 		}
 		return nil
 	})
 	if errors.Is(walkErr, errStaleSentinel) {
-		return ErrIndexStale
+		return fmt.Errorf("%w: %s modified after last reindex (%s)", ErrIndexStale, stalePath, stamp.Format(time.RFC3339))
 	}
 	if walkErr != nil {
 		return fmt.Errorf("walk vault: %w", walkErr)
 	}
 	// Also catch deletes: vault dir mtime advances on a removed file even
-	// though the file itself is gone.
+	// though the file itself is gone. This arm intentionally honours future
+	// mtimes: callers signal external drift by stamping the root a moment
+	// ahead of now (see markVaultExternallyStale), so guarding it would
+	// suppress drift absorption.
 	info, err := os.Stat(vaultRoot)
 	if err != nil {
 		return fmt.Errorf("stat vault: %w", err)
 	}
 	if info.ModTime().After(stamp) {
-		return ErrIndexStale
+		return fmt.Errorf("%w: %s changed after last reindex (%s)", ErrIndexStale, vaultRoot, stamp.Format(time.RFC3339))
 	}
 	return nil
+}
+
+// skipFutureMtime reports whether a walked file's mtime post-dates the check's
+// clock read, and warns when it does. Such a timestamp can't record an edit
+// that has already happened; more importantly it is newer than any stamp
+// `anvil reindex` can write (reindex stamps time.Now()), so counting it as
+// drift would leave the index stale forever with no operator-reachable fix.
+// It guards the file walk only — never the vault-root stat, whose future-mtime
+// behaviour is load-bearing for drift absorption.
+func skipFutureMtime(path string, mtime, now time.Time) bool {
+	if !mtime.After(now) {
+		return false
+	}
+	slog.Warn("ignoring future modification time in freshness check",
+		"path", path, "mtime", mtime.Format(time.RFC3339), "now", now.Format(time.RFC3339))
+	return true
 }
 
 // errStaleSentinel short-circuits the walk on first stale file. Internal —
