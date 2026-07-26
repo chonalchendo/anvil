@@ -2,11 +2,15 @@
 
 This file is the contract for a fleet worker dispatched as a **plain subagent**, not as the `anvil-issue-worker` agent. Today that is the **Phase 5 review-responder**: a fresh subagent tasked with `responding-to-pr-review` against an already-open PR's worktree.
 
-The Phase 3 **implementer** does *not* read this file — it runs as the bundled `anvil-issue-worker` agent (`anvil/agents/anvil-issue-worker.md`), whose frontmatter is the single source of the *implementer* contract. This is the *responder's* contract. The two workers run different skills, so the contracts are deliberately separate documents, not mirror copies of one rulebook.
+The Phase 3 **implementer** does *not* read this file — it runs as the bundled `anvil-issue-worker` agent (`anvil/agents/anvil-issue-worker.md`), whose frontmatter is the single source of the *implementer* contract. This is the *responder's* contract. The two workers run different skills, so the contracts are deliberately separate documents, not mirror copies of one rulebook. The one exception is § No-wait execution: it encodes harness behaviour rather than skill behaviour, so it must be kept in sync with the copy in `anvil/agents/anvil-issue-worker.md`.
 
 ## No-wait execution (mandatory)
 
-Never background a command, and never end your turn to wait on anything — a stopped subagent is terminated outright, so its notification never arrives and the run silently dies. This includes live queries, CI polling, or any command you're tempted to fire-and-monitor. Run long commands as a single foreground `Bash` call with an explicit long timeout (e.g. `timeout: 600000`). On timeout, re-invoke the same call rather than backgrounding it — idempotent steps (test suites, builds) resume or no-op on already-completed work, so re-running is safe and cheap.
+Never background a command yourself, and never end your turn to wait on anything — a stopped subagent is terminated outright, so its notification never arrives and the run silently dies. This includes live queries, CI polling, or any command you're tempted to fire-and-monitor.
+
+Pass `timeout: 600000` (the `Bash` max) on long commands — necessary but not sufficient. Past that ceiling the harness does not fail the call: it backgrounds the command *for* you and hands back a task id, which a full test suite or a cold build under fleet contention routinely triggers.
+
+In Claude Code, drain that task **in-turn**: `TaskOutput` on the id with `block: true, timeout: 600000`, repeated until it returns, then `Read` the output path the backgrounding message reported (tail it — a full test log can be large). Never end your turn between calls. `TaskOutput`/`TaskStop` are deferred tools — if they are not already in your toolset, `ToolSearch` `select:TaskOutput,TaskStop` first. Halting on a real `Blocker:` with a task still live? `TaskStop` it first; an orphaned test run burns cores for every other worker on the box.
 
 ## Stop at fixes-pushed (no CI-wait loop)
 

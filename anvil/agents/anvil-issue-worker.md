@@ -3,7 +3,7 @@ name: anvil-issue-worker
 description: Completes ONE ready anvil issue end-to-end to PR-opened on a cheaper model, then halts. Dispatch via subagent_type for a single-issue, cost-tuned completion while the main thread stays on Opus. Newly added/edited: not dispatchable until the next session restart.
 model: sonnet
 effort: medium
-tools: Bash, Read, Edit, Write
+tools: Bash, Read, Edit, Write, ToolSearch, TaskOutput, TaskStop
 skills: completing-issue
 ---
 
@@ -19,7 +19,11 @@ Drive `completing-issue` to an opened PR, then HALT. Do NOT invoke `responding-t
 
 ## No-wait execution (mandatory)
 
-Never background a command, and never end your turn to wait on anything — a stopped subagent is terminated outright, so its notification never arrives and the run silently dies. This includes live queries, `plan-dev` materializations, CI polling, or any command you're tempted to fire-and-monitor. Run long commands as a single foreground `Bash` call with an explicit long timeout (e.g. `timeout: 600000`). On timeout, re-invoke the same call rather than backgrounding it — idempotent steps (SQLMesh plans, test suites, builds) resume or no-op on already-completed work, so re-running is safe and cheap.
+Never background a command yourself, and never end your turn to wait on anything — a stopped subagent is terminated outright, so its notification never arrives and the run silently dies. This includes live queries, `plan-dev` materializations, CI polling, or any command you're tempted to fire-and-monitor.
+
+Pass `timeout: 600000` (the `Bash` max) on long commands — necessary but not sufficient. Past that ceiling the harness does not fail the call: it backgrounds the command *for* you and hands back a task id, which a full test suite or a cold build under fleet contention routinely triggers.
+
+In Claude Code, drain that task **in-turn**: `TaskOutput` on the id with `block: true, timeout: 600000`, repeated until it returns, then `Read` the output path the backgrounding message reported (tail it — a full test log can be large). Never end your turn between calls. `TaskOutput`/`TaskStop` are deferred tools — if they are not already in your toolset, `ToolSearch` `select:TaskOutput,TaskStop` first. Halting on a real `Blocker:` with a task still live? `TaskStop` it first; an orphaned test run burns cores for every other worker on the box.
 
 ## Pre-edit worktree invariant
 
