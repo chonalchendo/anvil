@@ -15,6 +15,11 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
+// landClaimOwner is stamped on an issue that --land-pr auto-claims without an
+// explicit --owner, so the record of who landed survives the one-call form the
+// fleet uses (mirrors buildClaimOwner for `anvil build`).
+const landClaimOwner = "anvil-land"
+
 func newTransitionCmd() *cobra.Command {
 	var owner, reason string
 	var asJSON, force, noLongerReproduces, cutWorktree, localValidated bool
@@ -164,11 +169,12 @@ func newTransitionCmd() *cobra.Command {
 			// --land-pr is itself the explicit opt-in (like --force/--local-validated)
 			// that auto-claims an unclaimed open issue, so dispatched workers that
 			// stop at PR-opened land in one call instead of a separate claim first.
-			// An issue in-progress under another owner still refuses below. Owner
-			// (if passed) is stamped into frontmatter but only persisted by the
-			// single Save() after doLandPR succeeds, so a failed land leaves the
-			// issue on disk exactly as it was: open.
-			autoClaimLandPR := t == core.TypeIssue && to == "resolved" && landPRNum != 0 && from == "open"
+			// An issue already in-progress takes the normal `in-progress →
+			// resolved` edge below; only the unclaimed-open case needs the
+			// synthesized edge. The claim is stamped into frontmatter but only
+			// persisted by the single Save() after doLandPR succeeds, so a failed
+			// land leaves the issue on disk exactly as it was: open.
+			autoClaimLandPR := landPRNum != 0 && from == "open"
 			var tr core.Transition
 			if autoClaimLandPR {
 				tr = core.Transition{From: from, To: to}
@@ -276,8 +282,20 @@ func newTransitionCmd() *cobra.Command {
 				}
 			}
 
+			landClaimant := owner
+			if landClaimant == "" {
+				landClaimant = landClaimOwner
+			}
+
 			a.FrontMatter["status"] = to
-			if owner != "" {
+			switch {
+			case autoClaimLandPR:
+				a.FrontMatter["owner"] = landClaimant
+			case landPRNum != 0:
+				// Landing an already-claimed issue must not reassign it: the
+				// operator running --land-pr is not necessarily the worker who
+				// did the work, and the existing claim is the record of that.
+			case owner != "":
 				a.FrontMatter["owner"] = owner
 			}
 			// Stamp the claiming session so a later same-owner claim from a
@@ -319,11 +337,7 @@ func newTransitionCmd() *cobra.Command {
 					extra = " (--local-validated: CI gate bypassed on operator attestation)"
 				}
 				if autoClaimLandPR {
-					if owner != "" {
-						extra += fmt.Sprintf(" (auto-claimed from open with --owner %s)", owner)
-					} else {
-						extra += " (auto-claimed from open)"
-					}
+					extra += fmt.Sprintf(" (auto-claimed from open as %s)", landClaimant)
 				}
 				audit := fmt.Sprintf("\n> resolved --land-pr %d %s: merged via squash + branch deleted%s\n", landPRNum, stamp, extra)
 				if !strings.HasSuffix(a.Body, "\n") {

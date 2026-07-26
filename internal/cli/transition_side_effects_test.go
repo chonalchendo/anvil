@@ -466,6 +466,45 @@ func TestLandPRAutoClaimsOpenIssueWithoutOwner(t *testing.T) {
 	if a.FrontMatter["status"] != "resolved" {
 		t.Errorf("status = %v, want resolved", a.FrontMatter["status"])
 	}
+	if a.FrontMatter["owner"] != landClaimOwner {
+		t.Errorf("owner = %v, want %s (default claimant records who landed)", a.FrontMatter["owner"], landClaimOwner)
+	}
+}
+
+// TestLandPRRefusesAbandonedIssue pins the from == "open" conjunct of the
+// auto-claim guard: only open auto-claims, so an abandoned issue still takes
+// the ordinary illegal-transition refusal and never reaches the merge.
+func TestLandPRRefusesAbandonedIssue(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "abandoned")
+
+	s := stubSideFX(t)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "illegal_transition") {
+		t.Errorf("missing error code: %s", stdout.String())
+	}
+	if len(s.mergeCalls) != 0 {
+		t.Errorf("merge should not have been called: %v", s.mergeCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "abandoned" {
+		t.Errorf("status = %v, want abandoned (unchanged)", a.FrontMatter["status"])
+	}
 }
 
 // TestLandPRLeavesInProgressOwnerUntouched covers the non-goal: auto-claim
@@ -493,6 +532,34 @@ func TestLandPRLeavesInProgressOwnerUntouched(t *testing.T) {
 	}
 	if a.FrontMatter["owner"] != "alice" {
 		t.Errorf("owner = %v, want alice (untouched by land-pr)", a.FrontMatter["owner"])
+	}
+}
+
+// TestLandPRDoesNotReassignOwnerOnClaimedIssue is the load-bearing half of the
+// non-goal above: an explicit --owner on the land call must not silently
+// reassign an issue someone else already claimed. Only the auto-claimed
+// open case stamps an owner.
+func TestLandPRDoesNotReassignOwnerOnClaimedIssue(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "alice")
+
+	s := stubSideFX(t)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+
+	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--owner", "bob")
+
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v, want resolved", a.FrontMatter["status"])
+	}
+	if a.FrontMatter["owner"] != "alice" {
+		t.Errorf("owner = %v, want alice (--owner bob must not reassign a live claim)", a.FrontMatter["owner"])
 	}
 }
 
