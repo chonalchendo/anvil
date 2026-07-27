@@ -240,6 +240,54 @@ func TestValidate_JSON_MissingRequired(t *testing.T) {
 	}
 }
 
+// Warrant: if validateOne regresses to early-returning on a frontmatter-schema
+// failure, the body-heading findings for the same artifact vanish and this fails
+// (anvil.0218).
+func TestValidate_JSON_SchemaAndBodyFindings_Coexist(t *testing.T) {
+	vault := setupVault(t)
+	bad := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", "foo.both.md"),
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "x", "description": "d",
+			"created": "2026-07-27", "status": "open",
+			"project": "foo", "severity": "low",
+			// goal omitted: schema-layer missing_required
+		},
+		Body: "", // no headings: body-layer constraint_violations
+	}
+	if err := bad.Save(); err != nil {
+		t.Fatal(err)
+	}
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"validate", vault, "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	_ = cmd.Execute()
+	var got []map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
+	}
+	var schemaHit, bodyHit bool
+	for _, e := range got {
+		if e["path"] != bad.Path {
+			continue
+		}
+		if e["code"] == "missing_required" && e["field"] == "goal" {
+			schemaHit = true
+		}
+		if e["code"] == "constraint_violation" && strings.Contains(e["got"].(string), "missing required heading") {
+			bodyHit = true
+		}
+	}
+	if !schemaHit {
+		t.Errorf("expected missing_required for goal, got %v", got)
+	}
+	if !bodyHit {
+		t.Errorf("expected constraint_violation for missing headings alongside the schema failure, got %v", got)
+	}
+}
+
 func TestValidate_MissingRequiredFacet_Issue(t *testing.T) {
 	vault := setupVault(t)
 	bad := &core.Artifact{

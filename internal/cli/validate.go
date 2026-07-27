@@ -191,10 +191,12 @@ func verbPathValidator(root *cobra.Command) core.VerbPathValidator {
 	}
 }
 
-// validateOne runs schema + learning-body checks on a single artifact file and
-// returns the loaded artifact alongside any structured failures. The artifact
-// is nil on a parse failure (the only failure that prevents loading); callers
-// reuse it for cross-file id-collision detection without a second load.
+// validateOne runs schema and type-specific body checks on a single artifact
+// file and returns the loaded artifact alongside any structured failures. A
+// schema failure does not short-circuit: type-specific body checks still run,
+// so one artifact reports every violation class in one pass (anvil.0218). The
+// artifact is nil on a parse failure (the only failure that prevents loading);
+// callers reuse it for cross-file id-collision detection without a second load.
 func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs core.VerbPathValidator) (*core.Artifact, []*errfmt.ValidationError) {
 	a, err := core.LoadArtifact(path)
 	if err != nil {
