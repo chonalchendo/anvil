@@ -200,11 +200,10 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 	if err != nil {
 		return nil, []*errfmt.ValidationError{errfmt.NewValidationError(errfmt.CodeParseError, path, "", err.Error())}
 	}
-	if err := schema.Validate(string(t), a.FrontMatter); err != nil {
-		return a, schemaErrToValidationErrors(path, err)
-	}
-
 	var out []*errfmt.ValidationError
+	if err := schema.Validate(string(t), a.FrontMatter); err != nil {
+		out = append(out, schemaErrToValidationErrors(path, err)...)
+	}
 
 	if t == core.TypeLearning {
 		// ValidateLearning covers both body-shape and glossary membership for
