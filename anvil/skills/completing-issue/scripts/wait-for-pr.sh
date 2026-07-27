@@ -126,7 +126,7 @@ while true; do
     ci_state=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json statusCheckRollup --jq '
         (.statusCheckRollup // [])
         | if any(.conclusion == "FAILURE" or .conclusion == "TIMED_OUT" or .conclusion == "STARTUP_FAILURE"
-                 or .state == "FAILURE" or .state == "ERROR") then "failure"
+                 or .conclusion == "CANCELLED" or .state == "FAILURE" or .state == "ERROR") then "failure"
           elif any(.status == "QUEUED" or .status == "IN_PROGRESS" or .state == "PENDING") then "pending"
           elif any(.conclusion == "SUCCESS" or .state == "SUCCESS") then "success"
           else "none"
