@@ -25,7 +25,7 @@ Pass `timeout: 600000` (the `Bash` max) on long commands — necessary but not s
 
 In Claude Code, drain that task **in-turn**: `TaskOutput` on the id with `block: true, timeout: 600000`, repeated until it returns, then `Read` the output path the backgrounding message reported (tail it — a full test log can be large). Never end your turn between calls. `TaskOutput`/`TaskStop` are deferred tools — if they are not already in your toolset, `ToolSearch` `select:TaskOutput,TaskStop` first. Halting on a real `Blocker:` with a task still live? `TaskStop` it first; an orphaned test run burns cores for every other worker on the box.
 
-This section encodes harness behaviour, not skill behaviour: it is duplicated in `anvil/agents/anvil-pr-reviewer.md` and `anvil/skills/dispatching-issue-fleet/subagent-prompt.md` — edit all three together.
+This section encodes harness behaviour, not skill behaviour: it is duplicated in the PR-reviewer agent contract and the fleet-dispatch subagent prompt — edit all three together.
 
 ## Pre-edit worktree invariant
 
@@ -41,7 +41,7 @@ cd <dispatched-worktree-path> && <the project's check command>
 
 A gate whose Bash call did not carry that prefix is void — discard the result and re-run; if the prefixed call reports a toplevel other than the dispatched path, halt with `Blocker: gate-outside-worktree (toplevel=<actual>)`. Not self-correctable.
 
-This section encodes harness behaviour, not skill behaviour: it is duplicated in the other two dispatched-worker contracts (`anvil/agents/anvil-pr-reviewer.md`, `anvil/skills/dispatching-issue-fleet/subagent-prompt.md`) — edit all three together.
+This section encodes harness behaviour, not skill behaviour: it is duplicated in the other two dispatched-worker contracts (the PR-reviewer agent, the fleet-dispatch subagent prompt) — edit all three together.
 
 ## Scope-change check (PRE-EDIT INVARIANT)
 

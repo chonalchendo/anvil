@@ -33,6 +33,12 @@ repos:
         language: system
         files: '^anvil/skills/.*/SKILL\.md$'
         pass_filenames: false
+      - id: genericity-lint
+        name: shipped-bundle genericity (no anvil-only toolchain or source paths)
+        entry: ./.github/check-genericity.sh
+        language: system
+        files: '^anvil/(skills|agents)/.*\.md$'
+        pass_filenames: false
       - id: anvil-validate
         name: anvil validate (fresh-vault smoke)
         entry: bash -c 'tmp=$(mktemp -d) && go run ./cmd/anvil init "$tmp" >/dev/null && go run ./cmd/anvil validate "$tmp"'
