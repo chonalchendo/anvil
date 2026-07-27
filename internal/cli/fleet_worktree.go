@@ -10,26 +10,23 @@ import (
 // Worktree discovery + issue-to-branch matching for `anvil fleet status`,
 // split out of fleet.go to keep it under the repo's 500-line file cap.
 
-// fleetCandidateBranches returns the `anvil/<slug>` branches plausibly
-// hosting an issue's worktree. Unlike candidateBranchesForIssue (used by
+// fleetCandidateSlugs returns the branch slugs plausibly hosting an issue's
+// worktree, most-specific first: the id-derived slug, then any linked plan's
+// `slug:`. Slugs, not branches — the prefix is whatever project brands the
+// worktree (`anvil/`, `burgh/`, `mentat/`), so matching happens on the
+// segment after the last "/". Unlike candidateBranchesForIssue (used by
 // `transition resolved`), we deliberately exclude the current-branch
 // fallback — fleet enumerates many issues at once, so reusing the caller's
 // branch as a wildcard would cross-pollute every row with the same match.
-// id-derived slug + linked-plan slugs is enough; if neither matches, the
-// row reports "no matching worktree" and an orchestrator can investigate.
-func fleetCandidateBranches(v *core.Vault, id string) []string {
+func fleetCandidateSlugs(v *core.Vault, id string) []string {
 	seen := map[string]bool{}
 	var out []string
 	add := func(slug string) {
-		if slug == "" {
+		if slug == "" || seen[slug] {
 			return
 		}
-		b := "anvil/" + slug
-		if seen[b] {
-			return
-		}
-		seen[b] = true
-		out = append(out, b)
+		seen[slug] = true
+		out = append(out, slug)
 	}
 	if dot := strings.IndexByte(id, '.'); dot >= 0 && dot+1 < len(id) {
 		add(id[dot+1:])
@@ -42,17 +39,42 @@ func fleetCandidateBranches(v *core.Vault, id string) []string {
 }
 
 // genericSlugWorktree returns the lone worktree whose branch slug (the
-// segment after its last "/") equals the issue's derived slug exactly,
-// regardless of prefix. fleetCandidateBranches only tries the hardcoded
-// `anvil/` prefix; this generalizes to any `<project>/<slug>` naming
-// without requiring per-project configuration. >1 match = ambiguous,
-// leave unmatched rather than guess which project owns the slug.
-func genericSlugWorktree(worktrees map[string]worktreeInfo, id string) (string, worktreeInfo, bool) {
+// segment after its last "/") equals a candidate slug exactly, regardless of
+// prefix. Candidates are tried in order, so the id-derived slug wins over a
+// linked plan's slug. >1 worktree on the same slug = ambiguous, leave
+// unmatched rather than guess which project owns it.
+func genericSlugWorktree(worktrees map[string]worktreeInfo, slugs []string) (string, worktreeInfo, bool) {
+	for _, slug := range slugs {
+		var hitBranch string
+		var hitInfo worktreeInfo
+		count := 0
+		for b, wt := range worktrees {
+			i := strings.LastIndexByte(b, '/')
+			if i < 0 {
+				continue
+			}
+			if b[i+1:] == slug {
+				hitBranch, hitInfo = b, wt
+				count++
+			}
+		}
+		if count == 1 {
+			return hitBranch, hitInfo, true
+		}
+	}
+	return "", worktreeInfo{}, false
+}
+
+// uniqueSubstringWorktree returns the lone worktree whose branch slug (the
+// segment after its last "/", any prefix) is a substring of the issue id's
+// slug, or ok=false if zero or two-plus match. The single-match rule keeps
+// the fallback honest: ambiguity yields an unmatched row, not a wrong row.
+func uniqueSubstringWorktree(worktrees map[string]worktreeInfo, id string) (string, worktreeInfo, bool) {
 	dot := strings.IndexByte(id, '.')
 	if dot < 0 || dot+1 >= len(id) {
 		return "", worktreeInfo{}, false
 	}
-	slug := id[dot+1:]
+	issueSlug := id[dot+1:]
 	var hitBranch string
 	var hitInfo worktreeInfo
 	count := 0
@@ -61,36 +83,7 @@ func genericSlugWorktree(worktrees map[string]worktreeInfo, id string) (string, 
 		if i < 0 {
 			continue
 		}
-		if b[i+1:] == slug {
-			hitBranch, hitInfo = b, wt
-			count++
-		}
-	}
-	if count == 1 {
-		return hitBranch, hitInfo, true
-	}
-	return "", worktreeInfo{}, false
-}
-
-// uniqueSubstringWorktree returns the lone worktree whose branch slug is a
-// substring of the issue id's slug, or ok=false if zero or two-plus match.
-// The single-match rule keeps the fallback honest: ambiguity yields an
-// unmatched row, not a wrong row.
-func uniqueSubstringWorktree(worktrees map[string]worktreeInfo, id string) (string, worktreeInfo, bool) {
-	dot := strings.IndexByte(id, '.')
-	if dot < 0 || dot+1 >= len(id) {
-		return "", worktreeInfo{}, false
-	}
-	issueSlug := id[dot+1:]
-	const prefix = "anvil/"
-	var hitBranch string
-	var hitInfo worktreeInfo
-	count := 0
-	for b, wt := range worktrees {
-		if !strings.HasPrefix(b, prefix) {
-			continue
-		}
-		branchSlug := strings.TrimPrefix(b, prefix)
+		branchSlug := b[i+1:]
 		if branchSlug == "" || branchSlug == "master" {
 			continue
 		}
@@ -112,7 +105,8 @@ type worktreeInfo struct {
 }
 
 // gitWorktreeListReal parses `git worktree list --porcelain` and returns a
-// map keyed by branch name ("anvil/<slug>"). Worktrees without a branch (e.g.
+// map keyed by local branch name (`<prefix>/<slug>`, e.g. `anvil/…`,
+// `mentat/…`). Worktrees without a branch (e.g.
 // detached HEAD) are skipped because the fleet workflow assumes each task
 // runs on its own branch. Bare worktrees are similarly skipped.
 // repoDir scopes the listing to a specific repo; "" keeps the caller's

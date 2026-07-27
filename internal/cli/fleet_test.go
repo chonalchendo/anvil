@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -207,14 +208,21 @@ func TestGenericSlugWorktree(t *testing.T) {
 		"burgh/other-issue":    {path: "/wt/burgh", headSHA: "bbb"},
 		"master":               {path: "/main", headSHA: "ccc"},
 	}
-	b, wt, ok := genericSlugWorktree(wts, "mentat.matched-issue")
+	b, wt, ok := genericSlugWorktree(wts, []string{"matched-issue"})
 	if !ok || b != "mentat/matched-issue" || wt.path != "/wt/mentat" {
 		t.Errorf("got (%q, %+v, %v); want mentat/matched-issue match", b, wt, ok)
 	}
 
 	// No slash in branch name — not a candidate.
-	if _, _, ok := genericSlugWorktree(wts, "anvil.master"); ok {
+	if _, _, ok := genericSlugWorktree(wts, []string{"master"}); ok {
 		t.Error("expected bare branch (no prefix) not to match")
+	}
+
+	// Candidates are tried in order: a miss on the first falls through to the
+	// linked-plan slug rather than aborting.
+	b, _, ok = genericSlugWorktree(wts, []string{"no-such-slug", "other-issue"})
+	if !ok || b != "burgh/other-issue" {
+		t.Errorf("got (%q, %v); want fallthrough to burgh/other-issue", b, ok)
 	}
 
 	// Ambiguous: two branches with the same trailing slug, different prefixes.
@@ -222,12 +230,12 @@ func TestGenericSlugWorktree(t *testing.T) {
 		"mentat/dup-slug": {path: "/wt/a"},
 		"burgh/dup-slug":  {path: "/wt/b"},
 	}
-	if _, _, ok := genericSlugWorktree(wts2, "mentat.dup-slug"); ok {
+	if _, _, ok := genericSlugWorktree(wts2, []string{"dup-slug"}); ok {
 		t.Error("expected ambiguous (>1 prefix match) to return ok=false")
 	}
 
 	// No worktrees → no match.
-	if _, _, ok := genericSlugWorktree(map[string]worktreeInfo{}, "mentat.x"); ok {
+	if _, _, ok := genericSlugWorktree(map[string]worktreeInfo{}, []string{"x"}); ok {
 		t.Error("expected empty map to return ok=false")
 	}
 }
@@ -283,6 +291,75 @@ func TestBuildFleetRows_MatchesNonAnvilPrefixedBranch(t *testing.T) {
 	}
 }
 
+// TestBuildFleetRows_MatchesLinkedPlanSlugUnderNonAnvilPrefix pins the second
+// hardcode: candidate slugs come from the linked plan as well as the id, and
+// both must match under any project prefix. Reproduces burgh, whose plan
+// carries a `slug:` that diverges from its issue id.
+func TestBuildFleetRows_MatchesLinkedPlanSlugUnderNonAnvilPrefix(t *testing.T) {
+	vault := setupVault(t)
+	const (
+		issueID  = "burgh.espc-sold-history-connector"
+		planSlug = "espc-sold-history-connector-int-espc-sales-edinburgh"
+	)
+	writeIssueForProject(t, vault, issueID, "in-progress", "claude-beta", "burgh")
+	writeFixturePlan(t, vault, "burgh", planSlug, "ESPC sold-history connector")
+	execCmd(t, "reindex")
+	execCmd(t, "link", "plan", "burgh."+planSlug, "issue", issueID)
+
+	t.Cleanup(swapFleetStubs(nil, nil, nil, nil))
+	resolveProjectRepoFn = func(string) (string, error) { return "/repos/burgh", nil }
+	origWT := gitWorktreeListFn
+	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) {
+		return map[string]worktreeInfo{
+			"burgh/" + planSlug: {path: "/tmp/wt/burgh-plan", headSHA: "beefcafe"},
+		}, nil
+	}
+	t.Cleanup(func() { gitWorktreeListFn = origWT })
+
+	rows, err := buildFleetRows(&core.Vault{Root: vault})
+	if err != nil {
+		t.Fatalf("buildFleetRows: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want 1 row, got %d: %+v", len(rows), rows)
+	}
+	if rows[0].Branch != "burgh/"+planSlug || rows[0].Worktree != "/tmp/wt/burgh-plan" {
+		t.Errorf("got branch=%q worktree=%q note=%q; want the plan-slug branch matched",
+			rows[0].Branch, rows[0].Worktree, rows[0].Note)
+	}
+}
+
+// TestBuildFleetRows_UnresolvedProjectRepo covers both halves of the
+// degradation: the ambient-repo fallback is announced on the row rather than
+// masquerading as absence, and the failing resolution is memoized so N rows
+// of one project cost one `git rev-parse`, not N.
+func TestBuildFleetRows_UnresolvedProjectRepo(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueForProject(t, vault, "ghost.issue-one", "in-progress", "claude-a", "ghost")
+	writeIssueForProject(t, vault, "ghost.issue-two", "in-progress", "claude-b", "ghost")
+
+	t.Cleanup(swapFleetStubs(nil, nil, nil, nil))
+	calls := 0
+	resolveProjectRepoFn = func(project string) (string, error) {
+		calls++
+		return "", fmt.Errorf("project repo not found at ~/Development/%s", project)
+	}
+
+	rows, err := buildFleetRows(&core.Vault{Root: vault})
+	if err != nil {
+		t.Fatalf("buildFleetRows: %v", err)
+	}
+	if calls != 1 {
+		t.Errorf("resolveProjectRepoFn calls = %d, want 1 (memoized per project)", calls)
+	}
+	want := "project repo not found (expected ~/Development/ghost); matched against ambient repo"
+	for _, r := range rows {
+		if r.Note != want {
+			t.Errorf("row %s note = %q, want %q", r.ID, r.Note, want)
+		}
+	}
+}
+
 func TestUniqueSubstringWorktree(t *testing.T) {
 	wts := map[string]worktreeInfo{
 		"anvil/fleet-status-verb": {path: "/wt/a", headSHA: "aaa"},
@@ -292,6 +369,17 @@ func TestUniqueSubstringWorktree(t *testing.T) {
 	b, wt, ok := uniqueSubstringWorktree(wts, "anvil.anvil-fleet-status-verb-single-shot-view-of-in-flight-issues")
 	if !ok || b != "anvil/fleet-status-verb" || wt.path != "/wt/a" {
 		t.Errorf("got (%q, %+v, %v); want fleet-status-verb match", b, wt, ok)
+	}
+
+	// Divergent short slug under a non-anvil prefix: the fallback must not be
+	// blind to it just because the branch is not `anvil/`-prefixed.
+	wts3 := map[string]worktreeInfo{
+		"burgh/sold-history": {path: "/wt/burgh", headSHA: "ddd"},
+		"master":             {path: "/main"},
+	}
+	b, wt, ok = uniqueSubstringWorktree(wts3, "burgh.espc-sold-history-connector")
+	if !ok || b != "burgh/sold-history" || wt.path != "/wt/burgh" {
+		t.Errorf("got (%q, %+v, %v); want burgh/sold-history match", b, wt, ok)
 	}
 
 	// Ambiguous: two branches substring-match.
@@ -367,8 +455,9 @@ func writeIssueForProject(t *testing.T, vault, id, status, owner, project string
 // It stubs gitWorktreeListFn to ignore repoDir and always return
 // the same fixture map — sufficient for single-project tests. Tests that
 // exercise per-project repo resolution (worktreesForProject) additionally
-// stub resolveProjectRepoFn themselves; the hermetic default here (empty
-// repo, no error) keeps the real filesystem out of every other test.
+// stub resolveProjectRepoFn themselves; the hermetic default here (a
+// sentinel repo dir, no error) keeps the real filesystem out of every other
+// test.
 func swapFleetStubs(
 	worktrees map[string]worktreeInfo,
 	pushState map[string]string,
@@ -394,8 +483,10 @@ func swapFleetStubs(
 	ghPRCommentsFn = func(_ string, n int) (int, error) {
 		return comments[n], nil
 	}
-	resolveProjectRepoFn = func(string) (string, error) {
-		return "", nil
+	// A non-empty sentinel: an empty dir means "unresolved, using the ambient
+	// repo", which buildFleetRows reports on the row.
+	resolveProjectRepoFn = func(project string) (string, error) {
+		return "/repos/" + project, nil
 	}
 	return func() {
 		gitWorktreeListFn, gitPushStateFn, ghPRViewFn, ghPRCommentsFn, resolveProjectRepoFn = origWT, origPush, origPR, origCom, origRepo

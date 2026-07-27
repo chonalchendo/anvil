@@ -127,17 +127,26 @@ func buildFleetRows(v *core.Vault) ([]fleetRow, error) {
 	// necessarily the repo this command happens to run from. Resolve and
 	// cache one `git worktree list` per project rather than assuming cwd.
 	worktreesByRepo := map[string]map[string]worktreeInfo{}
-	worktreesForProject := func(project string) map[string]worktreeInfo {
-		repoDir, err := resolveProjectRepoFn(project)
-		if err != nil {
-			repoDir = "" // best-effort: fall back to the caller's ambient repo
+	repoByProject := map[string]string{} // "" = unresolved, ambient-repo fallback
+	// Returns the project's worktrees plus whether its repo actually resolved;
+	// an unresolved project degrades to the ambient repo, which the caller
+	// surfaces on the row rather than reporting a bare "no matching worktree".
+	worktreesForProject := func(project string) (map[string]worktreeInfo, bool) {
+		repoDir, cached := repoByProject[project]
+		if !cached {
+			dir, err := resolveProjectRepoFn(project)
+			if err != nil {
+				dir = "" // best-effort: fall back to the caller's ambient repo
+			}
+			repoDir = dir
+			repoByProject[project] = repoDir
 		}
 		if wts, ok := worktreesByRepo[repoDir]; ok {
-			return wts
+			return wts, repoDir != ""
 		}
 		wts, _ := gitWorktreeListFn(repoDir) // best-effort; empty map is fine
 		worktreesByRepo[repoDir] = wts
-		return wts
+		return wts, repoDir != ""
 	}
 
 	var rows []fleetRow
@@ -153,47 +162,36 @@ func buildFleetRows(v *core.Vault) ([]fleetRow, error) {
 		owner, _ := a.FrontMatter["owner"].(string)
 
 		row := fleetRow{ID: id, Owner: owner}
-		worktrees := worktreesForProject(projectFromArtifact(a, id))
-		branches := fleetCandidateBranches(v, id)
+		project := projectFromArtifact(a, id)
+		worktrees, repoResolved := worktreesForProject(project)
 		matched := false
-		for _, b := range branches {
-			if wt, ok := worktrees[b]; ok {
-				row.Worktree = wt.path
-				row.Branch = b
-				row.HeadSHA = wt.headSHA
-				matched = true
-				break
-			}
+		apply := func(b string, wt worktreeInfo) {
+			row.Worktree, row.Branch, row.HeadSHA = wt.path, b, wt.headSHA
+			matched = true
 		}
-		// Fallback: other projects brand worktree branches
-		// `<project>/<slug>` instead of `anvil/<slug>` (mentat, burgh).
-		// Match when exactly one worktree's branch slug (the segment after
-		// its last "/") equals the issue's derived slug exactly, whatever
-		// the prefix. >1 match = ambiguous, leave unmatched.
-		if !matched {
-			if b, wt, ok := genericSlugWorktree(worktrees, id); ok {
-				row.Worktree = wt.path
-				row.Branch = b
-				row.HeadSHA = wt.headSHA
-				matched = true
-			}
+		// Projects brand worktree branches `<project>/<slug>` — `anvil/`,
+		// `burgh/`, `mentat/` — so match on the branch slug (the segment
+		// after the last "/") against the id-derived and linked-plan slugs,
+		// whatever the prefix. >1 worktree on a slug = ambiguous, skip.
+		if b, wt, ok := genericSlugWorktree(worktrees, fleetCandidateSlugs(v, id)); ok {
+			apply(b, wt)
 		}
 		// Fallback: orchestrators frequently choose a divergent short slug
 		// (e.g. issue `<proj>.long-descriptive-id` → branch
-		// `anvil/short-slug`). Match when exactly one worktree's branch
+		// `<proj>/short-slug`). Match when exactly one worktree's branch
 		// slug is a substring of the issue slug. >1 match = ambiguous,
 		// leave unmatched rather than guess.
 		if !matched {
 			if b, wt, ok := uniqueSubstringWorktree(worktrees, id); ok {
-				row.Worktree = wt.path
-				row.Branch = b
-				row.HeadSHA = wt.headSHA
-				matched = true
+				apply(b, wt)
 			}
 		}
-		if matched {
+		switch {
+		case matched:
 			fillRowFromWorktree(&row)
-		} else {
+		case !repoResolved:
+			row.Note = fmt.Sprintf("project repo not found (expected ~/Development/%s); matched against ambient repo", project)
+		default:
 			row.Note = "no matching worktree"
 		}
 		rows = append(rows, row)
