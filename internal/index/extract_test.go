@@ -29,6 +29,29 @@ func TestArtifactRowFromFrontmatter(t *testing.T) {
 	}
 }
 
+// TestArtifactRowFromFrontmatter_PathStemCanonicalised pins the join side of the
+// canonical-id rule: a file whose name carries its type prefix registers under
+// the same id LinkRowsFrom* targets, so incoming edges to it resolve. A design
+// type's stem already carries its prefix and must survive untouched.
+func TestArtifactRowFromFrontmatter_PathStemCanonicalised(t *testing.T) {
+	cases := []struct {
+		typ, path, want string
+	}{
+		{"issue", "/v/70-issues/issue.demo.0001.probe.md", "demo.0001.probe"},
+		{"issue", "/v/70-issues/demo.0002.plain.md", "demo.0002.plain"},
+		{"system-design", "/v/06-system-designs/system-design.demo.md", "system-design.demo"},
+	}
+	for _, tc := range cases {
+		got, err := ArtifactRowFromFrontmatter(map[string]any{"type": tc.typ}, tc.path)
+		if err != nil {
+			t.Fatalf("ArtifactRowFromFrontmatter(%s): %v", tc.path, err)
+		}
+		if got.ID != tc.want {
+			t.Errorf("id for %s = %q, want %q", tc.path, got.ID, tc.want)
+		}
+	}
+}
+
 func TestLinkRowsFromFrontmatter_Scalar(t *testing.T) {
 	fm := map[string]any{
 		"type":      "issue",

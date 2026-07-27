@@ -159,8 +159,12 @@ func (o showOutput) MarshalJSON() ([]byte, error) {
 	return json.Marshal(out)
 }
 
-func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, includeBody, includeIncoming bool) error {
-	path := resolveArtifactPath(v.Root, t, id)
+func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename string, asJSON, includeBody, includeIncoming bool) error {
+	path := resolveArtifactPath(v.Root, t, basename)
+	// The file is found by basename, but the index keys artifacts and link
+	// targets on the canonical id — so the envelope and the incoming-edge
+	// lookup use that, or a prefix-named file shows no backlinks.
+	id := core.CanonicalID(t, basename)
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		if os.IsNotExist(err) {

@@ -375,9 +375,12 @@ func collectArtifactPaths(vaultRoot string, t core.Type) ([]string, error) {
 	return out, nil
 }
 
-// listIDFor returns the id surfaced in list output: the filename stem.
-func listIDFor(_ core.Type, path string) string {
-	return strings.TrimSuffix(filepath.Base(path), ".md")
+// listIDFor returns the id surfaced in list output: the filename stem, mapped
+// to the shape the index registers, so an id copied out of `list` is the same
+// string `artifacts.id` and `links.target` carry even when the file's name
+// keeps its type prefix.
+func listIDFor(t core.Type, path string) string {
+	return core.CanonicalID(t, strings.TrimSuffix(filepath.Base(path), ".md"))
 }
 
 // firstMissingSection extracts the heading name from the first error returned

@@ -144,6 +144,11 @@ func CanonicalID(t Type, raw string) string {
 // either filename shape: a file whose name carries its type prefix reads back
 // the same as the bare-id shape. Neither on disk → the canonical shape, so a
 // not-found error names the id the type is minted under.
+//
+// cli.resolveLinkTarget keeps its own both-shapes probe rather than calling
+// this: it must reject a double-prefixed target outright (pinned by
+// TestLink_CanonicalPrefixedTargetId), which this resolver deliberately does
+// not do. The duplication is the constraint, not an oversight.
 func ArtifactBasename(v *Vault, t Type, raw string) string {
 	canonical := CanonicalID(t, raw)
 	prefix := string(t) + "."
