@@ -120,18 +120,22 @@ while true; do
     fi
 
     # CI on the PR: GitHub Actions writes Check Runs, CircleCI/Travis write legacy
-    # Commit Statuses — the rollup returns both. Failure wins; pending (in-flight or
-    # attention-needing) holds; green needs at least one green and nothing pending/failing.
-    # Check Runs carry status + conclusion, Commit Statuses carry only state — read both
-    # or one platform never settles. ACTION_REQUIRED/STALE are attention-needing, not
-    # green; WAITING/EXPECTED are in-flight, not green; NEUTRAL/SKIPPED are non-blocking
-    # green (e.g. path-filtered workflows) so an all-skipped rollup still settles.
+    # Commit Statuses — the rollup returns both. Failure wins (broken or
+    # attention-needing: ACTION_REQUIRED/STALE); pending holds while anything is in
+    # flight; green needs at least one green and nothing pending/failing. Check Runs
+    # carry status + conclusion, Commit Statuses carry only state — read both or one
+    # platform never settles. The pending arm is the complement of "finished" (any
+    # present status that is not COMPLETED), not a whitelist, so REQUESTED/PENDING
+    # and any future in-flight status classify as pending — mirrors rollupCI in
+    # internal/cli/fleet.go, asserted by TestWaitForPRReducer. NEUTRAL/SKIPPED are
+    # non-blocking green (e.g. path-filtered workflows) so an all-skipped rollup
+    # still settles.
     ci_state=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json statusCheckRollup --jq '
         (.statusCheckRollup // [])
         | if any(.conclusion == "FAILURE" or .conclusion == "TIMED_OUT" or .conclusion == "STARTUP_FAILURE"
                  or .conclusion == "CANCELLED" or .conclusion == "ACTION_REQUIRED" or .conclusion == "STALE"
                  or .state == "FAILURE" or .state == "ERROR") then "failure"
-          elif any(.status == "QUEUED" or .status == "IN_PROGRESS" or .status == "WAITING"
+          elif any((.status != null and .status != "COMPLETED")
                    or .state == "PENDING" or .state == "EXPECTED") then "pending"
           elif any(.conclusion == "SUCCESS" or .conclusion == "NEUTRAL" or .conclusion == "SKIPPED"
                    or .state == "SUCCESS") then "success"
