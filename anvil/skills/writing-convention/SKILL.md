@@ -44,6 +44,11 @@ When you find yourself copying a convention's rules into a contract, a skill, or
 Conventions are prose-flexible (the schema enforces frontmatter, not body sections), but a readable convention opens with scope then groups rules by concern:
 
 ```
+## TL;DR
+
+<3-6 sentences: the load-bearing rules an agent needs to judge relevance and act on
+before reading the full body — not a restatement of every section, a decision aid.>
+
 ## Scope
 
 <One paragraph: what this governs, that it is the cross-project default, and that a
@@ -55,6 +60,8 @@ project CLAUDE.md/AGENTS.md may link it and record local deltas.>
 ```
 
 Keep each rule one or two lines. A rule that needs a paragraph is usually two rules.
+
+`## TL;DR` is what `anvil hydrate --tldr` extracts into the cheap digest (any node's frontmatter plus this section, generically — not convention-specific machinery); a convention without one contributes its full body to a hydrated closure while showing nothing in the scan.
 
 ---
 

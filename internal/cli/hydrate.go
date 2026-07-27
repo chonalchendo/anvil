@@ -219,7 +219,7 @@ func emitHydration(cmd *cobra.Command, nodes []spineNode, tldr bool) {
 // compactBody renders a node's --tldr digest: its frontmatter (the labels layer —
 // title, description, goal, status carry the relevance signal) followed by the
 // body's `## TL;DR` section (heading through the text before the next `## `) when
-// one exists. Only learnings carry a TL;DR; every other node type falls back to
+// one exists. Learnings and conventions carry a TL;DR; other types fall back to
 // frontmatter alone, which is where its one-line summary already lives.
 func compactBody(n spineNode) string {
 	var b strings.Builder
