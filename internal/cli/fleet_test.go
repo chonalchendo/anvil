@@ -201,6 +201,88 @@ func TestBuildFleetRows_MatchesIssuesToWorktrees(t *testing.T) {
 	}
 }
 
+func TestGenericSlugWorktree(t *testing.T) {
+	wts := map[string]worktreeInfo{
+		"mentat/matched-issue": {path: "/wt/mentat", headSHA: "aaa"},
+		"burgh/other-issue":    {path: "/wt/burgh", headSHA: "bbb"},
+		"master":               {path: "/main", headSHA: "ccc"},
+	}
+	b, wt, ok := genericSlugWorktree(wts, "mentat.matched-issue")
+	if !ok || b != "mentat/matched-issue" || wt.path != "/wt/mentat" {
+		t.Errorf("got (%q, %+v, %v); want mentat/matched-issue match", b, wt, ok)
+	}
+
+	// No slash in branch name — not a candidate.
+	if _, _, ok := genericSlugWorktree(wts, "anvil.master"); ok {
+		t.Error("expected bare branch (no prefix) not to match")
+	}
+
+	// Ambiguous: two branches with the same trailing slug, different prefixes.
+	wts2 := map[string]worktreeInfo{
+		"mentat/dup-slug": {path: "/wt/a"},
+		"burgh/dup-slug":  {path: "/wt/b"},
+	}
+	if _, _, ok := genericSlugWorktree(wts2, "mentat.dup-slug"); ok {
+		t.Error("expected ambiguous (>1 prefix match) to return ok=false")
+	}
+
+	// No worktrees → no match.
+	if _, _, ok := genericSlugWorktree(map[string]worktreeInfo{}, "mentat.x"); ok {
+		t.Error("expected empty map to return ok=false")
+	}
+}
+
+// TestBuildFleetRows_MatchesNonAnvilPrefixedBranch reproduces the mentat/burgh
+// case: an in-progress issue whose worktree branch is `<project>/<slug>`
+// rather than `anvil/<slug>`, resolved from a *different* project repo than
+// the one this fleet status invocation ambiently runs in, must still
+// resolve — not fall back to "no matching worktree".
+func TestBuildFleetRows_MatchesNonAnvilPrefixedBranch(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("ANVIL_VAULT", vault)
+
+	writeIssueForProject(t, vault, "mentat.matched-issue", "in-progress", "claude-alpha", "mentat")
+
+	t.Cleanup(swapFleetStubs(
+		nil, // the "" (ambient repo) worktree list is irrelevant here
+		map[string]string{},
+		map[string]*ghPRSnapshot{},
+		map[int]int{},
+	))
+	resolveProjectRepoFn = func(project string) (string, error) {
+		if project == "mentat" {
+			return "/repos/mentat", nil
+		}
+		return "", nil
+	}
+	origWT := gitWorktreeListFn
+	gitWorktreeListFn = func(repoDir string) (map[string]worktreeInfo, error) {
+		if repoDir == "/repos/mentat" {
+			return map[string]worktreeInfo{
+				"mentat/matched-issue": {path: "/tmp/wt/mentat-matched", headSHA: "cafefeed"},
+			}, nil
+		}
+		return map[string]worktreeInfo{}, nil
+	}
+	t.Cleanup(func() { gitWorktreeListFn = origWT })
+
+	v := &core.Vault{Root: vault}
+	rows, err := buildFleetRows(v)
+	if err != nil {
+		t.Fatalf("buildFleetRows: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want 1 row, got %d: %+v", len(rows), rows)
+	}
+	got := rows[0]
+	if got.Note == "no matching worktree" {
+		t.Errorf("expected a matched worktree, got note %q", got.Note)
+	}
+	if got.Branch != "mentat/matched-issue" || got.Worktree != "/tmp/wt/mentat-matched" {
+		t.Errorf("got branch=%q worktree=%q, want mentat/matched-issue / /tmp/wt/mentat-matched", got.Branch, got.Worktree)
+	}
+}
+
 func TestUniqueSubstringWorktree(t *testing.T) {
 	wts := map[string]worktreeInfo{
 		"anvil/fleet-status-verb": {path: "/wt/a", headSHA: "aaa"},
@@ -254,10 +336,17 @@ func TestFleetStatus_JSONEnvelope(t *testing.T) {
 // matters because candidateBranchesForIssue uses the slug portion of the id.
 func writeIssue(t *testing.T, vault, id, status, owner string) {
 	t.Helper()
+	writeIssueForProject(t, vault, id, status, owner, "anvil")
+}
+
+// writeIssueForProject is writeIssue with an explicit `project` frontmatter
+// field, for tests exercising per-project repo resolution.
+func writeIssueForProject(t *testing.T, vault, id, status, owner, project string) {
+	t.Helper()
 	fm := map[string]any{
 		"type": "issue", "title": id, "description": "fixture",
 		"created": "2026-05-15", "updated": "2026-05-15",
-		"status": status, "project": "anvil", "severity": "medium",
+		"status": status, "project": project, "severity": "medium",
 		"tags": []any{"domain/cli"},
 	}
 	if owner != "" {
@@ -275,13 +364,18 @@ func writeIssue(t *testing.T, vault, id, status, owner string) {
 
 // swapFleetStubs installs canned shell-out responses and returns the
 // teardown that restores the originals. nil maps are treated as empty.
+// It stubs gitWorktreeListFn to ignore repoDir and always return
+// the same fixture map — sufficient for single-project tests. Tests that
+// exercise per-project repo resolution (worktreesForProject) additionally
+// stub resolveProjectRepoFn themselves; the hermetic default here (empty
+// repo, no error) keeps the real filesystem out of every other test.
 func swapFleetStubs(
 	worktrees map[string]worktreeInfo,
 	pushState map[string]string,
 	prs map[string]*ghPRSnapshot,
 	comments map[int]int,
 ) func() {
-	origWT, origPush, origPR, origCom := gitWorktreeListFn, gitPushStateFn, ghPRViewFn, ghPRCommentsFn
+	origWT, origPush, origPR, origCom, origRepo := gitWorktreeListFn, gitPushStateFn, ghPRViewFn, ghPRCommentsFn, resolveProjectRepoFn
 	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) {
 		if worktrees == nil {
 			return map[string]worktreeInfo{}, nil
@@ -300,7 +394,10 @@ func swapFleetStubs(
 	ghPRCommentsFn = func(_ string, n int) (int, error) {
 		return comments[n], nil
 	}
+	resolveProjectRepoFn = func(string) (string, error) {
+		return "", nil
+	}
 	return func() {
-		gitWorktreeListFn, gitPushStateFn, ghPRViewFn, ghPRCommentsFn = origWT, origPush, origPR, origCom
+		gitWorktreeListFn, gitPushStateFn, ghPRViewFn, ghPRCommentsFn, resolveProjectRepoFn = origWT, origPush, origPR, origCom, origRepo
 	}
 }
