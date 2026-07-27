@@ -100,9 +100,16 @@ func TestRollupCI(t *testing.T) {
 			{Conclusion: "SUCCESS", Status: "COMPLETED"},
 			{State: "FAILURE"},
 		}, "failure"},
-		{"unclassifiable-entry-is-blank", []ghStatusCheck{
+		{"action-required-is-failure", []ghStatusCheck{
 			{Conclusion: "ACTION_REQUIRED", Status: "COMPLETED"},
-		}, ""},
+		}, "failure"},
+		{"stale-is-failure", []ghStatusCheck{
+			{Conclusion: "STALE", Status: "COMPLETED"},
+		}, "failure"},
+		{"action-required-beats-green", []ghStatusCheck{
+			{Conclusion: "SUCCESS", Status: "COMPLETED"},
+			{Conclusion: "ACTION_REQUIRED", Status: "COMPLETED"},
+		}, "failure"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

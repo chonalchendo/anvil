@@ -355,6 +355,7 @@ func rollupCI(rolls []ghStatusCheck) string {
 		switch {
 		case r.Conclusion == "FAILURE" || r.Conclusion == "CANCELLED" ||
 			r.Conclusion == "TIMED_OUT" || r.Conclusion == "STARTUP_FAILURE" ||
+			r.Conclusion == "ACTION_REQUIRED" || r.Conclusion == "STALE" ||
 			r.State == "FAILURE" || r.State == "ERROR":
 			hasFailure = true
 		case (r.Status != "" && r.Status != "COMPLETED") ||
