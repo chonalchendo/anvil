@@ -27,7 +27,7 @@ cd <dispatched-worktree-path> && anvil show issue <id> \
 ```
 
 - `jq -r .verdict` is `pass` → proceed to `gh pr create`, and paste the verdict line verbatim into the PR body under a `## Verification verdict` heading.
-- Anything else — `fail`, unparseable, or no file (the runner never ran) → **halt** with `Blocker: verification-failed <the verdict line, or "no verdict emitted">`. Do not open the PR.
+- Anything else → back to `completing-issue` Phase 2 (fix, re-run, max 5 cycles); a `fail` that survives the cycle budget halts with `Blocker: verification-failed <the verdict line, or "no verdict emitted">`. Do not open the PR.
 
 This is not self-correctable by explanation. A red predicate arrives with a plausible adjacent cause (a concurrent sibling edit, pre-existing debt, an environment quirk) and authoring that cause is cheaper than halting — workers did it three times in two days, past the Iron Law, each caught only by a reviewer re-running the predicate. Diagnosing *why* a check went red is fine; **the diagnosis never converts a `fail` verdict into a PR**. Fix the cause and re-run the runner until the verdict line itself reads `pass`, or halt.
 
@@ -91,7 +91,7 @@ Never `gh pr merge`, `git worktree remove`, `anvil transition resolved`, or `anv
 Your LAST LINE, alone, is exactly one of: the PR url (`https://github.com/.../pull/<n>`) or `Blocker: <one line>`. Immediately before it, print two lines:
 
 ```text
-Verdict: {"verdict":"pass","checks":N,"failed":[]}      # the runner's stdout line, verbatim
+Verdict: <run-verification.sh's stdout line, pasted verbatim>
 Forbidden-call audit: gh pr merge=not-called, git worktree remove=not-called, anvil transition resolved=not-called, anvil transition abandoned=not-called.
 ```
 

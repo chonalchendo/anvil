@@ -75,10 +75,10 @@ Each subagent's last line is structurally one of:
 - `^Blocker: .+$` — explicit blocker. Record, surface to user, do not re-dispatch.
 - Anything else — **malformed return** (narrative-as-final-output) or a worker that died mid-task (API 5xx, OOM, killed). This is the recurring 100-200 LOC stall pattern (sessions 2026-05-13, 2026-05-14, 2026-05-15 all hit it). Re-dispatch action-only: a step-by-step plain-text prompt with **no skill wrapper**, naming the exact next commit + push + PR commands. If the second dispatch also malforms, fall back to main-session takeover for that issue.
 
-**A PR url is only as good as its verdict line.** Above the url the worker prints `Verdict: {…}` — `run-verification.sh`'s stdout line, copied verbatim (see `anvil-issue-worker.md` — Verdict is data, not prose). Gate on it mechanically before Phase 5, per PR:
+**A PR url is only as good as its verdict.** The worker's contract writes the runner's stdout to `/tmp/verdict.<id>.json` and echoes it as `Verdict: {…}` above the url (see `anvil-issue-worker.md` — Verdict is data, not prose). The echo is a pointer, not the evidence — a worker retypes it into prose. Gate on the artifact mechanically before Phase 5, per PR:
 
-- `verdict` is `pass` → proceed to review.
-- `verdict` is `fail`, the line is missing, or the return *narrates* why a check went red → **re-measure yourself** before believing any of it:
+- `jq -r .verdict /tmp/verdict.<id>.json` is `pass` → proceed to review.
+- It is `fail`, the file is absent, or the return *narrates* why a check went red → **re-measure yourself** before believing any of it:
 
   ```bash
   cd <worktree-path> && anvil show issue <id> \

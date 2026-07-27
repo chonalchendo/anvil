@@ -7,6 +7,8 @@
 #   stdout: exactly one line of JSON, the verdict —
 #           {"verdict":"pass|fail","checks":N,"failed":[{"check":"Indirect#1",
 #            "exit":4,"preview":"<first command>"}]}
+#           "checks" counts blocks attempted; a section with no ```bash block
+#           counts as one attempted (and failed) check.
 #   stderr: the human PASS/FAIL summary and up to 10 lines per failure.
 #   exit:   0 iff verdict is "pass", 1 otherwise.
 #
@@ -102,6 +104,7 @@ run_section() {
     done < <(extract_blocks "$label")
 
     if [ "$n" -eq 0 ]; then
+        checks=$((checks + 1))
         echo "FAIL ### $label has no executable \`\`\`bash block" >&2
         add_fail "$label" null "no executable bash block"
         return 1
