@@ -326,8 +326,11 @@ func TestCreate_ProjectFlag_RejectedForUnsupportedTypes(t *testing.T) {
 
 			cmd := newRootCmd()
 			stdout, _, err := runCmd(t, cmd, "create", typ, "--title", "x", "--project", "verifytest", "--json")
-			if err != nil {
-				t.Fatalf("expected nil with --json for %s, got: %v", typ, err)
+			// anvil.0219: a failing --json invocation now returns non-nil so
+			// the exit code reflects the failure; the envelope still lands
+			// on stdout for the caller to parse.
+			if err == nil {
+				t.Fatalf("expected non-nil error with --json for %s", typ)
 			}
 			if !strings.Contains(stdout, "unsupported_flag_for_type") {
 				t.Errorf("stdout missing code: %q", stdout)

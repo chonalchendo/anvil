@@ -44,8 +44,9 @@ func TestTransitionResolvedRefusesWhenOpenPR(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	got := stdout.String()
 	if !strings.Contains(got, "open_pr_blocks_resolve") {

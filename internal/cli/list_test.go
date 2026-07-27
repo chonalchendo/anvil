@@ -437,8 +437,9 @@ func TestList_ProjectFlag_RejectedForUnsupportedTypes(t *testing.T) {
 		t.Run(typ, func(t *testing.T) {
 			cmd := newRootCmd()
 			stdout, _, err := runCmd(t, cmd, "list", typ, "--project", "anvil", "--json")
-			if err != nil {
-				t.Fatalf("expected nil with --json for %s, got: %v", typ, err)
+			// anvil.0219: a failing --json invocation now returns non-nil.
+			if err == nil {
+				t.Fatalf("expected non-nil error with --json for %s", typ)
 			}
 			if !strings.Contains(stdout, "unsupported_flag_for_type") {
 				t.Errorf("stdout missing code: %q", stdout)
@@ -520,8 +521,9 @@ func TestList_SeverityFilter(t *testing.T) {
 	t.Run("rejects unknown value", func(t *testing.T) {
 		cmd := newRootCmd()
 		stdout, _, err := runCmd(t, cmd, "list", "issue", "--severity", "spicy", "--json")
-		if err != nil {
-			t.Fatalf("expected nil with --json, got: %v", err)
+		// anvil.0219: a failing --json invocation now returns non-nil.
+		if err == nil {
+			t.Fatalf("expected non-nil error with --json")
 		}
 		if !strings.Contains(stdout, "bad_flag_value") {
 			t.Errorf("stdout missing code: %q", stdout)
@@ -832,8 +834,9 @@ func TestList_InvalidBody_OnlyIssue(t *testing.T) {
 	setupVault(t)
 	cmd := newRootCmd()
 	stdout, _, err := runCmd(t, cmd, "list", "learning", "--invalid-body", "--json")
-	if err != nil {
-		t.Errorf("expected nil with --json, got: %v", err)
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err == nil {
+		t.Errorf("expected non-nil error with --json")
 	}
 	if !strings.Contains(stdout, "issue") {
 		t.Errorf("error should mention supported type in JSON stdout, got: %s", stdout)
