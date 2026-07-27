@@ -145,11 +145,12 @@ func TestDoctorDeadClaim_MergedBranchRecommendsResolve(t *testing.T) {
 	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return map[string]worktreeInfo{}, nil }
 	t.Setenv(envSessionID, "some-other-session")
 
-	// The conventional branch anvil/merged-fix-0020 has a merged PR.
+	// The conventional branch for a `foo`-project issue is foo/<slug>; that
+	// branch has a merged PR.
 	oldMerged := ghMergedPRForBranchFn
 	t.Cleanup(func() { ghMergedPRForBranchFn = oldMerged })
 	ghMergedPRForBranchFn = func(branch string) (int, bool, error) {
-		if branch == "anvil/merged-fix-0020" {
+		if branch == "foo/merged-fix-0020" {
 			return 55, true, nil
 		}
 		return 0, false, nil

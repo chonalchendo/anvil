@@ -122,7 +122,32 @@ func buildFleetRows(v *core.Vault) ([]fleetRow, error) {
 		return nil, err
 	}
 
-	worktrees, _ := gitWorktreeListFn("") // best-effort; empty map is fine
+	// The vault is shared across projects, so an issue's worktree lives in
+	// that issue's own project repo (`~/Development/<project>`), not
+	// necessarily the repo this command happens to run from. Resolve and
+	// cache one `git worktree list` per project rather than assuming cwd.
+	worktreesByRepo := map[string]map[string]worktreeInfo{}
+	repoByProject := map[string]string{} // "" = unresolved, ambient-repo fallback
+	// Returns the project's worktrees plus whether its repo actually resolved;
+	// an unresolved project degrades to the ambient repo, which the caller
+	// surfaces on the row rather than reporting a bare "no matching worktree".
+	worktreesForProject := func(project string) (map[string]worktreeInfo, bool) {
+		repoDir, cached := repoByProject[project]
+		if !cached {
+			dir, err := resolveProjectRepoFn(project)
+			if err != nil {
+				dir = "" // best-effort: fall back to the caller's ambient repo
+			}
+			repoDir = dir
+			repoByProject[project] = repoDir
+		}
+		if wts, ok := worktreesByRepo[repoDir]; ok {
+			return wts, repoDir != ""
+		}
+		wts, _ := gitWorktreeListFn(repoDir) // best-effort; empty map is fine
+		worktreesByRepo[repoDir] = wts
+		return wts, repoDir != ""
+	}
 
 	var rows []fleetRow
 	for _, p := range paths {
@@ -137,33 +162,36 @@ func buildFleetRows(v *core.Vault) ([]fleetRow, error) {
 		owner, _ := a.FrontMatter["owner"].(string)
 
 		row := fleetRow{ID: id, Owner: owner}
-		branches := fleetCandidateBranches(v, id)
+		project := projectFromArtifact(a, id)
+		worktrees, repoResolved := worktreesForProject(project)
 		matched := false
-		for _, b := range branches {
-			if wt, ok := worktrees[b]; ok {
-				row.Worktree = wt.path
-				row.Branch = b
-				row.HeadSHA = wt.headSHA
-				matched = true
-				break
-			}
+		apply := func(b string, wt worktreeInfo) {
+			row.Worktree, row.Branch, row.HeadSHA = wt.path, b, wt.headSHA
+			matched = true
+		}
+		// Projects brand worktree branches `<project>/<slug>` — `anvil/`,
+		// `burgh/`, `mentat/` — so match on the branch slug (the segment
+		// after the last "/") against the id-derived and linked-plan slugs,
+		// whatever the prefix. >1 worktree on a slug = ambiguous, skip.
+		if b, wt, ok := genericSlugWorktree(worktrees, fleetCandidateSlugs(v, id)); ok {
+			apply(b, wt)
 		}
 		// Fallback: orchestrators frequently choose a divergent short slug
 		// (e.g. issue `<proj>.long-descriptive-id` → branch
-		// `anvil/short-slug`). Match when exactly one worktree's branch
+		// `<proj>/short-slug`). Match when exactly one worktree's branch
 		// slug is a substring of the issue slug. >1 match = ambiguous,
 		// leave unmatched rather than guess.
 		if !matched {
 			if b, wt, ok := uniqueSubstringWorktree(worktrees, id); ok {
-				row.Worktree = wt.path
-				row.Branch = b
-				row.HeadSHA = wt.headSHA
-				matched = true
+				apply(b, wt)
 			}
 		}
-		if matched {
+		switch {
+		case matched:
 			fillRowFromWorktree(&row)
-		} else {
+		case !repoResolved:
+			row.Note = fmt.Sprintf("project repo not found (expected ~/Development/%s); matched against ambient repo", project)
+		default:
 			row.Note = "no matching worktree"
 		}
 		rows = append(rows, row)
@@ -217,128 +245,6 @@ func dashIfEmpty(s string) string {
 		return "—"
 	}
 	return s
-}
-
-// fleetCandidateBranches returns the `anvil/<slug>` branches plausibly
-// hosting an issue's worktree. Unlike candidateBranchesForIssue (used by
-// `transition resolved`), we deliberately exclude the current-branch
-// fallback — fleet enumerates many issues at once, so reusing the caller's
-// branch as a wildcard would cross-pollute every row with the same match.
-// id-derived slug + linked-plan slugs is enough; if neither matches, the
-// row reports "no matching worktree" and an orchestrator can investigate.
-func fleetCandidateBranches(v *core.Vault, id string) []string {
-	seen := map[string]bool{}
-	var out []string
-	add := func(slug string) {
-		if slug == "" {
-			return
-		}
-		b := "anvil/" + slug
-		if seen[b] {
-			return
-		}
-		seen[b] = true
-		out = append(out, b)
-	}
-	if dot := strings.IndexByte(id, '.'); dot >= 0 && dot+1 < len(id) {
-		add(id[dot+1:])
-	}
-	slugs, _ := linkedPlanSlugs(v, id)
-	for _, s := range slugs {
-		add(s)
-	}
-	return out
-}
-
-// uniqueSubstringWorktree returns the lone worktree whose branch slug is a
-// substring of the issue id's slug, or ok=false if zero or two-plus match.
-// The single-match rule keeps the fallback honest: ambiguity yields an
-// unmatched row, not a wrong row.
-func uniqueSubstringWorktree(worktrees map[string]worktreeInfo, id string) (string, worktreeInfo, bool) {
-	dot := strings.IndexByte(id, '.')
-	if dot < 0 || dot+1 >= len(id) {
-		return "", worktreeInfo{}, false
-	}
-	issueSlug := id[dot+1:]
-	const prefix = "anvil/"
-	var hitBranch string
-	var hitInfo worktreeInfo
-	count := 0
-	for b, wt := range worktrees {
-		if !strings.HasPrefix(b, prefix) {
-			continue
-		}
-		branchSlug := strings.TrimPrefix(b, prefix)
-		if branchSlug == "" || branchSlug == "master" {
-			continue
-		}
-		if strings.Contains(issueSlug, branchSlug) {
-			hitBranch, hitInfo = b, wt
-			count++
-		}
-	}
-	if count == 1 {
-		return hitBranch, hitInfo, true
-	}
-	return "", worktreeInfo{}, false
-}
-
-// worktreeInfo is the subset of `git worktree list --porcelain` we use.
-type worktreeInfo struct {
-	path    string
-	headSHA string
-}
-
-// gitWorktreeListReal parses `git worktree list --porcelain` and returns a
-// map keyed by branch name ("anvil/<slug>"). Worktrees without a branch (e.g.
-// detached HEAD) are skipped because the fleet workflow assumes each task
-// runs on its own branch. Bare worktrees are similarly skipped.
-// repoDir scopes the listing to a specific repo; "" keeps the caller's
-// ambient cwd, which is what the fleet/doctor read-only views want.
-func gitWorktreeListReal(repoDir string) (map[string]worktreeInfo, error) {
-	if _, err := exec.LookPath("git"); err != nil {
-		return nil, err
-	}
-	cmd := exec.Command("git", "worktree", "list", "--porcelain") //nolint:gosec // binary path resolved from trusted sources; not user input
-	cmd.Dir = repoDir
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, err
-	}
-	return parseWorktreePorcelain(string(out)), nil
-}
-
-// parseWorktreePorcelain is split out so tests can feed canned fixtures.
-// The porcelain format is record-per-blank-line, each record a series of
-// `<key> <value>` lines starting with `worktree <path>`.
-func parseWorktreePorcelain(in string) map[string]worktreeInfo {
-	out := map[string]worktreeInfo{}
-	var cur worktreeInfo
-	var curBranch string
-	flush := func() {
-		if curBranch != "" && cur.path != "" {
-			out[curBranch] = cur
-		}
-		cur = worktreeInfo{}
-		curBranch = ""
-	}
-	for _, line := range strings.Split(in, "\n") {
-		if line == "" {
-			flush()
-			continue
-		}
-		switch {
-		case strings.HasPrefix(line, "worktree "):
-			cur.path = strings.TrimPrefix(line, "worktree ")
-		case strings.HasPrefix(line, "HEAD "):
-			cur.headSHA = strings.TrimPrefix(line, "HEAD ")
-		case strings.HasPrefix(line, "branch "):
-			ref := strings.TrimPrefix(line, "branch ")
-			curBranch = strings.TrimPrefix(ref, "refs/heads/")
-		}
-	}
-	flush()
-	return out
 }
 
 // gitPushStateReal classifies the worktree's branch vs its upstream:
