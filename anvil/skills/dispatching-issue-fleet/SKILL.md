@@ -75,6 +75,20 @@ Each subagent's last line is structurally one of:
 - `^Blocker: .+$` — explicit blocker. Record, surface to user, do not re-dispatch.
 - Anything else — **malformed return** (narrative-as-final-output) or a worker that died mid-task (API 5xx, OOM, killed). This is the recurring 100-200 LOC stall pattern (sessions 2026-05-13, 2026-05-14, 2026-05-15 all hit it). Re-dispatch action-only: a step-by-step plain-text prompt with **no skill wrapper**, naming the exact next commit + push + PR commands. If the second dispatch also malforms, fall back to main-session takeover for that issue.
 
+**A PR url is only as good as its verdict line.** Above the url the worker prints `Verdict: {…}` — `run-verification.sh`'s stdout line, copied verbatim (see `anvil-issue-worker.md` — Verdict is data, not prose). Gate on it mechanically before Phase 5, per PR:
+
+- `verdict` is `pass` → proceed to review.
+- `verdict` is `fail`, the line is missing, or the return *narrates* why a check went red → **re-measure yourself** before believing any of it:
+
+  ```bash
+  cd <worktree-path> && anvil show issue <id> \
+    | bash ~/.claude/skills/completing-issue/scripts/run-verification.sh | jq -r .verdict
+  ```
+
+  Red on re-measure → treat the PR as a `Blocker:` return (record, surface, do not review or land). Green → the worker's own run was stale; proceed and note the discrepancy in the report.
+
+Never accept a prose account of a failure in place of the verdict. Workers opened PRs on red predicates three times in two days, each with a plausible cause attached (concurrent sibling edits, pre-existing debt, scope limits) and each caught only because a reviewer re-ran the predicate — this re-measure is that reviewer, made routine.
+
 **Recover the dead/malformed worker's WIP from its branch, not the dirty tree.** Workers checkpoint-commit as they work (see `anvil-issue-worker.md` — Checkpoint-commit WIP), so a mid-task death leaves recoverable `wip:` commits on the branch. Before re-dispatching or taking over, read `git log --stat <branch>` (the worktree the orchestrator cut for this issue) to see what already landed — do **not** reconstruct progress by reading every modified/untracked file in the dirty worktree. Re-dispatch the takeover prompt pointed at that branch so it builds on the checkpoints rather than redoing them.
 
 **Expected miss-rate: 1 in N falls back to main-session takeover.** Surface this in the final report so the human reads a stall as design-anticipated, not a tool bug.

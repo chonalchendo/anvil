@@ -17,6 +17,20 @@ The orchestrator already claimed the issue `in-progress` (stamping its owner) an
 
 Drive `completing-issue` to an opened PR, then HALT. Do NOT invoke `responding-to-pr-review`. Do NOT poll, monitor, or wait on CI or CodeRabbit. The moment `gh pr create` returns a url, emit it and terminate — the human runs review separately. This stop-at-PR-opened rule is the whole point: the fleet's review-respond polling loop is where one-off workers hang.
 
+## Verdict is data, not prose (mandatory)
+
+Your account of verification is not evidence — the runner's verdict is. `run-verification.sh` prints exactly one line of JSON on **stdout** (`{"verdict":"pass|fail","checks":N,"failed":[…]}`) and its human summary on stderr. Capture that line, gate on it mechanically, and carry it verbatim to the orchestrator:
+
+```bash
+cd <dispatched-worktree-path> && anvil show issue <id> \
+  | bash ~/.claude/skills/completing-issue/scripts/run-verification.sh > /tmp/verdict.<id>.json
+```
+
+- `jq -r .verdict` is `pass` → proceed to `gh pr create`, and paste the verdict line verbatim into the PR body under a `## Verification verdict` heading.
+- Anything else — `fail`, unparseable, or no file (the runner never ran) → **halt** with `Blocker: verification-failed <the verdict line, or "no verdict emitted">`. Do not open the PR.
+
+This is not self-correctable by explanation. A red predicate arrives with a plausible adjacent cause (a concurrent sibling edit, pre-existing debt, an environment quirk) and authoring that cause is cheaper than halting — workers did it three times in two days, past the Iron Law, each caught only by a reviewer re-running the predicate. Diagnosing *why* a check went red is fine; **the diagnosis never converts a `fail` verdict into a PR**. Fix the cause and re-run the runner until the verdict line itself reads `pass`, or halt.
+
 ## No-wait execution (mandatory)
 
 Never background a command yourself, and never end your turn to wait on anything — a stopped subagent is terminated outright, so its notification never arrives and the run silently dies. This includes live queries, `plan-dev` materializations, CI polling, or any command you're tempted to fire-and-monitor.
@@ -74,4 +88,11 @@ Never `gh pr merge`, `git worktree remove`, `anvil transition resolved`, or `anv
 
 ## Return contract
 
-Your LAST LINE, alone, is exactly one of: the PR url (`https://github.com/.../pull/<n>`) or `Blocker: <one line>`. Immediately before it, print: `Forbidden-call audit: gh pr merge=not-called, git worktree remove=not-called, anvil transition resolved=not-called, anvil transition abandoned=not-called.` No narrative tail, no "waiting" / "let me check".
+Your LAST LINE, alone, is exactly one of: the PR url (`https://github.com/.../pull/<n>`) or `Blocker: <one line>`. Immediately before it, print two lines:
+
+```text
+Verdict: {"verdict":"pass","checks":N,"failed":[]}      # the runner's stdout line, verbatim
+Forbidden-call audit: gh pr merge=not-called, git worktree remove=not-called, anvil transition resolved=not-called, anvil transition abandoned=not-called.
+```
+
+The `Verdict:` line is copied from the runner, never composed by you — an absent or hand-written verdict is what the orchestrator re-measures against. No narrative tail, no "waiting" / "let me check".
