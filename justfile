@@ -102,7 +102,7 @@ test-install-race:
 validate vault="":
     @if [ -z "{{vault}}" ]; then go run ./cmd/anvil validate; else go run ./cmd/anvil validate {{vault}}; fi
 
-# Run all local checks in CI order: fmt, lint, vet, build, test, init+validate smoke. Mirrors .github/workflows/ci.yml.
+# Run all local checks in CI order: fmt, lint, skill + genericity lint, vet, build, test, init+validate smoke. Mirrors .github/workflows/ci.yml.
 check:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -113,6 +113,8 @@ check:
         exit 1
     fi
     go tool -modfile=tool.go.mod golangci-lint run ./...
+    ./.github/check-skills.sh
+    ./.github/check-genericity.sh
     go vet ./...
     go build ./...
     go test ./...

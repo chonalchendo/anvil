@@ -37,7 +37,7 @@ repos:
         name: shipped-bundle genericity (no anvil-only toolchain or source paths)
         entry: ./.github/check-genericity.sh
         language: system
-        files: '^anvil/(skills|agents)/.*\.md$'
+        files: '^anvil/(skills|agents)/'
         pass_filenames: false
       - id: anvil-validate
         name: anvil validate (fresh-vault smoke)
