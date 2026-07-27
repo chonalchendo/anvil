@@ -411,6 +411,144 @@ func TestLandPRHappyPath(t *testing.T) {
 	}
 }
 
+// TestLandPRAlreadyResolvedNotMergedFailsExitNonZero pins anvil.0214: the
+// from==to short-circuit for an already-resolved issue must not report exit
+// 0 for --land-pr unless the named PR is actually merged, since a batch
+// driver reads exit 0 as "the PR landed."
+//
+// Deliberately run WITHOUT --json: printAndReturn returns nil on the --json
+// path repo-wide, so a --json run cannot pin the exit status this test names.
+// The JSON envelope shape is covered by the sibling view-failed test.
+func TestLandPRAlreadyResolvedNotMergedFailsExitNonZero(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+	execCmd(t, "transition", "issue", "demo.foo", "resolved")
+
+	s := stubSideFX(t)
+	s.viewByField["state"] = []byte(`{"state":"OPEN"}`)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected a non-nil error (exit non-zero); stdout: %s", stdout.String())
+	}
+	if !strings.Contains(err.Error(), "land_pr_already_resolved_not_merged") {
+		t.Errorf("missing error code: %v", err)
+	}
+	// convention.cli-tooling rule 5: the refusal names a copy-pasteable
+	// recovery. resolved → open is the only legal exit, so it is a two-hop.
+	wantCorrected := `anvil transition issue demo.foo open --reason "<why>" && anvil transition issue demo.foo resolved --land-pr 42`
+	if !strings.Contains(err.Error(), wantCorrected) {
+		t.Errorf("missing corrected invocation %q in:\n%v", wantCorrected, err)
+	}
+	if len(s.mergeCalls) != 0 {
+		t.Errorf("merge should not have been called: %v", s.mergeCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v, want resolved (unchanged)", a.FrontMatter["status"])
+	}
+}
+
+// TestLandPRAlreadyResolvedViewFailsRefusedJSON covers the reproduction from
+// the issue: a nonexistent PR number (`gh pr view` errors) must not be
+// swallowed by the already_in_state short-circuit either. This is the --json
+// envelope half — `phase` disambiguates this gate's land_pr_view_failed from
+// landPR's, which means "land aborted, issue still open".
+func TestLandPRAlreadyResolvedViewFailsRefusedJSON(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+	execCmd(t, "transition", "issue", "demo.foo", "resolved")
+
+	s := stubSideFX(t)
+	s.viewByFieldE["state"] = errors.New("exit status 1")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "999999", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "land_pr_view_failed") {
+		t.Errorf("missing error code: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), `"phase":"already_resolved_verify"`) {
+		t.Errorf("missing phase discriminator: %s", stdout.String())
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v, want resolved (unchanged)", a.FrontMatter["status"])
+	}
+}
+
+// TestLandPRAlreadyResolvedGhUnavailableNamesEscape pins the offline case:
+// unlike the open-PR resolve check, this gate fails closed when gh is missing
+// (it IS the verification), so the refusal must name the escape rather than
+// leave the operator stuck.
+func TestLandPRAlreadyResolvedGhUnavailableNamesEscape(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+	execCmd(t, "transition", "issue", "demo.foo", "resolved")
+
+	s := stubSideFX(t)
+	s.viewByFieldE["state"] = errGhUnavailable
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected a non-nil error (exit non-zero); stdout: %s", stdout.String())
+	}
+	if !strings.Contains(err.Error(), "anvil transition issue demo.foo resolved` still exits 0") {
+		t.Errorf("gh-unavailable refusal does not name the escape:\n%v", err)
+	}
+}
+
+// TestLandPRAlreadyResolvedMergedSucceeds pins the idempotent-safe case: a
+// re-run against an already-resolved issue whose PR is genuinely merged
+// exits 0 without re-merging (--land-pr never merges twice).
+func TestLandPRAlreadyResolvedMergedSucceeds(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+	execCmd(t, "transition", "issue", "demo.foo", "resolved")
+
+	s := stubSideFX(t)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+
+	out := execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json")
+	if !strings.Contains(out, `"already_in_state"`) {
+		t.Fatalf("expected already_in_state, got %s", out)
+	}
+	if len(s.mergeCalls) != 0 {
+		t.Errorf("merge should not have been called: %v", s.mergeCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v, want resolved", a.FrontMatter["status"])
+	}
+}
+
 // TestLandPRAutoClaimsOpenIssueWithOwner covers the dispatched-worker land
 // path: the issue is never claimed in-progress, and --land-pr --owner claims
 // and resolves it in one call rather than refusing with illegal_transition.
