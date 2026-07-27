@@ -421,27 +421,105 @@ func TestValidateIssueVerbs_StaleVerb_SuppressedWhenTokenInGoalTitle(t *testing.
 	}
 }
 
-func TestValidateIssue_NestedHeredocFence_AcceptedFalsePositive(t *testing.T) {
-	// ACCEPTED LIMITATION (docs/issue-spec.md depth-aware runner contract): the
-	// write-time check is line-level parity, not depth-aware. A heredoc holding a
-	// mini issue doc with one illustrative ```bash opener makes the fence count
-	// odd, so this VALID body is false-rejected. Distinguishing it from a real
-	// unterminated fence needs executing the bash (the runner's job); per the
-	// issue's "not full markdown linting" non-goal we pin the false-positive
-	// rather than reimplement the runner. If this ever stops rejecting, the
-	// scoping/algorithm changed — revisit the contract, don't just flip the test.
+func TestValidateIssue_NestedHeredocFence_Accepted(t *testing.T) {
+	// This body was previously false-rejected as "unbalanced code fences": the
+	// write-time check was line-level parity over a fence-blind span, so a
+	// heredoc holding a mini issue doc (its own "## Verification" line plus an
+	// illustrative ```bash opener) both truncated the span and made the fence
+	// count odd. verificationSpan now tracks fence depth, which the create-time
+	// feasibility gate depends on — the verb lint and VerificationBlocks must
+	// agree with each other on where the section ends (anvil.0196).
 	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\ncat <<'EOF' > /tmp/mini.md\n## Verification\n```bash\ntrue\n```\nEOF\nanvil create issue --body-file /tmp/mini.md\n```\n\n## Links\n"
 	a := &Artifact{
 		FrontMatter: map[string]any{"type": "issue"},
 		Body:        body,
 	}
-	found := false
 	for _, e := range ValidateIssue(a) {
 		if strings.Contains(e.Error(), "unbalanced") {
-			found = true
+			t.Errorf("valid nested-heredoc body should not be rejected: %v", e)
 		}
 	}
-	if !found {
-		t.Skip("nested-heredoc false-positive no longer reproduces — depth-awareness may have landed; re-evaluate the accepted limitation")
+}
+
+func mustVerificationBlocks(t *testing.T, body, label string) []string {
+	t.Helper()
+	blocks, err := VerificationBlocks(body, label)
+	if err != nil {
+		t.Fatalf("VerificationBlocks(%s) error = %v", label, err)
+	}
+	return blocks
+}
+
+func TestVerificationBlocks_ExtractsDirectAndIndirect(t *testing.T) {
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\nexit 3\n```\n\n## Links\n"
+	direct := mustVerificationBlocks(t, body, "Direct")
+	indirect := mustVerificationBlocks(t, body, "Indirect")
+	if len(direct) != 1 || direct[0] != "true\n" {
+		t.Fatalf("direct = %q, want [%q]", direct, "true\n")
+	}
+	if len(indirect) != 1 || indirect[0] != "exit 3\n" {
+		t.Fatalf("indirect = %q, want [%q]", indirect, "exit 3\n")
+	}
+}
+
+func TestVerificationBlocks_NoFencedBlock_ReturnsNil(t *testing.T) {
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n"
+	if got := mustVerificationBlocks(t, body, "Direct"); got != nil {
+		t.Errorf("Direct = %v, want nil", got)
+	}
+	if got := mustVerificationBlocks(t, body, "Indirect"); got != nil {
+		t.Errorf("Indirect = %v, want nil", got)
+	}
+}
+
+func TestVerificationBlocks_NestedFenceInBlockDoesNotEndCaptureEarly(t *testing.T) {
+	// A nested ```bash fence inside the Indirect block must not truncate the
+	// outer block's capture.
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\ncat <<'EOF2' > /tmp/mini.md\n```bash\ntrue\n```\nEOF2\necho done\n```\n\n## Links\n"
+	indirect := mustVerificationBlocks(t, body, "Indirect")
+	if len(indirect) != 1 {
+		t.Fatalf("indirect = %v, want 1 block", indirect)
+	}
+	if !strings.Contains(indirect[0], "echo done") {
+		t.Errorf("indirect[0] = %q, want it to include the tail of the block", indirect[0])
+	}
+}
+
+// TestVerificationBlocks_HeredocH2DoesNotTruncateSpan is the regression for the
+// gate's own false-green: verificationSpan's fence-blind `\n## ` scan cut the
+// Verification section short at a "## " line *inside* a heredoc, so every block
+// past the cut was silently never executed while the create still succeeded.
+func TestVerificationBlocks_HeredocH2DoesNotTruncateSpan(t *testing.T) {
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\ncat <<'EOF' > /tmp/mini.md\n## Links to the mini doc\n- none\nEOF\nexit 6\n```\n\n## Links\n- none\n"
+	indirect := mustVerificationBlocks(t, body, "Indirect")
+	if len(indirect) != 1 {
+		t.Fatalf("indirect = %v, want 1 block", indirect)
+	}
+	if !strings.Contains(indirect[0], "exit 6") {
+		t.Errorf("indirect[0] = %q, want the post-heredoc `exit 6` line to survive extraction", indirect[0])
+	}
+}
+
+// TestVerificationBlocks_UnterminatedFenceFailsClosed: when the extraction is
+// unknowable the gate must refuse, not run a truncated block list.
+func TestVerificationBlocks_UnterminatedFenceFailsClosed(t *testing.T) {
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\nexit 3\n"
+	blocks, err := VerificationBlocks(body, "Indirect")
+	if err == nil {
+		t.Fatalf("err = nil, want an unterminated-fence error; blocks = %q", blocks)
+	}
+	if blocks != nil {
+		t.Errorf("blocks = %q, want nil on failure", blocks)
+	}
+}
+
+// TestVerificationBlocks_EarlierFencedH2IsNotTheSectionStart guards the other
+// direction: a "## Verification" line inside an earlier fenced block (a mini
+// issue doc quoted in Problem) is block content, not the real section start.
+func TestVerificationBlocks_EarlierFencedH2IsNotTheSectionStart(t *testing.T) {
+	body := "\n## Problem\n```bash\ncat <<'EOF' > /tmp/mini.md\n## Verification\n### Indirect\nEOF\n```\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\nexit 3\n```\n\n## Links\n"
+	indirect := mustVerificationBlocks(t, body, "Indirect")
+	if len(indirect) != 1 || indirect[0] != "exit 3\n" {
+		t.Fatalf("indirect = %q, want [%q]", indirect, "exit 3\n")
 	}
 }

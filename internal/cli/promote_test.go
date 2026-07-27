@@ -642,14 +642,16 @@ func TestPromote_IssueScaffoldsBody(t *testing.T) {
 }
 
 // TestPromote_IssueBodyFlagOverridesScaffold verifies that --body is used verbatim
-// (and validated) when supplied, bypassing the scaffold path.
+// (and validated) when supplied, bypassing the scaffold path. The Indirect block
+// exits non-zero because promote routes through create's feasibility gate
+// (anvil.0196), which refuses an Indirect predicate that already passes.
 func TestPromote_IssueBodyFlagOverridesScaffold(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
-	const authored = "\n## Problem\n\ndetails\n\n## Non-goals\n\nnone\n\n## Verification\n\n### Direct\n\n```bash\ntrue\n```\n\n### Indirect\n\n```bash\ntrue\n```\n\n## Links\n\nnone\n"
+	const authored = "\n## Problem\n\ndetails\n\n## Non-goals\n\nnone\n\n## Verification\n\n### Direct\n\n```bash\ntrue\n```\n\n### Indirect\n\n```bash\nexit 3\n```\n\n## Links\n\nnone\n"
 	add := newRootCmd()
 	add.SetArgs([]string{"create", "inbox", "--title", "body flag smoke", "--suggested-project", "foo"})
 	if err := add.Execute(); err != nil {

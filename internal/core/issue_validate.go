@@ -226,17 +226,125 @@ func verbIntroduced(bad, text string) bool {
 	return re.MatchString(text)
 }
 
+// bashFenceOpenRE matches an exact ```bash fence opener (optional trailing
+// whitespace only) — the same shape run-verification.sh requires.
+var bashFenceOpenRE = regexp.MustCompile(`^` + "```" + `bash[ \t]*$`)
+
+// VerificationBlocks returns the ```bash fenced blocks under the "### <label>"
+// heading of the body's "## Verification" section (label: "Direct" or
+// "Indirect"), preserving each block's raw lines.
+//
+// It walks the whole body in one pass rather than slicing with
+// verificationSpan, because that helper's `strings.Index(rest, "\n## ")` scan
+// is fence-blind: a heredoc payload carrying its own "## " line (a mini issue
+// doc nested inside a check) truncates the span mid-block, and the blocks past
+// the cut are then silently dropped — a gate that skips predicates is the
+// defect class the create-time feasibility gate exists to end (anvil.0196).
+// Here every structural marker — the opening "## Verification", the "### "
+// subsection headings, the closing "## " — is only honoured at fence depth 0,
+// so nested markers are read as the block content they are.
+//
+// A subsection with no fenced block returns nil — absence is not this
+// function's concern, only extraction of what's present. An unterminated fence
+// leaves the extraction unknowable, so it returns an error rather than a
+// truncated block list: the caller must fail closed.
+func VerificationBlocks(body, label string) ([]string, error) {
+	headingRE := regexp.MustCompile(`^### ` + regexp.QuoteMeta(label) + `([^A-Za-z]|$)`)
+
+	var blocks []string
+	var buf strings.Builder
+	started, inSection, inBlock := false, false, false
+	depth := 0
+	for _, line := range strings.Split(body, "\n") {
+		if strings.HasPrefix(line, "```") {
+			switch {
+			case len(line) > 3 && isAlpha(line[3]):
+				if inSection && depth == 0 && bashFenceOpenRE.MatchString(line) {
+					inBlock = true
+					depth = 1
+					buf.Reset()
+					continue
+				}
+				depth++
+			case inBlock && depth == 1:
+				blocks = append(blocks, buf.String())
+				inBlock = false
+				depth = 0
+				continue
+			default:
+				if depth > 0 {
+					depth--
+				}
+			}
+			if inBlock {
+				buf.WriteString(line)
+				buf.WriteByte('\n')
+			}
+			continue
+		}
+		if depth == 0 {
+			switch {
+			case !started:
+				if strings.HasPrefix(line, "## Verification") {
+					started = true
+				}
+				continue
+			case strings.HasPrefix(line, "## "):
+				return blocks, nil
+			case headingRE.MatchString(line):
+				inSection = true
+				continue
+			case strings.HasPrefix(line, "### "):
+				inSection = false
+			}
+		}
+		if inBlock {
+			buf.WriteString(line)
+			buf.WriteByte('\n')
+		}
+	}
+	if inBlock {
+		return nil, fmt.Errorf("issue body has an unterminated ``` fence inside Verification %s; the remaining blocks cannot be extracted", label)
+	}
+	return blocks, nil
+}
+
+func isAlpha(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
+}
+
 // verificationSpan returns the body slice from the "## Verification" heading to
 // the next "## " heading (or end of body). Empty if Verification is absent —
 // the missing-heading check above already reports that.
+//
+// Fence depth is tracked so a "## " line inside a still-open fence — a heredoc
+// payload carrying a mini issue doc — is read as the block content it is,
+// rather than cutting the section short. A truncated span made the fence-
+// balance check below refuse valid bodies and made the verb lint read less
+// than VerificationBlocks executes; the two must agree on where the section
+// ends.
 func verificationSpan(body string) string {
-	start := strings.Index(body, "## Verification")
-	if start < 0 {
-		return ""
+	var span strings.Builder
+	started := false
+	depth := 0
+	for _, line := range strings.Split(body, "\n") {
+		switch {
+		case strings.HasPrefix(line, "```"):
+			if len(line) > 3 && isAlpha(line[3]) {
+				depth++
+			} else if depth > 0 {
+				depth--
+			}
+		case depth > 0:
+		case !started:
+			started = strings.HasPrefix(line, "## Verification")
+		case strings.HasPrefix(line, "## "):
+			return span.String()
+		}
+		if started {
+			span.WriteString(line)
+			span.WriteByte('\n')
+		}
 	}
-	rest := body[start:]
-	if next := strings.Index(rest[len("## Verification"):], "\n## "); next >= 0 {
-		return rest[:len("## Verification")+next]
-	}
-	return rest
+	return span.String()
 }

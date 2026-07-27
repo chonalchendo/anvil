@@ -92,6 +92,13 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 		// Point structural body failures at the up-front skeleton so an author
 		// who hit the post-hoc rollback knows how to see the required shape.
 		templateFix := fmt.Sprintf("run `anvil create %s --show-template` to print the required body skeleton + tag rules", t)
+		// Cheapest layers first: this link resolution is pure and in-memory, so
+		// it runs before the feasibility gate shells out — an author with a
+		// dead wikilink pays no block-execution time to learn it.
+		for _, link := range core.ResolveBodyLinks(v, body) {
+			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "body", fmt.Sprintf("unresolved wikilink [[%s]]", link.Target)).
+				WithFix("create the target artifact or remove the wikilink"))
+		}
 		switch t {
 		case core.TypeIssue:
 			for _, vErr := range core.ValidateIssue(a) {
@@ -102,14 +109,18 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 			for _, vErr := range core.ValidateIssueVerbs(body, goal, title, verbPathValidator(cmd.Root())) {
 				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 			}
+			// Feasibility gate (anvil.0196): last, because it is the only layer
+			// that shells out. Every cheaper layer must be clean first — a body
+			// citing a stale subcommand or a dead wikilink gets a sharper
+			// message from those, and an already-doomed create shouldn't pay
+			// the block-execution time on top.
+			if len(failures) == len(preErrors) && !flagSkipVerifyPredicates {
+				failures = append(failures, runFeasibilityGate(cmd, path, body)...)
+			}
 		case core.TypeLearning:
 			for _, vErr := range core.ValidateLearning(a, nil) {
 				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
 			}
-		}
-		for _, link := range core.ResolveBodyLinks(v, body) {
-			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "body", fmt.Sprintf("unresolved wikilink [[%s]]", link.Target)).
-				WithFix("create the target artifact or remove the wikilink"))
 		}
 	}
 

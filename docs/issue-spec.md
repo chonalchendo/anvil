@@ -21,6 +21,19 @@ A prose checklist, if useful. **Not required** — `goal:` owns the terminal pre
 
 Two required subsections, each containing one or more fenced bash blocks whose lines are shell commands. Each command must exit 0 to count as passing. No DSL — the predicate lives inside the command itself (`grep -q`, `jq`, `test`, `[ ... = ... ]`).
 
+**Feasibility is enforced mechanically, not just advised.** `anvil create issue` and `anvil promote --as issue` actually run every `### Direct`/`### Indirect` fenced-bash block in the authoring environment and judge the issue by the exit status — so a predicate that has never run cannot ship as a green Iron Law gate. Each block runs under `set -e` (lines share state; the first failing line fails the block), capped at 60s and killed by process group.
+
+The verdict is asymmetric, because the two subsections are in opposite states at authoring time:
+
+| | exit 0 | 126 / 127 | other non-zero | timeout |
+|---|---|---|---|---|
+| **Indirect** | refused — already passes, so it cannot discriminate fixed from broken | refused — unrunnable | **accepted** (the healthy shape) | refused — unclassifiable |
+| **Direct** | accepted | refused — unrunnable | accepted | accepted, unjudged |
+
+An Indirect block asserts POST-fix behaviour, so it is *expected* to be red until the fix lands; exit 0 is the false-green this gate exists to kill. A Direct block is usually the repo's existing suite, green already, so only runnability is checked there.
+
+**The gate is neither read-only nor retry-safe.** These are author-supplied shell commands running unsandboxed with your privileges, cwd and environment. Whatever a block does — rebuild `bin/anvil`, write a marker file, hit the network — persists even when the create is refused and rolled back, so a retry re-runs it. Keep blocks to the one command that proves the predicate. `--skip-verify-predicates` is the escape hatch; using it ships an unproven predicate.
+
 ### Direct (unit/integration)
 
 Tests run against the dev tree / working copy: unit tests, integration tests, lint, type-check, schema-validate. Cheap to run, cheap to iterate.
@@ -55,7 +68,7 @@ anvil transition issue test-fixture in-progress --owner test 2>&1 | grep -q "tra
 - Each `` ```bash `` block is one check: its lines run together as a single script under `set -e`, so state set on one line (`out=$(cmd)`) is visible to the next, and the block FAILS on the **first** line that exits non-zero (all lines pass = PASS). Guard an intentionally-non-fatal line with `… || true`. Pipelines are **not** under `pipefail`, so assert on a pipeline's final stage — a failing non-final stage (`cmd | grep …`) does not fail the block. Split genuinely independent assertions into separate blocks — each block is its own check.
 - Comments and blank lines run as part of the script — they are not stripped, so heredocs stay intact.
 - Multiple `` ```bash `` blocks in the same subsection are separate checks, run in order. State is **not** shared across blocks.
-- The block opener must be exactly `` ```bash `` (with no trailing chars); other fence languages are not parsed as checks. A block's own content may contain nested `` ``` `` fences (e.g. a heredoc holding a mini issue doc) — fence depth is tracked, so only the outermost opener starts a check.
+- The block opener must be exactly `` ```bash `` (with no trailing chars); other fence languages are not parsed as checks. A block's own content may contain nested `` ``` `` fences (e.g. a heredoc holding a mini issue doc) — fence depth is tracked, so only the outermost opener starts a check, and a `## `/`### ` line inside an open fence is block content, not a section boundary. An unterminated fence fails closed: the create is refused rather than running a partial block list.
 - Blocks run in the cwd the runner is invoked from — the worktree under test. Do **not** `cd` to an absolute main-checkout path; anchor with `$(git rev-parse --show-toplevel)` if you need the repo root.
 - A subsection with no `` ```bash `` block is a validation failure — author at least one check or remove the subsection (and accept the validation reject from `anvil create issue`).
 - `anvil <verb> <subverb>…` invocations inside fenced blocks are validated at create/validate time against the live command tree: the full subcommand path is walked, so an unknown top-level verb (`anvil frobnicate`) **and** an unknown nested subcommand (`anvil project init` — `project` is real, `init` is not) both reject. Trailing flags/positionals are not checked.

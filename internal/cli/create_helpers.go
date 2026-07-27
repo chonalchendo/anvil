@@ -102,7 +102,19 @@ func createLongDescription() string {
 		"Validation: create always validates the frontmatter it just wrote. " +
 		"When --body / --body-file / --body - / --from supplies a body, body " +
 		"sections and wikilink targets are validated too; a failure rolls back " +
-		"the write. Running 'anvil validate <path>' afterward is unnecessary."
+		"the write. Running 'anvil validate <path>' afterward is unnecessary.\n\n" +
+		"EXECUTES CODE (issues only): for an issue body, create runs every " +
+		"`### Direct` / `### Indirect` bash block in the `## Verification` section " +
+		"and judges the issue by their exit status. Those blocks are author-supplied " +
+		"shell: they run in the current environment with your privileges, cwd and " +
+		"environment variables, and are NOT sandboxed. Verdicts: Indirect must exit " +
+		"non-zero (it asserts post-fix behaviour, so a block that already passes " +
+		"cannot tell fixed from broken); Direct may exit anything; either block is " +
+		"refused on exit 126/127 (unrunnable). Consequences: create is neither " +
+		"read-only nor retry-safe — whatever a block does (rebuild a binary, write a " +
+		"file, hit a network) persists even when the create is refused and rolled " +
+		"back, so a retry re-runs it. Each block is capped at 60s and killed by " +
+		"process group. Pass --skip-verify-predicates to opt out."
 }
 
 // sectionsForType returns the required body headings for the types that carry
