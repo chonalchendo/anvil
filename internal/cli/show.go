@@ -310,21 +310,13 @@ func resolveArtifactPath(vaultRoot string, t core.Type, id string) string {
 }
 
 // canonicalArtifactID maps a raw id/wikilink-target to type t's on-disk
-// basename. Design types keep the "<type>." prefix (global uniqueness); issues
-// route through the shared resolver; others strip the redundant prefix.
+// basename. Issue args first route through the shared resolver so an ordinal
+// (`0200`) expands before the filename shape is picked.
 func canonicalArtifactID(v *core.Vault, t core.Type, raw string) string {
-	switch t {
-	case core.TypeProductDesign, core.TypeSystemDesign, core.TypeConvention:
-		prefix := string(t) + "."
-		if !strings.HasPrefix(raw, prefix) {
-			return prefix + raw
-		}
-		return raw
-	case core.TypeIssue:
-		return core.ResolveIssueArg(v, raw)
-	default:
-		return strings.TrimPrefix(raw, string(t)+".")
+	if t == core.TypeIssue {
+		raw = core.ResolveIssueArg(v, raw)
 	}
+	return core.ArtifactBasename(v, t, raw)
 }
 
 // runShowSkill prints the embedded SKILL.md body for the named bundled skill.

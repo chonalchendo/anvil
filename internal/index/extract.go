@@ -151,10 +151,11 @@ func LinkRowsFromBody(source, body string) []LinkRow {
 		if dot < 0 {
 			continue
 		}
-		prefix, id := raw[:dot], raw[dot+1:]
-		if _, err := core.ParseType(prefix); err != nil {
+		t, err := core.ParseType(raw[:dot])
+		if err != nil {
 			continue
 		}
+		id := core.CanonicalID(t, raw)
 		if _, ok := seen[id]; ok {
 			continue
 		}
@@ -175,7 +176,11 @@ func parseWikilink(source, relation, s string) (LinkRow, bool) {
 		if dot < 0 {
 			return LinkRow{}, false
 		}
-		return LinkRow{Source: source, Target: target[dot+1:], Relation: relation, Anchor: ""}, true
+		id := target[dot+1:]
+		if t, err := core.ParseType(target[:dot]); err == nil {
+			id = core.CanonicalID(t, target)
+		}
+		return LinkRow{Source: source, Target: id, Relation: relation, Anchor: ""}, true
 	}
 	// Typed-slot fallback: a bare `<project>.<slug>` id stands in for the
 	// wikilink form when the field name names a single artifact type.

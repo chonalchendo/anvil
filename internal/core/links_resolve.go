@@ -121,19 +121,47 @@ func wikilinkTargetPath(v *Vault, target string) (string, bool) {
 	if dot < 0 {
 		return "", false
 	}
-	prefix, id := target[:dot], target[dot+1:]
-	t, err := ParseType(prefix)
+	t, err := ParseType(target[:dot])
 	if err != nil {
 		return "", false
 	}
-	// Design-type and convention ids keep the type prefix (e.g. system-design.burgh,
-	// convention.python) for global uniqueness, so the on-disk id is the full
-	// wikilink target, not the portion after the type prefix.
-	fileID := id
+	return artifactPath(v, t, ArtifactBasename(v, t, target)), true
+}
+
+// CanonicalID maps a raw id or wikilink target — with or without its `<type>.`
+// prefix — to the id shape type t registers under. Design-type and convention
+// ids keep the prefix (e.g. system-design.burgh, convention.python) because the
+// index keys on a global artifacts.id; every other type drops it.
+func CanonicalID(t Type, raw string) string {
+	bare := strings.TrimPrefix(raw, string(t)+".")
 	if t == TypeProductDesign || t == TypeSystemDesign || t == TypeConvention {
-		fileID = target
+		return string(t) + "." + bare
 	}
-	return filepath.Join(v.Root, t.Dir(), fileID+".md"), true
+	return bare
+}
+
+// ArtifactBasename maps a raw id to type t's on-disk basename in v, accepting
+// either filename shape: a file whose name carries its type prefix reads back
+// the same as the bare-id shape. Neither on disk → the canonical shape, so a
+// not-found error names the id the type is minted under.
+func ArtifactBasename(v *Vault, t Type, raw string) string {
+	canonical := CanonicalID(t, raw)
+	prefix := string(t) + "."
+	// Design and convention ids already carry the prefix, so canonical is their
+	// only shape — probing the stripped form there would also resolve a doubled
+	// `convention.convention.x` onto the plain file.
+	if strings.HasPrefix(canonical, prefix) {
+		return canonical
+	}
+	if _, err := os.Stat(artifactPath(v, t, prefix+canonical)); err == nil {
+		return prefix + canonical
+	}
+	return canonical
+}
+
+// artifactPath joins a resolved basename onto its type's vault folder.
+func artifactPath(v *Vault, t Type, basename string) string {
+	return filepath.Join(v.Root, t.Dir(), basename+".md")
 }
 
 // WikilinkTargetExists reports whether target names an artifact file present

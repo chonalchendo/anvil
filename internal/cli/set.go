@@ -384,7 +384,7 @@ func singleOrSlice(v []any) any {
 // rotting until a --links --body read. A project-less slug is retried with the
 // artifact's own project injected before it is rejected.
 func resolveMilestoneLink(v *core.Vault, a *core.Artifact, raw string) (string, error) {
-	slug := strings.TrimPrefix(strings.TrimSuffix(strings.TrimPrefix(raw, "[["), "]]"), "milestone.")
+	slug := core.CanonicalID(core.TypeMilestone, strings.TrimSuffix(strings.TrimPrefix(raw, "[["), "]]"))
 	if milestoneFileExists(v, slug) {
 		return normalizeMilestone(slug), nil
 	}
@@ -400,7 +400,8 @@ func resolveMilestoneLink(v *core.Vault, a *core.Artifact, raw string) (string, 
 }
 
 func milestoneFileExists(v *core.Vault, id string) bool {
-	_, err := os.Stat(resolveArtifactPath(v.Root, core.TypeMilestone, id))
+	basename := core.ArtifactBasename(v, core.TypeMilestone, id)
+	_, err := os.Stat(resolveArtifactPath(v.Root, core.TypeMilestone, basename))
 	return err == nil
 }
 

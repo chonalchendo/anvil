@@ -234,3 +234,19 @@ func TestLinkRowsFromBody_TwoFencedBlocksProseInBetween(t *testing.T) {
 		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
 	}
 }
+
+// TestLinkRowsFromBody_PrefixRetainingTargets pins the shared derivation rule:
+// a convention or design target keeps its type prefix, so the indexed edge
+// matches the artifact id those types register under rather than a bare stem
+// no row carries.
+func TestLinkRowsFromBody_PrefixRetainingTargets(t *testing.T) {
+	body := "Governed by [[convention.python]] under [[system-design.anvil]]."
+	got := LinkRowsFromBody("anvil.src", body)
+	want := []LinkRow{
+		{Source: "anvil.src", Target: "convention.python", Relation: "body", Anchor: ""},
+		{Source: "anvil.src", Target: "system-design.anvil", Relation: "body", Anchor: ""},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
+	}
+}

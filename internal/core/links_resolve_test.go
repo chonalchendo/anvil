@@ -335,3 +335,40 @@ func TestWikilinkTargetExists(t *testing.T) {
 		}
 	}
 }
+
+// TestArtifactBasename pins the both-shapes rule: a file whose name carries its
+// type prefix must read back under the same id as the bare-named shape, while
+// design and convention ids — which have always kept their prefix on disk —
+// keep resolving exactly as before.
+func TestArtifactBasename(t *testing.T) {
+	v := newScaffolded(t)
+	writeBlankIssue(t, v, "issue.demo.0001.probe")
+	writeBlankIssue(t, v, "demo.0002.plain")
+	cp := filepath.Join(v.Root, TypeConvention.Dir(), "convention.sqlmesh.md")
+	if err := os.MkdirAll(filepath.Dir(cp), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cp, []byte("---\ntype: convention\n---\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		t    Type
+		raw  string
+		want string
+	}{
+		{TypeIssue, "demo.0001.probe", "issue.demo.0001.probe"},
+		{TypeIssue, "issue.demo.0001.probe", "issue.demo.0001.probe"},
+		{TypeIssue, "demo.0002.plain", "demo.0002.plain"},
+		{TypeIssue, "issue.demo.0002.plain", "demo.0002.plain"},
+		{TypeIssue, "demo.0003.ghost", "demo.0003.ghost"},
+		{TypeConvention, "sqlmesh", "convention.sqlmesh"},
+		{TypeConvention, "convention.sqlmesh", "convention.sqlmesh"},
+		{TypeConvention, "convention.convention.sqlmesh", "convention.convention.sqlmesh"},
+	}
+	for _, tc := range cases {
+		if got := ArtifactBasename(v, tc.t, tc.raw); got != tc.want {
+			t.Errorf("ArtifactBasename(%s, %q) = %q, want %q", tc.t, tc.raw, got, tc.want)
+		}
+	}
+}

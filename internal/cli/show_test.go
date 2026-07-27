@@ -1078,3 +1078,27 @@ func TestShowLinks_BodyJSON(t *testing.T) {
 		t.Errorf("body missing contract content: %q", got[0].Body)
 	}
 }
+
+// TestShow_TypePrefixedFilename pins the read side of the link-matching
+// filename shape: an issue file named `issue.<id>.md` must resolve under either
+// arg form, so flipping the minter cannot orphan every newly-created artifact.
+func TestShow_TypePrefixedFilename(t *testing.T) {
+	vault := setupVault(t)
+	src := writeFixtureIssue(t, vault, "demo", "0001.probe", "Probe issue")
+	if err := os.Rename(src, filepath.Join(vault, "70-issues", "issue.demo.0001.probe.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, arg := range []string{"demo.0001.probe", "issue.demo.0001.probe"} {
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"show", "issue", arg})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("show issue %s: %v", arg, err)
+		}
+		if !strings.Contains(out.String(), "Probe issue") {
+			t.Errorf("show issue %s missing title:\n%s", arg, out.String())
+		}
+	}
+}
