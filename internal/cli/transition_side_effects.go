@@ -423,18 +423,11 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) e
 	// (post-merge checkout fails when master is checked out in the main
 	// worktree), so we confirm the state rather than trusting the exit code.
 	mergeErr := ghPRMergeFn(num)
-	type finalState struct {
-		State string `json:"state"`
-	}
-	raw, err := ghPRViewJSONFn(num, "state")
+	finalState, err := prState(num)
 	if err != nil {
 		return errfmt.NewStructured("land_pr_state_verify_failed").Set("pr", num).Set("error", err.Error())
 	}
-	var fin finalState
-	if err := json.Unmarshal(raw, &fin); err != nil {
-		return errfmt.NewStructured("land_pr_state_verify_failed").Set("pr", num).Set("error", err.Error())
-	}
-	if fin.State != "MERGED" {
+	if finalState != "MERGED" {
 		// Surface the merge error when available; fall back to state mismatch.
 		if mergeErr != nil {
 			// "Base branch was modified" is the transient race — master moved under
@@ -449,7 +442,7 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) e
 			}
 			return errfmt.NewStructured("land_pr_merge_failed").Set("pr", num).Set("error", mergeErr.Error())
 		}
-		return errfmt.NewStructured("land_pr_state_not_merged").Set("pr", num).Set("state", fin.State)
+		return errfmt.NewStructured("land_pr_state_not_merged").Set("pr", num).Set("state", finalState)
 	}
 	// Worktree removal stays fatal: a failure here usually means uncommitted
 	// work in the worktree, and surfacing it lets the operator recover that work

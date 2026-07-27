@@ -84,7 +84,7 @@ func newTransitionCmd() *cobra.Command {
 				// reads exit 0 as "the PR landed," and this short-circuit never
 				// looks at the PR otherwise (anvil.0214).
 				if t == core.TypeIssue && to == "resolved" && landPRNum != 0 {
-					if verr := verifyLandPRAlreadyMerged(landPRNum); verr != nil {
+					if verr := verifyLandPRAlreadyMerged(id, landPRNum); verr != nil {
 						return printAndReturn(cmd, verr)
 					}
 				}
