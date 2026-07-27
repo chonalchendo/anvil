@@ -411,6 +411,99 @@ func TestLandPRHappyPath(t *testing.T) {
 	}
 }
 
+// TestLandPRAlreadyResolvedNotMergedFailsExitNonZero pins anvil.0214: the
+// from==to short-circuit for an already-resolved issue must not report exit
+// 0 for --land-pr unless the named PR is actually merged, since a batch
+// driver reads exit 0 as "the PR landed."
+func TestLandPRAlreadyResolvedNotMergedFailsExitNonZero(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+	execCmd(t, "transition", "issue", "demo.foo", "resolved")
+
+	s := stubSideFX(t)
+	s.viewByField["state"] = []byte(`{"state":"OPEN"}`)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "land_pr_already_resolved_not_merged") {
+		t.Errorf("missing error code: %s", stdout.String())
+	}
+	if len(s.mergeCalls) != 0 {
+		t.Errorf("merge should not have been called: %v", s.mergeCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v, want resolved (unchanged)", a.FrontMatter["status"])
+	}
+}
+
+// TestLandPRAlreadyResolvedViewFailsExitNonZero covers the reproduction from
+// the issue: a nonexistent PR number (`gh pr view` errors) must not be
+// swallowed by the already_in_state short-circuit either.
+func TestLandPRAlreadyResolvedViewFailsExitNonZero(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+	execCmd(t, "transition", "issue", "demo.foo", "resolved")
+
+	s := stubSideFX(t)
+	s.viewByFieldE["state"] = errors.New("exit status 1")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "999999", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "land_pr_view_failed") {
+		t.Errorf("missing error code: %s", stdout.String())
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v, want resolved (unchanged)", a.FrontMatter["status"])
+	}
+}
+
+// TestLandPRAlreadyResolvedMergedSucceeds pins the idempotent-safe case: a
+// re-run against an already-resolved issue whose PR is genuinely merged
+// exits 0 without re-merging (--land-pr never merges twice).
+func TestLandPRAlreadyResolvedMergedSucceeds(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+	execCmd(t, "transition", "issue", "demo.foo", "resolved")
+
+	s := stubSideFX(t)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+
+	out := execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json")
+	if !strings.Contains(out, `"already_in_state"`) {
+		t.Fatalf("expected already_in_state, got %s", out)
+	}
+	if len(s.mergeCalls) != 0 {
+		t.Errorf("merge should not have been called: %v", s.mergeCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v, want resolved", a.FrontMatter["status"])
+	}
+}
+
 // TestLandPRAutoClaimsOpenIssueWithOwner covers the dispatched-worker land
 // path: the issue is never claimed in-progress, and --land-pr --owner claims
 // and resolves it in one call rather than refusing with illegal_transition.

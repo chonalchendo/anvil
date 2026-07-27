@@ -79,6 +79,15 @@ func newTransitionCmd() *cobra.Command {
 						}
 					}
 				}
+				// --land-pr against an already-resolved issue must not report
+				// exit 0 unless the named PR is actually merged: a batch driver
+				// reads exit 0 as "the PR landed," and this short-circuit never
+				// looks at the PR otherwise (anvil.0214).
+				if t == core.TypeIssue && to == "resolved" && landPRNum != 0 {
+					if verr := verifyLandPRAlreadyMerged(landPRNum); verr != nil {
+						return printAndReturn(cmd, verr)
+					}
+				}
 				return emitTransitionJSON(cmd, asJSON, transitionResult{
 					ID: id, Path: path, From: from, To: to, Status: "already_in_state",
 				})
