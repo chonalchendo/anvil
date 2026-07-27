@@ -2,7 +2,7 @@
 
 This file is the contract for a fleet worker dispatched as a **plain subagent**, not as the `anvil-issue-worker` agent. Today that is the **Phase 5 review-responder**: a fresh subagent tasked with `responding-to-pr-review` against an already-open PR's worktree.
 
-The Phase 3 **implementer** does *not* read this file — it runs as the bundled `anvil-issue-worker` agent (`anvil/agents/anvil-issue-worker.md`), whose frontmatter is the single source of the *implementer* contract. This is the *responder's* contract. The two workers run different skills, so the contracts are deliberately separate documents, not mirror copies of one rulebook. The exceptions are § No-wait execution and § Pre-gate cwd anchor: both encode harness behaviour rather than skill behaviour, so each must be kept in sync with its copies in `anvil/agents/anvil-issue-worker.md` and `anvil/agents/anvil-pr-reviewer.md`.
+The Phase 3 **implementer** does *not* read this file — it runs as the bundled `anvil-issue-worker` agent, whose frontmatter is the single source of the *implementer* contract. This is the *responder's* contract. The two workers run different skills, so the contracts are deliberately separate documents, not mirror copies of one rulebook. The exceptions are § No-wait execution and § Pre-gate cwd anchor: both encode harness behaviour rather than skill behaviour, so each must be kept in sync with its copies in the `anvil-issue-worker` and `anvil-pr-reviewer` agents.
 
 ## No-wait execution (mandatory)
 
@@ -50,7 +50,7 @@ cd <worktree-path> && <the project's check command>
 
 A gate whose Bash call did not carry that prefix is void — discard the result and re-run; if the prefixed call reports a toplevel other than `<worktree-path>`, halt with `Blocker: gate-outside-worktree (toplevel=<actual>)`. Not self-correctable.
 
-This section encodes harness behaviour, not skill behaviour: it is duplicated in the other two dispatched-worker contracts (`anvil/agents/anvil-issue-worker.md`, `anvil/agents/anvil-pr-reviewer.md`) — edit all three together.
+This section encodes harness behaviour, not skill behaviour: it is duplicated in the other two dispatched-worker contracts (the `anvil-issue-worker` agent, the `anvil-pr-reviewer` agent) — edit all three together.
 
 ## Final-line self-check (PRE-TERMINATE INVARIANT)
 

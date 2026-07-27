@@ -30,7 +30,7 @@ If the diff is >800 LOC or touches >10 files, surface the size to the user befor
 
 ## Phase 2 — Dispatch fresh subagent
 
-Fire one Agent-tool call with `subagent_type=anvil-pr-reviewer` (`anvil/agents/anvil-pr-reviewer.md`). Its frontmatter pins the review **model** so the review never silently inherits this session's, and its body owns the review itself — it loads the context box with `anvil hydrate`, sweeps for governing artifacts nobody linked, and carries the judgment axes, findings format, and return contract. Restating any of it here is how the two copies drift; the dispatch prompt carries **fill-ins only**:
+Fire one Agent-tool call with `subagent_type=anvil-pr-reviewer` — the bundled `anvil-pr-reviewer` agent definition. Its frontmatter pins the review **model** so the review never silently inherits this session's, and its body owns the review itself — it loads the context box with `anvil hydrate`, sweeps for governing artifacts nobody linked, and carries the judgment axes, findings format, and return contract. Restating any of it here is how the two copies drift; the dispatch prompt carries **fill-ins only**:
 
 - PR number and repo
 - the linked issue id (from the PR body's reference or the branch slug) — or state that none resolves
