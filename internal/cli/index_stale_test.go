@@ -159,6 +159,33 @@ func TestTwoCreatesInOneProcessSucceedWithoutManualReindex(t *testing.T) {
 	}
 }
 
+// The whole point of the delete arm is that the operator reading the CLI sees
+// which file went missing. Asserting only on the `index_stale` code would stay
+// green with the path dropped at the CLI boundary.
+func TestListReadyIndexStaleNamesTheDeletedIssueFile(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	if err := os.Remove(filepath.Join(vault, "70-issues", "demo.foo.md")); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"list", "issue", "--ready"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatalf("expected index_stale after deleting an indexed issue; output: %s", out.String())
+	}
+	if !strings.Contains(err.Error(), "demo.foo.md") {
+		t.Fatalf("index_stale must name the deleted file, got: %v", err)
+	}
+}
+
 func TestListReadyReturnsIndexStaleWhenVaultEditedExternally(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)

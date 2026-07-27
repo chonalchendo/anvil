@@ -89,15 +89,16 @@ func indexForRead(v *core.Vault) (*index.DB, error) {
 		return nil, fmt.Errorf("opening index: %w", err)
 	}
 	if err := db.CheckFreshness(v.Root); err != nil {
+		var stale *index.StaleError
 		switch {
 		case errors.Is(err, index.ErrLastReindexUnset):
 			if _, err := db.Reindex(v.Root); err != nil {
 				db.Close() //nolint:errcheck,gosec // close in defer; error not actionable
 				return nil, fmt.Errorf("bootstrap reindex: %w", err)
 			}
-		case errors.Is(err, index.ErrIndexStale):
+		case errors.As(err, &stale):
 			db.Close() //nolint:errcheck,gosec // close in defer; error not actionable
-			return nil, errfmt.NewIndexStale()
+			return nil, errfmt.NewIndexStale(stale.Path)
 		default:
 			db.Close() //nolint:errcheck,gosec // close in defer; error not actionable
 			return nil, fmt.Errorf("freshness check: %w", err)

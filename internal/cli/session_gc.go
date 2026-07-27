@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/index"
 )
 
 func newSessionGCCmd() *cobra.Command {
@@ -33,6 +34,21 @@ Use --dry-run to report what would be pruned without removing anything.`,
 			if err != nil {
 				return err
 			}
+			// Pruned stubs are indexed artifacts. Leaving their rows behind
+			// desyncs vault.db from disk, which the read path's freshness
+			// check now reports as index_stale — bricking every read verb
+			// until someone runs `anvil reindex` by hand.
+			if !dryRun && len(removed) > 0 {
+				db, oerr := index.Open(index.DBPath(v.Root))
+				if oerr != nil {
+					return fmt.Errorf("opening index: %w", oerr)
+				}
+				defer db.Close() //nolint:errcheck // close in defer; error not actionable
+				if _, rerr := db.Reindex(v.Root); rerr != nil {
+					return fmt.Errorf("reindex after prune: %w", rerr)
+				}
+			}
+
 			w := cmd.OutOrStdout()
 			label := "removed"
 			if dryRun {

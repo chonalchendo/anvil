@@ -16,11 +16,26 @@ import (
 // ErrLastReindexUnset means SetLastReindex has not been called yet.
 var ErrLastReindexUnset = errors.New("last reindex stamp unset")
 
-// ErrIndexStale means the vault has drifted from the index: either a .md file
-// or the vault directory itself has an mtime newer than the stored
-// last-reindex stamp. Errors wrapping it name the offending path. Callers
-// should run `anvil reindex` and retry.
+// ErrIndexStale means the vault has drifted from the index: a .md file or the
+// vault directory itself has an mtime newer than the stored last-reindex
+// stamp, or an indexed artifact's file is no longer on disk. Callers should
+// run `anvil reindex` and retry.
 var ErrIndexStale = errors.New("vault index stale")
+
+// StaleError is the concrete shape every ErrIndexStale takes. Path is the
+// offending file (or the vault root) as its own field, so the CLI can surface
+// it structurally instead of making agents regex it back out of the message.
+type StaleError struct {
+	Path   string
+	Reason string
+	Stamp  time.Time
+}
+
+func (e *StaleError) Error() string {
+	return fmt.Sprintf("%s: %s %s (last reindex %s)", ErrIndexStale, e.Path, e.Reason, e.Stamp.Format(time.RFC3339))
+}
+
+func (e *StaleError) Unwrap() error { return ErrIndexStale }
 
 const metaKeyLastReindex = "last_reindex"
 
@@ -85,7 +100,8 @@ func (d *DB) GetLastReindex() (time.Time, error) {
 }
 
 // CheckFreshness returns ErrIndexStale if any .md file under vaultRoot is
-// newer than the stored last-reindex stamp. ErrLastReindexUnset on first run.
+// newer than the stored last-reindex stamp, or an indexed artifact's file is
+// no longer on disk. ErrLastReindexUnset on first run.
 //
 // Why walk the tree: in-place edits to existing files don't bump the parent
 // directory's mtime on macOS APFS or Linux ext4 — only structural changes
@@ -151,24 +167,62 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 		return nil
 	})
 	if errors.Is(walkErr, errStaleSentinel) {
-		return fmt.Errorf("%w: %s modified after last reindex (%s)", ErrIndexStale, stalePath, stamp.Format(time.RFC3339))
+		return &StaleError{Path: stalePath, Reason: "modified after last reindex", Stamp: stamp}
 	}
 	if walkErr != nil {
 		return fmt.Errorf("walk vault: %w", walkErr)
 	}
-	// Also catch deletes: vault dir mtime advances on a removed file even
-	// though the file itself is gone. This arm intentionally honours future
-	// mtimes: callers signal external drift by stamping the root a moment
-	// ahead of now (see markVaultExternallyStale), so guarding it would
-	// suppress drift absorption.
+	// Catch deletes directly: a removed file leaves nothing for the walk to
+	// stat, so the only evidence is an indexed path that no longer resolves.
+	deleted, derr := d.firstDeletedArtifactPath()
+	if derr != nil {
+		return derr
+	}
+	if deleted != "" {
+		return &StaleError{Path: deleted, Reason: "no longer exists on disk", Stamp: stamp}
+	}
+	// Also catch other structural drift (e.g. an add/rename this pass didn't
+	// otherwise see): vault dir mtime advances on any such change. This arm
+	// intentionally honours future mtimes: callers signal external drift by
+	// stamping the root a moment ahead of now (see markVaultExternallyStale),
+	// so guarding it would suppress drift absorption.
 	info, err := os.Stat(vaultRoot)
 	if err != nil {
 		return fmt.Errorf("stat vault: %w", err)
 	}
 	if info.ModTime().After(stamp) {
-		return fmt.Errorf("%w: %s changed after last reindex (%s)", ErrIndexStale, vaultRoot, stamp.Format(time.RFC3339))
+		return &StaleError{Path: vaultRoot, Reason: "changed after last reindex", Stamp: stamp}
 	}
 	return nil
+}
+
+// firstDeletedArtifactPath returns the indexed path of the lexicographically
+// first artifact id whose file is gone, or "" when every indexed path still
+// resolves. Ordering by id keeps the error deterministic across runs.
+//
+// Lstat'ing the stored paths directly — rather than diffing them against the
+// walk — keeps this free of path-normalisation coupling: filepath.Abs cleans
+// but does not resolve symlinks, so a vault reached through a symlinked
+// ancestor (the macOS /tmp → /private/tmp case) walks to paths that never
+// match what a prior reindex stored.
+//
+// The write-through hook's just-saved file needs no exemption: it is on disk
+// by the time this runs.
+func (d *DB) firstDeletedArtifactPath() (string, error) {
+	indexed, err := d.allArtifactPaths()
+	if err != nil {
+		return "", fmt.Errorf("check deleted artifacts: %w", err)
+	}
+	missingID, missingPath := "", ""
+	for id, path := range indexed {
+		if _, serr := os.Lstat(path); !errors.Is(serr, fs.ErrNotExist) {
+			continue
+		}
+		if missingID == "" || id < missingID {
+			missingID, missingPath = id, path
+		}
+	}
+	return missingPath, nil
 }
 
 // skipFutureMtime reports whether a walked file's mtime post-dates the check's
