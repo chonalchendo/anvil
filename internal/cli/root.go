@@ -36,7 +36,7 @@ func Execute(ctx context.Context) error {
 // When the message leads with a flag name, the first-word title-case transform
 // is suppressed so `--body` / `--description` survive verbatim for copy-paste.
 func errorHandler(w io.Writer, styles fang.Styles, err error) {
-	// jsonRendered (transition.go): the --json envelope already went to
+	// jsonRendered: the --json envelope already went to
 	// stdout; rendering fang's human box on top would be the double-print
 	// anvil.0219 exists to avoid, so skip it — the non-nil error still
 	// carries the exit code through to main.go.

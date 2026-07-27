@@ -420,9 +420,9 @@ func TestLandPRHappyPath(t *testing.T) {
 // 0 for --land-pr unless the named PR is actually merged, since a batch
 // driver reads exit 0 as "the PR landed."
 //
-// Deliberately run WITHOUT --json: printAndReturn returns nil on the --json
-// path repo-wide, so a --json run cannot pin the exit status this test names.
-// The JSON envelope shape is covered by the sibling view-failed test.
+// Runs without --json purely to assert the human path; --json now returns
+// non-nil too (anvil.0219), and the envelope shape is covered by the sibling
+// view-failed test.
 func TestLandPRAlreadyResolvedNotMergedFailsExitNonZero(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)

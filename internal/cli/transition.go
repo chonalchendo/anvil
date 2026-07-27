@@ -464,31 +464,3 @@ func emitTransitionJSON(cmd *cobra.Command, asJSON bool, r transitionResult) err
 	}
 	return nil
 }
-
-// printAndReturn honors --json like the success path: when set, the JSON
-// envelope goes to stdout and the error is wrapped in jsonRendered so
-// errorHandler (root.go) skips fang's human-readable render — the envelope
-// already said everything there is to say — while still returning non-nil so
-// main.go's exit-code switch sees a failure (anvil.0219: printAndReturn used
-// to swallow the error into a nil return for --json, so a failing transition
-// exited 0 for exactly the callers most likely to branch on $?).
-// GetBool returns false for callers that never registered --json, so the
-// human-only path is preserved for list/plan/tags callers.
-func printAndReturn(cmd *cobra.Command, err error) error {
-	if asJSON, _ := cmd.Flags().GetBool("json"); asJSON {
-		b, _ := json.Marshal(err)
-		fmt.Fprintln(cmd.OutOrStdout(), string(b))
-		return jsonRendered{err}
-	}
-	return err
-}
-
-// jsonRendered marks an error whose JSON envelope has already been written to
-// stdout by printAndReturn, so errorHandler must not also render fang's
-// human-readable box to stderr (that would be the double-print anvil.0219
-// stays clear of). Unwrap preserves errors.Is/As for callers like main.go's
-// exit-code switch.
-type jsonRendered struct{ err error }
-
-func (j jsonRendered) Error() string { return j.err.Error() }
-func (j jsonRendered) Unwrap() error { return j.err }
