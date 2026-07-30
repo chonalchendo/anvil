@@ -128,7 +128,7 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 		return nil
 	}
 	emitValidationErrors(cmd, asJSON, failures)
-	return ErrSchemaInvalid
+	return schemaInvalid(asJSON)
 }
 
 // requiredFlagFix returns the actionable hint for a schema-required scalar

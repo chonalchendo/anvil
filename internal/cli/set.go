@@ -274,7 +274,7 @@ func newSetCmd() *cobra.Command {
 						e.Path = path
 					}
 					emitValidationErrors(cmd, flagJSON, errs)
-					return ErrSchemaInvalid
+					return schemaInvalid(flagJSON)
 				}
 			}
 

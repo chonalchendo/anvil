@@ -147,6 +147,17 @@ func renderSchemaErr(cmd *cobra.Command, v *core.Vault, path string, err error, 
 		}
 	}
 	emitValidationErrors(cmd, asJSON, errs)
+	return schemaInvalid(asJSON)
+}
+
+// schemaInvalid is the return value paired with emitValidationErrors: when the
+// JSON envelope already went to stdout (asJSON), the error is wrapped in
+// jsonRendered so errorHandler skips fang's stderr box — the double-print the
+// marker exists to prevent — while errors.Is still sees ErrSchemaInvalid.
+func schemaInvalid(asJSON bool) error {
+	if asJSON {
+		return jsonRendered{ErrSchemaInvalid}
+	}
 	return ErrSchemaInvalid
 }
 

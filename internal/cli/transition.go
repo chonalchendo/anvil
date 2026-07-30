@@ -46,7 +46,8 @@ func newTransitionCmd() *cobra.Command {
 			id, path := core.ResolveArtifact(v, t, id)
 			a, err := core.LoadArtifact(path)
 			if err != nil {
-				return fmt.Errorf("%w: %s", ErrArtifactNotFound, id)
+				return printAndReturn(cmd, errfmt.NewStructured("artifact_not_found").
+					Set("id", id).Wrap(ErrArtifactNotFound))
 			}
 
 			from, _ := a.FrontMatter["status"].(string)

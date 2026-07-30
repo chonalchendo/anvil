@@ -870,3 +870,54 @@ func TestTransition_MissingArtifact_NotFound(t *testing.T) {
 		t.Errorf("error message %q does not name the missing id", msg)
 	}
 }
+
+func TestTransitionNotFoundJSON(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+
+	// With --json: the not-found envelope lands on stdout (it used to render
+	// only as fang's stderr box), stderr carries no JSON, and the error still
+	// unwraps to ErrArtifactNotFound so main.go keeps exit code 2.
+	c := newRootCmd()
+	c.SetArgs([]string{"transition", "issue", "demo.missing", "in-progress", "--owner", "x", "--json"})
+	var stdout, stderr bytes.Buffer
+	c.SetOut(&stdout)
+	c.SetErr(&stderr)
+	err := c.Execute()
+	if err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
+	}
+	if !errors.Is(err, ErrArtifactNotFound) {
+		t.Fatalf("error must unwrap to ErrArtifactNotFound, got: %v", err)
+	}
+	var env map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(stdout.String())), &env); err != nil {
+		t.Fatalf("stdout must be valid JSON with --json; stdout=%q stderr=%q err=%v", stdout.String(), stderr.String(), err)
+	}
+	if env["code"] != "artifact_not_found" {
+		t.Fatalf("expected code=artifact_not_found, got: %v", env)
+	}
+	if strings.Contains(stderr.String(), `{"code"`) {
+		t.Fatalf("stderr must not contain JSON with --json, got: %s", stderr.String())
+	}
+}
+
+func TestTransitionNotFoundNoJSON(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+
+	// Without --json: stdout stays empty and the error surfaces via fang.
+	c := newRootCmd()
+	c.SetArgs([]string{"transition", "issue", "demo.missing", "in-progress", "--owner", "x"})
+	var stdout, stderr bytes.Buffer
+	c.SetOut(&stdout)
+	c.SetErr(&stderr)
+	if err := c.Execute(); err == nil {
+		t.Fatalf("expected artifact_not_found error; stderr: %s", stderr.String())
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("stdout must be empty without --json, got: %s", stdout.String())
+	}
+}
