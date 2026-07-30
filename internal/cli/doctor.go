@@ -126,7 +126,7 @@ func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 		if status != "in-progress" {
 			continue
 		}
-		id := strings.TrimSuffix(filepath.Base(p), ".md")
+		id := core.CanonicalID(core.TypeIssue, strings.TrimSuffix(filepath.Base(p), ".md"))
 
 		// Shape 1: merged-PR issue. PR state is queried by absolute URL, so
 		// this is correct for every project in the vault.
@@ -210,7 +210,7 @@ func checkContractConventionRails(v *core.Vault) ([]doctorFinding, error) {
 		if len(core.BodyWikilinkTargetsOfType(a.Body, core.TypeConvention)) > 0 {
 			continue
 		}
-		id := strings.TrimSuffix(filepath.Base(p), ".md")
+		id := core.CanonicalID(core.TypeContract, strings.TrimSuffix(filepath.Base(p), ".md"))
 		findings = append(findings, doctorFinding{
 			Kind:     "contract-empty-convention-rail",
 			ID:       id,
@@ -381,10 +381,14 @@ func checkFinishedMilestone(msPath string, a *core.Artifact, children []childIss
 	if kind, _ := a.FrontMatter["kind"].(string); kind == "bucket" {
 		return nil
 	}
-	msID := strings.TrimSuffix(filepath.Base(msPath), ".md")
+	// children carry milestoneSlug()'s bare wikilink tail, so compare bare —
+	// but report under the canonical id every other verb prints.
+	basename := strings.TrimSuffix(filepath.Base(msPath), ".md")
+	msSlug := core.BareID(core.TypeMilestone, basename)
+	msID := core.CanonicalID(core.TypeMilestone, basename)
 	hasChild := false
 	for _, c := range children {
-		if c.milestone != msID {
+		if c.milestone != msSlug {
 			continue
 		}
 		hasChild = true

@@ -83,7 +83,7 @@ func normalizeMilestone(s string) string {
 	if strings.HasPrefix(s, "[[") {
 		return s
 	}
-	return "[[milestone." + s + "]]"
+	return "[[" + core.WikilinkTarget(core.TypeMilestone, s) + "]]"
 }
 
 func createLongDescription() string {

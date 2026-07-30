@@ -118,23 +118,23 @@ func TestMilestoneStatusDerivesDoneFromLinkedIssues(t *testing.T) {
 		{
 			name:     "open issues remain -> not done",
 			statuses: map[string]string{"i1": "resolved", "i2": "open"},
-			want:     MilestoneStatus{Milestone: "m", Resolved: 1, Total: 2, Done: false},
+			want:     MilestoneStatus{Milestone: "milestone.m", Resolved: 1, Total: 2, Done: false},
 		},
 		{
 			name:     "all resolved -> done",
 			statuses: map[string]string{"i1": "resolved", "i2": "resolved"},
-			want:     MilestoneStatus{Milestone: "m", Resolved: 2, Total: 2, Done: true},
+			want:     MilestoneStatus{Milestone: "milestone.m", Resolved: 2, Total: 2, Done: true},
 		},
 		{
 			name:     "no linked issues -> not done",
 			statuses: nil,
-			want:     MilestoneStatus{Milestone: "m", Resolved: 0, Total: 0, Done: false},
+			want:     MilestoneStatus{Milestone: "milestone.m", Resolved: 0, Total: 0, Done: false},
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			db := openTestDB(t)
-			seedMilestone(t, db, "m", tc.statuses)
+			seedMilestone(t, db, "milestone.m", tc.statuses)
 			got, err := db.MilestoneStatus("m")
 			if err != nil {
 				t.Fatalf("MilestoneStatus: %v", err)

@@ -18,14 +18,14 @@ func TestLinkFromReturnsOutgoingEdges(t *testing.T) {
 	execCmd(t, "reindex")
 	execCmd(t, "link", "issue", "demo.a", "issue", "demo.b")
 
-	out := execCmd(t, "link", "--from", "demo.a", "--json")
+	out := execCmd(t, "link", "--from", "issue.demo.a", "--json")
 	var rows []struct {
 		Source, Target, Relation, Path string
 	}
 	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &rows); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
-	if len(rows) != 1 || rows[0].Target != "demo.b" || !strings.HasSuffix(rows[0].Path, "demo.a.md") {
+	if len(rows) != 1 || rows[0].Target != "issue.demo.b" || !strings.HasSuffix(rows[0].Path, "demo.a.md") {
 		t.Fatalf("rows: %v", rows)
 	}
 }
@@ -39,14 +39,14 @@ func TestLinkToReturnsIncomingEdges(t *testing.T) {
 	execCmd(t, "reindex")
 	execCmd(t, "link", "issue", "demo.a", "issue", "demo.b")
 
-	out := execCmd(t, "link", "--to", "demo.b", "--json")
+	out := execCmd(t, "link", "--to", "issue.demo.b", "--json")
 	var rows []struct {
 		Source, Target, Relation string
 	}
 	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &rows); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
-	if len(rows) != 1 || rows[0].Source != "demo.a" {
+	if len(rows) != 1 || rows[0].Source != "issue.demo.a" {
 		t.Fatalf("rows: %v", rows)
 	}
 }
@@ -72,7 +72,7 @@ func TestLinkUnresolvedReturnsDanglingEdges(t *testing.T) {
 	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &rows); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
-	if len(rows) != 1 || rows[0].Target != "demo.gone" {
+	if len(rows) != 1 || rows[0].Target != "milestone.demo.gone" {
 		t.Fatalf("rows: %v", rows)
 	}
 }

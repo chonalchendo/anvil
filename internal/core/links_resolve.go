@@ -129,37 +129,65 @@ func wikilinkTargetPath(v *Vault, target string) (string, bool) {
 }
 
 // CanonicalID maps a raw id or wikilink target — with or without its `<type>.`
-// prefix — to the id shape type t registers under. Design-type and convention
-// ids keep the prefix (e.g. system-design.burgh, convention.python) because the
-// index keys on a global artifacts.id; every other type drops it.
+// prefix — to the id shape type t registers under. The project-scoped and
+// project-agnostic-but-globally-keyed types keep the prefix, so their id, their
+// on-disk basename and their `[[wikilink]]` target are one string; the rest
+// (inbox, thread, learning, sweep, decision, session) key on a bare slug.
 func CanonicalID(t Type, raw string) string {
 	bare := strings.TrimPrefix(raw, string(t)+".")
-	if t == TypeProductDesign || t == TypeSystemDesign || t == TypeConvention {
+	switch t {
+	case TypeProductDesign, TypeSystemDesign, TypeConvention,
+		TypeIssue, TypeMilestone, TypeContract, TypePlan:
 		return string(t) + "." + bare
 	}
 	return bare
 }
 
+// BareID maps a raw id — with or without its `<type>.` prefix — to the
+// prefix-less tail (e.g. issue `anvil.0042.fix-x`, milestone `anvil.v0-2`).
+// The counterpart to CanonicalID for call sites that key on the bare shape:
+// project extraction, worktree slugs, back-catalogue filenames.
+func BareID(t Type, id string) string {
+	return strings.TrimPrefix(CanonicalID(t, id), string(t)+".")
+}
+
+// WikilinkTarget renders an artifact as its `<type>.<id>` wikilink-target
+// form, regardless of whether the type keeps the prefix in its canonical id.
+func WikilinkTarget(t Type, id string) string {
+	return string(t) + "." + BareID(t, id)
+}
+
 // ArtifactBasename maps a raw id to type t's on-disk basename in v, accepting
-// either filename shape: a file whose name carries its type prefix reads back
-// the same as the bare-id shape. Neither on disk → the canonical shape, so a
-// not-found error names the id the type is minted under.
+// either filename shape. Neither on disk → the canonical shape, so a not-found
+// error names the id the type is minted under.
+//
+// Design and convention files have only ever been written prefixed, so their
+// canonical id is their only shape — probing the stripped form would resolve a
+// doubled `convention.convention.x` onto the plain file. Issue, milestone,
+// contract and plan mint prefixed but still have a bare back-catalogue on disk
+// until the attended rename lands, so both shapes must resolve.
 //
 // cli.resolveLinkTarget keeps its own both-shapes probe rather than calling
 // this: it must reject a double-prefixed target outright (pinned by
 // TestLink_CanonicalPrefixedTargetId), which this resolver deliberately does
 // not do. The duplication is the constraint, not an oversight.
 func ArtifactBasename(v *Vault, t Type, raw string) string {
+	switch t {
+	case TypeProductDesign, TypeSystemDesign, TypeConvention:
+		return CanonicalID(t, raw)
+	}
 	canonical := CanonicalID(t, raw)
-	prefix := string(t) + "."
-	// Design and convention ids already carry the prefix, so canonical is their
-	// only shape — probing the stripped form there would also resolve a doubled
-	// `convention.convention.x` onto the plain file.
-	if strings.HasPrefix(canonical, prefix) {
+	if _, err := os.Stat(artifactPath(v, t, canonical)); err == nil {
 		return canonical
 	}
-	if _, err := os.Stat(artifactPath(v, t, prefix+canonical)); err == nil {
-		return prefix + canonical
+	// Fall back to the bare back-catalogue shape — but never when bare is
+	// itself prefixed, or a doubled `milestone.milestone.x` would resolve onto
+	// the plain file and `anvil link` would embed that dead target.
+	prefix := string(t) + "."
+	if bare := BareID(t, raw); !strings.HasPrefix(bare, prefix) {
+		if _, err := os.Stat(artifactPath(v, t, bare)); err == nil {
+			return bare
+		}
 	}
 	return canonical
 }
@@ -167,6 +195,19 @@ func ArtifactBasename(v *Vault, t Type, raw string) string {
 // artifactPath joins a resolved basename onto its type's vault folder.
 func artifactPath(v *Vault, t Type, basename string) string {
 	return filepath.Join(v.Root, t.Dir(), basename+".md")
+}
+
+// ResolveArtifact maps a user-supplied id to the pair every load site needs:
+// the canonical id to report under, and the path to load from. The two differ
+// while the back catalogue still carries bare filenames — reporting the
+// basename would print an id `anvil list` never emits. Issue args route
+// through ResolveIssueArg first so an ordinal expands before the lookup.
+func ResolveArtifact(v *Vault, t Type, raw string) (id, path string) {
+	if t == TypeIssue {
+		raw = ResolveIssueArg(v, raw)
+	}
+	basename := ArtifactBasename(v, t, raw)
+	return CanonicalID(t, basename), artifactPath(v, t, basename)
 }
 
 // WikilinkTargetExists reports whether target names an artifact file present

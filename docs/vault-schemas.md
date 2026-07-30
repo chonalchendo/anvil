@@ -317,13 +317,13 @@ User-authored. Anthropic spec at top level + Anvil `metadata:` block. Out of CLI
 
 ## IDs and naming
 
-Slug-based across most artifacts. Wikilink form: `<type>.<project>.<slug>`; filename: `<project>.<slug>.md` within the type folder. **Issues** carry a per-project ordinal: id `<project>.NNNN.<slug>`, filename `<project>.NNNN.<slug>.md` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Legacy long-slug issue files (no ordinal) still resolve. **Design docs** (`product-design`, `system-design`) each own a type-named folder (`05-product-designs/`, `06-system-designs/`), but **keep the type prefix in the id** so a product-design and a system-design for the same project don't collide on the index's global `artifacts.id` key: id `<type>.<project>[.<shard>]`, filename `<type>.<project>[.<shard>].md` (e.g. `05-product-designs/product-design.anvil.md`, `06-system-designs/system-design.anvil.build.md`). **Conventions** keep the type prefix for the same reason but are project-agnostic: id `convention.<slug>`, filename `convention.<slug>.md` (e.g. `35-conventions/convention.python.md`).
+Slug-based across most artifacts. **Every type but the date/ordinal-keyed ones keeps the type prefix in the id** — issue, milestone, contract, plan, design docs (`product-design`, `system-design`), and conventions — so the id, the on-disk basename, and the `[[wikilink]]` target are one string: Obsidian matches literal basenames, and the index's global `artifacts.id` key would otherwise collide across types. Project-scoped shapes: id and filename `<type>.<project>.<slug>[.md]`. **Issues** additionally carry a per-project ordinal: id `issue.<project>.NNNN.<slug>` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Bare back-catalogue filenames (no type prefix) and legacy long-slug issue files (no ordinal) still resolve until the attended rename (anvil.0201) lands. Design docs shard as `<type>.<project>[.<shard>]` (e.g. `05-product-designs/product-design.anvil.md`, `06-system-designs/system-design.anvil.build.md`). **Conventions** are project-agnostic: id `convention.<slug>`, filename `convention.<slug>.md` (e.g. `35-conventions/convention.python.md`).
 
 Examples:
 
-- `[[milestone.anvil.cli-substrate]]` → `85-milestones/anvil.cli-substrate.md`
-- `[[issue.anvil.0042.fix-inbox-suggested-type]]` → `70-issues/anvil.0042.fix-inbox-suggested-type.md`
-- `[[plan.anvil.streaming-token-counter]]` → `80-plans/anvil.streaming-token-counter.md`
+- `[[milestone.anvil.cli-substrate]]` → `85-milestones/milestone.anvil.cli-substrate.md`
+- `[[issue.anvil.0042.fix-inbox-suggested-type]]` → `70-issues/issue.anvil.0042.fix-inbox-suggested-type.md`
+- `[[plan.anvil.streaming-token-counter]]` → `80-plans/plan.anvil.streaming-token-counter.md`
 - `[[decision.anvil.0001-go-rewrite]]` → `30-decisions/anvil.0001-go-rewrite.md`
 - `[[convention.python]]` → `35-conventions/convention.python.md`
 
@@ -332,7 +332,7 @@ Two rules:
 1. Slugs are immutable once allocated. Renaming the title doesn't rename the slug.
 2. `anvil create` allocates the slug from the title at creation time, normalized (lowercase, hyphenated, ASCII).
 
-The plan `id` collapses with the slug: `plan.id == <project>.<slug>`. Decisions keep their MADR numeric prefix in the slug.
+The plan `id` collapses with the slug: `plan.id == plan.<project>.<slug>`. Decisions keep their MADR numeric prefix in the slug.
 
 Wikilinks are vault-global, not project-scoped. Because the project name is part of every issue/plan/milestone ID, `[[issue.<other-project>.<slug>]]` resolves the same way as a same-project link — useful when work spans repos (e.g. a `dbt-warehouse` issue declaring `depends_on: ["[[issue.airflow-pipelines.<slug>]]"]`). `anvil validate` flags broken cross-project links as `unresolved_link` with no special-casing.
 

@@ -37,10 +37,10 @@ func TestCreate_NearDuplicate_Surfaces_PriorIssue_JSON(t *testing.T) {
 			t.Fatalf("warnings = %v, want 1 entry surfacing the prior id", got["warnings"])
 		}
 		w, _ := warnings[0].(map[string]any)
-		// Numbered format: foo.NNNN.improve-foo-bar-baz
+		// Numbered format: issue.foo.NNNN.improve-foo-bar-baz
 		wid, _ := w["id"].(string)
-		if !strings.HasPrefix(wid, "foo.") || !strings.Contains(wid, "improve-foo-bar-baz") {
-			t.Errorf("warning id = %v, want foo.NNNN.improve-foo-bar-baz", w["id"])
+		if !strings.HasPrefix(wid, "issue.foo.") || !strings.Contains(wid, "improve-foo-bar-baz") {
+			t.Errorf("warning id = %v, want issue.foo.NNNN.improve-foo-bar-baz", w["id"])
 		}
 	}
 }

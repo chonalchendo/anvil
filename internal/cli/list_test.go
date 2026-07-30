@@ -57,8 +57,8 @@ func TestList_JSON(t *testing.T) {
 	}
 	ids := []string{env.Items[0].ID, env.Items[1].ID}
 	// Ties on created -> ID asc; both fixtures share the same created date.
-	if ids[0] != "foo.a" || ids[1] != "foo.b" {
-		t.Errorf("ids = %v, want [foo.a foo.b]", ids)
+	if ids[0] != "issue.foo.a" || ids[1] != "issue.foo.b" {
+		t.Errorf("ids = %v, want [issue.foo.a issue.foo.b]", ids)
 	}
 	for _, item := range env.Items {
 		if item.ID == "" || item.Type == "" || item.Title == "" || item.Status == "" || item.Path == "" {
@@ -574,7 +574,7 @@ func TestList_MilestoneFilterAndProjection(t *testing.T) {
 		for _, it := range env.Items {
 			got[it.ID] = it.Milestone
 		}
-		if got["foo.a"] != "foo.m1" || got["foo.b"] != "foo.m2" || got["foo.c"] != "" {
+		if got["issue.foo.a"] != "foo.m1" || got["issue.foo.b"] != "foo.m2" || got["issue.foo.c"] != "" {
 			t.Errorf("milestone projection mismatch: %+v", got)
 		}
 	})
@@ -586,8 +586,20 @@ func TestList_MilestoneFilterAndProjection(t *testing.T) {
 			t.Fatal(err)
 		}
 		env := unmarshalListEnvelope(t, out)
-		if env.Total != 1 || env.Items[0].ID != "foo.a" {
-			t.Errorf("milestone filter: got %+v, want [foo.a]", env.Items)
+		if env.Total != 1 || env.Items[0].ID != "issue.foo.a" {
+			t.Errorf("milestone filter: got %+v, want [issue.foo.a]", env.Items)
+		}
+	})
+
+	t.Run("--milestone accepts the printed prefixed id", func(t *testing.T) {
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "list", "issue", "--milestone", "milestone.foo.m1", "--json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := unmarshalListEnvelope(t, out)
+		if env.Total != 1 || env.Items[0].ID != "issue.foo.a" {
+			t.Errorf("prefixed milestone filter: got %+v, want [issue.foo.a]", env.Items)
 		}
 	})
 
@@ -621,11 +633,24 @@ func TestList_MilestoneFilterAndProjection(t *testing.T) {
 			t.Fatal(err)
 		}
 		env := unmarshalListEnvelope(t, out)
-		if env.Total != 1 || env.Items[0].ID != "foo.a" {
-			t.Errorf("ready+status+milestone compose: got %+v, want [foo.a]", env.Items)
+		if env.Total != 1 || env.Items[0].ID != "issue.foo.a" {
+			t.Errorf("ready+status+milestone compose: got %+v, want [issue.foo.a]", env.Items)
 		}
 		if env.Items[0].Milestone != "foo.m1" {
 			t.Errorf("indexed-path milestone projection: got %q want foo.m1", env.Items[0].Milestone)
+		}
+	})
+
+	t.Run("--ready accepts the printed prefixed milestone id", func(t *testing.T) {
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "list", "issue",
+			"--ready", "--milestone", "milestone.foo.m1", "--json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := unmarshalListEnvelope(t, out)
+		if env.Total != 1 || env.Items[0].ID != "issue.foo.a" {
+			t.Errorf("ready+prefixed milestone: got %+v, want [issue.foo.a]", env.Items)
 		}
 	})
 }
@@ -768,8 +793,8 @@ func TestList_InvalidBody_FiltersToFailingIssues(t *testing.T) {
 	if env.Total != 1 {
 		t.Fatalf("total=%d want 1 (only the bad issue)", env.Total)
 	}
-	if env.Items[0].ID != "foo.bad" {
-		t.Errorf("id=%q want foo.bad", env.Items[0].ID)
+	if env.Items[0].ID != "issue.foo.bad" {
+		t.Errorf("id=%q want issue.foo.bad", env.Items[0].ID)
 	}
 }
 
@@ -878,8 +903,8 @@ func TestList_InvalidBody_ReadyIndexed(t *testing.T) {
 	if len(raw.Items) != 1 {
 		t.Fatalf("got %d items, want 1 (the bad-body issue via indexed path)\n%s", len(raw.Items), out)
 	}
-	if raw.Items[0].ID != "foo.bad" {
-		t.Errorf("id=%q want foo.bad", raw.Items[0].ID)
+	if raw.Items[0].ID != "issue.foo.bad" {
+		t.Errorf("id=%q want issue.foo.bad", raw.Items[0].ID)
 	}
 	if !strings.Contains(raw.Items[0].MissingSection, "Verification") {
 		t.Errorf("missing_section=%q; want it to name ## Verification", raw.Items[0].MissingSection)

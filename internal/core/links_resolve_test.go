@@ -361,7 +361,9 @@ func TestArtifactBasename(t *testing.T) {
 		{TypeIssue, "issue.demo.0001.probe", "issue.demo.0001.probe"},
 		{TypeIssue, "demo.0002.plain", "demo.0002.plain"},
 		{TypeIssue, "issue.demo.0002.plain", "demo.0002.plain"},
-		{TypeIssue, "demo.0003.ghost", "demo.0003.ghost"},
+		{TypeIssue, "demo.0003.ghost", "issue.demo.0003.ghost"},
+		// A doubled prefix must not fall back onto the plain file.
+		{TypeIssue, "issue.issue.demo.0002.plain", "issue.issue.demo.0002.plain"},
 		{TypeConvention, "sqlmesh", "convention.sqlmesh"},
 		{TypeConvention, "convention.sqlmesh", "convention.sqlmesh"},
 		{TypeConvention, "convention.convention.sqlmesh", "convention.convention.sqlmesh"},

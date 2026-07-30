@@ -61,18 +61,18 @@ func TestNextID_IssueIncrementsByProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if id != "foo.bar" {
-		t.Errorf("got %q, want foo.bar", id)
+	if id != "issue.foo.bar" {
+		t.Errorf("got %q, want issue.foo.bar", id)
 	}
-	if err := os.WriteFile(filepath.Join(v.Root, "70-issues", "foo.bar.md"), []byte(""), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+	if err := os.WriteFile(filepath.Join(v.Root, "70-issues", "issue.foo.bar.md"), []byte(""), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
 	id, err = NextID(v, TypeIssue, IDInputs{Title: "bar", Project: "foo"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if id != "foo.bar-2" {
-		t.Errorf("got %q, want foo.bar-2", id)
+	if id != "issue.foo.bar-2" {
+		t.Errorf("got %q, want issue.foo.bar-2", id)
 	}
 }
 
@@ -82,7 +82,7 @@ func TestNextID_PlanSameAsIssue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if id != "foo.q2-cleanup" {
+	if id != "plan.foo.q2-cleanup" {
 		t.Errorf("got %q", id)
 	}
 }
@@ -93,8 +93,8 @@ func TestNextID_Milestone_SlugOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "anvil.cli-substrate" {
-		t.Errorf("got %q, want anvil.cli-substrate", got)
+	if got != "milestone.anvil.cli-substrate" {
+		t.Errorf("got %q, want milestone.anvil.cli-substrate", got)
 	}
 }
 
@@ -158,14 +158,14 @@ func TestDeterministicID(t *testing.T) {
 		in   IDInputs
 		want string
 	}{
-		{"issue", TypeIssue, IDInputs{Title: "Fix Login Bug", Project: "foo"}, "foo.fix-login-bug"},
-		{"plan", TypePlan, IDInputs{Title: "Add OAuth", Project: "foo"}, "foo.add-oauth"},
-		{"milestone", TypeMilestone, IDInputs{Title: "v0.1 GA", Project: "foo"}, "foo.v0-1-ga"},
+		{"issue", TypeIssue, IDInputs{Title: "Fix Login Bug", Project: "foo"}, "issue.foo.fix-login-bug"},
+		{"plan", TypePlan, IDInputs{Title: "Add OAuth", Project: "foo"}, "plan.foo.add-oauth"},
+		{"milestone", TypeMilestone, IDInputs{Title: "v0.1 GA", Project: "foo"}, "milestone.foo.v0-1-ga"},
 		{"thread", TypeThread, IDInputs{Title: "auth retries"}, "auth-retries"},
 		{"learning", TypeLearning, IDInputs{Title: "Slogger gotcha"}, "slogger-gotcha"},
 		{"sweep", TypeSweep, IDInputs{Title: "Drop python2"}, "drop-python2"},
-		// Design ids keep the type prefix so a product-design and a system-design
-		// for the same project stay globally distinct (no artifacts.id collision).
+		// Project-scoped ids keep the type prefix so the id, the on-disk
+		// basename and the [[type.id]] wikilink are one string.
 		{"product-design", TypeProductDesign, IDInputs{Project: "foo"}, "product-design.foo"},
 		{"system-design singleton", TypeSystemDesign, IDInputs{Project: "foo"}, "system-design.foo"},
 		{"system-design shard", TypeSystemDesign, IDInputs{Project: "foo", Slug: "build"}, "system-design.foo.build"},
@@ -241,15 +241,15 @@ func TestAllocateIssueID_OrdinalAndIdempotency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if id1 != "foo.0001.fix-the-bug" {
-		t.Errorf("first allocation = %q, want foo.0001.fix-the-bug", id1)
+	if id1 != "issue.foo.0001.fix-the-bug" {
+		t.Errorf("first allocation = %q, want issue.foo.0001.fix-the-bug", id1)
 	}
 	persist(path1)
 
 	// A distinct slug gets the next ordinal.
 	id2, path2, _ := AllocateIssueID(v, "foo", "Another thing", "")
-	if id2 != "foo.0002.another-thing" {
-		t.Errorf("distinct slug = %q, want foo.0002.another-thing", id2)
+	if id2 != "issue.foo.0002.another-thing" {
+		t.Errorf("distinct slug = %q, want issue.foo.0002.another-thing", id2)
 	}
 	persist(path2)
 
@@ -261,8 +261,8 @@ func TestAllocateIssueID_OrdinalAndIdempotency(t *testing.T) {
 
 	// Ordinals are per-project: a different project starts at 0001.
 	idBar, _, _ := AllocateIssueID(v, "bar", "Hello", "")
-	if idBar != "bar.0001.hello" {
-		t.Errorf("per-project ordinal = %q, want bar.0001.hello", idBar)
+	if idBar != "issue.bar.0001.hello" {
+		t.Errorf("per-project ordinal = %q, want issue.bar.0001.hello", idBar)
 	}
 }
 
@@ -305,8 +305,8 @@ func TestResolveIssueOrdinal_ProjectQualified(t *testing.T) {
 	if !found {
 		t.Fatal("ResolveIssueOrdinal returned not-found for anvil.0019")
 	}
-	if id != "anvil.0019.some-slug" {
-		t.Errorf("ResolveIssueOrdinal = %q, want anvil.0019.some-slug", id)
+	if id != "issue.anvil.0019.some-slug" {
+		t.Errorf("ResolveIssueOrdinal = %q, want issue.anvil.0019.some-slug", id)
 	}
 
 	// Non-matching inputs must return false.

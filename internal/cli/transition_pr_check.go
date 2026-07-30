@@ -117,9 +117,12 @@ func candidateBranchesForIssue(v *core.Vault, id string) ([]string, string) {
 		addBranch("anvil/" + slug)
 	}
 
-	// Issue id is "<project>.<slug>"; pull the slug.
-	if dot := strings.IndexByte(id, '.'); dot >= 0 && dot+1 < len(id) {
-		addSlug(id[dot+1:])
+	// The index keys plan→issue edges on the canonical id; the branch slug
+	// comes from the bare tail.
+	id = core.CanonicalID(core.TypeIssue, id)
+	bare := core.BareID(core.TypeIssue, id)
+	if dot := strings.IndexByte(bare, '.'); dot >= 0 && dot+1 < len(bare) {
+		addSlug(bare[dot+1:])
 	}
 
 	// Any incoming plan link contributes its frontmatter slug. Surface a

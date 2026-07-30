@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/chonalchendo/anvil/internal/core"
 )
 
 // markVaultExternallyStale plants a non-anvil .md file and bumps the vault
@@ -46,7 +48,7 @@ func TestCreateAbsorbsExternalDriftWithoutManualReindex(t *testing.T) {
 	if _, err := db.GetArtifact(freshID); err != nil {
 		t.Fatalf("fresh issue missing from index: %v", err)
 	}
-	if _, err := db.GetArtifact("demo.external"); err != nil {
+	if _, err := db.GetArtifact("issue.demo.external"); err != nil {
 		t.Fatalf("external drift artifact not absorbed: %v", err)
 	}
 }
@@ -74,14 +76,14 @@ func TestCreateUpdateAbsorbsExternalDriftWithoutManualReindex(t *testing.T) {
 		"--description", "rewritten desc",
 		"--tags", "domain/dev-tools", "--update")
 
-	got, err := os.ReadFile(filepath.Join(vault, "80-plans", "demo.foo.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
+	got, err := os.ReadFile(filepath.Join(vault, "80-plans", "plan.demo.foo.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(got), "rewritten desc") {
 		t.Fatalf("expected rewritten desc; got:\n%s", got)
 	}
-	if _, err := openIndex(t, vault).GetArtifact("demo.external"); err != nil {
+	if _, err := openIndex(t, vault).GetArtifact("issue.demo.external"); err != nil {
 		t.Fatalf("external drift artifact not absorbed: %v", err)
 	}
 }
@@ -141,7 +143,7 @@ func TestTwoCreatesInOneProcessSucceedWithoutManualReindex(t *testing.T) {
 	entries, _ := os.ReadDir(filepath.Join(vault, "70-issues"))
 	var createdIDs []string
 	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), "demo.") && strings.HasSuffix(e.Name(), ".md") {
+		if strings.Contains(e.Name(), "demo.") && strings.HasSuffix(e.Name(), ".md") {
 			createdIDs = append(createdIDs, strings.TrimSuffix(e.Name(), ".md"))
 		}
 	}
@@ -150,11 +152,11 @@ func TestTwoCreatesInOneProcessSucceedWithoutManualReindex(t *testing.T) {
 		t.Fatalf("expected at least 2 demo issue files; got %v", createdIDs)
 	}
 	for _, id := range createdIDs {
-		if _, err := db.GetArtifact(id); err != nil {
+		if _, err := db.GetArtifact(core.CanonicalID(core.TypeIssue, id)); err != nil {
 			t.Errorf("missing %s in index: %v", id, err)
 		}
 	}
-	if _, err := db.GetArtifact("demo.external"); err != nil {
+	if _, err := db.GetArtifact("issue.demo.external"); err != nil {
 		t.Fatalf("external drift not absorbed: %v", err)
 	}
 }

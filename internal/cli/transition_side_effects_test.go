@@ -473,7 +473,7 @@ func TestLandPRAlreadyResolvedNotMergedFailsExitNonZero(t *testing.T) {
 	}
 	// convention.cli-tooling rule 5: the refusal names a copy-pasteable
 	// recovery. resolved → open is the only legal exit, so it is a two-hop.
-	wantCorrected := `anvil transition issue demo.foo open --reason "<why>" && anvil transition issue demo.foo resolved --land-pr 42`
+	wantCorrected := `anvil transition issue issue.demo.foo open --reason "<why>" && anvil transition issue issue.demo.foo resolved --land-pr 42`
 	if !strings.Contains(err.Error(), wantCorrected) {
 		t.Errorf("missing corrected invocation %q in:\n%v", wantCorrected, err)
 	}
@@ -547,7 +547,7 @@ func TestLandPRAlreadyResolvedGhUnavailableNamesEscape(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected a non-nil error (exit non-zero); stdout: %s", stdout.String())
 	}
-	if !strings.Contains(err.Error(), "anvil transition issue demo.foo resolved` still exits 0") {
+	if !strings.Contains(err.Error(), "anvil transition issue issue.demo.foo resolved` still exits 0") {
 		t.Errorf("gh-unavailable refusal does not name the escape:\n%v", err)
 	}
 }
@@ -1538,7 +1538,7 @@ func TestLandPRSaveFailureSurfacesRecovery(t *testing.T) {
 	if !strings.Contains(stdout.String(), "land_pr_succeeded_save_failed") {
 		t.Errorf("missing structured code: %s", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "anvil set issue demo.foo status resolved") {
+	if !strings.Contains(stdout.String(), "anvil set issue issue.demo.foo status resolved") {
 		t.Errorf("missing recovery hint: %s", stdout.String())
 	}
 }

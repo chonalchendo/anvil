@@ -52,11 +52,11 @@ func TestIndex_TagsSeedRanksByMatchCount(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("want 2 rows (a, b), got %d: %v", len(rows), rows)
 	}
-	if rows[0].ID != "foo.a" || rows[0].Score != 2 {
-		t.Errorf("rows[0] = %s score %d, want foo.a score 2", rows[0].ID, rows[0].Score)
+	if rows[0].ID != "issue.foo.a" || rows[0].Score != 2 {
+		t.Errorf("rows[0] = %s score %d, want issue.foo.a score 2", rows[0].ID, rows[0].Score)
 	}
-	if rows[1].ID != "foo.b" || rows[1].Score != 1 {
-		t.Errorf("rows[1] = %s score %d, want foo.b score 1", rows[1].ID, rows[1].Score)
+	if rows[1].ID != "issue.foo.b" || rows[1].Score != 1 {
+		t.Errorf("rows[1] = %s score %d, want issue.foo.b score 1", rows[1].ID, rows[1].Score)
 	}
 }
 
@@ -67,16 +67,16 @@ func TestIndex_IDSeedExcludesSeed(t *testing.T) {
 	setFixtureTags(t, vault, "foo", "seed", []string{"domain/cli"})
 	setFixtureTags(t, vault, "foo", "a", []string{"domain/cli"})
 
-	out, _, err := runCmd(t, newRootCmd(), "index", "foo.seed", "--json")
+	out, _, err := runCmd(t, newRootCmd(), "index", "issue.foo.seed", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	rows := decodeRelated(t, out)
-	if len(rows) != 1 || rows[0].ID != "foo.a" {
-		t.Fatalf("want only foo.a, got %v", rows)
+	if len(rows) != 1 || rows[0].ID != "issue.foo.a" {
+		t.Fatalf("want only issue.foo.a, got %v", rows)
 	}
 	for _, r := range rows {
-		if r.ID == "foo.seed" {
+		if r.ID == "issue.foo.seed" {
 			t.Fatalf("seed must be excluded from its own results")
 		}
 	}

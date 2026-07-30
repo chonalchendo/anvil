@@ -12,8 +12,8 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-// numberedIssueIDRe matches the create-issue id scheme <project>.NNNN.<slug>.
-var numberedIssueIDRe = regexp.MustCompile(`^foo\.[0-9]{4}\..+`)
+// numberedIssueIDRe matches the create-issue id scheme issue.<project>.NNNN.<slug>.
+var numberedIssueIDRe = regexp.MustCompile(`^issue\.foo\.[0-9]{4}\..+`)
 
 func TestPromote_TopLevel_Issue(t *testing.T) {
 	vault := setupVault(t)
@@ -87,7 +87,7 @@ func TestPromote_Issue_NumberedIDAndGoalOverride(t *testing.T) {
 		t.Fatalf("unmarshal %q: %v", out.String(), err)
 	}
 	if !numberedIssueIDRe.MatchString(res.ID) {
-		t.Errorf("id = %q, want foo.NNNN.<slug>", res.ID)
+		t.Errorf("id = %q, want issue.foo.NNNN.<slug>", res.ID)
 	}
 	a, err := core.LoadArtifact(res.Path)
 	if err != nil {

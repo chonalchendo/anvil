@@ -160,7 +160,7 @@ func TestSetStatusWritesThroughToIndex(t *testing.T) {
 	execCmd(t, "reindex")
 	execCmd(t, "set", "issue", "demo.foo", "status", "in-progress")
 
-	row, err := openIndex(t, vault).GetArtifact("demo.foo")
+	row, err := openIndex(t, vault).GetArtifact("issue.demo.foo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,11 +183,11 @@ func TestLinkWritesThroughToIndex(t *testing.T) {
 	)
 	execCmd(t, "link", "issue", "demo.foo", "milestone", "demo.m1")
 
-	rows, err := openIndex(t, vault).LinksFrom("demo.foo")
+	rows, err := openIndex(t, vault).LinksFrom("issue.demo.foo")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 1 || rows[0].Target != "demo.m1" {
+	if len(rows) != 1 || rows[0].Target != "milestone.demo.m1" {
 		t.Fatalf("links: %v", rows)
 	}
 }
@@ -215,10 +215,10 @@ func TestExternalEditAbsorbedOnNextWrite(t *testing.T) {
 	execCmd(t, "set", "issue", "demo.foo", "status", "in-progress")
 
 	db := openIndex(t, vault)
-	if row, err := db.GetArtifact("demo.foo"); err != nil || row.Status != "in-progress" {
+	if row, err := db.GetArtifact("issue.demo.foo"); err != nil || row.Status != "in-progress" {
 		t.Fatalf("expected demo.foo in-progress; row=%+v err=%v", row, err)
 	}
-	if _, err := db.GetArtifact("demo.bar"); err != nil {
+	if _, err := db.GetArtifact("issue.demo.bar"); err != nil {
 		t.Fatalf("external demo.bar not absorbed by auto-reindex: %v", err)
 	}
 }

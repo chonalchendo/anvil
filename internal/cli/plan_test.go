@@ -235,7 +235,7 @@ func TestCreatePlan_BareIDIssue_PersistedFormIsIndexerCompatible(t *testing.T) {
 		t.Fatalf("create plan: %v\n%s", err, out.String())
 	}
 
-	path := filepath.Join(vault, "80-plans", "foo.bare-id-issue-plan.md")
+	path := filepath.Join(vault, "80-plans", "plan.foo.bare-id-issue-plan.md")
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		t.Fatalf("load artifact: %v", err)
@@ -247,13 +247,13 @@ func TestCreatePlan_BareIDIssue_PersistedFormIsIndexerCompatible(t *testing.T) {
 	rows := index.LinkRowsFromFrontmatter("foo.bare-id-issue-plan", a.FrontMatter)
 	var found bool
 	for _, r := range rows {
-		if r.Relation == "issue" && r.Target == "foo.target-issue" {
+		if r.Relation == "issue" && r.Target == "issue.foo.target-issue" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("persisted issue=%q did not produce indexer edge to foo.target-issue; rows=%v", issueField, rows)
+		t.Fatalf("persisted issue=%q did not produce indexer edge to issue.foo.target-issue; rows=%v", issueField, rows)
 	}
 }
 

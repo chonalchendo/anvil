@@ -20,10 +20,10 @@ func TestCreate_SlugFlag_OverridesTitleDerivation(t *testing.T) {
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 	)
-	// Numbered format with --slug: demo.NNNN.custom-slug.md
+	// Numbered format with --slug: issue.demo.NNNN.custom-slug.md
 	base := filepath.Base(path)
-	if matched, _ := filepath.Match("demo.[0-9][0-9][0-9][0-9].custom-slug.md", base); !matched {
-		t.Errorf("unexpected filename %q: want demo.NNNN.custom-slug.md", base)
+	if matched, _ := filepath.Match("issue.demo.[0-9][0-9][0-9][0-9].custom-slug.md", base); !matched {
+		t.Errorf("unexpected filename %q: want issue.demo.NNNN.custom-slug.md", base)
 	}
 }
 
@@ -167,7 +167,7 @@ func TestCreate_Plan_DefaultsSlugFromIssueLink(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v\n%s", err, out.String())
 	}
-	path := filepath.Join(vault, "80-plans", "foo.bootstrap-with-pre-parse.md")
+	path := filepath.Join(vault, "80-plans", "plan.foo.bootstrap-with-pre-parse.md")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("expected plan slug to derive from issue: missing %s: %v\n%s",
 			path, err, out.String())
@@ -199,7 +199,7 @@ func TestCreate_Plan_SlugFlagOverridesIssueDerivation(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v\n%s", err, out.String())
 	}
-	path := filepath.Join(vault, "80-plans", "foo.bootstrap-phase-2.md")
+	path := filepath.Join(vault, "80-plans", "plan.foo.bootstrap-phase-2.md")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("expected --slug to override issue derivation: missing %s\n%s",
 			path, out.String())

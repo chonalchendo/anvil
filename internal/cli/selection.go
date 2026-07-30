@@ -48,7 +48,9 @@ func selectReadyUnits(rows []index.ArtifactRow, milestone string) []readyUnit {
 			continue
 		}
 		ms := milestoneSlug(a.FrontMatter["milestone"])
-		if milestone != "" && ms != milestone {
+		// Canonicalise both sides: milestoneSlug yields the bare wikilink tail
+		// while the CLI prints (and callers paste) the `milestone.`-prefixed id.
+		if milestone != "" && core.CanonicalID(core.TypeMilestone, ms) != core.CanonicalID(core.TypeMilestone, milestone) {
 			continue
 		}
 		goal, _ := a.FrontMatter["goal"].(string)

@@ -22,7 +22,7 @@ func TestBuild_DryRunJSON_EmitsPlanEnvelope(t *testing.T) {
 	// --dry-run --json emits a single plan envelope so callers can assert
 	// per-task fields (config_dir uniqueness, auto_merge) and the run id without
 	// slurp mode.
-	for _, want := range []string{`"run_id":`, `"task_id":"demo.foo"`, `"config_dir":`, `"auto_merge":false`, `"tasks":`} {
+	for _, want := range []string{`"run_id":`, `"task_id":"issue.demo.foo"`, `"config_dir":`, `"auto_merge":false`, `"tasks":`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in output:\n%s", want, out)
 		}
@@ -61,8 +61,8 @@ func TestBuild_DryRun_PersistsQueryableTelemetry(t *testing.T) {
 		t.Fatalf("got total=%d items=%d, want 1:\n%s", env2.Total, len(env2.Items), tasksOut)
 	}
 	r := env2.Items[0]
-	if r["task_id"] != "demo.foo" {
-		t.Errorf("task_id = %v, want demo.foo", r["task_id"])
+	if r["task_id"] != "issue.demo.foo" {
+		t.Errorf("task_id = %v, want issue.demo.foo", r["task_id"])
 	}
 	if r["outcome"] != "skipped_dry_run" {
 		t.Errorf("outcome = %v, want skipped_dry_run", r["outcome"])
@@ -123,7 +123,7 @@ func TestBuild_DoneMilestone_ShortCircuits(t *testing.T) {
 	// before selecting work, reporting the milestone done rather than the
 	// generic no-ready notice.
 	out := execCmd(t, "build", "--dry-run", "--project", "demo", "--milestone", "demo.m1")
-	if !strings.Contains(out, "milestone demo.m1 is done (1/1 resolved)") {
+	if !strings.Contains(out, "milestone milestone.demo.m1 is done (1/1 resolved)") {
 		t.Errorf("expected done short-circuit; got:\n%s", out)
 	}
 }
@@ -419,8 +419,8 @@ func TestBuildLearningsInjection_SurfacesRelatedLearningInCompleteTask(t *testin
 	if err := json.Unmarshal([]byte(out), &env); err != nil {
 		t.Fatalf("plan envelope not JSON: %v\n%s", err, out)
 	}
-	if len(env.Tasks) != 1 || env.Tasks[0].TaskID != "demo.foo" {
-		t.Fatalf("got tasks %+v, want one demo.foo:\n%s", env.Tasks, out)
+	if len(env.Tasks) != 1 || env.Tasks[0].TaskID != "issue.demo.foo" {
+		t.Fatalf("got tasks %+v, want one issue.demo.foo:\n%s", env.Tasks, out)
 	}
 	body := env.Tasks[0].Instruction
 	for _, want := range []string{

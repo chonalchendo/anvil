@@ -45,11 +45,11 @@ func findNearDuplicates(v *core.Vault, t core.Type, project, candidateID string)
 			if !strings.HasSuffix(name, ".md") {
 				continue
 			}
-			id := strings.TrimSuffix(name, ".md")
+			id := core.CanonicalID(t, strings.TrimSuffix(name, ".md"))
 			if id == candidateID {
 				continue
 			}
-			if prefix != "" && !strings.HasPrefix(id, prefix) {
+			if prefix != "" && !strings.HasPrefix(core.BareID(t, id), prefix) {
 				continue
 			}
 			if similarSlugs(candidateSlug, slugFromID(t, id)) {
@@ -128,6 +128,7 @@ func contentDuplicates(v *core.Vault, t core.Type, project, candidateID string) 
 func slugFromID(t core.Type, id string) string {
 	switch t {
 	case core.TypeIssue, core.TypePlan, core.TypeMilestone:
+		id = core.BareID(t, id)
 		if i := strings.IndexByte(id, '.'); i >= 0 {
 			rest := id[i+1:]
 			// Numbered issue: strip leading ordinal segment (all-digit token).

@@ -31,7 +31,7 @@ func TestIndexAfterSaveCreatesAndUpdates(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close() //nolint:errcheck // close in defer; error not actionable
-	row, err := db.GetArtifact("demo.foo")
+	row, err := db.GetArtifact("issue.demo.foo")
 	if err != nil {
 		t.Fatalf("GetArtifact: %v", err)
 	}

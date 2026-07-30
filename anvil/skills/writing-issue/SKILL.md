@@ -243,7 +243,7 @@ anvil create issue --title "<title>" --description "<one-line preview>" --goal "
 
 An optional `## Acceptance criteria` prose checklist may follow `## Problem` when an unambiguous bulleted list aids the implementer — but it is no longer required, and the binary gate is `## Verification`, not AC.
 
-Capture `id` and `path` from the JSON output. The file lands at `~/anvil-vault/70-issues/<project>.<slug>.md`.
+Capture `id` and `path` from the JSON output. The file lands at `~/anvil-vault/70-issues/issue.<project>.NNNN.<slug>.md`.
 
 Set typed frontmatter slots (these are still post-create — typed setters live outside the body):
 

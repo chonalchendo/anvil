@@ -158,7 +158,7 @@ func buildFleetRows(v *core.Vault) ([]fleetRow, error) {
 		if s, _ := a.FrontMatter["status"].(string); s != "in-progress" {
 			continue
 		}
-		id := strings.TrimSuffix(filepath.Base(p), ".md")
+		id := core.CanonicalID(core.TypeIssue, strings.TrimSuffix(filepath.Base(p), ".md"))
 		owner, _ := a.FrontMatter["owner"].(string)
 
 		row := fleetRow{ID: id, Owner: owner}
