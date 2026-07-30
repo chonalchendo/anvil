@@ -25,8 +25,8 @@ func TestSet_PrintsConfirmation_Scalar(t *testing.T) {
 		t.Fatalf("set: %v\n%s", err, out.String())
 	}
 	got := strings.TrimSpace(out.String())
-	if got != "foo.a: status open → resolved" {
-		t.Errorf("output = %q, want %q", got, "foo.a: status open → resolved")
+	if got != "issue.foo.a: status open → resolved" {
+		t.Errorf("output = %q, want %q", got, "issue.foo.a: status open → resolved")
 	}
 }
 
@@ -46,7 +46,7 @@ func TestSet_JSONEnvelope_Scalar(t *testing.T) {
 	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &got); err != nil {
 		t.Fatalf("not JSON: %v\n%s", err, out.String())
 	}
-	if got["id"] != "foo.a" {
+	if got["id"] != "issue.foo.a" {
 		t.Errorf("id = %v", got["id"])
 	}
 	if got["field"] != "status" {
@@ -122,7 +122,7 @@ func TestSet_JSONEnvelope_ArrayAdd(t *testing.T) {
 	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &got); err != nil {
 		t.Fatalf("not JSON: %v\n%s", err, out.String())
 	}
-	if got["id"] != "foo.a" || got["field"] != "acceptance" || got["status"] != "added" {
+	if got["id"] != "issue.foo.a" || got["field"] != "acceptance" || got["status"] != "added" {
 		t.Errorf("envelope = %#v", got)
 	}
 	to, ok := got["to"].([]any)
@@ -483,7 +483,7 @@ func TestSetPlan_StatusLocked_ValidatesFirst(t *testing.T) {
 
 	// Index must reflect the rolled-back state, not the transient `locked`
 	// the file briefly held before the dangling-DAG validator rejected it.
-	row, ierr := openIndex(t, vault).GetArtifact("ANV-142")
+	row, ierr := openIndex(t, vault).GetArtifact("plan.ANV-142")
 	if ierr != nil {
 		t.Fatalf("expected plan in index after rollback: %v", ierr)
 	}
@@ -964,7 +964,7 @@ func TestSet_Issue_ByOrdinal(t *testing.T) {
 		"--allow-new-facet=domain",
 	)
 	id := strings.TrimSuffix(filepath.Base(path), ".md")
-	if !strings.HasPrefix(id, "foo.0001.") {
+	if !strings.HasPrefix(id, "issue.foo.0001.") {
 		t.Fatalf("expected first issue at ordinal 0001, got %q", id)
 	}
 

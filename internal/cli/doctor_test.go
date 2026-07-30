@@ -49,7 +49,7 @@ func TestDoctorMergedPRIssue(t *testing.T) {
 	}
 	found := false
 	for _, f := range findings {
-		if f.Kind == "merged-pr-issue" && f.ID == id {
+		if f.Kind == "merged-pr-issue" && f.ID == core.CanonicalID(core.TypeIssue, id) {
 			found = true
 			if f.Fix == "" {
 				t.Error("finding has empty fix")
@@ -100,7 +100,7 @@ func TestDoctorDeadClaim(t *testing.T) {
 	}
 	found := false
 	for _, f := range findings {
-		if f.Kind == "dead-claim" && f.ID == id {
+		if f.Kind == "dead-claim" && f.ID == core.CanonicalID(core.TypeIssue, id) {
 			found = true
 			if f.Fix == "" {
 				t.Error("finding has empty fix")
@@ -162,9 +162,9 @@ func TestDoctorDeadClaim_MergedBranchRecommendsResolve(t *testing.T) {
 	}
 	found := false
 	for _, f := range findings {
-		if f.Kind == "dead-claim" && f.ID == id {
+		if f.Kind == "dead-claim" && f.ID == core.CanonicalID(core.TypeIssue, id) {
 			found = true
-			if f.Fix != "anvil transition issue "+id+" resolved" {
+			if f.Fix != "anvil transition issue "+core.CanonicalID(core.TypeIssue, id)+" resolved" {
 				t.Errorf("expected fix 'anvil transition issue %s resolved', got %q", id, f.Fix)
 			}
 		}
@@ -215,9 +215,9 @@ func TestDoctorDeadClaim_NoMergedBranchRecommendsOpen(t *testing.T) {
 	}
 	found := false
 	for _, f := range findings {
-		if f.Kind == "dead-claim" && f.ID == id {
+		if f.Kind == "dead-claim" && f.ID == core.CanonicalID(core.TypeIssue, id) {
 			found = true
-			if f.Fix != "anvil transition issue "+id+" open" {
+			if f.Fix != "anvil transition issue "+core.CanonicalID(core.TypeIssue, id)+" open" {
 				t.Errorf("expected fix 'anvil transition issue %s open', got %q", id, f.Fix)
 			}
 		}
@@ -268,7 +268,7 @@ func TestDoctorDeadClaim_LiveWorktreeSuppresses(t *testing.T) {
 		t.Fatalf("runDoctor: %v", err)
 	}
 	for _, f := range findings {
-		if f.Kind == "dead-claim" && f.ID == id {
+		if f.Kind == "dead-claim" && f.ID == core.CanonicalID(core.TypeIssue, id) {
 			t.Errorf("unexpected dead-claim finding for issue with live worktree")
 		}
 	}
@@ -317,7 +317,7 @@ func TestDoctorDeadClaim_RenamedBranchWorktreeSuppresses(t *testing.T) {
 		t.Fatalf("runDoctor: %v", err)
 	}
 	for _, f := range findings {
-		if f.Kind == "dead-claim" && f.ID == id {
+		if f.Kind == "dead-claim" && f.ID == core.CanonicalID(core.TypeIssue, id) {
 			t.Errorf("unexpected dead-claim finding for issue with live worktree on renamed branch")
 		}
 	}
@@ -359,7 +359,7 @@ func TestDoctorDeadClaim_CurrentSessionSuppresses(t *testing.T) {
 		t.Fatalf("runDoctor: %v", err)
 	}
 	for _, f := range findings {
-		if f.Kind == "dead-claim" && f.ID == id {
+		if f.Kind == "dead-claim" && f.ID == core.CanonicalID(core.TypeIssue, id) {
 			t.Errorf("unexpected dead-claim finding for the current session's own claim")
 		}
 	}
@@ -401,7 +401,7 @@ func TestDoctorDeadClaim_OtherProjectSkipped(t *testing.T) {
 		t.Fatalf("runDoctor: %v", err)
 	}
 	for _, f := range findings {
-		if f.Kind == "dead-claim" && f.ID == id {
+		if f.Kind == "dead-claim" && f.ID == core.CanonicalID(core.TypeIssue, id) {
 			t.Errorf("unexpected dead-claim finding for another project's issue")
 		}
 	}
@@ -452,7 +452,7 @@ func claimedIssue(t *testing.T, vault, id, claimSession string) string {
 
 func hasDeadClaim(findings []doctorFinding, id string) bool {
 	for _, f := range findings {
-		if f.Kind == "dead-claim" && f.ID == id {
+		if f.Kind == "dead-claim" && f.ID == core.CanonicalID(core.TypeIssue, id) {
 			return true
 		}
 	}

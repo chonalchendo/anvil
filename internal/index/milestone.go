@@ -24,6 +24,9 @@ type MilestoneStatus struct {
 // ErrArtifactNotInIndex when the id is not a milestone in the index, so a typo —
 // or a non-milestone id — surfaces rather than reporting a silent done=false.
 func (d *DB) MilestoneStatus(milestoneID string) (MilestoneStatus, error) {
+	// Callers pass a user-typed slug (`--milestone anvil.v0-2`); artifacts.id
+	// and links.target are both canonical, so normalise before either lookup.
+	milestoneID = core.CanonicalID(core.TypeMilestone, milestoneID)
 	a, err := d.GetArtifact(milestoneID)
 	if err != nil {
 		return MilestoneStatus{}, err

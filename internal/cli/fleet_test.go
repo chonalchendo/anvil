@@ -258,9 +258,9 @@ func TestBuildFleetRows_MatchesIssuesToWorktrees(t *testing.T) {
 	if len(byID) != 2 {
 		t.Fatalf("want 2 in-progress rows, got %d: %+v", len(byID), rows)
 	}
-	got := byID["anvil.matched-issue"]
+	got := byID["issue.anvil.matched-issue"]
 	want := fleetRow{
-		ID: "anvil.matched-issue", Owner: "claude-alpha",
+		ID: "issue.anvil.matched-issue", Owner: "claude-alpha",
 		Worktree: "/tmp/wt/matched-issue", Branch: "anvil/matched-issue",
 		HeadSHA: "deadbee", PushState: "ahead-2",
 		PRNumber: 42, PRURL: "https://github.com/x/y/pull/42",
@@ -270,10 +270,10 @@ func TestBuildFleetRows_MatchesIssuesToWorktrees(t *testing.T) {
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("matched row (-want +got):\n%s", diff)
 	}
-	if note := byID["anvil.orphan-issue"].Note; note != "no matching worktree" {
+	if note := byID["issue.anvil.orphan-issue"].Note; note != "no matching worktree" {
 		t.Errorf("orphan row note = %q, want 'no matching worktree'", note)
 	}
-	if _, present := byID["anvil.not-claimed"]; present {
+	if _, present := byID["issue.anvil.not-claimed"]; present {
 		t.Errorf("open issue should not appear in fleet rows")
 	}
 }
@@ -491,7 +491,7 @@ func TestFleetStatus_JSONEnvelope(t *testing.T) {
 	if env.Count != 1 || len(env.Rows) != 1 {
 		t.Errorf("want count=1, got %+v", env)
 	}
-	if env.Rows[0].ID != "anvil.solo-issue" {
+	if env.Rows[0].ID != "issue.anvil.solo-issue" {
 		t.Errorf("row id = %q", env.Rows[0].ID)
 	}
 }

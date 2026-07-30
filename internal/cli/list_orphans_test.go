@@ -31,13 +31,13 @@ func TestListOrphansReturnsArtifactsWithNoIncomingLinks(t *testing.T) {
 	for _, it := range env.Items {
 		got[it.ID] = true
 	}
-	if !got["demo.lonely"] {
+	if !got["issue.demo.lonely"] {
 		t.Errorf("lonely missing from orphans: %v", env.Items)
 	}
-	if !got["demo.linker"] {
+	if !got["issue.demo.linker"] {
 		t.Errorf("linker missing from orphans (source-only edges don't count as incoming): %v", env.Items)
 	}
-	if got["demo.popular"] {
+	if got["issue.demo.popular"] {
 		t.Errorf("popular should NOT be in orphans: %v", env.Items)
 	}
 }

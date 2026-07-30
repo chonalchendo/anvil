@@ -127,8 +127,8 @@ func TestNext_JSON_ReturnsHeadDeterministically(t *testing.T) {
 	if err := json.Unmarshal([]byte(strings.TrimSpace(out1)), &u); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out1)
 	}
-	if u.ID != "demo.crit" {
-		t.Errorf("next head = %q, want demo.crit (critical outranks low)", u.ID)
+	if u.ID != "issue.demo.crit" {
+		t.Errorf("next head = %q, want issue.demo.crit (critical outranks low)", u.ID)
 	}
 	if u.Goal == "" || u.Severity != "critical" || u.Path == "" {
 		t.Errorf("start-context fields incomplete: %+v", u)

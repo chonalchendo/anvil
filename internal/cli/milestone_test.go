@@ -44,7 +44,7 @@ func TestMilestoneStatus_JSON_ReportsDoneSignal(t *testing.T) {
 	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &got); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
-	if got["milestone"] != "demo.m1" || got["resolved"] != float64(1) || got["total"] != float64(2) || got["done"] != false {
+	if got["milestone"] != "milestone.demo.m1" || got["resolved"] != float64(1) || got["total"] != float64(2) || got["done"] != false {
 		t.Fatalf("not-done signal mismatch: %v", got)
 	}
 

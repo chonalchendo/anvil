@@ -153,8 +153,8 @@ func TestShow_JSON_EnvelopeKeysShadowFrontmatter(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
-	if got["id"] != "foo.bar" {
-		t.Errorf("id=%v, want \"foo.bar\" (envelope wins on collision)", got["id"])
+	if got["id"] != "issue.foo.bar" {
+		t.Errorf("id=%v, want \"issue.foo.bar\" (envelope wins on collision)", got["id"])
 	}
 	if got["path"] == "/frontmatter/path/should/lose" {
 		t.Errorf("path=%v, frontmatter value leaked through (envelope must win)", got["path"])
@@ -621,8 +621,8 @@ func TestShow_IncomingEdges(t *testing.T) {
 	if !ok || len(issues) != 1 {
 		t.Fatalf("incoming.issue = %v (want one entry), full: %v", issues, got.Incoming)
 	}
-	if issues[0].ID != "demo.source-issue" || issues[0].Title != "Source issue" {
-		t.Errorf("incoming entry = %+v, want {demo.source-issue, Source issue}", issues[0])
+	if issues[0].ID != "issue.demo.source-issue" || issues[0].Title != "Source issue" {
+		t.Errorf("incoming entry = %+v, want {issue.demo.source-issue, Source issue}", issues[0])
 	}
 
 	// Text output: section header + grouped entry.
@@ -835,7 +835,7 @@ func TestShow_Issue_ByOrdinal(t *testing.T) {
 		"--allow-new-facet=domain",
 	)
 	id := strings.TrimSuffix(filepath.Base(path), ".md")
-	if !strings.HasPrefix(id, "foo.0001.") {
+	if !strings.HasPrefix(id, "issue.foo.0001.") {
 		t.Fatalf("expected first issue at ordinal 0001, got %q", id)
 	}
 
@@ -1108,14 +1108,13 @@ func TestShow_TypePrefixedFilename(t *testing.T) {
 
 	// The id every read verb prints is the canonical one, and no edge to the
 	// prefix-named file is reported dangling.
-	if listed := execCmd(t, "list", "issue"); !strings.Contains(listed, "demo.0001.probe") ||
-		strings.Contains(listed, "issue.demo.0001.probe") {
+	if listed := execCmd(t, "list", "issue"); !strings.Contains(listed, "issue.demo.0001.probe") {
 		t.Errorf("list issue should print the canonical id, got:\n%s", listed)
 	}
 	if unresolved := execCmd(t, "link", "--unresolved"); strings.TrimSpace(unresolved) != "" {
 		t.Errorf("link --unresolved should be empty, got:\n%s", unresolved)
 	}
-	if to := execCmd(t, "link", "--to", "demo.0001.probe"); !strings.Contains(to, "demo.0002.ref") {
-		t.Errorf("link --to demo.0001.probe should return the edge, got:\n%s", to)
+	if to := execCmd(t, "link", "--to", "issue.demo.0001.probe"); !strings.Contains(to, "demo.0002.ref") {
+		t.Errorf("link --to issue.demo.0001.probe should return the edge, got:\n%s", to)
 	}
 }

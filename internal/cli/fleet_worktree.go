@@ -28,8 +28,11 @@ func fleetCandidateSlugs(v *core.Vault, id string) []string {
 		seen[slug] = true
 		out = append(out, slug)
 	}
-	if dot := strings.IndexByte(id, '.'); dot >= 0 && dot+1 < len(id) {
-		add(id[dot+1:])
+	// Canonical issue ids carry an `issue.` prefix; strip it or the project
+	// segment leaks into the slug and never matches a worktree branch.
+	bare := strings.TrimPrefix(id, string(core.TypeIssue)+".")
+	if dot := strings.IndexByte(bare, '.'); dot >= 0 && dot+1 < len(bare) {
+		add(bare[dot+1:])
 	}
 	slugs, _ := linkedPlanSlugs(v, id)
 	for _, s := range slugs {

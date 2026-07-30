@@ -48,8 +48,8 @@ func TestReindexPopulatesArtifactsAndLinks(t *testing.T) {
 		t.Fatalf("links: got %d want 1", stats.Links)
 	}
 
-	if _, err := db.GetArtifact("demo.foo"); err != nil {
-		t.Fatalf("expected demo.foo present: %v", err)
+	if _, err := db.GetArtifact("issue.demo.foo"); err != nil {
+		t.Fatalf("expected issue.demo.foo present: %v", err)
 	}
 	if _, err := db.GetLastReindex(); err != nil {
 		t.Fatalf("last reindex stamp not set: %v", err)
@@ -117,7 +117,7 @@ func TestReindexBodyWikilinks(t *testing.T) {
 	}
 
 	// anvil.src should have two body-relation outgoing edges.
-	rows, err := db.LinksFrom("anvil.src")
+	rows, err := db.LinksFrom("issue.anvil.src")
 	if err != nil {
 		t.Fatalf("LinksFrom: %v", err)
 	}
@@ -132,18 +132,18 @@ func TestReindexBodyWikilinks(t *testing.T) {
 	}
 
 	// LinksTo("anvil.foo") must surface anvil.src.
-	inbound, err := db.LinksTo("anvil.foo")
+	inbound, err := db.LinksTo("issue.anvil.foo")
 	if err != nil {
 		t.Fatalf("LinksTo: %v", err)
 	}
 	found := false
 	for _, r := range inbound {
-		if r.Source == "anvil.src" && r.Relation == "body" {
+		if r.Source == "issue.anvil.src" && r.Relation == "body" {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("expected anvil.src with relation=body in LinksTo(anvil.foo), got %v", inbound)
+		t.Fatalf("expected issue.anvil.src with relation=body in LinksTo(issue.anvil.foo), got %v", inbound)
 	}
 }
 
@@ -184,10 +184,10 @@ func TestIncrementalSkipsUnchangedFiles(t *testing.T) {
 	if stats.Artifacts != 2 {
 		t.Fatalf("artifacts: got %d want 2", stats.Artifacts)
 	}
-	if _, err := db.GetArtifact("a"); err != nil {
+	if _, err := db.GetArtifact("issue.a"); err != nil {
 		t.Fatalf("artifact a missing after incremental: %v", err)
 	}
-	if _, err := db.GetArtifact("b"); err != nil {
+	if _, err := db.GetArtifact("issue.b"); err != nil {
 		t.Fatalf("artifact b missing after incremental: %v", err)
 	}
 }
@@ -239,7 +239,7 @@ func TestIncrementalDeletePurgesRows(t *testing.T) {
 	if stats.Links != 0 {
 		t.Fatalf("links after delete: got %d want 0", stats.Links)
 	}
-	if _, err := db.GetArtifact("a"); err == nil {
+	if _, err := db.GetArtifact("issue.a"); err == nil {
 		t.Fatal("artifact a should be purged but is still present")
 	}
 	links, err := db.LinksFrom("a")
@@ -328,7 +328,7 @@ func TestIncrementalEqualsFullRebuild(t *testing.T) {
 	}
 
 	// Verify a's updated status is reflected.
-	row, err := db.GetArtifact("a")
+	row, err := db.GetArtifact("issue.a")
 	if err != nil {
 		t.Fatalf("GetArtifact a: %v", err)
 	}
@@ -388,7 +388,7 @@ func TestIncrementalRenamePreservedMtimeEqualsFull(t *testing.T) {
 		t.Errorf("link count mismatch after rename: incremental=%d full=%d", incStats.Links, fullStats.Links)
 	}
 	// The artifact must survive at its new path, not be dropped.
-	row, err := db.GetArtifact("a")
+	row, err := db.GetArtifact("issue.a")
 	if err != nil {
 		t.Fatalf("GetArtifact a after rename: %v", err)
 	}
@@ -444,7 +444,7 @@ func TestIncrementalUnparseableEditEqualsFull(t *testing.T) {
 		t.Errorf("link count mismatch after unparseable edit: incremental=%d full=%d", incStats.Links, fullStats.Links)
 	}
 	// The stale row must be gone, matching the full rebuild's omission.
-	if _, err := db.GetArtifact("a"); err == nil {
+	if _, err := db.GetArtifact("issue.a"); err == nil {
 		t.Error("artifact a should be purged after edit into unparseable frontmatter")
 	}
 }

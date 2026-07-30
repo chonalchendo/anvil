@@ -83,7 +83,7 @@ func TestValidate_SingleFile_HappyPath(t *testing.T) {
 	}
 
 	val := newRootCmd()
-	val.SetArgs([]string{"validate", filepath.Join(vault, "70-issues", "foo.0001.good.md")})
+	val.SetArgs([]string{"validate", filepath.Join(vault, "70-issues", "issue.foo.0001.good.md")})
 	var out bytes.Buffer
 	val.SetOut(&out)
 	val.SetErr(&out)
@@ -447,8 +447,9 @@ func TestValidate_Issue_MissingVerification(t *testing.T) {
 func TestValidate_DuplicateID_CrossFile(t *testing.T) {
 	vault := setupVault(t)
 
-	// Plant an issue and a plan that share the same id field — the classic
-	// deprecated-plan-shadows-promoted-issue collision.
+	// Plant two issue files sharing one id field — the classic
+	// deprecated-shadows-promoted collision. Same type: canonical ids carry the
+	// `<type>.` prefix, so a cross-type id clash is no longer a collision.
 	issue := &core.Artifact{
 		Path: filepath.Join(vault, "70-issues", "demo.dup.md"),
 		FrontMatter: map[string]any{
@@ -459,14 +460,14 @@ func TestValidate_DuplicateID_CrossFile(t *testing.T) {
 	if err := issue.Save(); err != nil {
 		t.Fatal(err)
 	}
-	plan := &core.Artifact{
-		Path: filepath.Join(vault, "80-plans", "demo.dup.md"),
+	shadow := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", "demo.dup-shadow.md"),
 		FrontMatter: map[string]any{
-			"id": "demo.dup", "type": "plan", "title": "dup",
-			"status": "draft",
+			"id": "demo.dup", "type": "issue", "title": "dup",
+			"status": "open",
 		},
 	}
-	if err := plan.Save(); err != nil {
+	if err := shadow.Save(); err != nil {
 		t.Fatal(err)
 	}
 

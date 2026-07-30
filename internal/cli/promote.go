@@ -131,19 +131,13 @@ func ptrIfNonEmpty(s string) *string {
 	return &s
 }
 
-// promotedToBareID extracts the bare `<project>.<slug>` from the inbox's
+// promotedToID extracts the canonical target id from the inbox's
 // `promoted_to` field. New writes use the wikilink form (`[[<type>.<id>]]`)
 // so the index picks up the edge; legacy fixtures hold the bare ID. Accept
 // either.
-func promotedToBareID(v any) string {
+func promotedToID(t core.Type, v any) string {
 	s, _ := v.(string)
-	if strings.HasPrefix(s, "[[") && strings.HasSuffix(s, "]]") {
-		s = s[2 : len(s)-2]
-		if dot := strings.IndexByte(s, '.'); dot >= 0 {
-			return s[dot+1:]
-		}
-	}
-	return s
+	return core.CanonicalID(t, strings.TrimSuffix(strings.TrimPrefix(s, "[["), "]]"))
 }
 
 // formatEnumError builds a principle-4 actionable error: offending value,
@@ -170,14 +164,15 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	switch status {
 	case "promoted":
 		recordedType, _ := inbox.FrontMatter["promoted_type"].(string)
-		recordedTo := promotedToBareID(inbox.FrontMatter["promoted_to"])
+		recordedTo := promotedToID(target, inbox.FrontMatter["promoted_to"])
+		_, recordedToPath := core.ResolveArtifact(v, target, recordedTo)
 		if recordedType == string(target) {
 			tt, ti, si := recordedType, recordedTo, inboxID
 			return emitPromoteOutput(cmd, asJSON,
 				promoteOutput{
 					ID: recordedTo, SourceID: &si, TargetID: &ti, TargetType: &tt,
 					Status: "already_promoted",
-					Path:   ptrIfNonEmpty(filepath.Join(v.Root, target.Dir(), recordedTo+".md")),
+					Path:   ptrIfNonEmpty(recordedToPath),
 				},
 				fmt.Sprintf("already promoted %s -> %s %s", inboxID, recordedType, recordedTo),
 			)
@@ -318,7 +313,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	}
 
 	inbox.FrontMatter["status"] = "promoted"
-	inbox.FrontMatter["promoted_to"] = fmt.Sprintf("[[%s.%s]]", target, targetID)
+	inbox.FrontMatter["promoted_to"] = fmt.Sprintf("[[%s]]", linkDisplay(target, targetID))
 	inbox.FrontMatter["promoted_type"] = string(target)
 	inbox.FrontMatter["updated"] = created
 	if err := schema.Validate(string(core.TypeInbox), inbox.FrontMatter); err != nil {

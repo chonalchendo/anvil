@@ -85,6 +85,13 @@ func slugifyIssue(s string) string {
 // numberedIssueRe matches <project>.NNNN.<slug>.md — used by ordinal scan.
 var numberedIssueRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*\.([0-9]+)\.[a-z0-9][a-z0-9-]*\.md$`)
 
+// issueBasename drops the optional `issue.` filename prefix so directory scans
+// read both shapes: the prefixed one new issues mint under, and the bare
+// back-catalogue one (renamed separately, attended).
+func issueBasename(name string) string {
+	return strings.TrimPrefix(name, string(TypeIssue)+".")
+}
+
 // nextIssueOrdinal scans the issues directory for files matching
 // <project>.NNNN.<slug>.md and returns max(ordinal)+1 scoped to that project.
 func nextIssueOrdinal(v *Vault, project string) (int, error) {
@@ -99,7 +106,7 @@ func nextIssueOrdinal(v *Vault, project string) (int, error) {
 	prefix := project + "."
 	highest := 0
 	for _, e := range entries {
-		name := e.Name()
+		name := issueBasename(e.Name())
 		if !strings.HasPrefix(name, prefix) {
 			continue
 		}
@@ -149,7 +156,7 @@ func AllocateIssueID(v *Vault, project, title, slugOverride string) (id, path st
 		if err != nil {
 			return "", "", err
 		}
-		candidate := fmt.Sprintf("%s.%04d.%s", project, ordinal, slug)
+		candidate := fmt.Sprintf("%s.%s.%04d.%s", TypeIssue, project, ordinal, slug)
 		candidatePath := filepath.Join(dir, candidate+".md")
 		f, err := os.OpenFile(candidatePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644) //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		if err == nil {
@@ -168,10 +175,10 @@ func AllocateIssueID(v *Vault, project, title, slugOverride string) (id, path st
 	return "", "", fmt.Errorf("unable to allocate numbered issue ID after 20 attempts")
 }
 
-// findIssueBySlug returns the ID (without .md) and path of an existing
-// <project>.NNNN.<slug>.md whose slug matches exactly, scoped to project.
-// Returns ("", "", false) when none exists. Slug is unique per project under
-// the numbered scheme, so at most one file matches.
+// findIssueBySlug returns the canonical ID and path of an existing
+// [issue.]<project>.NNNN.<slug>.md whose slug matches exactly, scoped to
+// project. Returns ("", "", false) when none exists. Slug is unique per
+// project under the numbered scheme, so at most one file matches.
 func findIssueBySlug(v *Vault, project, slug string) (id, path string, found bool) {
 	dir := filepath.Join(v.Root, TypeIssue.Dir())
 	entries, err := os.ReadDir(dir)
@@ -181,13 +188,13 @@ func findIssueBySlug(v *Vault, project, slug string) (id, path string, found boo
 	prefix := project + "."
 	suffix := "." + slug + ".md"
 	for _, e := range entries {
-		name := e.Name()
+		name := issueBasename(e.Name())
 		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
 			continue
 		}
 		ordinal := name[len(prefix) : len(name)-len(suffix)]
 		if ordinal != "" && ordinalOnlyRe.MatchString(ordinal) {
-			return strings.TrimSuffix(name, ".md"), filepath.Join(dir, name), true
+			return CanonicalID(TypeIssue, strings.TrimSuffix(name, ".md")), filepath.Join(dir, e.Name()), true
 		}
 	}
 	return "", "", false
@@ -232,46 +239,42 @@ func ResolveIssueOrdinal(v *Vault, project, ordinal string) (string, bool) {
 		return "", false
 	}
 	for _, e := range entries {
-		name := e.Name()
+		name := issueBasename(e.Name())
 		if strings.HasPrefix(name, prefix) && strings.HasSuffix(name, ".md") {
-			return strings.TrimSuffix(name, ".md"), true
+			return CanonicalID(TypeIssue, strings.TrimSuffix(name, ".md")), true
 		}
 	}
 	return "", false
 }
 
-// ResolveIssueArg canonicalises a user-supplied issue argument to a full issue
-// ID so read (show/list) and write (set/transition) paths accept identical
-// forms. It handles, in order:
-//   - a qualified "issue.<project>.<slug>" wikilink — strips the "issue."
-//     prefix (only when the remainder still contains "." so the bare
-//     "issue.<project>" singleton form is left intact);
+// ResolveIssueArg canonicalises a user-supplied issue argument to the full
+// canonical issue ID (issue.<project>.NNNN.<slug>) so read (show/list) and
+// write (set/transition) paths accept identical forms. It handles, in order:
 //   - a project-qualified ordinal "<project>.NNNN" — resolved against the
 //     issues directory;
-//   - a bare ordinal "NNNN" — project taken from cwd context.
+//   - a bare ordinal "NNNN" — project taken from cwd context;
+//   - anything else — normalised through CanonicalID, so an id given with or
+//     without its "issue." prefix lands on the same shape.
 //
-// Any argument that is none of these (an already-full ID, an unresolvable
-// ordinal) is returned unchanged so the caller's path-load surfaces the
-// not-found error.
+// An unresolvable ordinal is returned in canonical shape so the caller's
+// path-load surfaces the not-found error against the id issues mint under.
 func ResolveIssueArg(v *Vault, arg string) string {
-	const prefix = string(TypeIssue) + "."
-	if rest, found := strings.CutPrefix(arg, prefix); found && strings.Contains(rest, ".") {
-		arg = rest
-	}
-	if proj, ord, ok := ParseProjectQualifiedOrdinal(arg); ok {
+	bare := strings.TrimPrefix(arg, string(TypeIssue)+".")
+	if proj, ord, ok := ParseProjectQualifiedOrdinal(bare); ok {
 		if resolved, ok := ResolveIssueOrdinal(v, proj, ord); ok {
 			return resolved
 		}
-		return arg
+		return CanonicalID(TypeIssue, bare)
 	}
-	if IsOrdinalOnly(arg) {
+	if IsOrdinalOnly(bare) {
 		if p, err := ResolveProject(); err == nil {
-			if resolved, ok := ResolveIssueOrdinal(v, p.Slug, arg); ok {
+			if resolved, ok := ResolveIssueOrdinal(v, p.Slug, bare); ok {
 				return resolved
 			}
 		}
+		return arg
 	}
-	return arg
+	return CanonicalID(TypeIssue, arg)
 }
 
 // IDInputs carries optional fields used by some artifact types.
@@ -286,12 +289,12 @@ type IDInputs struct {
 // before any collision-suffix is applied. Returns an error for decisions
 // (which require a vault scan to allocate an ordinal).
 //
-// Design types (product-design, system-design) derive their IDs from the type
-// name and project: product-design.<project> or system-design.<project>[.<slug>].
-// The type prefix stays in the id — the index keys on a global artifacts.id, so
-// a product-design and a system-design for the same project would otherwise
-// collide on the bare project slug (see decision design-layout.0001). They are
-// handled before the slug validation because they don't require a title.
+// Every project-scoped type keeps its `<type>.` prefix in the id, so the id,
+// the on-disk basename and the `[[type.id]]` wikilink are one string —
+// Obsidian matches literal basenames, and the index keys on a global
+// artifacts.id where a bare project slug would collide across types (see
+// decision design-layout.0001). Design types are handled before the slug
+// validation because they don't require a title.
 func DeterministicID(t Type, in IDInputs) (string, error) {
 	switch t {
 	case TypeProductDesign:
@@ -332,7 +335,7 @@ func DeterministicID(t Type, in IDInputs) (string, error) {
 		if in.Project == "" {
 			return "", fmt.Errorf("project required for %s", t)
 		}
-		return fmt.Sprintf("%s.%s", in.Project, slug), nil
+		return fmt.Sprintf("%s.%s.%s", t, in.Project, slug), nil
 	case TypeThread, TypeLearning, TypeSweep:
 		return slug, nil
 	case TypeConvention:

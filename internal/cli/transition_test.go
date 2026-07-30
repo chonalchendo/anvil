@@ -40,7 +40,7 @@ func TestTransitionHappyPathWritesFrontmatter(t *testing.T) {
 		t.Fatalf("envelope: %v", got)
 	}
 
-	row, err := openIndex(t, vault).GetArtifact("demo.foo")
+	row, err := openIndex(t, vault).GetArtifact("issue.demo.foo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +306,7 @@ func TestTransitionPlanToLocked_RejectsPlaceholderPlan(t *testing.T) {
 	}
 
 	// File status should still be draft (transition aborted).
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "demo.i.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "plan.demo.i.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -316,7 +316,7 @@ func TestTransitionPlanToLocked_RejectsPlaceholderPlan(t *testing.T) {
 
 	// Index must reflect the same draft state — guards against a future
 	// reorder that writes the index before validation.
-	row, ierr := openIndex(t, vault).GetArtifact("demo.i")
+	row, ierr := openIndex(t, vault).GetArtifact("plan.demo.i")
 	if ierr != nil {
 		t.Fatalf("loading index row: %v", ierr)
 	}
@@ -341,7 +341,7 @@ func TestTransitionPlanToLocked_AcceptsRealVerify(t *testing.T) {
 		"--allow-new-facet=domain")
 
 	// Rewrite the plan with a real verify and well-formed task body.
-	planPath := filepath.Join(vault, "80-plans", "demo.i.md")
+	planPath := filepath.Join(vault, "80-plans", "plan.demo.i.md")
 	realPlan := `---
 type: plan
 id: demo.i
@@ -810,7 +810,7 @@ func TestTransition_Issue_ByOrdinal(t *testing.T) {
 		"--allow-new-facet=domain",
 	)
 	id := strings.TrimSuffix(filepath.Base(path), ".md")
-	if !strings.HasPrefix(id, "foo.0001.") {
+	if !strings.HasPrefix(id, "issue.foo.0001.") {
 		t.Fatalf("expected first issue at ordinal 0001, got %q", id)
 	}
 

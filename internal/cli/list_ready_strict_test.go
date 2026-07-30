@@ -35,13 +35,13 @@ func TestListReadySurfacesUnblockedPrereqExcludesBlockedDependent(t *testing.T) 
 	for _, it := range env.Items {
 		got[it.ID] = true
 	}
-	if !got["demo.alpha"] {
+	if !got["issue.demo.alpha"] {
 		t.Errorf("expected demo.alpha ready; got %v", env.Items)
 	}
-	if got["demo.bravo"] {
+	if got["issue.demo.bravo"] {
 		t.Errorf("demo.bravo has unresolved depends_on, should not be ready: %v", env.Items)
 	}
-	if !got["demo.charlie"] {
+	if !got["issue.demo.charlie"] {
 		t.Errorf("demo.charlie is an unblocked prerequisite, should be ready: %v", env.Items)
 	}
 }
@@ -60,7 +60,7 @@ func TestListReadyStrictRecoversWhenBlockerResolves(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.charlie", "resolved")
 
 	out := execCmd(t, "list", "issue", "--ready", "--json")
-	if !strings.Contains(out, `"demo.bravo"`) {
+	if !strings.Contains(out, `"issue.demo.bravo"`) {
 		t.Errorf("demo.bravo should be ready once demo.charlie is resolved; got: %s", out)
 	}
 }

@@ -116,7 +116,10 @@ func runHydrate(cmd *cobra.Command, v *core.Vault, issueID string, tldr bool) er
 // dispatch task body — so an interactive and a headless implementer open the
 // same box.
 func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
-	iss, err := core.LoadArtifact(resolveArtifactPath(v.Root, core.TypeIssue, issueID))
+	// Callers hand a canonical id (walkability derives one per file), which may
+	// differ from the on-disk basename until the back catalogue is renamed.
+	_, issPath := core.ResolveArtifact(v, core.TypeIssue, issueID)
+	iss, err := core.LoadArtifact(issPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("%w: %s", ErrArtifactNotFound, issueID)

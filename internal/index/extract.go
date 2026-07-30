@@ -68,12 +68,16 @@ func ArtifactRowFromFrontmatter(fm map[string]any, path string) (ArtifactRow, er
 	id := get("id")
 	if id == "" {
 		id = strings.TrimSuffix(filepath.Base(path), ".md")
-		if t, err := core.ParseType(get("type")); err == nil {
-			id = core.CanonicalID(t, id)
-		}
 	}
 	if id == "" {
 		return ArtifactRow{}, fmt.Errorf("cannot derive id from frontmatter or path %q", path)
+	}
+	// Canonicalise whichever source supplied it: a frontmatter `id:` (plans
+	// carry one) is authored bare, and a filename may carry the `<type>.`
+	// prefix. Both sides of the artifacts.id ↔ links.target join must agree on
+	// one shape or every incoming edge dangles.
+	if t, err := core.ParseType(get("type")); err == nil {
+		id = core.CanonicalID(t, id)
 	}
 	return ArtifactRow{
 		ID:      id,
@@ -193,6 +197,12 @@ func parseWikilink(source, relation, s string) (LinkRow, bool) {
 	// Typed-slot fallback: a bare `<project>.<slug>` id stands in for the
 	// wikilink form when the field name names a single artifact type.
 	if typedSlotRelations[relation] && strings.IndexByte(trimmed, '.') > 0 {
+		// Every allowlisted slot is named after the type it points at, so the
+		// bare id can be canonicalised onto the shape artifacts.id carries —
+		// otherwise this half of the join dangles.
+		if t, err := core.ParseType(relation); err == nil {
+			trimmed = core.CanonicalID(t, trimmed)
+		}
 		return LinkRow{Source: source, Target: trimmed, Relation: relation, Anchor: ""}, true
 	}
 	return LinkRow{}, false

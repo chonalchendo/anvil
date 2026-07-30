@@ -2,7 +2,6 @@ package core
 
 import (
 	"fmt"
-	"path/filepath"
 )
 
 // AppendLink appends a wikilink to (tgt, tgtID) onto the source artifact's
@@ -11,7 +10,7 @@ import (
 // structural slots (issue.milestone, plan.issue, milestone.product_design,
 // milestone.system_design) are written via `anvil set`, not `link`.
 func AppendLink(v *Vault, src Type, srcID string, tgt Type, tgtID, field string) error {
-	path := filepath.Join(v.Root, src.Dir(), srcID+".md")
+	_, path := ResolveArtifact(v, src, srcID)
 	a, err := LoadArtifact(path)
 	if err != nil {
 		return fmt.Errorf("load source: %w", err)
@@ -32,7 +31,7 @@ func AppendLink(v *Vault, src Type, srcID string, tgt Type, tgtID, field string)
 // `related[]` — external pointers live in their own field so the link-graph
 // indexer (which parses `related[]` as wikilinks) never tries to resolve them.
 func AppendExternalLink(v *Vault, src Type, srcID, uri string) error {
-	path := filepath.Join(v.Root, src.Dir(), srcID+".md")
+	_, path := ResolveArtifact(v, src, srcID)
 	a, err := LoadArtifact(path)
 	if err != nil {
 		return fmt.Errorf("load source: %w", err)

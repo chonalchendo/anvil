@@ -126,7 +126,7 @@ func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 		if status != "in-progress" {
 			continue
 		}
-		id := strings.TrimSuffix(filepath.Base(p), ".md")
+		id := core.CanonicalID(core.TypeIssue, strings.TrimSuffix(filepath.Base(p), ".md"))
 
 		// Shape 1: merged-PR issue. PR state is queried by absolute URL, so
 		// this is correct for every project in the vault.
@@ -210,7 +210,7 @@ func checkContractConventionRails(v *core.Vault) ([]doctorFinding, error) {
 		if len(core.BodyWikilinkTargetsOfType(a.Body, core.TypeConvention)) > 0 {
 			continue
 		}
-		id := strings.TrimSuffix(filepath.Base(p), ".md")
+		id := core.CanonicalID(core.TypeContract, strings.TrimSuffix(filepath.Base(p), ".md"))
 		findings = append(findings, doctorFinding{
 			Kind:     "contract-empty-convention-rail",
 			ID:       id,
@@ -381,7 +381,9 @@ func checkFinishedMilestone(msPath string, a *core.Artifact, children []childIss
 	if kind, _ := a.FrontMatter["kind"].(string); kind == "bucket" {
 		return nil
 	}
-	msID := strings.TrimSuffix(filepath.Base(msPath), ".md")
+	// Compared against milestoneSlug(), which yields the bare `<project>.<slug>`
+	// wikilink tail — so strip the prefix new milestone filenames carry.
+	msID := strings.TrimPrefix(strings.TrimSuffix(filepath.Base(msPath), ".md"), string(core.TypeMilestone)+".")
 	hasChild := false
 	for _, c := range children {
 		if c.milestone != msID {

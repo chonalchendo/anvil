@@ -20,7 +20,7 @@ func TestArtifactRowFromFrontmatter(t *testing.T) {
 		t.Fatalf("ArtifactRowFromFrontmatter: %v", err)
 	}
 	want := ArtifactRow{
-		ID: "demo.foo", Type: "issue", Status: "open",
+		ID: "issue.demo.foo", Type: "issue", Status: "open",
 		Project: "demo", Path: "/v/70-issues/demo.foo.md",
 		Created: "2026-05-07", Updated: "2026-05-07",
 	}
@@ -37,8 +37,8 @@ func TestArtifactRowFromFrontmatter_PathStemCanonicalised(t *testing.T) {
 	cases := []struct {
 		typ, path, want string
 	}{
-		{"issue", "/v/70-issues/issue.demo.0001.probe.md", "demo.0001.probe"},
-		{"issue", "/v/70-issues/demo.0002.plain.md", "demo.0002.plain"},
+		{"issue", "/v/70-issues/issue.demo.0001.probe.md", "issue.demo.0001.probe"},
+		{"issue", "/v/70-issues/demo.0002.plain.md", "issue.demo.0002.plain"},
 		{"system-design", "/v/06-system-designs/system-design.demo.md", "system-design.demo"},
 	}
 	for _, tc := range cases {
@@ -59,7 +59,7 @@ func TestLinkRowsFromFrontmatter_Scalar(t *testing.T) {
 		"milestone": "[[milestone.demo.m1]]",
 	}
 	got := LinkRowsFromFrontmatter("demo.foo", fm)
-	want := []LinkRow{{Source: "demo.foo", Target: "demo.m1", Relation: "milestone", Anchor: ""}}
+	want := []LinkRow{{Source: "demo.foo", Target: "milestone.demo.m1", Relation: "milestone", Anchor: ""}}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
 	}
@@ -109,7 +109,7 @@ func TestParseWikilink_PlanIssueEdge_BareID(t *testing.T) {
 		"issue": "demo.foo",
 	}
 	got := LinkRowsFromFrontmatter("demo.foo-plan", fm)
-	want := []LinkRow{{Source: "demo.foo-plan", Target: "demo.foo", Relation: "issue", Anchor: ""}}
+	want := []LinkRow{{Source: "demo.foo-plan", Target: "issue.demo.foo", Relation: "issue", Anchor: ""}}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
 	}
@@ -125,7 +125,7 @@ func TestParseWikilink_PlanIssueEdge_WikilinkUnchanged(t *testing.T) {
 		"issue": "[[issue.demo.foo]]",
 	}
 	got := LinkRowsFromFrontmatter("demo.foo-plan", fm)
-	want := []LinkRow{{Source: "demo.foo-plan", Target: "demo.foo", Relation: "issue", Anchor: ""}}
+	want := []LinkRow{{Source: "demo.foo-plan", Target: "issue.demo.foo", Relation: "issue", Anchor: ""}}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
 	}
@@ -151,7 +151,7 @@ func TestLinkRowsFromBody_DistinctTargets(t *testing.T) {
 	got := LinkRowsFromBody("anvil.src", body)
 	want := []LinkRow{
 		{Source: "anvil.src", Target: "anvil.bar", Relation: "body", Anchor: ""},
-		{Source: "anvil.src", Target: "anvil.foo", Relation: "body", Anchor: ""},
+		{Source: "anvil.src", Target: "issue.anvil.foo", Relation: "body", Anchor: ""},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
@@ -162,7 +162,7 @@ func TestLinkRowsFromBody_DedupWithinBody(t *testing.T) {
 	body := "[[issue.anvil.foo]] is mentioned again: [[issue.anvil.foo]]."
 	got := LinkRowsFromBody("anvil.src", body)
 	want := []LinkRow{
-		{Source: "anvil.src", Target: "anvil.foo", Relation: "body", Anchor: ""},
+		{Source: "anvil.src", Target: "issue.anvil.foo", Relation: "body", Anchor: ""},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
@@ -182,8 +182,8 @@ func TestLinkRowsFromBody_DeterministicOrdering(t *testing.T) {
 	body := "[[issue.anvil.zzz]] then [[issue.anvil.aaa]]."
 	got := LinkRowsFromBody("anvil.src", body)
 	want := []LinkRow{
-		{Source: "anvil.src", Target: "anvil.aaa", Relation: "body", Anchor: ""},
-		{Source: "anvil.src", Target: "anvil.zzz", Relation: "body", Anchor: ""},
+		{Source: "anvil.src", Target: "issue.anvil.aaa", Relation: "body", Anchor: ""},
+		{Source: "anvil.src", Target: "issue.anvil.zzz", Relation: "body", Anchor: ""},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
@@ -201,7 +201,7 @@ func TestLinkRowsFromBody_AliasedLink(t *testing.T) {
 	body := "See [[issue.anvil.foo|the foo issue]] for details."
 	got := LinkRowsFromBody("anvil.src", body)
 	want := []LinkRow{
-		{Source: "anvil.src", Target: "anvil.foo", Relation: "body", Anchor: ""},
+		{Source: "anvil.src", Target: "issue.anvil.foo", Relation: "body", Anchor: ""},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
@@ -212,7 +212,7 @@ func TestLinkRowsFromBody_WhitespacePadded(t *testing.T) {
 	body := "See [[ issue.anvil.bar ]] for details."
 	got := LinkRowsFromBody("anvil.src", body)
 	want := []LinkRow{
-		{Source: "anvil.src", Target: "anvil.bar", Relation: "body", Anchor: ""},
+		{Source: "anvil.src", Target: "issue.anvil.bar", Relation: "body", Anchor: ""},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
@@ -227,7 +227,7 @@ func TestLinkRowsFromBody_FencedWikilinkSkipped(t *testing.T) {
 	got := LinkRowsFromBody("anvil.src", body)
 	// Only the prose link should appear; the fenced one must be absent.
 	want := []LinkRow{
-		{Source: "anvil.src", Target: "anvil.real", Relation: "body", Anchor: ""},
+		{Source: "anvil.src", Target: "issue.anvil.real", Relation: "body", Anchor: ""},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
@@ -251,7 +251,7 @@ func TestLinkRowsFromBody_TwoFencedBlocksProseInBetween(t *testing.T) {
 	body := "```bash\necho [[issue.anvil.ghost1]]\n```\n\nSee [[issue.anvil.real]] for context.\n\n```go\nfmt.Println([[issue.anvil.ghost2]])\n```\n"
 	got := LinkRowsFromBody("anvil.src", body)
 	want := []LinkRow{
-		{Source: "anvil.src", Target: "anvil.real", Relation: "body", Anchor: ""},
+		{Source: "anvil.src", Target: "issue.anvil.real", Relation: "body", Anchor: ""},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)

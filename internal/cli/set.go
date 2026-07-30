@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -47,15 +46,10 @@ func newSetCmd() *cobra.Command {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 
-			id := args[1]
-			// Canonicalise issue args through the same helper as the show read
-			// path so write and read accept identical forms (qualified
-			// "issue."-prefix, project-qualified ordinal, bare ordinal).
-			if t == core.TypeIssue {
-				id = core.ResolveIssueArg(v, id)
-			}
-
-			path := filepath.Join(v.Root, t.Dir(), id+".md")
+			// Canonicalise through the same resolver as the show read path so
+			// write and read accept identical forms (qualified type prefix,
+			// project-qualified ordinal, bare ordinal) and both filename shapes.
+			id, path := core.ResolveArtifact(v, t, args[1])
 			a, err := core.LoadArtifact(path)
 			if err != nil {
 				if os.IsNotExist(err) {
@@ -384,7 +378,12 @@ func singleOrSlice(v []any) any {
 // rotting until a --links --body read. A project-less slug is retried with the
 // artifact's own project injected before it is rejected.
 func resolveMilestoneLink(v *core.Vault, a *core.Artifact, raw string) (string, error) {
-	slug := core.CanonicalID(core.TypeMilestone, strings.TrimSuffix(strings.TrimPrefix(raw, "[["), "]]"))
+	// Normalise to the bare `<project>.<slug>` tail: normalizeMilestone re-adds
+	// the `milestone.` prefix, and the project-injection retry below tests it.
+	slug := strings.TrimPrefix(
+		core.CanonicalID(core.TypeMilestone, strings.TrimSuffix(strings.TrimPrefix(raw, "[["), "]]")),
+		string(core.TypeMilestone)+".",
+	)
 	if milestoneFileExists(v, slug) {
 		return normalizeMilestone(slug), nil
 	}

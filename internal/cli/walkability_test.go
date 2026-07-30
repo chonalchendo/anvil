@@ -71,8 +71,8 @@ func TestWalkability(t *testing.T) {
 		if env.Total != 1 || len(env.Items) != 1 {
 			t.Fatalf("expected 1 item, got total=%d items=%d", env.Total, len(env.Items))
 		}
-		if env.Items[0].ID != "foo.i1" || !env.Items[0].Walkable {
-			t.Errorf("expected foo.i1 walkable=true, got %+v", env.Items[0])
+		if env.Items[0].ID != "issue.foo.i1" || !env.Items[0].Walkable {
+			t.Errorf("expected issue.foo.i1 walkable=true, got %+v", env.Items[0])
 		}
 	})
 

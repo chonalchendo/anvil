@@ -36,7 +36,7 @@ func TestPromoteProjectFlagOverridesResolver(t *testing.T) {
 	if p.TargetID == nil {
 		t.Fatalf("no target_id in promote output: %s", promoteOut)
 	}
-	if !strings.HasPrefix(*p.TargetID, "demo.") {
-		t.Errorf("--project demo should produce target_id `demo.<slug>`, got %q", *p.TargetID)
+	if !strings.HasPrefix(*p.TargetID, "issue.demo.") {
+		t.Errorf("--project demo should produce target_id `issue.demo.<slug>`, got %q", *p.TargetID)
 	}
 }

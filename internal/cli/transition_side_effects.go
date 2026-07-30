@@ -59,13 +59,19 @@ func projectFromArtifact(a *core.Artifact, id string) string {
 	if p, _ := a.FrontMatter["project"].(string); p != "" {
 		return p
 	}
-	if dot := strings.IndexByte(id, '.'); dot > 0 {
-		return id[:dot]
+	// The canonical `issue.` prefix is not the project segment.
+	bare := strings.TrimPrefix(id, string(core.TypeIssue)+".")
+	if dot := strings.IndexByte(bare, '.'); dot > 0 {
+		return bare[:dot]
 	}
 	return ""
 }
 
+// slugFromIssueID returns the `<ordinal>.<slug>` tail that names a worktree
+// directory and branch. Canonical issue ids carry an `issue.` prefix, so strip
+// it before splitting or the project segment leaks into the worktree name.
 func slugFromIssueID(id string) string {
+	id = strings.TrimPrefix(id, string(core.TypeIssue)+".")
 	dot := strings.IndexByte(id, '.')
 	if dot < 0 || dot+1 >= len(id) {
 		return id

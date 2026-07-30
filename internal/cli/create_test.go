@@ -158,10 +158,10 @@ func TestCreate_Issue_WritesValidFile(t *testing.T) {
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
 	)
-	// Numbered filename: <project>.NNNN.<slug>.md
+	// Numbered filename: issue.<project>.NNNN.<slug>.md
 	base := filepath.Base(path)
-	if matched, _ := filepath.Match("foo.[0-9][0-9][0-9][0-9].fix-login-bug.md", base); !matched {
-		t.Errorf("unexpected filename %q: want foo.NNNN.fix-login-bug.md", base)
+	if matched, _ := filepath.Match("issue.foo.[0-9][0-9][0-9][0-9].fix-login-bug.md", base); !matched {
+		t.Errorf("unexpected filename %q: want issue.foo.NNNN.fix-login-bug.md", base)
 	}
 	a, err := core.LoadArtifact(path)
 	if err != nil {
@@ -253,7 +253,7 @@ func TestCreateMilestone_NoOrdinal(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	want := filepath.Join(vault, "85-milestones", "foo.cli-substrate.md")
+	want := filepath.Join(vault, "85-milestones", "milestone.foo.cli-substrate.md")
 	if _, err := os.Stat(want); err != nil {
 		t.Fatalf("expected %s: %v", want, err)
 	}
@@ -381,9 +381,9 @@ func TestCreate_JSON_ReturnsIDAndPath(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
 	}
-	// Numbered format: foo.NNNN.x
-	if !strings.HasPrefix(got["id"], "foo.") || !strings.HasSuffix(got["id"], ".x") {
-		t.Errorf("id = %q, want foo.NNNN.x", got["id"])
+	// Numbered format: issue.foo.NNNN.x
+	if !strings.HasPrefix(got["id"], "issue.foo.") || !strings.HasSuffix(got["id"], ".x") {
+		t.Errorf("id = %q, want issue.foo.NNNN.x", got["id"])
 	}
 	if !strings.HasPrefix(got["path"], vault) {
 		t.Errorf("path = %q, expected under %q", got["path"], vault)
@@ -535,7 +535,7 @@ func TestCreatePlan_NewSchema_Succeeds(t *testing.T) {
 	//
 	// Plan slug defaults to the linked issue's slug (`streaming`), not the
 	// plan title — keeps linked-artifact pairs anchored on the same slug.
-	path := filepath.Join(vault, "80-plans", "foo.streaming.md")
+	path := filepath.Join(vault, "80-plans", "plan.foo.streaming.md")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("expected file at %s: %v", path, err)
 	}
@@ -858,7 +858,7 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 			body := feasibilityBody(tc.direct, tc.indirect)
 			body = strings.ReplaceAll(body, "$probeDir", probeDir)
 			stderr, err := runCreateIssueBody(t, "probe", body)
-			created := filepath.Join(vault, "70-issues", "foo.0001.probe.md")
+			created := filepath.Join(vault, "70-issues", "issue.foo.0001.probe.md")
 			if !tc.refused {
 				if err != nil {
 					t.Fatalf("err = %v, want nil\nstderr: %s", err, stderr)
@@ -918,7 +918,7 @@ func TestCreate_Issue_SkipVerifyPredicates(t *testing.T) {
 	if strings.Contains(stderr, "running verification") {
 		t.Errorf("no block should have run, got: %s", stderr)
 	}
-	if _, statErr := os.Stat(filepath.Join(vault, "70-issues", "foo.0001.probe.md")); statErr != nil {
+	if _, statErr := os.Stat(filepath.Join(vault, "70-issues", "issue.foo.0001.probe.md")); statErr != nil {
 		t.Errorf("issue should exist: %v", statErr)
 	}
 }
@@ -1087,7 +1087,7 @@ func TestCreatePlan_BodyReplacesT1Seed_ValidWhenWellFormed(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create plan: %v\n%s", err, stderr.String())
 	}
-	a, _ := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.author-body-target.md"))
+	a, _ := core.LoadArtifact(filepath.Join(vault, "80-plans", "plan.foo.author-body-target.md"))
 	if !strings.Contains(a.Body, "Author-supplied T1") {
 		t.Errorf("body did not replace T1 seed: %q", a.Body)
 	}
@@ -1180,7 +1180,7 @@ func TestCreatePlan_From_FileRoundTripsTasksAndBody(t *testing.T) {
 		t.Fatalf("create plan --from: %v\n%s", err, stderr.String())
 	}
 
-	p, err := core.LoadPlan(filepath.Join(vault, "80-plans", "foo.from-target.md"))
+	p, err := core.LoadPlan(filepath.Join(vault, "80-plans", "plan.foo.from-target.md"))
 	if err != nil {
 		t.Fatalf("load plan: %v", err)
 	}
@@ -1217,7 +1217,7 @@ func TestCreatePlan_From_StdinPath(t *testing.T) {
 		t.Fatalf("create plan --from -: %v\n%s", err, stderr.String())
 	}
 
-	p, err := core.LoadPlan(filepath.Join(vault, "80-plans", "foo.from-target.md"))
+	p, err := core.LoadPlan(filepath.Join(vault, "80-plans", "plan.foo.from-target.md"))
 	if err != nil {
 		t.Fatalf("load plan: %v", err)
 	}
@@ -1358,7 +1358,7 @@ tasks:
 		t.Fatalf("create plan: %v\n%s", err, stderr.String())
 	}
 
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.from-target.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "plan.foo.from-target.md"))
 	if err != nil {
 		t.Fatalf("load artifact: %v", err)
 	}
@@ -1396,7 +1396,7 @@ func TestCreatePlan_From_CLIFlagsOverrideFileFields(t *testing.T) {
 		t.Fatalf("create plan: %v\n%s", err, stderr.String())
 	}
 
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.from-target.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "plan.foo.from-target.md"))
 	if err != nil {
 		t.Fatalf("load artifact: %v", err)
 	}
@@ -1419,7 +1419,7 @@ func TestCreateMilestone_SeedsAcceptanceSlot(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", "foo.cli-substrate.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", "milestone.foo.cli-substrate.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2094,8 +2094,8 @@ func TestCreate_Issue_NumberedFormat(t *testing.T) {
 		t.Errorf("first status = %q want created", first["status"])
 	}
 	firstPath, _ := first["path"].(string)
-	if matched, _ := filepath.Match("foo.[0-9][0-9][0-9][0-9].fix-login-bug.md", filepath.Base(firstPath)); !matched {
-		t.Errorf("unexpected filename %q: want foo.NNNN.fix-login-bug.md", filepath.Base(firstPath))
+	if matched, _ := filepath.Match("issue.foo.[0-9][0-9][0-9][0-9].fix-login-bug.md", filepath.Base(firstPath)); !matched {
+		t.Errorf("unexpected filename %q: want issue.foo.NNNN.fix-login-bug.md", filepath.Base(firstPath))
 	}
 
 	// A distinct issue (different title → different slug) gets the next ordinal.
@@ -2123,7 +2123,7 @@ func TestCreate_Issue_NumberedFormat(t *testing.T) {
 		t.Errorf("second status = %q want created", second["status"])
 	}
 	secondPath, _ := second["path"].(string)
-	if matched, _ := filepath.Match("foo.0002.fix-logout-bug.md", filepath.Base(secondPath)); !matched {
+	if matched, _ := filepath.Match("issue.foo.0002.fix-logout-bug.md", filepath.Base(secondPath)); !matched {
 		t.Errorf("distinct issue should mint ordinal 0002: got %q", filepath.Base(secondPath))
 	}
 }
@@ -2271,7 +2271,7 @@ func TestCreate_Issue_UpdateRewritesOnDrift(t *testing.T) {
 	if err := cmd1.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(vault, "80-plans", "foo.fix-login-bug.md")
+	path := filepath.Join(vault, "80-plans", "plan.foo.fix-login-bug.md")
 	first, _ := core.LoadArtifact(path)
 	originalCreated := first.FrontMatter["created"]
 

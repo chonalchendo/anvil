@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -41,14 +40,10 @@ func newTransitionCmd() *cobra.Command {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 
-			// Canonicalise issue args through the same helper as the show read
-			// path so write and read accept identical forms (qualified
-			// "issue."-prefix, project-qualified ordinal, bare ordinal).
-			if t == core.TypeIssue {
-				id = core.ResolveIssueArg(v, id)
-			}
-
-			path := filepath.Join(v.Root, t.Dir(), id+".md")
+			// Canonicalise through the same resolver as the show read path so
+			// write and read accept identical forms (qualified type prefix,
+			// project-qualified ordinal, bare ordinal) and both filename shapes.
+			id, path := core.ResolveArtifact(v, t, id)
 			a, err := core.LoadArtifact(path)
 			if err != nil {
 				return fmt.Errorf("%w: %s", ErrArtifactNotFound, id)
@@ -418,7 +413,8 @@ func milestoneCloseAdvisory(v *core.Vault, resolved *core.Artifact) string {
 	if ms == "" {
 		return ""
 	}
-	m, err := core.LoadArtifact(filepath.Join(v.Root, core.TypeMilestone.Dir(), ms+".md"))
+	_, msPath := core.ResolveArtifact(v, core.TypeMilestone, ms)
+	m, err := core.LoadArtifact(msPath)
 	if err != nil {
 		return ""
 	}

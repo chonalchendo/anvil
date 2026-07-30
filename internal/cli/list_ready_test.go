@@ -26,8 +26,8 @@ func TestListReadyFiltersUnblockedIssues(t *testing.T) {
 	for _, it := range env.Items {
 		ids[it.ID] = true
 	}
-	if !ids["demo.foo"] {
-		t.Fatalf("expected demo.foo ready (no blocks edges yet): %v", env.Items)
+	if !ids["issue.demo.foo"] {
+		t.Fatalf("expected issue.demo.foo ready (no blocks edges yet): %v", env.Items)
 	}
 }
 
