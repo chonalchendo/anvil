@@ -100,22 +100,34 @@ If `anvil validate` reports `type/convention` as an unknown glossary tag (first 
 
 ### Phase 4 — Wire the contract rail
 
-An active convention reaches a completion-time worker only through the contract→convention rail (`anvil show contract <id> --links convention`, read by `completing-issue` and `reviewing-pr`). A convention no contract links is invisible, so wiring the rail is part of birth — not follow-up. Sweep every contract and rule on each one:
+An active convention reaches a completion-time worker only through the contract→convention rail (`anvil show contract <id> --links convention`, read by `completing-issue` and `reviewing-pr`). A convention no contract links is invisible, so wiring the rail is part of birth — not follow-up.
 
-```bash
-anvil list contract --limit 100 --json | jq -r '.items[].id'   # the sweep set
-anvil show contract <id> --links convention                    # what it already links
-```
+1. **Sweep the contracts.** Take the whole set; a truncated sweep silently drops candidates.
 
-A contract governs the new convention iff its component **writes the artefact the convention specs** — a Python package is governed by `convention.python`, a component whose output is agent-read prose by `convention.prose`. Judge from the contract's `description` plus its `## Does` and `## Code design`; a tool the component merely calls (a TypeScript client fetching from a Python service) does not govern it. For each governed contract, add the frontmatter edge and the `## Code design` prose line — the rail is the frontmatter edge, the prose line is what a reader sees:
+   ```bash
+   anvil list contract --limit 100 --json | jq -e '.truncated == false' >/dev/null \
+     || echo "raise --limit — more contracts exist than were fetched"
+   anvil list contract --limit 100 --json | jq -r '.items[].id'   # the sweep set
+   anvil show contract <id> --links convention                    # what it already links
+   ```
 
-```bash
-anvil link contract <id> convention convention.<slug>
-# then, in the contract's `## Code design`:
-#   - House-wide <tool> style: `[[convention.<slug>]]` — link, never restate.
-```
+2. **Apply the governs test.** A contract governs the new convention iff its component **writes the artefact the convention specs** — a Python package by `convention.python`, a component whose output is agent-read prose by `convention.prose`. Judge from the contract's `description` plus its `## Does` and `## Code design`. Three exclusions:
+   - A tool the component merely calls does not govern it — a TypeScript client fetching from a Python service.
+   - The artefact must be the component's **output**, not a by-product of writing it. Every component carries comments and commit messages; that does not put `convention.prose` on all of them.
+   - A narrower convention already governing that surface wins. Do not double-link.
 
-**Rule on every contract; never skip silently.** When no contract governs the new convention, say so explicitly in the run's closing summary — `cross-cutting, no contract home: <slug> governs <artefact> that no current contract's component writes` — and name the trigger that would give it a home (the next contract over that artefact links it at authoring time, per `writing-contract`). A convention parked with no ruling is the failure this phase exists to prevent: it reads as done and reaches nobody.
+3. **Wire each governed contract.** The rail is the frontmatter edge; the prose line is what a reader sees.
+
+   ```bash
+   anvil link contract <id> convention convention.<slug>
+   # then, in the contract's `## Code design`:
+   #   - House-wide <tool> style: `[[convention.<slug>]]` — link, never restate.
+   anvil set contract <id> updated <today-iso>
+   ```
+
+   Run `anvil validate` once after the last contract, per `writing-contract` Phase 4.
+
+4. **Rule on every contract; never skip silently.** When no contract governs the new convention, say so in the run's closing summary — `cross-cutting, no contract home: <slug> governs <artefact> that no current contract's component writes`. Name the trigger that would give it a home: the next contract over that artefact links it at authoring time, per `writing-contract`. A convention parked with no ruling is the failure this phase exists to prevent — it reads as done and reaches nobody.
 
 ---
 
