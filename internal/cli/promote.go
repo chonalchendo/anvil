@@ -231,8 +231,8 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 			return fmt.Errorf("allocating ID: %w", err)
 		}
 	} else {
-		if target == core.TypeThread && topic == "" {
-			return fmt.Errorf("--topic is required when promoting to a thread: anvil promote %s --as thread --topic <slug>", inboxID)
+		if isTopicOrdinalType(target) && topic == "" {
+			return fmt.Errorf("--topic is required when promoting to a %s: anvil promote %s --as %s --topic <slug>", target, inboxID, target)
 		}
 		var err error
 		if targetID, err = core.NextID(v, target, core.IDInputs{Title: title, Topic: topic}); err != nil {

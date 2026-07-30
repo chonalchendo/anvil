@@ -270,6 +270,21 @@ func TestNextID_Thread_RequiresTopic(t *testing.T) {
 	}
 }
 
+// A dotted topic ("v0.2") would split as topic "v0" with an unparseable
+// ordinal, so nextTopicOrdinal would go blind to its own files: every create
+// mints 0001 and a repeated title overwrites the prior artifact. Reject it at
+// allocation instead.
+func TestNextID_TopicOrdinalTypes_RejectNonSlugTopic(t *testing.T) {
+	v := newScaffolded(t)
+	for _, typ := range []Type{TypeDecision, TypeThread} {
+		for _, topic := range []string{"v0.2", "Ducklake", "has space"} {
+			if _, err := NextID(v, typ, IDInputs{Title: "which backend", Topic: topic}); err == nil {
+				t.Errorf("%s: expected error for topic %q", typ, topic)
+			}
+		}
+	}
+}
+
 func TestSplitTopicOrdinal(t *testing.T) {
 	cases := []struct {
 		id      string

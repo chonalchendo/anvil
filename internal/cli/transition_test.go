@@ -913,13 +913,21 @@ func TestTransition_Thread_Closed_SilentWithOutcomeLink(t *testing.T) {
 
 	// A body-authored learning link and an `anvil link`-written frontmatter
 	// edge are both outcomes; neither may draw the warning.
+	learnOut := execCmd(t, "create", "learning", "--title", "Catalog backend tradeoffs",
+		"--tags", "domain/dev-tools,activity/research",
+		"--allow-new-facet=domain", "--allow-new-facet=activity", "--json")
+	var learn struct{ ID string }
+	if err := json.Unmarshal([]byte(strings.TrimSpace(learnOut)), &learn); err != nil {
+		t.Fatalf("create learning: %v\n%s", err, learnOut)
+	}
+
 	bodyLinked := mkThread(t, "ducklake", "Body linked question")
 	bodyPath := filepath.Join(vault, "60-threads", bodyLinked+".md")
 	a, err := core.LoadArtifact(bodyPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.Body += "\nResolved in [[learning.catalog-backend-tradeoffs]].\n"
+	a.Body += "\nResolved in [[learning." + learn.ID + "]].\n"
 	if err := a.Save(); err != nil {
 		t.Fatal(err)
 	}
@@ -939,5 +947,28 @@ func TestTransition_Thread_Closed_SilentWithOutcomeLink(t *testing.T) {
 		if out := execCmd(t, "transition", "thread", id, "closed"); strings.Contains(out, "no decision or learning link") {
 			t.Errorf("%s: unexpected warning on a linked thread: %q", id, out)
 		}
+	}
+}
+
+// A wikilink that names no file is not an outcome — a typo'd or hand-written
+// id must not silence the gate the way a real link does.
+func TestTransition_Thread_Closed_DanglingLinkStillWarns(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+
+	id := mkThread(t, "ducklake", "Dangling linked question")
+	path := filepath.Join(vault, "60-threads", id+".md")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Body += "\nResolved in [[decision.does-not-exist.0001-nowhere]].\n"
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	if out := execCmd(t, "transition", "thread", id, "closed"); !strings.Contains(out, "no decision or learning link") {
+		t.Errorf("expected the distill warning for a dangling target, got %q", out)
 	}
 }

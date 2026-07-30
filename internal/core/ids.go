@@ -354,6 +354,13 @@ func NextID(v *Vault, t Type, in IDInputs) (string, error) {
 		if in.Topic == "" {
 			return "", fmt.Errorf("topic required for %s", t)
 		}
+		// The topic must be slug-shaped because SplitTopicOrdinal keys on the
+		// first dot: a dotted topic ("v0.2") makes nextTopicOrdinal blind to its
+		// own files, so every create mints 0001 and a repeated title silently
+		// overwrites the prior artifact.
+		if err := ValidateSlug(in.Topic); err != nil {
+			return "", fmt.Errorf("topic must be a slug (lowercase, hyphenated, no dots): %w", err)
+		}
 		slug := in.Slug
 		if slug == "" {
 			slug = Slugify(in.Title)

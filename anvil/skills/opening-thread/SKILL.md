@@ -141,4 +141,4 @@ A thread is a workspace, not an output. Before closing one, rule on where its co
 
 Project work surfaced mid-thread routes to `writing-issue` and is not a closing verdict: the thread stays open as parallel context.
 
-Pausing is a plain `anvil transition thread <id> paused`. No separate closing skill.
+Pausing is a plain `anvil transition thread <id> paused`. No separate closing skill. Reopen a paused thread (`anvil transition thread <id> open`) before ruling a verdict — `closed` and `abandoned` are only legal from `open`.
