@@ -285,8 +285,9 @@ func TestCutWorktreeBranchAtWrongPathRefuses(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "cut_worktree_failed") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -311,8 +312,9 @@ func TestCutWorktreeAddFailureRefusesTransition(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "cut_worktree_failed") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -336,8 +338,9 @@ func TestCutWorktreeRejectedOnWrongEdge(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "invalid_flag_for_transition") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -359,8 +362,9 @@ func TestWorktreeOverrideWithoutCutFlagRejected(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "invalid_flag_for_transition") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -416,9 +420,9 @@ func TestLandPRHappyPath(t *testing.T) {
 // 0 for --land-pr unless the named PR is actually merged, since a batch
 // driver reads exit 0 as "the PR landed."
 //
-// Deliberately run WITHOUT --json: printAndReturn returns nil on the --json
-// path repo-wide, so a --json run cannot pin the exit status this test names.
-// The JSON envelope shape is covered by the sibling view-failed test.
+// Runs without --json purely to assert the human path; --json now returns
+// non-nil too (anvil.0219), and the envelope shape is covered by the sibling
+// view-failed test.
 func TestLandPRAlreadyResolvedNotMergedFailsExitNonZero(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
@@ -478,8 +482,9 @@ func TestLandPRAlreadyResolvedViewFailsRefusedJSON(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "land_pr_view_failed") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -630,8 +635,9 @@ func TestLandPRRefusesAbandonedIssue(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "illegal_transition") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -718,8 +724,9 @@ func TestLandPRAutoClaimFailedMergeLeavesIssueOpen(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "land_pr_not_mergeable") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -751,8 +758,9 @@ func TestLandPRRefusesWhenNotMergeable(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "land_pr_not_mergeable") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -838,8 +846,9 @@ func TestLandPRRefusesWhenMergeabilityNeverResolves(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "land_pr_not_mergeable") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -872,8 +881,9 @@ func TestLandPRRefusesWhenCINotGreen(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "land_pr_ci_not_green") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -902,8 +912,9 @@ func TestLandPRRefusesWhenFinalStateNotMerged(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "land_pr_state_not_merged") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -942,8 +953,9 @@ func TestLandPRTransientMergeRaceIsRetryable(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	// Distinct retryable code, not the generic land_pr_merge_failed.
 	if !strings.Contains(stdout.String(), "land_pr_base_modified") {
@@ -974,8 +986,9 @@ func TestLandPRRejectedOnWrongEdge(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "invalid_flag_for_transition") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -995,8 +1008,9 @@ func TestLandPRConflictsWithForce(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "flags_conflict") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -1029,8 +1043,9 @@ func TestLandPRRefusesWhenWorktreeRemoveFails(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "land_pr_worktree_remove_failed") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -1075,8 +1090,9 @@ body
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "cut_worktree_path_failed") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -1176,8 +1192,9 @@ func TestCutWorktreeRefusesWhenHomeLookupFails(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "cut_worktree_path_failed") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -1276,8 +1293,9 @@ func TestCutWorktreeRefusesWhenRepoUnresolved(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "cut_worktree_repo_unresolved") {
 		t.Errorf("missing error code: %s", stdout.String())
@@ -1362,8 +1380,9 @@ func TestLandPRSaveFailureSurfacesRecovery(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "land_pr_succeeded_save_failed") {
 		t.Errorf("missing structured code: %s", stdout.String())
@@ -1533,8 +1552,9 @@ func TestLocalValidatedWithoutLandPRRejected(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "invalid_flag_for_transition") {
 		t.Errorf("expected invalid_flag_for_transition rejection; got: %s", stdout.String())
@@ -1562,8 +1582,9 @@ func TestLandPRErrorsWhenNoWorktreeFound(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "land_pr_worktree_missing") {
 		t.Errorf("expected land_pr_worktree_missing, got: %s", stdout.String())

@@ -90,14 +90,15 @@ func TestTransitionIllegalJSON(t *testing.T) {
 	execCmd(t, "init", vault)
 	createDemoIssue(t)
 
-	// With --json: JSON envelope on stdout, stderr empty, no error returned.
+	// With --json: JSON envelope on stdout, stderr empty, non-nil error so
+	// the exit code reflects the failure (anvil.0219).
 	c := newRootCmd()
 	c.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--json"})
 	var stdout, stderr bytes.Buffer
 	c.SetOut(&stdout)
 	c.SetErr(&stderr)
-	if err := c.Execute(); err != nil {
-		t.Fatalf("unexpected error with --json: %v", err)
+	if err := c.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	var env map[string]any
 	if err := json.Unmarshal([]byte(strings.TrimSpace(stdout.String())), &env); err != nil {
@@ -122,8 +123,9 @@ func TestTransitionMissingRequiredFlag(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "owner") {
 		t.Fatalf("expected `owner` mentioned in JSON stdout: %s", stdout.String())
@@ -206,8 +208,9 @@ func TestTransitionReclaimDifferentSessionRefused(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("expected nil with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "claim_held_by_other_session") || !strings.Contains(stdout.String(), "session-a") {
 		t.Fatalf("refusal must name the holding session; stdout: %s", stdout.String())
@@ -405,8 +408,9 @@ func TestTransitionIllegalLeavesDiskUnchanged(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	c.SetOut(&stdout)
 	c.SetErr(&stderr)
-	if err := c.Execute(); err != nil {
-		t.Fatalf("expected nil error with --json; err: %v stderr: %s", err, stderr.String())
+	// anvil.0219: a failing --json invocation now returns non-nil.
+	if err := c.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "illegal_transition") {
 		t.Errorf("stdout should mention illegal_transition: %s stdout=%s stderr=%s", "", stdout.String(), stderr.String())
@@ -594,8 +598,9 @@ func TestTransitionBucketMilestoneToDoneRejected(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 		c.SetOut(&stdout)
 		c.SetErr(&stderr)
-		if err := c.Execute(); err != nil {
-			t.Fatalf("unexpected error with --json: %v\nstderr: %s", err, stderr.String())
+		// anvil.0219: a failing --json invocation now returns non-nil.
+		if err := c.Execute(); err == nil {
+			t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 		}
 		var env map[string]any
 		if err := json.Unmarshal([]byte(strings.TrimSpace(stdout.String())), &env); err != nil {

@@ -2,9 +2,12 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/fang"
 
 	"github.com/chonalchendo/anvil/internal/core"
 )
@@ -28,6 +31,23 @@ func TestFlagLeadingErrRE(t *testing.T) {
 		if got := flagLeadingErrRE.MatchString(c.in); got != c.want {
 			t.Errorf("flagLeadingErrRE.MatchString(%q) = %v, want %v", c.in, got, c.want)
 		}
+	}
+}
+
+// TestErrorHandlerSkipsJSONRendered pins the anvil.0219 skip branch: a
+// jsonRendered error's envelope already went to stdout, so errorHandler must
+// render nothing — while a plain error must still render fang's human message.
+// CLI tests drive newRootCmd().Execute() directly and never pass through
+// fang.Execute's error handler, so this is the branch's only coverage.
+func TestErrorHandlerSkipsJSONRendered(t *testing.T) {
+	var b bytes.Buffer
+	errorHandler(&b, fang.Styles{}, jsonRendered{errors.New("boom")})
+	if b.Len() != 0 {
+		t.Fatalf("jsonRendered must render nothing, got %q", b.String())
+	}
+	errorHandler(&b, fang.Styles{}, errors.New("boom"))
+	if b.Len() == 0 {
+		t.Fatal("plain error must render a human message, got nothing")
 	}
 }
 
