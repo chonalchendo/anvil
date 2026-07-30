@@ -27,11 +27,11 @@ risks:
   - "Subscription auth shape change in claude-code/codex would require coordinated adapter updates."
   - "Skill auto-loading by file presence: a malformed SKILL.md can crash the host CLI with no anvil-side recovery."
 revisions:
-  - { date: 2026-04-29, change: "Initial Go-shaped draft; replaces design.md as live system-design reference" }
+  - { date: 2026-04-29, change: "Initial Go-shaped draft; replaces the legacy design doc as live system-design reference" }
   - { date: 2026-05-01, change: "Split into per-section shards under docs/system-design/; index keeps overview, components, data flow, boundaries, risks, AI engineering, companion packs, why-this-shape" }
 ---
 
-This is the live system-design reference. Long-form rationale and history live in [`design.md`](design.md) (legacy, do not edit). Product vision lives in [`product-design.md`](product-design.md). Skill authoring rules live in [`skill-authoring.md`](skill-authoring.md). Vault artifact schemas live in [`vault-schemas.md`](vault-schemas.md).
+This is the live system-design reference; per-section detail lives in the shards listed below. Product vision lives in [`product-design.md`](product-design.md). Skill authoring rules live in [`skill-authoring.md`](skill-authoring.md). Vault artifact schemas live in [`vault-schemas.md`](vault-schemas.md).
 
 ## Read when:
 
@@ -190,7 +190,7 @@ The longer arc is compose-and-then-fork-deliberately. As we accumulate experienc
 
 ## Why this shape
 
-See `product-design.md` for product-side beliefs and `design.md` for the long version of the history. Direct rationale only here.
+See `product-design.md` for product-side beliefs. Direct rationale only here.
 
 **Why Go.** Cold-start matters for a CLI users invoke dozens of times a day; Python's interpreter startup taxed every invocation. Single-binary distribution removes the install-Python-then-pip dance; `go install` and goreleaser-built tarballs cover every platform without runtime dependencies. The standard library covers what we need (subprocess management, JSON streaming, embedded assets, SQLite via pure-Go driver) without a heavyweight framework.
 

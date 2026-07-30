@@ -32,7 +32,7 @@ milestones:
   - "[[milestone.anvil.m4-v0.4-iterate-from-real-signal]]"
 related: []
 revisions:
-  - { date: 2026-04-27, change: "Initial draft, carved from docs/design.md" }
+  - { date: 2026-04-27, change: "Initial draft, carved from the legacy design doc" }
 ---
 
 ## What we're building
