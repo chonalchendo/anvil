@@ -313,56 +313,52 @@ func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOv
 
 // landPR runs gate→merge→verify→remove-worktree→delete-local-branch→delete-remote-branch.
 // Returns nil on success or a Structured error keyed on the failing gate.
-//
-// Ordering rationale: the merge runs before the worktree is removed so that
-// when the caller's cwd is inside the worktree, the process's working
-// directory still exists when gh/git are invoked. The worktree is removed
-// after the merge is verified MERGED; both branch deletes follow worktree
-// removal because git refuses to delete a branch while a worktree references
-// it.
+// The ordering, merge-exit-code, and worktree-resolution rationale live as
+// comments at each step.
 //
 // Worktree resolution: if worktreePath exists on disk it is used directly. If
 // not, landPR falls back to the live worktree list keyed by the PR's head
 // branch — covering the common fleet case where the worktree was cut at a
 // non-default slug. If neither path resolves to a real worktree, landPR
 // returns land_pr_worktree_missing before merging rather than silently
-// skipping removal.
-//
-// gh pr merge may exit non-zero even when the merge succeeds (post-merge
-// checkout fails when master is already checked out by the main worktree), so
-// errors from ghPRMergeFn are confirmed against the live PR state before
-// propagating.
+// skipping removal — unless the PR is already MERGED (a retry of an
+// interrupted land), where a missing worktree is treated as already cleaned.
 //
 // localValidated skips the ghPRChecks gate when the operator has already
 // validated the work locally (e.g. with `just check`) and required CI is
 // genuinely unavailable. The caller is responsible for recording an audit line.
 func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) error {
 	// An already-MERGED PR also reads mergeable:UNKNOWN (GitHub never
-	// recomputes mergeability for a closed PR), so a retry of an interrupted
-	// batch line must recognise "already landed" before it burns the full
-	// mergeability poll and hard-aborts on a PR that succeeded. One combined
-	// read settles this up front, before the mergeability gate below runs.
+	// recomputes it for a closed PR), so a retry of an interrupted batch line
+	// must recognise "already landed" before burning the mergeability poll.
+	// The same read settles CLOSED-without-merge: any state other than OPEN
+	// or MERGED refuses now — polling never makes a closed PR mergeable. A
+	// failed read falls through to the poll, which surfaces its own error.
 	alreadyMerged := false
-	if raw, err := ghPRViewJSONFn(num, "state,mergeable"); err == nil {
-		var st struct {
-			State string `json:"state"`
-		}
-		if json.Unmarshal(raw, &st) == nil && st.State == "MERGED" {
+	if state, err := prState(num); err == nil {
+		switch state {
+		case "MERGED":
 			alreadyMerged = true
+		case "OPEN":
+		default:
+			return errfmt.NewStructured("land_pr_state_not_merged").
+				Set("pr", num).
+				Set("state", state)
 		}
 	}
-	type mergeState struct {
-		Mergeable        string `json:"mergeable"`
-		MergeStateStatus string `json:"mergeStateStatus"`
-	}
-	// GitHub recomputes mergeability asynchronously after a sibling PR merges;
-	// UNKNOWN means "recomputing, not yet known" — poll until resolved. 13/13
-	// observed batch lands cleared within 4-60s (one case needed ~60s), so the
-	// budget below covers that window with margin. Only CONFLICTING (or any
-	// other non-MERGEABLE, non-UNKNOWN value) is a genuine hard abort.
-	const maxAttempts = 10
-	var st mergeState
 	if !alreadyMerged {
+		// UNKNOWN means GitHub is still recomputing mergeability (async after
+		// a sibling PR merges) — poll until resolved. 13/13 batch lands
+		// cleared within 4-15s; a separate 5-PR batch needed ~60s (PR #354),
+		// so the budget covers the wider window while the 5s interval keeps
+		// the common first-retry clear cheap. Only CONFLICTING (or any other
+		// non-MERGEABLE, non-UNKNOWN value) is a genuine hard abort.
+		const maxAttempts = 20
+		type mergeState struct {
+			Mergeable        string `json:"mergeable"`
+			MergeStateStatus string `json:"mergeStateStatus"`
+		}
+		var st mergeState
 		for attempt := range maxAttempts {
 			raw, err := ghPRViewJSONFn(num, "mergeable,mergeStateStatus")
 			if err != nil {
@@ -375,7 +371,7 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) e
 				break
 			}
 			if attempt < maxAttempts-1 {
-				mergeabilityPollSleep(10 * time.Second)
+				mergeabilityPollSleep(5 * time.Second)
 			}
 		}
 		if st.Mergeable != "MERGEABLE" {
@@ -416,9 +412,10 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) e
 			}
 		}
 	}
-	if resolved == "" {
+	if resolved == "" && !alreadyMerged {
 		// No worktree found via either path: error before merging so the
 		// caller can supply --worktree and retry without a half-complete state.
+		// (Already-merged retries instead treat this as cleaned below.)
 		return errfmt.NewStructured("land_pr_worktree_missing").
 			Set("pr", num).
 			Set("tried_path", worktreePath).
@@ -470,11 +467,17 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) e
 	// work in the worktree, and surfacing it lets the operator recover that work
 	// rather than silently discard it. The branches, by contrast, only name a
 	// ref whose content is already merged.
-	if err := gitWorktreeRemoveFn(root, resolved); err != nil {
-		return errfmt.NewStructured("land_pr_worktree_remove_failed").
-			Set("pr", num).
-			Set("path", resolved).
-			Set("error", err.Error())
+	if resolved != "" {
+		if err := gitWorktreeRemoveFn(root, resolved); err != nil {
+			return errfmt.NewStructured("land_pr_worktree_remove_failed").
+				Set("pr", num).
+				Set("path", resolved).
+				Set("error", err.Error())
+		}
+	} else {
+		// Reachable only when alreadyMerged: the interrupted run removed the
+		// worktree before dying, so continue to branch cleanup and resolution.
+		fmt.Fprintf(errW, "warning: land-pr %d: worktree not found; assuming the interrupted run already removed it\n", num)
 	}
 	// The branch deletes are best-effort cleanup of a now-redundant ref: each
 	// failure is warned and skipped, never returned fatally, so a confirmed

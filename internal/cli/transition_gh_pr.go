@@ -92,9 +92,9 @@ func ghDeleteBranchReal(branch string) error {
 }
 
 // prState reads a PR's state ("OPEN" / "CLOSED" / "MERGED") through the
-// ghPRViewJSON seam. Both --land-pr's post-merge verification and the
-// already-resolved gate need it; the shared piece is the read + unmarshal, so
-// each caller still attaches its own error code.
+// ghPRViewJSON seam. --land-pr's pre-check, its post-merge verification, and
+// the already-resolved gate all need it; the shared piece is the read +
+// unmarshal, so each caller still attaches its own error handling.
 //
 // gh's own diagnostic ("GraphQL: Could not resolve to a PullRequest with the
 // number of 999999") goes to stderr, which .Output() captures into
