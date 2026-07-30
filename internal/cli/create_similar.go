@@ -137,6 +137,12 @@ func slugFromID(t core.Type, id string) string {
 			}
 			return rest
 		}
+	case core.TypeThread:
+		// Strip the topic + ordinal so near-dup scoring compares questions, not
+		// the topic tokens every thread in a topic shares.
+		if _, _, slug, ok := core.SplitTopicOrdinal(id); ok {
+			return slug
+		}
 	}
 	return id
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -51,6 +52,39 @@ func claimConflict(a *core.Artifact, id, currentSession string) error {
 		Set("holding_session", held).
 		Set("this_session", currentSession).
 		Set("fix_hint", "another session is already working this issue; coordinate or rerun with --force to take over the claim")
+}
+
+var outcomeLinkRe = regexp.MustCompile(`\[\[((?:decision|learning)\.[^\]]+)\]\]`)
+
+// threadOutcomeLinked reports whether a closing thread routes its outcome to a
+// decision or learning that exists. Both the body (hand-authored resolution
+// prose) and `related` — the only link slot thread.schema.json allows, and
+// where `anvil link` writes — count, so a properly-linked thread never draws
+// the warning. Fenced blocks are stripped (an illustrative wikilink in a code
+// sample is not an outcome) and a dangling target does not count: a typo'd id
+// must not silence the gate.
+func threadOutcomeLinked(v *core.Vault, a *core.Artifact) bool {
+	if outcomeLinkResolves(v, core.StripFencedBlocks(a.Body)) {
+		return true
+	}
+	vals, _ := a.FrontMatter["related"].([]any)
+	for _, e := range vals {
+		if s, ok := e.(string); ok && outcomeLinkResolves(v, s) {
+			return true
+		}
+	}
+	return false
+}
+
+// outcomeLinkResolves reports whether s carries a decision or learning wikilink
+// whose target names a file present in v.
+func outcomeLinkResolves(v *core.Vault, s string) bool {
+	for _, m := range outcomeLinkRe.FindAllStringSubmatch(s, -1) {
+		if core.WikilinkTargetExists(v, m[1]) {
+			return true
+		}
+	}
+	return false
 }
 
 func projectFromArtifact(a *core.Artifact, id string) string {

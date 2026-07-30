@@ -274,13 +274,14 @@ func ResolveIssueArg(v *Vault, arg string) string {
 type IDInputs struct {
 	Title   string // required — slug source when Slug is empty
 	Project string // required for issue/plan/milestone
-	Topic   string // required for decision
+	Topic   string // required for decision and thread
 	Slug    string // optional — when set, overrides title-derived slug
 }
 
 // DeterministicID returns the slug-keyed ID a given type would receive
-// before any collision-suffix is applied. Returns an error for decisions
-// (which require a vault scan to allocate an ordinal).
+// before any collision-suffix is applied. Returns an error for the
+// topic-ordinal types (decision, thread), which require a vault scan to
+// allocate an ordinal.
 //
 // Every project-scoped type keeps its `<type>.` prefix in the id, so the id,
 // the on-disk basename and the `[[type.id]]` wikilink are one string —
@@ -329,7 +330,7 @@ func DeterministicID(t Type, in IDInputs) (string, error) {
 			return "", fmt.Errorf("project required for %s", t)
 		}
 		return fmt.Sprintf("%s.%s.%s", t, in.Project, slug), nil
-	case TypeThread, TypeLearning, TypeSweep:
+	case TypeLearning, TypeSweep:
 		return slug, nil
 	case TypeConvention:
 		// Conventions are project-agnostic, slug-keyed, and keep the type prefix
@@ -337,20 +338,28 @@ func DeterministicID(t Type, in IDInputs) (string, error) {
 		// index keys on a global artifacts.id, and the bare slug ("python") would
 		// collide with same-named artifacts of other types.
 		return fmt.Sprintf("%s.%s", t, slug), nil
-	case TypeDecision:
-		return "", fmt.Errorf("decision IDs are not deterministic (ordinal-scoped)")
+	case TypeDecision, TypeThread:
+		return "", fmt.Errorf("%s IDs are not deterministic (topic-ordinal scoped)", t)
 	}
 	return "", fmt.Errorf("unknown type %q", t)
 }
 
 // NextID returns the next available ID for type t under v.
-// Decisions can't delegate to DeterministicID because the ordinal must be
-// allocated by scanning the vault; for all other types DeterministicID is
-// the slug-keyed base and uniqueID handles collision suffixes.
+// The topic-ordinal types (decision, thread) can't delegate to DeterministicID
+// because the ordinal must be allocated by scanning the vault; for all other
+// types DeterministicID is the slug-keyed base and uniqueID handles collision
+// suffixes.
 func NextID(v *Vault, t Type, in IDInputs) (string, error) {
-	if t == TypeDecision {
+	if t == TypeDecision || t == TypeThread {
 		if in.Topic == "" {
-			return "", fmt.Errorf("topic required for decision")
+			return "", fmt.Errorf("topic required for %s", t)
+		}
+		// The topic must be slug-shaped because SplitTopicOrdinal keys on the
+		// first dot: a dotted topic ("v0.2") makes nextTopicOrdinal blind to its
+		// own files, so every create mints 0001 and a repeated title silently
+		// overwrites the prior artifact.
+		if err := ValidateSlug(in.Topic); err != nil {
+			return "", fmt.Errorf("topic must be a slug (lowercase, hyphenated, no dots): %w", err)
 		}
 		slug := in.Slug
 		if slug == "" {
@@ -361,7 +370,7 @@ func NextID(v *Vault, t Type, in IDInputs) (string, error) {
 		if slug == "" {
 			return "", fmt.Errorf("title required (produced empty slug)")
 		}
-		n, err := nextDecisionOrdinal(v, in.Topic)
+		n, err := nextTopicOrdinal(v, t, in.Topic)
 		if err != nil {
 			return "", err
 		}
@@ -389,32 +398,45 @@ func uniqueID(v *Vault, t Type, base string) (string, error) {
 	return "", fmt.Errorf("unable to allocate unique ID for %s after 1000 attempts", base)
 }
 
-// nextDecisionOrdinal scans the decisions directory for files matching
-// <topic>.NNNN-*.md and returns the next ordinal scoped to that topic.
-func nextDecisionOrdinal(v *Vault, topic string) (int, error) {
-	dir := filepath.Join(v.Root, TypeDecision.Dir())
+// SplitTopicOrdinal splits a topic-ordinal id (`<topic>.<NNNN>-<slug>`, as
+// decision and thread mint) into its parts. ok is false for any other shape —
+// including the bare-slug thread back catalogue, which keeps resolving as-is.
+func SplitTopicOrdinal(id string) (topic string, ordinal int, slug string, ok bool) {
+	dot := strings.IndexByte(id, '.')
+	if dot < 0 {
+		return "", 0, "", false
+	}
+	rest := id[dot+1:]
+	dash := strings.IndexByte(rest, '-')
+	if dash <= 0 {
+		return "", 0, "", false
+	}
+	n, err := strconv.Atoi(rest[:dash])
+	if err != nil {
+		return "", 0, "", false
+	}
+	return id[:dot], n, rest[dash+1:], true
+}
+
+// nextTopicOrdinal scans t's directory for files matching <topic>.NNNN-*.md
+// and returns the next ordinal scoped to that topic.
+func nextTopicOrdinal(v *Vault, t Type, topic string) (int, error) {
+	dir := filepath.Join(v.Root, t.Dir())
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return 1, nil
 		}
-		return 0, fmt.Errorf("reading decisions dir: %w", err)
+		return 0, fmt.Errorf("reading %s dir: %w", t, err)
 	}
-	prefix := topic + "."
 	highest := 0
 	for _, e := range entries {
 		name := e.Name()
-		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, ".md") {
+		if !strings.HasSuffix(name, ".md") {
 			continue
 		}
-		// Format: <topic>.NNNN-<slug>.md
-		rest := strings.TrimSuffix(name[len(prefix):], ".md")
-		dash := strings.IndexByte(rest, '-')
-		if dash < 0 {
-			continue
-		}
-		n, err := strconv.Atoi(rest[:dash])
-		if err != nil {
+		tp, n, _, ok := SplitTopicOrdinal(strings.TrimSuffix(name, ".md"))
+		if !ok || tp != topic {
 			continue
 		}
 		if n > highest {

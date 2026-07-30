@@ -200,14 +200,12 @@ func replaceSlug(t core.Type, oldID, newSlug string) string {
 		if len(oldID) > 11 && oldID[10] == '-' {
 			return oldID[:11] + newSlug
 		}
-	case core.TypeDecision:
-		dot := strings.IndexByte(oldID, '.')
-		if dot >= 0 {
-			rest := oldID[dot+1:]
-			dash := strings.IndexByte(rest, '-')
-			if dash >= 0 {
-				return oldID[:dot+1] + rest[:dash+1] + newSlug
-			}
+	case core.TypeDecision, core.TypeThread:
+		// Slice rather than re-format so a legacy unpadded ordinal survives
+		// verbatim; a bare-slug back-catalogue thread has no topic/ordinal to
+		// preserve and falls through to the plain new slug.
+		if _, _, slug, ok := core.SplitTopicOrdinal(oldID); ok {
+			return strings.TrimSuffix(oldID, slug) + newSlug
 		}
 	}
 	return newSlug

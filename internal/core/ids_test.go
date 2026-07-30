@@ -161,7 +161,6 @@ func TestDeterministicID(t *testing.T) {
 		{"issue", TypeIssue, IDInputs{Title: "Fix Login Bug", Project: "foo"}, "issue.foo.fix-login-bug"},
 		{"plan", TypePlan, IDInputs{Title: "Add OAuth", Project: "foo"}, "plan.foo.add-oauth"},
 		{"milestone", TypeMilestone, IDInputs{Title: "v0.1 GA", Project: "foo"}, "milestone.foo.v0-1-ga"},
-		{"thread", TypeThread, IDInputs{Title: "auth retries"}, "auth-retries"},
 		{"learning", TypeLearning, IDInputs{Title: "Slogger gotcha"}, "slogger-gotcha"},
 		{"sweep", TypeSweep, IDInputs{Title: "Drop python2"}, "drop-python2"},
 		// Project-scoped ids keep the type prefix so the id, the on-disk
@@ -196,9 +195,11 @@ func TestDeterministicID_Inbox_DateScoped(t *testing.T) {
 	}
 }
 
-func TestDeterministicID_Decision_Errors(t *testing.T) {
-	if _, err := DeterministicID(TypeDecision, IDInputs{Title: "pick db"}); err == nil {
-		t.Errorf("expected error for decision (non-deterministic)")
+func TestDeterministicID_TopicOrdinalTypes_Error(t *testing.T) {
+	for _, typ := range []Type{TypeDecision, TypeThread} {
+		if _, err := DeterministicID(typ, IDInputs{Title: "pick db"}); err == nil {
+			t.Errorf("expected error for %s (topic-ordinal, non-deterministic)", typ)
+		}
 	}
 }
 
@@ -210,16 +211,101 @@ func TestDeterministicID_EmptyTitle(t *testing.T) {
 
 func TestNextID_FallsBackToSuffixOnCollision(t *testing.T) {
 	v := newScaffolded(t)
-	dir := filepath.Join(v.Root, TypeThread.Dir())
+	dir := filepath.Join(v.Root, TypeLearning.Dir())
 	if err := writeStub(filepath.Join(dir, "auth-retries.md")); err != nil {
 		t.Fatal(err)
 	}
-	got, err := NextID(v, TypeThread, IDInputs{Title: "auth retries"})
+	got, err := NextID(v, TypeLearning, IDInputs{Title: "auth retries"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got != "auth-retries-2" {
 		t.Errorf("got %q, want auth-retries-2", got)
+	}
+}
+
+// Threads mint the decision-style topic-ordinal id: the ordinal is scoped to the
+// topic, so a second topic restarts at 0001 and a same-topic title collision
+// advances the ordinal rather than taking a -2 suffix.
+func TestNextID_Thread_TopicScopedOrdinal(t *testing.T) {
+	v := newScaffolded(t)
+	dir := filepath.Join(v.Root, TypeThread.Dir())
+
+	mint := func(topic, title string) string {
+		t.Helper()
+		id, err := NextID(v, TypeThread, IDInputs{Title: title, Topic: topic})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := writeStub(filepath.Join(dir, id+".md")); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+
+	if got, want := mint("ducklake", "Which catalog backend"), "ducklake.0001-which-catalog-backend"; got != want {
+		t.Errorf("got %q want %q", got, want)
+	}
+	if got, want := mint("ducklake", "Which catalog backend"), "ducklake.0002-which-catalog-backend"; got != want {
+		t.Errorf("got %q want %q", got, want)
+	}
+	if got, want := mint("neon", "Quota headroom"), "neon.0001-quota-headroom"; got != want {
+		t.Errorf("got %q want %q", got, want)
+	}
+
+	// A bare-slug back-catalogue file in the folder is not a topic-ordinal
+	// filename and must not perturb allocation.
+	if err := writeStub(filepath.Join(dir, "how-should-we-shard.md")); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := mint("ducklake", "Third question"), "ducklake.0003-third-question"; got != want {
+		t.Errorf("got %q want %q", got, want)
+	}
+}
+
+func TestNextID_Thread_RequiresTopic(t *testing.T) {
+	v := newScaffolded(t)
+	if _, err := NextID(v, TypeThread, IDInputs{Title: "auth retries"}); err == nil {
+		t.Error("expected error when --topic is absent for thread")
+	}
+}
+
+// A dotted topic ("v0.2") would split as topic "v0" with an unparseable
+// ordinal, so nextTopicOrdinal would go blind to its own files: every create
+// mints 0001 and a repeated title overwrites the prior artifact. Reject it at
+// allocation instead.
+func TestNextID_TopicOrdinalTypes_RejectNonSlugTopic(t *testing.T) {
+	v := newScaffolded(t)
+	for _, typ := range []Type{TypeDecision, TypeThread} {
+		for _, topic := range []string{"v0.2", "Ducklake", "has space"} {
+			if _, err := NextID(v, typ, IDInputs{Title: "which backend", Topic: topic}); err == nil {
+				t.Errorf("%s: expected error for topic %q", typ, topic)
+			}
+		}
+	}
+}
+
+func TestSplitTopicOrdinal(t *testing.T) {
+	cases := []struct {
+		id      string
+		topic   string
+		ordinal int
+		slug    string
+		ok      bool
+	}{
+		{"ducklake.0001-which-backend", "ducklake", 1, "which-backend", true},
+		{"anvil.0042-go-rewrite", "anvil", 42, "go-rewrite", true},
+		// Bare back-catalogue slugs and prefixed spine ids are not topic-ordinal.
+		{"how-should-we-shard", "", 0, "", false},
+		{"anvil.0042.fix-thing", "", 0, "", false},
+		{"topic.notanumber-slug", "", 0, "", false},
+	}
+	for _, tc := range cases {
+		topic, ordinal, slug, ok := SplitTopicOrdinal(tc.id)
+		if ok != tc.ok || topic != tc.topic || ordinal != tc.ordinal || slug != tc.slug {
+			t.Errorf("SplitTopicOrdinal(%q) = (%q, %d, %q, %v), want (%q, %d, %q, %v)",
+				tc.id, topic, ordinal, slug, ok, tc.topic, tc.ordinal, tc.slug, tc.ok)
+		}
 	}
 }
 

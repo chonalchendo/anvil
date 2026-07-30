@@ -80,11 +80,11 @@ func collectPreValidationErrors(cmd *cobra.Command, t core.Type, issue, topic st
 				errfmt.NewValidationError(errfmt.CodeMissingRequired, "", "breaking", "").
 					WithExpected("--breaking must be set explicitly for sweep (true or false)"))
 		}
-	case core.TypeDecision:
+	case core.TypeDecision, core.TypeThread:
 		if topic == "" {
 			preValidationErrors = append(preValidationErrors,
 				errfmt.NewValidationError(errfmt.CodeMissingRequired, "", "topic", "").
-					WithExpected("--topic is required for decision"))
+					WithExpected(fmt.Sprintf("--topic is required for %s", t)))
 		}
 	}
 	return preValidationErrors, nil

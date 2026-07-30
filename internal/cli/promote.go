@@ -29,6 +29,7 @@ func newPromoteCmd() *cobra.Command {
 		flagBodyFile      string
 		flagGoal          string
 		flagDescription   string
+		flagTopicLocal    string
 	)
 
 	cmd := &cobra.Command{
@@ -77,7 +78,7 @@ func newPromoteCmd() *cobra.Command {
 			case "discard":
 				return discardInbox(cmd, v, a, id, flagJSON)
 			default:
-				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON, flagTags, flagAllowNewFacet, flagProjectLocal, flagSeverity, flagMilestone, flagAcceptance, flagBody, flagBodyFile, flagGoal, flagDescription)
+				return promoteToTyped(cmd, v, a, id, core.Type(flagAs), flagJSON, flagTags, flagAllowNewFacet, flagProjectLocal, flagSeverity, flagMilestone, flagAcceptance, flagBody, flagBodyFile, flagGoal, flagDescription, flagTopicLocal)
 			}
 		},
 	}
@@ -88,6 +89,7 @@ func newPromoteCmd() *cobra.Command {
 	cmd.Flags().StringSliceVar(&flagTags, "tags", nil, "tags to seed on promoted artifact")
 	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet(s) to suppress novelty gate for")
 	cmd.Flags().StringVar(&flagProjectLocal, "project", "", "project slug for the promoted issue (overrides inbox suggested_project and resolver)")
+	cmd.Flags().StringVar(&flagTopicLocal, "topic", "", "topic slug scoping the NNNN ordinal (required when --as thread)")
 	cmd.Flags().StringVar(&flagSeverity, "severity", "", "issue severity (low|medium|high|critical; issue only)")
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "milestone slug or wikilink to assign (issue only)")
 	cmd.Flags().StringArrayVar(&flagAcceptance, "acceptance", nil, "acceptance criterion to add (repeatable; issue only)")
@@ -159,7 +161,7 @@ func formatEnumError(field, got string, valid []string, exampleCmd string) error
 // promoteToTyped writes the target artifact, then flips the inbox row to
 // status: promoted with provenance fields. Issue is the only target that
 // resolves a project; the others ignore the project field.
-func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type, asJSON bool, flagTags, flagAllowNewFacet []string, projectOverride, flagSeverity, flagMilestone string, flagAcceptance []string, flagBody, flagBodyFile, flagGoal, flagDescription string) error {
+func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inboxID string, target core.Type, asJSON bool, flagTags, flagAllowNewFacet []string, projectOverride, flagSeverity, flagMilestone string, flagAcceptance []string, flagBody, flagBodyFile, flagGoal, flagDescription, topic string) error {
 	status, _ := inbox.FrontMatter["status"].(string)
 	switch status {
 	case "promoted":
@@ -229,8 +231,11 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 			return fmt.Errorf("allocating ID: %w", err)
 		}
 	} else {
+		if isTopicOrdinalType(target) && topic == "" {
+			return fmt.Errorf("--topic is required when promoting to a %s: anvil promote %s --as %s --topic <slug>", target, inboxID, target)
+		}
 		var err error
-		if targetID, err = core.NextID(v, target, core.IDInputs{Title: title}); err != nil {
+		if targetID, err = core.NextID(v, target, core.IDInputs{Title: title, Topic: topic}); err != nil {
 			return fmt.Errorf("allocating ID: %w", err)
 		}
 	}

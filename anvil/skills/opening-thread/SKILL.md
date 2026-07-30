@@ -53,11 +53,12 @@ Read `_meta/glossary.md` (if present) to know existing tags and vault vocab. (Gl
 Draft before calling the CLI:
 
 - **Question** — becomes the thread title; phrased as a question.
+- **Topic** — the slug scoping the thread's ordinal (`<topic>.<NNNN>-<slug>`) and the join key to the decision the thread may close into. Reuse an existing topic where one fits (`anvil list thread`, `anvil list decision`); project-tied research uses the project slug as its topic.
 - **Initial angle** — body prose; what you'll explore first.
 - **Known sources** — articles, videos, prior threads/learnings to seed the body.
 - **Diataxis** — default `explanation`; switch to `reference` if the work is clearly cataloging known options.
 
-**Gate:** confirm question + diataxis with the user before creating.
+**Gate:** confirm question + topic + diataxis with the user before creating.
 
 ---
 
@@ -66,16 +67,18 @@ Draft before calling the CLI:
 **A. From inbox (promotion):**
 
 ```bash
-anvil promote <inbox-id> --as thread
+anvil promote <inbox-id> --as thread --topic <topic>
 # output: "thread <new-thread-id>"
 ```
 
 **B. Greenfield:**
 
 ```bash
-anvil create thread --title "<question>" --json
-# capture id + path from JSON
+anvil create thread --title "<question>" --topic <topic> --json
+# capture id + path from JSON; id is <topic>.<NNNN>-<slug>
 ```
+
+`--topic` is required either way — the ordinal is allocated per topic.
 
 ---
 
@@ -112,12 +115,30 @@ Fix any schema errors reported. Re-run until clean.
 
 ---
 
-## Hand-off
+---
 
-Three terminal paths. Name them in the closing message:
+## Closing verdict
 
-- **`distilling-learning`** — knowledge crystallized.
-- **`writing-issue`** — project work surfaced; thread can stay open as parallel context.
-- **abandon** — `anvil set thread <id> status abandoned`.
+A thread is a workspace, not an output. Before closing one, rule on where its conclusion goes — the answer must outlive the file. Pick exactly one:
 
-Closing/pausing the thread itself is a thin `anvil set thread <id> status closed|paused`. No separate skill.
+- **Decision** — the thread settled a standing choice (a rule, a default, a rejected option). Mint it **under the thread's own topic** so the two sort together and the topic reads as one arc, link it, then close:
+
+  ```bash
+  anvil create decision --title "<the choice>" --topic <same-topic-as-the-thread> --json
+  anvil link thread <thread-id> decision <decision-id>
+  anvil transition thread <thread-id> closed
+  ```
+
+- **Learning** — the thread produced transferable knowledge rather than a choice. Fire `distilling-learning`, link the result, then close.
+
+- **Nothing durable** — the thread resolved to a one-off factual answer with nothing to carry forward. Close (or `abandoned` when the question dissolved) plainly, with no artifact:
+
+  ```bash
+  anvil transition thread <thread-id> closed
+  ```
+
+`anvil transition thread <id> closed` warns when the thread carries no outbound decision or learning link. It never blocks — the third verdict is legitimate — but treat the warning as the prompt to confirm you *chose* it rather than skipped the ruling.
+
+Project work surfaced mid-thread routes to `writing-issue` and is not a closing verdict: the thread stays open as parallel context.
+
+Pausing is a plain `anvil transition thread <id> paused`. No separate closing skill. Reopen a paused thread (`anvil transition thread <id> open`) before ruling a verdict — `closed` and `abandoned` are only legal from `open`.

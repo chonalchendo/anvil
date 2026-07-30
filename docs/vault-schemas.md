@@ -251,9 +251,11 @@ diataxis: tutorial | how-to | reference | explanation
 
 Body absorbs: question, hypothesis, resolution, participants. Cut entirely: `opened`, `closed` (universal `created` / `updated` cover this).
 
+Filenames carry a topic-scoped ordinal, as decisions do: `60-threads/<topic>.<NNNN>-<slug>.md`, with `--topic` required on `anvil create thread` / `anvil promote --as thread`. Topic subsumes project (project-tied research uses the project slug) and is the join key to `30-decisions/`: a thread closing into a decision mints that decision under the same topic. The ~29 bare-slug back-catalogue threads keep resolving unrenamed.
+
 Tags: required `domain/<x>` and `activity/<x>`; `pattern/<x>` optional.
 
-**Legal transitions:** see `internal/core/transitions.go`.
+**Legal transitions:** see `internal/core/transitions.go`. `closed` warns (never blocks) when the thread carries no outbound decision or learning link — see the `opening-thread` skill's closing verdict.
 
 ### `sweep`
 
@@ -325,6 +327,7 @@ Examples:
 - `[[issue.anvil.0042.fix-inbox-suggested-type]]` → `70-issues/issue.anvil.0042.fix-inbox-suggested-type.md`
 - `[[plan.anvil.streaming-token-counter]]` → `80-plans/plan.anvil.streaming-token-counter.md`
 - `[[decision.anvil.0001-go-rewrite]]` → `30-decisions/anvil.0001-go-rewrite.md`
+- `[[thread.ducklake.0001-which-catalog-backend]]` → `60-threads/ducklake.0001-which-catalog-backend.md`
 - `[[convention.python]]` → `35-conventions/convention.python.md`
 
 Two rules:
@@ -332,7 +335,7 @@ Two rules:
 1. Slugs are immutable once allocated. Renaming the title doesn't rename the slug.
 2. `anvil create` allocates the slug from the title at creation time, normalized (lowercase, hyphenated, ASCII).
 
-The plan `id` collapses with the slug: `plan.id == plan.<project>.<slug>`. Decisions keep their MADR numeric prefix in the slug.
+The plan `id` collapses with the slug: `plan.id == plan.<project>.<slug>`. **Decisions and threads** are the topic-ordinal types: prefix-less id and filename `<topic>.<NNNN>-<slug>`, ordinal allocated per topic within the type's own folder, `--topic` required at create. Bare-slug back-catalogue threads still resolve.
 
 Wikilinks are vault-global, not project-scoped. Because the project name is part of every issue/plan/milestone ID, `[[issue.<other-project>.<slug>]]` resolves the same way as a same-project link — useful when work spans repos (e.g. a `dbt-warehouse` issue declaring `depends_on: ["[[issue.airflow-pipelines.<slug>]]"]`). `anvil validate` flags broken cross-project links as `unresolved_link` with no special-casing.
 

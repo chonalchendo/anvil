@@ -870,3 +870,105 @@ func TestTransition_MissingArtifact_NotFound(t *testing.T) {
 		t.Errorf("error message %q does not name the missing id", msg)
 	}
 }
+
+// mkThread creates a thread under topic and returns its topic-ordinal id.
+func mkThread(t *testing.T, topic, title string) string {
+	t.Helper()
+	out := execCmd(t, "create", "thread", "--title", title, "--topic", topic,
+		"--tags", "domain/dev-tools,activity/research",
+		"--allow-new-facet=domain", "--allow-new-facet=activity", "--json")
+	var res struct{ ID, Path string }
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &res); err != nil {
+		t.Fatalf("create thread: %v\n%s", err, out)
+	}
+	return res.ID
+}
+
+// Closing a thread with nothing to show for it warns but still closes: the
+// conclusion would otherwise survive only as body prose.
+func TestTransition_Thread_Closed_WarnsWithoutOutcomeLink(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	id := mkThread(t, "ducklake", "Which catalog backend")
+
+	out := execCmd(t, "transition", "thread", id, "closed")
+	if !strings.Contains(out, "no decision or learning link") {
+		t.Errorf("expected the distill warning, got %q", out)
+	}
+
+	a, err := core.LoadArtifact(filepath.Join(vault, "60-threads", id+".md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := a.FrontMatter["status"]; got != "closed" {
+		t.Errorf("status = %v, want closed — the warning must never block", got)
+	}
+}
+
+func TestTransition_Thread_Closed_SilentWithOutcomeLink(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+
+	// A body-authored learning link and an `anvil link`-written frontmatter
+	// edge are both outcomes; neither may draw the warning.
+	learnOut := execCmd(t, "create", "learning", "--title", "Catalog backend tradeoffs",
+		"--tags", "domain/dev-tools,activity/research",
+		"--allow-new-facet=domain", "--allow-new-facet=activity", "--json")
+	var learn struct{ ID string }
+	if err := json.Unmarshal([]byte(strings.TrimSpace(learnOut)), &learn); err != nil {
+		t.Fatalf("create learning: %v\n%s", err, learnOut)
+	}
+
+	bodyLinked := mkThread(t, "ducklake", "Body linked question")
+	bodyPath := filepath.Join(vault, "60-threads", bodyLinked+".md")
+	a, err := core.LoadArtifact(bodyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Body += "\nResolved in [[learning." + learn.ID + "]].\n"
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	fmLinked := mkThread(t, "ducklake", "Frontmatter linked question")
+	decOut := execCmd(t, "create", "decision", "--title", "Use Postgres catalog",
+		"--topic", "ducklake", "--description", "d",
+		"--tags", "domain/dev-tools,activity/research",
+		"--allow-new-facet=domain", "--allow-new-facet=activity", "--json")
+	var dec struct{ ID string }
+	if err := json.Unmarshal([]byte(strings.TrimSpace(decOut)), &dec); err != nil {
+		t.Fatalf("create decision: %v\n%s", err, decOut)
+	}
+	execCmd(t, "link", "thread", fmLinked, "decision", dec.ID)
+
+	for _, id := range []string{bodyLinked, fmLinked} {
+		if out := execCmd(t, "transition", "thread", id, "closed"); strings.Contains(out, "no decision or learning link") {
+			t.Errorf("%s: unexpected warning on a linked thread: %q", id, out)
+		}
+	}
+}
+
+// A wikilink that names no file is not an outcome — a typo'd or hand-written
+// id must not silence the gate the way a real link does.
+func TestTransition_Thread_Closed_DanglingLinkStillWarns(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+
+	id := mkThread(t, "ducklake", "Dangling linked question")
+	path := filepath.Join(vault, "60-threads", id+".md")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Body += "\nResolved in [[decision.does-not-exist.0001-nowhere]].\n"
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	if out := execCmd(t, "transition", "thread", id, "closed"); !strings.Contains(out, "no decision or learning link") {
+		t.Errorf("expected the distill warning for a dangling target, got %q", out)
+	}
+}

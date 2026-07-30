@@ -550,14 +550,14 @@ func TestCreate_Thread_WritesValidFile(t *testing.T) {
 	t.Chdir(t.TempDir()) // not a git repo — thread needs no project
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "thread", "--title", "Research ducklake", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
+	cmd.SetArgs([]string{"create", "thread", "--title", "Research ducklake", "--topic", "ducklake", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create thread: %v\nstdout: %s", err, out.String())
 	}
 
-	path := filepath.Join(vault, "60-threads", "research-ducklake.md")
+	path := filepath.Join(vault, "60-threads", "ducklake.0001-research-ducklake.md")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("expected file at %s", path)
 	}
@@ -2484,16 +2484,65 @@ func TestCreate_Decision_StaysAppendOnly(t *testing.T) {
 	}
 }
 
+// Threads mint <topic>.<NNNN>-<slug> like decisions, so the folder browses by
+// topic and sequence and a repeated create appends rather than reporting
+// already_exists.
+func TestCreate_Thread_TopicOrdinalAndAppendOnly(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir()) // not a git repo — thread needs no project
+
+	args := []string{
+		"create", "thread",
+		"--topic", "ducklake",
+		"--title", "Which catalog backend",
+		"--tags", "domain/dev-tools,activity/research",
+		"--allow-new-facet=domain", "--allow-new-facet=activity",
+	}
+	for i := 1; i <= 2; i++ {
+		c := newRootCmd()
+		c.SetArgs(args)
+		if err := c.Execute(); err != nil {
+			t.Fatalf("call %d: %v", i, err)
+		}
+	}
+	for _, want := range []string{
+		"ducklake.0001-which-catalog-backend.md",
+		"ducklake.0002-which-catalog-backend.md",
+	} {
+		if _, err := os.Stat(filepath.Join(vault, "60-threads", want)); err != nil {
+			t.Errorf("expected %s: %v", want, err)
+		}
+	}
+}
+
+func TestCreate_Thread_RequiresTopic(t *testing.T) {
+	setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "thread", "--title", "Which catalog backend",
+		"--tags", "domain/dev-tools,activity/research",
+		"--allow-new-facet=domain", "--allow-new-facet=activity",
+	})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected create thread to fail without --topic")
+	}
+}
+
 func TestCreate_AllSlugTypes_Idempotent(t *testing.T) {
 	type tc struct {
 		name string
 		args []string
 	}
 	cases := []tc{
-		{"thread", []string{
-			"create", "thread", "--title", "auth retries", "--description", "d",
-			"--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity",
-		}},
+		// thread is deliberately absent: it mints a fresh topic-scoped ordinal
+		// per call, so it is append-only like decision (see
+		// TestCreate_Thread_TopicOrdinalAndAppendOnly).
 		{"learning", []string{
 			"create", "learning", "--title", "slogger gotcha", "--description", "d",
 			"--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity",

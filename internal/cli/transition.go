@@ -286,6 +286,13 @@ func newTransitionCmd() *cobra.Command {
 				}
 			}
 
+			// Closing a thread should route its conclusion to a decision (mint
+			// under the thread's topic) or a learning. Warn only — some threads
+			// legitimately resolve to a factual answer with nothing to mint.
+			if t == core.TypeThread && to == "closed" && !threadOutcomeLinked(v, a) {
+				cmd.PrintErrln("warning: " + id + ": no decision or learning link in the thread — its conclusion will live only in body prose; mint a decision under the same topic, or fire distilling-learning")
+			}
+
 			landClaimant := owner
 			if landClaimant == "" {
 				landClaimant = landClaimOwner
