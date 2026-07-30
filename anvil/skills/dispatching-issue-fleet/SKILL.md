@@ -101,7 +101,7 @@ For each PR url returned, in turn:
 2. **Route findings — fleet override.** `reviewing-pr` Phase 4 would fire `responding-to-pr-review` in-session; on the fleet path you do **not** — the fixes live in a worktree you are not in, and you don't write code. Take its findings and route them yourself:
    - All findings ≤low + CI green → the PR is ready for the human's merge decision.
    - Any blocker/high/actionable-medium → **dispatch a fresh worker into the PR's worktree**, tasked with `responding-to-pr-review` against the handed findings (the structured report + reviewer subagent id). This worker is a plain subagent (not the `anvil-issue-worker` agent — wrong skill); its contract is `subagent-prompt.md` (worktree invariant, return contract, forbidden-call audit). Interpret its return exactly as in Phase 4.
-3. **Halt.** Confirm CI green. Do not merge.
+3. **Halt.** Confirm CI green. Wire any missing rail edge the PR body's `## Context box` names in a `swept` row — the worker is barred from mutating the spine, so that edge is yours. Do not merge.
 
 Present the structured report:
 
