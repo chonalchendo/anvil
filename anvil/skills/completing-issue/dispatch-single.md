@@ -32,6 +32,8 @@ The worker's last line decides what happens next:
 - **`Blocker: <one line>`** — record it and stop. The issue stays `in-progress` for a human.
 - **Anything else** (malformed return, dead worker) — read `git log --stat <branch>` for the `wip:` checkpoint commits it left, then re-dispatch or take over in your main thread.
 
+A **missing rail edge** the worker's governs-sweep reports in the PR body's `## Context box` is **yours to wire**. The worker is barred from mutating the spine mid-completion, so it only names the unlinked contract or convention it had to apply. Wire the edge before merge, or the next author's box misses the same rule.
+
 1. **Review** — fire `reviewing-pr` on the returned PR. It dispatches a fresh `anvil-pr-reviewer` and hands back structured findings.
 2. **Respond** — on any blocker/high/actionable-medium, fire `responding-to-pr-review` with that report; an all-≤low report goes straight to the merge decision. That skill drives each finding to an outcome and then carries the per-PR merge gate itself — `--land-pr`, distil, handoff. Do not re-run those here.
 
