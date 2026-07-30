@@ -97,6 +97,11 @@ func TestSelectReadyUnits_MilestoneFilter(t *testing.T) {
 	if len(units) != 1 || units[0].ID != "demo.m" {
 		t.Fatalf("milestone filter: got %v, want [demo.m]", units)
 	}
+	// The printed `milestone.`-prefixed id must select the same unit.
+	units = selectReadyUnits(rows, "milestone.demo.m1")
+	if len(units) != 1 || units[0].ID != "demo.m" {
+		t.Fatalf("prefixed milestone filter: got %v, want [demo.m]", units)
+	}
 }
 
 // TestNext_JSON_ReturnsHeadDeterministically is the Direct cobra-root smoke for

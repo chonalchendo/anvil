@@ -248,7 +248,9 @@ func matchesFilters(f listFilters, status, project, diataxis, confidence, severi
 	if f.Severity != "" && severity != f.Severity {
 		return false
 	}
-	if f.Milestone != "" && milestone != f.Milestone {
+	// Canonicalise both sides: milestoneSlug yields the bare wikilink tail
+	// while the CLI prints (and callers paste) the `milestone.`-prefixed id.
+	if f.Milestone != "" && core.CanonicalID(core.TypeMilestone, milestone) != core.CanonicalID(core.TypeMilestone, f.Milestone) {
 		return false
 	}
 	if f.Tag != "" && !hasTagSubstring(tagsRaw, f.Tag) {

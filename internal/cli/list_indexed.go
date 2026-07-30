@@ -79,7 +79,9 @@ func indexRowsToItems(rows []index.ArtifactRow, f listFilters) []listItem {
 		if f.Severity != "" && item.Severity != f.Severity {
 			continue
 		}
-		if f.Milestone != "" && item.Milestone != f.Milestone {
+		// Same canonicalisation as matchesFilters: the item carries the bare
+		// wikilink tail, the flag may carry the printed `milestone.`-prefixed id.
+		if f.Milestone != "" && core.CanonicalID(core.TypeMilestone, item.Milestone) != core.CanonicalID(core.TypeMilestone, f.Milestone) {
 			continue
 		}
 		items = append(items, item)

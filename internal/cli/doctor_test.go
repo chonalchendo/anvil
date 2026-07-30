@@ -615,7 +615,7 @@ func TestDoctorFinishedMilestone(t *testing.T) {
 	}
 	found := false
 	for _, f := range findings {
-		if f.Kind == "finished-milestone" && f.ID == msSlug {
+		if f.Kind == "finished-milestone" && f.ID == core.CanonicalID(core.TypeMilestone, msSlug) {
 			found = true
 			if f.Fix == "" {
 				t.Error("finding has empty fix")
@@ -679,7 +679,7 @@ func runFinishedMilestoneCheck(t *testing.T, status, kind string) bool {
 		t.Fatalf("runDoctor: %v", err)
 	}
 	for _, f := range findings {
-		if f.Kind == "finished-milestone" && f.ID == msSlug {
+		if f.Kind == "finished-milestone" && f.ID == core.CanonicalID(core.TypeMilestone, msSlug) {
 			return true
 		}
 	}

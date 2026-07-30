@@ -381,12 +381,14 @@ func checkFinishedMilestone(msPath string, a *core.Artifact, children []childIss
 	if kind, _ := a.FrontMatter["kind"].(string); kind == "bucket" {
 		return nil
 	}
-	// Compared against milestoneSlug(), which yields the bare `<project>.<slug>`
-	// wikilink tail — so strip the prefix new milestone filenames carry.
-	msID := strings.TrimPrefix(strings.TrimSuffix(filepath.Base(msPath), ".md"), string(core.TypeMilestone)+".")
+	// children carry milestoneSlug()'s bare wikilink tail, so compare bare —
+	// but report under the canonical id every other verb prints.
+	basename := strings.TrimSuffix(filepath.Base(msPath), ".md")
+	msSlug := core.BareID(core.TypeMilestone, basename)
+	msID := core.CanonicalID(core.TypeMilestone, basename)
 	hasChild := false
 	for _, c := range children {
-		if c.milestone != msID {
+		if c.milestone != msSlug {
 			continue
 		}
 		hasChild = true

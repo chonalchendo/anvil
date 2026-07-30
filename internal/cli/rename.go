@@ -55,7 +55,10 @@ rename always takes effect first.`,
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 
-			oldPath := filepath.Join(v.Root, t.Dir(), oldID+".md")
+			// ResolveArtifact accepts either filename shape (canonical
+			// `issue.foo.x.md` or bare back-catalogue `foo.x.md`) and either
+			// id shape as the argument, same as every other write verb.
+			oldID, oldPath := core.ResolveArtifact(v, t, oldID)
 			a, err := core.LoadArtifact(oldPath)
 			if err != nil {
 				if os.IsNotExist(err) {
@@ -87,7 +90,11 @@ rename always takes effect first.`,
 				})
 			}
 
-			if _, err := os.Stat(newPath); err == nil {
+			// Probe both filename shapes: a bare back-catalogue
+			// `foo.new-title.md` names the same artifact as canonical
+			// `issue.foo.new-title.md`, so either blocks the rename.
+			_, existingPath := core.ResolveArtifact(v, t, newID)
+			if _, err := os.Stat(existingPath); err == nil {
 				return fmt.Errorf("target %s already exists; choose a different title", newID)
 			}
 
@@ -114,8 +121,8 @@ rename always takes effect first.`,
 				cmd.PrintErrf("WARN: reindex after rename failed: %v\n", err)
 			}
 
-			oldWikilink := fmt.Sprintf("[[%s.%s]]", t, oldID)
-			newWikilink := fmt.Sprintf("[[%s.%s]]", t, newID)
+			oldWikilink := "[[" + core.WikilinkTarget(t, oldID) + "]]"
+			newWikilink := "[[" + core.WikilinkTarget(t, newID) + "]]"
 
 			rewritten := make([]string, 0)
 			skipped := make([]string, 0)
@@ -177,12 +184,17 @@ rename always takes effect first.`,
 	return cmd
 }
 
+// replaceSlug rebuilds an artifact id around newSlug, preserving everything
+// before the slug segment: issue/plan/milestone/contract keep the canonical
+// type prefix, the project, and (for numbered issues) the ordinal; inbox keeps
+// its date prefix; decision keeps topic + MADR ordinal. Slugs never contain
+// dots, so the slug is always the last dot-segment of the bare id.
 func replaceSlug(t core.Type, oldID, newSlug string) string {
 	switch t {
-	case core.TypeIssue, core.TypePlan, core.TypeMilestone:
-		dot := strings.IndexByte(oldID, '.')
-		if dot >= 0 {
-			return oldID[:dot+1] + newSlug
+	case core.TypeIssue, core.TypePlan, core.TypeMilestone, core.TypeContract:
+		bare := core.BareID(t, oldID)
+		if dot := strings.LastIndexByte(bare, '.'); dot >= 0 {
+			return core.CanonicalID(t, bare[:dot+1]+newSlug)
 		}
 	case core.TypeInbox:
 		if len(oldID) > 11 && oldID[10] == '-' {

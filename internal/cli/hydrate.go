@@ -33,7 +33,10 @@ func newHydrateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return runHydrate(cmd, v, canonicalArtifactID(v, core.TypeIssue, args[0]), tldr)
+			// Node ids are canonical, never the on-disk basename — hydrate must
+			// print the same id shape every other read verb emits.
+			id, _ := core.ResolveArtifact(v, core.TypeIssue, args[0])
+			return runHydrate(cmd, v, id, tldr)
 		},
 	}
 	cmd.Flags().Bool("tldr", false, "emit each spine node's frontmatter + ## TL;DR only instead of full bodies — a compact boundary map to scan before drilling into a node with `anvil show <type> <id> --body`")
@@ -77,8 +80,8 @@ type hydration struct {
 // missing target records a broken edge and returns nil so the walk continues;
 // the loaded artifact is returned so the caller can descend into its own links.
 func (h *hydration) walk(v *core.Vault, sourceDesc string, linkType core.Type, target string) (*core.Artifact, error) {
-	id := canonicalArtifactID(v, linkType, target)
-	a, err := core.LoadArtifact(resolveArtifactPath(v.Root, linkType, id))
+	basename := canonicalArtifactID(v, linkType, target)
+	a, err := core.LoadArtifact(resolveArtifactPath(v.Root, linkType, basename))
 	if err != nil {
 		if os.IsNotExist(err) {
 			h.broken = append(h.broken, brokenEdge{Source: sourceDesc, Target: target})
@@ -86,6 +89,9 @@ func (h *hydration) walk(v *core.Vault, sourceDesc string, linkType core.Type, t
 		}
 		return nil, fmt.Errorf("loading %s %s: %w", linkType, target, err)
 	}
+	// The basename loads the file; the node reports the canonical id — a bare
+	// back-catalogue filename must not leak into hydrate's output.
+	id := core.CanonicalID(linkType, basename)
 	if key := string(linkType) + " " + id; !h.seen[key] {
 		h.seen[key] = true
 		h.nodes = append(h.nodes, nodeOf(linkType, id, a))

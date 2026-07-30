@@ -53,11 +53,11 @@ func TestRename_Issue_RenamesFileAndFrontmatter(t *testing.T) {
 		t.Fatalf("rename: %v\n%s", err, out.String())
 	}
 
-	// Old file gone, new file exists.
+	// Old file gone; the rename mints the canonical prefixed filename.
 	if _, err := os.Stat(filepath.Join(vault, "70-issues", "foo.old-slug.md")); err == nil {
 		t.Error("old file still exists")
 	}
-	newPath := filepath.Join(vault, "70-issues", "foo.new-title.md")
+	newPath := filepath.Join(vault, "70-issues", "issue.foo.new-title.md")
 	if _, err := os.Stat(newPath); err != nil {
 		t.Fatalf("new file missing: %v", err)
 	}
@@ -108,10 +108,10 @@ func TestRename_Issue_JSONEnvelope(t *testing.T) {
 	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &r); err != nil {
 		t.Fatalf("not JSON: %v\n%s", err, out.String())
 	}
-	if r.OldID != "foo.old-slug" {
+	if r.OldID != "issue.foo.old-slug" {
 		t.Errorf("old_id = %q", r.OldID)
 	}
-	if r.NewID != "foo.new-title" {
+	if r.NewID != "issue.foo.new-title" {
 		t.Errorf("new_id = %q", r.NewID)
 	}
 	if r.Status != "renamed" {
@@ -147,6 +147,70 @@ func TestRename_Issue_RewritesInboundWikilinks(t *testing.T) {
 	}
 	if !strings.Contains(content, "[[issue.foo.new-title]]") {
 		t.Error("new wikilink not found in linker file")
+	}
+}
+
+// The reviewer's blocker probe: a canonical prefixed, ordinal-numbered file
+// renamed via its full id must keep project AND ordinal, not collapse to
+// `issue.<slug>`.
+func TestRename_Issue_PrefixedNumberedFile_PreservesProjectAndOrdinal(t *testing.T) {
+	vault := setupVault(t)
+	a := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", "issue.demo.0001.probe-issue-one.md"),
+		FrontMatter: map[string]any{
+			"type": "issue", "title": "Probe issue one", "description": "fixture description",
+			"created": "2026-04-29", "updated": "2026-04-29",
+			"status": "open", "project": "demo", "severity": "medium",
+			"tags": []any{"domain/dev-tools"}, "goal": "fixture goal is done",
+		},
+		Body: "## Context\n\nfixture body.\n",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"rename", "issue", "issue.demo.0001.probe-issue-one", "--title", "Renamed probe title", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("rename: %v\n%s", err, out.String())
+	}
+	var r renameResult
+	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &r); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, out.String())
+	}
+	if r.NewID != "issue.demo.0001.renamed-probe-title" {
+		t.Errorf("new_id = %q, want %q", r.NewID, "issue.demo.0001.renamed-probe-title")
+	}
+	if _, err := os.Stat(filepath.Join(vault, "70-issues", "issue.demo.0001.renamed-probe-title.md")); err != nil {
+		t.Fatalf("new file missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(vault, "70-issues", "issue.demo.0001.probe-issue-one.md")); err == nil {
+		t.Error("old file still exists")
+	}
+}
+
+// A bare back-catalogue file must resolve under the prefixed argument shape
+// the CLI prints — rename was the one write verb outside the funnel.
+func TestRename_Issue_BareBackCatalogueFile_PrefixedArg(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "old-slug", "Old Title")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"rename", "issue", "issue.foo.old-slug", "--title", "New Title"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("rename via prefixed arg: %v\n%s", err, out.String())
+	}
+	if _, err := os.Stat(filepath.Join(vault, "70-issues", "issue.foo.new-title.md")); err != nil {
+		t.Fatalf("new file missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(vault, "70-issues", "foo.old-slug.md")); err == nil {
+		t.Error("old bare file still exists")
 	}
 }
 
@@ -227,7 +291,21 @@ func TestRename_Issue_TargetAlreadyExists_Error(t *testing.T) {
 
 func TestReplaceSlug_ProjectScoped(t *testing.T) {
 	got := replaceSlug(core.TypeIssue, "myproject.old-slug", "new-slug")
-	if got != "myproject.new-slug" {
+	if got != "issue.myproject.new-slug" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestReplaceSlug_PrefixedNumberedIssue_KeepsProjectAndOrdinal(t *testing.T) {
+	got := replaceSlug(core.TypeIssue, "issue.demo.0001.probe-issue-one", "renamed-probe-title")
+	if got != "issue.demo.0001.renamed-probe-title" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestReplaceSlug_Milestone_KeepsPrefixAndProject(t *testing.T) {
+	got := replaceSlug(core.TypeMilestone, "milestone.demo.old-slug", "new-slug")
+	if got != "milestone.demo.new-slug" {
 		t.Errorf("got %q", got)
 	}
 }

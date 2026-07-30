@@ -45,10 +45,12 @@ tags: [domain/dev-tools, type/system-design-shard]
 |---|---|---|---|
 | Inbox | `00-inbox/` | 14d demote, 30d archive. Backpressure at 50. | Promoted file deleted (low-signal capture isn't worth provenance). |
 | Design | `05-product-designs/product-design.<project>.md`, `06-system-designs/system-design.<project>[.<shard>].md` | Long-lived; updated as understanding evolves. | Authorises milestones via wikilink. |
-| Milestone | `85-milestones/<project>.<slug>.md` | Lives until shipped, then `status: done`. | Authorises plans via wikilink. |
-| Issue | `70-issues/<project>.NNNN.<slug>.md` | Single source of truth: criteria, severity, status. | Authorises plan; receives learning links on review. |
-| Plan | `80-plans/<project>.<slug>.md` | **Canonical.** Worktrees read from this path. | References issue; `status: done` on review approval. |
+| Milestone | `85-milestones/milestone.<project>.<slug>.md` | Lives until shipped, then `status: done`. | Authorises plans via wikilink. |
+| Issue | `70-issues/issue.<project>.NNNN.<slug>.md` | Single source of truth: criteria, severity, status. | Authorises plan; receives learning links on review. |
+| Plan | `80-plans/plan.<project>.<slug>.md` | **Canonical.** Worktrees read from this path. | References issue; `status: done` on review approval. |
 | Session | `10-sessions/raw/<date>.<worktree>.md` | Auto-written. 50-note backpressure. | Insights → learnings; transcript → `distilled/`. |
 | Learning | `20-learnings/<topic>.<slug>.md` | `status: verified \| stale \| retracted`. | Backlinks from issues, plans, decisions. |
 | Decision | `30-decisions/<topic>.<NNNN>-<slug>.md` | MADR. `proposed \| accepted \| deprecated \| superseded`. | Authorises plans and system designs. |
 | Sweep | `50-sweeps/<slug>.md` | Cross-cutting work. | Closes the decision → plan → sweep → commit chain. |
+
+Milestone/issue/plan filenames carry the type prefix (new mints); the bare back-catalogue (`<project>.<slug>.md`) still resolves until the attended rename (anvil.0201) lands.

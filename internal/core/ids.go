@@ -85,13 +85,6 @@ func slugifyIssue(s string) string {
 // numberedIssueRe matches <project>.NNNN.<slug>.md — used by ordinal scan.
 var numberedIssueRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*\.([0-9]+)\.[a-z0-9][a-z0-9-]*\.md$`)
 
-// issueBasename drops the optional `issue.` filename prefix so directory scans
-// read both shapes: the prefixed one new issues mint under, and the bare
-// back-catalogue one (renamed separately, attended).
-func issueBasename(name string) string {
-	return strings.TrimPrefix(name, string(TypeIssue)+".")
-}
-
 // nextIssueOrdinal scans the issues directory for files matching
 // <project>.NNNN.<slug>.md and returns max(ordinal)+1 scoped to that project.
 func nextIssueOrdinal(v *Vault, project string) (int, error) {
@@ -106,7 +99,7 @@ func nextIssueOrdinal(v *Vault, project string) (int, error) {
 	prefix := project + "."
 	highest := 0
 	for _, e := range entries {
-		name := issueBasename(e.Name())
+		name := BareID(TypeIssue, e.Name())
 		if !strings.HasPrefix(name, prefix) {
 			continue
 		}
@@ -188,7 +181,7 @@ func findIssueBySlug(v *Vault, project, slug string) (id, path string, found boo
 	prefix := project + "."
 	suffix := "." + slug + ".md"
 	for _, e := range entries {
-		name := issueBasename(e.Name())
+		name := BareID(TypeIssue, e.Name())
 		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, suffix) {
 			continue
 		}
@@ -239,7 +232,7 @@ func ResolveIssueOrdinal(v *Vault, project, ordinal string) (string, bool) {
 		return "", false
 	}
 	for _, e := range entries {
-		name := issueBasename(e.Name())
+		name := BareID(TypeIssue, e.Name())
 		if strings.HasPrefix(name, prefix) && strings.HasSuffix(name, ".md") {
 			return CanonicalID(TypeIssue, strings.TrimSuffix(name, ".md")), true
 		}
@@ -259,7 +252,7 @@ func ResolveIssueOrdinal(v *Vault, project, ordinal string) (string, bool) {
 // An unresolvable ordinal is returned in canonical shape so the caller's
 // path-load surfaces the not-found error against the id issues mint under.
 func ResolveIssueArg(v *Vault, arg string) string {
-	bare := strings.TrimPrefix(arg, string(TypeIssue)+".")
+	bare := BareID(TypeIssue, arg)
 	if proj, ord, ok := ParseProjectQualifiedOrdinal(bare); ok {
 		if resolved, ok := ResolveIssueOrdinal(v, proj, ord); ok {
 			return resolved
@@ -272,7 +265,7 @@ func ResolveIssueArg(v *Vault, arg string) string {
 				return resolved
 			}
 		}
-		return arg
+		return CanonicalID(TypeIssue, bare)
 	}
 	return CanonicalID(TypeIssue, arg)
 }

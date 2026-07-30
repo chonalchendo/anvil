@@ -28,9 +28,7 @@ func fleetCandidateSlugs(v *core.Vault, id string) []string {
 		seen[slug] = true
 		out = append(out, slug)
 	}
-	// Canonical issue ids carry an `issue.` prefix; strip it or the project
-	// segment leaks into the slug and never matches a worktree branch.
-	bare := strings.TrimPrefix(id, string(core.TypeIssue)+".")
+	bare := core.BareID(core.TypeIssue, id)
 	if dot := strings.IndexByte(bare, '.'); dot >= 0 && dot+1 < len(bare) {
 		add(bare[dot+1:])
 	}

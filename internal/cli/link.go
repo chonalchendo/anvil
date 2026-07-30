@@ -65,7 +65,7 @@ func newLinkCmd() *cobra.Command {
 				if err := indexAfterSave(v, a); err != nil {
 					return err
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "linked %s → %s\n", linkDisplay(src, srcID), externalURI)
+				fmt.Fprintf(cmd.OutOrStdout(), "linked %s → %s\n", core.WikilinkTarget(src, srcID), externalURI)
 				return nil
 			}
 
@@ -108,7 +108,7 @@ func newLinkCmd() *cobra.Command {
 			if err := indexAfterSave(v, a); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "linked %s → %s.%s\n", linkDisplay(src, srcID), tgt, tgtID)
+			fmt.Fprintf(cmd.OutOrStdout(), "linked %s → %s.%s\n", core.WikilinkTarget(src, srcID), tgt, tgtID)
 			return nil
 		},
 	}
@@ -119,13 +119,6 @@ func newLinkCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&unresolved, "unresolved", false, "list edges whose target is not in the vault")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON output")
 	return cmd
-}
-
-// linkDisplay renders an artifact as its wikilink-target form `<type>.<id>`.
-// Canonical ids already carry the prefix for some types, so strip before
-// re-adding rather than printing `milestone.milestone.demo.x`.
-func linkDisplay(t core.Type, id string) string {
-	return string(t) + "." + strings.TrimPrefix(id, string(t)+".")
 }
 
 // resolveLinkTarget returns the target id `AppendLink` should embed in its

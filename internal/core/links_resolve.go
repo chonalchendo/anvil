@@ -143,6 +143,20 @@ func CanonicalID(t Type, raw string) string {
 	return bare
 }
 
+// BareID maps a raw id — with or without its `<type>.` prefix — to the
+// prefix-less tail (e.g. issue `anvil.0042.fix-x`, milestone `anvil.v0-2`).
+// The counterpart to CanonicalID for call sites that key on the bare shape:
+// project extraction, worktree slugs, back-catalogue filenames.
+func BareID(t Type, id string) string {
+	return strings.TrimPrefix(CanonicalID(t, id), string(t)+".")
+}
+
+// WikilinkTarget renders an artifact as its `<type>.<id>` wikilink-target
+// form, regardless of whether the type keeps the prefix in its canonical id.
+func WikilinkTarget(t Type, id string) string {
+	return string(t) + "." + BareID(t, id)
+}
+
 // ArtifactBasename maps a raw id to type t's on-disk basename in v, accepting
 // either filename shape. Neither on disk → the canonical shape, so a not-found
 // error names the id the type is minted under.
@@ -163,15 +177,14 @@ func ArtifactBasename(v *Vault, t Type, raw string) string {
 		return CanonicalID(t, raw)
 	}
 	canonical := CanonicalID(t, raw)
-	prefix := string(t) + "."
-	bare := strings.TrimPrefix(canonical, prefix)
-	if _, err := os.Stat(artifactPath(v, t, prefix+bare)); err == nil {
-		return prefix + bare
+	if _, err := os.Stat(artifactPath(v, t, canonical)); err == nil {
+		return canonical
 	}
 	// Fall back to the bare back-catalogue shape — but never when bare is
 	// itself prefixed, or a doubled `milestone.milestone.x` would resolve onto
 	// the plain file and `anvil link` would embed that dead target.
-	if canonical != bare && !strings.HasPrefix(bare, prefix) {
+	prefix := string(t) + "."
+	if bare := BareID(t, raw); !strings.HasPrefix(bare, prefix) {
 		if _, err := os.Stat(artifactPath(v, t, bare)); err == nil {
 			return bare
 		}

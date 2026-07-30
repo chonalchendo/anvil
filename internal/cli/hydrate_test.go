@@ -243,7 +243,7 @@ func TestHydrate(t *testing.T) {
 			t.Fatalf("hydrate --tldr: %v", err)
 		}
 		// Headers and spine order preserved; frontmatter (goal) carries the summary.
-		for _, want := range []string{"=== issue foo.i1", "fixture goal is done", "LEARNING_TLDR_MARKER"} {
+		for _, want := range []string{"=== issue issue.foo.i1", "fixture goal is done", "LEARNING_TLDR_MARKER"} {
 			if !strings.Contains(out, want) {
 				t.Errorf("digest missing %q\n%s", want, out)
 			}
@@ -272,7 +272,7 @@ func TestHydrate(t *testing.T) {
 		if !strings.Contains(out, "=== product-design product-design.foo (status: active, empty) ===") {
 			t.Errorf("empty-bodied design node header missing the `empty` marker\n%s", out)
 		}
-		if strings.Contains(out, "=== milestone foo.m1 (status: planned, empty)") {
+		if strings.Contains(out, "=== milestone milestone.foo.m1 (status: planned, empty)") {
 			t.Errorf("milestone with real body wrongly marked empty\n%s", out)
 		}
 	})

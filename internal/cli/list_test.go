@@ -591,6 +591,18 @@ func TestList_MilestoneFilterAndProjection(t *testing.T) {
 		}
 	})
 
+	t.Run("--milestone accepts the printed prefixed id", func(t *testing.T) {
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "list", "issue", "--milestone", "milestone.foo.m1", "--json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := unmarshalListEnvelope(t, out)
+		if env.Total != 1 || env.Items[0].ID != "issue.foo.a" {
+			t.Errorf("prefixed milestone filter: got %+v, want [issue.foo.a]", env.Items)
+		}
+	})
+
 	t.Run("default text output shows milestone column and em-dash", func(t *testing.T) {
 		cmd := newRootCmd()
 		out, _, err := runCmd(t, cmd, "list", "issue")
@@ -626,6 +638,19 @@ func TestList_MilestoneFilterAndProjection(t *testing.T) {
 		}
 		if env.Items[0].Milestone != "foo.m1" {
 			t.Errorf("indexed-path milestone projection: got %q want foo.m1", env.Items[0].Milestone)
+		}
+	})
+
+	t.Run("--ready accepts the printed prefixed milestone id", func(t *testing.T) {
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "list", "issue",
+			"--ready", "--milestone", "milestone.foo.m1", "--json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := unmarshalListEnvelope(t, out)
+		if env.Total != 1 || env.Items[0].ID != "issue.foo.a" {
+			t.Errorf("ready+prefixed milestone: got %+v, want [issue.foo.a]", env.Items)
 		}
 	})
 }

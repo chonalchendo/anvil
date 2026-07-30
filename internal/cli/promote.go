@@ -313,7 +313,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	}
 
 	inbox.FrontMatter["status"] = "promoted"
-	inbox.FrontMatter["promoted_to"] = fmt.Sprintf("[[%s]]", linkDisplay(target, targetID))
+	inbox.FrontMatter["promoted_to"] = fmt.Sprintf("[[%s]]", core.WikilinkTarget(target, targetID))
 	inbox.FrontMatter["promoted_type"] = string(target)
 	inbox.FrontMatter["updated"] = created
 	if err := schema.Validate(string(core.TypeInbox), inbox.FrontMatter); err != nil {

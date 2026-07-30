@@ -43,7 +43,7 @@ func TestWalkability(t *testing.T) {
 		if !strings.Contains(out, "foo.broken NOT walkable") || !strings.Contains(out, "milestone.foo.ghost") {
 			t.Errorf("expected foo.broken to name the dangling milestone edge, got:\n%s", out)
 		}
-		if !strings.Contains(out, "foo.empty NOT walkable") || !strings.Contains(out, "milestone foo.me (stub body)") {
+		if !strings.Contains(out, "foo.empty NOT walkable") || !strings.Contains(out, "milestone milestone.foo.me (stub body)") {
 			t.Errorf("expected foo.empty to name the empty milestone edge, got:\n%s", out)
 		}
 		if !strings.Contains(out, "foo.transitive NOT walkable") || !strings.Contains(out, "product-design.foo.ghost") {

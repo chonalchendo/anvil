@@ -117,10 +117,10 @@ func candidateBranchesForIssue(v *core.Vault, id string) ([]string, string) {
 		addBranch("anvil/" + slug)
 	}
 
-	// Canonical shape is "issue.<project>.<slug>": normalise, then pull the
-	// slug. The index keys plan→issue edges on the canonical id too.
+	// The index keys plan→issue edges on the canonical id; the branch slug
+	// comes from the bare tail.
 	id = core.CanonicalID(core.TypeIssue, id)
-	bare := strings.TrimPrefix(id, string(core.TypeIssue)+".")
+	bare := core.BareID(core.TypeIssue, id)
 	if dot := strings.IndexByte(bare, '.'); dot >= 0 && dot+1 < len(bare) {
 		addSlug(bare[dot+1:])
 	}
