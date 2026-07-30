@@ -255,15 +255,15 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			// A missing decision --topic blocks ID allocation entirely (the
-			// decision path is topic-scoped), so resolution is skipped and
-			// id/path stay "": every violation in the block carries the same
+			// A missing --topic blocks ID allocation entirely on the
+			// topic-ordinal types (decision, thread), so resolution is skipped
+			// and id/path stay "": every violation in the block carries the same
 			// empty path, and nothing is written — preValidationErrors is
 			// non-empty, so validateBeforeCreate rejects before any save.
 			// On every other type the resolved path is stamped onto the
 			// collected errors so the whole block agrees on one path value.
 			var id, path string
-			if t != core.TypeDecision || flagTopic != "" {
+			if !isTopicOrdinalType(t) || flagTopic != "" {
 				var err error
 				id, path, err = resolveCreateIDPath(v, t, project, flagTitle, flagTopic, slugDefault)
 				if err != nil {
@@ -374,7 +374,9 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			if t != core.TypeDecision {
+			// The topic-ordinal types mint a fresh ordinal every call, so their
+			// path can never collide with an existing file — no drift check.
+			if !isTopicOrdinalType(t) {
 				if existing, err := core.LoadArtifact(path); err == nil {
 					drift := createDrift(t, fm, existing.FrontMatter, body, existing.Body)
 					if drift == "" {
@@ -450,7 +452,7 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagDescription, "description", "", fmt.Sprintf("one-line summary (max %d chars); defaults to --title for issue and milestone when omitted", maxDescriptionChars))
 	cmd.Flags().StringVar(&flagGoal, "goal", "", fmt.Sprintf("terminal predicate, one sentence (max %d chars, required for issue and milestone)", maxGoalChars))
 	cmd.Flags().StringVar(&flagProject, "project", "", "project slug (overrides auto-detected; supported on: "+strings.Join(core.TypesSupportingProject(), ", ")+"; inbox aliases to --suggested-project)")
-	cmd.Flags().StringVar(&flagTopic, "topic", "", "decision topic slug (required for decision)")
+	cmd.Flags().StringVar(&flagTopic, "topic", "", "topic slug scoping the NNNN ordinal (required for decision and thread)")
 	cmd.Flags().StringVar(&flagSuggestedType, "suggested-type", "", "suggested type (inbox only)")
 	cmd.Flags().StringVar(&flagSuggestedProject, "suggested-project", "", "suggested project (inbox only)")
 	cmd.Flags().StringVar(&flagSlug, "slug", "", "override the title-derived slug (must match ^[a-z0-9][a-z0-9-]*$)")

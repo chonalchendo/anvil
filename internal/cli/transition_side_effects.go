@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -51,6 +52,28 @@ func claimConflict(a *core.Artifact, id, currentSession string) error {
 		Set("holding_session", held).
 		Set("this_session", currentSession).
 		Set("fix_hint", "another session is already working this issue; coordinate or rerun with --force to take over the claim")
+}
+
+var outcomeLinkRe = regexp.MustCompile(`\[\[(decision|learning)\.[^\]]+\]\]`)
+
+// threadOutcomeLinked reports whether a closing thread routes its outcome to a
+// decision or learning. Both the body (hand-authored resolution prose) and the
+// frontmatter link slots (`anvil link` writes there, not into the body) count,
+// so a properly-linked thread never draws the warning. Fenced blocks are
+// stripped — an illustrative wikilink in a code sample is not an outcome.
+func threadOutcomeLinked(a *core.Artifact) bool {
+	if outcomeLinkRe.MatchString(core.StripFencedBlocks(a.Body)) {
+		return true
+	}
+	for _, field := range []string{"related", "depends_on", "blocks"} {
+		vals, _ := a.FrontMatter[field].([]any)
+		for _, e := range vals {
+			if s, ok := e.(string); ok && outcomeLinkRe.MatchString(s) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func projectFromArtifact(a *core.Artifact, id string) string {

@@ -10,14 +10,21 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
+// isTopicOrdinalType reports whether t mints `<topic>.<NNNN>-<slug>` ids and so
+// requires --topic. Topic is the browse key that groups a folder by subject and
+// the join key between a thread and the decision it closes into.
+func isTopicOrdinalType(t core.Type) bool {
+	return t == core.TypeDecision || t == core.TypeThread
+}
+
 // resolveCreateIDPath allocates the id and on-disk path for a new artifact.
 // Issues use a per-project atomic ordinal (<project>.NNNN.<slug>) and resolve
-// their own path; decisions allocate a topic-scoped ordinal; everything else
-// is the slug-keyed DeterministicID. Path defaults to the type's slug-based
-// location unless the allocator already resolved it (issues).
+// their own path; decisions and threads allocate a topic-scoped ordinal;
+// everything else is the slug-keyed DeterministicID. Path defaults to the
+// type's slug-based location unless the allocator already resolved it (issues).
 func resolveCreateIDPath(v *core.Vault, t core.Type, project, title, topic, slug string) (id, path string, err error) {
 	switch t {
-	case core.TypeDecision:
+	case core.TypeDecision, core.TypeThread:
 		id, err = core.NextID(v, t, core.IDInputs{Title: title, Project: project, Topic: topic, Slug: slug})
 	case core.TypeIssue:
 		id, path, err = core.AllocateIssueID(v, project, title, slug)
