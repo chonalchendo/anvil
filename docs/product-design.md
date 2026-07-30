@@ -37,9 +37,9 @@ revisions:
 
 ## What we're building
 
-Anvil is a harness for AI-assisted development — a methodology packaged as auto-loading SKILL.md files with a thin Python orchestrator and a personal knowledge vault. The model is the horse; everything else (skills, conventions, artifact hierarchy, telemetry, gates) is the harness that steers it.
+Anvil is a harness for AI-assisted development — a methodology packaged as auto-loading SKILL.md files with a thin Go orchestrator and a personal knowledge vault. The model is the horse; everything else (skills, conventions, artifact hierarchy, telemetry, gates) is the harness that steers it.
 
-Three layers, each doing one thing. Skills are the methodology — auto-firing markdown the agent loads from conversational triggers, not commands the user has to type. The orchestrator is a small Python CLI for what genuinely needs a process: subprocess management, persistent state across sessions, telemetry. The vault is curated knowledge — learnings, decisions, skills — that travels with the user across projects.
+Three layers, each doing one thing. Skills are the methodology — auto-firing markdown the agent loads from conversational triggers, not commands the user has to type. The orchestrator is a small Go CLI for what genuinely needs a process: subprocess management, persistent state across sessions, telemetry. The vault is curated knowledge — learnings, decisions, skills — that travels with the user across projects.
 
 The product is opinionated about what counts as a feature. Cost discipline is structural — lazy loading, cache breakpoints, model profiles — not a dashboard the user has to read. Educational gates offer themselves but never block; the user has final agency every time. Less surface area beats more capability.
 

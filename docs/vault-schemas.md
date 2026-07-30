@@ -22,7 +22,7 @@ Implied on every type unless explicitly overridden:
 - `title` — display name.
 - `created` / `updated` — ISO date.
 - `status` — type-specific enum (listed below).
-- `tags` — flat list. Per-type schemas may require minimum facets (see per-type sections). Values match `[a-z0-9-]+` (lowercase, hyphenated, ASCII) under a `<facet>/<value>` shape. The CLI gate (`anvil create`, `anvil set tags`, `anvil promote`) rejects values novel to the vault unless `--allow-new-facet=<facet>` is passed.
+- `tags` — flat list. Per-type schemas may require minimum facets (see per-type sections). Values match `[a-z0-9-]+` (lowercase, hyphenated, ASCII) under a `<facet>/<value>` shape. The CLI gate (`anvil create`, `anvil set tags`, `anvil promote`) rejects values novel to the vault unless `--allow-new-facet=<facet>` is passed. Status never goes in tags: lifecycle states mutate, and renaming a tag across the vault is destructive — status lives in frontmatter. Monthly, list tags with <3 uses and promote, merge, or delete each — except `pattern/*`, which is seeded early and exempt.
 - `aliases` — Obsidian aliases.
 - `related` — wikilink array of associative pointers.
 - `external_links` — flat array of free-form URIs (commit shas, PR urls, doc links). Appended by `anvil link --external <uri>`. Optional; not a wikilink — one-way artifact→external edge, out-of-graph by design.

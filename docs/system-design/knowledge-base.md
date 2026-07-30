@@ -35,7 +35,8 @@ tags: [domain/dev-tools, type/system-design-shard]
 
 **Key conventions:**
 - Project is a frontmatter field, NOT a folder (cross-project distillation requires this).
-- Typed frontmatter schemas validated by JSON Schema in CI. Schemas + tag taxonomy live in [`vault-schemas.md`](../vault-schemas.md). Validation is non-negotiable from v0.1 — frontmatter drift is the documented #2 failure mode at scale and CI is the only effective prevention.
+- Typed frontmatter schemas validated by JSON Schema in CI. Schemas + tag taxonomy live in [`vault-schemas.md`](../vault-schemas.md). Validation is non-negotiable from v0.1 — frontmatter drift is the dominant vault failure mode at scale and CI is the only effective prevention.
+- Dashboards are Bases, never Dataview: Dataview's index freezes the UI at ~3–5k notes, Bases reads Obsidian's native metadata cache.
 - 50-note backpressure rule on `00-inbox/` and `10-sessions/raw/` to prevent write-only-vault syndrome.
 - Wikilink-based provenance: product-design → milestone → plan → sweep → issue → commit.
 

@@ -127,6 +127,10 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 
 - **Cost / token visibility** (2026-05-07, PR #8, spec `2026-05-07-build-cost-visibility-design`) — surfaces per-task `tokens` / `cost_usd` / `agent_time_ms` in `anvil build --json` records and emits a one-line `build summary` to stderr on every terminator (success / partial-fail / quota / cancel). Stop-gap before sub-project 2's SQLite layer; no persistence, no schema.
 
+### Doc cleanup
+
+- **Doc cleanup** (2026-07-30, issue `anvil.0224`) — deleted the legacy design doc (Python frontmatter) and repointed its inbound references. **Bundle B.** *(Personal scratchpads gitignored 2026-05-07; CLAUDE.md index references already in place.)*
+
 ---
 
 ## Deferred to v0.2+
