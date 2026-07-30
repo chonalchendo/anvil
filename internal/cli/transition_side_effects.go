@@ -337,40 +337,57 @@ func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOv
 // validated the work locally (e.g. with `just check`) and required CI is
 // genuinely unavailable. The caller is responsible for recording an audit line.
 func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) error {
+	// An already-MERGED PR also reads mergeable:UNKNOWN (GitHub never
+	// recomputes mergeability for a closed PR), so a retry of an interrupted
+	// batch line must recognise "already landed" before it burns the full
+	// mergeability poll and hard-aborts on a PR that succeeded. One combined
+	// read settles this up front, before the mergeability gate below runs.
+	alreadyMerged := false
+	if raw, err := ghPRViewJSONFn(num, "state,mergeable"); err == nil {
+		var st struct {
+			State string `json:"state"`
+		}
+		if json.Unmarshal(raw, &st) == nil && st.State == "MERGED" {
+			alreadyMerged = true
+		}
+	}
 	type mergeState struct {
 		Mergeable        string `json:"mergeable"`
 		MergeStateStatus string `json:"mergeStateStatus"`
 	}
 	// GitHub recomputes mergeability asynchronously after a sibling PR merges;
-	// UNKNOWN means "recomputing, not yet known" — poll until resolved, up to
-	// ~30 s. Only CONFLICTING (or any other non-MERGEABLE, non-UNKNOWN value)
-	// is a genuine hard abort.
-	const maxAttempts = 6
+	// UNKNOWN means "recomputing, not yet known" — poll until resolved. 13/13
+	// observed batch lands cleared within 4-60s (one case needed ~60s), so the
+	// budget below covers that window with margin. Only CONFLICTING (or any
+	// other non-MERGEABLE, non-UNKNOWN value) is a genuine hard abort.
+	const maxAttempts = 10
 	var st mergeState
-	for attempt := range maxAttempts {
-		raw, err := ghPRViewJSONFn(num, "mergeable,mergeStateStatus")
-		if err != nil {
-			return errfmt.NewStructured("land_pr_view_failed").Set("pr", num).Set("error", err.Error())
+	if !alreadyMerged {
+		for attempt := range maxAttempts {
+			raw, err := ghPRViewJSONFn(num, "mergeable,mergeStateStatus")
+			if err != nil {
+				return errfmt.NewStructured("land_pr_view_failed").Set("pr", num).Set("error", err.Error())
+			}
+			if err := json.Unmarshal(raw, &st); err != nil {
+				return errfmt.NewStructured("land_pr_view_failed").Set("pr", num).Set("error", err.Error())
+			}
+			if st.Mergeable != "UNKNOWN" {
+				break
+			}
+			if attempt < maxAttempts-1 {
+				mergeabilityPollSleep(10 * time.Second)
+			}
 		}
-		if err := json.Unmarshal(raw, &st); err != nil {
-			return errfmt.NewStructured("land_pr_view_failed").Set("pr", num).Set("error", err.Error())
+		if st.Mergeable != "MERGEABLE" {
+			return errfmt.NewStructured("land_pr_not_mergeable").
+				Set("pr", num).
+				Set("mergeable", st.Mergeable).
+				Set("merge_state", st.MergeStateStatus)
 		}
-		if st.Mergeable != "UNKNOWN" {
-			break
-		}
-		if attempt < maxAttempts-1 {
-			mergeabilityPollSleep(5 * time.Second)
-		}
-	}
-	if st.Mergeable != "MERGEABLE" {
-		return errfmt.NewStructured("land_pr_not_mergeable").
-			Set("pr", num).
-			Set("mergeable", st.Mergeable).
-			Set("merge_state", st.MergeStateStatus)
-	}
-	if !localValidated {
-		if err := ghPRChecksFn(num); err != nil {
-			return errfmt.NewStructured("land_pr_ci_not_green").Set("pr", num).Set("error", err.Error())
+		if !localValidated {
+			if err := ghPRChecksFn(num); err != nil {
+				return errfmt.NewStructured("land_pr_ci_not_green").Set("pr", num).Set("error", err.Error())
+			}
 		}
 	}
 	// Resolve the PR's head branch once: it both keys the worktree-list fallback
@@ -422,7 +439,12 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) e
 	// throughout. gh pr merge may exit non-zero even when the merge lands
 	// (post-merge checkout fails when master is checked out in the main
 	// worktree), so we confirm the state rather than trusting the exit code.
-	mergeErr := ghPRMergeFn(num)
+	// A PR already MERGED (the retry case above) skips the redundant merge
+	// call — gh pr merge on an already-merged PR is itself an error.
+	var mergeErr error
+	if !alreadyMerged {
+		mergeErr = ghPRMergeFn(num)
+	}
 	finalState, err := prState(num)
 	if err != nil {
 		return errfmt.NewStructured("land_pr_state_verify_failed").Set("pr", num).Set("error", err.Error())

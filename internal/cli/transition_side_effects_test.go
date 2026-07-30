@@ -817,6 +817,44 @@ func TestLandPRPollsUnknownMergeability(t *testing.T) {
 	}
 }
 
+// TestLandPRRetryOfAlreadyMergedPRSucceedsWithoutPolling covers anvil.0220: a
+// PR that merged during an interrupted batch run also reads mergeable:UNKNOWN
+// (GitHub never recomputes mergeability for a closed PR), so a re-run of
+// --land-pr against it must recognise "already landed" up front rather than
+// exhausting the mergeability poll budget and refusing land_pr_not_mergeable.
+func TestLandPRRetryOfAlreadyMergedPRSucceedsWithoutPolling(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	// mergeable stays UNKNOWN forever, matching a real already-MERGED PR;
+	// the pre-check must short-circuit before this ever gets polled.
+	s.viewByField["state,mergeable"] = []byte(`{"state":"MERGED","mergeable":"UNKNOWN"}`)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"}`)
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+
+	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
+
+	if len(s.mergeCalls) != 0 {
+		t.Errorf("merge should not have been called for an already-merged PR: %v", s.mergeCalls)
+	}
+	if len(s.checksCalls) != 0 {
+		t.Errorf("CI checks should not have been run for an already-merged PR: %v", s.checksCalls)
+	}
+	if len(s.localBranchDeleteCalls) != 1 || len(s.deleteBranchCalls) != 1 {
+		t.Errorf("expected cleanup to still run: local=%v remote=%v", s.localBranchDeleteCalls, s.deleteBranchCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v, want resolved", a.FrontMatter["status"])
+	}
+}
+
 // Guards anvil.0078's non-goal: polling past a transient UNKNOWN must not
 // bypass the mergeability gate. If every poll stays UNKNOWN the verb still
 // hard-aborts rather than merging on unresolved mergeability.
