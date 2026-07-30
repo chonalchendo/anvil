@@ -43,4 +43,10 @@ func TestRenderSchemaErrHumanPathUnwrapped(t *testing.T) {
 	if !errors.Is(err, ErrSchemaInvalid) {
 		t.Fatalf("error must be ErrSchemaInvalid, got: %v", err)
 	}
+	if stdout.Len() != 0 {
+		t.Fatalf("human path must not write the envelope to stdout, got: %s", stdout.String())
+	}
+	if stderr.Len() == 0 {
+		t.Fatalf("human path must render the violations block to stderr")
+	}
 }

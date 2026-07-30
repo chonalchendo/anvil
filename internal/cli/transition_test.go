@@ -856,9 +856,9 @@ func TestTransition_MissingArtifact_NotFound(t *testing.T) {
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"transition", "issue", "ghost.0001.nope", "open"})
-	var buf bytes.Buffer
-	cmd.SetOut(&buf)
-	cmd.SetErr(&buf)
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
 	err := cmd.Execute()
 	if err == nil {
 		t.Fatal("expected error for missing artifact")
@@ -868,6 +868,9 @@ func TestTransition_MissingArtifact_NotFound(t *testing.T) {
 	}
 	if msg := err.Error(); !strings.Contains(msg, "ghost.0001.nope") {
 		t.Errorf("error message %q does not name the missing id", msg)
+	}
+	if stdout.Len() != 0 {
+		t.Errorf("stdout must be empty without --json, got: %s", stdout.String())
 	}
 }
 
@@ -900,24 +903,5 @@ func TestTransitionNotFoundJSON(t *testing.T) {
 	}
 	if strings.Contains(stderr.String(), `{"code"`) {
 		t.Fatalf("stderr must not contain JSON with --json, got: %s", stderr.String())
-	}
-}
-
-func TestTransitionNotFoundNoJSON(t *testing.T) {
-	vault := t.TempDir()
-	t.Setenv("ANVIL_VAULT", vault)
-	execCmd(t, "init", vault)
-
-	// Without --json: stdout stays empty and the error surfaces via fang.
-	c := newRootCmd()
-	c.SetArgs([]string{"transition", "issue", "demo.missing", "in-progress", "--owner", "x"})
-	var stdout, stderr bytes.Buffer
-	c.SetOut(&stdout)
-	c.SetErr(&stderr)
-	if err := c.Execute(); err == nil {
-		t.Fatalf("expected artifact_not_found error; stderr: %s", stderr.String())
-	}
-	if stdout.Len() != 0 {
-		t.Fatalf("stdout must be empty without --json, got: %s", stdout.String())
 	}
 }

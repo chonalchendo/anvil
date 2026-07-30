@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"strings"
 	"time"
@@ -46,6 +47,11 @@ func newTransitionCmd() *cobra.Command {
 			id, path := core.ResolveArtifact(v, t, id)
 			a, err := core.LoadArtifact(path)
 			if err != nil {
+				// Only a genuinely missing file is "not found"; a corrupt
+				// artifact that exists must not tell agents to recreate it.
+				if !errors.Is(err, fs.ErrNotExist) {
+					return err
+				}
 				return printAndReturn(cmd, errfmt.NewStructured("artifact_not_found").
 					Set("id", id).Wrap(ErrArtifactNotFound))
 			}

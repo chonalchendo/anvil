@@ -118,13 +118,16 @@ func printValidationErrorsJSON(cmd *cobra.Command, errs []*errfmt.ValidationErro
 
 // emitValidationErrors is the dispatch helper: JSON envelope when asJSON, the
 // human-readable block otherwise. Centralised so create/set/promote agree on
-// the contract for both axes.
-func emitValidationErrors(cmd *cobra.Command, asJSON bool, errs []*errfmt.ValidationError) {
+// the contract for both axes. It returns the paired ErrSchemaInvalid —
+// jsonRendered-wrapped when the envelope went to stdout, so a caller cannot
+// emit the envelope without also suppressing fang's stderr box.
+func emitValidationErrors(cmd *cobra.Command, asJSON bool, errs []*errfmt.ValidationError) error {
 	if asJSON {
 		printValidationErrorsJSON(cmd, errs)
-		return
+		return jsonRendered{ErrSchemaInvalid}
 	}
 	printValidationErrors(cmd, errs)
+	return ErrSchemaInvalid
 }
 
 // renderSchemaErr prints structured validation errors and returns
@@ -146,19 +149,7 @@ func renderSchemaErr(cmd *cobra.Command, v *core.Vault, path string, err error, 
 			}
 		}
 	}
-	emitValidationErrors(cmd, asJSON, errs)
-	return schemaInvalid(asJSON)
-}
-
-// schemaInvalid is the return value paired with emitValidationErrors: when the
-// JSON envelope already went to stdout (asJSON), the error is wrapped in
-// jsonRendered so errorHandler skips fang's stderr box — the double-print the
-// marker exists to prevent — while errors.Is still sees ErrSchemaInvalid.
-func schemaInvalid(asJSON bool) error {
-	if asJSON {
-		return jsonRendered{ErrSchemaInvalid}
-	}
-	return ErrSchemaInvalid
+	return emitValidationErrors(cmd, asJSON, errs)
 }
 
 // printAndReturn honors --json like the success path: when set, the JSON
