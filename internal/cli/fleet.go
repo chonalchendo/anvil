@@ -336,8 +336,8 @@ func ghPRViewReal(dir, branch string) (*ghPRSnapshot, error) {
 // rollupCI reduces a statusCheckRollup to one verdict: failure > pending >
 // success > "" (nothing classifiable). Each arm reads the Check Run fields
 // and the Commit Status field, because the rollup interleaves both shapes.
-// Mirrors the jq reducer in skills/completing-issue/scripts/wait-for-pr.sh,
-// plus CANCELLED, which that reducer omits (follow-up).
+// Mirrors the jq reducer in anvil/skills/completing-issue/scripts/wait-for-pr.sh;
+// the two must classify every state identically (asserted by TestWaitForPRReducer).
 //
 // The pending arm is the complement of "finished", not a whitelist: a Check
 // Run status is any of QUEUED/IN_PROGRESS/WAITING/PENDING/REQUESTED/COMPLETED,
@@ -355,6 +355,7 @@ func rollupCI(rolls []ghStatusCheck) string {
 		switch {
 		case r.Conclusion == "FAILURE" || r.Conclusion == "CANCELLED" ||
 			r.Conclusion == "TIMED_OUT" || r.Conclusion == "STARTUP_FAILURE" ||
+			r.Conclusion == "ACTION_REQUIRED" || r.Conclusion == "STALE" ||
 			r.State == "FAILURE" || r.State == "ERROR":
 			hasFailure = true
 		case (r.Status != "" && r.Status != "COMPLETED") ||

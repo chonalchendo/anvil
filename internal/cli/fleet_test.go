@@ -3,6 +3,8 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -37,77 +39,151 @@ func TestParseWorktreePorcelain_MultipleEntries(t *testing.T) {
 	}
 }
 
-// TestRollupCI covers both rollup shapes in one table. GitHub Actions writes
+// rollupCICases covers both rollup shapes in one table. GitHub Actions writes
 // Check Runs (status + conclusion); CircleCI and other legacy integrations
 // write Commit Statuses — the `StatusContext` cases — which carry only state.
-// Reading conclusion alone pends a green StatusContext forever.
+// Reading conclusion alone pends a green StatusContext forever. Shared by
+// TestRollupCI and TestWaitForPRReducer: the Go and jq reducers must classify
+// every fixture identically (Go "" is the script's "none").
+var rollupCICases = []struct {
+	name string
+	in   []ghStatusCheck
+	want string
+}{
+	{"empty", nil, ""},
+	{"all-success", []ghStatusCheck{{Conclusion: "SUCCESS", Status: "COMPLETED"}}, "success"},
+	{"one-failure-wins", []ghStatusCheck{
+		{Conclusion: "SUCCESS", Status: "COMPLETED"},
+		{Conclusion: "FAILURE", Status: "COMPLETED"},
+	}, "failure"},
+	{"pending-beats-success", []ghStatusCheck{
+		{Conclusion: "SUCCESS", Status: "COMPLETED"},
+		{Conclusion: "", Status: "IN_PROGRESS"},
+	}, "pending"},
+	{"cancelled-is-failure", []ghStatusCheck{
+		{Conclusion: "CANCELLED", Status: "COMPLETED"},
+	}, "failure"},
+	{"startup-failure-is-failure", []ghStatusCheck{
+		{Conclusion: "STARTUP_FAILURE", Status: "COMPLETED"},
+	}, "failure"},
+	{"queued-is-pending", []ghStatusCheck{{Status: "QUEUED"}}, "pending"},
+	{"waiting-is-pending", []ghStatusCheck{{Status: "WAITING"}}, "pending"},
+	{"requested-is-pending", []ghStatusCheck{{Status: "REQUESTED"}}, "pending"},
+	{"checkrun-pending-status-is-pending", []ghStatusCheck{{Status: "PENDING"}}, "pending"},
+	{"skipped-is-success", []ghStatusCheck{
+		{Conclusion: "SKIPPED", Status: "COMPLETED"},
+	}, "success"},
+	{"neutral-is-success", []ghStatusCheck{
+		{Conclusion: "NEUTRAL", Status: "COMPLETED"},
+	}, "success"},
+	{"green-StatusContext-no-conclusion", []ghStatusCheck{
+		{State: "SUCCESS"},
+	}, "success"},
+	{"pending-StatusContext", []ghStatusCheck{
+		{State: "PENDING"},
+	}, "pending"},
+	{"expected-StatusContext-is-pending", []ghStatusCheck{
+		{State: "EXPECTED"},
+	}, "pending"},
+	{"failing-StatusContext", []ghStatusCheck{
+		{State: "FAILURE"},
+	}, "failure"},
+	{"errored-StatusContext", []ghStatusCheck{
+		{State: "ERROR"},
+	}, "failure"},
+	{"green-CheckRun-plus-pending-StatusContext", []ghStatusCheck{
+		{Conclusion: "SUCCESS", Status: "COMPLETED"},
+		{State: "PENDING"},
+	}, "pending"},
+	{"green-CheckRun-plus-green-StatusContext", []ghStatusCheck{
+		{Conclusion: "SUCCESS", Status: "COMPLETED"},
+		{State: "SUCCESS"},
+	}, "success"},
+	{"failing-StatusContext-beats-green-CheckRun", []ghStatusCheck{
+		{Conclusion: "SUCCESS", Status: "COMPLETED"},
+		{State: "FAILURE"},
+	}, "failure"},
+	{"action-required-is-failure", []ghStatusCheck{
+		{Conclusion: "ACTION_REQUIRED", Status: "COMPLETED"},
+	}, "failure"},
+	{"stale-is-failure", []ghStatusCheck{
+		{Conclusion: "STALE", Status: "COMPLETED"},
+	}, "failure"},
+	{"action-required-beats-green", []ghStatusCheck{
+		{Conclusion: "SUCCESS", Status: "COMPLETED"},
+		{Conclusion: "ACTION_REQUIRED", Status: "COMPLETED"},
+	}, "failure"},
+	{"unknown-conclusion-is-blank", []ghStatusCheck{
+		{Conclusion: "FUTURE_STATE", Status: "COMPLETED"},
+	}, ""},
+}
+
 func TestRollupCI(t *testing.T) {
-	cases := []struct {
-		name string
-		in   []ghStatusCheck
-		want string
-	}{
-		{"empty", nil, ""},
-		{"all-success", []ghStatusCheck{{Conclusion: "SUCCESS", Status: "COMPLETED"}}, "success"},
-		{"one-failure-wins", []ghStatusCheck{
-			{Conclusion: "SUCCESS", Status: "COMPLETED"},
-			{Conclusion: "FAILURE", Status: "COMPLETED"},
-		}, "failure"},
-		{"pending-beats-success", []ghStatusCheck{
-			{Conclusion: "SUCCESS", Status: "COMPLETED"},
-			{Conclusion: "", Status: "IN_PROGRESS"},
-		}, "pending"},
-		{"cancelled-is-failure", []ghStatusCheck{
-			{Conclusion: "CANCELLED", Status: "COMPLETED"},
-		}, "failure"},
-		{"startup-failure-is-failure", []ghStatusCheck{
-			{Conclusion: "STARTUP_FAILURE", Status: "COMPLETED"},
-		}, "failure"},
-		{"queued-is-pending", []ghStatusCheck{{Status: "QUEUED"}}, "pending"},
-		{"waiting-is-pending", []ghStatusCheck{{Status: "WAITING"}}, "pending"},
-		{"requested-is-pending", []ghStatusCheck{{Status: "REQUESTED"}}, "pending"},
-		{"checkrun-pending-status-is-pending", []ghStatusCheck{{Status: "PENDING"}}, "pending"},
-		{"skipped-is-success", []ghStatusCheck{
-			{Conclusion: "SKIPPED", Status: "COMPLETED"},
-		}, "success"},
-		{"neutral-is-success", []ghStatusCheck{
-			{Conclusion: "NEUTRAL", Status: "COMPLETED"},
-		}, "success"},
-		{"green-StatusContext-no-conclusion", []ghStatusCheck{
-			{State: "SUCCESS"},
-		}, "success"},
-		{"pending-StatusContext", []ghStatusCheck{
-			{State: "PENDING"},
-		}, "pending"},
-		{"expected-StatusContext-is-pending", []ghStatusCheck{
-			{State: "EXPECTED"},
-		}, "pending"},
-		{"failing-StatusContext", []ghStatusCheck{
-			{State: "FAILURE"},
-		}, "failure"},
-		{"errored-StatusContext", []ghStatusCheck{
-			{State: "ERROR"},
-		}, "failure"},
-		{"green-CheckRun-plus-pending-StatusContext", []ghStatusCheck{
-			{Conclusion: "SUCCESS", Status: "COMPLETED"},
-			{State: "PENDING"},
-		}, "pending"},
-		{"green-CheckRun-plus-green-StatusContext", []ghStatusCheck{
-			{Conclusion: "SUCCESS", Status: "COMPLETED"},
-			{State: "SUCCESS"},
-		}, "success"},
-		{"failing-StatusContext-beats-green-CheckRun", []ghStatusCheck{
-			{Conclusion: "SUCCESS", Status: "COMPLETED"},
-			{State: "FAILURE"},
-		}, "failure"},
-		{"unclassifiable-entry-is-blank", []ghStatusCheck{
-			{Conclusion: "ACTION_REQUIRED", Status: "COMPLETED"},
-		}, ""},
-	}
-	for _, tc := range cases {
+	for _, tc := range rollupCICases {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := rollupCI(tc.in); got != tc.want {
 				t.Errorf("got %q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestWaitForPRReducer shells the jq program embedded in
+// anvil/skills/completing-issue/scripts/wait-for-pr.sh over rollupCICases.
+// If the jq arms drift from rollupCI's classification of any state — the
+// divergence that recurred across anvil.0210 and anvil.0217 while the Go
+// table held — this fails on the diverging fixture. Fixtures marshal with
+// empty fields omitted because gh emits typename-specific keys (a Commit
+// Status has no "status" key), which is what the jq null checks read.
+func TestWaitForPRReducer(t *testing.T) {
+	if _, err := exec.LookPath("jq"); err != nil {
+		t.Skipf("jq not on PATH: %v", err)
+	}
+	script, err := os.ReadFile(filepath.Join("..", "..", "anvil", "skills", "completing-issue", "scripts", "wait-for-pr.sh"))
+	if err != nil {
+		t.Fatalf("read wait-for-pr.sh: %v", err)
+	}
+	const marker = "--json statusCheckRollup --jq '"
+	_, after, ok := strings.Cut(string(script), marker)
+	if !ok {
+		t.Fatalf("marker %q not found in wait-for-pr.sh", marker)
+	}
+	prog, _, ok := strings.Cut(after, "'")
+	if !ok {
+		t.Fatal("unterminated jq program in wait-for-pr.sh")
+	}
+	for _, tc := range rollupCICases {
+		t.Run(tc.name, func(t *testing.T) {
+			rollup := make([]map[string]string, 0, len(tc.in))
+			for _, c := range tc.in {
+				entry := map[string]string{}
+				if c.Conclusion != "" {
+					entry["conclusion"] = c.Conclusion
+				}
+				if c.Status != "" {
+					entry["status"] = c.Status
+				}
+				if c.State != "" {
+					entry["state"] = c.State
+				}
+				rollup = append(rollup, entry)
+			}
+			input, err := json.Marshal(map[string]any{"statusCheckRollup": rollup})
+			if err != nil {
+				t.Fatalf("marshal fixture: %v", err)
+			}
+			cmd := exec.Command("jq", "-r", prog) //nolint:gosec // program text read from the repo-committed script, not user input
+			cmd.Stdin = strings.NewReader(string(input))
+			out, err := cmd.Output()
+			if err != nil {
+				t.Fatalf("jq: %v", err)
+			}
+			want := tc.want
+			if want == "" {
+				want = "none"
+			}
+			if got := strings.TrimSpace(string(out)); got != want {
+				t.Errorf("got %q want %q", got, want)
 			}
 		})
 	}
