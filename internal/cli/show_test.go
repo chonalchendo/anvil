@@ -1078,3 +1078,44 @@ func TestShowLinks_BodyJSON(t *testing.T) {
 		t.Errorf("body missing contract content: %q", got[0].Body)
 	}
 }
+
+// TestShow_TypePrefixedFilename pins both halves of the link-matching filename
+// shape: an issue file named `issue.<id>.md` must resolve under either arg form
+// (the body read), and an edge pointing at it must land in its Incoming block
+// (the graph read). Without the second half the artifacts.id ↔ links.target
+// join splits and flipping the minter orphans every newly-created artifact.
+func TestShow_TypePrefixedFilename(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	src := writeFixtureIssueDated(t, vault, "demo", "0001.probe", "Probe issue", "2026-01-01")
+	if err := os.Rename(src, filepath.Join(vault, "70-issues", "issue.demo.0001.probe.md")); err != nil {
+		t.Fatal(err)
+	}
+	writeFixtureIssueDated(t, vault, "demo", "0002.ref", "Ref issue", "2026-01-02")
+	execCmd(t, "link", "issue", "demo.0002.ref", "issue", "demo.0001.probe")
+	execCmd(t, "reindex")
+
+	for _, arg := range []string{"demo.0001.probe", "issue.demo.0001.probe"} {
+		out := execCmd(t, "show", "issue", arg)
+		if !strings.Contains(out, "Probe issue") {
+			t.Errorf("show issue %s missing title:\n%s", arg, out)
+		}
+		if !strings.Contains(out, "Incoming links:") || !strings.Contains(out, "demo.0002.ref") {
+			t.Errorf("show issue %s missing incoming edge from demo.0002.ref:\n%s", arg, out)
+		}
+	}
+
+	// The id every read verb prints is the canonical one, and no edge to the
+	// prefix-named file is reported dangling.
+	if listed := execCmd(t, "list", "issue"); !strings.Contains(listed, "demo.0001.probe") ||
+		strings.Contains(listed, "issue.demo.0001.probe") {
+		t.Errorf("list issue should print the canonical id, got:\n%s", listed)
+	}
+	if unresolved := execCmd(t, "link", "--unresolved"); strings.TrimSpace(unresolved) != "" {
+		t.Errorf("link --unresolved should be empty, got:\n%s", unresolved)
+	}
+	if to := execCmd(t, "link", "--to", "demo.0001.probe"); !strings.Contains(to, "demo.0002.ref") {
+		t.Errorf("link --to demo.0001.probe should return the edge, got:\n%s", to)
+	}
+}

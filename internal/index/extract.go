@@ -53,19 +53,27 @@ var typedSlotRelations = map[string]bool{
 
 // ArtifactRowFromFrontmatter projects parsed frontmatter onto an ArtifactRow.
 // If `id` is absent or empty in frontmatter, the path stem (filename without
-// extension) is used as the ID. Returns an error only if both sources yield an
-// empty ID; everything else is best-effort (missing fields → empty strings).
+// extension) is used as the ID, canonicalised through core.CanonicalID: the
+// stem is a filename and may carry the `<type>.` prefix, while every link row
+// targeting it is canonicalised the same way. Both sides of the
+// artifacts.id ↔ links.target join must agree on one shape or every incoming
+// edge to a prefix-named file dangles. Returns an error only if both sources
+// yield an empty ID; everything else is best-effort (missing fields → empty
+// strings).
 func ArtifactRowFromFrontmatter(fm map[string]any, path string) (ArtifactRow, error) {
-	id, _ := fm["id"].(string)
-	if id == "" {
-		id = strings.TrimSuffix(filepath.Base(path), ".md")
-	}
-	if id == "" {
-		return ArtifactRow{}, fmt.Errorf("cannot derive id from frontmatter or path %q", path)
-	}
 	get := func(k string) string {
 		s, _ := fm[k].(string)
 		return s
+	}
+	id := get("id")
+	if id == "" {
+		id = strings.TrimSuffix(filepath.Base(path), ".md")
+		if t, err := core.ParseType(get("type")); err == nil {
+			id = core.CanonicalID(t, id)
+		}
+	}
+	if id == "" {
+		return ArtifactRow{}, fmt.Errorf("cannot derive id from frontmatter or path %q", path)
 	}
 	return ArtifactRow{
 		ID:      id,
@@ -151,10 +159,11 @@ func LinkRowsFromBody(source, body string) []LinkRow {
 		if dot < 0 {
 			continue
 		}
-		prefix, id := raw[:dot], raw[dot+1:]
-		if _, err := core.ParseType(prefix); err != nil {
+		t, err := core.ParseType(raw[:dot])
+		if err != nil {
 			continue
 		}
+		id := core.CanonicalID(t, raw)
 		if _, ok := seen[id]; ok {
 			continue
 		}
@@ -175,7 +184,11 @@ func parseWikilink(source, relation, s string) (LinkRow, bool) {
 		if dot < 0 {
 			return LinkRow{}, false
 		}
-		return LinkRow{Source: source, Target: target[dot+1:], Relation: relation, Anchor: ""}, true
+		id := target[dot+1:]
+		if t, err := core.ParseType(target[:dot]); err == nil {
+			id = core.CanonicalID(t, target)
+		}
+		return LinkRow{Source: source, Target: id, Relation: relation, Anchor: ""}, true
 	}
 	// Typed-slot fallback: a bare `<project>.<slug>` id stands in for the
 	// wikilink form when the field name names a single artifact type.

@@ -71,11 +71,11 @@ type hydration struct {
 }
 
 // walk resolves target of linkType declared by sourceDesc via forward file
-// resolution (target file exists?), never incoming-edge presence — a
-// prefix-retaining design/convention link resolves forward but registers no
-// incoming edge, so an incoming-edge check would false-flag it. A missing target
-// records a broken edge and returns nil so the walk continues; the loaded
-// artifact is returned so the caller can descend into its own links.
+// resolution (target file exists?), never incoming-edge presence — forward
+// resolution keeps hydrate independent of index freshness, so a vault whose
+// links table predates the canonical-target fix still walks correctly. A
+// missing target records a broken edge and returns nil so the walk continues;
+// the loaded artifact is returned so the caller can descend into its own links.
 func (h *hydration) walk(v *core.Vault, sourceDesc string, linkType core.Type, target string) (*core.Artifact, error) {
 	id := canonicalArtifactID(v, linkType, target)
 	a, err := core.LoadArtifact(resolveArtifactPath(v.Root, linkType, id))

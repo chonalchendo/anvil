@@ -159,8 +159,12 @@ func (o showOutput) MarshalJSON() ([]byte, error) {
 	return json.Marshal(out)
 }
 
-func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON, includeBody, includeIncoming bool) error {
-	path := resolveArtifactPath(v.Root, t, id)
+func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename string, asJSON, includeBody, includeIncoming bool) error {
+	path := resolveArtifactPath(v.Root, t, basename)
+	// The file is found by basename, but the index keys artifacts and link
+	// targets on the canonical id — so the envelope and the incoming-edge
+	// lookup use that, or a prefix-named file shows no backlinks.
+	id := core.CanonicalID(t, basename)
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -310,21 +314,13 @@ func resolveArtifactPath(vaultRoot string, t core.Type, id string) string {
 }
 
 // canonicalArtifactID maps a raw id/wikilink-target to type t's on-disk
-// basename. Design types keep the "<type>." prefix (global uniqueness); issues
-// route through the shared resolver; others strip the redundant prefix.
+// basename. Issue args first route through the shared resolver so an ordinal
+// (`0200`) expands before the filename shape is picked.
 func canonicalArtifactID(v *core.Vault, t core.Type, raw string) string {
-	switch t {
-	case core.TypeProductDesign, core.TypeSystemDesign, core.TypeConvention:
-		prefix := string(t) + "."
-		if !strings.HasPrefix(raw, prefix) {
-			return prefix + raw
-		}
-		return raw
-	case core.TypeIssue:
-		return core.ResolveIssueArg(v, raw)
-	default:
-		return strings.TrimPrefix(raw, string(t)+".")
+	if t == core.TypeIssue {
+		raw = core.ResolveIssueArg(v, raw)
 	}
+	return core.ArtifactBasename(v, t, raw)
 }
 
 // runShowSkill prints the embedded SKILL.md body for the named bundled skill.

@@ -29,6 +29,29 @@ func TestArtifactRowFromFrontmatter(t *testing.T) {
 	}
 }
 
+// TestArtifactRowFromFrontmatter_PathStemCanonicalised pins the join side of the
+// canonical-id rule: a file whose name carries its type prefix registers under
+// the same id LinkRowsFrom* targets, so incoming edges to it resolve. A design
+// type's stem already carries its prefix and must survive untouched.
+func TestArtifactRowFromFrontmatter_PathStemCanonicalised(t *testing.T) {
+	cases := []struct {
+		typ, path, want string
+	}{
+		{"issue", "/v/70-issues/issue.demo.0001.probe.md", "demo.0001.probe"},
+		{"issue", "/v/70-issues/demo.0002.plain.md", "demo.0002.plain"},
+		{"system-design", "/v/06-system-designs/system-design.demo.md", "system-design.demo"},
+	}
+	for _, tc := range cases {
+		got, err := ArtifactRowFromFrontmatter(map[string]any{"type": tc.typ}, tc.path)
+		if err != nil {
+			t.Fatalf("ArtifactRowFromFrontmatter(%s): %v", tc.path, err)
+		}
+		if got.ID != tc.want {
+			t.Errorf("id for %s = %q, want %q", tc.path, got.ID, tc.want)
+		}
+	}
+}
+
 func TestLinkRowsFromFrontmatter_Scalar(t *testing.T) {
 	fm := map[string]any{
 		"type":      "issue",
@@ -229,6 +252,22 @@ func TestLinkRowsFromBody_TwoFencedBlocksProseInBetween(t *testing.T) {
 	got := LinkRowsFromBody("anvil.src", body)
 	want := []LinkRow{
 		{Source: "anvil.src", Target: "anvil.real", Relation: "body", Anchor: ""},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestLinkRowsFromBody_PrefixRetainingTargets pins the shared derivation rule:
+// a convention or design target keeps its type prefix, so the indexed edge
+// matches the artifact id those types register under rather than a bare stem
+// no row carries.
+func TestLinkRowsFromBody_PrefixRetainingTargets(t *testing.T) {
+	body := "Governed by [[convention.python]] under [[system-design.anvil]]."
+	got := LinkRowsFromBody("anvil.src", body)
+	want := []LinkRow{
+		{Source: "anvil.src", Target: "convention.python", Relation: "body", Anchor: ""},
+		{Source: "anvil.src", Target: "system-design.anvil", Relation: "body", Anchor: ""},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
