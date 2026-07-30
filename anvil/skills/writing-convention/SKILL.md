@@ -10,7 +10,7 @@ metadata:
   skill_type: workflow
   side: design
   created: 2026-06-27
-  updated: 2026-06-27
+  updated: 2026-07-30
   tags: [type/skill, activity/convention]
   diataxis: how-to
   authored_via: manual
@@ -97,6 +97,25 @@ anvil set convention convention.<slug> status active
 ```
 
 If `anvil validate` reports `type/convention` as an unknown glossary tag (first convention in a fresh vault), register it once: `anvil tags add type/convention --desc "..."`.
+
+### Phase 4 — Wire the contract rail
+
+An active convention reaches a completion-time worker only through the contract→convention rail (`anvil show contract <id> --links convention`, read by `completing-issue` and `reviewing-pr`). A convention no contract links is invisible, so wiring the rail is part of birth — not follow-up. Sweep every contract and rule on each one:
+
+```bash
+anvil list contract --limit 100 --json | jq -r '.items[].id'   # the sweep set
+anvil show contract <id> --links convention                    # what it already links
+```
+
+A contract governs the new convention iff its component **writes the artefact the convention specs** — a Python package is governed by `convention.python`, a component whose output is agent-read prose by `convention.prose`. Judge from the contract's `description` plus its `## Does` and `## Code design`; a language the component merely calls (an HTTP client hitting a Python service) is not a rule. For each governed contract, add the frontmatter edge and the `## Code design` prose line — the rail is the frontmatter edge, the prose line is what a reader sees:
+
+```bash
+anvil link contract <id> convention convention.<slug>
+# then, in the contract's `## Code design`:
+#   - House-wide <tool> style: `[[convention.<slug>]]` — link, never restate.
+```
+
+**Rule on every contract; never skip silently.** When no contract governs the new convention, say so explicitly in the run's closing summary — `cross-cutting, no contract home: <slug> governs <artefact> that no current contract's component writes` — and name the trigger that would give it a home (the next contract over that artefact links it at authoring time, per `writing-contract`). A convention parked with no ruling is the failure this phase exists to prevent: it reads as done and reaches nobody.
 
 ---
 

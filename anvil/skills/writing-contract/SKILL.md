@@ -159,7 +159,7 @@ anvil show contract <id>        # read current body
 - **New precedent** — a boundary was violated or clarified by a real issue or PR. Append to `## Precedents`.
 - **Sharpen a does-not** — an existing `does not` entry is ambiguous or incomplete. Edit the entry in-place; do not add a redundant entry.
 - **New does-not** — a boundary omission was found. Append to `## Does not`. If it was discovered via an issue/PR, also add a `## Precedents` entry.
-- **Code design rule** — a pattern surfaced during implementation. Apply the discriminating test: a *component-specific* delta goes in `## Code design` (add the section if absent); a rule that would copy-paste verbatim into another project belongs in a `[[convention.<lang>]]` (author via `writing-convention`, then link it here).
+- **Code design rule** — a pattern surfaced during implementation. Apply the discriminating test: a *component-specific* delta goes in `## Code design` (add the section if absent); a rule that would copy-paste verbatim into another project belongs in a `[[convention.<lang>]]` (author via `writing-convention` — its wire-the-rail phase links the new convention from every contract it governs, this one included, so confirm the edge landed rather than adding a second one).
 - **Verification strategy** — a Direct or Indirect check the component needs surfaced (a regression suite to name, a live-exercise step a recent issue had to invent). Add to `## Verification` (add the section if absent) so the next issue draws it instead of re-deriving it.
 
 ### Phase 3 — Apply the update
