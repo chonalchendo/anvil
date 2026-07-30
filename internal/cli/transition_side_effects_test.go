@@ -48,8 +48,13 @@ type sideFXStub struct {
 	repoDirErr  error
 	repoDirArgs []string
 
-	viewByField       map[string][]byte
-	viewByFieldE      map[string]error
+	viewByField  map[string][]byte
+	viewByFieldE map[string]error
+	// viewSeq entries are consumed one per call before viewByField is
+	// consulted, so a field can return e.g. state OPEN (pre-check) then
+	// MERGED (post-merge verify) across successive reads.
+	viewSeq           map[string][][]byte
+	viewCalls         []string
 	checksErr         error
 	checksCalls       []int
 	mergeErr          error
@@ -74,6 +79,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		originHEAD:   "origin/master",
 		viewByField:  map[string][]byte{},
 		viewByFieldE: map[string]error{},
+		viewSeq:      map[string][][]byte{},
 	}
 
 	// landPR os.Chdir's to mainRoot; restore cwd so it doesn't leak to later
@@ -136,6 +142,11 @@ func stubSideFX(t *testing.T) *sideFXStub {
 	}
 	userHomeFn = func() (string, error) { return s.homeDir, s.homeErr }
 	ghPRViewJSONFn = func(_ int, fields string) ([]byte, error) {
+		s.viewCalls = append(s.viewCalls, fields)
+		if seq := s.viewSeq[fields]; len(seq) > 0 {
+			s.viewSeq[fields] = seq[1:]
+			return seq[0], nil
+		}
 		if e := s.viewByFieldE[fields]; e != nil {
 			return nil, e
 		}
@@ -178,6 +189,18 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		_ = os.Chdir(origWd)
 	})
 	return s
+}
+
+// countViewCalls counts the stub's gh-pr-view reads for one field set,
+// distinguishing mergeability-poll traffic from the pre-check/verify reads.
+func countViewCalls(calls []string, fields string) int {
+	n := 0
+	for _, f := range calls {
+		if f == fields {
+			n++
+		}
+	}
+	return n
 }
 
 func TestSlugFromIssueID(t *testing.T) {
@@ -380,6 +403,8 @@ func TestLandPRHappyPath(t *testing.T) {
 
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	// Provide a worktree for the PR's head branch so removal proceeds.
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
@@ -566,6 +591,8 @@ func TestLandPRAutoClaimsOpenIssueWithOwner(t *testing.T) {
 
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
 	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
@@ -596,6 +623,8 @@ func TestLandPRAutoClaimsOpenIssueWithoutOwner(t *testing.T) {
 
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
 	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
@@ -626,6 +655,8 @@ func TestLandPRRefusesAbandonedIssue(t *testing.T) {
 
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
 	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
@@ -664,6 +695,8 @@ func TestLandPRLeavesInProgressOwnerUntouched(t *testing.T) {
 
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
 	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
@@ -692,6 +725,8 @@ func TestLandPRDoesNotReassignOwnerOnClaimedIssue(t *testing.T) {
 
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
 	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
@@ -717,6 +752,7 @@ func TestLandPRAutoClaimFailedMergeLeavesIssueOpen(t *testing.T) {
 	createDemoIssue(t)
 
 	s := stubSideFX(t)
+	s.viewByField["state"] = []byte(`{"state":"OPEN"}`) // pre-check passes; the mergeability gate refuses
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"CONFLICTING","mergeStateStatus":"DIRTY"}`)
 
 	cmd := newRootCmd()
@@ -751,6 +787,7 @@ func TestLandPRRefusesWhenNotMergeable(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	s.viewByField["state"] = []byte(`{"state":"OPEN"}`) // pre-check passes; the mergeability gate refuses
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"CONFLICTING","mergeStateStatus":"DIRTY"}`)
 
 	cmd := newRootCmd()
@@ -784,29 +821,20 @@ func TestLandPRPollsUnknownMergeability(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
-	// First call returns UNKNOWN; second returns MERGEABLE — land-pr must succeed.
-	callCount := 0
-	ghPRViewJSONFn = func(_ int, fields string) ([]byte, error) {
-		if fields == "mergeable,mergeStateStatus" {
-			callCount++
-			if callCount == 1 {
-				return []byte(`{"mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"}`), nil
-			}
-			return []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`), nil
-		}
-		if b, ok := s.viewByField[fields]; ok {
-			return b, nil
-		}
-		return []byte("{}"), nil
-	}
+	// First poll returns UNKNOWN; the second returns MERGEABLE — land-pr must
+	// poll past the transient rather than hard-abort on the first read.
+	s.viewSeq["mergeable,mergeStateStatus"] = [][]byte{[]byte(`{"mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"}`)}
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
 	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
 
-	if callCount < 2 {
-		t.Errorf("expected at least 2 mergeability polls (UNKNOWN then MERGEABLE), got %d", callCount)
+	if polls := countViewCalls(s.viewCalls, "mergeable,mergeStateStatus"); polls < 2 {
+		t.Errorf("expected at least 2 mergeability polls (UNKNOWN then MERGEABLE), got %d", polls)
 	}
 	if len(s.mergeCalls) != 1 {
 		t.Errorf("merge calls = %v, want [42]", s.mergeCalls)
@@ -814,6 +842,134 @@ func TestLandPRPollsUnknownMergeability(t *testing.T) {
 	a := loadIssueDoc(t, vault, "demo.foo")
 	if a.FrontMatter["status"] != "resolved" {
 		t.Errorf("status = %v, want resolved", a.FrontMatter["status"])
+	}
+}
+
+// TestLandPRRetryOfAlreadyMergedPRSucceedsWithoutPolling covers anvil.0220: a
+// PR that merged during an interrupted batch run also reads mergeable:UNKNOWN
+// (GitHub never recomputes mergeability for a closed PR), so a re-run of
+// --land-pr against it must recognise "already landed" up front rather than
+// exhausting the mergeability poll budget and refusing land_pr_not_mergeable.
+func TestLandPRRetryOfAlreadyMergedPRSucceedsWithoutPolling(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	// mergeable stays UNKNOWN forever, matching a real already-MERGED PR;
+	// the pre-check must short-circuit before this ever gets polled.
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"}`)
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+
+	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
+
+	// Warrants for the negative call assertions: if the alreadyMerged
+	// short-circuit regressed, landPR would burn the poll on the permanent
+	// UNKNOWN (observable only as poll reads), re-run the CI gate, or call
+	// `gh pr merge` on a closed PR — which errors for real.
+	if polls := countViewCalls(s.viewCalls, "mergeable,mergeStateStatus"); polls != 0 {
+		t.Errorf("mergeability must not be polled for an already-merged PR: %d polls", polls)
+	}
+	if len(s.mergeCalls) != 0 {
+		t.Errorf("merge should not have been called for an already-merged PR: %v", s.mergeCalls)
+	}
+	if len(s.checksCalls) != 0 {
+		t.Errorf("CI checks should not have been run for an already-merged PR: %v", s.checksCalls)
+	}
+	if len(s.localBranchDeleteCalls) != 1 || len(s.deleteBranchCalls) != 1 {
+		t.Errorf("expected cleanup to still run: local=%v remote=%v", s.localBranchDeleteCalls, s.deleteBranchCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v, want resolved", a.FrontMatter["status"])
+	}
+}
+
+// TestLandPRRetryAlreadyMergedWorktreeGoneStillResolves covers anvil.0220's
+// second consequence: the interrupted run may have removed the worktree before
+// dying, so the retry must treat "no worktree found" as already cleaned — warn
+// and continue to branch cleanup and issue resolution. If the alreadyMerged
+// bypass of the land_pr_worktree_missing abort regressed, this fails with the
+// issue stranded in-progress.
+func TestLandPRRetryAlreadyMergedWorktreeGoneStillResolves(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	s.homeDir = t.TempDir() // default worktree path does not exist
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	// No listEntries entry either: the interrupted run already removed it.
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("retry of an already-merged PR must not abort on a missing worktree: %v", err)
+	}
+	if !strings.Contains(stderr.String(), "worktree not found") {
+		t.Errorf("expected an already-removed warning, got: %s", stderr.String())
+	}
+	if len(s.removeCalls) != 0 {
+		t.Errorf("no worktree to remove: %v", s.removeCalls)
+	}
+	if len(s.localBranchDeleteCalls) != 1 || len(s.deleteBranchCalls) != 1 {
+		t.Errorf("expected branch cleanup to still run: local=%v remote=%v", s.localBranchDeleteCalls, s.deleteBranchCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "resolved" {
+		t.Errorf("status = %v, want resolved", a.FrontMatter["status"])
+	}
+}
+
+// TestLandPRRefusesClosedPRWithoutPolling: a CLOSED-without-merge PR also
+// reads mergeable:UNKNOWN and no amount of polling changes that, so the
+// pre-check refuses immediately with the observed state. If the CLOSED branch
+// regressed, the land would burn the full poll budget and misreport
+// land_pr_not_mergeable/UNKNOWN instead of naming the real problem.
+func TestLandPRRefusesClosedPRWithoutPolling(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	s := stubSideFX(t)
+	s.viewByField["state"] = []byte(`{"state":"CLOSED"}`)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"}`)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "land_pr_state_not_merged") {
+		t.Errorf("missing error code: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "CLOSED") {
+		t.Errorf("refusal must carry the observed state: %s", stdout.String())
+	}
+	if polls := countViewCalls(s.viewCalls, "mergeable,mergeStateStatus"); polls != 0 {
+		t.Errorf("a closed PR must refuse before any mergeability poll: %d polls", polls)
+	}
+	if len(s.mergeCalls) != 0 {
+		t.Errorf("merge should not have been called: %v", s.mergeCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "in-progress" {
+		t.Errorf("status = %v, want in-progress (unchanged)", a.FrontMatter["status"])
 	}
 }
 
@@ -828,18 +984,10 @@ func TestLandPRRefusesWhenMergeabilityNeverResolves(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
-	// Every poll returns UNKNOWN — mergeability never resolves.
-	callCount := 0
-	ghPRViewJSONFn = func(_ int, fields string) ([]byte, error) {
-		if fields == "mergeable,mergeStateStatus" {
-			callCount++
-			return []byte(`{"mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"}`), nil
-		}
-		if b, ok := s.viewByField[fields]; ok {
-			return b, nil
-		}
-		return []byte("{}"), nil
-	}
+	// The PR stays OPEN and every poll returns UNKNOWN — mergeability never
+	// resolves.
+	s.viewByField["state"] = []byte(`{"state":"OPEN"}`)
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"}`)
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
@@ -853,8 +1001,8 @@ func TestLandPRRefusesWhenMergeabilityNeverResolves(t *testing.T) {
 	if !strings.Contains(stdout.String(), "land_pr_not_mergeable") {
 		t.Errorf("missing error code: %s", stdout.String())
 	}
-	if callCount < 2 {
-		t.Errorf("expected multiple mergeability polls before abort, got %d", callCount)
+	if polls := countViewCalls(s.viewCalls, "mergeable,mergeStateStatus"); polls < 2 {
+		t.Errorf("expected multiple mergeability polls before abort, got %d", polls)
 	}
 	if len(s.mergeCalls) != 0 {
 		t.Errorf("merge should not have been called: %v", s.mergeCalls)
@@ -873,6 +1021,7 @@ func TestLandPRRefusesWhenCINotGreen(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	s.viewByField["state"] = []byte(`{"state":"OPEN"}`) // pre-check passes; the CI gate refuses
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE"}`)
 	s.checksErr = errors.New("check `tests` failed")
 
@@ -1030,6 +1179,7 @@ func TestLandPRRefusesWhenWorktreeRemoveFails(t *testing.T) {
 	// Merge succeeds and the PR state confirms MERGED; only the worktree removal
 	// fails (e.g. uncommitted changes). The new order is merge → verify → remove,
 	// so merge must have been called before the remove is attempted.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)} // pre-check
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	// Make the derived worktree path exist so the remove branch fires.
 	wtPath := filepath.Join(s.homeDir, "Development", "demo-worktrees", "foo")
@@ -1361,6 +1511,7 @@ func TestLandPRSaveFailureSurfacesRecovery(t *testing.T) {
 
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE"}`)
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)} // pre-check
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	// Provide a worktree so removal proceeds before the save-failure path.
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
@@ -1425,6 +1576,8 @@ func TestLandPRHonorsTrailingJSONFlag(t *testing.T) {
 
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	// Provide a worktree so removal proceeds.
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
@@ -1462,6 +1615,8 @@ func TestLandPRDetectsWorktreeViaHeadBranch(t *testing.T) {
 	// fail and the code must fall back to the worktree list.
 	s.homeDir = t.TempDir()
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	// PR branch points to a worktree at a custom slug (fleet scenario).
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/fleet-custom-slug"}`)
@@ -1490,6 +1645,8 @@ func TestLandPRLocalValidatedBypassesCICheck(t *testing.T) {
 
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
 	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
@@ -1520,6 +1677,8 @@ func TestLandPRLocalValidatedAuditsOverride(t *testing.T) {
 
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
 	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
@@ -1572,7 +1731,8 @@ func TestLandPRErrorsWhenNoWorktreeFound(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
-	s.homeDir = t.TempDir() // no worktree directory on disk
+	s.homeDir = t.TempDir()                             // no worktree directory on disk
+	s.viewByField["state"] = []byte(`{"state":"OPEN"}`) // an OPEN PR keeps worktree-missing fatal
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	// headRefName returns a branch with no matching worktree entry.
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/no-worktree-branch"}`)
@@ -1610,6 +1770,8 @@ func TestLandPRWorktreeOverride(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 
 	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--worktree", wtPath)
@@ -1636,6 +1798,8 @@ func TestLandPRMergesBeforeRemovingWorktree(t *testing.T) {
 	s := stubSideFX(t)
 	var callOrder []string
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"demo/foo"}`)
 	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
@@ -1676,6 +1840,8 @@ func TestLandPRMergeExitNonZeroButStateMerged(t *testing.T) {
 
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"demo/foo"}`)
 	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
@@ -1713,6 +1879,8 @@ func TestLandPRResolvesDespiteBranchDeleteFailure(t *testing.T) {
 
 	s := stubSideFX(t)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
 	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
@@ -1764,6 +1932,8 @@ func TestLandPRChdirsToRootBeforeWorktreeRemoval(t *testing.T) {
 	s := stubSideFX(t)
 	s.mainRoot = root
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
 	s.listEntries["anvil/foo"] = worktreeInfo{path: deadCwd}
