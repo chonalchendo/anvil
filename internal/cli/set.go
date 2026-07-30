@@ -273,8 +273,7 @@ func newSetCmd() *cobra.Command {
 					for _, e := range errs {
 						e.Path = path
 					}
-					emitValidationErrors(cmd, flagJSON, errs)
-					return ErrSchemaInvalid
+					return emitValidationErrors(cmd, flagJSON, errs)
 				}
 			}
 
