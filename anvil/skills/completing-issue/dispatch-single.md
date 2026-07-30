@@ -28,6 +28,7 @@ The worker halts at PR-opened by contract: in-subagent review polling is where o
 The worker's last line decides what happens next:
 
 - **A PR url** — run the two steps below.
+- **A PR url whose `Verdict:` line is missing, `fail`, or narrated** — re-measure yourself (`cd <worktree-path> && anvil show issue <id> | bash ~/.claude/skills/completing-issue/scripts/run-verification.sh | jq -r .verdict`) before step 1; red on re-measure is a `Blocker:` return — record it and stop, do not review.
 - **`Blocker: <one line>`** — record it and stop. The issue stays `in-progress` for a human.
 - **Anything else** (malformed return, dead worker) — read `git log --stat <branch>` for the `wip:` checkpoint commits it left, then re-dispatch or take over in your main thread.
 

@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 # run-verification.sh — execute the ## Verification → ### Direct / ### Indirect
-# fenced-bash blocks from an anvil issue (markdown on stdin) and emit a compact
-# PASS/FAIL summary. Exits 0 if every check passes, 1 otherwise.
+# fenced-bash blocks from an anvil issue (markdown on stdin).
+#
+# Output contract — the verdict is data, not prose, because a worker's narrated
+# verdict does not survive the hop to its orchestrator:
+#   stdout: exactly one line of JSON, the verdict —
+#           {"verdict":"pass|fail","checks":N,"failed":[{"check":"Indirect#1",
+#            "exit":4,"preview":"<first command>"}]}
+#           "checks" counts blocks attempted; a section with no ```bash block
+#           counts as one attempted (and failed) check.
+#   stderr: the human PASS/FAIL summary and up to 10 lines per failure.
+#   exit:   0 iff verdict is "pass", 1 otherwise.
 #
 # Each ```bash block runs as ONE script under `set -e`: its lines share state,
 # so the natural idiom — capture output once, then assert on it across several
@@ -10,7 +19,8 @@
 # worktree under test.
 #
 # Usage:
-#   anvil show issue <id> | bash run-verification.sh
+#   anvil show issue <id> | bash run-verification.sh            # summary on stderr
+#   anvil show issue <id> | bash run-verification.sh | jq -r .verdict
 #
 # Format: see writing-issue SKILL.md → ## Verification body section.
 
@@ -51,14 +61,29 @@ extract_blocks() {
     '
 }
 
+checks=0
+failed_json=""
+
+# Accumulate one failed-check object. Built by hand rather than via jq so the
+# runner keeps its zero-dependency contract; arrays are avoided because macOS
+# still ships bash 3.2, where `${arr[@]}` on an empty array trips `set -u`.
+add_fail() { # check exit-code-or-null preview
+    local esc
+    esc=$(printf '%s' "$3" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\000-\037')
+    [ -n "$failed_json" ] && failed_json="$failed_json,"
+    failed_json="$failed_json{\"check\":\"$1\",\"exit\":$2,\"preview\":\"$esc\"}"
+}
+
 run_section() {
     local label=$1
     local n=0 fails=0 rc output preview
     while IFS= read -r -d '' block; do
         n=$((n + 1))
+        checks=$((checks + 1))
         preview=$(printf '%s\n' "$block" | grep -vE '^[[:space:]]*(#|$)' | head -1)
         if [ -z "$preview" ]; then
-            echo "FAIL [$label#$n] block has no executable command (empty or all comments)"
+            echo "FAIL [$label#$n] block has no executable command (empty or all comments)" >&2
+            add_fail "$label#$n" null "block has no executable command"
             fails=$((fails + 1))
             continue
         fi
@@ -68,17 +93,20 @@ run_section() {
         # (e.g. an anvil verb probing for piped body input) doesn't consume the
         # process-substitution stream feeding this while-read loop.
         if output=$(bash -ec "$block" </dev/null 2>&1); then
-            echo "PASS [$label#$n] $preview"
+            echo "PASS [$label#$n] $preview" >&2
         else
             rc=$?
-            echo "FAIL [$label#$n] $preview (exit $rc)"
-            printf '%s\n' "$output" | head -10 | sed 's/^/    /'
+            echo "FAIL [$label#$n] $preview (exit $rc)" >&2
+            printf '%s\n' "$output" | head -10 | sed 's/^/    /' >&2
+            add_fail "$label#$n" "$rc" "$preview"
             fails=$((fails + 1))
         fi
     done < <(extract_blocks "$label")
 
     if [ "$n" -eq 0 ]; then
-        echo "FAIL ### $label has no executable \`\`\`bash block"
+        checks=$((checks + 1))
+        echo "FAIL ### $label has no executable \`\`\`bash block" >&2
+        add_fail "$label" null "no executable bash block"
         return 1
     fi
     return $fails
@@ -87,18 +115,20 @@ run_section() {
 direct_fails=0
 indirect_fails=0
 
-echo "=== Direct (unit/integration) ==="
+echo "=== Direct (unit/integration) ===" >&2
 run_section "Direct" || direct_fails=$?
-echo ""
-echo "=== Indirect (live smoke) ==="
+echo "" >&2
+echo "=== Indirect (live smoke) ===" >&2
 run_section "Indirect" || indirect_fails=$?
 
 total=$((direct_fails + indirect_fails))
-echo ""
+echo "" >&2
 if [ "$total" -eq 0 ]; then
-    echo "All checks passed."
+    echo "All checks passed." >&2
+    printf '{"verdict":"pass","checks":%d,"failed":[]}\n' "$checks"
     exit 0
 else
-    echo "$total check(s) failed."
+    echo "$total check(s) failed." >&2
+    printf '{"verdict":"fail","checks":%d,"failed":[%s]}\n' "$checks" "$failed_json"
     exit 1
 fi
