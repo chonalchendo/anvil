@@ -107,7 +107,7 @@ anvil list contract --limit 100 --json | jq -r '.items[].id'   # the sweep set
 anvil show contract <id> --links convention                    # what it already links
 ```
 
-A contract governs the new convention iff its component **writes the artefact the convention specs** — a Python package is governed by `convention.python`, a component whose output is agent-read prose by `convention.prose`. Judge from the contract's `description` plus its `## Does` and `## Code design`; a language the component merely calls (an HTTP client hitting a Python service) is not a rule. For each governed contract, add the frontmatter edge and the `## Code design` prose line — the rail is the frontmatter edge, the prose line is what a reader sees:
+A contract governs the new convention iff its component **writes the artefact the convention specs** — a Python package is governed by `convention.python`, a component whose output is agent-read prose by `convention.prose`. Judge from the contract's `description` plus its `## Does` and `## Code design`; a tool the component merely calls (a TypeScript client fetching from a Python service) does not govern it. For each governed contract, add the frontmatter edge and the `## Code design` prose line — the rail is the frontmatter edge, the prose line is what a reader sees:
 
 ```bash
 anvil link contract <id> convention convention.<slug>
