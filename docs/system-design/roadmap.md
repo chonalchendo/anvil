@@ -46,7 +46,6 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 - **README rewrite** — currently describes a Python orchestrator. Public-facing; blocks any external user. Resolve the `anvil compile` contradiction (referenced here and in `product-design.md`, absent from `cli-substrate.md` v0.1 verb set) at the same time. **Bundle D.**
 - **Release pipeline** — `.goreleaser.yml` and `.github/workflows/release.yml` neither exist; Cosign/SLSA/Syft promised in `dependencies.md` are unwired. Rewrite stale `docs/releasing.md` (still mentions `uv version` / PyPI) to match. Add v0.1 entry to empty `CHANGELOG.md`. **Bundle C.**
 - **CI gap closure** — `validate-vault.yml` runs `go build` + `go test ./...` only. Add `golangci-lint`, `-race`, and `//go:build integration` invocation.
-- **Doc cleanup** — Move/delete `docs/design.md` (legacy Python frontmatter). **Bundle B.** *(Personal scratchpads gitignored 2026-05-07; CLAUDE.md index references already in place.)*
 - **Sweep type review** — `sweep` may be cut entirely; thin schema, unclear use case. Decide post-Phase-B dogfood, when the smoke test has shown how the vault is actually used end-to-end. Vault shape locks for v0.1 here; further evolution waits for v0.2.
 - **`using-anvil` skill** — agent-facing entry point that teaches the CLI surface for vault interaction (create/set/promote/show, type-by-type field cheatsheet, when to use CLI vs. direct edit). Today every other skill re-explains anvil verbs inline; this centralises it. Lands here so it documents the post-Bundle-F + post-`anvil build` surface; precedes the cull so cull decisions can prune it.
 - **Brutal cull pass** — final entry before tagging v0.1. Cull skills, docs, and CLI surface guided by progressive disclosure and simple-but-deep interfaces; cut anything whose purpose isn't immediately obvious, anything that bloats the always-on context, anything that makes it harder for an agent to find what it needs. Ordered *after* Phase B dogfooding so telemetry tells us what's actually load-bearing.
@@ -127,6 +126,10 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 ### Phase B build orchestrator (interim)
 
 - **Cost / token visibility** (2026-05-07, PR #8, spec `2026-05-07-build-cost-visibility-design`) — surfaces per-task `tokens` / `cost_usd` / `agent_time_ms` in `anvil build --json` records and emits a one-line `build summary` to stderr on every terminator (success / partial-fail / quota / cancel). Stop-gap before sub-project 2's SQLite layer; no persistence, no schema.
+
+### Doc cleanup
+
+- **Doc cleanup** (2026-07-30, issue `anvil.0224`) — deleted the legacy design doc (Python frontmatter) and repointed its inbound references. **Bundle B.** *(Personal scratchpads gitignored 2026-05-07; CLAUDE.md index references already in place.)*
 
 ---
 

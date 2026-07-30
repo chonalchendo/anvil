@@ -23,7 +23,7 @@ func normalizeCodex(line []byte) (NormalizedEvent, error) {
 }
 ```
 
-Cost capture (sketch — full table in `design.md` § Telemetry collection):
+Cost capture (sketch):
 
 | Field | Claude Code | Codex |
 |---|---|---|

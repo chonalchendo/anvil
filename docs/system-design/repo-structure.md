@@ -27,7 +27,7 @@ anvil/                          # source repo
 └── justfile
 ```
 
-Operational state (per-machine, abbreviated; see `design.md` § Repository structure for the full layout including `build-runs/<run-id>/<task-id>/`):
+Operational state (per-machine, abbreviated):
 
 ```
 ~/.anvil/                       # operational state (per-machine)
