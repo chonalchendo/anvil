@@ -73,6 +73,20 @@ func TestResolveLinks_NonWikilinkIgnored(t *testing.T) {
 	}
 }
 
+// TestResolveLinks_ProseFieldQuotedLinkIgnored pins the declared-slot
+// restriction: a wikilink quoted inside a prose field (title, acceptance) is
+// commentary, not a graph edge, and must not be reported even when dangling.
+func TestResolveLinks_ProseFieldQuotedLinkIgnored(t *testing.T) {
+	v := newScaffolded(t)
+	fm := map[string]any{
+		"title":      "quoting a broken [[convention.ghost]] in prose",
+		"acceptance": []any{"loads an issue's [[system-design.ghost]] links at issue-start"},
+	}
+	if got := ResolveLinks(v, fm); len(got) != 0 {
+		t.Errorf("prose-quoted wikilinks must be ignored, got %v", got)
+	}
+}
+
 func TestResolveLinks_UnknownTypePrefix_Ignored(t *testing.T) {
 	v := newScaffolded(t)
 	fm := map[string]any{"author": "[[people.alice]]"}

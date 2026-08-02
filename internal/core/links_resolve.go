@@ -33,15 +33,30 @@ func StripFencedBlocks(body string) string {
 	return fencedBlockRe.ReplaceAllString(body, "```\n```")
 }
 
-// ResolveLinks walks fm and returns every wikilink (`[[type.id]]`) whose
-// target file is missing from v. Tokens whose type prefix is not a known
-// Anvil type are ignored — they are treated as non-vault references.
+// linkSlotFields is the closed set of frontmatter slots that declare graph
+// edges — the fields `anvil link` and the create paths write. Prose fields
+// (title, description, goal, acceptance, ...) may quote a wikilink
+// mid-sentence without declaring an edge, so the resolver never walks them;
+// hydrate's spine walk likewise ignores them (linkTargetsOfType only matches
+// a value that is entirely a wikilink).
+var linkSlotFields = map[string]struct{}{
+	"related": {}, "depends_on": {}, "blocks": {}, "milestone": {},
+	"issue": {}, "product_design": {}, "system_design": {},
+	"supersedes": {}, "superseded_by": {}, "promoted_to": {}, "authorized_by": {},
+}
+
+// ResolveLinks walks fm's declared link slots (linkSlotFields) and returns
+// every wikilink (`[[type.id]]`) whose target file is missing from v. Tokens
+// whose type prefix is not a known Anvil type are ignored — they are treated
+// as non-vault references.
 //
 // Field iteration is sorted by name to keep output deterministic.
 func ResolveLinks(v *Vault, fm map[string]any) []UnresolvedLink {
 	keys := make([]string, 0, len(fm))
 	for k := range fm {
-		keys = append(keys, k)
+		if _, ok := linkSlotFields[k]; ok {
+			keys = append(keys, k)
+		}
 	}
 	sort.Strings(keys)
 

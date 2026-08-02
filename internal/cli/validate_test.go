@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/glossary"
 )
@@ -649,5 +650,67 @@ func TestValidate_GlossaryDrift_EmptyGlossarySkips(t *testing.T) {
 	cmd.SetArgs([]string{"validate", vault})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("empty-glossary fresh vault must skip drift check, got: %v", err)
+	}
+}
+
+// TestValidate_UnresolvedFrontmatterLink pins the anvil.0225 write-time gate:
+// a dangling wikilink in a declared link slot (`related:`) is an
+// unresolved_link finding, while a wikilink merely quoted in a prose field
+// (title) is not an edge and must not be flagged. Uses a learning — the type
+// whose validateOne path early-returns after ValidateLearning — so the link
+// check is pinned before that split. Asserts the specific finding, never a
+// total-violation count: validateOne reports per class, and clearing one
+// class elsewhere can unmask others.
+func TestValidate_UnresolvedFrontmatterLink(t *testing.T) {
+	vault := setupVault(t)
+
+	art := &core.Artifact{
+		Path: filepath.Join(vault, "20-learnings", "zz-dangling-related.md"),
+		FrontMatter: map[string]any{
+			"type":       "learning",
+			"title":      "prose quoting [[convention.zz-prose-only]] is not an edge",
+			"created":    "2026-08-02",
+			"status":     "draft",
+			"diataxis":   "reference",
+			"confidence": "low",
+			"tags":       []any{"domain/dev-tools", "activity/testing"},
+			"related":    []any{"[[convention.zz-does-not-exist]]"},
+		},
+		Body: "\n## TL;DR\nx\n\n## Evidence\nx\n\n## Caveats\nx\n",
+	}
+	if err := art.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"validate", art.Path, "--json"})
+	var out, errOut bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&errOut)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected validate to fail on a dangling related edge")
+	}
+	var findings []errfmt.ValidationError
+	if err := json.Unmarshal(out.Bytes(), &findings); err != nil {
+		t.Fatalf("decoding --json output: %v\n%s", err, out.String())
+	}
+	var unresolved []errfmt.ValidationError
+	for _, f := range findings {
+		if f.Code == errfmt.CodeUnresolvedLink {
+			unresolved = append(unresolved, f)
+		}
+	}
+	if len(unresolved) != 1 {
+		t.Fatalf("want exactly 1 unresolved_link finding, got %d: %+v", len(unresolved), unresolved)
+	}
+	got := unresolved[0]
+	if got.Field != "related[0]" {
+		t.Errorf("finding field = %q, want related[0]", got.Field)
+	}
+	if !strings.Contains(got.Got, "convention.zz-does-not-exist") {
+		t.Errorf("finding should name the dangling target, got: %q", got.Got)
+	}
+	if strings.Contains(out.String(), "zz-prose-only") {
+		t.Errorf("prose-quoted wikilink must not be flagged:\n%s", out.String())
 	}
 }
