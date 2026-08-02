@@ -180,6 +180,55 @@ func TestHydrate(t *testing.T) {
 		}
 	})
 
+	t.Run("closure resolves a contract link when its related list also names a non-contract target", func(t *testing.T) {
+		// Pins anvil.0232: a real issue's `related:` frontmatter mixed a contract
+		// wikilink with a system-design wikilink in one list; the contract was
+		// observed dropped from the closure while every other node resolved.
+		// The contract sits AFTER the non-matching element so the walk must scan
+		// past it — contract-first would stay green under a break-at-first-miss
+		// regression in linkTargetsOfType.
+		vault := setupVault(t)
+		writeHydrateIssue(t, vault, "foo.i1", map[string]any{
+			"related": []any{"[[system-design.foo]]", "[[contract.foo.boundaries]]"},
+		})
+		writeHydrateContract(t, vault, "foo.boundaries", "convention.go-style")
+		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nCONTRACT_ALONGSIDE_DESIGN_MARKER.\n")
+		writeHydrateDesign(t, vault, "foo", core.TypeSystemDesign, nil, "## System\n\nsystem design body.\n")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if !strings.Contains(out, "=== contract contract.foo.boundaries") {
+			t.Errorf("bundle missing contract linked alongside a non-contract related target\n%s", out)
+		}
+		if !strings.Contains(out, "CONTRACT_ALONGSIDE_DESIGN_MARKER") {
+			t.Errorf("bundle missing contract-linked convention body\n%s", out)
+		}
+	})
+
+	t.Run("closure resolves a contract minted with the type-prefixed filename", func(t *testing.T) {
+		// Pins anvil.0232's confirmed drop direction: a contract minted with the
+		// type-prefixed filename (anvil.0202) must resolve from its canonical
+		// wikilink. If core.ArtifactBasename's probe regresses to the pre-#354
+		// bare-only shape that caused the 2026-07-30 drops, hydrate exits with
+		// "1 broken spine edge(s)" and this goes red.
+		vault := setupVault(t)
+		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"related": []any{"[[contract.foo.boundaries]]"}})
+		writeHydrateContract(t, vault, "contract.foo.boundaries", "convention.go-style")
+		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nconvention body.\n")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if !strings.Contains(out, "=== contract contract.foo.boundaries") {
+			t.Errorf("bundle missing prefixed-filename contract\n%s", out)
+		}
+	})
+
 	t.Run("closure walks the design to its linked convention with no contract rail", func(t *testing.T) {
 		vault := setupVault(t)
 		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"milestone": "[[milestone.foo.m1]]"})
