@@ -180,6 +180,64 @@ func TestHydrate(t *testing.T) {
 		}
 	})
 
+	t.Run("closure resolves a contract link when its related list also names a non-contract target", func(t *testing.T) {
+		// Pins anvil.0232: a real issue's `related:` frontmatter mixed a contract
+		// wikilink with a system-design wikilink in one list; the contract was
+		// observed dropped from the closure while every other node resolved.
+		vault := setupVault(t)
+		writeHydrateIssue(t, vault, "foo.i1", map[string]any{
+			"related": []any{"[[contract.foo.boundaries]]", "[[system-design.foo]]"},
+		})
+		writeHydrateContract(t, vault, "foo.boundaries", "convention.go-style")
+		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nCONTRACT_ALONGSIDE_DESIGN_MARKER.\n")
+		writeHydrateDesign(t, vault, "foo", core.TypeSystemDesign, nil, "## System\n\nsystem design body.\n")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if !strings.Contains(out, "=== contract contract.foo.boundaries") {
+			t.Errorf("bundle missing contract linked alongside a non-contract related target\n%s", out)
+		}
+		if !strings.Contains(out, "CONTRACT_ALONGSIDE_DESIGN_MARKER") {
+			t.Errorf("bundle missing contract-linked convention body\n%s", out)
+		}
+	})
+
+	t.Run("closure resolves a contract link whose file predates the type-prefixed filename mint", func(t *testing.T) {
+		// Pins anvil.0200/0202's fix: a contract minted before type-prefixed
+		// filenames still writes bare-basename on disk (foo.boundaries.md, not
+		// contract.foo.boundaries.md); the canonical wikilink must still resolve.
+		vault := setupVault(t)
+		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"related": []any{"[[contract.foo.boundaries]]"}})
+		contractDir := filepath.Join(vault, "75-contracts")
+		if err := os.MkdirAll(contractDir, 0o755); err != nil { //nolint:gosec // 0755 is correct for traversable dirs
+			t.Fatal(err)
+		}
+		bareContract := &core.Artifact{
+			Path: filepath.Join(contractDir, "foo.boundaries.md"),
+			FrontMatter: map[string]any{
+				"type": "contract", "title": "foo.boundaries", "description": "fixture",
+				"created": "2026-07-01", "updated": "2026-07-01",
+				"status": "active", "project": "foo", "kind": "data", "tags": []any{},
+			},
+			Body: "## Code design\n\nBARE_BASENAME_CONTRACT_MARKER.\n",
+		}
+		if err := bareContract.Save(); err != nil {
+			t.Fatal(err)
+		}
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if !strings.Contains(out, "BARE_BASENAME_CONTRACT_MARKER") {
+			t.Errorf("bundle missing bare-basename contract body\n%s", out)
+		}
+	})
+
 	t.Run("closure walks the design to its linked convention with no contract rail", func(t *testing.T) {
 		vault := setupVault(t)
 		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"milestone": "[[milestone.foo.m1]]"})
