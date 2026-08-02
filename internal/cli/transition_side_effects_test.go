@@ -294,6 +294,159 @@ func TestCutWorktreeIdempotentSkipsAdd(t *testing.T) {
 	}
 }
 
+func TestCutWorktreeCarriesDeclaredUntrackedFile(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	repoDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoDir, ".env"), []byte("FRED_API_KEY=secret\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repoDir, "run.sh"), []byte("#!/bin/sh\n"), 0o700); err != nil { //nolint:gosec // G306: executable fixture must stay executable
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repoDir, carryFileName), []byte("# comment\n.env\nrun.sh\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	s := stubSideFX(t)
+	s.repoDir = repoDir
+	wtPath := filepath.Join(t.TempDir(), "wt")
+
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress",
+		"--owner", "claude", "--cut-worktree", "--worktree", wtPath)
+
+	got, err := os.ReadFile(filepath.Join(wtPath, ".env")) //nolint:gosec // G304: test-controlled temp path, not user input
+	if err != nil {
+		t.Fatalf("expected .env carried into worktree: %v", err)
+	}
+	if string(got) != "FRED_API_KEY=secret\n" {
+		t.Errorf("carried .env content = %q, want %q", got, "FRED_API_KEY=secret\n")
+	}
+	info, err := os.Stat(filepath.Join(wtPath, "run.sh"))
+	if err != nil {
+		t.Fatalf("expected run.sh carried into worktree: %v", err)
+	}
+	if info.Mode().Perm() != 0o700 {
+		t.Errorf("carried run.sh mode = %o, want 700 (source mode preserved)", info.Mode().Perm())
+	}
+}
+
+func TestCutWorktreeCarryEscapingPathRefuses(t *testing.T) {
+	for _, entry := range []string{"../outside.env", "/etc/passwd"} {
+		t.Run(entry, func(t *testing.T) {
+			vault := t.TempDir()
+			t.Setenv("ANVIL_VAULT", vault)
+			execCmd(t, "init", vault)
+			createDemoIssue(t)
+
+			repoDir := filepath.Join(t.TempDir(), "repo")
+			if err := os.MkdirAll(repoDir, 0o750); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(repoDir, carryFileName), []byte(entry+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			s := stubSideFX(t)
+			s.repoDir = repoDir
+			wtPath := filepath.Join(t.TempDir(), "wt")
+
+			cmd := newRootCmd()
+			cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--worktree", wtPath, "--json"})
+			var stdout, stderr bytes.Buffer
+			cmd.SetOut(&stdout)
+			cmd.SetErr(&stderr)
+			if err := cmd.Execute(); err == nil {
+				t.Fatalf("expected refusal; stdout: %s", stdout.String())
+			}
+			if !strings.Contains(stdout.String(), "cut_worktree_carry_invalid") {
+				t.Errorf("missing cut_worktree_carry_invalid code: %s", stdout.String())
+			}
+			if len(s.addCalls) != 0 {
+				t.Errorf("refusal must precede the cut; got add calls %+v", s.addCalls)
+			}
+			if _, err := os.Stat(filepath.Join(filepath.Dir(wtPath), "outside.env")); !os.IsNotExist(err) {
+				t.Errorf("escape entry must not write outside the worktree: stat err = %v", err)
+			}
+		})
+	}
+}
+
+func TestCutWorktreeReusedWorktreeSkipsCarry(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	repoDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoDir, ".env"), []byte("REPO_COPY=1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repoDir, carryFileName), []byte(".env\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	s := stubSideFX(t)
+	s.repoDir = repoDir
+	wtPath := filepath.Join(t.TempDir(), "wt")
+	if err := os.MkdirAll(wtPath, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wtPath, ".env"), []byte("WORKTREE_LOCAL=1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s.listEntries["demo/foo"] = worktreeInfo{path: wtPath}
+
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress",
+		"--owner", "claude", "--cut-worktree", "--worktree", wtPath)
+
+	got, err := os.ReadFile(filepath.Join(wtPath, ".env")) //nolint:gosec // G304: test-controlled temp path, not user input
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "WORKTREE_LOCAL=1\n" {
+		t.Errorf("re-claim must not overwrite worktree-local .env; got %q", got)
+	}
+}
+
+func TestCutWorktreeCarryMissingPathRefuses(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	repoDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoDir, carryFileName), []byte(".env\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	s := stubSideFX(t)
+	s.repoDir = repoDir
+	wtPath := filepath.Join(t.TempDir(), "wt")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--worktree", wtPath, "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "cut_worktree_carry_missing") {
+		t.Errorf("missing error code: %s", stdout.String())
+	}
+	if len(s.addCalls) != 0 {
+		t.Errorf("refusal must precede the cut (no orphan worktree); got add calls %+v", s.addCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "open" {
+		t.Errorf("status = %v after refusal, want open (unchanged)", a.FrontMatter["status"])
+	}
+}
+
 func TestCutWorktreeBranchAtWrongPathRefuses(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)

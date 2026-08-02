@@ -118,29 +118,30 @@ func defaultWorktreePath(project, slug string) (string, error) {
 }
 
 // cutWorktreeIfNeeded creates `git worktree add path -b branch [startPoint]`
-// from repoDir unless an entry already matches (idempotent). Errors on
-// path/branch mismatch with an existing worktree, or on git failure. Uses
-// fleet.go's gitWorktreeListFn (branch-keyed map).
+// from repoDir unless an entry already matches (idempotent). Reports whether
+// it cut a fresh worktree — a reused one may hold local edits callers must
+// not clobber. Errors on path/branch mismatch with an existing worktree, or
+// on git failure. Uses fleet.go's gitWorktreeListFn (branch-keyed map).
 //
 // It fetches origin (from repoDir) before cutting so the new branch starts
 // from the remote's current tip via origin/HEAD rather than a potentially
 // stale local HEAD. Offline, no-remote, or an unset origin/HEAD is non-fatal:
 // a warning lands on errW (the command's stderr) and the worktree falls back
 // to local HEAD.
-func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string) error {
+func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string) (created bool, err error) {
 	worktrees, err := gitWorktreeListFn(repoDir)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if info, ok := worktrees[branch]; ok {
 		if info.path == path {
-			return nil
+			return false, nil
 		}
-		return fmt.Errorf("branch %q already checked out at %s (expected %s)", branch, info.path, path)
+		return false, fmt.Errorf("branch %q already checked out at %s (expected %s)", branch, info.path, path)
 	}
 	for b, info := range worktrees {
 		if info.path == path {
-			return fmt.Errorf("worktree at %s already on branch %q (expected %q)", path, b, branch)
+			return false, fmt.Errorf("worktree at %s already on branch %q (expected %q)", path, b, branch)
 		}
 	}
 	// Fetch origin so the new branch starts from the remote tip.
@@ -152,7 +153,10 @@ func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string) error {
 	} else {
 		startPoint = ref
 	}
-	return gitWorktreeAddFn(repoDir, path, branch, startPoint)
+	if aerr := gitWorktreeAddFn(repoDir, path, branch, startPoint); aerr != nil {
+		return false, aerr
+	}
+	return true, nil
 }
 
 // doCutWorktree resolves defaults from the issue, applies overrides, and
@@ -186,11 +190,24 @@ func doCutWorktree(errW io.Writer, a *core.Artifact, id, pathOverride, branchOve
 	if branch == "" {
 		branch = project + "/" + slug
 	}
-	if err := cutWorktreeIfNeeded(errW, repoDir, wtPath, branch); err != nil {
+	// Validate carry declarations before the cut so a refusal never orphans
+	// a fresh worktree+branch; copy only into a fresh cut so a re-claim never
+	// overwrites worktree-local edits with the repo copy.
+	carry, err := checkCarryDeclarations(repoDir)
+	if err != nil {
+		return "", "", err
+	}
+	created, cerr := cutWorktreeIfNeeded(errW, repoDir, wtPath, branch)
+	if cerr != nil {
 		return "", "", errfmt.NewStructured("cut_worktree_failed").
 			Set("path", wtPath).
 			Set("branch", branch).
-			Set("error", err.Error())
+			Set("error", cerr.Error())
+	}
+	if created {
+		if err := copyCarryFiles(repoDir, wtPath, carry); err != nil {
+			return "", "", err
+		}
 	}
 	return wtPath, branch, nil
 }
