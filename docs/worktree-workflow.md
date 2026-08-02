@@ -6,6 +6,8 @@ Applies to every task in the anvil repo — non-negotiable.
 
 **Issue-backed work:** skip the manual sequence — `anvil transition issue <id> in-progress --owner <name> --cut-worktree` claims, fetches, and branches from `origin/HEAD` in one call, emitting the worktree path. It resolves the repo from the issue's `project` (`~/Development/<project>`, or the cwd repo when that *is* the project), never from whatever repo you happen to be standing in, and refuses with `cut_worktree_repo_unresolved` when neither resolves. The manual sequence below remains for issueless tasks.
 
+A repo-root `.anvil-worktree-carry` file (one repo-relative path per line, `#` comments skipped) declares untracked files — typically `.env` credentials the smoke-test gate needs — that `--cut-worktree` copies into each freshly cut worktree; a declared path missing from the source checkout refuses the cut with `cut_worktree_carry_missing`, and an absolute or repo-escaping entry with `cut_worktree_carry_invalid`. Declared paths must be gitignored: a carried file that is not ignored makes `--land-pr`'s post-merge `git worktree remove` refuse (`contains modified or untracked files`), stranding the issue in-progress.
+
 ```bash
 git -C ~/Development/anvil fetch origin
 git -C ~/Development/anvil worktree add ~/Development/anvil-worktrees/<slug> -b anvil/<slug> origin/master
