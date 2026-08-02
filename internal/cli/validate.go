@@ -67,13 +67,14 @@ func newValidateCmd() *cobra.Command {
 			}
 
 			verbs := verbPathValidator(cmd.Root())
+			vault := &core.Vault{Root: root}
 			var failures []*errfmt.ValidationError
 			if singleFile != "" {
 				t, err := typeFromArtifactPath(singleFile)
 				if err != nil {
 					return err
 				}
-				_, fs := validateOne(t, singleFile, known, verbs)
+				_, fs := validateOne(t, singleFile, known, verbs, vault)
 				failures = fs
 			} else {
 				// idPaths accumulates every path seen per index id to detect
@@ -89,7 +90,7 @@ func newValidateCmd() *cobra.Command {
 						return err
 					}
 					for _, p := range paths {
-						a, fs := validateOne(t, p, known, verbs)
+						a, fs := validateOne(t, p, known, verbs, vault)
 						if projectFilter != "" && !artifactInProject(a, p, t, projectFilter) {
 							continue
 						}
@@ -197,7 +198,7 @@ func verbPathValidator(root *cobra.Command) core.VerbPathValidator {
 // so one artifact reports every violation class in one pass (anvil.0218). The
 // artifact is nil on a parse failure (the only failure that prevents loading);
 // callers reuse it for cross-file id-collision detection without a second load.
-func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs core.VerbPathValidator) (*core.Artifact, []*errfmt.ValidationError) {
+func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs core.VerbPathValidator, v *core.Vault) (*core.Artifact, []*errfmt.ValidationError) {
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		return nil, []*errfmt.ValidationError{errfmt.NewValidationError(errfmt.CodeParseError, path, "", err.Error())}
@@ -205,6 +206,15 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 	var out []*errfmt.ValidationError
 	if err := schema.Validate(string(t), a.FrontMatter); err != nil {
 		out = append(out, schemaErrToValidationErrors(path, err)...)
+	}
+
+	// Dangling frontmatter wikilinks in declared link slots (e.g. `related:`)
+	// must be refused at write time, not first surfaced by completion-time
+	// hydrate (anvil.0225). Body wikilinks stay create-time-only for now — the
+	// back catalogue carries ~80 files with dangling body edges, so folding
+	// them into validate is an explicit non-goal until that repair lands.
+	for _, link := range core.ResolveLinks(v, a.FrontMatter) {
+		out = append(out, unresolvedLinkError(path, link))
 	}
 
 	if t == core.TypeLearning {
@@ -249,6 +259,23 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 	}
 
 	return a, out
+}
+
+// unresolvedLinkError renders a dangling wikilink in the one unresolved_link
+// shape shared by both write-time surfaces — `anvil validate`'s frontmatter
+// walk and `anvil create`'s authored-body scan — so the same defect class
+// reports the same code and fix across verbs (convention.cli-tooling). Every
+// UnresolvedLink target contains a dot: both producers skip dot-less tokens.
+func unresolvedLinkError(path string, link core.UnresolvedLink) *errfmt.ValidationError {
+	e := errfmt.NewValidationError(errfmt.CodeUnresolvedLink, path, link.Field,
+		fmt.Sprintf("unresolved wikilink [[%s]]", link.Target))
+	prefix := link.Target[:strings.IndexByte(link.Target, '.')]
+	if _, err := core.ParseType(prefix); err != nil {
+		// Only the body scan emits unknown-prefix targets; the frontmatter walk
+		// ignores them as non-vault references.
+		return e.WithFix("use a known `<type>.<id>` target form or remove the wikilink")
+	}
+	return e.WithFix(fmt.Sprintf("fix the target id or remove the wikilink — `anvil list %s` shows valid ids", prefix))
 }
 
 // vaultRootFromArtifactPath resolves the vault root for an artifact file by

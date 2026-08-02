@@ -96,8 +96,7 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 		// it runs before the feasibility gate shells out — an author with a
 		// dead wikilink pays no block-execution time to learn it.
 		for _, link := range core.ResolveBodyLinks(v, body) {
-			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "body", fmt.Sprintf("unresolved wikilink [[%s]]", link.Target)).
-				WithFix("create the target artifact or remove the wikilink"))
+			failures = append(failures, unresolvedLinkError(path, link))
 		}
 		switch t {
 		case core.TypeIssue:
