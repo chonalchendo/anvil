@@ -184,9 +184,12 @@ func TestHydrate(t *testing.T) {
 		// Pins anvil.0232: a real issue's `related:` frontmatter mixed a contract
 		// wikilink with a system-design wikilink in one list; the contract was
 		// observed dropped from the closure while every other node resolved.
+		// The contract sits AFTER the non-matching element so the walk must scan
+		// past it — contract-first would stay green under a break-at-first-miss
+		// regression in linkTargetsOfType.
 		vault := setupVault(t)
 		writeHydrateIssue(t, vault, "foo.i1", map[string]any{
-			"related": []any{"[[contract.foo.boundaries]]", "[[system-design.foo]]"},
+			"related": []any{"[[system-design.foo]]", "[[contract.foo.boundaries]]"},
 		})
 		writeHydrateContract(t, vault, "foo.boundaries", "convention.go-style")
 		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nCONTRACT_ALONGSIDE_DESIGN_MARKER.\n")
@@ -205,36 +208,24 @@ func TestHydrate(t *testing.T) {
 		}
 	})
 
-	t.Run("closure resolves a contract link whose file predates the type-prefixed filename mint", func(t *testing.T) {
-		// Pins anvil.0200/0202's fix: a contract minted before type-prefixed
-		// filenames still writes bare-basename on disk (foo.boundaries.md, not
-		// contract.foo.boundaries.md); the canonical wikilink must still resolve.
+	t.Run("closure resolves a contract minted with the type-prefixed filename", func(t *testing.T) {
+		// Pins anvil.0232's confirmed drop direction: a contract minted with the
+		// type-prefixed filename (anvil.0202) must resolve from its canonical
+		// wikilink. If core.ArtifactBasename's probe regresses to the pre-#354
+		// bare-only shape that caused the 2026-07-30 drops, hydrate exits with
+		// "1 broken spine edge(s)" and this goes red.
 		vault := setupVault(t)
 		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"related": []any{"[[contract.foo.boundaries]]"}})
-		contractDir := filepath.Join(vault, "75-contracts")
-		if err := os.MkdirAll(contractDir, 0o755); err != nil { //nolint:gosec // 0755 is correct for traversable dirs
-			t.Fatal(err)
-		}
-		bareContract := &core.Artifact{
-			Path: filepath.Join(contractDir, "foo.boundaries.md"),
-			FrontMatter: map[string]any{
-				"type": "contract", "title": "foo.boundaries", "description": "fixture",
-				"created": "2026-07-01", "updated": "2026-07-01",
-				"status": "active", "project": "foo", "kind": "data", "tags": []any{},
-			},
-			Body: "## Code design\n\nBARE_BASENAME_CONTRACT_MARKER.\n",
-		}
-		if err := bareContract.Save(); err != nil {
-			t.Fatal(err)
-		}
+		writeHydrateContract(t, vault, "contract.foo.boundaries", "convention.go-style")
+		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nconvention body.\n")
 
 		cmd := newRootCmd()
 		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
 		if err != nil {
 			t.Fatalf("hydrate: %v", err)
 		}
-		if !strings.Contains(out, "BARE_BASENAME_CONTRACT_MARKER") {
-			t.Errorf("bundle missing bare-basename contract body\n%s", out)
+		if !strings.Contains(out, "=== contract contract.foo.boundaries") {
+			t.Errorf("bundle missing prefixed-filename contract\n%s", out)
 		}
 	})
 
