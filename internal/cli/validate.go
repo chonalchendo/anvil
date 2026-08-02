@@ -67,13 +67,14 @@ func newValidateCmd() *cobra.Command {
 			}
 
 			verbs := verbPathValidator(cmd.Root())
+			vault := &core.Vault{Root: root}
 			var failures []*errfmt.ValidationError
 			if singleFile != "" {
 				t, err := typeFromArtifactPath(singleFile)
 				if err != nil {
 					return err
 				}
-				_, fs := validateOne(t, singleFile, known, verbs)
+				_, fs := validateOne(t, singleFile, known, verbs, vault)
 				failures = fs
 			} else {
 				// idPaths accumulates every path seen per index id to detect
@@ -89,7 +90,7 @@ func newValidateCmd() *cobra.Command {
 						return err
 					}
 					for _, p := range paths {
-						a, fs := validateOne(t, p, known, verbs)
+						a, fs := validateOne(t, p, known, verbs, vault)
 						if projectFilter != "" && !artifactInProject(a, p, t, projectFilter) {
 							continue
 						}
@@ -197,7 +198,7 @@ func verbPathValidator(root *cobra.Command) core.VerbPathValidator {
 // so one artifact reports every violation class in one pass (anvil.0218). The
 // artifact is nil on a parse failure (the only failure that prevents loading);
 // callers reuse it for cross-file id-collision detection without a second load.
-func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs core.VerbPathValidator) (*core.Artifact, []*errfmt.ValidationError) {
+func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs core.VerbPathValidator, v *core.Vault) (*core.Artifact, []*errfmt.ValidationError) {
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		return nil, []*errfmt.ValidationError{errfmt.NewValidationError(errfmt.CodeParseError, path, "", err.Error())}
@@ -205,6 +206,13 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 	var out []*errfmt.ValidationError
 	if err := schema.Validate(string(t), a.FrontMatter); err != nil {
 		out = append(out, schemaErrToValidationErrors(path, err)...)
+	}
+
+	// Dangling frontmatter wikilinks (e.g. `related:`) must be refused at
+	// write time, not first surfaced by completion-time hydrate (anvil.0225).
+	for _, link := range core.ResolveLinks(v, a.FrontMatter) {
+		out = append(out, errfmt.NewValidationError(errfmt.CodeUnresolvedLink, path, link.Field, fmt.Sprintf("unresolved wikilink [[%s]]", link.Target)).
+			WithFix("fix the target id or remove the wikilink"))
 	}
 
 	if t == core.TypeLearning {
