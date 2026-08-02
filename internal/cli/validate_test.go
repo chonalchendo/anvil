@@ -731,6 +731,23 @@ func TestValidate_VerificationStdin_NoHardcodedPath(t *testing.T) {
 	}
 }
 
+func TestValidate_VerificationStdin_JSONCleanEmitsEmptyEnvelope(t *testing.T) {
+	// One schema per verb: the clean stdin-lint path must emit the same empty
+	// ValidationError array the clean vault-wide scan emits, not a bespoke shape.
+	var out bytes.Buffer
+	cmd := newRootCmd()
+	cmd.SetIn(strings.NewReader("true\n"))
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"validate", "--verification-stdin", "--json"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("clean predicate must not fail, got: %v; output: %s", err, out.String())
+	}
+	if got := strings.TrimSpace(out.String()); got != "[]" {
+		t.Errorf("json clean output = %q, want the empty-envelope []", got)
+	}
+}
+
 func TestValidate_VerificationStdin_HardcodedPathRejected(t *testing.T) {
 	var out bytes.Buffer
 	cmd := newRootCmd()

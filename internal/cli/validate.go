@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -151,42 +150,9 @@ func newValidateCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON array of structured errors")
-	cmd.Flags().BoolVar(&verificationStdin, "verification-stdin", false, "lint a Verification block's bash script (read from stdin) for a hardcoded checkout-path `cd` that would override worktree anchoring — no vault lookup, ignores [path] and --json")
+	cmd.Flags().BoolVar(&verificationStdin, "verification-stdin", false, "lint a Verification block's bash script (read from stdin) for a hardcoded checkout path that would override worktree anchoring — no vault lookup; ignores [path], honours --json")
 	cmd.AddCommand(newValidateSkillCmd())
 	return cmd
-}
-
-// runVerificationStdinLint reads a Verification predicate's raw bash text from
-// stdin and reports any hardcoded checkout-path `cd` it contains (see
-// core.CheckoutPathMatches). Distinct from the vault-wide validate path: this
-// mode takes no vault, no artifact — just the predicate text a fleet worker or
-// author wants checked before running it. Shares emitValidationErrors'
-// errfmt.ValidationError shape and --json behaviour with the rest of validate,
-// per convention.cli-tooling's "--json mandatory on read-shape verbs" rule.
-func runVerificationStdinLint(cmd *cobra.Command, asJSON bool) error {
-	data, err := io.ReadAll(cmd.InOrStdin())
-	if err != nil {
-		return fmt.Errorf("reading stdin: %w", err)
-	}
-	var failures []*errfmt.ValidationError
-	for _, h := range core.CheckoutPathMatches(string(data)) {
-		failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, "-", "",
-			fmt.Sprintf("checkout path: verification block hardcodes a checkout path (%q)", h)).
-			WithFix("anchor with $(git rev-parse --show-toplevel) instead so a dispatched worktree verifies itself, not the main checkout"))
-	}
-	if len(failures) == 0 {
-		if asJSON {
-			b, _ := json.Marshal(map[string]any{"checkout_path_hits": []string{}})
-			fmt.Fprintln(cmd.OutOrStdout(), string(b))
-		} else {
-			cmd.PrintErrln("checkout path lint: no hardcoded checkout path found")
-		}
-		return nil
-	}
-	if !asJSON {
-		cmd.PrintErrf("checkout path lint: %d hardcoded checkout path(s) found\n", len(failures))
-	}
-	return emitValidationErrors(cmd, asJSON, failures)
 }
 
 // artifactInProject reports whether an artifact belongs to the named project
@@ -275,6 +241,11 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 		for _, vErr := range core.ValidateIssueVerbs(a.Body, goal, title, verbs) {
 			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 		}
+		// ValidateIssueCheckoutPaths is deliberately NOT wired here: the
+		// checkout-path lint gates create/promote only. The ~219 issues
+		// authored before the rule would fail vault-hygiene CI retroactively
+		// if the vault-wide scan enforced it. Lint a single predicate with
+		// `anvil validate --verification-stdin` instead.
 	}
 
 	// Drift check: flag tags not present in the glossary. Skipped when the
