@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS build_tasks (
     agent_time_ms INTEGER NOT NULL DEFAULT 0,
     verify_exit   INTEGER NOT NULL DEFAULT 0,
     diagnostic    TEXT NOT NULL DEFAULT '',
+    transcript_path TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (run_id, task_id, phase)
 );
 CREATE INDEX IF NOT EXISTS build_tasks_run_idx ON build_tasks(run_id);

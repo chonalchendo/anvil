@@ -188,7 +188,10 @@ func TestReviewPhase_TelemetryTagsEachPhaseRow(t *testing.T) {
 
 	phases := []phaseSummary{
 		{phase: "complete", sum: &build.Summary{Outcomes: map[string]build.TaskOutcome{
-			"demo.foo": {TaskID: "demo.foo", Model: "claude-sonnet-4-6", Outcome: "success"},
+			"demo.foo": {
+				TaskID: "demo.foo", Model: "claude-sonnet-4-6", Outcome: "success",
+				Result: build.RunResult{TranscriptPath: "/tmp/anvil-claude-x-demo.foo-transcript.jsonl"},
+			},
 		}}},
 		{phase: "review", sum: &build.Summary{Outcomes: map[string]build.TaskOutcome{
 			"demo.foo": {TaskID: "demo.foo", Model: "claude-sonnet-4-6", Outcome: "success"},
@@ -212,6 +215,11 @@ func TestReviewPhase_TelemetryTagsEachPhaseRow(t *testing.T) {
 			t.Errorf("row task_id = %q, want demo.foo", r.TaskID)
 		}
 		got[r.Phase] = true
+		// The spawn's transcript path must reach the durable row, not just the
+		// ephemeral --json stream (anvil.0161).
+		if r.Phase == "complete" && r.TranscriptPath != "/tmp/anvil-claude-x-demo.foo-transcript.jsonl" {
+			t.Errorf("complete row transcript_path = %q, want the spawn's path", r.TranscriptPath)
+		}
 	}
 	for _, phase := range []string{"complete", "review"} {
 		if !got[phase] {

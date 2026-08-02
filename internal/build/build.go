@@ -249,6 +249,7 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 		cwd = opts.Cwd
 	}
 	req := RunRequest{
+		TaskID:          t.ID,
 		Model:           model,
 		Effort:          effort,
 		Instruction:     assembleInstruction(t),
@@ -289,8 +290,15 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 			}
 		}
 	}
-	if oc.Outcome != "success" && oc.Outcome != "skipped_dry_run" && oc.Result.Diagnostic != "" {
-		fmt.Fprintf(opts.Stderr, "task %s [%s]: %s\n", oc.TaskID, oc.Outcome, oc.Result.Diagnostic)
+	if oc.Outcome != "success" && oc.Outcome != "skipped_dry_run" {
+		if oc.Result.Diagnostic != "" {
+			fmt.Fprintf(opts.Stderr, "task %s [%s]: %s\n", oc.TaskID, oc.Outcome, oc.Result.Diagnostic)
+		}
+		// The transcript path rides the failure output too: the --json stream is
+		// ephemeral, and a post-mortem starts from this line (anvil.0161).
+		if oc.Result.TranscriptPath != "" {
+			fmt.Fprintf(opts.Stderr, "task %s: transcript %s\n", oc.TaskID, oc.Result.TranscriptPath)
+		}
 	}
 	return oc
 }
@@ -435,11 +443,12 @@ func PlanJSON(w io.Writer, runID string, waves [][]core.Task) error {
 // the isolation guarantee observable in the dry-run plan; the live adapter mints
 // its own dir via os.MkdirTemp.
 func plannedConfigDir(taskID string) string {
-	return filepath.Join(os.TempDir(), "anvil-claude-"+sanitizeID(taskID))
+	return filepath.Join(os.TempDir(), "anvil-claude-"+SanitizeID(taskID))
 }
 
-// sanitizeID replaces path separators in a task ID so it is safe as a single
-// path segment.
-func sanitizeID(id string) string {
+// SanitizeID replaces path separators in a task ID so it is safe as a single
+// path segment. Exported for adapters that name per-spawn artifacts (the
+// transcript file) after the task.
+func SanitizeID(id string) string {
 	return strings.NewReplacer("/", "-", string(filepath.Separator), "-").Replace(id)
 }
