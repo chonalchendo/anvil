@@ -35,7 +35,12 @@ func shimPath(t *testing.T, name string) string {
 func TestRun_HappyPath_ParsesUsageAndCost(t *testing.T) {
 	a := New(shimPath(t, "shim_success.sh"))
 
+	// Hermeticity: Run mints its config dir and transcript in os.TempDir();
+	// pointing TMPDIR at a test-owned dir keeps them out of the shared $TMPDIR
+	// and removes them with the test.
+	t.Setenv("TMPDIR", t.TempDir())
 	req := build.RunRequest{
+		TaskID:      "demo/foo",
 		Model:       "claude-sonnet-4-6",
 		Effort:      "medium",
 		Instruction: "do the thing",
@@ -65,6 +70,27 @@ func TestRun_HappyPath_ParsesUsageAndCost(t *testing.T) {
 	if res.Diagnostic != "Done." {
 		t.Errorf("Diagnostic = %q, want \"Done.\"", res.Diagnostic)
 	}
+	if res.TranscriptPath == "" {
+		t.Fatal("TranscriptPath is empty, want a persisted transcript file")
+	}
+	// Sanitized task id in the filename: a post-mortem locates the transcript
+	// by task even without the telemetry row (anvil.0161).
+	if !strings.Contains(filepath.Base(res.TranscriptPath), "demo-foo") {
+		t.Errorf("TranscriptPath %q does not carry the sanitized task id demo-foo", res.TranscriptPath)
+	}
+	if _, err := os.Stat(res.ConfigDir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("ConfigDir %s still exists after Run returns, want removed", res.ConfigDir)
+	}
+	got, err := os.ReadFile(res.TranscriptPath) //nolint:gosec // res.TranscriptPath is adapter-created, not untrusted input
+	if err != nil {
+		t.Fatalf("reading transcript: %v", err)
+	}
+	if !strings.Contains(string(got), `"type":"assistant"`) {
+		t.Errorf("transcript missing assistant event; got %q", got)
+	}
+	if !strings.Contains(string(got), `"type":"result"`) {
+		t.Errorf("transcript missing result event; got %q", got)
+	}
 }
 
 func TestRun_NameIsClaudeCode(t *testing.T) {
@@ -75,6 +101,7 @@ func TestRun_NameIsClaudeCode(t *testing.T) {
 
 func TestRun_NonZeroExit_ReturnsFailureExitCodeNoErr(t *testing.T) {
 	a := New(shimPath(t, "shim_failure.sh"))
+	t.Setenv("TMPDIR", t.TempDir()) // hermeticity: keep the transcript out of shared $TMPDIR
 	req := build.RunRequest{
 		Model: "claude-sonnet-4-6", Effort: "medium",
 		Instruction: "x", Cwd: t.TempDir(), Timeout: 10 * time.Second,
@@ -97,6 +124,7 @@ func TestRun_NonZeroExit_ReturnsFailureExitCodeNoErr(t *testing.T) {
 
 func TestRun_QuotaPhrase_ReturnsErrQuotaExhausted(t *testing.T) {
 	a := New(shimPath(t, "shim_quota.sh"))
+	t.Setenv("TMPDIR", t.TempDir()) // hermeticity: keep the transcript out of shared $TMPDIR
 	req := build.RunRequest{
 		Model: "claude-sonnet-4-6", Effort: "medium",
 		Instruction: "x", Cwd: t.TempDir(), Timeout: 10 * time.Second,
@@ -116,6 +144,7 @@ func TestRun_QuotaPhrase_ReturnsErrQuotaExhausted(t *testing.T) {
 
 func TestRun_CtxCancel_ReturnsCancelled(t *testing.T) {
 	a := New(shimPath(t, "shim_slow.sh"))
+	t.Setenv("TMPDIR", t.TempDir()) // hermeticity: keep the transcript out of shared $TMPDIR
 	ctx, cancel := context.WithCancel(context.Background())
 	req := build.RunRequest{
 		Model: "claude-sonnet-4-6", Effort: "medium",
@@ -206,6 +235,7 @@ func TestSeedConfigDir_KeychainFallbackWhenNoDiskCredential(t *testing.T) {
 // argv the adapter handed the subprocess (one element per arg).
 func runRecordingArgv(t *testing.T, req build.RunRequest) []string {
 	t.Helper()
+	t.Setenv("TMPDIR", t.TempDir()) // hermeticity: keep the transcript out of shared $TMPDIR
 	argvFile := filepath.Join(t.TempDir(), "argv")
 	t.Setenv("ANVIL_SHIM_ARGV_FILE", argvFile)
 	req.Model, req.Cwd, req.Timeout = "claude-sonnet-4-6", t.TempDir(), 10*time.Second

@@ -35,6 +35,10 @@ type BuildTask struct {
 	// the engine alongside the gate verdict so a failure is diagnosable after the
 	// ephemeral spawn transcript is gone (anvil.0139).
 	Diagnostic string `json:"diagnostic,omitempty"`
+	// TranscriptPath locates the spawn's full stream-json event log on disk.
+	// Persisted here — not only on the ephemeral --json stream — so a
+	// post-mortem can find the transcript from telemetry alone (anvil.0161).
+	TranscriptPath string `json:"transcript_path,omitempty"`
 }
 
 // InsertBuildRun records one run row. Rows are append-only; each build run is a
@@ -60,12 +64,12 @@ func (d *DB) InsertBuildTasks(tasks []BuildTask) error {
 		return fmt.Errorf("begin build tasks tx: %w", err)
 	}
 	const q = `INSERT INTO build_tasks(run_id, task_id, phase, wave, model, effort, outcome,
-tokens_in, tokens_out, cache_read, cache_write, cost_usd, duration_ms, agent_time_ms, verify_exit, diagnostic)
-VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+tokens_in, tokens_out, cache_read, cache_write, cost_usd, duration_ms, agent_time_ms, verify_exit, diagnostic, transcript_path)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	for _, t := range tasks {
 		if _, err := tx.Exec(q, t.RunID, t.TaskID, t.Phase, t.Wave, t.Model, t.Effort, t.Outcome,
 			t.TokensIn, t.TokensOut, t.CacheRead, t.CacheWrite, t.CostUSD,
-			t.DurationMS, t.AgentTimeMS, t.VerifyExit, t.Diagnostic); err != nil {
+			t.DurationMS, t.AgentTimeMS, t.VerifyExit, t.Diagnostic, t.TranscriptPath); err != nil {
 			tx.Rollback() //nolint:errcheck,gosec // rollback before returning the insert error
 			return fmt.Errorf("insert build task %s/%s: %w", t.RunID, t.TaskID, err)
 		}
@@ -80,7 +84,7 @@ VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 // then task-id — so a task's complete row precedes its review row.
 func (d *DB) BuildTasksByRun(runID string) ([]BuildTask, error) {
 	const q = `SELECT run_id, task_id, phase, wave, model, effort, outcome,
-tokens_in, tokens_out, cache_read, cache_write, cost_usd, duration_ms, agent_time_ms, verify_exit, diagnostic
+tokens_in, tokens_out, cache_read, cache_write, cost_usd, duration_ms, agent_time_ms, verify_exit, diagnostic, transcript_path
 FROM build_tasks WHERE run_id = ? ORDER BY phase, wave, task_id`
 	rs, err := d.sql.Query(q, runID)
 	if err != nil {
@@ -92,7 +96,7 @@ FROM build_tasks WHERE run_id = ? ORDER BY phase, wave, task_id`
 		var t BuildTask
 		if err := rs.Scan(&t.RunID, &t.TaskID, &t.Phase, &t.Wave, &t.Model, &t.Effort, &t.Outcome,
 			&t.TokensIn, &t.TokensOut, &t.CacheRead, &t.CacheWrite, &t.CostUSD,
-			&t.DurationMS, &t.AgentTimeMS, &t.VerifyExit, &t.Diagnostic); err != nil {
+			&t.DurationMS, &t.AgentTimeMS, &t.VerifyExit, &t.Diagnostic, &t.TranscriptPath); err != nil {
 			return nil, err
 		}
 		out = append(out, t)

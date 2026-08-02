@@ -155,7 +155,38 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 		_, _ = io.Copy(&stderrBuf, stderr)
 	}()
 
-	res, quotaSeen, lastText := scanStdout(stdout)
+	// The transcript is a sibling of configDir (survives the RemoveAll above —
+	// the point of anvil.0161) carrying the sanitized task id so a post-mortem
+	// can locate it by task; the config dir's random suffix keeps the complete
+	// and review spawns of the same task from clobbering each other. Created
+	// only after Start so a pre-spawn failure leaves no zero-byte orphan;
+	// creation failure degrades to no transcript, same tolerance as the
+	// keychain lookup above. 0600: the transcript carries the full prompt and
+	// tool output into a world-readable temp dir.
+	transcriptPath := configDir + "-transcript.jsonl"
+	if req.TaskID != "" {
+		transcriptPath = configDir + "-" + build.SanitizeID(req.TaskID) + "-transcript.jsonl"
+	}
+	stdoutSrc := io.Reader(stdout)
+	transcriptFile, err := os.OpenFile(transcriptPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600) //nolint:gosec // path derived from our own os.MkdirTemp dir + sanitized task id, not untrusted input
+	if err != nil {
+		slog.Warn("creating transcript file; spawn continues without a persisted transcript", "err", err)
+		transcriptPath = ""
+	} else {
+		defer transcriptFile.Close() //nolint:errcheck // best-effort; writes happen via the tee below
+		// why tee-through-transcriptWriter, not a plain TeeReader on the file:
+		// TeeReader surfaces a WRITE error as a read error, which would stop
+		// scanStdout mid-stream, leave the stdout pipe undrained, and block the
+		// child until the run timeout — a diagnostics aid must never hang the
+		// spawn it diagnoses.
+		stdoutSrc = io.TeeReader(stdout, &transcriptWriter{f: transcriptFile})
+	}
+	res, quotaSeen, lastText := scanStdout(stdoutSrc)
+	// Isolation metadata is set before the wait-error branch below: the hardest
+	// failure path is exactly where the transcript matters most.
+	res.ConfigDir = configDir
+	res.TranscriptPath = transcriptPath
+	res.AuthMode = "subscription" // no ANTHROPIC_API_KEY override; draws subscription limits
 
 	waitErr := cmd.Wait()
 	res.Duration = time.Since(start)
@@ -175,12 +206,6 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 		return res, fmt.Errorf("claude wait: %w (stderr: %s)", waitErr, strings.TrimSpace(stderrBuf.String()))
 	}
 
-	// Record the isolation metadata regardless of outcome so callers and
-	// telemetry can correlate logs. configDir is already being removed by
-	// the deferred RemoveAll, but the path is still meaningful at return time.
-	res.ConfigDir = configDir
-	res.AuthMode = "subscription" // no ANTHROPIC_API_KEY override; draws subscription limits
-
 	if quotaSeen {
 		return res, build.ErrQuotaExhausted
 	}
@@ -188,6 +213,24 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 		return res, ctxErr
 	}
 	return res, nil
+}
+
+// transcriptWriter swallows write errors so a transcript-disk failure degrades
+// to a truncated transcript instead of stalling the spawn (see the tee comment
+// in Run). Single-goroutine use: only scanStdout's reads drive Write.
+type transcriptWriter struct {
+	f      *os.File
+	failed bool
+}
+
+func (w *transcriptWriter) Write(p []byte) (int, error) {
+	if !w.failed {
+		if _, err := w.f.Write(p); err != nil {
+			w.failed = true
+			slog.Warn("transcript write failed; remainder of the stream is not persisted", "err", err)
+		}
+	}
+	return len(p), nil
 }
 
 // resolveBin picks the binary path: explicit field > $ANVIL_CLAUDE_BIN >
