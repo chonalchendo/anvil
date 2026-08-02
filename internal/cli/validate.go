@@ -24,12 +24,16 @@ import (
 
 func newValidateCmd() *cobra.Command {
 	var asJSON bool
+	var verificationStdin bool
 	cmd := &cobra.Command{
 		Use:     "validate [path]",
 		Short:   "Validate vault frontmatter against schemas",
 		Args:    cobra.MaximumNArgs(1),
-		Example: "  anvil validate\n  anvil validate --json\n  anvil validate /path/to/vault\n  anvil validate skill",
+		Example: "  anvil validate\n  anvil validate --json\n  anvil validate /path/to/vault\n  anvil validate skill\n  echo 'cd $HOME/Development/anvil' | anvil validate --verification-stdin",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if verificationStdin {
+				return runVerificationStdinLint(cmd, asJSON)
+			}
 			var root, singleFile string
 			if len(args) == 1 {
 				fi, err := os.Stat(args[0])
@@ -146,6 +150,7 @@ func newValidateCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON array of structured errors")
+	cmd.Flags().BoolVar(&verificationStdin, "verification-stdin", false, "lint a Verification block's bash script (read from stdin) for a hardcoded checkout path that would override worktree anchoring — no vault lookup; ignores [path], honours --json")
 	cmd.AddCommand(newValidateSkillCmd())
 	return cmd
 }
@@ -236,6 +241,11 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 		for _, vErr := range core.ValidateIssueVerbs(a.Body, goal, title, verbs) {
 			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 		}
+		// ValidateIssueCheckoutPaths is deliberately NOT wired here: the
+		// checkout-path lint gates create/promote only. The ~219 issues
+		// authored before the rule would fail vault-hygiene CI retroactively
+		// if the vault-wide scan enforced it. Lint a single predicate with
+		// `anvil validate --verification-stdin` instead.
 	}
 
 	// Drift check: flag tags not present in the glossary. Skipped when the

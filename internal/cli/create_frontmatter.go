@@ -108,6 +108,9 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 			for _, vErr := range core.ValidateIssueVerbs(body, goal, title, verbPathValidator(cmd.Root())) {
 				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 			}
+			for _, vErr := range core.ValidateIssueCheckoutPaths(body) {
+				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+			}
 			// Feasibility gate (anvil.0196): last, because it is the only layer
 			// that shells out. Every cheaper layer must be clean first — a body
 			// citing a stale subcommand or a dead wikilink gets a sharper

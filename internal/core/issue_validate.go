@@ -55,32 +55,14 @@ func lintVerificationVerbs(body string, validate VerbPathValidator, introducedIn
 	if validate == nil {
 		return nil
 	}
-	span := verificationSpan(body)
-	if span == "" {
+	codeLines := verificationCodeLines(body)
+	if codeLines == "" {
 		return nil
-	}
-
-	// Collect only lines inside a code fence.
-	var codeLines strings.Builder
-	inFence := false
-	for _, line := range strings.Split(span, "\n") {
-		trimmed := strings.TrimLeft(line, " \t")
-		if strings.HasPrefix(trimmed, "```") {
-			inFence = !inFence
-			continue
-		}
-		if inFence {
-			if strings.HasPrefix(trimmed, "#") {
-				continue // shell comment: prose, not an invocation
-			}
-			codeLines.WriteString(line)
-			codeLines.WriteByte('\n')
-		}
 	}
 
 	var errs []error
 	seen := make(map[string]struct{})
-	for _, m := range anvilInvocationRE.FindAllStringSubmatch(codeLines.String(), -1) {
+	for _, m := range anvilInvocationRE.FindAllStringSubmatch(codeLines, -1) {
 		args := simpleCommandArgs(m[1])
 		if len(args) == 0 {
 			continue
@@ -123,6 +105,81 @@ func simpleCommandArgs(rest string) []string {
 		tokens = append(tokens, tok)
 	}
 	return tokens
+}
+
+// verificationCodeLines returns the lines inside a code fence within the
+// Verification span, one per line, comments dropped. Shared by every lint that
+// only cares about the shell commands a Verification block actually runs, not
+// surrounding prose.
+func verificationCodeLines(body string) string {
+	span := verificationSpan(body)
+	if span == "" {
+		return ""
+	}
+	var codeLines strings.Builder
+	inFence := false
+	for _, line := range strings.Split(span, "\n") {
+		trimmed := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmed, "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			if strings.HasPrefix(trimmed, "#") {
+				continue // shell comment: prose, not a command
+			}
+			codeLines.WriteString(line)
+			codeLines.WriteByte('\n')
+		}
+	}
+	return codeLines.String()
+}
+
+// checkoutPathRE matches a hardcoded developer checkout root
+// (~/Development/<repo>, $HOME/Development/<repo>, or /Users|/home/<user>/
+// Development/<repo>) anywhere on a line, instead of deriving the tree from
+// where the predicate runs ($(git rev-parse --show-toplevel), per
+// docs/issue-spec.md's Parsing rules). The offence is the root, not the verb:
+// `cd`, `git -C`, `ls`, or a variable assignment (`BIN=/Users/…/bin/anvil`)
+// all pin the predicate to the main checkout, so any worktree anchoring the
+// runner performs is overridden and the predicate silently verifies the wrong
+// tree when dispatched to a fleet worktree (the runner's own anchoring was
+// fixed by resolved sibling issue anvil.completing-issue-verification-runner-
+// tests-the-main-checkout).
+//
+// The literal /Development/ segment is deliberate, not an oversight: a
+// checkout root under another layout (/Users/<u>/code/<repo>) is textually
+// indistinguishable from the legitimate absolute paths predicates must be
+// allowed to reference (the external vault, /Users/<u>/anvil-vault). Matching
+// any home-anchored absolute path would flag those, so the lint trades
+// coverage of unconventional layouts for zero false positives on vault paths.
+var checkoutPathRE = regexp.MustCompile(`(?:~|\$HOME|/Users/[^/\s"']+|/home/[^/\s"']+)/Development/[A-Za-z0-9_.-]+`)
+
+// CheckoutPathMatches returns every hardcoded checkout-path reference found
+// in text, one per matching line, in encounter order. Shared by
+// ValidateIssueCheckoutPaths (fenced Verification lines only, at authoring
+// time) and `anvil validate --verification-stdin` (raw predicate text piped
+// in directly, no markdown wrapper required).
+func CheckoutPathMatches(text string) []string {
+	var out []string
+	for _, line := range strings.Split(text, "\n") {
+		if m := checkoutPathRE.FindString(line); m != "" {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// ValidateIssueCheckoutPaths reports one error per hardcoded checkout-path
+// reference found in the issue's Verification blocks — the authoring-time half
+// of this fix; the runner's own anchoring was already resolved by the sibling
+// issue named in checkoutPathRE's doc comment.
+func ValidateIssueCheckoutPaths(body string) []error {
+	var errs []error
+	for _, m := range CheckoutPathMatches(verificationCodeLines(body)) {
+		errs = append(errs, fmt.Errorf("verification block hardcodes a checkout path (%q) — anchor with $(git rev-parse --show-toplevel) instead so a dispatched worktree verifies itself, not the main checkout", m))
+	}
+	return errs
 }
 
 // RequiredIssueSections is the ordered set of headings validate enforces on
