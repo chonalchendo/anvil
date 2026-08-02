@@ -51,6 +51,13 @@ type RunResult struct {
 	// ConfigDir is the CLAUDE_CONFIG_DIR the adapter used for this spawn.
 	// Populated by the adapter so telemetry and callers can correlate logs.
 	ConfigDir string
+	// TranscriptPath is the on-disk file holding the spawn's full stream-json
+	// event log (tool calls, edits, stops — not just the last result text in
+	// Diagnostic). Unlike ConfigDir, this path survives the adapter's
+	// post-run cleanup, so a task that exits 0 without landing anything is
+	// still diagnosable from telemetry alone (anvil.0161). Empty if the
+	// adapter could not create the transcript file.
+	TranscriptPath string
 	// AuthMode records how the spawn was authenticated ("subscription" or
 	// "api-key"). Subscription still draws subscription limits as of
 	// 2026-06-19; the billing split is provisional — re-verify before

@@ -65,6 +65,22 @@ func TestRun_HappyPath_ParsesUsageAndCost(t *testing.T) {
 	if res.Diagnostic != "Done." {
 		t.Errorf("Diagnostic = %q, want \"Done.\"", res.Diagnostic)
 	}
+	if res.TranscriptPath == "" {
+		t.Fatal("TranscriptPath is empty, want a persisted transcript file")
+	}
+	if _, err := os.Stat(res.ConfigDir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("ConfigDir %s still exists after Run returns, want removed", res.ConfigDir)
+	}
+	got, err := os.ReadFile(res.TranscriptPath) //nolint:gosec // res.TranscriptPath is adapter-created, not untrusted input
+	if err != nil {
+		t.Fatalf("reading transcript: %v", err)
+	}
+	if !strings.Contains(string(got), `"type":"assistant"`) {
+		t.Errorf("transcript missing assistant event; got %q", got)
+	}
+	if !strings.Contains(string(got), `"type":"result"`) {
+		t.Errorf("transcript missing result event; got %q", got)
+	}
 }
 
 func TestRun_NameIsClaudeCode(t *testing.T) {

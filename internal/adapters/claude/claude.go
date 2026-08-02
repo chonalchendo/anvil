@@ -67,6 +67,22 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 	}
 	defer os.RemoveAll(configDir) //nolint:errcheck // cleanup; not load-bearing
 
+	// The transcript lives as a sibling of configDir, not inside it, so it
+	// survives the RemoveAll above — the whole point of anvil.0161: a spawn
+	// that exits 0 without landing anything must still be diagnosable from
+	// its full event stream, not just the last-result-text Diagnostic.
+	transcriptPath := configDir + "-transcript.jsonl"
+	transcriptFile, err := os.Create(transcriptPath) //nolint:gosec // path derived from our own os.MkdirTemp dir, not untrusted input
+	if err != nil {
+		// A transcript we can't create is not fatal to the spawn itself — log
+		// and continue with TranscriptPath left empty, same tolerance as the
+		// keychain lookup below.
+		slog.Warn("creating transcript file; spawn continues without a persisted transcript", "err", err)
+		transcriptPath = ""
+	} else {
+		defer transcriptFile.Close() //nolint:errcheck // best-effort; writes happen via the TeeReader below
+	}
+
 	// Seed credentials into the fresh dir BEFORE spawn — otherwise the empty
 	// dir strips auth and the spawn no-ops with "Not logged in".
 	if err := seedConfigDir(configDir); err != nil {
@@ -155,7 +171,14 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 		_, _ = io.Copy(&stderrBuf, stderr)
 	}()
 
-	res, quotaSeen, lastText := scanStdout(stdout)
+	stdoutSrc := io.Reader(stdout)
+	if transcriptFile != nil {
+		// TeeReader copies every byte scanStdout reads into the transcript
+		// file, so the full NDJSON event stream is persisted verbatim
+		// alongside the parsed fields scanStdout extracts.
+		stdoutSrc = io.TeeReader(stdout, transcriptFile)
+	}
+	res, quotaSeen, lastText := scanStdout(stdoutSrc)
 
 	waitErr := cmd.Wait()
 	res.Duration = time.Since(start)
@@ -179,6 +202,7 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 	// telemetry can correlate logs. configDir is already being removed by
 	// the deferred RemoveAll, but the path is still meaningful at return time.
 	res.ConfigDir = configDir
+	res.TranscriptPath = transcriptPath
 	res.AuthMode = "subscription" // no ANTHROPIC_API_KEY override; draws subscription limits
 
 	if quotaSeen {

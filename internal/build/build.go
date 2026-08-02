@@ -81,19 +81,20 @@ type TaskOutcome struct {
 
 // jsonRecord is the per-task line emitted to stdout in --json mode.
 type jsonRecord struct {
-	TaskID      string      `json:"task_id"`
-	Wave        int         `json:"wave"`
-	Phase       string      `json:"phase,omitempty"` // driver-assigned build phase that produced this record
-	Model       string      `json:"model"`
-	Effort      string      `json:"effort"`
-	Outcome     string      `json:"outcome,omitempty"`
-	Status      string      `json:"status,omitempty"` // "skipped_dry_run" — distinct from outcome enum
-	DurationMS  int64       `json:"duration_ms"`
-	AgentTimeMS int64       `json:"agent_time_ms,omitempty"`
-	CostUSD     float64     `json:"cost_usd,omitempty"`
-	Tokens      *tokensJSON `json:"tokens,omitempty"`
-	Diagnostic  string      `json:"diagnostic,omitempty"`
-	ConfigDir   string      `json:"config_dir,omitempty"`
+	TaskID         string      `json:"task_id"`
+	Wave           int         `json:"wave"`
+	Phase          string      `json:"phase,omitempty"` // driver-assigned build phase that produced this record
+	Model          string      `json:"model"`
+	Effort         string      `json:"effort"`
+	Outcome        string      `json:"outcome,omitempty"`
+	Status         string      `json:"status,omitempty"` // "skipped_dry_run" — distinct from outcome enum
+	DurationMS     int64       `json:"duration_ms"`
+	AgentTimeMS    int64       `json:"agent_time_ms,omitempty"`
+	CostUSD        float64     `json:"cost_usd,omitempty"`
+	Tokens         *tokensJSON `json:"tokens,omitempty"`
+	Diagnostic     string      `json:"diagnostic,omitempty"`
+	ConfigDir      string      `json:"config_dir,omitempty"`
+	TranscriptPath string      `json:"transcript_path,omitempty"`
 	// Instruction is the assembled prompt body the spawn would receive. Emitted
 	// only in the dry-run plan (PlanJSON) so a `--dry-run --json` reader can
 	// inspect the task context — e.g. assert injected learnings — without
@@ -382,14 +383,15 @@ func emitJSONRecord(opts Options, oc TaskOutcome) {
 // dry-run plan envelope (built by the driver) go through here.
 func toJSONRecord(oc TaskOutcome) jsonRecord {
 	rec := jsonRecord{
-		TaskID:     oc.TaskID,
-		Wave:       oc.Wave,
-		Model:      oc.Model,
-		Effort:     oc.Effort,
-		DurationMS: oc.Duration.Milliseconds(),
-		Diagnostic: oc.Result.Diagnostic,
-		ConfigDir:  oc.ConfigDir,
-		AutoMerge:  false, // literal invariant: the human owns the merge button
+		TaskID:         oc.TaskID,
+		Wave:           oc.Wave,
+		Model:          oc.Model,
+		Effort:         oc.Effort,
+		DurationMS:     oc.Duration.Milliseconds(),
+		Diagnostic:     oc.Result.Diagnostic,
+		ConfigDir:      oc.ConfigDir,
+		TranscriptPath: oc.Result.TranscriptPath,
+		AutoMerge:      false, // literal invariant: the human owns the merge button
 	}
 	if oc.Outcome == "skipped_dry_run" {
 		rec.Status = oc.Outcome
