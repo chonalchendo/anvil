@@ -523,3 +523,41 @@ func TestVerificationBlocks_EarlierFencedH2IsNotTheSectionStart(t *testing.T) {
 		t.Fatalf("indirect = %q, want [%q]", indirect, "exit 3\n")
 	}
 }
+
+func TestValidateIssueCheckoutPaths_HardcodedCdRejected(t *testing.T) {
+	cases := []string{
+		"cd $HOME/Development/anvil",
+		"cd ~/Development/burgh",
+		"cd /Users/conal/Development/anvil",
+	}
+	for _, cdLine := range cases {
+		body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\n" + cdLine + "\n```\n\n### Indirect\n```bash\ntrue\n```\n\n## Links\n"
+		errs := ValidateIssueCheckoutPaths(body)
+		if len(errs) == 0 {
+			t.Errorf("cdLine %q: expected a checkout-path error, got none", cdLine)
+			continue
+		}
+		if !strings.Contains(errs[0].Error(), "checkout path") {
+			t.Errorf("cdLine %q: error %q does not mention 'checkout path'", cdLine, errs[0].Error())
+		}
+	}
+}
+
+func TestValidateIssueCheckoutPaths_ToplevelDerivedAccepted(t *testing.T) {
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ncd $(git rev-parse --show-toplevel) && just test\n```\n\n### Indirect\n```bash\ntrue\n```\n\n## Links\n"
+	errs := ValidateIssueCheckoutPaths(body)
+	if len(errs) != 0 {
+		t.Errorf("git-toplevel-derived cd must be accepted, got: %v", errs)
+	}
+}
+
+func TestCheckoutPathMatches_NoHeadingRequired(t *testing.T) {
+	// anvil validate --verification-stdin feeds raw predicate text with no
+	// "## Verification" wrapper — the matcher must not require one.
+	if m := CheckoutPathMatches("true"); len(m) != 0 {
+		t.Errorf("CheckoutPathMatches(%q) = %v, want none", "true", m)
+	}
+	if m := CheckoutPathMatches("cd /Users/conal/Development/anvil"); len(m) != 1 {
+		t.Errorf("CheckoutPathMatches with hardcoded cd = %v, want 1 match", m)
+	}
+}

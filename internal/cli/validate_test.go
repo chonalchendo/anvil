@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -712,5 +713,35 @@ func TestValidate_UnresolvedFrontmatterLink(t *testing.T) {
 	}
 	if strings.Contains(out.String(), "zz-prose-only") {
 		t.Errorf("prose-quoted wikilink must not be flagged:\n%s", out.String())
+	}
+}
+
+func TestValidate_VerificationStdin_NoHardcodedPath(t *testing.T) {
+	var out bytes.Buffer
+	cmd := newRootCmd()
+	cmd.SetIn(strings.NewReader("true\n"))
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"validate", "--verification-stdin"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("clean predicate must not fail, got: %v; output: %s", err, out.String())
+	}
+	if !strings.Contains(strings.ToLower(out.String()), "checkout path") {
+		t.Errorf("output %q must mention 'checkout path'", out.String())
+	}
+}
+
+func TestValidate_VerificationStdin_HardcodedPathRejected(t *testing.T) {
+	var out bytes.Buffer
+	cmd := newRootCmd()
+	cmd.SetIn(strings.NewReader("cd $HOME/Development/anvil && just test\n"))
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"validate", "--verification-stdin"})
+	if err := cmd.Execute(); !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
+	}
+	if !strings.Contains(strings.ToLower(out.String()), "checkout path") {
+		t.Errorf("output %q must mention 'checkout path'", out.String())
 	}
 }
