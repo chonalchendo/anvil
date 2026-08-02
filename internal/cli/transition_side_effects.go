@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -192,7 +193,104 @@ func doCutWorktree(errW io.Writer, a *core.Artifact, id, pathOverride, branchOve
 			Set("branch", branch).
 			Set("error", err.Error())
 	}
+	if err := carryDeclaredFiles(repoDir, wtPath); err != nil {
+		return "", "", err
+	}
 	return wtPath, branch, nil
+}
+
+// carryFileName is the repo-root file naming untracked paths a project wants
+// copied into every freshly cut worktree — the mandatory Iron Law Indirect
+// (live) check often needs credentials (`.env` and the like) that git does
+// not track and a worktree therefore does not inherit (anvil.0178). One
+// relative path per line; blank lines and `#`-prefixed comments are skipped.
+// No file, or an empty one, is a silent no-op — nothing is copied unless a
+// project explicitly declares it, so build output or local scratch is never
+// duplicated into every worktree by default.
+const carryFileName = ".anvil-worktree-carry"
+
+// carryDeclaredFiles copies each path declared in repoDir's carryFileName
+// into worktreePath, preserving its relative location. A declared path
+// absent from repoDir is refused now, at cut time, rather than surfacing
+// downstream as an opaque credential error the agent has to reason backwards
+// from.
+func carryDeclaredFiles(repoDir, worktreePath string) error {
+	paths, err := readCarryList(repoDir)
+	if err != nil {
+		return errfmt.NewStructured("cut_worktree_carry_failed").
+			Set("error", err.Error())
+	}
+	for _, rel := range paths {
+		src := filepath.Join(repoDir, rel)
+		info, serr := os.Stat(src)
+		if serr != nil {
+			return errfmt.NewStructured("cut_worktree_carry_missing").
+				Set("path", rel).
+				Set("repo", repoDir).
+				Set("fix_hint", fmt.Sprintf("%s declares %q but it does not exist in %s", carryFileName, rel, repoDir))
+		}
+		dst := filepath.Join(worktreePath, rel)
+		if err := copyCarryPath(src, dst, info); err != nil {
+			return errfmt.NewStructured("cut_worktree_carry_failed").
+				Set("path", rel).
+				Set("error", err.Error())
+		}
+	}
+	return nil
+}
+
+// readCarryList reads repoDir's carryFileName, returning nil (not an error)
+// when the file is absent — the "nothing declared" case.
+func readCarryList(repoDir string) ([]string, error) {
+	b, err := os.ReadFile(filepath.Join(repoDir, carryFileName)) //nolint:gosec // path is repo-root-relative, not user input
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var out []string
+	for _, line := range strings.Split(string(b), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		out = append(out, line)
+	}
+	return out, nil
+}
+
+// copyCarryPath copies src (file or directory) to dst, creating parent dirs
+// as needed.
+func copyCarryPath(src, dst string, info os.FileInfo) error {
+	if !info.IsDir() {
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil { //nolint:gosec // directories must be traversable
+			return err
+		}
+		return copyFileContents(src, dst)
+	}
+	return filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, rerr := filepath.Rel(src, p)
+		if rerr != nil {
+			return rerr
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755) //nolint:gosec // directories must be traversable
+		}
+		return copyFileContents(p, target)
+	})
+}
+
+func copyFileContents(src, dst string) error {
+	b, err := os.ReadFile(src) //nolint:gosec // G304: src is a project-declared carry-list entry joined onto repoDir, not arbitrary user input
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, b, 0o600) //nolint:gosec // G703: dst is derived the same way, joined onto the freshly cut worktree path
 }
 
 // doLandPR derives the worktree path from the issue and runs landPR. When

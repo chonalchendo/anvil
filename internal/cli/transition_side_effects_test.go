@@ -294,6 +294,68 @@ func TestCutWorktreeIdempotentSkipsAdd(t *testing.T) {
 	}
 }
 
+func TestCutWorktreeCarriesDeclaredUntrackedFile(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	repoDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoDir, ".env"), []byte("FRED_API_KEY=secret\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repoDir, carryFileName), []byte("# comment\n.env\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	s := stubSideFX(t)
+	s.repoDir = repoDir
+	wtPath := filepath.Join(t.TempDir(), "wt")
+
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress",
+		"--owner", "claude", "--cut-worktree", "--worktree", wtPath)
+
+	got, err := os.ReadFile(filepath.Join(wtPath, ".env")) //nolint:gosec // G304: test-controlled temp path, not user input
+	if err != nil {
+		t.Fatalf("expected .env carried into worktree: %v", err)
+	}
+	if string(got) != "FRED_API_KEY=secret\n" {
+		t.Errorf("carried .env content = %q, want %q", got, "FRED_API_KEY=secret\n")
+	}
+}
+
+func TestCutWorktreeCarryMissingPathRefuses(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	repoDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoDir, carryFileName), []byte(".env\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	s := stubSideFX(t)
+	s.repoDir = repoDir
+	wtPath := filepath.Join(t.TempDir(), "wt")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--worktree", wtPath, "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "cut_worktree_carry_missing") {
+		t.Errorf("missing error code: %s", stdout.String())
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "open" {
+		t.Errorf("status = %v after refusal, want open (unchanged)", a.FrontMatter["status"])
+	}
+}
+
 func TestCutWorktreeBranchAtWrongPathRefuses(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
