@@ -135,20 +135,28 @@ func verificationCodeLines(body string) string {
 	return codeLines.String()
 }
 
-// checkoutPathRE matches a `cd` targeting a hardcoded developer checkout root
+// checkoutPathRE matches a hardcoded developer checkout root
 // (~/Development/<repo>, $HOME/Development/<repo>, or /Users|/home/<user>/
-// Development/<repo>) instead of deriving the tree from where the predicate
-// runs ($(git rev-parse --show-toplevel), per docs/issue-spec.md's Parsing
-// rules). Such a `cd` overrides any worktree anchoring the runner performs —
-// resolved sibling issue anvil.completing-issue-verification-runner-tests-the-
-// main-checkout fixed the runner's own anchoring, but an explicit `cd` inside
-// a predicate's bash block overrides that anchoring outright, so a predicate
-// carrying one silently verifies the wrong tree when dispatched to a
-// fleet worktree.
-var checkoutPathRE = regexp.MustCompile(`\bcd[ \t]+"?(?:~|\$HOME|/Users/[^/\s"']+|/home/[^/\s"']+)/Development/[A-Za-z0-9_.-]+`)
+// Development/<repo>) anywhere on a line, instead of deriving the tree from
+// where the predicate runs ($(git rev-parse --show-toplevel), per
+// docs/issue-spec.md's Parsing rules). The offence is the root, not the verb:
+// `cd`, `git -C`, `ls`, or a variable assignment (`BIN=/Users/…/bin/anvil`)
+// all pin the predicate to the main checkout, so any worktree anchoring the
+// runner performs is overridden and the predicate silently verifies the wrong
+// tree when dispatched to a fleet worktree (the runner's own anchoring was
+// fixed by resolved sibling issue anvil.completing-issue-verification-runner-
+// tests-the-main-checkout).
+//
+// The literal /Development/ segment is deliberate, not an oversight: a
+// checkout root under another layout (/Users/<u>/code/<repo>) is textually
+// indistinguishable from the legitimate absolute paths predicates must be
+// allowed to reference (the external vault, /Users/<u>/anvil-vault). Matching
+// any home-anchored absolute path would flag those, so the lint trades
+// coverage of unconventional layouts for zero false positives on vault paths.
+var checkoutPathRE = regexp.MustCompile(`(?:~|\$HOME|/Users/[^/\s"']+|/home/[^/\s"']+)/Development/[A-Za-z0-9_.-]+`)
 
-// CheckoutPathMatches returns every hardcoded-checkout-path `cd` found in
-// text, one per matching line, in encounter order. Shared by
+// CheckoutPathMatches returns every hardcoded checkout-path reference found
+// in text, one per matching line, in encounter order. Shared by
 // ValidateIssueCheckoutPaths (fenced Verification lines only, at authoring
 // time) and `anvil validate --verification-stdin` (raw predicate text piped
 // in directly, no markdown wrapper required).
@@ -163,8 +171,8 @@ func CheckoutPathMatches(text string) []string {
 }
 
 // ValidateIssueCheckoutPaths reports one error per hardcoded checkout-path
-// `cd` found in the issue's Verification blocks — the authoring-time half of
-// this fix; the runner's own anchoring was already resolved by the sibling
+// reference found in the issue's Verification blocks — the authoring-time half
+// of this fix; the runner's own anchoring was already resolved by the sibling
 // issue named in checkoutPathRE's doc comment.
 func ValidateIssueCheckoutPaths(body string) []error {
 	var errs []error
