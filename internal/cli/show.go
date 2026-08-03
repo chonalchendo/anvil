@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/anvil/skills"
-	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
@@ -188,17 +187,12 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename string, as
 	}
 
 	if includeIncoming {
+		// indexForRead self-heals a stale index (WARN + auto-reindex, see
+		// anvil.0169), so a stale vault no longer suppresses incoming edges
+		// or the body below.
 		incoming, err := loadIncomingEdges(v, id)
 		if err != nil {
-			// A stale index must not suppress the body — emit the warning to
-			// stderr and degrade gracefully (no incoming section) so the body
-			// still reaches stdout.
-			var s *errfmt.Structured
-			if errors.As(err, &s) && s.Code == "index_stale" {
-				cmd.PrintErrln(err)
-			} else {
-				return err
-			}
+			return err
 		}
 		out.Incoming = incoming
 	}

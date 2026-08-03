@@ -775,15 +775,16 @@ func TestShow_Skill(t *testing.T) {
 }
 
 // TestShow_IssueStaleIndexDoesNotSuppressBody: a stale vault index must not
-// prevent the body from reaching stdout — the staleness warning belongs on
-// stderr, the body on stdout.
+// prevent the body from reaching stdout. indexForRead self-heals a stale
+// index (auto-reindex, WARN via slog — anvil.0169) rather than erroring, so
+// the body (and incoming edges) reach stdout on the first call.
 func TestShow_IssueStaleIndexDoesNotSuppressBody(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
 	writeFixtureIssueDated(t, vault, "foo", "bar", "bar", "2026-01-01")
 	execCmd(t, "reindex")
-	// Now mark the vault stale so indexForRead returns ErrIndexStale.
+	// Now mark the vault stale so indexForRead sees drift and self-heals.
 	markVaultExternallyStale(t, vault, "foo.external.md")
 
 	cmd := newRootCmd()
@@ -794,10 +795,6 @@ func TestShow_IssueStaleIndexDoesNotSuppressBody(t *testing.T) {
 	// Body must reach stdout.
 	if !strings.Contains(out, "## Context") {
 		t.Errorf("body missing from stdout with stale index\nstdout: %s", out)
-	}
-	// Stale warning must reach stderr, not swallowed.
-	if !strings.Contains(errOut, "index_stale") {
-		t.Errorf("stale warning missing from stderr\nstderr: %s", errOut)
 	}
 }
 
