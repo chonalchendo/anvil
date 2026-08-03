@@ -1,6 +1,7 @@
 package build
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/chonalchendo/anvil/internal/core"
@@ -33,4 +34,22 @@ func assembleInstruction(t core.Task) string {
 	b.WriteString(t.Verify)
 	b.WriteByte('\n')
 	return b.String()
+}
+
+// noDiffNudge is Channel B (agent-fetched contents on respawn): prose appended
+// to the instruction on a retry attempt after the advance-gate found no
+// landable diff on the prior try. It escalates by attempt so the last try
+// before the cap reads as the final warning it is — distinct from Channel A
+// (harness-enforced caps/timeouts on the spawn itself).
+func noDiffNudge(attempt, maxAttempts int, t core.Task) string {
+	severity := "CRITICAL"
+	if attempt == maxAttempts-1 {
+		severity = "FINAL ATTEMPT — CRITICAL"
+	}
+	return fmt.Sprintf(
+		"\n## Retry %d/%d\n%s: your previous attempt produced no verified diff — no commit, no open PR on branch `%s`. "+
+			"Run `%s`, commit, push, and open the PR before finishing. "+
+			"Do not report done without a landable diff.\n",
+		attempt, maxAttempts-1, severity, t.Branch, t.Verify,
+	)
 }

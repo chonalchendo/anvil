@@ -30,6 +30,10 @@ const (
 	defaultModel      = "claude-sonnet-4-6"
 	defaultEffort     = "medium"
 	defaultRunTimeout = 30 * time.Minute
+	// maxAdvanceGateAttempts caps total spawns per task — the initial one plus
+	// two escalating-nudge re-spawns — before the advance-gate records failure.
+	// A genuinely impossible issue must still terminate (anvil.0163).
+	maxAdvanceGateAttempts = 3
 )
 
 // Options drives Build. Cwd is the agent working directory; Router maps
@@ -252,7 +256,6 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 		TaskID:          t.ID,
 		Model:           model,
 		Effort:          effort,
-		Instruction:     assembleInstruction(t),
 		Skills:          t.SkillsToLoad,
 		Context:         t.ContextToLoad,
 		Files:           t.Files,
@@ -260,22 +263,51 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 		Timeout:         defaultRunTimeout,
 		DisallowedTools: t.DisallowedTools,
 	}
-	res, err := adapter.Run(ctx, req)
-	oc.Result = res
-	oc.Duration = res.Duration
-	oc.ConfigDir = res.ConfigDir
-	oc.Outcome = classify(ctx, res, err)
-	oc.Err = err
-	// Advance-gate: only a clean exit-0 success is gated (quota/cancelled/failed
-	// already short-circuit). A spawn that exits 0 without opening its PR is
-	// "failed", not success — recording success on a no-op is the false positive
-	// this gate kills (anvil.0112). A verifier error is also "failed": an
-	// unverifiable artifact must never be trusted as success.
-	if oc.Outcome == "success" && opts.VerifyArtifact != nil {
+
+	// Advance-gate + no-diff retry: only a clean exit-0 success is gated
+	// (quota/cancelled/failed already short-circuit). A spawn that exits 0
+	// without opening its PR is "failed", not success — recording success on a
+	// no-op is the false positive this gate kills (anvil.0112). Before
+	// conceding, a spawn that produced no landable diff (VerifyArtifact
+	// returns ok=false, err=nil — the "nothing to land" case) is re-spawned on
+	// the same branch with an escalating nudge naming the missing deliverable,
+	// up to maxAdvanceGateAttempts total tries (anvil.0163). A verifier error
+	// is never retried — an unverifiable artifact must never be trusted as
+	// success, and a hard error isn't the absent-diff case this loop targets.
+	base := assembleInstruction(t)
+	for attempt := 0; attempt < maxAdvanceGateAttempts; attempt++ {
+		req.Instruction = base
+		if attempt > 0 {
+			req.Instruction = base + noDiffNudge(attempt, maxAdvanceGateAttempts, t)
+		}
+
+		// A retried task bills every spawn, not just the winning one: the new
+		// RunResult replaces the old, so spend fields (cost, agent time, tokens)
+		// are carried forward and summed while per-spawn fields (diagnostic,
+		// transcript, config dir) stay last-attempt.
+		res, err := adapter.Run(ctx, req)
+		prev := oc.Result
+		oc.Result = res
+		oc.Result.CostUSD += prev.CostUSD
+		oc.Result.AgentTime += prev.AgentTime
+		oc.Result.Tokens.Input += prev.Tokens.Input
+		oc.Result.Tokens.Output += prev.Tokens.Output
+		oc.Result.Tokens.CacheRead += prev.Tokens.CacheRead
+		oc.Result.Tokens.CacheWrite += prev.Tokens.CacheWrite
+		oc.Duration += res.Duration
+		oc.ConfigDir = res.ConfigDir
+		oc.Outcome = classify(ctx, res, err)
+		oc.Err = err
+
+		if oc.Outcome != "success" || opts.VerifyArtifact == nil {
+			break
+		}
+
 		// Preserve the adapter-set worker Diagnostic (its reason for no PR); fall
 		// back to the generic gate string only when the worker said nothing —
 		// overwriting it destroyed the only diagnosable signal (anvil.0139).
-		switch ok, verr := opts.VerifyArtifact(ctx, t); {
+		ok, verr := opts.VerifyArtifact(ctx, t)
+		switch {
 		case verr != nil:
 			oc.Outcome = "failed"
 			oc.Err = fmt.Errorf("advance-gate: %w", verr)
@@ -284,11 +316,19 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 			}
 		case !ok:
 			oc.Outcome = "failed"
-			oc.Err = fmt.Errorf("advance-gate: task %s exited 0 but opened no PR", t.ID)
+			if attempt < maxAdvanceGateAttempts-1 {
+				// The failed spawn's transcript rides this line: the next attempt's
+				// RunResult overwrites TranscriptPath, so this is its only exit.
+				fmt.Fprintf(opts.Stderr, "task %s: spawn produced no diff (transcript %s); retry %d/%d with an escalated nudge\n",
+					t.ID, res.TranscriptPath, attempt+1, maxAdvanceGateAttempts-1)
+				continue
+			}
+			oc.Err = fmt.Errorf("advance-gate: task %s exited 0 but opened no PR after %d attempts", t.ID, maxAdvanceGateAttempts)
 			if oc.Result.Diagnostic == "" {
-				oc.Result.Diagnostic = "spawn exited 0 but opened no PR on its branch"
+				oc.Result.Diagnostic = fmt.Sprintf("spawn exited 0 but opened no PR on its branch after %d attempts", maxAdvanceGateAttempts)
 			}
 		}
+		break
 	}
 	if oc.Outcome != "success" && oc.Outcome != "skipped_dry_run" {
 		if oc.Result.Diagnostic != "" {
