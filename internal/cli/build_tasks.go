@@ -115,7 +115,7 @@ func injectLearnings(db *index.DB, tasks []core.Task) {
 			updated, _ := a.FrontMatter["updated"].(string)
 			// The schema requires a "## TL;DR"; collapse it to one line. Absence
 			// means a malformed learning — surfaced as a bare title, not a failure.
-			tldr := strings.Join(strings.Fields(index.LearningTLDR(a.Body)), " ")
+			tldr := strings.Join(strings.Fields(index.TLDRSection(a.Body)), " ")
 			fmt.Fprintf(&b, "\n- %s · confidence:%s · updated:%s\n  %s\n  Source: %s\n",
 				title, conf, updated, tldr, r.ID)
 			if n++; n >= learningInjectionLimit {

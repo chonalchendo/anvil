@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestLearningTLDRExtraction(t *testing.T) {
+func TestTLDRSectionExtraction(t *testing.T) {
 	cases := []struct {
 		name, body, want string
 	}{
@@ -31,11 +31,51 @@ func TestLearningTLDRExtraction(t *testing.T) {
 			body: "## Evidence\n\nno tldr here",
 			want: "",
 		},
+		{
+			name: "empty section followed by next heading",
+			body: "## TL;DR\n\n## Evidence\n\nverified",
+			want: "",
+		},
+		{
+			name: "empty section with no blank line before next heading",
+			body: "## TL;DR\n## Evidence\n\nverified",
+			want: "",
+		},
+		{
+			name: "inline prose mention is not a heading",
+			body: "The convention says every learning opens with a ## TL;DR section.\n\n## Evidence\n\nverified",
+			want: "",
+		},
+		{
+			name: "heading inside fenced code block ignored",
+			body: "## Evidence\n\n```\n## TL;DR\nnot a real section\n```\n",
+			want: "",
+		},
+		{
+			name: "code sample inside tldr survives intact",
+			body: "## TL;DR\n\nrun this:\n\n```\n## TL;DR\nanvil show\n```\n\n## Evidence\n\nverified",
+			want: "run this:\n\n```\n## TL;DR\nanvil show\n```",
+		},
+		{
+			name: "crlf body",
+			body: "## TL;DR\r\n\r\ncarriage returns\r\n\r\n## Evidence\r\nverified",
+			want: "carriage returns",
+		},
+		{
+			name: "no trailing newline",
+			body: "## TL;DR\ntight ending",
+			want: "tight ending",
+		},
+		{
+			name: "multi-paragraph with h3 sub-heading kept",
+			body: "## TL;DR\n\nfirst paragraph.\n\n### Detail\n\nsecond paragraph.\n\n## Evidence\nx",
+			want: "first paragraph.\n\n### Detail\n\nsecond paragraph.",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if got := LearningTLDR(c.body); got != c.want {
-				t.Fatalf("LearningTLDR: got %q want %q", got, c.want)
+			if got := TLDRSection(c.body); got != c.want {
+				t.Fatalf("TLDRSection: got %q want %q", got, c.want)
 			}
 		})
 	}

@@ -236,8 +236,8 @@ func compactBody(n spineNode) string {
 	if fm, err := yaml.Marshal(n.FrontMatter); err == nil {
 		b.Write(fm)
 	}
-	if tldr := index.LearningTLDR(n.Body); tldr != "" {
-		b.WriteString("## TL;DR\n")
+	if tldr := index.TLDRSection(n.Body); tldr != "" {
+		b.WriteString("## TL;DR\n\n")
 		b.WriteString(tldr)
 		b.WriteByte('\n')
 	}
