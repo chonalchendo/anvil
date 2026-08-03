@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/chonalchendo/anvil/internal/core"
 )
@@ -156,8 +157,12 @@ func TestTransitionResolvedGhMissingDowngradesToWarning(t *testing.T) {
 
 // TestLinkedPlanSlugs_SurfacesPartialReadAsWarning pins the CodeRabbit
 // finding on PR #67: plan-link discovery failures must not silently shrink
-// the candidate set. Remove a linked plan file behind the index's back and
-// the helper must surface a non-empty warning so the caller can render it.
+// the candidate set. Corrupt a linked plan's on-disk content (in place, so
+// the index still thinks the row is fresh — indexForRead now self-heals
+// genuine drift per anvil.0169, so this exercises the surviving failure
+// mode: a row the index believes is current but whose file no longer
+// parses) and the helper must surface a non-empty warning so the caller can
+// render it.
 func TestLinkedPlanSlugs_SurfacesPartialReadAsWarning(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
@@ -186,13 +191,25 @@ body
 		t.Fatal(err)
 	}
 	execCmd(t, "reindex")
-	// Yank the file behind the index's back so LoadArtifact fails on the
-	// row LinksTo still hands us. Index thinks the plan is there.
-	if err := os.Remove(planPath); err != nil {
+	stamp := time.Now()
+
+	// Corrupt the file in place (no frontmatter delimiter, so LoadArtifact
+	// fails) and back-date its mtime to at-or-before the reindex stamp so
+	// CheckFreshness sees no drift — an in-place edit doesn't bump the
+	// parent directory's mtime either, so indexForRead never self-heals
+	// this case. The index still believes the row is current.
+	if err := os.WriteFile(planPath, []byte("not a valid artifact\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+	backdated := stamp.Add(-1 * time.Hour)
+	if err := os.Chtimes(planPath, backdated, backdated); err != nil {
 		t.Fatal(err)
 	}
 
-	_, warn := linkedPlanSlugs(&core.Vault{Root: vault}, "demo.foo")
+	// linkedPlanSlugs is always called with the canonical issue id (its one
+	// caller canonicalizes before calling — see candidateBranchesForIssue);
+	// LinksTo keys plan→issue edges on that canonical form.
+	_, warn := linkedPlanSlugs(&core.Vault{Root: vault}, "issue.demo.foo")
 	if warn == "" {
 		t.Errorf("expected non-empty warning when a linked plan is unreadable")
 	}

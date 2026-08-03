@@ -3,9 +3,9 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
-	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
 )
@@ -81,7 +81,9 @@ func indexAfterSave(v *core.Vault, a *core.Artifact) error {
 	return db.SetLastReindex(time.Now())
 }
 
-// indexForRead opens vault.db, returns IndexStale if the vault drifted, and
+// indexForRead opens vault.db, self-heals on drift (a WARN naming the
+// drifted path, then a reindex — like the write path's indexAfterSave,
+// additionally WARNing since a read is where drift diagnosis happens), and
 // bootstraps on first read. Caller is responsible for Close().
 func indexForRead(v *core.Vault) (*index.DB, error) {
 	db, err := index.Open(index.DBPath(v.Root))
@@ -97,8 +99,16 @@ func indexForRead(v *core.Vault) (*index.DB, error) {
 				return nil, fmt.Errorf("bootstrap reindex: %w", err)
 			}
 		case errors.As(err, &stale):
-			db.Close() //nolint:errcheck,gosec // close in defer; error not actionable
-			return nil, errfmt.NewIndexStale(stale.Path)
+			// External drift since the last stamp — absorb it via a reindex
+			// instead of forcing the caller to run `anvil reindex` first.
+			// The WARN keeps the drift diagnosable (a write path that
+			// should have kept the index fresh stays visible) without
+			// blocking the read.
+			slog.Warn("vault index stale; auto-reindexing", "path", stale.Path, "reason", stale.Reason)
+			if _, err := db.Reindex(v.Root); err != nil {
+				db.Close() //nolint:errcheck,gosec // close in defer; error not actionable
+				return nil, fmt.Errorf("auto-reindex on stale: %w", err)
+			}
 		default:
 			db.Close() //nolint:errcheck,gosec // close in defer; error not actionable
 			return nil, fmt.Errorf("freshness check: %w", err)

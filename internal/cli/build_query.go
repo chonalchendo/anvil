@@ -11,8 +11,8 @@ import (
 )
 
 // Read-only subcommands over the runtime-inserted build telemetry tables. They
-// open the index directly rather than via indexForRead — a stale .md elsewhere
-// must not gate a query over runtime-only telemetry (matches internal/cli/eval.go).
+// open the index directly rather than via indexForRead, so a telemetry query
+// never pays an unrelated vault reindex (matches internal/cli/eval.go).
 
 // newBuildRunsCmd lists build runs most-recent-first, so a completed run's
 // run_id is retrievable for `anvil build tasks <run-id>`. Read-only over the

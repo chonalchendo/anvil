@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/anvil/skills"
-	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
@@ -188,19 +187,15 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename string, as
 	}
 
 	if includeIncoming {
-		incoming, err := loadIncomingEdges(v, id)
-		if err != nil {
-			// A stale index must not suppress the body — emit the warning to
-			// stderr and degrade gracefully (no incoming section) so the body
-			// still reaches stdout.
-			var s *errfmt.Structured
-			if errors.As(err, &s) && s.Code == "index_stale" {
-				cmd.PrintErrln(err)
-			} else {
-				return err
-			}
+		// indexForRead self-heals a stale index (WARN + auto-reindex, see
+		// anvil.0169), so a stale vault no longer suppresses incoming edges.
+		// A failed heal (busy index, walk error) still can: degrade to no
+		// incoming section rather than suppressing the body below.
+		if incoming, err := loadIncomingEdges(v, id); err != nil {
+			cmd.PrintErrln(err)
+		} else {
+			out.Incoming = incoming
 		}
-		out.Incoming = incoming
 	}
 
 	if includeBody {

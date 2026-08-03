@@ -2,7 +2,6 @@ package errfmt_test
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -57,26 +56,6 @@ func TestTransitionFlagRequiredErrorMessage(t *testing.T) {
 	e := errfmt.NewTransitionFlagRequired("issue", "demo.foo", "open", "in-progress", "owner")
 	if e.Error() == "" {
 		t.Fatalf("Error() returned empty string")
-	}
-}
-
-// The offending path is the one thing an agent acts on, so it has to be its
-// own field rather than prose an agent regexes out of the message.
-func TestNewIndexStaleCarriesPathAsAField(t *testing.T) {
-	e := errfmt.NewIndexStale("/v/70-issues/demo.0001.x.md")
-	if !strings.Contains(e.Error(), "demo.0001.x.md") {
-		t.Fatalf("Error() must surface the offending path, got %q", e.Error())
-	}
-	b, _ := json.Marshal(e)
-	var parsed map[string]any
-	if err := json.Unmarshal(b, &parsed); err != nil {
-		t.Fatal(err)
-	}
-	if parsed["code"] != "index_stale" {
-		t.Errorf("index_stale JSON: %v", parsed)
-	}
-	if parsed["path"] != "/v/70-issues/demo.0001.x.md" {
-		t.Errorf("expected a verbatim path field, got %v", parsed)
 	}
 }
 

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -161,14 +162,28 @@ func TestTwoCreatesInOneProcessSucceedWithoutManualReindex(t *testing.T) {
 	}
 }
 
+// captureSlogWarn redirects the default slog logger to a buffer for the
+// duration of the test, restoring the previous default on cleanup. Read
+// verbs self-heal on stale drift instead of erroring, so the WARN naming the
+// drifted path is the only surfaced evidence a test can assert on.
+func captureSlogWarn(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	return &buf
+}
+
 // The whole point of the delete arm is that the operator reading the CLI sees
-// which file went missing. Asserting only on the `index_stale` code would stay
-// green with the path dropped at the CLI boundary.
+// which file went missing, even though the read itself now self-heals rather
+// than erroring — the WARN is the only surfaced evidence of the drift.
 func TestListReadyIndexStaleNamesTheDeletedIssueFile(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
 	createDemoIssue(t)
+	warnBuf := captureSlogWarn(t)
 
 	if err := os.Remove(filepath.Join(vault, "70-issues", "demo.foo.md")); err != nil {
 		t.Fatal(err)
@@ -179,20 +194,23 @@ func TestListReadyIndexStaleNamesTheDeletedIssueFile(t *testing.T) {
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatalf("expected index_stale after deleting an indexed issue; output: %s", out.String())
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected self-heal, not an error, after deleting an indexed issue; err: %v, output: %s", err, out.String())
 	}
-	if !strings.Contains(err.Error(), "demo.foo.md") {
-		t.Fatalf("index_stale must name the deleted file, got: %v", err)
+	if !strings.Contains(warnBuf.String(), "demo.foo.md") {
+		t.Fatalf("self-heal WARN must name the deleted file, got: %s", warnBuf.String())
 	}
 }
 
-func TestListReadyReturnsIndexStaleWhenVaultEditedExternally(t *testing.T) {
+// TestListReadySelfHealsAndReturnsResultsWhenVaultEditedExternally pins the
+// fix for anvil.0169: a read verb on a drifted vault auto-reindexes (WARN
+// naming the drifted path) and returns results instead of hard-erroring.
+func TestListReadySelfHealsAndReturnsResultsWhenVaultEditedExternally(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
 	createDemoIssue(t)
+	warnBuf := captureSlogWarn(t)
 
 	// External edit + bump dir mtime so CheckFreshness sees drift.
 	if err := os.WriteFile(filepath.Join(vault, "70-issues", "demo.bar.md"), //nolint:gosec // 0644 is correct for config/data files readable by owner and group
@@ -209,11 +227,51 @@ func TestListReadyReturnsIndexStaleWhenVaultEditedExternally(t *testing.T) {
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatalf("expected ErrIndexStale; output: %s", out.String())
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("expected self-heal, not an error, on external drift; err: %v, output: %s", err, out.String())
 	}
-	if !strings.Contains(err.Error(), "index_stale") {
-		t.Fatalf("expected index_stale in error message: %v", err)
+	if !strings.Contains(out.String(), "demo.foo") {
+		t.Fatalf("expected the pre-existing ready issue in results after self-heal; output: %s", out.String())
+	}
+	// Deterministic: the freshness walk visits files before the root-mtime
+	// arm, and demo.bar.md is the only file newer than the stamp.
+	if !strings.Contains(warnBuf.String(), "demo.bar.md") {
+		t.Fatalf("self-heal WARN must name the drifted file, got: %s", warnBuf.String())
+	}
+}
+
+// TestListReadyOnFreshVaultDoesNotReindex pins the no-drift fast path: a read
+// on a fresh vault must neither WARN nor reindex. If every read healed, the
+// WARN would stop meaning drift and self-heal cost would land on every verb.
+func TestListReadyOnFreshVaultDoesNotReindex(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	warnBuf := captureSlogWarn(t)
+
+	stampBefore, err := openIndex(t, vault).GetLastReindex()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"list", "issue", "--ready"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("list on a fresh vault: %v\noutput: %s", err, out.String())
+	}
+
+	if warnBuf.Len() != 0 {
+		t.Fatalf("read on a fresh vault must not WARN, got: %s", warnBuf.String())
+	}
+	stampAfter, err := openIndex(t, vault).GetLastReindex()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !stampAfter.Equal(stampBefore) {
+		t.Fatalf("read on a fresh vault must not reindex: stamp moved %s -> %s", stampBefore, stampAfter)
 	}
 }
