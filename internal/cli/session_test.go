@@ -433,6 +433,76 @@ func TestSessionResume_NoMatch(t *testing.T) {
 	}
 }
 
+// writeIssueFixture writes a minimal in-progress issue at 70-issues/<id>.md
+// with the given claim_session.
+func writeIssueFixture(t *testing.T, vault, id, claimSession string) {
+	t.Helper()
+	a := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", id+".md"),
+		FrontMatter: map[string]any{
+			"type":          "issue",
+			"title":         "fixture issue",
+			"status":        "in-progress",
+			"project":       "burgh",
+			"created":       "2026-06-01",
+			"updated":       "2026-06-01",
+			"severity":      "medium",
+			"claim_session": claimSession,
+		},
+		Body: fixtureIssueBody,
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSessionResume_ClaimMismatch_Surfaced(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueFixture(t, vault, "burgh.0317", "ad768f26-7545-4a82-9107-344103a00b52")
+	body := "## Handoff\n\n**Objective.** rebase PR #479\n\nNext action: rebase burgh.0317 and let ci-data rerun.\n"
+	writeSessionFixture(t, vault, "resume-mismatch", "resume-mismatch", "Resume Session", body)
+	t.Setenv(envSessionID, "this-session-uuid")
+
+	out, _, err := runCmd(t, newRootCmd(), "session", "resume", "--json")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var got resumeOutput
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if len(got.ClaimMismatches) != 1 {
+		t.Fatalf("expected 1 claim mismatch, got %d: %s", len(got.ClaimMismatches), out)
+	}
+	m := got.ClaimMismatches[0]
+	if m.IssueID != "issue.burgh.0317" {
+		t.Errorf("issue_id = %q, want issue.burgh.0317", m.IssueID)
+	}
+	if m.ClaimSession != "ad768f26-7545-4a82-9107-344103a00b52" {
+		t.Errorf("claim_session = %q, want ad768f26-7545-4a82-9107-344103a00b52", m.ClaimSession)
+	}
+}
+
+func TestSessionResume_ClaimMismatch_SameSession_NoWarning(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueFixture(t, vault, "burgh.0317", "this-session-uuid")
+	body := "## Handoff\n\n**Objective.** rebase PR #479\n\nNext action: rebase burgh.0317 and let ci-data rerun.\n"
+	writeSessionFixture(t, vault, "resume-samesession", "resume-samesession", "Resume Session", body)
+	t.Setenv(envSessionID, "this-session-uuid")
+
+	out, _, err := runCmd(t, newRootCmd(), "session", "resume", "--json")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var got resumeOutput
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if len(got.ClaimMismatches) != 0 {
+		t.Errorf("expected no claim mismatch when the resuming session already owns the claim, got %v", got.ClaimMismatches)
+	}
+}
+
 func TestSessionList_ProjectFilter(t *testing.T) {
 	vault := setupVault(t)
 	writeSessionFixtureWithProject(t, vault, "list-anvil", "list-anvil", "Anvil", "anvil", "## Handoff\n\n**Objective.** anvil\n")
