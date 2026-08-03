@@ -261,24 +261,6 @@ func newSessionShowCmd() *cobra.Command {
 	return cmd
 }
 
-// resumeOutput is the JSON envelope for `anvil session resume`.
-//
-// NoHandoff is the explicit no-match signal: present (true) only when a
-// --project scope matched no handoff. It distinguishes that empty-but-success
-// case from a populated single-candidate hit, which always carries a non-empty
-// SessionID/Path. resuming-session branches on it to stop rather than load an
-// empty body.
-type resumeOutput struct {
-	SessionID  string        `json:"session_id"`
-	Path       string        `json:"path"`
-	Objective  string        `json:"objective,omitempty"`
-	Project    string        `json:"project,omitempty"`
-	Body       string        `json:"body"`
-	Walked     int           `json:"walked"`
-	NoHandoff  bool          `json:"no_handoff,omitempty"`
-	Candidates []sessionItem `json:"candidates,omitempty"`
-}
-
 const resumeAmbiguityWindowSecs = 600
 
 func newSessionResumeCmd() *cobra.Command {
@@ -293,7 +275,8 @@ func newSessionResumeCmd() *cobra.Command {
   single   {session_id, path, objective, project, body, walked}  — one handoff; load body
   multi    {walked, candidates: [...]}                           — ≥2 in window; disambiguate, body empty
   no-match {walked, no_handoff: true}                            — --project matched nothing (exit 0)
-  error    (exit 1)                                              — no handoff anywhere (unscoped)`,
+  error    (exit 1)                                              — no handoff anywhere (unscoped)
+all shapes also carry claim_mismatches: [{issue_id, claim_session}] (empty when none)`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
@@ -321,7 +304,7 @@ func newSessionResumeCmd() *cobra.Command {
 				// rather than error-handling the exit code or guessing from
 				// empty strings.
 				if flagJSON && flagProject != "" {
-					return writeJSON(cmd, resumeOutput{Walked: walked, NoHandoff: true})
+					return writeJSON(cmd, resumeOutput{Walked: walked, NoHandoff: true, ClaimMismatches: []claimMismatch{}})
 				}
 				if flagProject != "" {
 					return fmt.Errorf("no prior handoff found for project %q", flagProject)
@@ -353,9 +336,10 @@ func newSessionResumeCmd() *cobra.Command {
 			if len(candidates) > 1 {
 				// Return the candidate list for the caller to disambiguate.
 				out := resumeOutput{
-					Walked:     walked,
-					Candidates: candidates,
-					Body:       "",
+					Walked:          walked,
+					Candidates:      candidates,
+					Body:            "",
+					ClaimMismatches: []claimMismatch{},
 				}
 				if flagJSON {
 					return writeJSON(cmd, out)
@@ -374,16 +358,21 @@ func newSessionResumeCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("loading session file: %w", err)
 			}
+			currentSessionID, _, _, _ := resolveCurrentSession()
 			out := resumeOutput{
-				SessionID: chosen.SessionID,
-				Path:      chosen.Path,
-				Objective: chosen.Objective,
-				Project:   chosen.Project,
-				Body:      a.Body,
-				Walked:    walked,
+				SessionID:       chosen.SessionID,
+				Path:            chosen.Path,
+				Objective:       chosen.Objective,
+				Project:         chosen.Project,
+				Body:            a.Body,
+				Walked:          walked,
+				ClaimMismatches: findClaimMismatches(v, a.Body, currentSessionID, chosen.SessionID),
 			}
 			if flagJSON {
 				return writeJSON(cmd, out)
+			}
+			for _, m := range out.ClaimMismatches {
+				fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s is claimed by session %s, not this one — stand down or reconcile before acting.\n", m.IssueID, m.ClaimSession)
 			}
 			fmt.Fprint(cmd.OutOrStdout(), a.Body)
 			return nil

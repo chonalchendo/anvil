@@ -433,6 +433,148 @@ func TestSessionResume_NoMatch(t *testing.T) {
 	}
 }
 
+// writeIssueFixture writes a minimal issue at 70-issues/<id>.md with the
+// given status and claim_session.
+func writeIssueFixture(t *testing.T, vault, id, status, claimSession string) {
+	t.Helper()
+	a := &core.Artifact{
+		Path: filepath.Join(vault, "70-issues", id+".md"),
+		FrontMatter: map[string]any{
+			"type":          "issue",
+			"title":         "fixture issue",
+			"status":        status,
+			"project":       "burgh",
+			"created":       "2026-06-01",
+			"updated":       "2026-06-01",
+			"severity":      "medium",
+			"claim_session": claimSession,
+		},
+		Body: fixtureIssueBody,
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// resumeMismatches runs `session resume --json` and returns the decoded
+// envelope's claim_mismatches.
+func resumeMismatches(t *testing.T) []claimMismatch {
+	t.Helper()
+	out, _, err := runCmd(t, newRootCmd(), "session", "resume", "--json")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var got resumeOutput
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	return got.ClaimMismatches
+}
+
+const claimMismatchBody = "## Handoff\n\n**Objective.** rebase PR #479\n\nNext action: rebase burgh.0317 and let ci-data rerun.\n"
+
+func TestSessionResume_ClaimMismatch_Surfaced(t *testing.T) {
+	vault := setupVault(t)
+	// Claimed by a third session: neither the resuming session nor the
+	// handoff's author. This is the incident shape.
+	writeIssueFixture(t, vault, "issue.burgh.0317.rebase-pr", "in-progress", "ad768f26-7545-4a82-9107-344103a00b52")
+	writeSessionFixture(t, vault, "resume-mismatch", "resume-mismatch", "Resume Session", claimMismatchBody)
+	t.Setenv(envSessionID, "this-session-uuid")
+
+	mismatches := resumeMismatches(t)
+	if len(mismatches) != 1 {
+		t.Fatalf("expected 1 claim mismatch, got %d: %v", len(mismatches), mismatches)
+	}
+	m := mismatches[0]
+	if m.IssueID != "issue.burgh.0317.rebase-pr" {
+		t.Errorf("issue_id = %q, want issue.burgh.0317.rebase-pr", m.IssueID)
+	}
+	if m.ClaimSession != "ad768f26-7545-4a82-9107-344103a00b52" {
+		t.Errorf("claim_session = %q, want ad768f26-7545-4a82-9107-344103a00b52", m.ClaimSession)
+	}
+}
+
+func TestSessionResume_ClaimMismatch_SameSession_NoWarning(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueFixture(t, vault, "issue.burgh.0317.rebase-pr", "in-progress", "this-session-uuid")
+	writeSessionFixture(t, vault, "resume-samesession", "resume-samesession", "Resume Session", claimMismatchBody)
+	t.Setenv(envSessionID, "this-session-uuid")
+
+	if got := resumeMismatches(t); len(got) != 0 {
+		t.Errorf("expected no claim mismatch when the resuming session already owns the claim, got %v", got)
+	}
+}
+
+func TestSessionResume_ClaimMismatch_HandoffAuthor_NoWarning(t *testing.T) {
+	vault := setupVault(t)
+	// Claimed by the handoff's author: the normal ownership-transfer case —
+	// the author handed its claim forward to whoever resumes.
+	writeIssueFixture(t, vault, "issue.burgh.0317.rebase-pr", "in-progress", "resume-author")
+	writeSessionFixture(t, vault, "resume-author", "resume-author", "Resume Session", claimMismatchBody)
+	t.Setenv(envSessionID, "this-session-uuid")
+
+	if got := resumeMismatches(t); len(got) != 0 {
+		t.Errorf("expected no claim mismatch when the handoff author holds the claim, got %v", got)
+	}
+}
+
+func TestSessionResume_ClaimMismatch_ResolvedIssue_NoWarning(t *testing.T) {
+	vault := setupVault(t)
+	// resolve does not clear claim_session; a stale claim on completed work
+	// must not warn "stand down".
+	writeIssueFixture(t, vault, "issue.burgh.0317.rebase-pr", "resolved", "ad768f26-7545-4a82-9107-344103a00b52")
+	writeSessionFixture(t, vault, "resume-resolved", "resume-resolved", "Resume Session", claimMismatchBody)
+	t.Setenv(envSessionID, "this-session-uuid")
+
+	if got := resumeMismatches(t); len(got) != 0 {
+		t.Errorf("expected no claim mismatch for a resolved issue, got %v", got)
+	}
+}
+
+func TestSessionResume_ClaimMismatch_SiblingTypeToken_NoWarning(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueFixture(t, vault, "issue.burgh.0317.rebase-pr", "in-progress", "ad768f26-7545-4a82-9107-344103a00b52")
+	// The only token is a sibling-type wikilink; its dot-preceded tail
+	// (burgh.0317) must not be re-read as an issue reference.
+	body := "## Handoff\n\n**Objective.** smoke run\n\nNext action: rerun [[plan.burgh.0317]] end-to-end.\n"
+	writeSessionFixture(t, vault, "resume-plan-token", "resume-plan-token", "Resume Session", body)
+	t.Setenv(envSessionID, "this-session-uuid")
+
+	if got := resumeMismatches(t); len(got) != 0 {
+		t.Errorf("expected no claim mismatch for a sibling-type token, got %v", got)
+	}
+}
+
+func TestSessionResume_ClaimMismatch_NoCurrentSession_NoWarning(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueFixture(t, vault, "issue.burgh.0317.rebase-pr", "in-progress", "ad768f26-7545-4a82-9107-344103a00b52")
+	writeSessionFixture(t, vault, "resume-headless", "resume-headless", "Resume Session", claimMismatchBody)
+	// Headless/cron: no Claude session id and no Codex rollout to fall back
+	// to. Every claimed issue would mismatch; the scan must stand down.
+	t.Setenv(envSessionID, "")
+	t.Setenv("CODEX_HOME", t.TempDir())
+
+	if got := resumeMismatches(t); got == nil || len(got) != 0 {
+		t.Errorf("expected empty (non-nil) claim_mismatches when no current session resolves, got %v", got)
+	}
+}
+
+func TestSessionResume_ClaimMismatch_PlainTextWarning(t *testing.T) {
+	vault := setupVault(t)
+	writeIssueFixture(t, vault, "issue.burgh.0317.rebase-pr", "in-progress", "ad768f26-7545-4a82-9107-344103a00b52")
+	writeSessionFixture(t, vault, "resume-plain", "resume-plain", "Resume Session", claimMismatchBody)
+	t.Setenv(envSessionID, "this-session-uuid")
+
+	_, stderr, err := runCmd(t, newRootCmd(), "session", "resume")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "issue.burgh.0317.rebase-pr is claimed by session ad768f26-7545-4a82-9107-344103a00b52, not this one"
+	if !strings.Contains(stderr, want) {
+		t.Errorf("stderr should contain %q, got %q", want, stderr)
+	}
+}
+
 func TestSessionList_ProjectFilter(t *testing.T) {
 	vault := setupVault(t)
 	writeSessionFixtureWithProject(t, vault, "list-anvil", "list-anvil", "Anvil", "anvil", "## Handoff\n\n**Objective.** anvil\n")
