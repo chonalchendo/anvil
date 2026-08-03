@@ -41,15 +41,15 @@ func assembleInstruction(t core.Task) string {
 // landable diff on the prior try. It escalates by attempt so the last try
 // before the cap reads as the final warning it is — distinct from Channel A
 // (harness-enforced caps/timeouts on the spawn itself).
-func noDiffNudge(attempt, maxAttempts int) string {
+func noDiffNudge(attempt, maxAttempts int, t core.Task) string {
 	severity := "CRITICAL"
 	if attempt == maxAttempts-1 {
 		severity = "FINAL ATTEMPT — CRITICAL"
 	}
 	return fmt.Sprintf(
-		"\n## Retry %d/%d\n%s: your previous attempt produced no verified diff — no commit, no PR. "+
-			"You MUST make the change, verify it, commit, push, and open a PR before finishing. "+
+		"\n## Retry %d/%d\n%s: your previous attempt produced no verified diff — no commit, no open PR on branch `%s`. "+
+			"Run `%s`, commit, push, and open the PR before finishing. "+
 			"Do not report done without a landable diff.\n",
-		attempt, maxAttempts-1, severity,
+		attempt, maxAttempts-1, severity, t.Branch, t.Verify,
 	)
 }

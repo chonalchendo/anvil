@@ -151,7 +151,7 @@ func TestBuild_TaskFailure_ReturnsErrBuildTaskFailed(t *testing.T) {
 func oneTaskWave() [][]core.Task {
 	return [][]core.Task{{{
 		ID: "T1", Title: "Wave-0 task", Model: "claude-sonnet-4-6", Effort: "medium",
-		Body: "do T1", Verify: "true",
+		Body: "do T1", Verify: "true", Branch: "proj/t1-slug",
 	}}}
 }
 
@@ -207,8 +207,8 @@ func TestBuild_AdvanceGate_NoPRFallsBackToGateString(t *testing.T) {
 	if !errors.Is(err, ErrBuildTaskFailed) {
 		t.Fatalf("err = %v, want ErrBuildTaskFailed", err)
 	}
-	if got := sum.Outcomes["T1"].Result.Diagnostic; got != "spawn exited 0 but opened no PR on its branch" {
-		t.Errorf("diagnostic = %q, want the gate-string fallback", got)
+	if got := sum.Outcomes["T1"].Result.Diagnostic; got != "spawn exited 0 but opened no PR on its branch after 3 attempts" {
+		t.Errorf("diagnostic = %q, want the gate-string fallback with the attempt count", got)
 	}
 }
 
@@ -272,6 +272,44 @@ func TestBuild_AdvanceGate_NoDiffRetriesWithEscalatingNudge(t *testing.T) {
 	}
 	if !strings.Contains(fa.callOrder[1], "no verified diff") {
 		t.Errorf("retry instruction = %q, want it to name the missing deliverable", fa.callOrder[1])
+	}
+	if !strings.Contains(fa.callOrder[1], "branch `proj/t1-slug`") {
+		t.Errorf("retry instruction = %q, want it to name the task's branch", fa.callOrder[1])
+	}
+}
+
+func TestBuild_AdvanceGate_RetryAccumulatesSpend(t *testing.T) {
+	// Each attempt bills; the winning attempt's RunResult must carry the sum of
+	// cost, agent time, and token counters, not just the last spawn's.
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
+		"do T1": {res: RunResult{
+			AgentTime: 2 * time.Second,
+			CostUSD:   1.25,
+			Tokens:    TokenUsage{Input: 10, Output: 20, CacheRead: 30, CacheWrite: 40},
+		}},
+	}}
+	var calls atomic.Int32
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: io.Discard,
+		Router: Router{"claude-": fa},
+		VerifyArtifact: func(context.Context, core.Task) (bool, error) {
+			return calls.Add(1) > 1, nil // attempt 0: no diff; attempt 1: landed
+		},
+	}
+	sum, err := Build(context.Background(), oneTaskWave(), opts)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	res := sum.Outcomes["T1"].Result
+	if res.CostUSD != 2.5 {
+		t.Errorf("CostUSD = %v, want 2.5 (both attempts billed)", res.CostUSD)
+	}
+	if res.AgentTime != 4*time.Second {
+		t.Errorf("AgentTime = %v, want 4s (both attempts billed)", res.AgentTime)
+	}
+	if want := (TokenUsage{Input: 20, Output: 40, CacheRead: 60, CacheWrite: 80}); res.Tokens != want {
+		t.Errorf("Tokens = %+v, want %+v (both attempts billed)", res.Tokens, want)
 	}
 }
 
