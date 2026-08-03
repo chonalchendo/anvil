@@ -246,6 +246,75 @@ func TestBuild_AdvanceGate_VerifierErrorIsFailed(t *testing.T) {
 	}
 }
 
+func TestBuild_AdvanceGate_NoDiffRetriesWithEscalatingNudge(t *testing.T) {
+	// The advance-gate reports no diff on the first spawn, then a landed diff
+	// on the retry — the driver must re-spawn with a nudge and record success,
+	// not fail on the first empty attempt (anvil.0163).
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{}} // always exit 0
+	var calls atomic.Int32
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: io.Discard,
+		Router: Router{"claude-": fa},
+		VerifyArtifact: func(context.Context, core.Task) (bool, error) {
+			return calls.Add(1) > 1, nil // attempt 0: no diff; attempt 1: landed
+		},
+	}
+	sum, err := Build(context.Background(), oneTaskWave(), opts)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if got := sum.Outcomes["T1"].Outcome; got != "success" {
+		t.Errorf("outcome = %q, want success once the retry lands a diff", got)
+	}
+	if got := len(fa.callOrder); got != 2 {
+		t.Fatalf("spawn count = %d, want 2 (attempt 0 + 1 retry)", got)
+	}
+	if !strings.Contains(fa.callOrder[1], "no verified diff") {
+		t.Errorf("retry instruction = %q, want it to name the missing deliverable", fa.callOrder[1])
+	}
+}
+
+func TestBuild_AdvanceGate_NoDiffExhaustsRetriesThenFails(t *testing.T) {
+	// A shim that never produces a diff must still terminate at the cap, not
+	// retry forever (anvil.0163 non-goal: bounded, not unbounded).
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{}}
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: io.Discard,
+		Router:         Router{"claude-": fa},
+		VerifyArtifact: func(context.Context, core.Task) (bool, error) { return false, nil },
+	}
+	sum, err := Build(context.Background(), oneTaskWave(), opts)
+	if !errors.Is(err, ErrBuildTaskFailed) {
+		t.Fatalf("err = %v, want ErrBuildTaskFailed", err)
+	}
+	if got := sum.Outcomes["T1"].Outcome; got != "failed" {
+		t.Errorf("outcome = %q, want failed once retries are exhausted", got)
+	}
+	if got := len(fa.callOrder); got != maxAdvanceGateAttempts {
+		t.Errorf("spawn count = %d, want %d (capped)", got, maxAdvanceGateAttempts)
+	}
+}
+
+func TestBuild_AdvanceGate_VerifierErrorDoesNotRetry(t *testing.T) {
+	// A verifier error is a system fault, not an absent-diff signal — it must
+	// not trigger the no-diff retry loop.
+	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{}}
+	opts := Options{
+		Concurrency: 1, Cwd: t.TempDir(),
+		Stdout: io.Discard, Stderr: io.Discard,
+		Router:         Router{"claude-": fa},
+		VerifyArtifact: func(context.Context, core.Task) (bool, error) { return false, errors.New("gh exploded") },
+	}
+	if _, err := Build(context.Background(), oneTaskWave(), opts); !errors.Is(err, ErrBuildTaskFailed) {
+		t.Fatalf("err = %v, want ErrBuildTaskFailed", err)
+	}
+	if got := len(fa.callOrder); got != 1 {
+		t.Errorf("spawn count = %d, want 1 (no retry on verifier error)", got)
+	}
+}
+
 func TestBuild_AdvanceGate_NilVerifierTrustsExitZero(t *testing.T) {
 	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{}}
 	opts := Options{
