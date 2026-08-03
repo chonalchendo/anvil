@@ -19,9 +19,9 @@ First run `anvil doctor --json`. If `findings` is non-empty, surface each on one
 
 `anvil session resume --json` applies the 10-min ambiguity window, walks past empty stubs, and returns in one call. When the user specifies a project (e.g. "resume session for anvil"), add `--project <p>` to scope candidates to that project only:
 
-- **No match** → `{walked, no_handoff: true}` (only when `--project` matched no handoff) — stop. Tell the user: *"No handoff found for project `<p>`. Start fresh."* Do not load the empty body. `no_handoff` is the explicit signal; a populated single-candidate hit always carries a non-empty `session_id`, so never treat `{session_id: ""}` as a candidate.
-- **Single candidate** → `{session_id, path, objective, body, walked}` — proceed to Phase 3 directly with the loaded body.
-- **Multiple candidates** → `{walked, candidates: [...]}` with `body` empty — the verb surfaces the list for you. Disambiguate before loading:
+- **No match** → `{walked, no_handoff: true, claim_mismatches: []}` (only when `--project` matched no handoff) — stop. Tell the user: *"No handoff found for project `<p>`. Start fresh."* Do not load the empty body. `no_handoff` is the explicit signal; a populated single-candidate hit always carries a non-empty `session_id`, so never treat `{session_id: ""}` as a candidate.
+- **Single candidate** → `{session_id, path, objective, body, walked, claim_mismatches}` — proceed to Phase 3 directly with the loaded body.
+- **Multiple candidates** → `{walked, candidates: [...], claim_mismatches: []}` with `body` empty — the verb surfaces the list for you. Disambiguate before loading:
 
 ```text
 Multiple recent handoffs in the ambiguity window:
@@ -32,6 +32,8 @@ Which one?
 ```
 
 Use `AskUserQuestion` (or equivalent) with one option per candidate. Do not auto-pick on the user's behalf.
+
+Every shape carries `claim_mismatches` (empty when none): issues the handoff references that are still in-progress but claimed by a third session — neither this one nor the handoff's author. For each entry, print `<issue_id> is claimed by session <claim_session>` before Phase 3 and ask the user to reconcile — stand down or take the claim over — before acting on that part of the handoff.
 
 If the command errors ("no prior handoff found"), stop. Tell the user verbatim: *"No prior handoff found under ~/anvil-vault/10-sessions/. Start fresh."* Do not invent context.
 

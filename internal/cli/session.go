@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -262,71 +261,6 @@ func newSessionShowCmd() *cobra.Command {
 	return cmd
 }
 
-// resumeOutput is the JSON envelope for `anvil session resume`.
-//
-// NoHandoff is the explicit no-match signal: present (true) only when a
-// --project scope matched no handoff. It distinguishes that empty-but-success
-// case from a populated single-candidate hit, which always carries a non-empty
-// SessionID/Path. resuming-session branches on it to stop rather than load an
-// empty body.
-//
-// ClaimMismatches has no omitempty: its presence (even as an empty array) is
-// the signal `resuming-session` and `jq -e 'has("claim_mismatches")'` probe
-// for, regardless of which envelope shape resume returns.
-type resumeOutput struct {
-	SessionID       string          `json:"session_id"`
-	Path            string          `json:"path"`
-	Objective       string          `json:"objective,omitempty"`
-	Project         string          `json:"project,omitempty"`
-	Body            string          `json:"body"`
-	Walked          int             `json:"walked"`
-	NoHandoff       bool            `json:"no_handoff,omitempty"`
-	Candidates      []sessionItem   `json:"candidates,omitempty"`
-	ClaimMismatches []claimMismatch `json:"claim_mismatches"`
-}
-
-// claimMismatch names an issue referenced by a resumed handoff whose
-// claim_session frontmatter belongs to a different, still-live session — the
-// signal that another session may already be acting on it.
-type claimMismatch struct {
-	IssueID      string `json:"issue_id"`
-	ClaimSession string `json:"claim_session"`
-}
-
-// issueRefRe matches a plausible issue-id token in handoff prose: an optional
-// "issue." prefix, a project slug, a numbered ordinal, and an optional slug
-// tail — e.g. "burgh.0317" or "issue.anvil.0175.foo-bar". False positives
-// (e.g. a version string) are harmless: resolution against the vault below
-// simply finds nothing and is skipped.
-var issueRefRe = regexp.MustCompile(`\b(?:issue\.)?[a-z][a-z0-9-]*\.[0-9]{3,6}(?:\.[a-z0-9-]+)*\b`)
-
-// findClaimMismatches scans body for issue references and returns those whose
-// claim_session differs from currentSessionID (and is non-empty) — an issue
-// the handoff points at that another session currently owns. Best-effort:
-// an id that doesn't resolve to a vault issue is silently skipped.
-func findClaimMismatches(v *core.Vault, body, currentSessionID string) []claimMismatch {
-	seen := map[string]bool{}
-	out := []claimMismatch{}
-	for _, ref := range issueRefRe.FindAllString(body, -1) {
-		id := core.ResolveIssueArg(v, ref)
-		basename := core.ArtifactBasename(v, core.TypeIssue, id)
-		if seen[basename] {
-			continue
-		}
-		seen[basename] = true
-		a, err := core.LoadArtifact(core.TypeIssue.Path(v.Root, basename))
-		if err != nil {
-			continue
-		}
-		claim, _ := a.FrontMatter["claim_session"].(string)
-		if claim == "" || claim == currentSessionID {
-			continue
-		}
-		out = append(out, claimMismatch{IssueID: id, ClaimSession: claim})
-	}
-	return out
-}
-
 const resumeAmbiguityWindowSecs = 600
 
 func newSessionResumeCmd() *cobra.Command {
@@ -341,7 +275,8 @@ func newSessionResumeCmd() *cobra.Command {
   single   {session_id, path, objective, project, body, walked}  — one handoff; load body
   multi    {walked, candidates: [...]}                           — ≥2 in window; disambiguate, body empty
   no-match {walked, no_handoff: true}                            — --project matched nothing (exit 0)
-  error    (exit 1)                                              — no handoff anywhere (unscoped)`,
+  error    (exit 1)                                              — no handoff anywhere (unscoped)
+all shapes also carry claim_mismatches: [{issue_id, claim_session}] (empty when none)`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
@@ -431,7 +366,7 @@ func newSessionResumeCmd() *cobra.Command {
 				Project:         chosen.Project,
 				Body:            a.Body,
 				Walked:          walked,
-				ClaimMismatches: findClaimMismatches(v, a.Body, currentSessionID),
+				ClaimMismatches: findClaimMismatches(v, a.Body, currentSessionID, chosen.SessionID),
 			}
 			if flagJSON {
 				return writeJSON(cmd, out)
