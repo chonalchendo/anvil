@@ -266,7 +266,7 @@ func (d *DB) IndexLearningFTS(row ArtifactRow, body string) error {
 	if row.Type != string(core.TypeLearning) {
 		return nil
 	}
-	return d.ReplaceLearningFTS(row.ID, LearningTLDR(body))
+	return d.ReplaceLearningFTS(row.ID, TLDRSection(body))
 }
 
 // IndexArtifactFTS upserts an issue or milestone's description+goal into the

@@ -305,6 +305,35 @@ func TestHydrate(t *testing.T) {
 		}
 	})
 
+	t.Run("--tldr ignores inline mentions, empty sections, and fenced headings", func(t *testing.T) {
+		vault := setupVault(t)
+		writeHydrateIssue(t, vault, "foo.i1", map[string]any{
+			"related": []any{"[[learning.l-inline]]", "[[learning.l-empty]]", "[[learning.l-fenced]]"},
+		})
+		// A prose mention of the heading is not a section.
+		writeHydrateLearning(t, vault, "l-inline",
+			"Convention prose: open every learning with a ## TL;DR INLINE_MENTION_MARKER heading.\n\n## Notes\n\nbody text.\n")
+		// An empty section yields no digest — not a bare heading, and never the
+		// following section riding along.
+		writeHydrateLearning(t, vault, "l-empty",
+			"## TL;DR\n\n## Evidence\n\nEMPTY_SECTION_MARKER text.\n")
+		// A heading quoted inside a fenced code block is not a section.
+		writeHydrateLearning(t, vault, "l-fenced",
+			"```\n## TL;DR\nFENCED_LEAK_MARKER inside fence\n```\n\n## Context\n\nbody text.\n")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1", "--tldr")
+		if err != nil {
+			t.Fatalf("hydrate --tldr: %v", err)
+		}
+		// None of the three carries a real TL;DR, so no digest heading at all.
+		for _, unwanted := range []string{"## TL;DR", "INLINE_MENTION_MARKER", "## Evidence", "EMPTY_SECTION_MARKER", "FENCED_LEAK_MARKER"} {
+			if strings.Contains(out, unwanted) {
+				t.Errorf("digest leaked %q from a body with no real TL;DR section\n%s", unwanted, out)
+			}
+		}
+	})
+
 	t.Run("empty-bodied node header is marked empty", func(t *testing.T) {
 		vault := setupVault(t)
 		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"milestone": "[[milestone.foo.m1]]"})

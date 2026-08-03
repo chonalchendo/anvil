@@ -20,20 +20,45 @@ type LinkRow struct {
 	Source, Target, Relation, Anchor string
 }
 
-// learningTLDRRe captures the text under a learning's `## TL;DR` heading up to
-// the next H2 (or end of body). The FTS index stores only this section — the
-// learning's one-paragraph essence — so a learning is findable by content.
-var learningTLDRRe = regexp.MustCompile(`(?s)\n##\s+TL;DR\s*\n(.*?)(?:\n##\s|$)`)
+// tldrHeadingRe matches a line that is exactly a `## TL;DR` heading;
+// tldrEndRe matches any H2 line, which terminates the section. Both are
+// applied per-line, outside fenced code blocks only, so a heading quoted in a
+// code sample neither opens nor closes the section.
+var (
+	tldrHeadingRe = regexp.MustCompile(`^##[ \t]+TL;DR[ \t\r]*$`)
+	tldrEndRe     = regexp.MustCompile(`^##[ \t]`)
+)
 
-// LearningTLDR returns the trimmed body text of a learning's TL;DR section, or
-// "" when the section is absent. The leading newline is prepended so the regex
-// anchors a TL;DR heading that opens the body with no blank line before it.
-func LearningTLDR(body string) string {
-	m := learningTLDRRe.FindStringSubmatch("\n" + body)
-	if m == nil {
+// TLDRSection returns the trimmed body text of an artifact's `## TL;DR`
+// section, or "" when the section is absent or empty — the FTS learning index
+// and hydrate's --tldr digest both read it. Fence lines inside the section are
+// kept verbatim, so a TL;DR carrying a code sample survives intact.
+func TLDRSection(body string) string {
+	lines := strings.Split(body, "\n")
+	start := -1
+	inFence := false
+	for i, line := range lines {
+		if strings.HasPrefix(line, "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		if start < 0 {
+			if tldrHeadingRe.MatchString(line) {
+				start = i + 1
+			}
+			continue
+		}
+		if tldrEndRe.MatchString(line) {
+			return strings.TrimSpace(strings.Join(lines[start:i], "\n"))
+		}
+	}
+	if start < 0 {
 		return ""
 	}
-	return strings.TrimSpace(m[1])
+	return strings.TrimSpace(strings.Join(lines[start:], "\n"))
 }
 
 var wikilinkRe = regexp.MustCompile(`^\[\[([^\]]+)\]\]$`)

@@ -11,6 +11,7 @@ import (
 
 	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/index"
 )
 
 // newHydrateCmd assembles an issue's methodology-spine context closure into one
@@ -235,12 +236,9 @@ func compactBody(n spineNode) string {
 	if fm, err := yaml.Marshal(n.FrontMatter); err == nil {
 		b.Write(fm)
 	}
-	if k := strings.Index(n.Body, "## TL;DR"); k >= 0 {
-		tldr := n.Body[k:]
-		if j := strings.Index(tldr[len("## TL;DR"):], "\n## "); j >= 0 {
-			tldr = tldr[:len("## TL;DR")+j]
-		}
-		b.WriteString(strings.TrimRight(tldr, "\n"))
+	if tldr := index.TLDRSection(n.Body); tldr != "" {
+		b.WriteString("## TL;DR\n\n")
+		b.WriteString(tldr)
 		b.WriteByte('\n')
 	}
 	return b.String()
