@@ -17,16 +17,22 @@ import (
 // ClaimMismatches has no omitempty: its presence (even as an empty array) is
 // the signal `resuming-session` and `jq -e 'has("claim_mismatches")'` probe
 // for, regardless of which envelope shape resume returns.
+//
+// SkippedProjectless names handoffs excluded by --project scoping solely for
+// lacking a project: stamp, when they are newer than the returned result (or
+// any exist at all, in the no-match case) — the --project filter would
+// otherwise silently walk past a newer, unstamped handoff (issue.anvil.0233).
 type resumeOutput struct {
-	SessionID       string          `json:"session_id"`
-	Path            string          `json:"path"`
-	Objective       string          `json:"objective,omitempty"`
-	Project         string          `json:"project,omitempty"`
-	Body            string          `json:"body"`
-	Walked          int             `json:"walked"`
-	NoHandoff       bool            `json:"no_handoff,omitempty"`
-	Candidates      []sessionItem   `json:"candidates,omitempty"`
-	ClaimMismatches []claimMismatch `json:"claim_mismatches"`
+	SessionID          string          `json:"session_id"`
+	Path               string          `json:"path"`
+	Objective          string          `json:"objective,omitempty"`
+	Project            string          `json:"project,omitempty"`
+	Body               string          `json:"body"`
+	Walked             int             `json:"walked"`
+	NoHandoff          bool            `json:"no_handoff,omitempty"`
+	Candidates         []sessionItem   `json:"candidates,omitempty"`
+	ClaimMismatches    []claimMismatch `json:"claim_mismatches"`
+	SkippedProjectless []sessionItem   `json:"skipped_projectless,omitempty"`
 }
 
 // claimMismatch names an issue referenced by a resumed handoff whose

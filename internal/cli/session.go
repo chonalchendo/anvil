@@ -276,7 +276,8 @@ func newSessionResumeCmd() *cobra.Command {
   multi    {walked, candidates: [...]}                           — ≥2 in window; disambiguate, body empty
   no-match {walked, no_handoff: true}                            — --project matched nothing (exit 0)
   error    (exit 1)                                              — no handoff anywhere (unscoped)
-all shapes also carry claim_mismatches: [{issue_id, claim_session}] (empty when none)`,
+all shapes also carry claim_mismatches: [{issue_id, claim_session}] (empty when none)
+--project additionally surfaces skipped_projectless: [...] — newer handoffs excluded only for lacking a project: stamp`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
@@ -303,10 +304,17 @@ all shapes also carry claim_mismatches: [{issue_id, claim_session}] (empty when 
 				// explicit no_handoff signal, so callers branch on the payload
 				// rather than error-handling the exit code or guessing from
 				// empty strings.
-				if flagJSON && flagProject != "" {
-					return writeJSON(cmd, resumeOutput{Walked: walked, NoHandoff: true, ClaimMismatches: []claimMismatch{}})
-				}
 				if flagProject != "" {
+					skipped, serr := skippedProjectlessHandoffs(v.Root, "")
+					if serr != nil {
+						return serr
+					}
+					if flagJSON {
+						return writeJSON(cmd, resumeOutput{Walked: walked, NoHandoff: true, ClaimMismatches: []claimMismatch{}, SkippedProjectless: skipped})
+					}
+					if len(skipped) > 0 {
+						return fmt.Errorf("no prior handoff found for project %q, but %d project-less handoff(s) exist (newest: %s, %s) — run `anvil session list` to check them", flagProject, len(skipped), skipped[0].SessionID, skipped[0].Modified)
+					}
 					return fmt.Errorf("no prior handoff found for project %q", flagProject)
 				}
 				return fmt.Errorf("no prior handoff found — no session file under the vault has a non-empty body")
@@ -358,21 +366,32 @@ all shapes also carry claim_mismatches: [{issue_id, claim_session}] (empty when 
 			if err != nil {
 				return fmt.Errorf("loading session file: %w", err)
 			}
+			var skipped []sessionItem
+			if flagProject != "" {
+				skipped, err = skippedProjectlessHandoffs(v.Root, chosen.Modified)
+				if err != nil {
+					return err
+				}
+			}
 			currentSessionID, _, _, _ := resolveCurrentSession()
 			out := resumeOutput{
-				SessionID:       chosen.SessionID,
-				Path:            chosen.Path,
-				Objective:       chosen.Objective,
-				Project:         chosen.Project,
-				Body:            a.Body,
-				Walked:          walked,
-				ClaimMismatches: findClaimMismatches(v, a.Body, currentSessionID, chosen.SessionID),
+				SessionID:          chosen.SessionID,
+				Path:               chosen.Path,
+				Objective:          chosen.Objective,
+				Project:            chosen.Project,
+				Body:               a.Body,
+				Walked:             walked,
+				ClaimMismatches:    findClaimMismatches(v, a.Body, currentSessionID, chosen.SessionID),
+				SkippedProjectless: skipped,
 			}
 			if flagJSON {
 				return writeJSON(cmd, out)
 			}
 			for _, m := range out.ClaimMismatches {
 				fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s is claimed by session %s, not this one — stand down or reconcile before acting.\n", m.IssueID, m.ClaimSession)
+			}
+			if len(skipped) > 0 {
+				fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %d newer project-less handoff(s) exist outside project %q scope (newest: %s, %s) — run `anvil session list` to check them.\n", len(skipped), flagProject, skipped[0].SessionID[:8], skipped[0].Modified)
 			}
 			fmt.Fprint(cmd.OutOrStdout(), a.Body)
 			return nil
@@ -444,6 +463,29 @@ func collectSessions(vaultRoot, filterProject string) ([]sessionItem, error) {
 	// newest-first, matching resuming-session's recency walk.
 	sort.Slice(items, func(i, j int) bool { return items[i].Modified > items[j].Modified })
 	return items, nil
+}
+
+// skippedProjectlessHandoffs returns handoffs lacking a project: stamp that
+// are newer than cutoff (an RFC3339 modified time; "" matches any) — the
+// --project scoping in collectSessions makes these invisible otherwise, so
+// resume surfaces them explicitly rather than silently walking past a newer,
+// unstamped handoff (issue.anvil.0233).
+func skippedProjectlessHandoffs(vaultRoot, cutoff string) ([]sessionItem, error) {
+	all, err := collectSessions(vaultRoot, "")
+	if err != nil {
+		return nil, err
+	}
+	skipped := []sessionItem{}
+	for _, it := range all {
+		if !it.HasHandoff || it.Project != "" {
+			continue
+		}
+		if cutoff != "" && it.Modified <= cutoff {
+			continue
+		}
+		skipped = append(skipped, it)
+	}
+	return skipped, nil
 }
 
 // parseObjective extracts the text after the handoff body's `**Objective.**`

@@ -409,6 +409,37 @@ func TestSessionResume_ProjectScope(t *testing.T) {
 	}
 }
 
+func TestSessionResume_ProjectScope_SurfacesNewerProjectlessHandoff(t *testing.T) {
+	vault := setupVault(t)
+	scopedBody := "## Handoff\n\n**Objective.** older scoped handoff.\n"
+	projectlessBody := "## Handoff\n\n**Objective.** newest handoff, no project stamp.\n"
+
+	p1 := writeSessionFixtureWithProject(t, vault, "sess-scoped", "sess-scoped", "Scoped Session", "mentat", scopedBody)
+	p2 := writeSessionFixture(t, vault, "sess-projectless", "sess-projectless", "Projectless Session", projectlessBody)
+	now := time.Now()
+	if err := os.Chtimes(p1, now.Add(-1*time.Hour), now.Add(-1*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(p2, now, now); err != nil {
+		t.Fatal(err)
+	}
+
+	out, _, err := runCmd(t, newRootCmd(), "session", "resume", "--project", "mentat", "--json")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var got resumeOutput
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if got.SessionID != "sess-scoped" {
+		t.Errorf("session_id = %q, want sess-scoped", got.SessionID)
+	}
+	if len(got.SkippedProjectless) != 1 || got.SkippedProjectless[0].SessionID != "sess-projectless" {
+		t.Errorf("skipped_projectless = %+v, want [sess-projectless]", got.SkippedProjectless)
+	}
+}
+
 func TestSessionResume_NoMatch(t *testing.T) {
 	vault := setupVault(t)
 	writeSessionFixtureWithProject(t, vault, "sess-anvil", "sess-anvil", "Anvil Session", "anvil",
