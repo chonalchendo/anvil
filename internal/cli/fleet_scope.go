@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"path"
 	"path/filepath"
 	"strings"
@@ -23,6 +24,21 @@ func scopeViolations(declared, changed []string) []string {
 		}
 	}
 	return outside
+}
+
+// validateDeclaredGlobs rejects a declared entry carrying internal whitespace:
+// no glob syntax contains a space, so a whitespace-bearing entry is prose (a
+// dispatch prompt's file estimate, not a real path) that would silently match
+// nothing and false-flag every changed file as out-of-scope. Reject it loudly,
+// naming the entry, at the one choke-point both the CLI and any future caller
+// pass through — rather than let it degrade into a zero-match scope report.
+func validateDeclaredGlobs(declared []string) error {
+	for _, d := range declared {
+		if strings.ContainsAny(d, " \t\n") {
+			return fmt.Errorf("declared entry %q contains whitespace, so it cannot be a glob; declare a real path or pattern (*, ?, {a,b}), not a prose file estimate", d)
+		}
+	}
+	return nil
 }
 
 // matchesAny reports whether f matches any brace-free glob pattern, either as a

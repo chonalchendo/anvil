@@ -67,7 +67,11 @@ func newFleetScopeAuditCmd() *cobra.Command {
 		Short:        "Flag changed files that fall outside an issue's declared-files allowlist",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			outside := scopeViolations(splitCSV(declared), splitLiteralCSV(changed))
+			declaredEntries := splitCSV(declared)
+			if err := validateDeclaredGlobs(declaredEntries); err != nil {
+				return err
+			}
+			outside := scopeViolations(declaredEntries, splitLiteralCSV(changed))
 			w := cmd.OutOrStdout()
 			if len(outside) == 0 {
 				fmt.Fprintln(w, "scope: clean")
