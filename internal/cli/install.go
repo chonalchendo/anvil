@@ -145,7 +145,7 @@ func newInstallSkillsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			mat, err := resolveHermeticSkillsMaterialiseDir(target)
+			mat, err := resolveSkillsMaterialiseDir(target)
 			if err != nil {
 				return err
 			}
@@ -153,6 +153,19 @@ func newInstallSkillsCmd() *cobra.Command {
 				changed, err := installer.RemoveSkills(skills.FS, mat, skillsDir)
 				if err != nil {
 					return fmt.Errorf("removing skills: %w", err)
+				}
+				// Installs made before the resolver convergence linked their
+				// symlinks against ~/.anvil/skills; sweep that dir too so
+				// uninstall still owns them. A both-dirs check, not migration
+				// machinery (pre-v0.1).
+				if home, homeErr := os.UserHomeDir(); homeErr == nil {
+					if legacy := filepath.Join(home, ".anvil", "skills"); legacy != mat {
+						legacyChanged, err := installer.RemoveSkills(skills.FS, legacy, skillsDir)
+						if err != nil {
+							return fmt.Errorf("removing skills (legacy materialise dir): %w", err)
+						}
+						changed = changed || legacyChanged
+					}
 				}
 				if changed {
 					cmd.Println("removed anvil skills from", skillsDir)
@@ -188,7 +201,7 @@ func newInstallSkillsCmd() *cobra.Command {
 						if _, err := installer.PruneOrphanedSkills(skills.FS, mat, skillsDir); err != nil {
 							return fmt.Errorf("pruning orphaned skills: %w", err)
 						}
-						cmd.Println("anvil skills up to date at", skillsDir+" (embedded bundle); run `anvil install skills --force` to redeploy, or rebuild the anvil binary first if you edited anvil/skills/ on disk")
+						cmd.Println("anvil skills up to date at", skillsDir+" (embedded bundle); re-run with --force after rebuilding the binary to pick up new skills")
 						return nil
 					}
 				}
@@ -198,9 +211,9 @@ func newInstallSkillsCmd() *cobra.Command {
 				return fmt.Errorf("installing skills: %w", err)
 			}
 			if useCopy {
-				cmd.Println("copied anvil skills (embedded bundle) into", skillsDir+"; rebuild the anvil binary to refresh after editing anvil/skills/ on disk")
+				cmd.Println("copied anvil skills (embedded bundle) into", skillsDir+"; re-run with --force after rebuilding the binary to pick up new skills")
 			} else {
-				cmd.Println("linked anvil skills (embedded bundle) under", skillsDir, "->", mat+"; rebuild the anvil binary to refresh after editing anvil/skills/ on disk")
+				cmd.Println("linked anvil skills (embedded bundle) under", skillsDir, "->", mat+"; re-run with --force after rebuilding the binary to pick up new skills")
 			}
 			return nil
 		},
@@ -329,13 +342,15 @@ func refreshSkillsIfStale(cmd *cobra.Command) {
 	if strings.HasPrefix(cmd.CommandPath(), "anvil install") {
 		return
 	}
-	mat, err := resolveAnvilSkillsMaterialiseDir()
+	// Auto-refresh tracks only the default Claude install; Codex installs are
+	// explicit and opt-in, so a stale Codex bundle is refreshed by re-running
+	// `anvil install skills --target codex`, not here. Resolving through the
+	// same helper as install/uninstall means the refresh maintains the dir an
+	// install actually wrote — and no-ops until a first install creates it.
+	mat, err := resolveSkillsMaterialiseDir("claude")
 	if err != nil {
 		return
 	}
-	// Auto-refresh tracks only the default Claude install; Codex installs are
-	// explicit and opt-in, so a stale Codex bundle is refreshed by re-running
-	// `anvil install skills --target codex`, not here.
 	target, err := resolveAnvilSkillsTarget("claude")
 	if err != nil {
 		return
@@ -350,29 +365,17 @@ func refreshSkillsIfStale(cmd *cobra.Command) {
 	}
 }
 
-// resolveAnvilSkillsMaterialiseDir returns where the embedded skills bundle
-// is extracted to disk before being symlinked into ~/.claude/skills. Shared
-// across agent CLI targets so a single materialised copy backs every
-// symlink; only resolveHermeticSkillsMaterialiseDir (used by the explicit
-// `anvil install skills` command) nests per-target to stay inside a
-// redirected root.
-func resolveAnvilSkillsMaterialiseDir() (string, error) {
-	if d := os.Getenv("ANVIL_SKILLS_DIR"); d != "" {
-		return d, nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("home dir: %w", err)
-	}
-	return filepath.Join(home, ".anvil", "skills"), nil
-}
-
-// resolveHermeticSkillsMaterialiseDir returns the materialise dir for `anvil
-// install skills --target <target>`, nested under that target's resolved
-// config dir. Redirecting CLAUDE_CONFIG_DIR or CODEX_HOME then sandboxes the
-// materialise step too, instead of always falling through to the shared
-// ~/.anvil/skills tree that resolveAnvilSkillsMaterialiseDir defaults to.
-func resolveHermeticSkillsMaterialiseDir(target string) (string, error) {
+// resolveSkillsMaterialiseDir returns where the embedded skills bundle is
+// extracted to disk before being symlinked (or copied) into the target's
+// skills dir: <target-config-dir>/.anvil-skills-src, honoring
+// CLAUDE_CONFIG_DIR/CODEX_HOME, with ANVIL_SKILLS_DIR as an outright
+// override. This is the ONLY materialise-dir resolver — install, uninstall,
+// `anvil init --install-claude`, and the auto-refresh all resolve through it,
+// so exactly one materialise dir exists per target and every symlink writer
+// agrees on ownership. (A prior split between a shared ~/.anvil/skills dir
+// and a per-target hermetic dir made uninstall disown install's symlinks and
+// auto-refresh revert redirected installs.)
+func resolveSkillsMaterialiseDir(target string) (string, error) {
 	if d := os.Getenv("ANVIL_SKILLS_DIR"); d != "" {
 		return d, nil
 	}

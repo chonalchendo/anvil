@@ -45,6 +45,44 @@ func TestInstall_Skills_FlatPerSkillSymlinks(t *testing.T) {
 	}
 }
 
+// TestInstall_Skills_ConfigDirMaterialise_RoundTrip covers the resolver's
+// config-dir branch, which every other test short-circuits via
+// ANVIL_SKILLS_DIR: with only CLAUDE_CONFIG_DIR set, install materialises
+// under <config>/.anvil-skills-src and uninstall recognises those symlinks as
+// anvil-owned and removes them.
+func TestInstall_Skills_ConfigDirMaterialise_RoundTrip(t *testing.T) {
+	claudeDir := t.TempDir()
+	t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+	t.Setenv("ANVIL_SKILLS_DIR", "")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"install", "skills"})
+	cmd.SetOut(&bytes.Buffer{})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("install skills: %v", err)
+	}
+
+	child := filepath.Join(claudeDir, "skills", "capturing-inbox")
+	wantTarget := filepath.Join(claudeDir, ".anvil-skills-src", "capturing-inbox")
+	if got, err := os.Readlink(child); err != nil || got != wantTarget {
+		t.Fatalf("readlink %s = %q, %v; want %q", child, got, err, wantTarget)
+	}
+
+	cmd = newRootCmd()
+	cmd.SetArgs([]string{"install", "skills", "--uninstall"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("install skills --uninstall: %v", err)
+	}
+	if _, err := os.Lstat(child); !os.IsNotExist(err) {
+		t.Errorf("uninstall left %s in place (lstat err = %v)", child, err)
+	}
+	if !strings.Contains(out.String(), "removed anvil skills") {
+		t.Errorf("uninstall output = %q, want mention of removed anvil skills", out.String())
+	}
+}
+
 func TestInstall_Skills_Idempotent(t *testing.T) {
 	claudeDir := t.TempDir()
 	skillsDir := t.TempDir()
