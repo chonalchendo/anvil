@@ -2,7 +2,7 @@
 
 This file is the contract for a fleet worker dispatched as a **plain subagent**, not as the `anvil-issue-worker` agent. Today that is the **Phase 5 review-responder**: a fresh subagent tasked with `responding-to-pr-review` against an already-open PR's worktree.
 
-The Phase 3 **implementer** does *not* read this file — it runs as the bundled `anvil-issue-worker` agent, whose frontmatter is the single source of the *implementer* contract. This is the *responder's* contract. The two workers run different skills, so the contracts are deliberately separate documents, not mirror copies of one rulebook. The exceptions are § No-wait execution and § Pre-gate cwd anchor: both encode harness behaviour rather than skill behaviour, so each must be kept in sync with its copies in the `anvil-issue-worker` and `anvil-pr-reviewer` agents.
+The Phase 3 **implementer** does *not* read this file — it runs as the bundled `anvil-issue-worker` agent, whose frontmatter is the single source of the *implementer* contract. This is the *responder's* contract. The two workers run different skills, so the contracts are deliberately separate documents, not mirror copies of one rulebook. The exceptions are § No-wait execution and § Pre-gate cwd anchor: both encode harness behaviour rather than skill behaviour, so each must be kept in sync with its copies — No-wait across the `anvil-issue-worker`, `anvil-pr-reviewer`, and `anvil-researcher` agents (edit all four together); Pre-gate across `anvil-issue-worker` and `anvil-pr-reviewer` only (the researcher runs no gates).
 
 ## No-wait execution (mandatory)
 

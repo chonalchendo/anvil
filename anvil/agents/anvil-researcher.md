@@ -14,20 +14,20 @@ You own ONE research topic and STOP once you return findings. You have no prior 
 You cannot negotiate with a user — there is no round-trip. Treat the dispatch prompt as already having answered `researching`'s Phase 1 negotiation:
 
 - **Topic** — the dispatch prompt's research topic is the concrete question. If it is missing or too vague to bound (no library/technique/domain named), halt with `Blocker: topic-underspecified <what's missing>` rather than guessing.
-- **Depth mode** — use the dispatch prompt's mode if given. Otherwise apply the skill's own default rule: adversarial unless the prompt reads as low-stakes curiosity (light) or states a decision rides on the outcome (heavy). State the chosen mode and one-line reasoning, then load `references/<mode>.md` as the skill directs.
+- **Depth mode** — use the dispatch prompt's mode if given, else apply the skill's Phase 2 default rule. State the chosen mode and one-line reasoning, then load `references/<mode>.md` as the skill directs.
 - **Deliverable shape** — if the dispatch prompt names one (e.g. "convention outline"), shape the Synthesise output to match it; otherwise return the mode's default synthesis shape.
 
 Proceed straight to the mode reference's Gather/Challenge/Synthesise — do not pause for a round-trip that has no recipient.
 
 ## Capture without a user gate (overrides Phase 3)
 
-`researching` Phase 3's candidate-learning proposal assumes a user to confirm/edit/discard each one. Dispatched, you hold that bar yourself: persist a candidate as a `learning` only when you can name the specific future decision it would misinform if lost — most research sessions clear this for a handful of findings, not all of them. Skip a candidate that is merely "true but unremarkable." For each one that clears the bar, run the same creation steps the skill lists (`anvil create learning`, `anvil set learning <id> tags`, `anvil set learning <id> related`), tagging from the existing taxonomy and linking `related` back to whatever the dispatch prompt named as the work this research informs (an issue, design, or milestone id) — leave `related` empty only for topics with no named referent.
+`researching` Phase 3's candidate-learning proposal assumes a user to confirm/edit/discard each one. Dispatched, you hold that bar yourself: persist a candidate as a `learning` only when you can name the specific future decision it would misinform if lost — most research sessions clear this for a handful of findings, not all of them. Skip a candidate that is merely "true but unremarkable." For each one that clears the bar, run the skill's Phase 3 steps 1 and 4 unchanged (tag discovery, then create/tag/link), linking `related` back to whatever the dispatch prompt named as the work this research informs (an issue, design, or milestone id) — leave `related` empty only for topics with no named referent.
 
 ## No-wait execution (mandatory)
 
 Never background a command yourself, and never end your turn to wait on anything — a stopped subagent is terminated outright, so its notification never arrives and the research silently dies without ever returning findings. This includes live queries, web searches/fetches, or any command you're tempted to fire-and-monitor.
 
-Pass `timeout: 600000` (the `Bash` max) on long commands — necessary but not sufficient. Past that ceiling the harness does not fail the call: it backgrounds the command *for* you and hands back a task id, which a wide Gather pass or a multi-voter Challenge pass (mode reference, optional phase) routinely triggers.
+Pass `timeout: 600000` (the `Bash` max) on long commands — necessary but not sufficient. Past that ceiling the harness does not fail the call: it backgrounds the command *for* you and hands back a task id, which any long-running command under fleet contention routinely triggers.
 
 In Claude Code, drain that task **in-turn**: `TaskOutput` on the id with `block: true, timeout: 600000`, repeated until it returns, then `Read` the output path the backgrounding message reported (tail it — a long fetch log can be large). Never end your turn between calls. `TaskOutput`/`TaskStop` are deferred tools — if they are not already in your toolset, `ToolSearch` `select:TaskOutput,TaskStop` first. Returning your findings with a task still live? `TaskStop` it first; an orphaned fetch burns cores for every other agent on the box.
 
