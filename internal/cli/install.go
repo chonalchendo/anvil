@@ -138,14 +138,14 @@ func newInstallSkillsCmd() *cobra.Command {
 			"Skills are embedded into the anvil binary at build time. This command deploys\n" +
 			"that embedded bundle — it does NOT read anvil/skills/ from disk. Editing\n" +
 			"anvil/skills/<name>/SKILL.md in an anvil checkout has no effect until you rebuild\n" +
-			"the binary (`just install`) and re-run `anvil install skills --force`.",
+			"the anvil binary and re-run `anvil install skills --force`.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			skillsDir, err := resolveAnvilSkillsTarget(target)
 			if err != nil {
 				return err
 			}
-			mat, err := resolveAnvilSkillsMaterialiseDir()
+			mat, err := resolveHermeticSkillsMaterialiseDir(target)
 			if err != nil {
 				return err
 			}
@@ -188,7 +188,7 @@ func newInstallSkillsCmd() *cobra.Command {
 						if _, err := installer.PruneOrphanedSkills(skills.FS, mat, skillsDir); err != nil {
 							return fmt.Errorf("pruning orphaned skills: %w", err)
 						}
-						cmd.Println("anvil skills up to date at", skillsDir+" (embedded bundle); run `anvil install skills --force` to redeploy, or `just install` first if you edited anvil/skills/ on disk")
+						cmd.Println("anvil skills up to date at", skillsDir+" (embedded bundle); run `anvil install skills --force` to redeploy, or rebuild the anvil binary first if you edited anvil/skills/ on disk")
 						return nil
 					}
 				}
@@ -198,9 +198,9 @@ func newInstallSkillsCmd() *cobra.Command {
 				return fmt.Errorf("installing skills: %w", err)
 			}
 			if useCopy {
-				cmd.Println("copied anvil skills (embedded bundle) into", skillsDir+"; rebuild with `just install` to refresh after editing anvil/skills/ on disk")
+				cmd.Println("copied anvil skills (embedded bundle) into", skillsDir+"; rebuild the anvil binary to refresh after editing anvil/skills/ on disk")
 			} else {
-				cmd.Println("linked anvil skills (embedded bundle) under", skillsDir, "->", mat+"; rebuild with `just install` to refresh after editing anvil/skills/ on disk")
+				cmd.Println("linked anvil skills (embedded bundle) under", skillsDir, "->", mat+"; rebuild the anvil binary to refresh after editing anvil/skills/ on disk")
 			}
 			return nil
 		},
@@ -226,7 +226,7 @@ func newInstallAgentsCmd() *cobra.Command {
 			"model/tools/skills are dropped.\n\n" +
 			"Agents are embedded into the anvil binary at build time. This command deploys\n" +
 			"that embedded bundle — editing anvil/agents/<name>.md in a checkout has no\n" +
-			"effect until you rebuild the binary (`just install`) and re-run\n" +
+			"effect until you rebuild the anvil binary and re-run\n" +
 			"`anvil install agents`. A freshly-deployed Claude agent is dispatchable via the\n" +
 			"Agent tool's subagent_type only after the next Claude Code session restart.",
 		Example: "  anvil install agents\n  anvil install agents --target codex\n  anvil install agents --target codex --uninstall",
@@ -350,6 +350,12 @@ func refreshSkillsIfStale(cmd *cobra.Command) {
 	}
 }
 
+// resolveAnvilSkillsMaterialiseDir returns where the embedded skills bundle
+// is extracted to disk before being symlinked into ~/.claude/skills. Shared
+// across agent CLI targets so a single materialised copy backs every
+// symlink; only resolveHermeticSkillsMaterialiseDir (used by the explicit
+// `anvil install skills` command) nests per-target to stay inside a
+// redirected root.
 func resolveAnvilSkillsMaterialiseDir() (string, error) {
 	if d := os.Getenv("ANVIL_SKILLS_DIR"); d != "" {
 		return d, nil
@@ -359,4 +365,20 @@ func resolveAnvilSkillsMaterialiseDir() (string, error) {
 		return "", fmt.Errorf("home dir: %w", err)
 	}
 	return filepath.Join(home, ".anvil", "skills"), nil
+}
+
+// resolveHermeticSkillsMaterialiseDir returns the materialise dir for `anvil
+// install skills --target <target>`, nested under that target's resolved
+// config dir. Redirecting CLAUDE_CONFIG_DIR or CODEX_HOME then sandboxes the
+// materialise step too, instead of always falling through to the shared
+// ~/.anvil/skills tree that resolveAnvilSkillsMaterialiseDir defaults to.
+func resolveHermeticSkillsMaterialiseDir(target string) (string, error) {
+	if d := os.Getenv("ANVIL_SKILLS_DIR"); d != "" {
+		return d, nil
+	}
+	configDir, err := resolveAgentCLIConfigDir(target)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(configDir, ".anvil-skills-src"), nil
 }
