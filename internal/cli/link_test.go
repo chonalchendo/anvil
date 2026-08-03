@@ -408,6 +408,44 @@ func TestLink_CanonicalPrefixedTargetId(t *testing.T) {
 	}
 }
 
+// TestLink_AlreadyTypedBareSlugTargetId pins the anvil.0234 regression: a
+// target type that keys on a bare on-disk slug (learning, inbox, ...) must
+// normalise an already-typed target id to the same edge a bare id produces,
+// not silently concatenate a second prefix. anvil.0177 fixed this for types
+// that keep their prefix on disk (convention, system-design); this is the
+// same bug class recurring on the bare-slug side.
+func TestLink_AlreadyTypedBareSlugTargetId(t *testing.T) {
+	cases := []struct {
+		name  string
+		tgtID string
+	}{
+		{"already-typed", "learning.duckdb-arg-min-escalation"},
+		{"bare", "duckdb-arg-min-escalation"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vault := setupVault(t)
+			writeFixturePlan(t, vault, "foo", "q2", "Q2")
+			writeFixtureTyped(t, vault, "20-learnings", "learning", "duckdb-arg-min-escalation")
+
+			cmd := newRootCmd()
+			cmd.SetArgs([]string{"link", "plan", "foo.q2", "learning", tc.tgtID})
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("link plan→learning %s: %v", tc.tgtID, err)
+			}
+			a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			related, _ := a.FrontMatter["related"].([]any)
+			want := "[[learning.duckdb-arg-min-escalation]]"
+			if len(related) != 1 || related[0] != want {
+				t.Errorf("related = %v, want [%s]", related, want)
+			}
+		})
+	}
+}
+
 // TestLink_RejectsMissingTarget pins the second half: a dead edge is refused at
 // write time, and the error names both forms tried so the caller can tell a
 // typo from a missing artifact.

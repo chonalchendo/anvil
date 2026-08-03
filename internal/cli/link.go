@@ -137,9 +137,27 @@ func resolveLinkTarget(v *core.Vault, tgt core.Type, id string) (string, error) 
 		return "", fmt.Errorf("target id %q contains %q, which no artifact id may contain; substitute the real id `anvil list %s` prints",
 			id, id[i:i+1], tgt)
 	}
+	// Fully strip any leading run of the target type's own prefix (an
+	// already-typed id may carry it once or, after a prior double-prefix
+	// bug, more than once) so the bare candidate is tried before the raw
+	// id. Trying bare first matters for types that key on a bare on-disk
+	// slug (learning, inbox, ...): `core.ArtifactBasename`'s back-catalogue
+	// fallback strips a prefix on the *bare* candidate too, so probing the
+	// still-prefixed raw id first can resolve a doubled target
+	// (`tgt.tgt.slug`) onto the same real file and silently embed the
+	// doubled wikilink instead of refusing or normalising it.
+	prefix := string(tgt) + "."
+	bare := id
+	for {
+		next, found := strings.CutPrefix(bare, prefix)
+		if !found || next == "" {
+			break
+		}
+		bare = next
+	}
 	candidates := []string{id}
-	if bare, found := strings.CutPrefix(id, string(tgt)+"."); found && bare != "" {
-		candidates = append(candidates, bare)
+	if bare != id {
+		candidates = []string{bare, id}
 	}
 	tried := make([]string, 0, len(candidates))
 	for _, c := range candidates {
