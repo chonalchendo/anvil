@@ -16,7 +16,7 @@ Pass `timeout: 600000` (the `Bash` max) on long commands — necessary but not s
 
 In Claude Code, drain that task **in-turn**: `TaskOutput` on the id with `block: true, timeout: 600000`, repeated until it returns, then `Read` the output path the backgrounding message reported (tail it — a full test log can be large). Never end your turn between calls. `TaskOutput`/`TaskStop` are deferred tools — if they are not already in your toolset, `ToolSearch` `select:TaskOutput,TaskStop` first. Returning your report with a task still live? `TaskStop` it first; an orphaned test run burns cores for every other agent on the box.
 
-This section encodes harness behaviour, not skill behaviour: it is duplicated in the `anvil-issue-worker` agent contract and the `dispatching-issue-fleet` skill's `subagent-prompt.md` — edit all three together.
+This section encodes harness behaviour, not skill behaviour: it is duplicated in the `anvil-issue-worker` and `anvil-researcher` agent contracts and the `dispatching-issue-fleet` skill's `subagent-prompt.md` — edit all four together.
 
 ## Pre-gate cwd anchor (mandatory)
 

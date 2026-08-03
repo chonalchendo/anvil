@@ -5,7 +5,8 @@ package agents
 
 import "embed"
 
-// FS is the embedded bundle of Anvil agent definitions.
+// FS is the embedded bundle of Anvil agent definitions. The glob keeps a new
+// agent file from landing unembedded.
 //
-//go:embed anvil-issue-worker.md anvil-learnings-researcher.md anvil-pr-reviewer.md
+//go:embed *.md
 var FS embed.FS
