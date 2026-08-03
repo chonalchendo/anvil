@@ -1776,22 +1776,35 @@ func TestCreateSession_WritesValidFile(t *testing.T) {
 	}
 }
 
+// The already-typed case pins the anvil.0234 bug class on the session write
+// path: `--active-thread thread.<slug>` must not mint `[[thread.thread.<slug>]]`.
 func TestCreateSession_StampsActiveThreadFromFlag(t *testing.T) {
-	vault := setupVault(t)
+	cases := []struct {
+		name string
+		flag string
+	}{
+		{"bare", "research-ducklake"},
+		{"already-typed", "thread.research-ducklake"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vault := setupVault(t)
 
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID, "--active-thread", "research-ducklake"})
-	cmd.SetOut(&bytes.Buffer{})
-	if err := cmd.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "10-sessions", fakeSessionUUID+".md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	related, _ := a.FrontMatter["related"].([]any)
-	if len(related) != 1 || related[0] != "[[thread.research-ducklake]]" {
-		t.Errorf("related = %v", related)
+			cmd := newRootCmd()
+			cmd.SetArgs([]string{"create", "session", "--session-id", fakeSessionUUID, "--active-thread", tc.flag})
+			cmd.SetOut(&bytes.Buffer{})
+			if err := cmd.Execute(); err != nil {
+				t.Fatal(err)
+			}
+			a, err := core.LoadArtifact(filepath.Join(vault, "10-sessions", fakeSessionUUID+".md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			related, _ := a.FrontMatter["related"].([]any)
+			if len(related) != 1 || related[0] != "[[thread.research-ducklake]]" {
+				t.Errorf("related = %v", related)
+			}
+		})
 	}
 }
 
