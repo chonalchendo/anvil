@@ -11,7 +11,7 @@ import (
 // Two concerns:
 //
 //   - Agent-CLI config roots are redirected into a throwaway HOME. The root
-//     command's skills auto-refresh reads ~/.anvil/skills and rewrites
+//     command's skills auto-refresh reads the materialise dir and rewrites
 //     ~/.claude/skills; against the real paths it emits
 //     "anvil: refreshed stale skills bundle" onto the captured command output
 //     and mutates the developer's installed bundle.

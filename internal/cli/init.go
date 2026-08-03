@@ -90,7 +90,7 @@ func installClaudeComponents(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	mat, err := resolveAnvilSkillsMaterialiseDir()
+	mat, err := resolveSkillsMaterialiseDir("claude")
 	if err != nil {
 		return err
 	}

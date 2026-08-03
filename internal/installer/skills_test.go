@@ -10,9 +10,39 @@ import (
 
 func fakeSkillsFS() fstest.MapFS {
 	return fstest.MapFS{
-		"capturing-inbox/SKILL.md":          {Data: []byte("# capturing-inbox\n")},
-		"writing-issue/SKILL.md":            {Data: []byte("# writing-issue\n")},
-		"writing-issue/references/heavy.md": {Data: []byte("heavy reference\n")},
+		"capturing-inbox/SKILL.md":               {Data: []byte("# capturing-inbox\n")},
+		"writing-issue/SKILL.md":                 {Data: []byte("# writing-issue\n")},
+		"writing-issue/references/heavy.md":      {Data: []byte("heavy reference\n")},
+		"completing-issue/scripts/run-verify.sh": {Data: []byte("#!/usr/bin/env bash\necho verify\n")},
+	}
+}
+
+func TestInstallSkills_ShippedScriptsAreExecutable(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	symlinkTarget := filepath.Join(t.TempDir(), "claude-skills")
+	if _, err := InstallSkills(fakeSkillsFS(), mat, symlinkTarget, false, false); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	matScript := filepath.Join(mat, "completing-issue", "scripts", "run-verify.sh")
+	info, err := os.Stat(matScript)
+	if err != nil {
+		t.Fatalf("stat %s: %v", matScript, err)
+	}
+	if info.Mode().Perm()&0o111 == 0 {
+		t.Errorf("materialised script mode = %v, want exec bit set", info.Mode())
+	}
+
+	copyTarget := filepath.Join(t.TempDir(), "codex-skills")
+	if _, err := InstallSkills(fakeSkillsFS(), mat, copyTarget, true, false); err != nil {
+		t.Fatalf("install --copy: %v", err)
+	}
+	copiedScript := filepath.Join(copyTarget, "completing-issue", "scripts", "run-verify.sh")
+	info, err = os.Stat(copiedScript)
+	if err != nil {
+		t.Fatalf("stat %s: %v", copiedScript, err)
+	}
+	if info.Mode().Perm()&0o111 == 0 {
+		t.Errorf("copied script mode = %v, want exec bit set", info.Mode())
 	}
 }
 

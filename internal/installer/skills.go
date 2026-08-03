@@ -379,7 +379,13 @@ func writeFSTree(srcFS fs.FS, dst string) error {
 		if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 			return err
 		}
-		if err := os.WriteFile(out, data, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		mode := os.FileMode(0o644)
+		if strings.HasSuffix(path, ".sh") {
+			// Shipped scripts are invoked by path (e.g. run-verification.sh),
+			// so they need the exec bit or every caller must know to prefix `bash`.
+			mode = 0o755
+		}
+		if err := os.WriteFile(out, data, mode); err != nil { //nolint:gosec // mode is 0644 for data files, 0755 for shipped .sh scripts that must be directly executable
 			return fmt.Errorf("write %s: %w", out, err)
 		}
 		return nil
