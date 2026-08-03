@@ -182,10 +182,12 @@ func WikilinkTarget(t Type, id string) string {
 // contract and plan mint prefixed but still have a bare back-catalogue on disk
 // until the attended rename lands, so both shapes must resolve.
 //
-// cli.resolveLinkTarget keeps its own both-shapes probe rather than calling
-// this: it must reject a double-prefixed target outright (pinned by
-// TestLink_CanonicalPrefixedTargetId), which this resolver deliberately does
-// not do. The duplication is the constraint, not an oversight.
+// cli.resolveLinkTarget keeps its own strip-chain probe rather than calling
+// this: it normalises a prefixed or doubled target to the most-stripped form
+// that resolves before embedding the edge (pinned by
+// TestLink_AlreadyTypedBareSlugTargetId), an ordering this single-candidate
+// resolver cannot express. The duplication is the constraint, not an
+// oversight.
 func ArtifactBasename(v *Vault, t Type, raw string) string {
 	switch t {
 	case TypeProductDesign, TypeSystemDesign, TypeConvention:
