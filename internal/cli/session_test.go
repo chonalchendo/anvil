@@ -440,6 +440,87 @@ func TestSessionResume_ProjectScope_SurfacesNewerProjectlessHandoff(t *testing.T
 	}
 }
 
+// TestSessionResume_ProjectScope_PlainTextWarning_ShortSessionID pins the
+// stderr warning path with a session_id under 8 chars: the id truncation must
+// pass it through, not panic (slice bounds [:8] on length 2).
+func TestSessionResume_ProjectScope_PlainTextWarning_ShortSessionID(t *testing.T) {
+	vault := setupVault(t)
+	p1 := writeSessionFixtureWithProject(t, vault, "sess-scoped", "sess-scoped", "Scoped Session", "mentat",
+		"## Handoff\n\n**Objective.** older scoped handoff.\n")
+	p2 := writeSessionFixture(t, vault, "s1", "s1", "Projectless Session",
+		"## Handoff\n\n**Objective.** newest handoff, no project stamp.\n")
+	now := time.Now()
+	if err := os.Chtimes(p1, now.Add(-1*time.Hour), now.Add(-1*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(p2, now, now); err != nil {
+		t.Fatal(err)
+	}
+
+	out, stderr, err := runCmd(t, newRootCmd(), "session", "resume", "--project", "mentat")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out, "older scoped handoff") {
+		t.Errorf("stdout should carry the scoped body, got %q", out)
+	}
+	if !strings.Contains(stderr, "1 newer project-less handoff") || !strings.Contains(stderr, "s1") {
+		t.Errorf("stderr should warn about the skipped project-less handoff s1, got %q", stderr)
+	}
+}
+
+func TestSessionResume_AmbiguityWindow_SurfacesSkippedProjectless(t *testing.T) {
+	vault := setupVault(t)
+	p1 := writeSessionFixtureWithProject(t, vault, "amb-scope-1", "amb-scope-1", "Session A", "mentat",
+		"## Handoff\n\n**Objective.** campaign A\n")
+	p2 := writeSessionFixtureWithProject(t, vault, "amb-scope-2", "amb-scope-2", "Session B", "mentat",
+		"## Handoff\n\n**Objective.** campaign B\n")
+	p3 := writeSessionFixture(t, vault, "amb-free", "amb-free", "Projectless Session",
+		"## Handoff\n\n**Objective.** newest handoff, no project stamp.\n")
+	// Both scoped handoffs inside the ambiguity window; the project-less one newest.
+	now := time.Now()
+	if err := os.Chtimes(p1, now.Add(-2*time.Minute), now.Add(-2*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(p2, now.Add(-3*time.Minute), now.Add(-3*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(p3, now, now); err != nil {
+		t.Fatal(err)
+	}
+
+	out, _, err := runCmd(t, newRootCmd(), "session", "resume", "--project", "mentat", "--json")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var got resumeOutput
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out)
+	}
+	if len(got.Candidates) != 2 {
+		t.Fatalf("expected 2 candidates in ambiguity window, got %d: %s", len(got.Candidates), out)
+	}
+	if len(got.SkippedProjectless) != 1 || got.SkippedProjectless[0].SessionID != "amb-free" {
+		t.Errorf("skipped_projectless = %+v, want [amb-free]", got.SkippedProjectless)
+	}
+}
+
+// TestSessionResume_NoMatch_PlainText_NamesProjectlessHandoffs pins the scoped
+// no-match error text when only project-less handoffs exist.
+func TestSessionResume_NoMatch_PlainText_NamesProjectlessHandoffs(t *testing.T) {
+	vault := setupVault(t)
+	writeSessionFixture(t, vault, "s2", "s2", "Projectless Session",
+		"## Handoff\n\n**Objective.** unstamped handoff.\n")
+
+	_, _, err := runCmd(t, newRootCmd(), "session", "resume", "--project", "mentat")
+	if err == nil {
+		t.Fatal("expected error when the project scope matches nothing")
+	}
+	if !strings.Contains(err.Error(), "1 project-less handoff") || !strings.Contains(err.Error(), "s2") {
+		t.Errorf("error should count and name the project-less handoff s2, got %q", err.Error())
+	}
+}
+
 func TestSessionResume_NoMatch(t *testing.T) {
 	vault := setupVault(t)
 	writeSessionFixtureWithProject(t, vault, "sess-anvil", "sess-anvil", "Anvil Session", "anvil",

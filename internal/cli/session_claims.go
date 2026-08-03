@@ -19,9 +19,9 @@ import (
 // for, regardless of which envelope shape resume returns.
 //
 // SkippedProjectless names handoffs excluded by --project scoping solely for
-// lacking a project: stamp, when they are newer than the returned result (or
-// any exist at all, in the no-match case) — the --project filter would
-// otherwise silently walk past a newer, unstamped handoff (issue.anvil.0233).
+// lacking a project: stamp (issue.anvil.0233). It lists those newer than the
+// returned result, or any at all in the no-match case. Like ClaimMismatches
+// it has no omitempty: presence even when empty is the probe signal.
 type resumeOutput struct {
 	SessionID          string          `json:"session_id"`
 	Path               string          `json:"path"`
@@ -32,7 +32,7 @@ type resumeOutput struct {
 	NoHandoff          bool            `json:"no_handoff,omitempty"`
 	Candidates         []sessionItem   `json:"candidates,omitempty"`
 	ClaimMismatches    []claimMismatch `json:"claim_mismatches"`
-	SkippedProjectless []sessionItem   `json:"skipped_projectless,omitempty"`
+	SkippedProjectless []sessionItem   `json:"skipped_projectless"`
 }
 
 // claimMismatch names an issue referenced by a resumed handoff whose
