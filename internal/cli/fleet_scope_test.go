@@ -24,30 +24,31 @@ func TestScopeAudit_ViolationsDetected(t *testing.T) {
 	}
 }
 
-func TestScopeAudit_WhitespaceDeclaredEntryRejected(t *testing.T) {
-	cmd := newRootCmd()
-	stdout, stderr, err := runCmd(t, cmd, "fleet", "scope-audit",
-		"--declared", "pkg models audits tests for file",
-		"--changed", "pkg/file.py",
-	)
-	if err == nil {
-		t.Fatalf("expected error for whitespace-bearing declared entry, got none; stdout=%q", stdout)
+func TestScopeAudit_InvalidDeclaredRejected(t *testing.T) {
+	cases := []struct {
+		name     string
+		declared string
+		wantSub  string
+	}{
+		{"prose-estimate", "pkg models audits tests for file", "pkg models audits tests for file"},
+		{"carriage-return", "pkg\rmodels", `pkg\rmodels`},
+		{"unsubstituted-placeholder", "<declared-files>", "<declared-files>"},
+		{"empty", "", "empty"},
 	}
-	combined := err.Error() + stderr
-	if !strings.Contains(combined, "pkg models audits tests for file") {
-		t.Errorf("expected error to name the offending entry, got: %q", combined)
-	}
-	if !strings.Contains(strings.ToLower(combined), "whitespace") {
-		t.Errorf("expected error to mention whitespace, got: %q", combined)
-	}
-}
-
-func TestValidateDeclaredGlobs(t *testing.T) {
-	if err := validateDeclaredGlobs([]string{"a.py", "src/{a,b}_*.sql"}); err != nil {
-		t.Errorf("valid globs rejected: %v", err)
-	}
-	if err := validateDeclaredGlobs([]string{"pkg models audits tests for file"}); err == nil {
-		t.Errorf("expected error for whitespace-bearing entry, got none")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := newRootCmd()
+			stdout, stderr, err := runCmd(t, cmd, "fleet", "scope-audit",
+				"--declared", tc.declared,
+				"--changed", "pkg/file.py",
+			)
+			if err == nil {
+				t.Fatalf("expected error for invalid declared set, got none; stdout=%q", stdout)
+			}
+			if combined := err.Error() + stderr; !strings.Contains(combined, tc.wantSub) {
+				t.Errorf("expected error to contain %q, got: %q", tc.wantSub, combined)
+			}
+		})
 	}
 }
 

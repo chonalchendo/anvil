@@ -72,9 +72,11 @@ This is **not** self-correctable. Treat it as a structural invariant — identic
 ```bash
 # from the worktree root; merge-base of the branch against origin/master
 changed=$(git diff --name-only "$(git merge-base HEAD origin/master)" | paste -sd, -)
-# scope-audit always exits 0; it signals via stdout — "scope: clean" or one
-# out-of-scope file per line. Treat any other output as a violation → Blocker.
-audit=$(anvil fleet scope-audit --declared "<declared-files>" --changed "$changed")
+# An invalid declared set (empty, prose estimate, unsubstituted placeholder)
+# exits non-zero with a message naming the entry — capture stderr so it
+# survives. Exit 0 signals via stdout: "scope: clean" or one out-of-scope
+# file per line; any other output is a violation → Blocker.
+audit=$(anvil fleet scope-audit --declared "<declared-files>" --changed "$changed" 2>&1) || { printf 'Blocker: declared-set invalid: %s\n' "$audit"; exit 1; }
 [ "$audit" = "scope: clean" ] || { printf 'Blocker: scope-change out-of-scope files:\n%s\n' "$audit"; exit 1; }
 ```
 

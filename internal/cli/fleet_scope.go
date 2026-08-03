@@ -5,6 +5,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"unicode"
 )
 
 // scopeViolations returns the elements of changed that no declared entry covers.
@@ -26,16 +27,19 @@ func scopeViolations(declared, changed []string) []string {
 	return outside
 }
 
-// validateDeclaredGlobs rejects a declared entry carrying internal whitespace:
-// no glob syntax contains a space, so a whitespace-bearing entry is prose (a
-// dispatch prompt's file estimate, not a real path) that would silently match
-// nothing and false-flag every changed file as out-of-scope. Reject it loudly,
-// naming the entry, at the one choke-point both the CLI and any future caller
-// pass through — rather than let it degrade into a zero-match scope report.
+// validateDeclaredGlobs rejects a declared set that cannot be an allowlist —
+// empty, an entry with internal whitespace, or an entry carrying `<`/`>`.
+// Each is a dispatch-prompt artifact (a prose file estimate, an unsubstituted
+// `<declared-files>` placeholder) that would silently match nothing and
+// false-flag every changed file as out-of-scope. The cost: a real path
+// containing a space is undeclarable — declare its parent directory instead.
 func validateDeclaredGlobs(declared []string) error {
+	if len(declared) == 0 {
+		return fmt.Errorf(`--declared is empty; pass the allowlist, e.g. --declared "pkg/,tests/test_*.py"`)
+	}
 	for _, d := range declared {
-		if strings.ContainsAny(d, " \t\n") {
-			return fmt.Errorf("declared entry %q contains whitespace, so it cannot be a glob; declare a real path or pattern (*, ?, {a,b}), not a prose file estimate", d)
+		if strings.IndexFunc(d, unicode.IsSpace) >= 0 || strings.ContainsAny(d, "<>") {
+			return fmt.Errorf(`declared entry %q cannot be a glob (whitespace or <>); declare a real path or pattern (*, ?, {a,b}), not a prose estimate or unsubstituted placeholder — e.g. --declared "pkg/,tests/test_*.py"`, d)
 		}
 	}
 	return nil
