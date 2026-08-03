@@ -124,9 +124,9 @@ func newLinkCmd() *cobra.Command {
 // resolveLinkTarget returns the target id `AppendLink` should embed in its
 // `[[<type>.<id>]]` wikilink, and refuses a target with no artifact on disk so
 // a dead edge cannot be written in the first place. `anvil list` prints
-// type-prefixed ids for every type but only some types keep that prefix on
-// disk, so both the printed form and the bare form are tried and whichever
-// resolves wins.
+// type-prefixed ids for the prefix-keeping types and bare ids for the rest,
+// while body wikilinks always carry the prefix, so both forms are tried and
+// whichever resolves wins.
 func resolveLinkTarget(v *core.Vault, tgt core.Type, id string) (string, error) {
 	// An id carrying <, >, or whitespace is an unsubstituted documentation
 	// placeholder (e.g. `anvil link issue <id> system-design <project>` copied
@@ -137,9 +137,15 @@ func resolveLinkTarget(v *core.Vault, tgt core.Type, id string) (string, error) 
 		return "", fmt.Errorf("target id %q contains %q, which no artifact id may contain; substitute the real id `anvil list %s` prints",
 			id, id[i:i+1], tgt)
 	}
+	// Probe every rung of the prefix-strip chain, most-stripped first:
+	// probing a still-prefixed form first can resolve a doubled target onto
+	// the real file and silently embed the doubled wikilink (anvil.0234).
+	// Keeping every rung, not just the fully-stripped one, is what lets a
+	// legitimate id whose leading segment equals the type name resolve.
+	prefix := string(tgt) + "."
 	candidates := []string{id}
-	if bare, found := strings.CutPrefix(id, string(tgt)+"."); found && bare != "" {
-		candidates = append(candidates, bare)
+	for c, ok := strings.CutPrefix(id, prefix); ok && c != ""; c, ok = strings.CutPrefix(c, prefix) {
+		candidates = append([]string{c}, candidates...)
 	}
 	tried := make([]string, 0, len(candidates))
 	for _, c := range candidates {

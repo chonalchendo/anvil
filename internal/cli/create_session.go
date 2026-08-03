@@ -78,8 +78,11 @@ func writeSessionFile(v *core.Vault, path, sessionID, source, startedAt, activeT
 		Source:         source,
 		SessionID:      sessionID,
 		RetentionUntil: now.AddDate(0, 0, 30).Format("2006-01-02"),
-		ActiveThread:   activeThread,
-		StartedAt:      startedAt,
+		// Normalised so an already-typed `thread.<slug>` flag value cannot
+		// mint a doubled `[[thread.thread.<slug>]]` wikilink (anvil.0234's
+		// bug class on the write path).
+		ActiveThread: core.BareID(core.TypeThread, activeThread),
+		StartedAt:    startedAt,
 	}
 	fm, err := renderFrontMatter(core.TypeSession, data)
 	if err != nil {
@@ -115,7 +118,7 @@ func sessionDrift(fm map[string]any, source, startedAt, activeThread string) str
 	related, _ := fm["related"].([]any)
 	want := ""
 	if activeThread != "" {
-		want = "[[thread." + activeThread + "]]"
+		want = "[[" + core.WikilinkTarget(core.TypeThread, activeThread) + "]]"
 	}
 	got := ""
 	if len(related) > 0 {
@@ -130,7 +133,7 @@ func sessionDrift(fm map[string]any, source, startedAt, activeThread string) str
 func emitSessionJSON(cmd *cobra.Command, id, path, activeThread string) error {
 	related := []string{}
 	if activeThread != "" {
-		related = []string{"[[thread." + activeThread + "]]"}
+		related = []string{"[[" + core.WikilinkTarget(core.TypeThread, activeThread) + "]]"}
 	}
 	out, err := json.Marshal(map[string]any{"id": id, "path": path, "related": related})
 	if err != nil {
