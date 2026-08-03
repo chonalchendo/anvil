@@ -82,9 +82,9 @@ func indexAfterSave(v *core.Vault, a *core.Artifact) error {
 }
 
 // indexForRead opens vault.db, self-heals on drift (a WARN naming the
-// drifted path, then a full reindex — mirroring the write path's
-// indexAfterSave), and bootstraps on first read. Caller is responsible for
-// Close().
+// drifted path, then a reindex — like the write path's indexAfterSave,
+// additionally WARNing since a read is where drift diagnosis happens), and
+// bootstraps on first read. Caller is responsible for Close().
 func indexForRead(v *core.Vault) (*index.DB, error) {
 	db, err := index.Open(index.DBPath(v.Root))
 	if err != nil {
@@ -99,9 +99,9 @@ func indexForRead(v *core.Vault) (*index.DB, error) {
 				return nil, fmt.Errorf("bootstrap reindex: %w", err)
 			}
 		case errors.As(err, &stale):
-			// External drift since the last stamp — absorb it via a full
-			// reindex instead of forcing the caller to run `anvil reindex`
-			// first. The WARN keeps the drift diagnosable (a write path that
+			// External drift since the last stamp — absorb it via a reindex
+			// instead of forcing the caller to run `anvil reindex` first.
+			// The WARN keeps the drift diagnosable (a write path that
 			// should have kept the index fresh stays visible) without
 			// blocking the read.
 			slog.Warn("vault index stale; auto-reindexing", "path", stale.Path, "reason", stale.Reason)

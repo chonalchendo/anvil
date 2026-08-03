@@ -47,16 +47,6 @@ func NewTransitionFlagRequired(typ, id, from, to, flag string) *Structured {
 		Set("corrected", corrected)
 }
 
-// NewIndexStale signals that the vault has been edited externally and the
-// vault.db needs `anvil reindex`. path names the file behind the drift as its
-// own field, so an agent reads the offending path off the machine contract
-// instead of parsing it out of the freshness error's prose.
-func NewIndexStale(path string) *Structured {
-	return NewStructured("index_stale").
-		Set("path", path).
-		Set("hint", "anvil reindex")
-}
-
 // NewOpenPRBlocksResolve builds the structured error returned when an issue's
 // `anvil/<slug>` branch still has an open PR at the moment of
 // `anvil transition issue <id> resolved`. The error names the PR url and the

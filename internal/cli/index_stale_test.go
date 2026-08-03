@@ -233,7 +233,45 @@ func TestListReadySelfHealsAndReturnsResultsWhenVaultEditedExternally(t *testing
 	if !strings.Contains(out.String(), "demo.foo") {
 		t.Fatalf("expected the pre-existing ready issue in results after self-heal; output: %s", out.String())
 	}
-	if !strings.Contains(warnBuf.String(), "demo.bar.md") && !strings.Contains(warnBuf.String(), vault) {
-		t.Fatalf("self-heal WARN must name the drifted path, got: %s", warnBuf.String())
+	// Deterministic: the freshness walk visits files before the root-mtime
+	// arm, and demo.bar.md is the only file newer than the stamp.
+	if !strings.Contains(warnBuf.String(), "demo.bar.md") {
+		t.Fatalf("self-heal WARN must name the drifted file, got: %s", warnBuf.String())
+	}
+}
+
+// TestListReadyOnFreshVaultDoesNotReindex pins the no-drift fast path: a read
+// on a fresh vault must neither WARN nor reindex. If every read healed, the
+// WARN would stop meaning drift and self-heal cost would land on every verb.
+func TestListReadyOnFreshVaultDoesNotReindex(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	warnBuf := captureSlogWarn(t)
+
+	stampBefore, err := openIndex(t, vault).GetLastReindex()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"list", "issue", "--ready"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("list on a fresh vault: %v\noutput: %s", err, out.String())
+	}
+
+	if warnBuf.Len() != 0 {
+		t.Fatalf("read on a fresh vault must not WARN, got: %s", warnBuf.String())
+	}
+	stampAfter, err := openIndex(t, vault).GetLastReindex()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !stampAfter.Equal(stampBefore) {
+		t.Fatalf("read on a fresh vault must not reindex: stamp moved %s -> %s", stampBefore, stampAfter)
 	}
 }

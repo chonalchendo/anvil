@@ -34,10 +34,9 @@ Use --dry-run to report what would be pruned without removing anything.`,
 			if err != nil {
 				return err
 			}
-			// Pruned stubs are indexed artifacts. Leaving their rows behind
-			// desyncs vault.db from disk, which the read path's freshness
-			// check now reports as index_stale — bricking every read verb
-			// until someone runs `anvil reindex` by hand.
+			// Pruned stubs are indexed artifacts. Reindex here so the next
+			// read absorbs the deletion up front instead of paying a
+			// self-heal reindex (index_hook.go).
 			if !dryRun && len(removed) > 0 {
 				db, oerr := index.Open(index.DBPath(v.Root))
 				if oerr != nil {

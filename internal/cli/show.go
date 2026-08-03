@@ -188,13 +188,14 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename string, as
 
 	if includeIncoming {
 		// indexForRead self-heals a stale index (WARN + auto-reindex, see
-		// anvil.0169), so a stale vault no longer suppresses incoming edges
-		// or the body below.
-		incoming, err := loadIncomingEdges(v, id)
-		if err != nil {
-			return err
+		// anvil.0169), so a stale vault no longer suppresses incoming edges.
+		// A failed heal (busy index, walk error) still can: degrade to no
+		// incoming section rather than suppressing the body below.
+		if incoming, err := loadIncomingEdges(v, id); err != nil {
+			cmd.PrintErrln(err)
+		} else {
+			out.Incoming = incoming
 		}
-		out.Incoming = incoming
 	}
 
 	if includeBody {
