@@ -71,7 +71,11 @@ func newFleetScopeAuditCmd() *cobra.Command {
 			if err := validateDeclaredGlobs(declaredEntries); err != nil {
 				return err
 			}
-			outside := scopeViolations(declaredEntries, splitLiteralCSV(changed))
+			changedEntries := splitLiteralCSV(changed)
+			if derived, derr := deriveChangedFn(); derr == nil {
+				changedEntries = mergeChanged(changedEntries, derived)
+			}
+			outside := scopeViolations(declaredEntries, changedEntries)
 			w := cmd.OutOrStdout()
 			if len(outside) == 0 {
 				fmt.Fprintln(w, "scope: clean")

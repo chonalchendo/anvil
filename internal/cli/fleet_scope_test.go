@@ -1,13 +1,28 @@
 package cli
 
 import (
+	"errors"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 )
 
+// disableDeriveChanged stubs deriveChangedFn to always fail, so a CLI-level
+// scope-audit test exercises the caller-supplied --changed list in
+// isolation — it must not pick up this repo's own real git diff (this
+// package's working tree, not the test's fixture) when the derivation seam
+// runs unstubbed.
+func disableDeriveChanged(t *testing.T) {
+	t.Helper()
+	orig := deriveChangedFn
+	deriveChangedFn = func() ([]string, error) { return nil, errors.New("stubbed: no derivation") }
+	t.Cleanup(func() { deriveChangedFn = orig })
+}
+
 func TestScopeAudit_ViolationsDetected(t *testing.T) {
+	disableDeriveChanged(t)
 	cmd := newRootCmd()
 	stdout, _, err := runCmd(t, cmd, "fleet", "scope-audit",
 		"--declared", "a.py,b.py",
@@ -53,6 +68,7 @@ func TestScopeAudit_InvalidDeclaredRejected(t *testing.T) {
 }
 
 func TestScopeAudit_Clean(t *testing.T) {
+	disableDeriveChanged(t)
 	cmd := newRootCmd()
 	stdout, _, err := runCmd(t, cmd, "fleet", "scope-audit",
 		"--declared", "a.py,b.py",
@@ -196,6 +212,7 @@ func TestSplitLiteralCSV(t *testing.T) {
 // A changed path containing `{` must split on the comma, so each file is
 // audited on its own instead of merging into a token naming no file.
 func TestScopeAudit_ChangedPathsAreLiteral(t *testing.T) {
+	disableDeriveChanged(t)
 	cmd := newRootCmd()
 	stdout, _, err := runCmd(t, cmd, "fleet", "scope-audit",
 		"--declared", "a/{x.go",
@@ -212,6 +229,7 @@ func TestScopeAudit_ChangedPathsAreLiteral(t *testing.T) {
 // A typo'd `{` in --declared must degrade to literal entries, not consume every
 // following entry and flag correctly-declared files.
 func TestScopeAudit_UnbalancedDeclaredBraceDegrades(t *testing.T) {
+	disableDeriveChanged(t)
 	cmd := newRootCmd()
 	stdout, _, err := runCmd(t, cmd, "fleet", "scope-audit",
 		"--declared", "a/{x.go,b.py",
@@ -222,5 +240,102 @@ func TestScopeAudit_UnbalancedDeclaredBraceDegrades(t *testing.T) {
 	}
 	if got, want := strings.TrimSpace(stdout), "scope: clean"; got != want {
 		t.Errorf("scope-audit stdout = %q, want %q", got, want)
+	}
+}
+
+func TestMergeChanged(t *testing.T) {
+	cases := []struct {
+		name    string
+		caller  []string
+		derived []string
+		want    []string
+	}{
+		{"both-empty", nil, nil, nil},
+		{"caller-only", []string{"a.py"}, nil, []string{"a.py"}},
+		{"derived-only", nil, []string{"a.py"}, []string{"a.py"}},
+		{"union-dedup", []string{"a.py", "b.py"}, []string{"b.py", "c.py"}, []string{"a.py", "b.py", "c.py"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := mergeChanged(tc.caller, tc.derived)
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("mergeChanged (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// chdirTemp changes the process cwd to dir for the test's duration, so
+// gitToplevelFn (bare `git rev-parse --show-toplevel`, no explicit Dir) sees
+// the fixture repo rather than this package's own checkout. Restores on
+// cleanup; callers must not run this test with t.Parallel().
+func chdirTemp(t *testing.T, dir string) {
+	t.Helper()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(orig) })
+}
+
+// TestScopeAudit_DerivedDiffCatchesStaleBaseUnderReport reproduces the PR
+// #231 incident (issue.anvil.0236): a `git reset --soft` onto a newer base
+// folds a reversion of landed work into a commit, and a stale three-dot diff
+// against the old base is content-identical to the reverted file — so it
+// never appears in the caller's --changed. The audit must still catch it by
+// deriving the changed set itself.
+func TestScopeAudit_DerivedDiffCatchesStaleBaseUnderReport(t *testing.T) {
+	dir := t.TempDir()
+	run := func(args ...string) string {
+		t.Helper()
+		out, err := runIn(dir, "git", args...)
+		if err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+		return string(out)
+	}
+	writeFile := func(name, content string) {
+		t.Helper()
+		if err := os.WriteFile(dir+"/"+name, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	run("init", "-q", ".")
+	run("config", "user.email", "test@example.com")
+	run("config", "user.name", "test")
+	run("checkout", "-qb", "main")
+	writeFile("landed.txt", "a\n")
+	run("add", ".")
+	run("commit", "-qm", "base")
+	run("checkout", "-qb", "feat")
+	run("checkout", "-q", "main")
+	writeFile("landed.txt", "fix\n")
+	run("commit", "-qam", "landed fix")
+	run("checkout", "-q", "feat")
+	writeFile("mine.txt", "mine\n")
+	run("add", "mine.txt")
+	run("reset", "--soft", "main")
+	run("commit", "-qm", "work")
+
+	staleChanged := strings.TrimSpace(run("diff", "--name-only", "main~1...HEAD"))
+	if strings.Contains(staleChanged, "landed.txt") {
+		t.Fatalf("fixture invariant broken: stale diff already reports landed.txt: %q", staleChanged)
+	}
+
+	chdirTemp(t, dir)
+	cmd := newRootCmd()
+	stdout, _, err := runCmd(t, cmd, "fleet", "scope-audit",
+		"--declared", "mine.txt",
+		"--changed", staleChanged,
+	)
+	if err != nil {
+		t.Fatalf("scope-audit: unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "landed.txt") {
+		t.Errorf("expected landed.txt flagged as out-of-scope, got: %q", stdout)
 	}
 }
