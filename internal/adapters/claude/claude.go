@@ -20,6 +20,18 @@ import (
 	"github.com/chonalchendo/anvil/internal/build"
 )
 
+// Spawn walls (anvil.0164): --setting-sources project makes CLAUDE.md and
+// project settings re-inject on every turn — a one-shot prompt instruction is
+// dropped on auto-compaction, a setting source is not. The turn/budget caps
+// bound a runaway spawn; the CLI exits non-zero with a distinct error subtype
+// on exhaustion. Exact cap values are a guard, not a tuned limit — tuning is
+// follow-up work.
+const (
+	settingSources    = "project"
+	maxSpawnTurns     = "200"
+	maxSpawnBudgetUSD = "10"
+)
+
 // Adapter spawns the Claude Code CLI per task. One Adapter is shared across
 // every task in a build — the per-spawn state (settings JSON, stdin/stdout
 // pipes) lives inside Run. New("") falls back to the `claude` binary on
@@ -92,6 +104,9 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 		"--verbose",
 		"--permission-mode", "bypassPermissions",
 		"--model", req.Model,
+		"--setting-sources", settingSources,
+		"--max-turns", maxSpawnTurns,
+		"--max-budget-usd", maxSpawnBudgetUSD,
 	}
 	if req.Cwd != "" {
 		args = append(args, "--add-dir", req.Cwd)
