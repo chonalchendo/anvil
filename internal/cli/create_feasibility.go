@@ -34,7 +34,10 @@ const feasibilityWaitDelay = 2 * time.Second
 // justified case (authoring on a machine that cannot run the predicate at
 // all). It is package-level because both `create` and `promote` bind it and
 // the gate itself lives here; only one of the two ever runs per process, and
-// each command rebuild re-applies the false default.
+// each command rebuild re-applies the false default. Those two verbs are the
+// gate's only reachable callers — `append` validates addenda through
+// staticBodyFailures and never executes Verification blocks, so the flag
+// does not exist there.
 var flagSkipVerifyPredicates bool
 
 // skipVerifyPredicatesFlagUsage is the shared --skip-verify-predicates help
