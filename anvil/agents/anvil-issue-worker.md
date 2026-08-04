@@ -73,12 +73,17 @@ This is **not** self-correctable. Treat it as a structural invariant — identic
 # from the worktree root; merge-base of the branch against origin/master
 changed=$(git diff --name-only "$(git merge-base HEAD origin/master)" | paste -sd, -)
 # An invalid declared set (empty, prose estimate, unsubstituted placeholder)
-# exits non-zero with a message naming the entry — capture stderr so it
-# survives. Exit 0 signals via stdout: "scope: clean" or one out-of-scope
-# file per line; any other output is a violation → Blocker.
-audit=$(anvil fleet scope-audit --declared "<declared-files>" --changed "$changed" 2>&1) || { printf 'Blocker: declared-set invalid: %s\n' "$audit"; exit 1; }
+# exits non-zero with a message naming the entry on stderr. Exit 0 signals
+# via stdout: "scope: clean" or one out-of-scope file per line; any other
+# stdout is a violation → Blocker. stderr carries the audit's basis line (or
+# its degradation warning) — keep the streams separate.
+audit_err=$(mktemp)
+audit=$(anvil fleet scope-audit --declared "<declared-files>" --changed "$changed" 2>"$audit_err") || { printf 'Blocker: declared-set invalid: %s\n' "$(cat "$audit_err")"; exit 1; }
+cat "$audit_err" >&2
 [ "$audit" = "scope: clean" ] || { printf 'Blocker: scope-change out-of-scope files:\n%s\n' "$audit"; exit 1; }
 ```
+
+The audit does not trust `$changed` alone: it also derives the branch's changed set itself against a freshly fetched origin/HEAD and unions it with `--changed`, so a stale local merge-base cannot under-report.
 
 ## Checkpoint-commit WIP (survive mid-task death)
 

@@ -17,7 +17,7 @@ import (
 func disableDeriveChanged(t *testing.T) {
 	t.Helper()
 	orig := deriveChangedFn
-	deriveChangedFn = func() ([]string, error) { return nil, errors.New("stubbed: no derivation") }
+	deriveChangedFn = func() ([]string, string, error) { return nil, "", errors.New("stubbed: no derivation") }
 	t.Cleanup(func() { deriveChangedFn = orig })
 }
 
@@ -265,29 +265,19 @@ func TestMergeChanged(t *testing.T) {
 	}
 }
 
-// chdirTemp changes the process cwd to dir for the test's duration, so
-// gitToplevelFn (bare `git rev-parse --show-toplevel`, no explicit Dir) sees
-// the fixture repo rather than this package's own checkout. Restores on
-// cleanup; callers must not run this test with t.Parallel().
-func chdirTemp(t *testing.T, dir string) {
-	t.Helper()
-	orig, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(orig) })
-}
-
 // TestScopeAudit_DerivedDiffCatchesStaleBaseUnderReport reproduces the PR
 // #231 incident (issue.anvil.0236): a `git reset --soft` onto a newer base
 // folds a reversion of landed work into a commit, and a stale three-dot diff
 // against the old base is content-identical to the reverted file — so it
-// never appears in the caller's --changed. The audit must still catch it by
-// deriving the changed set itself.
+// never appears in the caller's --changed. The local main is left stale at
+// the fork point, so the audit only catches the reversion by deriving the
+// changed set against the fetched origin/main — never a local branch.
 func TestScopeAudit_DerivedDiffCatchesStaleBaseUnderReport(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	bare := t.TempDir()
+	if out, err := runIn(bare, "git", "init", "-q", "--bare", "."); err != nil {
+		t.Fatalf("git init --bare: %v\n%s", err, out)
+	}
 	dir := t.TempDir()
 	run := func(args ...string) string {
 		t.Helper()
@@ -307,6 +297,7 @@ func TestScopeAudit_DerivedDiffCatchesStaleBaseUnderReport(t *testing.T) {
 	run("init", "-q", ".")
 	run("config", "user.email", "test@example.com")
 	run("config", "user.name", "test")
+	run("remote", "add", "origin", bare)
 	run("checkout", "-qb", "main")
 	writeFile("landed.txt", "a\n")
 	run("add", ".")
@@ -315,20 +306,23 @@ func TestScopeAudit_DerivedDiffCatchesStaleBaseUnderReport(t *testing.T) {
 	run("checkout", "-q", "main")
 	writeFile("landed.txt", "fix\n")
 	run("commit", "-qam", "landed fix")
+	run("push", "-q", "origin", "main")
+	// Local main goes stale at the fork point; only origin/main has the fix.
+	run("reset", "-q", "--hard", "main~1")
 	run("checkout", "-q", "feat")
 	writeFile("mine.txt", "mine\n")
 	run("add", "mine.txt")
-	run("reset", "--soft", "main")
+	run("reset", "--soft", "origin/main")
 	run("commit", "-qm", "work")
 
-	staleChanged := strings.TrimSpace(run("diff", "--name-only", "main~1...HEAD"))
+	staleChanged := strings.TrimSpace(run("diff", "--name-only", "main...HEAD"))
 	if strings.Contains(staleChanged, "landed.txt") {
 		t.Fatalf("fixture invariant broken: stale diff already reports landed.txt: %q", staleChanged)
 	}
 
-	chdirTemp(t, dir)
+	t.Chdir(dir)
 	cmd := newRootCmd()
-	stdout, _, err := runCmd(t, cmd, "fleet", "scope-audit",
+	stdout, stderr, err := runCmd(t, cmd, "fleet", "scope-audit",
 		"--declared", "mine.txt",
 		"--changed", staleChanged,
 	)
@@ -337,5 +331,29 @@ func TestScopeAudit_DerivedDiffCatchesStaleBaseUnderReport(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "landed.txt") {
 		t.Errorf("expected landed.txt flagged as out-of-scope, got: %q", stdout)
+	}
+	if !strings.Contains(stderr, "origin/main") {
+		t.Errorf("expected the derivation base ref on stderr, got: %q", stderr)
+	}
+}
+
+// A failed derivation (here: not a git repo) must degrade loudly — warning on
+// stderr, audit of the --changed list alone — never a bare "scope: clean".
+func TestScopeAudit_DerivationFailureWarnsAndDegrades(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(t.TempDir())
+	cmd := newRootCmd()
+	stdout, stderr, err := runCmd(t, cmd, "fleet", "scope-audit",
+		"--declared", "a.py",
+		"--changed", "a.py",
+	)
+	if err != nil {
+		t.Fatalf("scope-audit: unexpected error: %v", err)
+	}
+	if !strings.Contains(stdout, "clean") {
+		t.Errorf("expected 'clean' on stdout, got: %q", stdout)
+	}
+	if !strings.Contains(stderr, "changed-set derivation failed") {
+		t.Errorf("expected degradation warning on stderr, got: %q", stderr)
 	}
 }

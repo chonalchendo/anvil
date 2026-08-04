@@ -64,7 +64,7 @@ func newFleetScopeAuditCmd() *cobra.Command {
 	var declared, changed string
 	cmd := &cobra.Command{
 		Use:          "scope-audit",
-		Short:        "Flag changed files that fall outside an issue's declared-files allowlist",
+		Short:        "Flag changed files outside an issue's declared-files allowlist, auditing --changed unioned with the branch's git-derived changed set",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			declaredEntries := splitCSV(declared)
@@ -72,7 +72,10 @@ func newFleetScopeAuditCmd() *cobra.Command {
 				return err
 			}
 			changedEntries := splitLiteralCSV(changed)
-			if derived, derr := deriveChangedFn(); derr == nil {
+			if derived, base, derr := deriveChangedFn(); derr != nil {
+				fmt.Fprintf(cmd.ErrOrStderr(), "warning: changed-set derivation failed (%v); auditing the --changed list alone\n", derr)
+			} else {
+				fmt.Fprintf(cmd.ErrOrStderr(), "scope-audit: changed set derived against %s\n", base)
 				changedEntries = mergeChanged(changedEntries, derived)
 			}
 			outside := scopeViolations(declaredEntries, changedEntries)
@@ -88,7 +91,7 @@ func newFleetScopeAuditCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&declared, "declared", "", "comma-separated declared-files allowlist; entries are globs — *, ?, and brace alternation {a,b} (e.g. src/{a,b}_*.sql). ** is not supported; * does not cross /; an entry naming a directory (`pkg` or `pkg/`) covers everything beneath it")
-	cmd.Flags().StringVar(&changed, "changed", "", "comma-separated changed files on the branch; entries are literal paths, not globs")
+	cmd.Flags().StringVar(&changed, "changed", "", "comma-separated changed files on the branch; entries are literal paths, not globs — unioned with the branch's git-derived changed set (merge-base against a freshly fetched origin/HEAD)")
 	_ = cmd.MarkFlagRequired("declared")
 	_ = cmd.MarkFlagRequired("changed")
 	return cmd
