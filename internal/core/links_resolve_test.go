@@ -366,6 +366,16 @@ func TestArtifactBasename(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// A design doc minted before its prefix was dropped: qualified filename on
+	// disk, bare canonical id.
+	dp := filepath.Join(v.Root, TypeProductDesign.Dir(), "product-design.burgh.md")
+	if err := os.MkdirAll(filepath.Dir(dp), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dp, []byte("---\ntype: product-design\n---\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+
 	cases := []struct {
 		t    Type
 		raw  string
@@ -381,6 +391,11 @@ func TestArtifactBasename(t *testing.T) {
 		{TypeConvention, "sqlmesh", "convention.sqlmesh"},
 		{TypeConvention, "convention.sqlmesh", "convention.sqlmesh"},
 		{TypeConvention, "convention.convention.sqlmesh", "convention.convention.sqlmesh"},
+		// Qualified back-catalogue fallback: bare canonical id, old
+		// type-qualified file still on disk.
+		{TypeProductDesign, "burgh", "product-design.burgh"},
+		{TypeProductDesign, "product-design.burgh", "product-design.burgh"},
+		{TypeProductDesign, "ghost", "ghost"},
 	}
 	for _, tc := range cases {
 		if got := ArtifactBasename(v, tc.t, tc.raw); got != tc.want {

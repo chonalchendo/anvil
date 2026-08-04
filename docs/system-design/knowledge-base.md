@@ -16,8 +16,8 @@ tags: [domain/dev-tools, type/system-design-shard]
 ├── AGENTS.md               # ≤5k always-on layer
 ├── CLAUDE.md               # symlink to AGENTS.md
 ├── 00-inbox/               # human capture only; agents never write
-├── 05-product-designs/     # product-design.<project>.md (flat)
-├── 06-system-designs/      # system-design.<project>[.<shard>].md (flat)
+├── 05-product-designs/     # <project>.md (flat; index keys on product-design.<project>)
+├── 06-system-designs/      # <project>[.<shard>].md (flat; index keys on system-design.<project>[.<shard>])
 ├── 10-sessions/{raw,distilled}/
 ├── 20-learnings/           # flat, topic-prefixed (Dendron-style)
 ├── 30-decisions/           # MADR-conformant ADRs
@@ -45,7 +45,7 @@ tags: [domain/dev-tools, type/system-design-shard]
 | Stage | Location | Lifecycle | Trail on promotion |
 |---|---|---|---|
 | Inbox | `00-inbox/` | 14d demote, 30d archive. Backpressure at 50. | Promoted file deleted (low-signal capture isn't worth provenance). |
-| Design | `05-product-designs/product-design.<project>.md`, `06-system-designs/system-design.<project>[.<shard>].md` | Long-lived; updated as understanding evolves. | Authorises milestones via wikilink. |
+| Design | `05-product-designs/<project>.md`, `06-system-designs/<project>[.<shard>].md` (bare filenames; the index keys on the type-qualified id) | Long-lived; updated as understanding evolves. | Authorises milestones via wikilink. |
 | Milestone | `85-milestones/milestone.<project>.<slug>.md` | Lives until shipped, then `status: done`. | Authorises plans via wikilink. |
 | Issue | `70-issues/issue.<project>.NNNN.<slug>.md` | Single source of truth: criteria, severity, status. | Authorises plan; receives learning links on review. |
 | Plan | `80-plans/plan.<project>.<slug>.md` | **Canonical.** Worktrees read from this path. | References issue; `status: done` on review approval. |

@@ -193,12 +193,15 @@ func runLinkQuery(cmd *cobra.Command, fromID, toID string, unresolved, asJSON bo
 	}
 	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
+	// Bare design ids (the shape `anvil list` prints) key on the qualified
+	// IndexKey in the links table — resolve before querying so `--to acme`
+	// finds the same edges `--to product-design.acme` does.
 	var rows []index.LinkRow
 	switch {
 	case fromID != "":
-		rows, err = db.LinksFrom(fromID)
+		rows, err = db.LinksFrom(resolveIndexID(db, fromID))
 	case toID != "":
-		rows, err = db.LinksTo(toID)
+		rows, err = db.LinksTo(resolveIndexID(db, toID))
 	case unresolved:
 		rows, err = db.LinksUnresolved()
 	}

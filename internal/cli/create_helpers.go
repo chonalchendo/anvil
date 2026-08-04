@@ -35,7 +35,12 @@ func resolveCreateIDPath(v *core.Vault, t core.Type, project, title, topic, slug
 		return "", "", invalidSlugError(slug, err)
 	}
 	if path == "" {
-		path = t.Path(v.Root, id)
+		// Resolve through ArtifactBasename, not t.Path(v.Root, id): a
+		// back-catalogue file under the other filename shape (e.g. a qualified
+		// `product-design.<id>.md` for a type that now mints bare) must become
+		// the create target so the drift/already-exists check fires instead of
+		// forking a duplicate-id sibling.
+		path = t.Path(v.Root, core.ArtifactBasename(v, t, id))
 	}
 	return id, path, nil
 }

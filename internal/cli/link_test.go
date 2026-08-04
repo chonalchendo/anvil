@@ -563,3 +563,32 @@ func TestShow_Contract_Body(t *testing.T) {
 		t.Errorf("contract body not surfaced in show contract --body output:\n%s", out)
 	}
 }
+
+// TestLinkQueryAndIndex_BareDesignID pins the read side of the (type, id)
+// re-key: the index keys design artifacts and link targets on the qualified
+// IndexKey while `anvil list` prints the bare id, so `link --to <bare-id>`
+// and `anvil index <bare-id>` must resolve the same rows the qualified form
+// does instead of returning empty / unknown-artifact.
+func TestLinkQueryAndIndex_BareDesignID(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	writeFixtureDesign(t, vault, "acme", core.TypeProductDesign, "Acme")
+	writeFixtureIssueDated(t, vault, "demo", "a", "a", "2026-01-01")
+	execCmd(t, "reindex")
+	execCmd(t, "link", "issue", "demo.a", "product-design", "acme")
+
+	out := execCmd(t, "link", "--to", "acme", "--json")
+	var rows []struct {
+		Source, Target, Relation string
+	}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &rows); err != nil {
+		t.Fatalf("json: %v\nout: %s", err, out)
+	}
+	if len(rows) != 1 || rows[0].Source != "issue.demo.a" || rows[0].Target != "product-design.acme" {
+		t.Fatalf("link --to acme rows: %v", rows)
+	}
+
+	// The related-artifacts seed takes the same bare shape.
+	execCmd(t, "index", "acme", "--json")
+}

@@ -3022,3 +3022,38 @@ func TestCreate_Learning_BodyMissingHeadings_RejectionPointsToShowTemplate(t *te
 		t.Errorf("rejection missing show-template hint; got:\n%s", errBuf.String())
 	}
 }
+
+// TestCreate_Design_LegacyQualifiedFile_AlreadyExists pins the create target
+// for a design type whose back-catalogue file still carries the old
+// type-qualified basename: create must resolve onto product-design.<id>.md
+// and report already_exists — never fork a duplicate-id bare sibling.
+func TestCreate_Design_LegacyQualifiedFile_AlreadyExists(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("HOME", t.TempDir())
+
+	legacy := filepath.Join(vault, core.TypeProductDesign.Dir(), "product-design.burgh.md")
+	fm := "---\ntype: product-design\nid: product-design.burgh\ntitle: \"burgh\"\n" +
+		"description: \"burgh\"\ncreated: 2026-01-01\nupdated: 2026-01-01\n" +
+		"status: draft\ntags: [type/product-design]\nproject: burgh\n---\n"
+	if err := os.WriteFile(legacy, []byte(fm), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "product-design", "--project", "burgh", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]string
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
+	}
+	if got["status"] != "already_exists" || !strings.HasSuffix(got["path"], "product-design.burgh.md") {
+		t.Errorf("got status=%q path=%q, want already_exists on the legacy qualified file", got["status"], got["path"])
+	}
+	if _, err := os.Stat(filepath.Join(vault, core.TypeProductDesign.Dir(), "burgh.md")); err == nil {
+		t.Error("create forked a bare burgh.md sibling next to the legacy qualified file")
+	}
+}

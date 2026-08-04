@@ -26,6 +26,26 @@ type relatedOut struct {
 	Links      []string `json:"links"`
 }
 
+// resolveIndexID maps a user-supplied id to the key the index tables use.
+// Design types key on the type-qualified IndexKey while every list/show
+// surface prints the bare id, so a bare design id that misses in the
+// artifacts table is re-probed under its qualified forms before giving up.
+// Unresolvable ids pass through unchanged so callers keep their own
+// not-found reporting.
+func resolveIndexID(db *index.DB, id string) string {
+	if _, err := db.GetArtifact(id); err == nil {
+		return id
+	}
+	for _, t := range []core.Type{core.TypeProductDesign, core.TypeSystemDesign} {
+		if q := core.IndexKey(t, id); q != id {
+			if _, err := db.GetArtifact(q); err == nil {
+				return q
+			}
+		}
+	}
+	return id
+}
+
 func newIndexCmd() *cobra.Command {
 	var (
 		flagTags    string
@@ -65,13 +85,14 @@ seed — each carrying the matched tags/links as evidence. Read-only; no LLM.`,
 			qf := index.QueryFilters{Status: flagStatus, Project: flagProject}
 			var rows []index.RelatedRow
 			if hasID {
-				if _, err := db.GetArtifact(args[0]); err != nil {
+				seed := resolveIndexID(db, args[0])
+				if _, err := db.GetArtifact(seed); err != nil {
 					if errors.Is(err, index.ErrArtifactNotInIndex) {
 						return fmt.Errorf("unknown artifact id %q — check `anvil list` or reindex", args[0])
 					}
 					return err
 				}
-				rows, err = db.RelatedByID(args[0], qf)
+				rows, err = db.RelatedByID(seed, qf)
 			} else {
 				var tags []string
 				for _, p := range strings.Split(flagTags, ",") {

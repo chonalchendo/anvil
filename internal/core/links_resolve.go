@@ -193,19 +193,20 @@ func WikilinkTarget(t Type, id string) string {
 // resolver cannot express. The duplication is the constraint, not an
 // oversight.
 func ArtifactBasename(v *Vault, t Type, raw string) string {
-	switch t {
-	case TypeConvention:
+	if t == TypeConvention {
 		return CanonicalID(t, raw)
 	}
 	canonical := CanonicalID(t, raw)
 	if _, err := os.Stat(artifactPath(v, t, canonical)); err == nil {
 		return canonical
 	}
-	// Fall back to the bare back-catalogue shape — but never when bare is
-	// itself prefixed, or a doubled `milestone.milestone.x` would resolve onto
-	// the plain file and `anvil link` would embed that dead target.
+	// Fall back to the bare back-catalogue shape — skipped when bare equals
+	// canonical (bare-canonical types would just re-stat the miss above) and
+	// never when bare is itself prefixed, or a doubled `milestone.milestone.x`
+	// would resolve onto the plain file and `anvil link` would embed that dead
+	// target.
 	prefix := string(t) + "."
-	if bare := BareID(t, raw); !strings.HasPrefix(bare, prefix) {
+	if bare := BareID(t, raw); bare != canonical && !strings.HasPrefix(bare, prefix) {
 		if _, err := os.Stat(artifactPath(v, t, bare)); err == nil {
 			return bare
 		}

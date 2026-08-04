@@ -419,3 +419,27 @@ func TestSlugifyIssue_CapsAt40OnHyphenBoundary(t *testing.T) {
 		t.Errorf("capped slug %q is not a hyphen-boundary prefix of the full slug", got)
 	}
 }
+
+// TestIndexKey pins the one asymmetry in the index key space: design types
+// mint a bare CanonicalID but key the index on the type-qualified form; every
+// other type's index key is its CanonicalID unchanged.
+func TestIndexKey(t *testing.T) {
+	cases := []struct {
+		t    Type
+		id   string
+		want string
+	}{
+		{TypeProductDesign, "burgh", "product-design.burgh"},
+		{TypeProductDesign, "product-design.burgh", "product-design.burgh"},
+		{TypeSystemDesign, "burgh.api", "system-design.burgh.api"},
+		{TypeIssue, "demo.0001.x", "issue.demo.0001.x"},
+		{TypeIssue, "issue.demo.0001.x", "issue.demo.0001.x"},
+		{TypeLearning, "sqlmesh-audits", "sqlmesh-audits"},
+		{TypeConvention, "python", "convention.python"},
+	}
+	for _, tc := range cases {
+		if got := IndexKey(tc.t, tc.id); got != tc.want {
+			t.Errorf("IndexKey(%s, %q) = %q, want %q", tc.t, tc.id, got, tc.want)
+		}
+	}
+}
