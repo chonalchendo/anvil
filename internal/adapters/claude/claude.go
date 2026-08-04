@@ -20,14 +20,12 @@ import (
 	"github.com/chonalchendo/anvil/internal/build"
 )
 
-// Spawn walls (anvil.0164): --setting-sources project makes CLAUDE.md and
-// project settings re-inject on every turn — a one-shot prompt instruction is
-// dropped on auto-compaction, a setting source is not. The turn/budget caps
-// bound a runaway spawn; the CLI exits non-zero with a distinct error subtype
-// on exhaustion. Exact cap values are a guard, not a tuned limit — tuning is
-// follow-up work.
+// CLAUDE.md re-injects every turn via setting-sources; a one-shot prompt
+// instruction is dropped on auto-compaction. The user source keeps the
+// settings.json seedConfigDir copies into the per-spawn dir honoured. Caps
+// bound a runaway spawn.
 const (
-	settingSources    = "project"
+	settingSources    = "user,project"
 	maxSpawnTurns     = "200"
 	maxSpawnBudgetUSD = "10"
 )
@@ -365,8 +363,8 @@ func settingsJSON(req build.RunRequest) (string, error) {
 	type skills struct {
 		Allow []string `json:"allow,omitempty"`
 	}
-	// TODO(integration): verify key names against claude --help / release
-	// notes — silent settings drift would be hard to diagnose.
+	// TODO(integration): verify key names and spawn flags (--max-turns) against
+	// claude --help / release notes — silent drift would be hard to diagnose.
 	settings := struct {
 		ExtendedThinking extended `json:"extendedThinking"`
 		Skills           skills   `json:"skills,omitempty"`

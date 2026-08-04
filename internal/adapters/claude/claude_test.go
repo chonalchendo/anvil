@@ -273,9 +273,7 @@ func TestRun_DisallowedToolsWall_ReachesArgv(t *testing.T) {
 	}
 }
 
-// Every spawn must carry the project setting-source (CLAUDE.md re-injects
-// each turn, surviving compaction) and the turn/budget runaway caps
-// (anvil.0164).
+// Every spawn's argv must carry the setting sources and both runaway caps.
 func TestRun_SettingSourcesAndCaps_ReachArgv(t *testing.T) {
 	argv := runRecordingArgv(t, build.RunRequest{})
 	want := map[string]string{
