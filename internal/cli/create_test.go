@@ -1452,8 +1452,8 @@ func TestCreate_ProductDesign_WritesValidFile(t *testing.T) {
 		t.Fatalf("create: %v\n%s", err, out.String())
 	}
 
-	// Per-type folder, type-prefixed id: 05-product-designs/product-design.<project>.md
-	path := filepath.Join(vault, "05-product-designs", "product-design.foo.md")
+	// Per-type folder, bare project-slug id: 05-product-designs/<project>.md
+	path := filepath.Join(vault, "05-product-designs", "foo.md")
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		t.Fatalf("expected file at %s: %v", path, err)
@@ -1493,8 +1493,8 @@ func TestCreate_ProductDesign_Idempotent(t *testing.T) {
 		t.Fatalf("first create: %v", err)
 	}
 
-	// Per-type folder, type-prefixed id: 05-product-designs/product-design.<project>.md
-	path := filepath.Join(vault, "05-product-designs", "product-design.foo.md")
+	// Per-type folder, bare project-slug id: 05-product-designs/<project>.md
+	path := filepath.Join(vault, "05-product-designs", "foo.md")
 	statBefore, err := os.Stat(path)
 	if err != nil {
 		t.Fatal(err)
@@ -1514,8 +1514,8 @@ func TestCreate_ProductDesign_Idempotent(t *testing.T) {
 	if second["status"] != "already_exists" {
 		t.Errorf("status = %q, want already_exists", second["status"])
 	}
-	if second["id"] != "product-design.foo" {
-		t.Errorf("id = %q, want product-design.foo", second["id"])
+	if second["id"] != "foo" {
+		t.Errorf("id = %q, want foo", second["id"])
 	}
 
 	statAfter, _ := os.Stat(path)
@@ -1642,8 +1642,8 @@ func TestCreate_SystemDesign_WritesValidFile(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	// Per-type folder, type-prefixed id: 06-system-designs/system-design.<project>.md
-	path := filepath.Join(vault, "06-system-designs", "system-design.foo.md")
+	// Per-type folder, bare project-slug id: 06-system-designs/<project>.md
+	path := filepath.Join(vault, "06-system-designs", "foo.md")
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		t.Fatalf("expected file at %s: %v", path, err)
@@ -1659,7 +1659,7 @@ func TestCreate_SystemDesign_WritesValidFile(t *testing.T) {
 	}
 }
 
-func TestCreate_SystemDesign_Shard_WritesPrefixedShardID(t *testing.T) {
+func TestCreate_SystemDesign_Shard_WritesBareShardID(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Setenv("HOME", t.TempDir())
@@ -1676,11 +1676,11 @@ func TestCreate_SystemDesign_Shard_WritesPrefixedShardID(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &res); err != nil {
 		t.Fatal(err)
 	}
-	// Type-prefixed shard id, landed in the system-design folder.
-	if res["id"] != "system-design.foo.build" {
-		t.Errorf("id = %q, want system-design.foo.build", res["id"])
+	// Bare shard id, landed in the system-design folder.
+	if res["id"] != "foo.build" {
+		t.Errorf("id = %q, want foo.build", res["id"])
 	}
-	wantPath := filepath.Join(vault, "06-system-designs", "system-design.foo.build.md")
+	wantPath := filepath.Join(vault, "06-system-designs", "foo.build.md")
 	if res["path"] != wantPath {
 		t.Errorf("path = %q, want %q", res["path"], wantPath)
 	}
@@ -1701,9 +1701,10 @@ func TestCreate_SystemDesign_Shard_WritesPrefixedShardID(t *testing.T) {
 }
 
 // TestCreate_DesignTypes_SameProjectCoexist asserts a product-design and a
-// system-design for the SAME project get distinct (type-prefixed) ids and both
-// survive — the bare-id collision (one global artifacts.id) that the type
-// prefix exists to prevent. Both must validate clean under `anvil validate`.
+// system-design for the SAME project both get the SAME bare id and both
+// survive — the index keys on (type, id), so a bare id shared across the two
+// design types no longer collides. Both must validate clean under
+// `anvil validate`.
 func TestCreate_DesignTypes_SameProjectCoexist(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
@@ -1725,13 +1726,13 @@ func TestCreate_DesignTypes_SameProjectCoexist(t *testing.T) {
 		}
 		ids[typ] = res["id"]
 	}
-	if ids[core.TypeProductDesign] != "product-design.foo" || ids[core.TypeSystemDesign] != "system-design.foo" {
-		t.Fatalf("ids collided or wrong: pd=%q sd=%q", ids[core.TypeProductDesign], ids[core.TypeSystemDesign])
+	if ids[core.TypeProductDesign] != "foo" || ids[core.TypeSystemDesign] != "foo" {
+		t.Fatalf("ids wrong: pd=%q sd=%q", ids[core.TypeProductDesign], ids[core.TypeSystemDesign])
 	}
 	// Both files exist in their own folders.
 	for _, p := range []string{
-		filepath.Join(vault, "05-product-designs", "product-design.foo.md"),
-		filepath.Join(vault, "06-system-designs", "system-design.foo.md"),
+		filepath.Join(vault, "05-product-designs", "foo.md"),
+		filepath.Join(vault, "06-system-designs", "foo.md"),
 	} {
 		if _, err := core.LoadArtifact(p); err != nil {
 			t.Errorf("expected file at %s: %v", p, err)

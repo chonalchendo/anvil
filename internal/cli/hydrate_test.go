@@ -56,9 +56,9 @@ func writeHydrateDesign(t *testing.T, vault, project string, typ core.Type, link
 	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for traversable dirs
 		t.Fatal(err)
 	}
-	id := string(typ) + "." + project
+	id := project
 	fm := map[string]any{
-		"type": string(typ), "title": id, "description": "fixture description",
+		"type": string(typ), "title": string(typ) + "." + project, "description": "fixture description",
 		"created": "2026-07-01", "status": "active", "project": project,
 		"tags": []any{"type/" + string(typ)},
 	}
@@ -347,7 +347,7 @@ func TestHydrate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("hydrate: %v", err)
 		}
-		if !strings.Contains(out, "=== product-design product-design.foo (status: active, empty) ===") {
+		if !strings.Contains(out, "=== product-design foo (status: active, empty) ===") {
 			t.Errorf("empty-bodied design node header missing the `empty` marker\n%s", out)
 		}
 		if strings.Contains(out, "=== milestone milestone.foo.m1 (status: planned, empty)") {
@@ -369,7 +369,7 @@ func TestHydrate(t *testing.T) {
 		}
 	})
 
-	t.Run("prefix-retaining design link resolves forward, not false-flagged", func(t *testing.T) {
+	t.Run("bare-id design link resolves forward, not false-flagged", func(t *testing.T) {
 		vault := setupVault(t)
 		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"milestone": "[[milestone.foo.m1]]"})
 		writeHydrateMilestone(t, vault, "foo.m1",
@@ -381,7 +381,7 @@ func TestHydrate(t *testing.T) {
 		cmd := newRootCmd()
 		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
 		if err != nil {
-			t.Fatalf("prefix-retaining system-design link false-flagged as broken: %v", err)
+			t.Fatalf("bare-id system-design link false-flagged as broken: %v", err)
 		}
 		if !strings.Contains(out, "SYSTEM_DESIGN_MARKER") {
 			t.Errorf("bundle missing forward-resolved system-design body\n%s", out)

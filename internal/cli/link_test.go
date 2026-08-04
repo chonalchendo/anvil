@@ -369,9 +369,10 @@ func writeFixtureTyped(t *testing.T, vault, dir, typ, id string) {
 }
 
 // TestLink_CanonicalPrefixedTargetId pins the fix for the double-prefix trap:
-// convention and design ids keep their type prefix on disk, so the id every
-// anvil surface prints must produce the same edge as the bare form rather than
-// a doubled, unresolvable one.
+// convention ids keep their type prefix on disk, and a system-design id given
+// bare or type-prefixed both resolve to the same edge, so the id every anvil
+// surface prints must produce the same edge as the bare form rather than a
+// doubled, unresolvable one.
 func TestLink_CanonicalPrefixedTargetId(t *testing.T) {
 	cases := []struct {
 		name       string

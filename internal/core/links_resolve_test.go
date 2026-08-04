@@ -193,13 +193,13 @@ func TestResolveBodyLinks_PlaceholderWikilinkLiteral(t *testing.T) {
 
 // TestResolveLinks_DesignDocPresent asserts that a [[product-design.<project>]]
 // or [[system-design.<project>[.<shard>]]] wikilink resolves under the per-type
-// flat layout. Design ids keep the type prefix for global uniqueness, so the
-// on-disk id is the full wikilink target (e.g. system-design.burgh).
+// flat layout. Design ids are bare (no type prefix), so the on-disk id is the
+// wikilink target's tail (e.g. burgh, anvil.build).
 func TestResolveLinks_DesignDocPresent(t *testing.T) {
 	v := newScaffolded(t)
 	files := map[Type][]string{
-		TypeProductDesign: {"product-design.burgh"},
-		TypeSystemDesign:  {"system-design.burgh", "system-design.anvil.build"},
+		TypeProductDesign: {"burgh"},
+		TypeSystemDesign:  {"burgh", "anvil.build"},
 	}
 	for typ, ids := range files {
 		for _, id := range ids {

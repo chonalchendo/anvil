@@ -163,11 +163,11 @@ func TestDeterministicID(t *testing.T) {
 		{"milestone", TypeMilestone, IDInputs{Title: "v0.1 GA", Project: "foo"}, "milestone.foo.v0-1-ga"},
 		{"learning", TypeLearning, IDInputs{Title: "Slogger gotcha"}, "slogger-gotcha"},
 		{"sweep", TypeSweep, IDInputs{Title: "Drop python2"}, "drop-python2"},
-		// Project-scoped ids keep the type prefix so the id, the on-disk
-		// basename and the [[type.id]] wikilink are one string.
-		{"product-design", TypeProductDesign, IDInputs{Project: "foo"}, "product-design.foo"},
-		{"system-design singleton", TypeSystemDesign, IDInputs{Project: "foo"}, "system-design.foo"},
-		{"system-design shard", TypeSystemDesign, IDInputs{Project: "foo", Slug: "build"}, "system-design.foo.build"},
+		// Design ids are bare project slugs — the index (IndexKey)
+		// disambiguates a bare id shared across the two design types.
+		{"product-design", TypeProductDesign, IDInputs{Project: "foo"}, "foo"},
+		{"system-design singleton", TypeSystemDesign, IDInputs{Project: "foo"}, "foo"},
+		{"system-design shard", TypeSystemDesign, IDInputs{Project: "foo", Slug: "build"}, "foo.build"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

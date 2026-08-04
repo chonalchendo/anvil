@@ -10,15 +10,15 @@ import (
 )
 
 // writeFixtureDesign writes a flat design artifact to its type's own folder.
-// Design ids keep the type prefix for global uniqueness, so the on-disk file is
-// <vault>/<type.Dir()>/<type>.<project>.md.
+// Design ids are bare (the index disambiguates a shared bare id by type), so
+// the on-disk file is <vault>/<type.Dir()>/<project>.md.
 func writeFixtureDesign(t *testing.T, vault, project string, typ core.Type, title string) string {
 	t.Helper()
 	dir := filepath.Join(vault, typ.Dir())
 	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
-	id := string(typ) + "." + project
+	id := project
 	path := filepath.Join(dir, id+".md")
 	a := &core.Artifact{
 		Path: path,
@@ -61,7 +61,7 @@ func TestList_ProductDesign_ReturnsFlatFiles(t *testing.T) {
 			t.Errorf("project empty for %+v", it)
 		}
 	}
-	if !ids["product-design.bar"] || !ids["product-design.foo"] {
+	if !ids["bar"] || !ids["foo"] {
 		t.Errorf("missing ids: %v", ids)
 	}
 }
@@ -80,8 +80,8 @@ func TestList_SystemDesign_ReturnsFlatFiles(t *testing.T) {
 	if env.Total != 1 {
 		t.Fatalf("total=%d, want 1; items=%+v", env.Total, env.Items)
 	}
-	if env.Items[0].Type != "system-design" || env.Items[0].ID != "system-design.foo" {
-		t.Errorf("got %+v, want type=system-design id=system-design.foo", env.Items[0])
+	if env.Items[0].Type != "system-design" || env.Items[0].ID != "foo" {
+		t.Errorf("got %+v, want type=system-design id=foo", env.Items[0])
 	}
 }
 
