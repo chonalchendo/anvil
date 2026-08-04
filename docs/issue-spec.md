@@ -51,13 +51,16 @@ Each predicate must exercise behaviour and assert on observed output or side-eff
 - `<cmd> --help | grep "feature"` — grepping help text proves the flag exists, not that it works.
 - `test -f <path>` — proving a file was installed is not a behavioral check.
 - `grep "pattern" <source-or-skill-file>` — grepping source proves the text is there, not that the artifact behaves correctly.
+- `<side-effect cmd> | grep -q "..."` — `grep -q` (or `head`) exits on first match and SIGPIPE-kills the producer mid-run, so the predicate passes while the side effect never completed. Capture first, then assert: `o=$(mktemp); <cmd> > "$o" 2>&1; grep -q "..." "$o"`.
 
 These are anti-patterns. Write predicates that invoke the artifact with real inputs and assert on the result.
 
 **Worked example.** The `wait-for-pr.sh` issue used `scripts/wait-for-pr.sh --help | grep` as its Indirect check. That predicate passed even though `go:embed` had stripped the exec bit — so the installed script was non-executable (`permission denied`). Only `bash scripts/wait-for-pr.sh ... | jq -e` would have caught it because it actually runs the script. The rule: if the installed artifact is a shell script, invoke it (via `bash <script> ...`) and assert on its output; do not grep its help text or its source.
 
 ```bash
-anvil transition issue test-fixture in-progress --owner test 2>&1 | grep -q "transitioned to in-progress"
+o=$(mktemp)
+anvil transition issue test-fixture in-progress --owner test > "$o" 2>&1
+grep -q "transitioned to in-progress" "$o"
 [ "$(anvil show issue test-fixture --json | jq -r .status)" = "in-progress" ]
 ```
 
