@@ -25,7 +25,7 @@ Wrong-choice example: user pastes a problem statement, a one-sentence goal, and 
    anvil create inbox --title "<short title from user's thought>" --json
    ```
    Capture `id` and `path` from the JSON output.
-3. Direct-edit the body section of `path`, appending the user's thought verbatim under the frontmatter. Preserve voice, hedges, typos that aren't obvious slips, and incompleteness. Do not rewrite, expand, summarize, or "clean up."
+3. Write the user's thought verbatim to a temp file and run `anvil append inbox <id> --body-file <f>`. Preserve voice, hedges, typos that aren't obvious slips, and incompleteness. Do not rewrite, expand, summarize, or "clean up."
 
 ## Phase 2 — Acknowledge and stop
 

@@ -21,6 +21,7 @@ anvil show       <type> <id>
 anvil list       <type> [--filters]
 anvil link       <type> <id> <type> <id> [--relation depends_on|blocks]   # write edge (default related[]); --from/--to/--unresolved query
 anvil set        <type> <id> <field> <value>
+anvil append     <type> <id> --body-file <f> # append a validated body section, bumping updated
 anvil tags       add | list | define
 anvil index      <id> | --tags <facet/value,...>   # related artifacts by shared facets + links
 anvil project    list | switch | adopt | current
@@ -30,7 +31,7 @@ anvil project    list | switch | adopt | current
 
 **Reads split by shape.** Known-path content uses `Read`/`grep` directly — nothing to validate, and a wrapper just adds latency and a failure surface. Structured queries across typed frontmatter use `list <type> --filters`, where the SQLite index does joins `grep` can't. No `anvil read`.
 
-**Edits split the same way.** `set` is for typed fields (validated like `create`); body prose stays raw markdown, edited in place.
+**Edits split the same way.** `set` is for typed fields (validated like `create`); `append` grows the body through the same validation; other body edits stay raw markdown in place.
 
 `tags list` walks the vault and aggregates `tags` frontmatter into a deduped (tag, count) list. Used by artifact-creating skills to discover existing taxonomy before proposing new tags — minimizing tag drift.
 

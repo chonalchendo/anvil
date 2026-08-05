@@ -88,41 +88,18 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 	}
 
 	if authoredBody {
-		a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
-		// Point structural body failures at the up-front skeleton so an author
-		// who hit the post-hoc rollback knows how to see the required shape.
-		templateFix := fmt.Sprintf("run `anvil create %s --show-template` to print the required body skeleton + tag rules", t)
-		// Cheapest layers first: this link resolution is pure and in-memory, so
-		// it runs before the feasibility gate shells out — an author with a
-		// dead wikilink pays no block-execution time to learn it.
-		for _, link := range core.ResolveBodyLinks(v, body) {
-			failures = append(failures, unresolvedLinkError(path, link))
-		}
-		switch t {
-		case core.TypeIssue:
-			for _, vErr := range core.ValidateIssue(a) {
-				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
-			}
-			goal, _ := fm["goal"].(string)
-			title, _ := fm["title"].(string)
-			for _, vErr := range core.ValidateIssueVerbs(body, goal, title, verbPathValidator(cmd.Root())) {
-				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
-			}
-			for _, vErr := range core.ValidateIssueCheckoutPaths(body) {
-				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
-			}
-			// Feasibility gate (anvil.0196): last, because it is the only layer
-			// that shells out. Every cheaper layer must be clean first — a body
-			// citing a stale subcommand or a dead wikilink gets a sharper
-			// message from those, and an already-doomed create shouldn't pay
-			// the block-execution time on top.
-			if len(failures) == len(preErrors) && !flagSkipVerifyPredicates {
-				failures = append(failures, runFeasibilityGate(cmd, path, body)...)
-			}
-		case core.TypeLearning:
-			for _, vErr := range core.ValidateLearning(a, nil) {
-				failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
-			}
+		failures = append(failures, staticBodyFailures(cmd, v, t, path, fm, body)...)
+		// Feasibility gate (anvil.0196): last, because it is the only layer
+		// that shells out. Every cheaper layer must be clean first — a body
+		// citing a stale subcommand or a dead wikilink gets a sharper
+		// message from those, and an already-doomed create shouldn't pay
+		// the block-execution time on top. Reached only through create and
+		// promote: append validates addenda via staticBodyFailures directly,
+		// so growing an issue's body never executes its Verification blocks
+		// (whose Indirect predicates are red-until-fixed by design and flip
+		// green — i.e. refusable — the moment the issue is fixed).
+		if t == core.TypeIssue && len(failures) == len(preErrors) && !flagSkipVerifyPredicates {
+			failures = append(failures, runFeasibilityGate(cmd, path, body)...)
 		}
 	}
 
@@ -130,6 +107,45 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 		return nil
 	}
 	return emitValidationErrors(cmd, asJSON, failures)
+}
+
+// staticBodyFailures runs the pure, in-memory body validation layers —
+// wikilink resolution plus per-type structural checks — and returns the
+// violations. It never shells out: the feasibility gate stays inside
+// validateBeforeCreate, whose authored-body callers are create and promote
+// only, so append can validate an addendum against a possibly already-fixed
+// issue without executing its Verification blocks.
+func staticBodyFailures(cmd *cobra.Command, v *core.Vault, t core.Type, path string, fm map[string]any, body string) []*errfmt.ValidationError {
+	var failures []*errfmt.ValidationError
+	a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
+	// Point structural body failures at the up-front skeleton so an author
+	// who hit the post-hoc rollback knows how to see the required shape.
+	templateFix := fmt.Sprintf("run `anvil create %s --show-template` to print the required body skeleton + tag rules", t)
+	// Cheapest layers first: this link resolution is pure and in-memory, so
+	// it runs before the feasibility gate shells out — an author with a
+	// dead wikilink pays no block-execution time to learn it.
+	for _, link := range core.ResolveBodyLinks(v, body) {
+		failures = append(failures, unresolvedLinkError(path, link))
+	}
+	switch t {
+	case core.TypeIssue:
+		for _, vErr := range core.ValidateIssue(a) {
+			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
+		}
+		goal, _ := fm["goal"].(string)
+		title, _ := fm["title"].(string)
+		for _, vErr := range core.ValidateIssueVerbs(body, goal, title, verbPathValidator(cmd.Root())) {
+			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+		}
+		for _, vErr := range core.ValidateIssueCheckoutPaths(body) {
+			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+		}
+	case core.TypeLearning:
+		for _, vErr := range core.ValidateLearning(a, nil) {
+			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
+		}
+	}
+	return failures
 }
 
 // requiredFlagFix returns the actionable hint for a schema-required scalar
