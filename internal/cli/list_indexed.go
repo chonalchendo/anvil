@@ -53,7 +53,7 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 
 // indexRowsToItems enriches index rows with frontmatter fields the index does
 // not store (title, description, severity, milestone, tags), applying the
-// post-load severity/milestone/invalid-body filters. Input order is preserved
+// post-load search/severity/milestone/invalid-body filters. Input order is preserved
 // — callers relying on a query's ORDER BY (e.g. FTS rank) keep that order.
 func indexRowsToItems(rows []index.ArtifactRow, f listFilters) []listItem {
 	items := make([]listItem, 0, len(rows))
@@ -75,6 +75,9 @@ func indexRowsToItems(rows []index.ArtifactRow, f listFilters) []listItem {
 				}
 				item.MissingSection = firstMissingSection(errs)
 			}
+		}
+		if !matchesSearch(f.Search, item.Title, item.Description) {
+			continue
 		}
 		if f.Severity != "" && item.Severity != f.Severity {
 			continue

@@ -34,6 +34,7 @@ type listItem struct {
 
 type listFilters struct {
 	Status, Project, Tag string
+	Search               string
 	TagsAllOf            []string
 	Diataxis, Confidence string
 	Severity             string
@@ -87,14 +88,11 @@ func newListCmd() *cobra.Command {
 			if flagInvalidBody && t != core.TypeIssue {
 				return printAndReturn(cmd, errfmt.NewUnsupportedForType(string(t), []string{"issue"}))
 			}
-			if flagSearch != "" && t != core.TypeLearning {
-				return printAndReturn(cmd, errfmt.NewUnsupportedForType(string(t), []string{"learning"}))
-			}
 			fields, err := parseFields(flagFields)
 			if err != nil {
 				return err
 			}
-			if flagSearch != "" {
+			if flagSearch != "" && t == core.TypeLearning && !flagReady && !flagOrphans {
 				return runListSearch(cmd, t, flagSearch, listFilters{
 					Status: flagStatus, Project: flagProject,
 					Since: flagSince, Until: flagUntil,
@@ -110,6 +108,7 @@ func newListCmd() *cobra.Command {
 				}
 				return runListIndexed(cmd, t, flagReady, flagOrphans, listFilters{
 					Status: flagStatus, Project: flagProject,
+					Search:   flagSearch,
 					Severity: flagSeverity, Milestone: flagMilestone,
 					Since: flagSince, Until: flagUntil,
 					InvalidBody: flagInvalidBody,
@@ -122,6 +121,7 @@ func newListCmd() *cobra.Command {
 			tagsAllOf := splitTags(flagTags)
 			return runList(cmd, v, t, listFilters{
 				Status: flagStatus, Project: flagProject, Tag: flagTag,
+				Search:    flagSearch,
 				TagsAllOf: tagsAllOf, Diataxis: flagDiataxis,
 				Confidence: flagConfidence, Severity: flagSeverity,
 				Milestone: flagMilestone,
@@ -139,7 +139,7 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagConfidence, "confidence", "", "filter by confidence (exact match)")
 	cmd.Flags().StringVar(&flagSeverity, "severity", "", "filter by severity (exact match: "+strings.Join(issueSeverityEnum, "|")+"; issue only)")
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "filter by milestone slug (exact match, e.g. anvil.v0-1-polish-dogfood-findings; issue only)")
-	cmd.Flags().StringVar(&flagSearch, "search", "", "full-text search over learning TL;DR content, ranked by relevance (learning only)")
+	cmd.Flags().StringVar(&flagSearch, "search", "", "search text; all terms must match, case-insensitive. learning searches TL;DR content ranked by relevance, the rest match title+description, most recent first")
 	cmd.Flags().StringVar(&flagSince, "since", "", "include only artifacts created on or after YYYY-MM-DD")
 	cmd.Flags().StringVar(&flagUntil, "until", "", "include only artifacts created on or before YYYY-MM-DD")
 	cmd.Flags().IntVar(&flagLimit, "limit", defaultListLimit, "maximum results to return (default 10; --ready/--orphans default to unlimited)")
@@ -200,6 +200,9 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 		if !matchesFilters(f, status, project, diataxis, confidence, severity, milestone, created, a.FrontMatter["tags"]) {
 			continue
 		}
+		if !matchesSearch(f.Search, title, description) {
+			continue
+		}
 
 		var missingSection string
 		if f.InvalidBody {
@@ -230,6 +233,19 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 		items = items[:limit]
 	}
 	return emitList(cmd, items, total, asJSON, t, fields)
+}
+
+// matchesSearch reports whether title+description contain every
+// whitespace-separated term of query, case-insensitively. An empty query
+// matches everything, so the walk path is unaffected without --search.
+func matchesSearch(query, title, description string) bool {
+	hay := strings.ToLower(title + " " + description)
+	for _, term := range strings.Fields(strings.ToLower(query)) {
+		if !strings.Contains(hay, term) {
+			return false
+		}
+	}
+	return true
 }
 
 func matchesFilters(f listFilters, status, project, diataxis, confidence, severity, milestone, created string, tagsRaw any) bool {
