@@ -160,10 +160,12 @@ func (o showOutput) MarshalJSON() ([]byte, error) {
 
 func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename string, asJSON, includeBody, includeIncoming bool) error {
 	path := resolveArtifactPath(v.Root, t, basename)
-	// The file is found by basename, but the index keys artifacts and link
-	// targets on the canonical id — so the envelope and the incoming-edge
-	// lookup use that, or a prefix-named file shows no backlinks.
+	// id is the reported/canonical id (bare for design types); the index keys
+	// artifacts and link targets on the type-qualified IndexKey instead, so a
+	// bare id shared across types (e.g. a product-design and a system-design
+	// for the same project) still resolves distinct backlinks.
 	id := core.CanonicalID(t, basename)
+	dbKey := core.IndexKey(t, basename)
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -191,7 +193,7 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename string, as
 		// anvil.0169), so a stale vault no longer suppresses incoming edges.
 		// A failed heal (busy index, walk error) still can: degrade to no
 		// incoming section rather than suppressing the body below.
-		if incoming, err := loadIncomingEdges(v, id); err != nil {
+		if incoming, err := loadIncomingEdges(v, dbKey); err != nil {
 			cmd.PrintErrln(err)
 		} else {
 			out.Incoming = incoming

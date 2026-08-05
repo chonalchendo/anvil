@@ -144,15 +144,16 @@ func wikilinkTargetPath(v *Vault, target string) (string, bool) {
 }
 
 // CanonicalID maps a raw id or wikilink target — with or without its `<type>.`
-// prefix — to the id shape type t registers under. The project-scoped and
-// project-agnostic-but-globally-keyed types keep the prefix, so their id, their
-// on-disk basename and their `[[wikilink]]` target are one string; the rest
-// (inbox, thread, learning, sweep, decision, session) key on a bare slug.
+// prefix — to the id shape type t registers under. Convention, issue,
+// milestone, contract and plan keep the prefix, so their id, their on-disk
+// basename and their `[[wikilink]]` target are one string; the rest (design
+// types, inbox, thread, learning, sweep, decision, session) key on a bare
+// slug — the index (IndexKey) still disambiguates a bare id shared across
+// types.
 func CanonicalID(t Type, raw string) string {
 	bare := strings.TrimPrefix(raw, string(t)+".")
 	switch t {
-	case TypeProductDesign, TypeSystemDesign, TypeConvention,
-		TypeIssue, TypeMilestone, TypeContract, TypePlan:
+	case TypeConvention, TypeIssue, TypeMilestone, TypeContract, TypePlan:
 		return string(t) + "." + bare
 	}
 	return bare
@@ -176,11 +177,14 @@ func WikilinkTarget(t Type, id string) string {
 // either filename shape. Neither on disk → the canonical shape, so a not-found
 // error names the id the type is minted under.
 //
-// Design and convention files have only ever been written prefixed, so their
-// canonical id is their only shape — probing the stripped form would resolve a
-// doubled `convention.convention.x` onto the plain file. Issue, milestone,
-// contract and plan mint prefixed but still have a bare back-catalogue on disk
-// until the attended rename lands, so both shapes must resolve.
+// Convention files have only ever been written prefixed, so their canonical
+// id is their only shape — probing the stripped form would resolve a doubled
+// `convention.convention.x` onto the plain file. Issue, milestone, contract
+// and plan mint prefixed but still have a bare back-catalogue on disk until
+// the attended rename lands, so both shapes must resolve. Types whose
+// canonical id is bare (design types included) mint bare filenames going
+// forward but may still have a type-qualified back-catalogue file on disk, so
+// the qualified shape is probed too.
 //
 // cli.resolveLinkTarget keeps its own strip-chain probe rather than calling
 // this: it normalises a prefixed or doubled target to the most-stripped form
@@ -189,21 +193,30 @@ func WikilinkTarget(t Type, id string) string {
 // resolver cannot express. The duplication is the constraint, not an
 // oversight.
 func ArtifactBasename(v *Vault, t Type, raw string) string {
-	switch t {
-	case TypeProductDesign, TypeSystemDesign, TypeConvention:
+	if t == TypeConvention {
 		return CanonicalID(t, raw)
 	}
 	canonical := CanonicalID(t, raw)
 	if _, err := os.Stat(artifactPath(v, t, canonical)); err == nil {
 		return canonical
 	}
-	// Fall back to the bare back-catalogue shape — but never when bare is
-	// itself prefixed, or a doubled `milestone.milestone.x` would resolve onto
-	// the plain file and `anvil link` would embed that dead target.
+	// Fall back to the bare back-catalogue shape — skipped when bare equals
+	// canonical (bare-canonical types would just re-stat the miss above) and
+	// never when bare is itself prefixed, or a doubled `milestone.milestone.x`
+	// would resolve onto the plain file and `anvil link` would embed that dead
+	// target.
 	prefix := string(t) + "."
-	if bare := BareID(t, raw); !strings.HasPrefix(bare, prefix) {
+	if bare := BareID(t, raw); bare != canonical && !strings.HasPrefix(bare, prefix) {
 		if _, err := os.Stat(artifactPath(v, t, bare)); err == nil {
 			return bare
+		}
+	}
+	// Fall back to the qualified back-catalogue shape: a bare-canonical type
+	// (e.g. a design doc minted before its prefix was dropped) may still have
+	// its old <type>.<id>.md file on disk.
+	if qualified := WikilinkTarget(t, raw); qualified != canonical {
+		if _, err := os.Stat(artifactPath(v, t, qualified)); err == nil {
+			return qualified
 		}
 	}
 	return canonical

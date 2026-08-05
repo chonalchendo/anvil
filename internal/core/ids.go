@@ -283,33 +283,34 @@ type IDInputs struct {
 // topic-ordinal types (decision, thread), which require a vault scan to
 // allocate an ordinal.
 //
-// Every project-scoped type keeps its `<type>.` prefix in the id, so the id,
-// the on-disk basename and the `[[type.id]]` wikilink are one string —
-// Obsidian matches literal basenames, and the index keys on a global
-// artifacts.id where a bare project slug would collide across types (see
-// decision design-layout.0001). Design types are handled before the slug
-// validation because they don't require a title.
+// Issue, milestone, contract, plan and convention ids keep their `<type>.`
+// prefix, so the id, the on-disk basename and the `[[type.id]]` wikilink are
+// one string. Design types (product-design, system-design) key on a bare
+// project slug instead — the index (core.IndexKey) disambiguates a bare id
+// shared across the two design types, so the prefix is no longer needed for
+// uniqueness. Design types are handled before the slug validation because
+// they don't require a title.
 func DeterministicID(t Type, in IDInputs) (string, error) {
 	switch t {
 	case TypeProductDesign:
-		// ID is always <type>.<project> — no slug component.
+		// ID is always <project> — no slug component.
 		if in.Project == "" {
 			return "", fmt.Errorf("project required for %s", t)
 		}
-		return fmt.Sprintf("%s.%s", t, in.Project), nil
+		return in.Project, nil
 	case TypeSystemDesign:
-		// ID is <type>.<project> for the singleton, or <type>.<project>.<slug>
-		// for a named shard (explicit --slug only; title does not derive a shard).
+		// ID is <project> for the singleton, or <project>.<slug> for a named
+		// shard (explicit --slug only; title does not derive a shard).
 		if in.Project == "" {
 			return "", fmt.Errorf("project required for %s", t)
 		}
 		if in.Slug == "" {
-			return fmt.Sprintf("%s.%s", t, in.Project), nil
+			return in.Project, nil
 		}
 		if err := ValidateSlug(in.Slug); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("%s.%s.%s", t, in.Project, in.Slug), nil
+		return fmt.Sprintf("%s.%s", in.Project, in.Slug), nil
 	}
 
 	slug := in.Slug
@@ -334,14 +335,29 @@ func DeterministicID(t Type, in IDInputs) (string, error) {
 		return slug, nil
 	case TypeConvention:
 		// Conventions are project-agnostic, slug-keyed, and keep the type prefix
-		// in the id (convention.<slug>) for the same reason design types do — the
-		// index keys on a global artifacts.id, and the bare slug ("python") would
-		// collide with same-named artifacts of other types.
+		// in the id (convention.<slug>): the bare slug ("python") would collide
+		// with same-named artifacts of other types, and (unlike the design
+		// types) conventions have no folder-scoped project to key the index on
+		// instead.
 		return fmt.Sprintf("%s.%s", t, slug), nil
 	case TypeDecision, TypeThread:
 		return "", fmt.Errorf("%s IDs are not deterministic (topic-ordinal scoped)", t)
 	}
 	return "", fmt.Errorf("unknown type %q", t)
+}
+
+// IndexKey maps an id to the string vault.db's artifacts/links/tags/fts
+// tables key on. Design types (product-design, system-design) mint a bare,
+// folder-scoped CanonicalID (see DeterministicID), so two designs sharing a
+// project would collide on a bare index key — IndexKey type-qualifies exactly
+// those two types (equivalent to WikilinkTarget), while every other type's
+// index key stays identical to its CanonicalID.
+func IndexKey(t Type, id string) string {
+	switch t {
+	case TypeProductDesign, TypeSystemDesign:
+		return WikilinkTarget(t, id)
+	}
+	return CanonicalID(t, id)
 }
 
 // NextID returns the next available ID for type t under v.

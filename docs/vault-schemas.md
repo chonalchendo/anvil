@@ -88,7 +88,7 @@ product_design: "[[product-design.<project>]]"
 authorized_by: ["[[decision...]]"]
 ```
 
-Addressable as `system-design.<project>` (per-project) or `system-design.<project>.<shard>` (per subsystem); files sit flat in `06-system-designs/` (id keeps the type prefix, e.g. `system-design.burgh.md`) and resolve in show/list/wikilinks.
+Addressable as `<project>` (per-project) or `<project>.<shard>` (per subsystem); files sit flat in `06-system-designs/` under the bare id (e.g. `burgh.md`) and resolve in show/list/wikilinks. The index DB still keys on the type-qualified form (`system-design.burgh`), which is also the wikilink target shape.
 
 Body absorbs: tech stack, key invariants, risks, boundary diagrams, revisions. Mermaid diagrams stay first-class body content.
 
@@ -344,8 +344,8 @@ Wikilinks are vault-global, not project-scoped. Because the project name is part
 ```
 ~/anvil-vault/
 ├── 00-inbox/
-├── 05-product-designs/           # flat: product-design.<project>.md
-├── 06-system-designs/            # flat: system-design.<project>[.<shard>].md
+├── 05-product-designs/           # flat: <project>.md (index keys on product-design.<project>)
+├── 06-system-designs/            # flat: <project>[.<shard>].md (index keys on system-design.<project>[.<shard>])
 ├── 10-sessions/{raw,distilled}/
 ├── 20-learnings/
 ├── 30-decisions/

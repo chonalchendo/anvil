@@ -163,11 +163,11 @@ func TestDeterministicID(t *testing.T) {
 		{"milestone", TypeMilestone, IDInputs{Title: "v0.1 GA", Project: "foo"}, "milestone.foo.v0-1-ga"},
 		{"learning", TypeLearning, IDInputs{Title: "Slogger gotcha"}, "slogger-gotcha"},
 		{"sweep", TypeSweep, IDInputs{Title: "Drop python2"}, "drop-python2"},
-		// Project-scoped ids keep the type prefix so the id, the on-disk
-		// basename and the [[type.id]] wikilink are one string.
-		{"product-design", TypeProductDesign, IDInputs{Project: "foo"}, "product-design.foo"},
-		{"system-design singleton", TypeSystemDesign, IDInputs{Project: "foo"}, "system-design.foo"},
-		{"system-design shard", TypeSystemDesign, IDInputs{Project: "foo", Slug: "build"}, "system-design.foo.build"},
+		// Design ids are bare project slugs — the index (IndexKey)
+		// disambiguates a bare id shared across the two design types.
+		{"product-design", TypeProductDesign, IDInputs{Project: "foo"}, "foo"},
+		{"system-design singleton", TypeSystemDesign, IDInputs{Project: "foo"}, "foo"},
+		{"system-design shard", TypeSystemDesign, IDInputs{Project: "foo", Slug: "build"}, "foo.build"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -417,5 +417,29 @@ func TestSlugifyIssue_CapsAt40OnHyphenBoundary(t *testing.T) {
 	}
 	if !strings.HasPrefix(Slugify("this is a very long issue title that definitely exceeds forty characters"), got) {
 		t.Errorf("capped slug %q is not a hyphen-boundary prefix of the full slug", got)
+	}
+}
+
+// TestIndexKey pins the one asymmetry in the index key space: design types
+// mint a bare CanonicalID but key the index on the type-qualified form; every
+// other type's index key is its CanonicalID unchanged.
+func TestIndexKey(t *testing.T) {
+	cases := []struct {
+		t    Type
+		id   string
+		want string
+	}{
+		{TypeProductDesign, "burgh", "product-design.burgh"},
+		{TypeProductDesign, "product-design.burgh", "product-design.burgh"},
+		{TypeSystemDesign, "burgh.api", "system-design.burgh.api"},
+		{TypeIssue, "demo.0001.x", "issue.demo.0001.x"},
+		{TypeIssue, "issue.demo.0001.x", "issue.demo.0001.x"},
+		{TypeLearning, "sqlmesh-audits", "sqlmesh-audits"},
+		{TypeConvention, "python", "convention.python"},
+	}
+	for _, tc := range cases {
+		if got := IndexKey(tc.t, tc.id); got != tc.want {
+			t.Errorf("IndexKey(%s, %q) = %q, want %q", tc.t, tc.id, got, tc.want)
+		}
 	}
 }

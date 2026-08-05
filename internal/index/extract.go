@@ -97,12 +97,13 @@ func ArtifactRowFromFrontmatter(fm map[string]any, path string) (ArtifactRow, er
 	if id == "" {
 		return ArtifactRow{}, fmt.Errorf("cannot derive id from frontmatter or path %q", path)
 	}
-	// Canonicalise whichever source supplied it: a frontmatter `id:` (plans
-	// carry one) is authored bare, and a filename may carry the `<type>.`
-	// prefix. Both sides of the artifacts.id ↔ links.target join must agree on
-	// one shape or every incoming edge dangles.
+	// Key on IndexKey, not CanonicalID: both sides of the artifacts.id ↔
+	// links.target join must agree on one shape or every incoming edge
+	// dangles, and IndexKey is the type-qualified shape that keeps a bare id
+	// shared across types (e.g. a product-design and a system-design for the
+	// same project) from colliding in the index.
 	if t, err := core.ParseType(get("type")); err == nil {
-		id = core.CanonicalID(t, id)
+		id = core.IndexKey(t, id)
 	}
 	return ArtifactRow{
 		ID:      id,
@@ -192,7 +193,7 @@ func LinkRowsFromBody(source, body string) []LinkRow {
 		if err != nil {
 			continue
 		}
-		id := core.CanonicalID(t, raw)
+		id := core.IndexKey(t, raw)
 		if _, ok := seen[id]; ok {
 			continue
 		}
@@ -215,7 +216,7 @@ func parseWikilink(source, relation, s string) (LinkRow, bool) {
 		}
 		id := target[dot+1:]
 		if t, err := core.ParseType(target[:dot]); err == nil {
-			id = core.CanonicalID(t, target)
+			id = core.IndexKey(t, target)
 		}
 		return LinkRow{Source: source, Target: id, Relation: relation, Anchor: ""}, true
 	}
