@@ -47,12 +47,6 @@ type listFilters struct {
 // list is the only consumer; promote to schema package on a second use.
 var issueSeverityEnum = []string{"low", "medium", "high", "critical"}
 
-// searchableTypes are the types --search accepts. Learning searches TL;DR
-// content via the FTS index; the rest match over frontmatter title +
-// description. Any other type refuses the flag non-zero rather than returning
-// an empty result an author would read as a genuine miss.
-var searchableTypes = []string{"decision", "issue", "learning", "milestone"}
-
 func newListCmd() *cobra.Command {
 	var (
 		flagStatus, flagProject, flagTag string
@@ -94,14 +88,11 @@ func newListCmd() *cobra.Command {
 			if flagInvalidBody && t != core.TypeIssue {
 				return printAndReturn(cmd, errfmt.NewUnsupportedForType(string(t), []string{"issue"}))
 			}
-			if flagSearch != "" && !slices.Contains(searchableTypes, string(t)) {
-				return printAndReturn(cmd, errfmt.NewUnsupportedForType(string(t), searchableTypes))
-			}
 			fields, err := parseFields(flagFields)
 			if err != nil {
 				return err
 			}
-			if flagSearch != "" && t == core.TypeLearning {
+			if flagSearch != "" && t == core.TypeLearning && !flagReady && !flagOrphans {
 				return runListSearch(cmd, t, flagSearch, listFilters{
 					Status: flagStatus, Project: flagProject,
 					Since: flagSince, Until: flagUntil,
@@ -117,6 +108,7 @@ func newListCmd() *cobra.Command {
 				}
 				return runListIndexed(cmd, t, flagReady, flagOrphans, listFilters{
 					Status: flagStatus, Project: flagProject,
+					Search:   flagSearch,
 					Severity: flagSeverity, Milestone: flagMilestone,
 					Since: flagSince, Until: flagUntil,
 					InvalidBody: flagInvalidBody,
@@ -147,7 +139,7 @@ func newListCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagConfidence, "confidence", "", "filter by confidence (exact match)")
 	cmd.Flags().StringVar(&flagSeverity, "severity", "", "filter by severity (exact match: "+strings.Join(issueSeverityEnum, "|")+"; issue only)")
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "filter by milestone slug (exact match, e.g. anvil.v0-1-polish-dogfood-findings; issue only)")
-	cmd.Flags().StringVar(&flagSearch, "search", "", "search text; supported on "+strings.Join(searchableTypes, ", ")+" (learning searches TL;DR content ranked by relevance, the rest match title+description); all terms must match")
+	cmd.Flags().StringVar(&flagSearch, "search", "", "search text; all terms must match, case-insensitive. learning searches TL;DR content ranked by relevance, the rest match title+description, most recent first")
 	cmd.Flags().StringVar(&flagSince, "since", "", "include only artifacts created on or after YYYY-MM-DD")
 	cmd.Flags().StringVar(&flagUntil, "until", "", "include only artifacts created on or before YYYY-MM-DD")
 	cmd.Flags().IntVar(&flagLimit, "limit", defaultListLimit, "maximum results to return (default 10; --ready/--orphans default to unlimited)")

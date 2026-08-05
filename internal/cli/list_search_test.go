@@ -1,10 +1,6 @@
 package cli
 
-import (
-	"bytes"
-	"strings"
-	"testing"
-)
+import "testing"
 
 func TestListSearch_DecisionMatchesTitleAndDescription(t *testing.T) {
 	vault := t.TempDir()
@@ -41,22 +37,50 @@ func TestListSearch_DecisionMatchesTitleAndDescription(t *testing.T) {
 	}
 }
 
-func TestListSearch_UnsupportedTypeRefusesNonZero(t *testing.T) {
+// Every walk type searches — there is no allowlist to fall off, so a flag the
+// CLI accepts can never be silently discarded.
+func TestListSearch_AppliesToAnyWalkType(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
+	writeArtifact(t, vault, "35-conventions/cli-tooling.md",
+		"type: convention\ntitle: CLI tooling\ndescription: flags and exit codes\nstatus: active\ncreated: 2026-08-01\n")
+	writeArtifact(t, vault, "35-conventions/prose.md",
+		"type: convention\ntitle: Prose\ndescription: house voice\nstatus: active\ncreated: 2026-08-02\n")
 
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"list", "convention", "--search", "anything", "--json"})
-	var stdout, stderr bytes.Buffer
-	cmd.SetOut(&stdout)
-	cmd.SetErr(&stderr)
-	if err := cmd.Execute(); err == nil {
-		t.Fatal("expected non-nil error so the CLI exits non-zero")
+	out, _, err := runCmd(t, newRootCmd(), "list", "convention", "--search", "exit codes", "--json")
+	if err != nil {
+		t.Fatalf("search: %v", err)
 	}
-	if !strings.Contains(stdout.String(), "unsupported_for_type") {
-		t.Fatalf("expected unsupported_for_type payload; got: %s", stdout.String())
+	env := unmarshalListEnvelope(t, out)
+	if env.Total != 1 || env.Items[0].ID != "convention.cli-tooling" {
+		t.Fatalf("want the cli-tooling convention only, got %+v", env.Items)
 	}
-	if !strings.Contains(stdout.String(), "decision") {
-		t.Fatalf("expected the supported set to name decision; got: %s", stdout.String())
+}
+
+// --search must narrow the --ready queue rather than being accepted and
+// discarded (the flag reaches the indexed path, not just the walk).
+func TestListSearch_NarrowsReadyQueue(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	writeFixtureIssueDated(t, vault, "demo", "fix-login-flake", "fix login flake", "2026-01-01")
+	writeFixtureIssueDated(t, vault, "demo", "add-export", "add csv export", "2026-01-02")
+	execCmd(t, "reindex")
+
+	out, _, err := runCmd(t, newRootCmd(), "list", "issue", "--ready", "--search", "login flake", "--json")
+	if err != nil {
+		t.Fatalf("ready search: %v", err)
+	}
+	env := unmarshalListEnvelope(t, out)
+	if env.Total != 1 || env.Items[0].ID != "issue.demo.fix-login-flake" {
+		t.Fatalf("want the login-flake issue only, got %+v", env.Items)
+	}
+
+	out, _, err = runCmd(t, newRootCmd(), "list", "issue", "--ready", "--search", "zzzznonexistentterm", "--json")
+	if err != nil {
+		t.Fatalf("ready search: %v", err)
+	}
+	if env := unmarshalListEnvelope(t, out); env.Total != 0 {
+		t.Fatalf("a no-match search must empty the ready queue, got %+v", env.Items)
 	}
 }
