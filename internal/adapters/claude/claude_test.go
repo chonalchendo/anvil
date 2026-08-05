@@ -273,6 +273,21 @@ func TestRun_DisallowedToolsWall_ReachesArgv(t *testing.T) {
 	}
 }
 
+// Every spawn's argv must carry the setting sources and both runaway caps.
+func TestRun_SettingSourcesAndCaps_ReachArgv(t *testing.T) {
+	argv := runRecordingArgv(t, build.RunRequest{})
+	want := map[string]string{
+		"--setting-sources": settingSources,
+		"--max-turns":       maxSpawnTurns,
+		"--max-budget-usd":  maxSpawnBudgetUSD,
+	}
+	for flag, val := range want {
+		if got := argValue(argv, flag); got != val {
+			t.Errorf("%s = %q, want %q (argv = %v)", flag, got, val, argv)
+		}
+	}
+}
+
 func TestSettingsJSON_BudgetAndSkills(t *testing.T) {
 	req := build.RunRequest{Effort: "medium", Skills: []string{"alpha", "beta"}}
 	got, err := settingsJSON(req)

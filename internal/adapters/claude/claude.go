@@ -20,6 +20,16 @@ import (
 	"github.com/chonalchendo/anvil/internal/build"
 )
 
+// CLAUDE.md re-injects every turn via setting-sources; a one-shot prompt
+// instruction is dropped on auto-compaction. The user source keeps the
+// settings.json seedConfigDir copies into the per-spawn dir honoured. Caps
+// bound a runaway spawn.
+const (
+	settingSources    = "user,project"
+	maxSpawnTurns     = "200"
+	maxSpawnBudgetUSD = "10"
+)
+
 // Adapter spawns the Claude Code CLI per task. One Adapter is shared across
 // every task in a build — the per-spawn state (settings JSON, stdin/stdout
 // pipes) lives inside Run. New("") falls back to the `claude` binary on
@@ -92,6 +102,9 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 		"--verbose",
 		"--permission-mode", "bypassPermissions",
 		"--model", req.Model,
+		"--setting-sources", settingSources,
+		"--max-turns", maxSpawnTurns,
+		"--max-budget-usd", maxSpawnBudgetUSD,
 	}
 	if req.Cwd != "" {
 		args = append(args, "--add-dir", req.Cwd)
@@ -350,8 +363,8 @@ func settingsJSON(req build.RunRequest) (string, error) {
 	type skills struct {
 		Allow []string `json:"allow,omitempty"`
 	}
-	// TODO(integration): verify key names against claude --help / release
-	// notes — silent settings drift would be hard to diagnose.
+	// TODO(integration): verify key names and spawn flags (--max-turns) against
+	// claude --help / release notes — silent drift would be hard to diagnose.
 	settings := struct {
 		ExtendedThinking extended `json:"extendedThinking"`
 		Skills           skills   `json:"skills,omitempty"`
