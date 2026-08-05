@@ -119,6 +119,25 @@ func expandBraces(p string) []string {
 	return []string{p}
 }
 
+// mergeChanged unions the caller-supplied changed list with the git-derived
+// one, deduped, order preserved by first sight. The union means an
+// under-reporting --changed (the stale-base incident this fixes) still gets
+// covered by the derived set, without discarding a caller-reported file the
+// derivation itself might miss (e.g. an uncommitted working-tree change).
+func mergeChanged(caller, derived []string) []string {
+	seen := make(map[string]bool, len(caller)+len(derived))
+	var out []string
+	for _, list := range [][]string{caller, derived} {
+		for _, f := range list {
+			if !seen[f] {
+				seen[f] = true
+				out = append(out, f)
+			}
+		}
+	}
+	return out
+}
+
 // splitLiteralCSV splits a comma-separated string into trimmed, non-empty
 // tokens. Every comma separates, because the tokens name literal paths.
 func splitLiteralCSV(s string) []string {
