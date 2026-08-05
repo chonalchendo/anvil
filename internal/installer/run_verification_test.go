@@ -41,7 +41,7 @@ func runVerification(t *testing.T, doc string) (verdict, string, int) {
 	if err != nil {
 		t.Fatalf("resolve script path: %v", err)
 	}
-	cmd := exec.Command("bash", script)
+	cmd := exec.Command("bash", script) //nolint:gosec // script path is a test literal resolved from the repo, not user input
 	cmd.Stdin = strings.NewReader(doc)
 	var stdout, stderr strings.Builder
 	cmd.Stdout = &stdout
