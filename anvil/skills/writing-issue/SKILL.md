@@ -207,6 +207,7 @@ Every predicate, contract-drawn or not, satisfies the universal bars:
 - **Create the unmet condition first** — prescribe a pre-step so the check fails *before* the change and passes *after* (a `max(A)==max(B)` freshness check is false-green when prior state already aligned both sides).
 - **Anchor structurally** — assert against parsed structure (`jq` path, a typed field, an equality), not a bare substring grep.
 - **Feasibility gate** — run each prescribed command in this environment before the issue lands (the gate stated above), so a block copied from a sibling never ships unrunnable.
+- **No pipe from a side-effect command into an early-exit reader** — `grep -q`/`head` closes the pipe on first match and SIGPIPE-kills the producer mid-run, so the predicate passes while the side effect never completed. Capture first, then assert: `o=$(mktemp); producer > "$o"; grep -q X "$o"`.
 
 Author the body up front and pass it to `create` via `--body-file` (or `--body -` for piped stdin). `create` validates the frontmatter AND body (required H2s, wikilink targets) and rolls back the write on failure — no separate `anvil validate` step. The `## Verification` block uses fenced bash; the format is specified below.
 
