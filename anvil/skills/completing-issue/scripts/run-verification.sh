@@ -18,6 +18,12 @@
 # Blocks run in the cwd the runner is invoked from, so invoke it from the
 # worktree under test.
 #
+# One shape escapes `set -e`: bash exempts a `!`-negated pipeline, so a failing
+# `! cmd` does not abort the block and only gates when it is the block's last
+# line (its exit status). Such a line is refused before the block runs — a
+# predicate survives only as one self-contained exit-code line, so write the
+# non-last-line form as `if cmd; then exit 1; fi`.
+#
 # Usage:
 #   anvil show issue <id> | bash run-verification.sh            # summary on stderr
 #   anvil show issue <id> | bash run-verification.sh | jq -r .verdict
@@ -61,6 +67,21 @@ extract_blocks() {
     '
 }
 
+# Print the first `!`-led line of a block that is not its last executable line,
+# or nothing. Such a line is vacuous: `set -e` exempts `! cmd`, so its failure
+# never reaches the block's verdict. Textual, so a heredoc body line starting
+# with `! ` trips it too — refusing loudly beats a silently-skipped assertion.
+non_gating_negation() {
+    awk '
+        /^[[:space:]]*(#|$)/ { next }
+        { n++; line[n] = $0 }
+        END {
+            for (i = 1; i < n; i++)
+                if (line[i] ~ /^[[:space:]]*!([[:space:]]|$)/) { print line[i]; exit }
+        }
+    '
+}
+
 checks=0
 failed_json=""
 
@@ -76,7 +97,7 @@ add_fail() { # check exit-code-or-null preview
 
 run_section() {
     local label=$1
-    local n=0 fails=0 rc output preview
+    local n=0 fails=0 rc output preview vacuous
     while IFS= read -r -d '' block; do
         n=$((n + 1))
         checks=$((checks + 1))
@@ -84,6 +105,15 @@ run_section() {
         if [ -z "$preview" ]; then
             echo "FAIL [$label#$n] block has no executable command (empty or all comments)" >&2
             add_fail "$label#$n" null "block has no executable command"
+            fails=$((fails + 1))
+            continue
+        fi
+        vacuous=$(printf '%s\n' "$block" | non_gating_negation)
+        if [ -n "$vacuous" ]; then
+            echo "FAIL [$label#$n] $preview" >&2
+            echo "    non-gating negation: \`$vacuous\` is not the block's last line, and set -e exempts \`! cmd\` — its failure never fails the block" >&2
+            echo "    rewrite as: if <cmd>; then exit 1; fi" >&2
+            add_fail "$label#$n" null "non-gating negation: $vacuous"
             fails=$((fails + 1))
             continue
         fi

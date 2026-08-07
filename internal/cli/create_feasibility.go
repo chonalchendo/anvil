@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strings"
 	"syscall"
 	"time"
 
@@ -79,8 +80,10 @@ type blockRun struct {
 // (anvil.0193's `./anvil install agents` when the binary is `bin/anvil`).
 //
 // Each block runs as one script under `set -e`, matching completing-issue's
-// run-verification.sh semantics. A subsection with no fenced block is silently
-// skipped — presence enforcement is ValidateIssue's job, not this gate's.
+// run-verification.sh semantics — except a block carrying a non-last-line
+// `!` assertion, which is refused unrun (nonGatingNegation) because `set -e`
+// would exempt it. A subsection with no fenced block is silently skipped —
+// presence enforcement is ValidateIssue's job, not this gate's.
 func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.ValidationError {
 	var errs []*errfmt.ValidationError
 	for _, label := range []string{"Direct", "Indirect"} {
@@ -92,6 +95,12 @@ func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.Validat
 		}
 		for i, block := range blocks {
 			name := fmt.Sprintf("verification %s block %d", label, i+1)
+			if vacuous := nonGatingNegation(block); vacuous != "" {
+				errs = append(errs, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "",
+					fmt.Sprintf("%s asserts `%s` on a line that is not the block's last, so it never gates: bash exempts `! cmd` from set -e", name, vacuous)).
+					WithFix("rewrite the negative assertion as `if <cmd>; then exit 1; fi`, or make it the block's last line"))
+				continue
+			}
 			cmd.PrintErrln("anvil: running " + name + " in this environment (your privileges, cwd and environment; not sandboxed)")
 			r := runFeasibilityBlock(block)
 			if r.timedOut && label == "Direct" {
@@ -108,6 +117,30 @@ func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.Validat
 		}
 	}
 	return errs
+}
+
+// nonGatingNegation returns the first `!`-led line of a block that is not its
+// last executable line, or "". Such a line is vacuous: bash exempts a
+// `!`-negated pipeline from set -e, so its failure never reaches the block's
+// exit status unless it is the last line. Textual, so a heredoc body line
+// starting with `! ` trips it too — refusing loudly beats shipping an
+// assertion that silently never gates (mentat.0291). run-verification.sh
+// carries the same check, so both executors judge a block the same way.
+func nonGatingNegation(block string) string {
+	var lines []string
+	for _, l := range strings.Split(block, "\n") {
+		t := strings.TrimSpace(l)
+		if t == "" || strings.HasPrefix(t, "#") {
+			continue
+		}
+		lines = append(lines, t)
+	}
+	for i := 0; i+1 < len(lines); i++ {
+		if l := lines[i]; l == "!" || strings.HasPrefix(l, "! ") || strings.HasPrefix(l, "!\t") {
+			return l
+		}
+	}
+	return ""
 }
 
 // classifyFeasibility maps one block's observed outcome to a refusal message
