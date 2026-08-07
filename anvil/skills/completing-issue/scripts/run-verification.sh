@@ -18,6 +18,13 @@
 # Blocks run in the cwd the runner is invoked from, so invoke it from the
 # worktree under test.
 #
+# One shape escapes `set -e`: bash exempts a `!`-negated command in ANY command
+# position (`! c`, `x; ! c`, `a && ! c`, `do ! c`, `then ! c`, `{ ! c; }`), so a
+# failing `! cmd` does not abort the block and only gates as the block's last
+# line (its exit status). Any earlier such line is refused before the block runs
+# — a predicate survives only as one self-contained exit-code line, so write the
+# non-last-line form as `if cmd; then exit 1; fi`.
+#
 # Usage:
 #   anvil show issue <id> | bash run-verification.sh            # summary on stderr
 #   anvil show issue <id> | bash run-verification.sh | jq -r .verdict
@@ -61,6 +68,27 @@ extract_blocks() {
     '
 }
 
+# Print (trimmed) the first line of a block carrying a `!` in command position
+# that is not the block's last executable line, or nothing. Such a line cannot
+# fail the block: `set -e` exempts a non-final `!` command, and only the last
+# line's status becomes the verdict. The command positions are those bash
+# verified as exempt — line start, `;`, `&&`, `||`, `do`, `then`, `else`, `{` —
+# but NOT `(`, since a subshell `( ! cmd )` does abort. Textual, so a quoted or
+# heredoc `; ! ` trips it too: refusing loudly beats a silently-skipped
+# assertion. internal/core's NonGatingNegation is the Go twin of this rule, and
+# internal/installer's lockstep test drives one corpus through both.
+non_gating_negation() {
+    awk '
+        { line = $0; gsub(/^[[:space:]]+|[[:space:]]+$/, "", line) }
+        line == "" || line ~ /^#/ { next }
+        { n++; l[n] = line }
+        END {
+            for (i = 1; i < n; i++)
+                if (l[i] ~ /(^|[;&|{]|(^|[[:space:]])(do|then|else))[[:space:]]*!([[:space:]]|$)/) { print l[i]; exit }
+        }
+    '
+}
+
 checks=0
 failed_json=""
 
@@ -76,7 +104,7 @@ add_fail() { # check exit-code-or-null preview
 
 run_section() {
     local label=$1
-    local n=0 fails=0 rc output preview
+    local n=0 fails=0 rc output preview vacuous
     while IFS= read -r -d '' block; do
         n=$((n + 1))
         checks=$((checks + 1))
@@ -84,6 +112,16 @@ run_section() {
         if [ -z "$preview" ]; then
             echo "FAIL [$label#$n] block has no executable command (empty or all comments)" >&2
             add_fail "$label#$n" null "block has no executable command"
+            fails=$((fails + 1))
+            continue
+        fi
+        vacuous=$(printf '%s\n' "$block" | non_gating_negation)
+        if [ -n "$vacuous" ]; then
+            echo "FAIL [$label#$n] $preview" >&2
+            echo "    non-gating negation: \`$vacuous\` carries a \`!\` in command position on a line that is not the block's last." >&2
+            echo "    set -e exempts a non-final \`!\` command, so its failure cannot fail the block; and where a loop or if tail does gate, only its final iteration's status survives." >&2
+            echo "    rewrite as: if <cmd>; then exit 1; fi   (gates on any line) — or make it the block's last line" >&2
+            add_fail "$label#$n" null "non-gating negation: $vacuous"
             fails=$((fails + 1))
             continue
         fi

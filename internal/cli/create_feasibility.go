@@ -79,8 +79,10 @@ type blockRun struct {
 // (anvil.0193's `./anvil install agents` when the binary is `bin/anvil`).
 //
 // Each block runs as one script under `set -e`, matching completing-issue's
-// run-verification.sh semantics. A subsection with no fenced block is silently
-// skipped — presence enforcement is ValidateIssue's job, not this gate's.
+// run-verification.sh semantics — except a block carrying a non-last-line
+// `!` assertion, which is refused unrun (core.NonGatingNegation) because
+// `set -e` would exempt it. A subsection with no fenced block is skipped —
+// presence enforcement is ValidateIssue's job, not this gate's.
 func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.ValidationError {
 	var errs []*errfmt.ValidationError
 	for _, label := range []string{"Direct", "Indirect"} {
@@ -92,6 +94,12 @@ func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.Validat
 		}
 		for i, block := range blocks {
 			name := fmt.Sprintf("verification %s block %d", label, i+1)
+			if vacuous := core.NonGatingNegation(block); vacuous != "" {
+				errs = append(errs, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "",
+					fmt.Sprintf("%s carries `%s`: %s", name, vacuous, nonGatingNegationWhy)).
+					WithFix(nonGatingNegationFix))
+				continue
+			}
 			cmd.PrintErrln("anvil: running " + name + " in this environment (your privileges, cwd and environment; not sandboxed)")
 			r := runFeasibilityBlock(block)
 			if r.timedOut && label == "Direct" {
@@ -109,6 +117,16 @@ func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.Validat
 	}
 	return errs
 }
+
+// The one refusal wording for a non-gating negation, shared by the create-time
+// gate and `anvil validate --verification-stdin` so the pre-flight lint and the
+// create reject read the same (convention.cli-tooling rule 5).
+const (
+	nonGatingNegationWhy = "a `!` in command position on a line that is not the block's last. " +
+		"set -e exempts a non-final `!` command, so its failure cannot fail the block; " +
+		"and where a loop or if tail does gate, only its final iteration's status survives"
+	nonGatingNegationFix = "rewrite the negative assertion as `if <cmd>; then exit 1; fi`, which gates on any line — or make it the block's last line"
+)
 
 // classifyFeasibility maps one block's observed outcome to a refusal message
 // and its fix, or ("", "") to accept. See runFeasibilityGate for why the two
