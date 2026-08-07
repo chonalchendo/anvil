@@ -10,11 +10,9 @@ import (
 // no test inherits the developer's machine (convention.testing § Hermeticity).
 // Two concerns:
 //
-//   - Agent-CLI config roots are redirected into a throwaway HOME. The root
-//     command's skills auto-refresh reads the materialise dir and rewrites
-//     ~/.claude/skills; against the real paths it emits
-//     "anvil: refreshed stale skills bundle" onto the captured command output
-//     and mutates the developer's installed bundle.
+//   - Agent-CLI config roots are redirected into a throwaway HOME, so any test
+//     that runs `anvil install skills` writes into a temp dir rather than the
+//     developer's real ~/.claude/skills.
 //   - gh is stubbed to report no PR, so every `transition issue ... resolved`
 //     path is deterministic regardless of the host's gh auth state. Tests that
 //     exercise the refusal path re-stub via stubGhPRList.
