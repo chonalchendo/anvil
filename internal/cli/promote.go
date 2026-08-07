@@ -227,7 +227,10 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		// Mint the numbered <project>.NNNN.<slug> id via the same allocator
 		// create uses, so promoted and created issues share one id scheme.
 		var err error
-		if targetID, targetPath, err = core.AllocateIssueID(v, project, title, ""); err != nil {
+		var release func()
+		targetID, targetPath, release, err = core.AllocateIssueID(v, project, title, "")
+		defer release()
+		if err != nil {
 			return fmt.Errorf("allocating ID: %w", err)
 		}
 	} else {

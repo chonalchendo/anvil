@@ -315,40 +315,86 @@ func writeStub(path string) error {
 
 func TestAllocateIssueID_OrdinalAndIdempotency(t *testing.T) {
 	v := newScaffolded(t)
-	// AllocateIssueID removes its probe file, so callers persist the real file;
-	// mirror that here so later scans see prior allocations.
-	persist := func(path string) {
+	// AllocateIssueID only reserves the ordinal; callers persist the real file.
+	// Mirror that here so later scans see prior allocations.
+	persist := func(path string, release func()) {
 		if err := os.WriteFile(path, []byte(""), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 			t.Fatal(err)
 		}
+		release()
 	}
 
-	id1, path1, err := AllocateIssueID(v, "foo", "Fix the bug", "")
+	id1, path1, rel1, err := AllocateIssueID(v, "foo", "Fix the bug", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if id1 != "issue.foo.0001.fix-the-bug" {
 		t.Errorf("first allocation = %q, want issue.foo.0001.fix-the-bug", id1)
 	}
-	persist(path1)
+	persist(path1, rel1)
 
 	// A distinct slug gets the next ordinal.
-	id2, path2, _ := AllocateIssueID(v, "foo", "Another thing", "")
+	id2, path2, rel2, _ := AllocateIssueID(v, "foo", "Another thing", "")
 	if id2 != "issue.foo.0002.another-thing" {
 		t.Errorf("distinct slug = %q, want issue.foo.0002.another-thing", id2)
 	}
-	persist(path2)
+	persist(path2, rel2)
 
 	// Same slug → idempotent: resolves to the existing id/path, no new ordinal.
-	idDup, pathDup, _ := AllocateIssueID(v, "foo", "Fix the bug", "")
+	idDup, pathDup, _, _ := AllocateIssueID(v, "foo", "Fix the bug", "")
 	if idDup != id1 || pathDup != path1 {
 		t.Errorf("same-slug re-allocation = (%q,%q), want existing (%q,%q)", idDup, pathDup, id1, path1)
 	}
 
 	// Ordinals are per-project: a different project starts at 0001.
-	idBar, _, _ := AllocateIssueID(v, "bar", "Hello", "")
+	idBar, _, _, _ := AllocateIssueID(v, "bar", "Hello", "")
 	if idBar != "issue.bar.0001.hello" {
 		t.Errorf("per-project ordinal = %q, want issue.bar.0001.hello", idBar)
+	}
+}
+
+// TestAllocateIssueID_ConcurrentCreatesGetDistinctOrdinals is the regression for
+// the observed collision: two sessions creating different issues at once both
+// minted issue.mentat.0291. The second allocation happens while the first has
+// only reserved its ordinal — no file written yet — which is the window the
+// old slug-keyed probe left open.
+func TestAllocateIssueID_ConcurrentCreatesGetDistinctOrdinals(t *testing.T) {
+	v := newScaffolded(t)
+
+	id1, _, rel1, err := AllocateIssueID(v, "foo", "First in flight", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rel1()
+	id2, _, rel2, err := AllocateIssueID(v, "foo", "Second in flight", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rel2()
+
+	if id1 != "issue.foo.0001.first-in-flight" || id2 != "issue.foo.0002.second-in-flight" {
+		t.Errorf("in-flight allocations = (%q, %q), want distinct ordinals 0001/0002", id1, id2)
+	}
+}
+
+// A create that never writes its file frees the ordinal on release, so an
+// abandoned create doesn't burn ordinals.
+func TestAllocateIssueID_ReleaseFreesOrdinal(t *testing.T) {
+	v := newScaffolded(t)
+
+	_, _, release, err := AllocateIssueID(v, "foo", "Abandoned create", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	release()
+
+	id, _, rel, err := AllocateIssueID(v, "foo", "Next create", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rel()
+	if id != "issue.foo.0001.next-create" {
+		t.Errorf("after release = %q, want issue.foo.0001.next-create", id)
 	}
 }
 

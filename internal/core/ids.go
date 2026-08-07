@@ -85,19 +85,30 @@ func slugifyIssue(s string) string {
 // numberedIssueRe matches <project>.NNNN.<slug>.md — used by ordinal scan.
 var numberedIssueRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*\.([0-9]+)\.[a-z0-9][a-z0-9-]*\.md$`)
 
-// nextIssueOrdinal scans the issues directory for files matching
-// <project>.NNNN.<slug>.md and returns max(ordinal)+1 scoped to that project.
+// ordinalReservationsDir is the vault-scoped directory holding one marker file
+// per in-flight ordinal allocation. Vault-scoped because every concurrently
+// creating process on the host shares the vault — a per-process or temp-scoped
+// location would serialise nothing.
+func ordinalReservationsDir(v *Vault) string {
+	return filepath.Join(v.Root, ".anvil", "ordinals")
+}
+
+// nextIssueOrdinal returns max(ordinal)+1 for project, taken over both the
+// issue files on disk and the live reservations — an ordinal reserved by a
+// create still writing its file is already spoken for.
 func nextIssueOrdinal(v *Vault, project string) (int, error) {
-	dir := filepath.Join(v.Root, TypeIssue.Dir())
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return 1, nil
+	highest := 0
+	take := func(n int) {
+		if n > highest {
+			highest = n
 		}
+	}
+
+	entries, err := os.ReadDir(filepath.Join(v.Root, TypeIssue.Dir()))
+	if err != nil && !os.IsNotExist(err) {
 		return 0, fmt.Errorf("reading issues dir: %w", err)
 	}
 	prefix := project + "."
-	highest := 0
 	for _, e := range entries {
 		name := BareID(TypeIssue, e.Name())
 		if !strings.HasPrefix(name, prefix) {
@@ -107,34 +118,53 @@ func nextIssueOrdinal(v *Vault, project string) (int, error) {
 		if m == nil {
 			continue
 		}
-		n, err := strconv.Atoi(m[1])
-		if err != nil {
+		if n, err := strconv.Atoi(m[1]); err == nil {
+			take(n)
+		}
+	}
+
+	reserved, err := os.ReadDir(ordinalReservationsDir(v))
+	if err != nil && !os.IsNotExist(err) {
+		return 0, fmt.Errorf("reading ordinal reservations: %w", err)
+	}
+	for _, e := range reserved {
+		proj, ord, ok := ParseProjectQualifiedOrdinal(e.Name())
+		if !ok || proj != project {
 			continue
 		}
-		if n > highest {
-			highest = n
+		if n, err := strconv.Atoi(ord); err == nil {
+			take(n)
 		}
 	}
 	return highest + 1, nil
 }
 
-// AllocateIssueID allocates the next numbered issue ID for project using an
-// atomic O_CREAT|O_EXCL probe on the target path, retrying on EEXIST. The
-// file created by the probe is immediately removed; the caller writes the real
-// content via the normal create path. Returns the ID string
-// (<project>.NNNN.<slug>) and the resolved path.
+// AllocateIssueID allocates the next numbered issue ID for project by claiming
+// an ordinal-keyed reservation marker with an atomic O_CREAT|O_EXCL create,
+// retrying on EEXIST. Returns the ID string (<project>.NNNN.<slug>), the
+// resolved path, and a release func the caller must call once the artifact is
+// written (or the create has failed) to free the reservation.
+//
+// The marker is keyed on the ordinal alone, not the target filename: two
+// concurrent creates pick different slugs, so a probe on the slug-bearing path
+// never collides and both would mint the same ordinal. It is held for the whole
+// create — not removed on the spot — because the caller's write lands long after
+// allocation (body validation runs the issue's verification blocks first), and
+// an ordinal freed inside that window is an ordinal a sibling session re-mints.
+// A process killed mid-create leaks a marker, which costs one skipped ordinal.
 //
 // Slug is derived from title via slugifyIssue unless slugOverride is non-empty,
 // in which case slugOverride (already validated) is used directly.
-func AllocateIssueID(v *Vault, project, title, slugOverride string) (id, path string, err error) {
+func AllocateIssueID(v *Vault, project, title, slugOverride string) (id, path string, release func(), err error) {
+	noop := func() {}
 	slug := slugOverride
 	if slug == "" {
 		slug = slugifyIssue(title)
 	} else if err := ValidateSlug(slug); err != nil {
-		return "", "", err
+		return "", "", noop, err
 	}
 	if slug == "" {
-		return "", "", fmt.Errorf("title required (produced empty slug)")
+		return "", "", noop, fmt.Errorf("title required (produced empty slug)")
 	}
 	dir := filepath.Join(v.Root, TypeIssue.Dir())
 	// Idempotency (agent-cli-principles §6): a re-create with the same slug
@@ -142,30 +172,30 @@ func AllocateIssueID(v *Vault, project, title, slugOverride string) (id, path st
 	// drift error / --update) rather than minting a duplicate under a fresh
 	// ordinal. Only a genuinely-new slug allocates a new ordinal below.
 	if existingID, existingPath, found := findIssueBySlug(v, project, slug); found {
-		return existingID, existingPath, nil
+		return existingID, existingPath, noop, nil
+	}
+	reserveDir := ordinalReservationsDir(v)
+	if err := os.MkdirAll(reserveDir, 0o755); err != nil {
+		return "", "", noop, fmt.Errorf("creating ordinal reservations dir: %w", err)
 	}
 	for attempt := 0; attempt < 20; attempt++ {
 		ordinal, err := nextIssueOrdinal(v, project)
 		if err != nil {
-			return "", "", err
+			return "", "", noop, err
 		}
-		candidate := fmt.Sprintf("%s.%s.%04d.%s", TypeIssue, project, ordinal, slug)
-		candidatePath := filepath.Join(dir, candidate+".md")
-		f, err := os.OpenFile(candidatePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644) //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		marker := filepath.Join(reserveDir, fmt.Sprintf("%s.%04d", project, ordinal))
+		f, err := os.OpenFile(marker, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644) //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		if err == nil {
-			// Probe succeeded; remove placeholder so the real content write can proceed.
 			_ = f.Close()
-			if rerr := os.Remove(candidatePath); rerr != nil {
-				return "", "", fmt.Errorf("removing probe file %s: %w", candidatePath, rerr)
-			}
-			return candidate, candidatePath, nil
+			candidate := fmt.Sprintf("%s.%s.%04d.%s", TypeIssue, project, ordinal, slug)
+			return candidate, filepath.Join(dir, candidate+".md"), func() { _ = os.Remove(marker) }, nil
 		}
 		if !errors.Is(err, os.ErrExist) {
-			return "", "", fmt.Errorf("probing %s: %w", candidatePath, err)
+			return "", "", noop, fmt.Errorf("reserving ordinal %s: %w", marker, err)
 		}
-		// EEXIST: another writer landed between the scan and the probe; retry.
+		// EEXIST: a concurrent create holds this ordinal; retry with the next.
 	}
-	return "", "", fmt.Errorf("unable to allocate numbered issue ID after 20 attempts")
+	return "", "", noop, fmt.Errorf("unable to allocate numbered issue ID after 20 attempts")
 }
 
 // findIssueBySlug returns the canonical ID and path of an existing

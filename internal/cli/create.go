@@ -265,7 +265,12 @@ func newCreateCmd() *cobra.Command {
 			var id, path string
 			if !isTopicOrdinalType(t) || flagTopic != "" {
 				var err error
-				id, path, err = resolveCreateIDPath(v, t, project, flagTitle, flagTopic, slugDefault)
+				var release func()
+				id, path, release, err = resolveCreateIDPath(v, t, project, flagTitle, flagTopic, slugDefault)
+				// Held until create returns: the ordinal must stay reserved
+				// across body validation, which runs the issue's verification
+				// blocks and can take minutes.
+				defer release()
 				if err != nil {
 					return err
 				}
