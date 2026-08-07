@@ -175,7 +175,7 @@ func AllocateIssueID(v *Vault, project, title, slugOverride string) (id, path st
 		return existingID, existingPath, noop, nil
 	}
 	reserveDir := ordinalReservationsDir(v)
-	if err := os.MkdirAll(reserveDir, 0o755); err != nil {
+	if err := os.MkdirAll(reserveDir, 0o750); err != nil {
 		return "", "", noop, fmt.Errorf("creating ordinal reservations dir: %w", err)
 	}
 	for attempt := 0; attempt < 20; attempt++ {
