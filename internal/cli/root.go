@@ -62,14 +62,13 @@ func newRootCmd() *cobra.Command {
 		Short:         "Anvil — agentic-development methodology",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			if flagVault != "" {
 				_ = os.Setenv("ANVIL_VAULT", flagVault)
 			}
 			if flagProject != "" {
 				_ = os.Setenv("ANVIL_PROJECT", flagProject)
 			}
-			refreshSkillsIfStale(cmd)
 			return nil
 		},
 	}

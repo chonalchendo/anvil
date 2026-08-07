@@ -21,7 +21,7 @@ Ask: "Would a senior engineer call this overcomplicated?" If yes, simplify.
 
 Every task runs in a worktree and lands via PR. Never commit directly on `master`. See `@docs/worktree-workflow.md` for the cut command, merge cleanup, the smoke-test gate required before every PR, and the wait-on-human-gated-PR rule.
 
-**Never `go install ./cmd/anvil` directly** — it bypasses the version stamp and the safeguards below, silently handing you a stale binary. Two recipes wrap it: `just install` (global `$GOPATH/bin`, with a PATH-shadow inode check) for the interactive `anvil` on your PATH; `just install-local` (worktree-local `./bin/anvil`) for the smoke-test gate, so parallel fleet workers don't clobber one shared binary.
+**Never `go install ./cmd/anvil` directly** — it bypasses the version stamp and the safeguards below, silently handing you a stale binary. Two recipes wrap it: `just install` (global `$GOPATH/bin`, with a PATH-shadow inode check) for the interactive `anvil` on your PATH; `just install-local` (worktree-local `./bin/anvil`) for the smoke-test gate, so parallel fleet workers don't clobber one shared binary. `just install` only rebuilds the binary — after it, run `anvil install skills` to pick up any skill changes; no verb refreshes the installed bundle implicitly.
 
 ## Working through issues
 

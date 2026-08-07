@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -201,7 +200,7 @@ func newInstallSkillsCmd() *cobra.Command {
 						if _, err := installer.PruneOrphanedSkills(skills.FS, mat, skillsDir); err != nil {
 							return fmt.Errorf("pruning orphaned skills: %w", err)
 						}
-						cmd.Println("anvil skills up to date at", skillsDir+" (embedded bundle); re-run with --force after rebuilding the binary to pick up new skills")
+						cmd.Println("anvil skills up to date at", skillsDir+" (embedded bundle); pass --force to overwrite a foreign non-symlink entry at the target")
 						return nil
 					}
 				}
@@ -330,51 +329,15 @@ func resolveAnvilAgentsTarget(target string) (string, error) {
 	return filepath.Join(dir, "agents"), nil
 }
 
-// refreshSkillsIfStale auto-rebuilds the installed skills bundle when its
-// content diverges from the binary's embedded skills (e.g. after `go install`
-// rebuilt the binary). It is a no-op when skills were never installed, or
-// when the current command is itself an install subcommand, or when the
-// refresh would clobber a user-managed non-symlink target (installer
-// swallows that case — the explicit `anvil install skills` is where users
-// expect to be told about the conflict). Other failures are surfaced to
-// stderr but never abort the command.
-func refreshSkillsIfStale(cmd *cobra.Command) {
-	if strings.HasPrefix(cmd.CommandPath(), "anvil install") {
-		return
-	}
-	// Auto-refresh tracks only the default Claude install; Codex installs are
-	// explicit and opt-in, so a stale Codex bundle is refreshed by re-running
-	// `anvil install skills --target codex`, not here. Resolving through the
-	// same helper as install/uninstall means the refresh maintains the dir an
-	// install actually wrote — and no-ops until a first install creates it.
-	mat, err := resolveSkillsMaterialiseDir("claude")
-	if err != nil {
-		return
-	}
-	target, err := resolveAnvilSkillsTarget("claude")
-	if err != nil {
-		return
-	}
-	refreshed, err := installer.RefreshSkillsIfStale(skills.FS, mat, target)
-	if err != nil {
-		cmd.PrintErrln("anvil: skills auto-refresh failed:", err)
-		return
-	}
-	if refreshed {
-		cmd.PrintErrln("anvil: refreshed stale skills bundle at", target)
-	}
-}
-
 // resolveSkillsMaterialiseDir returns where the embedded skills bundle is
 // extracted to disk before being symlinked (or copied) into the target's
 // skills dir: <target-config-dir>/.anvil-skills-src, honoring
 // CLAUDE_CONFIG_DIR/CODEX_HOME, with ANVIL_SKILLS_DIR as an outright
 // override. This is the ONLY materialise-dir resolver — install, uninstall,
-// `anvil init --install-claude`, and the auto-refresh all resolve through it,
-// so exactly one materialise dir exists per target and every symlink writer
-// agrees on ownership. (A prior split between a shared ~/.anvil/skills dir
-// and a per-target hermetic dir made uninstall disown install's symlinks and
-// auto-refresh revert redirected installs.)
+// and `anvil init --install-claude` all resolve through it, so exactly one
+// materialise dir exists per target and every symlink writer agrees on
+// ownership. (A prior split between a shared ~/.anvil/skills dir and a
+// per-target hermetic dir made uninstall disown install's symlinks.)
 func resolveSkillsMaterialiseDir(target string) (string, error) {
 	if d := os.Getenv("ANVIL_SKILLS_DIR"); d != "" {
 		return d, nil
