@@ -200,7 +200,7 @@ func newInstallSkillsCmd() *cobra.Command {
 						if _, err := installer.PruneOrphanedSkills(skills.FS, mat, skillsDir); err != nil {
 							return fmt.Errorf("pruning orphaned skills: %w", err)
 						}
-						cmd.Println("anvil skills up to date at", skillsDir+" (embedded bundle); re-run with --force after rebuilding the binary to pick up new skills")
+						cmd.Println("anvil skills up to date at", skillsDir+" (embedded bundle); pass --force to overwrite a foreign non-symlink entry at the target")
 						return nil
 					}
 				}
