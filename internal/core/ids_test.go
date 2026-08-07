@@ -1,9 +1,11 @@
 package core
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -374,6 +376,58 @@ func TestAllocateIssueID_ConcurrentCreatesGetDistinctOrdinals(t *testing.T) {
 
 	if id1 != "issue.foo.0001.first-in-flight" || id2 != "issue.foo.0002.second-in-flight" {
 		t.Errorf("in-flight allocations = (%q, %q), want distinct ordinals 0001/0002", id1, id2)
+	}
+}
+
+// TestAllocateIssueID_GoroutineFanOut exercises the EEXIST retry branch, which
+// sequential calls never reach — they win the marker on attempt 1. Only genuine
+// scan/reserve interleaving makes two allocations pick the same ordinal, so this
+// is the test that covers the retry. Run under -race.
+func TestAllocateIssueID_GoroutineFanOut(t *testing.T) {
+	v := newScaffolded(t)
+
+	const n = 8
+	var (
+		wg       sync.WaitGroup
+		mu       sync.Mutex
+		ids      []string
+		releases []func()
+		errs     []error
+	)
+	for i := range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			id, _, release, err := AllocateIssueID(v, "foo", fmt.Sprintf("Concurrent create %d", i), "")
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				errs = append(errs, err)
+				return
+			}
+			ids = append(ids, id)
+			releases = append(releases, release)
+		}()
+	}
+	wg.Wait()
+	for _, release := range releases {
+		defer release()
+	}
+	for _, err := range errs {
+		t.Errorf("allocation failed: %v", err)
+	}
+
+	ordinals := map[string]string{}
+	for _, id := range ids {
+		parts := strings.Split(id, ".")
+		ord := parts[2]
+		if prev, dup := ordinals[ord]; dup {
+			t.Errorf("ordinal %s minted twice: %q and %q", ord, prev, id)
+		}
+		ordinals[ord] = id
+	}
+	if len(ordinals) != n {
+		t.Errorf("distinct ordinals = %d, want %d (got %v)", len(ordinals), n, ids)
 	}
 }
 

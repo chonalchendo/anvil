@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -28,7 +27,10 @@ const sessionLivenessWindow = 24 * time.Hour
 
 // doctorFinding is one stale-lifecycle finding emitted by `anvil doctor`.
 type doctorFinding struct {
-	Kind     string `json:"kind"`
+	Kind string `json:"kind"`
+	// ID names the artifact at fault. Exception: duplicate-ordinal has no single
+	// culprit, so it carries the synthetic issue.<project>.NNNN shorthand that
+	// collided — it resolves to no artifact; Evidence names the real ids.
 	ID       string `json:"id"`
 	Evidence string `json:"evidence"`
 	Fix      string `json:"fix"`
@@ -181,38 +183,6 @@ func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 	findings = append(findings, checkDuplicateOrdinals(issuePaths)...)
 
 	return findings, nil
-}
-
-// checkDuplicateOrdinals returns a finding per <project>.NNNN ordinal carried by
-// more than one issue file. Full ids stay unambiguous, but ordinal shorthand —
-// the form handoffs, PR titles and cross-references use — resolves to two
-// artifacts, so the collision has to be loud rather than silently tolerated.
-func checkDuplicateOrdinals(issuePaths []string) []doctorFinding {
-	byOrdinal := map[string][]string{}
-	for _, p := range issuePaths {
-		bare := core.BareID(core.TypeIssue, strings.TrimSuffix(filepath.Base(p), ".md"))
-		parts := strings.SplitN(bare, ".", 3)
-		if len(parts) != 3 || !core.IsOrdinalOnly(parts[1]) {
-			continue // legacy unnumbered issue — no ordinal to collide
-		}
-		key := parts[0] + "." + parts[1]
-		byOrdinal[key] = append(byOrdinal[key], core.CanonicalID(core.TypeIssue, bare))
-	}
-	var findings []doctorFinding
-	for key, ids := range byOrdinal {
-		if len(ids) < 2 {
-			continue
-		}
-		sort.Strings(ids)
-		findings = append(findings, doctorFinding{
-			Kind:     "duplicate-ordinal",
-			ID:       core.CanonicalID(core.TypeIssue, key),
-			Evidence: fmt.Sprintf("ordinal shorthand %s resolves to %d issues: %s", key, len(ids), strings.Join(ids, ", ")),
-			Fix:      fmt.Sprintf("renumber all but one of %s onto free ordinals, sweeping inbound references", strings.Join(ids, ", ")),
-		})
-	}
-	sort.Slice(findings, func(i, j int) bool { return findings[i].ID < findings[j].ID })
-	return findings
 }
 
 // checkContractConventionRails returns a finding for each active contract

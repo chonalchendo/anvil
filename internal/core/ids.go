@@ -184,7 +184,7 @@ func AllocateIssueID(v *Vault, project, title, slugOverride string) (id, path st
 			return "", "", noop, err
 		}
 		marker := filepath.Join(reserveDir, fmt.Sprintf("%s.%04d", project, ordinal))
-		f, err := os.OpenFile(marker, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644) //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		f, err := os.OpenFile(marker, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644) //nolint:gosec // marker is a zero-byte lock; 0644 keeps it removable by any session sharing the vault
 		if err == nil {
 			_ = f.Close()
 			candidate := fmt.Sprintf("%s.%s.%04d.%s", TypeIssue, project, ordinal, slug)
