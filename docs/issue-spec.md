@@ -68,7 +68,7 @@ grep -q "transitioned to in-progress" "$o"
 
 ## Parsing rules
 
-- Each `` ```bash `` block is one check: its lines run together as a single script under `set -e`, so state set on one line (`out=$(cmd)`) is visible to the next, and the block FAILS on the **first** line that exits non-zero (all lines pass = PASS). Guard an intentionally-non-fatal line with `… || true`. Pipelines are **not** under `pipefail`, so assert on a pipeline's final stage — a failing non-final stage (`cmd | grep …`) does not fail the block. Split genuinely independent assertions into separate blocks — each block is its own check.
+- Each `` ```bash `` block is one check: its lines run together as a single script under `set -e`, so state set on one line (`out=$(cmd)`) is visible to the next, and the block FAILS on the **first** line that exits non-zero (all lines pass = PASS). Guard an intentionally-non-fatal line with `… || true`. **Positional caveat — negative assertions:** `set -e` exempts a `!`-negated command in every command position (`! c`, `x; ! c`, `a && ! c`, `for …; do ! c; done`, `if a; then ! c; fi`, `{ ! c; }`), so such a line fails the block only as its **last** line; anywhere earlier its failure is silently skipped. Write a non-last-line negative assertion as `if cmd; then exit 1; fi` — `anvil create issue` and `run-verification.sh` both refuse the vacuous form unrun, and `anvil validate --verification-stdin` flags it pre-flight. Pipelines are **not** under `pipefail`, so assert on a pipeline's final stage — a failing non-final stage (`cmd | grep …`) does not fail the block. Split genuinely independent assertions into separate blocks — each block is its own check.
 - Comments and blank lines run as part of the script — they are not stripped, so heredocs stay intact.
 - Multiple `` ```bash `` blocks in the same subsection are separate checks, run in order. State is **not** shared across blocks.
 - The block opener must be exactly `` ```bash `` (with no trailing chars); other fence languages are not parsed as checks. A block's own content may contain nested `` ``` `` fences (e.g. a heredoc holding a mini issue doc) — fence depth is tracked, so only the outermost opener starts a check, and a `## `/`### ` line inside an open fence is block content, not a section boundary. An unterminated fence fails closed: the create is refused rather than running a partial block list.
@@ -94,14 +94,16 @@ git grep -r "OldName" -- '*.go'
 
 ```bash
 # wrong: forbids the token globally even where a layer still uses it legitimately
-! git grep -q "normalised" -- '*.go'
+if git grep -q "normalised" -- '*.go'; then exit 1; fi
 
 # right: forbid it only where it was retired, and confirm it survives where it is still correct
-! git grep -q "normalised" -- renamed-pkg/
+if git grep -q "normalised" -- renamed-pkg/; then exit 1; fi
 git grep -q "normalised" -- surviving-layer/
 ```
 
-Pair every absence check with a positive existence check: `! git grep -q "X" -- pkg/` also passes vacuously when `pkg/` is mistyped or empty — the exact false-green this section warns against.
+The absence check is written `if cmd; then exit 1; fi`, not `! cmd`, because it is not the block's last line — see the `set -e` caveat in *Parsing rules* above; both executors refuse the `!` form there.
+
+Pair every absence check with a positive existence check: forbidding `X` in `pkg/` also passes vacuously when `pkg/` is mistyped or empty — the exact false-green this section warns against.
 
 ## Why both subsections
 

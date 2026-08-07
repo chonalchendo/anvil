@@ -90,6 +90,29 @@ func TestRunVerification_PassEmitsVerdictLine(t *testing.T) {
 	}
 }
 
+// The original mentat.0291 repro: a failing `! cmd` above another line used to
+// leave the block green because set -e exempts it. The runner must now refuse
+// the block unrun and say why in the verdict, not just on stderr.
+func TestRunVerification_NonGatingNegationFailsTheBlock(t *testing.T) {
+	v, stderr, exit := runVerification(t, issueDoc("! true\necho SURVIVED", "true"))
+
+	if v.Verdict != "fail" || exit != 1 {
+		t.Errorf("verdict = %+v, exit = %d, want fail/1", v, exit)
+	}
+	if len(v.Failed) != 1 || v.Failed[0].Check != "Direct#1" {
+		t.Fatalf("failed = %+v, want one entry naming Direct#1", v.Failed)
+	}
+	if v.Failed[0].Preview != "non-gating negation: ! true" {
+		t.Errorf("preview = %q, want it to name the non-gating negation", v.Failed[0].Preview)
+	}
+	if !strings.Contains(stderr, "if <cmd>; then exit 1; fi") {
+		t.Errorf("stderr must carry the rewrite:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "SURVIVED") {
+		t.Errorf("refused block must not run:\n%s", stderr)
+	}
+}
+
 func TestRunVerification_FailNamesTheFailedCheck(t *testing.T) {
 	// The failing predicate carries double quotes so the runner's hand-rolled
 	// JSON escaping in add_fail is exercised: a preview that mangles quotes

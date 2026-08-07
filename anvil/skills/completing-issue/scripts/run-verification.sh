@@ -18,10 +18,11 @@
 # Blocks run in the cwd the runner is invoked from, so invoke it from the
 # worktree under test.
 #
-# One shape escapes `set -e`: bash exempts a `!`-negated pipeline, so a failing
-# `! cmd` does not abort the block and only gates when it is the block's last
-# line (its exit status). Such a line is refused before the block runs — a
-# predicate survives only as one self-contained exit-code line, so write the
+# One shape escapes `set -e`: bash exempts a `!`-negated command in ANY command
+# position (`! c`, `x; ! c`, `a && ! c`, `do ! c`, `then ! c`, `{ ! c; }`), so a
+# failing `! cmd` does not abort the block and only gates as the block's last
+# line (its exit status). Any earlier such line is refused before the block runs
+# — a predicate survives only as one self-contained exit-code line, so write the
 # non-last-line form as `if cmd; then exit 1; fi`.
 #
 # Usage:
@@ -67,17 +68,23 @@ extract_blocks() {
     '
 }
 
-# Print the first `!`-led line of a block that is not its last executable line,
-# or nothing. Such a line is vacuous: `set -e` exempts `! cmd`, so its failure
-# never reaches the block's verdict. Textual, so a heredoc body line starting
-# with `! ` trips it too — refusing loudly beats a silently-skipped assertion.
+# Print (trimmed) the first line of a block carrying a `!` in command position
+# that is not the block's last executable line, or nothing. Such a line cannot
+# fail the block: `set -e` exempts a non-final `!` command, and only the last
+# line's status becomes the verdict. The command positions are those bash
+# verified as exempt — line start, `;`, `&&`, `||`, `do`, `then`, `else`, `{` —
+# but NOT `(`, since a subshell `( ! cmd )` does abort. Textual, so a quoted or
+# heredoc `; ! ` trips it too: refusing loudly beats a silently-skipped
+# assertion. internal/core's NonGatingNegation is the Go twin of this rule, and
+# internal/installer's lockstep test drives one corpus through both.
 non_gating_negation() {
     awk '
-        /^[[:space:]]*(#|$)/ { next }
-        { n++; line[n] = $0 }
+        { line = $0; gsub(/^[[:space:]]+|[[:space:]]+$/, "", line) }
+        line == "" || line ~ /^#/ { next }
+        { n++; l[n] = line }
         END {
             for (i = 1; i < n; i++)
-                if (line[i] ~ /^[[:space:]]*!([[:space:]]|$)/) { print line[i]; exit }
+                if (l[i] ~ /(^|[;&|{]|(^|[[:space:]])(do|then|else))[[:space:]]*!([[:space:]]|$)/) { print l[i]; exit }
         }
     '
 }
@@ -111,8 +118,9 @@ run_section() {
         vacuous=$(printf '%s\n' "$block" | non_gating_negation)
         if [ -n "$vacuous" ]; then
             echo "FAIL [$label#$n] $preview" >&2
-            echo "    non-gating negation: \`$vacuous\` is not the block's last line, and set -e exempts \`! cmd\` — its failure never fails the block" >&2
-            echo "    rewrite as: if <cmd>; then exit 1; fi" >&2
+            echo "    non-gating negation: \`$vacuous\` carries a \`!\` in command position on a line that is not the block's last." >&2
+            echo "    set -e exempts a non-final \`!\` command, so its failure cannot fail the block; and where a loop or if tail does gate, only its final iteration's status survives." >&2
+            echo "    rewrite as: if <cmd>; then exit 1; fi   (gates on any line) — or make it the block's last line" >&2
             add_fail "$label#$n" null "non-gating negation: $vacuous"
             fails=$((fails + 1))
             continue

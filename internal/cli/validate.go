@@ -150,7 +150,7 @@ func newValidateCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON array of structured errors")
-	cmd.Flags().BoolVar(&verificationStdin, "verification-stdin", false, "lint a Verification block's bash script (read from stdin) for a hardcoded checkout path that would override worktree anchoring — no vault lookup; ignores [path], honours --json")
+	cmd.Flags().BoolVar(&verificationStdin, "verification-stdin", false, "lint a Verification block's bash script (read from stdin) for a hardcoded checkout path that would override worktree anchoring, and for a non-gating `!` assertion set -e would exempt — the rules `create issue` enforces; no vault lookup, ignores [path], honours --json")
 	cmd.AddCommand(newValidateSkillCmd())
 	return cmd
 }

@@ -170,6 +170,41 @@ func CheckoutPathMatches(text string) []string {
 	return out
 }
 
+// nonGatingNegationRE matches a `!` in command position — every position where
+// bash exempts the negated command from `set -e`, so a failure there cannot
+// abort the block. Verified against bash 5.3: `! c`, `x; ! c`, `a && ! c`,
+// `a || ! c`, `for …; do ! c; done`, `if a; then ! c; fi` and `{ ! c; }` all
+// survive a failing `c`. `(` is deliberately absent — a subshell `( ! c )`
+// does abort, so flagging it would refuse a predicate that gates.
+var nonGatingNegationRE = regexp.MustCompile(`(^|[;&|{]|(^|[[:space:]])(do|then|else))[[:space:]]*!([[:space:]]|$)`)
+
+// NonGatingNegation returns the first line of a verification block that carries
+// a `!` in command position and is not the block's last executable line, or "".
+// Such a line cannot fail the block: `set -e` exempts it, and only the last
+// line's status becomes the block's verdict. The detector is textual, so a
+// quoted or heredoc `; ! ` trips it too — refusing loudly beats shipping an
+// assertion that silently never gates (mentat.0291).
+//
+// completing-issue's run-verification.sh carries the same rule in awk so both
+// executors judge a block identically; internal/installer's lockstep test
+// drives one case corpus through this function and the shipped script.
+func NonGatingNegation(block string) string {
+	var lines []string
+	for _, l := range strings.Split(block, "\n") {
+		t := strings.TrimSpace(l)
+		if t == "" || strings.HasPrefix(t, "#") {
+			continue
+		}
+		lines = append(lines, t)
+	}
+	for i := 0; i+1 < len(lines); i++ {
+		if nonGatingNegationRE.MatchString(lines[i]) {
+			return lines[i]
+		}
+	}
+	return ""
+}
+
 // ValidateIssueCheckoutPaths reports one error per hardcoded checkout-path
 // reference found in the issue's Verification blocks — the authoring-time half
 // of this fix; the runner's own anchoring was already resolved by the sibling
