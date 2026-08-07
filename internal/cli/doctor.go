@@ -27,7 +27,10 @@ const sessionLivenessWindow = 24 * time.Hour
 
 // doctorFinding is one stale-lifecycle finding emitted by `anvil doctor`.
 type doctorFinding struct {
-	Kind     string `json:"kind"`
+	Kind string `json:"kind"`
+	// ID names the artifact at fault. Exception: duplicate-ordinal has no single
+	// culprit, so it carries the synthetic issue.<project>.NNNN shorthand that
+	// collided — it resolves to no artifact; Evidence names the real ids.
 	ID       string `json:"id"`
 	Evidence string `json:"evidence"`
 	Fix      string `json:"fix"`
@@ -48,7 +51,7 @@ func newDoctorCmd() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "doctor",
-		Short: "Detect stale lifecycle state (merged-PR issues, dead claims, finished milestones, orphan worktrees, empty contract convention rails)",
+		Short: "Detect stale lifecycle state (merged-PR issues, dead claims, finished milestones, orphan worktrees, empty contract convention rails, duplicate ordinals)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
@@ -96,7 +99,7 @@ type childIssue struct {
 	milestone string
 }
 
-// runDoctor checks all five stale-lifecycle shapes and returns the findings.
+// runDoctor checks all six stale-lifecycle shapes and returns the findings.
 // Best-effort: a check that cannot shell out (gh missing, no network) skips
 // rather than aborts so doctor is always usable in offline environments.
 // projectSlug is the current project binding; repo-local checks (dead claim)
@@ -175,6 +178,9 @@ func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 		return nil, err
 	}
 	findings = append(findings, contractFindings...)
+
+	// Shape 6: two issues minted under one ordinal.
+	findings = append(findings, checkDuplicateOrdinals(issuePaths)...)
 
 	return findings, nil
 }

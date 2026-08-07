@@ -22,17 +22,21 @@ func isTopicOrdinalType(t core.Type) bool {
 // their own path; decisions and threads allocate a topic-scoped ordinal;
 // everything else is the slug-keyed DeterministicID. Path defaults to the
 // type's slug-based location unless the allocator already resolved it (issues).
-func resolveCreateIDPath(v *core.Vault, t core.Type, project, title, topic, slug string) (id, path string, err error) {
+//
+// release frees an issue's ordinal reservation and must be called once the
+// create has written its file or failed; it is a no-op for every other type.
+func resolveCreateIDPath(v *core.Vault, t core.Type, project, title, topic, slug string) (id, path string, release func(), err error) {
+	release = func() {}
 	switch t {
 	case core.TypeDecision, core.TypeThread:
 		id, err = core.NextID(v, t, core.IDInputs{Title: title, Project: project, Topic: topic, Slug: slug})
 	case core.TypeIssue:
-		id, path, err = core.AllocateIssueID(v, project, title, slug)
+		id, path, release, err = core.AllocateIssueID(v, project, title, slug)
 	default:
 		id, err = core.DeterministicID(t, core.IDInputs{Title: title, Project: project, Slug: slug})
 	}
 	if err != nil {
-		return "", "", invalidSlugError(slug, err)
+		return "", "", release, invalidSlugError(slug, err)
 	}
 	if path == "" {
 		// Resolve through ArtifactBasename, not t.Path(v.Root, id): a
@@ -42,7 +46,7 @@ func resolveCreateIDPath(v *core.Vault, t core.Type, project, title, topic, slug
 		// forking a duplicate-id sibling.
 		path = t.Path(v.Root, core.ArtifactBasename(v, t, id))
 	}
-	return id, path, nil
+	return id, path, release, nil
 }
 
 // slugFromIssueLink extracts the slug component from an issue wikilink of

@@ -102,7 +102,7 @@ test-install-race:
 validate vault="":
     @if [ -z "{{vault}}" ]; then go run ./cmd/anvil validate; else go run ./cmd/anvil validate {{vault}}; fi
 
-# Run all local checks in CI order: fmt, lint, skill + genericity lint, vet, build, test, init+validate smoke. Mirrors .github/workflows/ci.yml.
+# Run all local checks in CI order: fmt, lint, Go file length, CLI test isolation, skill + genericity lint, vet, build, test, init+validate smoke. Mirrors .github/workflows/ci.yml.
 check:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -113,6 +113,39 @@ check:
         exit 1
     fi
     go tool -modfile=tool.go.mod golangci-lint run ./...
+    # Go file length + CLI test isolation, mirrored from ci.yml. Each runs in a
+    # subshell so its `exit` ends the gate, not the whole recipe.
+    (
+        max=500
+        fail=0
+        while IFS= read -r f; do
+            n=$(wc -l < "$f")
+            if [ "$n" -gt "$max" ]; then
+                echo "::error file=$f::$f is $n lines (max $max for non-test Go files) — split into focused files in the same package"
+                fail=1
+            fi
+        done < <(git ls-files '*.go' ':(exclude)*_test.go')
+        exit $fail
+    )
+    (
+        mapfile -t files < <(git ls-files '*_test.go')
+        awk '
+          function offend(sel, flag) {
+            printf "::error file=%s::%s: %s runs a root command with %s but never pins %s — the root command exports that flag into the process environment and leaks it into whichever test runs next. Add isolateRootEnv(t) after t.Helper(), route through setupVault/runCmd/runArgs/execCmd, or t.Setenv(\"%s\", ...) in the test.\n", FILENAME, FILENAME, fn, flag, sel, sel
+            rc = 1
+          }
+          /^func / { fn = $0; body = ""; in_fn = 1 }
+          in_fn    { body = body $0 "\n" }
+          /^}$/ && in_fn {
+            in_fn = 0
+            if (body !~ /newRootCmd\(\)/) next
+            if (body ~ /(isolateRootEnv|setupVault|runCmd|runArgs|execCmd|createIssueGetPath|runPromoteJSON|runPromoteIssueJSON)\(/) next
+            if (body ~ /"--vault"/   && body !~ /t\.Setenv\("ANVIL_VAULT"/)   offend("ANVIL_VAULT", "--vault")
+            if (body ~ /"--project"/ && body !~ /t\.Setenv\("ANVIL_PROJECT"/) offend("ANVIL_PROJECT", "--project")
+          }
+          END { exit rc }
+        ' "${files[@]}"
+    )
     ./.github/check-skills.sh
     ./.github/check-genericity.sh
     go vet ./...
