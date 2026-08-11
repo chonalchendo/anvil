@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -55,17 +56,34 @@ func resolveCodexConfigDir() (string, error) {
 	return filepath.Join(home, ".codex"), nil
 }
 
+// resolvePiConfigDir returns pi-coding-agent's config dir:
+// $PI_CODING_AGENT_DIR if set, else ~/.pi/agent. Mirrors
+// resolveClaudeConfigDir/resolveCodexConfigDir for the third agent CLI;
+// agents land under its agents/ subdir.
+func resolvePiConfigDir() (string, error) {
+	if d := os.Getenv("PI_CODING_AGENT_DIR"); d != "" {
+		return d, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("home dir: %w", err)
+	}
+	return filepath.Join(home, ".pi", "agent"), nil
+}
+
 // resolveAgentCLIConfigDir picks the agent CLI's config dir for skill/agent
-// install. Only "claude" and "codex" are valid; an unknown target is a usage
-// error.
+// install. Only "claude", "codex", and "pi" are valid; an unknown target is a
+// usage error.
 func resolveAgentCLIConfigDir(target string) (string, error) {
 	switch target {
 	case "claude":
 		return resolveClaudeConfigDir()
 	case "codex":
 		return resolveCodexConfigDir()
+	case "pi":
+		return resolvePiConfigDir()
 	default:
-		return "", fmt.Errorf("unknown --target %q: want claude or codex", target)
+		return "", fmt.Errorf("unknown --target %q: want claude, codex, or pi", target)
 	}
 }
 
@@ -233,23 +251,29 @@ func newInstallAgentsCmd() *cobra.Command {
 		Long: "Install (or remove) the Anvil agents bundle into the target agent CLI's agents dir:\n" +
 			"--target claude → ~/.claude/agents/<name>.md (Claude markdown subagents);\n" +
 			"--target codex → ~/.codex/agents/<name>.toml (Codex custom-agent TOML, honoring\n" +
-			"$CODEX_HOME). The Codex emit translates each markdown agent — frontmatter\n" +
-			"name/description plus the body become the required TOML keys; Claude-specific\n" +
-			"model/tools/skills are dropped.\n\n" +
+			"$CODEX_HOME); --target pi → ~/.pi/agent/agents/<name>.md (pi subagent markdown,\n" +
+			"honoring $PI_CODING_AGENT_DIR). The Codex emit translates each markdown agent —\n" +
+			"frontmatter name/description plus the body become the required TOML keys;\n" +
+			"Claude-specific model/tools/skills are dropped. The pi emit keeps the markdown\n" +
+			"shape and tools frontmatter, translates the model alias to a pi-resolvable ref,\n" +
+			"and drops the Claude-only skills/effort keys.\n\n" +
 			"Agents are embedded into the anvil binary at build time. This command deploys\n" +
 			"that embedded bundle — editing anvil/agents/<name>.md in a checkout has no\n" +
 			"effect until you rebuild the anvil binary and re-run\n" +
 			"`anvil install agents`. A freshly-deployed Claude agent is dispatchable via the\n" +
 			"Agent tool's subagent_type only after the next Claude Code session restart.",
-		Example: "  anvil install agents\n  anvil install agents --target codex\n  anvil install agents --target codex --uninstall",
+		Example: "  anvil install agents\n  anvil install agents --target codex\n  anvil install agents --target pi\n  anvil install agents --target codex --uninstall",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			dir, err := resolveAnvilAgentsTarget(target)
 			if err != nil {
 				return err
 			}
-			if target == "codex" {
+			switch target {
+			case "codex":
 				return runInstallCodexAgents(cmd, dir, uninstall, force)
+			case "pi":
+				return runInstallPiAgents(cmd, dir, uninstall, force)
 			}
 			if uninstall {
 				changed, err := installer.RemoveAgents(agents.FS, dir)
@@ -277,8 +301,33 @@ func newInstallAgentsCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove anvil agents instead of installing them")
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite an existing agent file that differs from the embedded copy")
-	cmd.Flags().StringVar(&target, "target", "claude", "agent CLI to install into: claude (~/.claude, markdown) or codex (~/.codex, TOML; honoring $CODEX_HOME)")
+	cmd.Flags().StringVar(&target, "target", "claude", "agent CLI to install into: claude (~/.claude, markdown), codex (~/.codex, TOML; honoring $CODEX_HOME), or pi (~/.pi/agent, markdown; honoring $PI_CODING_AGENT_DIR)")
 	return cmd
+}
+
+func runInstallPiAgents(cmd *cobra.Command, dir string, uninstall, force bool) error {
+	if uninstall {
+		changed, err := installer.RemovePiAgents(agents.FS, dir)
+		if err != nil {
+			return fmt.Errorf("removing pi agents: %w", err)
+		}
+		if changed {
+			cmd.Println("removed anvil agents from", dir)
+		} else {
+			cmd.Println("no anvil agents found at", dir)
+		}
+		return nil
+	}
+	changed, err := installer.InstallPiAgents(agents.FS, dir, force)
+	if err != nil {
+		return fmt.Errorf("installing pi agents: %w", err)
+	}
+	if changed {
+		cmd.Println("installed anvil agents (embedded bundle) as pi markdown subagents into", dir)
+	} else {
+		cmd.Println("anvil agents up to date at", dir)
+	}
+	return nil
 }
 
 func runInstallCodexAgents(cmd *cobra.Command, dir string, uninstall, force bool) error {
@@ -311,6 +360,9 @@ func runInstallCodexAgents(cmd *cobra.Command, dir string, uninstall, force bool
 // path (skills/<skill>/SKILL.md) so the agent CLI's user-skill discovery picks
 // them up.
 func resolveAnvilSkillsTarget(target string) (string, error) {
+	if target == "pi" {
+		return "", errors.New("--target pi is not supported for skills; pi consumes ~/.claude/skills via its skills setting")
+	}
 	dir, err := resolveAgentCLIConfigDir(target)
 	if err != nil {
 		return "", err

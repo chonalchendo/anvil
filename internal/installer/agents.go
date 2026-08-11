@@ -243,6 +243,134 @@ func tomlMultilineString(s string) string {
 	return "\"\"\"\n" + r.Replace(s) + "\n\"\"\""
 }
 
+// claudeModelToPiRef translates anvil's Claude Code model aliases to a
+// pi-resolvable model ref: provider/modelId under the pi-claude-bridge
+// provider (developers.pi.dev/coding-agent/model-refs). Pi cannot resolve a
+// bare Claude alias ("sonnet", "opus", "haiku"), so every alias the embedded
+// bundle uses must have an entry here or InstallPiAgents refuses to emit.
+var claudeModelToPiRef = map[string]string{
+	"sonnet": "claude-bridge/claude-sonnet-5",
+	"opus":   "claude-bridge/claude-opus-5",
+	"haiku":  "claude-bridge/claude-haiku-4-5",
+}
+
+// InstallPiAgents translates each embedded *.md agent into a pi-compatible
+// subagent markdown file at target/<name>.md. Pi's subagent extension
+// discovers the same name/description/tools/model frontmatter shape Claude
+// Code uses, so the body copies through unchanged; only the model alias is
+// translated to a pi-resolvable ref and the Claude-only skills/effort keys
+// are dropped (pi has no meaning for either). Mirrors InstallCodexAgents'
+// clobber contract: a byte-identical file is a no-op, a divergent one is
+// refused unless force is true.
+func InstallPiAgents(srcFS fs.FS, target string, force bool) (bool, error) {
+	names, err := listAgentFiles(srcFS)
+	if err != nil {
+		return false, err
+	}
+	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+		return false, fmt.Errorf("mkdir target %s: %w", target, err)
+	}
+	changed := false
+	for _, name := range names {
+		src, err := fs.ReadFile(srcFS, name)
+		if err != nil {
+			return false, fmt.Errorf("read embedded agent %s: %w", name, err)
+		}
+		want, err := piAgentMarkdown(src)
+		if err != nil {
+			return false, fmt.Errorf("translate agent %s: %w", name, err)
+		}
+		dst := filepath.Join(target, name)
+		got, err := os.ReadFile(dst) //nolint:gosec // path is test-controlled or application-managed; not user input
+		switch {
+		case err == nil && string(got) == want:
+			continue
+		case err == nil && !force:
+			return false, fmt.Errorf("refusing to overwrite non-matching %s; run `anvil install agents --target pi --force` to redeploy", dst)
+		case err != nil && !errors.Is(err, os.ErrNotExist):
+			return false, fmt.Errorf("read %s: %w", dst, err)
+		}
+		if err := os.WriteFile(dst, []byte(want), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+			return false, fmt.Errorf("write %s: %w", dst, err)
+		}
+		changed = true
+	}
+	return changed, nil
+}
+
+// RemovePiAgents deletes target/<name>.md for each embedded agent whose
+// on-disk content still matches the translated copy. Divergent or foreign
+// files are left untouched, mirroring RemoveCodexAgents.
+func RemovePiAgents(srcFS fs.FS, target string) (bool, error) {
+	names, err := listAgentFiles(srcFS)
+	if err != nil {
+		return false, err
+	}
+	changed := false
+	for _, name := range names {
+		src, err := fs.ReadFile(srcFS, name)
+		if err != nil {
+			return false, fmt.Errorf("read embedded agent %s: %w", name, err)
+		}
+		want, err := piAgentMarkdown(src)
+		if err != nil {
+			return false, fmt.Errorf("translate agent %s: %w", name, err)
+		}
+		dst := filepath.Join(target, name)
+		got, err := os.ReadFile(dst) //nolint:gosec // path is test-controlled or application-managed; not user input
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return false, fmt.Errorf("read %s: %w", dst, err)
+		}
+		if string(got) != want {
+			continue
+		}
+		if err := os.Remove(dst); err != nil {
+			return false, fmt.Errorf("remove %s: %w", dst, err)
+		}
+		changed = true
+	}
+	return changed, nil
+}
+
+// piAgentMarkdown translates one embedded agent markdown file into a
+// pi-compatible subagent markdown document: name carries through as a plain
+// scalar, description as a double-quoted YAML scalar (anvil's descriptions
+// routinely contain `: `, which pi's strict YAML frontmatter parse rejects
+// unquoted — and pi's subagent extension calls that parse uncaught, so one
+// malformed file aborts discovery of every user agent), model is translated
+// via claudeModelToPiRef (an untranslatable alias is a hard error — emitting
+// it would hand pi a ref it can't resolve), tools carries through when
+// present (pi's frontmatter shape includes it), and the Claude-only
+// skills/effort keys are dropped. The body is pi's system prompt and is not
+// itself Claude-specific, so it copies through unchanged.
+func piAgentMarkdown(md []byte) (string, error) {
+	fields, body, err := parseAgentMarkdown(md)
+	if err != nil {
+		return "", err
+	}
+	if fields["name"] == "" || fields["description"] == "" {
+		return "", errors.New("agent frontmatter missing name or description")
+	}
+	piModel, ok := claudeModelToPiRef[fields["model"]]
+	if !ok {
+		return "", fmt.Errorf("model %q has no pi ref translation", fields["model"])
+	}
+	var b strings.Builder
+	b.WriteString("---\n")
+	fmt.Fprintf(&b, "name: %s\n", fields["name"])
+	fmt.Fprintf(&b, "description: %q\n", fields["description"])
+	fmt.Fprintf(&b, "model: %s\n", piModel)
+	if tools := fields["tools"]; tools != "" {
+		fmt.Fprintf(&b, "tools: %s\n", tools)
+	}
+	b.WriteString("---\n")
+	b.WriteString(body)
+	return b.String(), nil
+}
+
 func listAgentFiles(srcFS fs.FS) ([]string, error) {
 	entries, err := fs.ReadDir(srcFS, ".")
 	if err != nil {
