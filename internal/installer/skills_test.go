@@ -48,12 +48,12 @@ func TestInstallSkills_ShippedScriptsAreExecutable(t *testing.T) {
 
 func TestInstallSkills_RefusesSymlinkedRoot(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
-	real := filepath.Join(t.TempDir(), "real-pi-skills")
-	if err := os.MkdirAll(real, 0o755); err != nil {
+	linkDest := filepath.Join(t.TempDir(), "real-pi-skills")
+	if err := os.MkdirAll(linkDest, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
 	}
 	target := filepath.Join(t.TempDir(), "pi-skills")
-	if err := os.Symlink(real, target); err != nil {
+	if err := os.Symlink(linkDest, target); err != nil {
 		t.Fatal(err)
 	}
 
