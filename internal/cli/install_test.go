@@ -191,15 +191,6 @@ func TestInstallAgentsTargetPi(t *testing.T) {
 			t.Fatalf("read emitted markdown: %v", err)
 		}
 		got := string(b)
-		for _, want := range []string{"name: anvil-issue-worker", `description: "`, "model: claude-bridge/claude-sonnet-5", "thinking: medium", "skills: completing-issue"} {
-			if !strings.Contains(got, want) {
-				t.Errorf("emitted markdown missing %q\n---\n%s", want, got)
-			}
-		}
-		if strings.Contains(got, "effort:") {
-			t.Errorf("emitted markdown should not contain %q\n---\n%s", "effort:", got)
-		}
-
 		fmParts := strings.SplitN(got, "---\n", 3)
 		if len(fmParts) < 3 {
 			t.Fatalf("emitted markdown missing frontmatter delimiters\n---\n%s", got)
@@ -208,6 +199,23 @@ func TestInstallAgentsTargetPi(t *testing.T) {
 		if err := yaml.Unmarshal([]byte(fmParts[1]), &fm); err != nil {
 			t.Fatalf("emitted frontmatter is not valid strict YAML: %v\n---\n%s", err, fmParts[1])
 		}
+		want := map[string]any{
+			"name":     "anvil-issue-worker",
+			"model":    "claude-bridge/claude-sonnet-5",
+			"thinking": "medium",
+			"skills":   "completing-issue",
+		}
+		for k, v := range want {
+			if fm[k] != v {
+				t.Errorf("fm[%q] = %v, want %v\n---\n%s", k, fm[k], v, got)
+			}
+		}
+		if fm["description"] == "" || fm["description"] == nil {
+			t.Errorf("fm[%q] empty, want non-empty\n---\n%s", "description", got)
+		}
+		if _, ok := fm["effort"]; ok {
+			t.Errorf("fm should not contain %q, got %v\n---\n%s", "effort", fm["effort"], got)
+		}
 		for _, unresolvable := range []string{"ToolSearch", "TaskOutput", "TaskStop"} {
 			if strings.Contains(fmt.Sprint(fm["tools"]), unresolvable) {
 				t.Errorf("tools frontmatter should not contain Claude-only %q, got %v", unresolvable, fm["tools"])
@@ -215,6 +223,25 @@ func TestInstallAgentsTargetPi(t *testing.T) {
 		}
 		if _, err := os.Stat(filepath.Join(claudeDir, "agents")); !os.IsNotExist(err) {
 			t.Errorf("Claude agents dir should be untouched by --target pi, got err=%v", err)
+		}
+
+		reviewerMD, err := os.ReadFile(filepath.Join(piDir, "agents", "anvil-pr-reviewer.md")) //nolint:gosec // path is test-controlled
+		if err != nil {
+			t.Fatalf("read emitted anvil-pr-reviewer.md: %v", err)
+		}
+		reviewerParts := strings.SplitN(string(reviewerMD), "---\n", 3)
+		if len(reviewerParts) < 3 {
+			t.Fatalf("emitted anvil-pr-reviewer.md missing frontmatter delimiters\n---\n%s", reviewerMD)
+		}
+		var reviewerFM map[string]any
+		if err := yaml.Unmarshal([]byte(reviewerParts[1]), &reviewerFM); err != nil {
+			t.Fatalf("emitted anvil-pr-reviewer.md frontmatter is not valid strict YAML: %v\n---\n%s", err, reviewerParts[1])
+		}
+		if !strings.Contains(fmt.Sprint(reviewerFM["tools"]), "find") {
+			t.Errorf("anvil-pr-reviewer tools = %v, want Glob translated to find", reviewerFM["tools"])
+		}
+		if strings.Contains(fmt.Sprint(reviewerFM["tools"]), "glob") {
+			t.Errorf("anvil-pr-reviewer tools = %v, should not contain untranslated glob", reviewerFM["tools"])
 		}
 	})
 

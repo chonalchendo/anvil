@@ -257,9 +257,10 @@ var claudeModelToPiRef = map[string]string{
 // claudeToolToPiTool translates anvil's Claude Code built-in tool names to
 // pi-subagents' built-in tool names (developers.pi.dev/coding-agent, the
 // @tintinweb/pi-subagents schema). A Claude-only tool (ToolSearch, TaskOutput,
-// TaskStop, WebSearch, WebFetch, Glob — pi has no equivalent) has no entry and
-// is dropped by piToolNames rather than passed through, since pi's runtime
-// cannot resolve it.
+// TaskStop, WebSearch, WebFetch — pi has no equivalent) has no entry and is
+// dropped by piToolNames rather than passed through, since pi's runtime
+// cannot resolve it. Glob maps to pi's `find` builtin ("Search for files by
+// glob pattern") — a direct equivalent, not a drop.
 var claudeToolToPiTool = map[string]string{
 	"bash":  "bash",
 	"read":  "read",
@@ -267,6 +268,7 @@ var claudeToolToPiTool = map[string]string{
 	"write": "write",
 	"grep":  "grep",
 	"find":  "find",
+	"glob":  "find",
 	"ls":    "ls",
 }
 

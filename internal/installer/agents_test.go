@@ -99,7 +99,7 @@ func TestRemoveAgents_LeavesForeignContent(t *testing.T) {
 
 func fakePiAgentsFS() fstest.MapFS {
 	return fstest.MapFS{
-		"anvil-issue-worker.md": {Data: []byte("---\nname: anvil-issue-worker\ndescription: does the thing\nmodel: sonnet\neffort: medium\ntools: Bash, Read, ToolSearch, TaskOutput, TaskStop\nskills: completing-issue\n---\nbody\n")},
+		"anvil-issue-worker.md": {Data: []byte("---\nname: anvil-issue-worker\ndescription: does the thing\nmodel: sonnet\neffort: medium\ntools: Bash, Read, Glob, ToolSearch, TaskOutput, TaskStop\nskills: completing-issue\n---\nbody\n")},
 		"README":                {Data: []byte("not an agent\n")},
 	}
 }
@@ -149,8 +149,8 @@ func TestInstallPiAgents_TranslatesModelEffortToolsAndSkills(t *testing.T) {
 	if doc["thinking"] != "medium" {
 		t.Errorf("thinking = %v, want medium (translated from effort)", doc["thinking"])
 	}
-	if doc["tools"] != "bash, read" {
-		t.Errorf("tools = %v, want %q (Claude-only names dropped)", doc["tools"], "bash, read")
+	if doc["tools"] != "bash, read, find" {
+		t.Errorf("tools = %v, want %q (Glob translated to find, Claude-only names dropped)", doc["tools"], "bash, read, find")
 	}
 	if doc["skills"] != "completing-issue" {
 		t.Errorf("skills = %v, want completing-issue", doc["skills"])
