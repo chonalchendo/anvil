@@ -3,10 +3,13 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestInstall_Hooks_RespectsClaudeConfigDir(t *testing.T) {
@@ -188,14 +191,26 @@ func TestInstallAgentsTargetPi(t *testing.T) {
 			t.Fatalf("read emitted markdown: %v", err)
 		}
 		got := string(b)
-		for _, want := range []string{"name: anvil-issue-worker", `description: "`, "model: claude-bridge/claude-sonnet-5"} {
+		for _, want := range []string{"name: anvil-issue-worker", `description: "`, "model: claude-bridge/claude-sonnet-5", "thinking: medium", "skills: completing-issue"} {
 			if !strings.Contains(got, want) {
 				t.Errorf("emitted markdown missing %q\n---\n%s", want, got)
 			}
 		}
-		for _, unwanted := range []string{"effort:", "skills:"} {
-			if strings.Contains(got, unwanted) {
-				t.Errorf("emitted markdown should not contain %q\n---\n%s", unwanted, got)
+		if strings.Contains(got, "effort:") {
+			t.Errorf("emitted markdown should not contain %q\n---\n%s", "effort:", got)
+		}
+
+		fmParts := strings.SplitN(got, "---\n", 3)
+		if len(fmParts) < 3 {
+			t.Fatalf("emitted markdown missing frontmatter delimiters\n---\n%s", got)
+		}
+		var fm map[string]any
+		if err := yaml.Unmarshal([]byte(fmParts[1]), &fm); err != nil {
+			t.Fatalf("emitted frontmatter is not valid strict YAML: %v\n---\n%s", err, fmParts[1])
+		}
+		for _, unresolvable := range []string{"ToolSearch", "TaskOutput", "TaskStop"} {
+			if strings.Contains(fmt.Sprint(fm["tools"]), unresolvable) {
+				t.Errorf("tools frontmatter should not contain Claude-only %q, got %v", unresolvable, fm["tools"])
 			}
 		}
 		if _, err := os.Stat(filepath.Join(claudeDir, "agents")); !os.IsNotExist(err) {

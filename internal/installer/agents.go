@@ -254,14 +254,53 @@ var claudeModelToPiRef = map[string]string{
 	"haiku":  "claude-bridge/claude-haiku-4-5",
 }
 
+// claudeToolToPiTool translates anvil's Claude Code built-in tool names to
+// pi-subagents' built-in tool names (developers.pi.dev/coding-agent, the
+// @tintinweb/pi-subagents schema). A Claude-only tool (ToolSearch, TaskOutput,
+// TaskStop, WebSearch, WebFetch, Glob — pi has no equivalent) has no entry and
+// is dropped by piToolNames rather than passed through, since pi's runtime
+// cannot resolve it.
+var claudeToolToPiTool = map[string]string{
+	"bash":  "bash",
+	"read":  "read",
+	"edit":  "edit",
+	"write": "write",
+	"grep":  "grep",
+	"find":  "find",
+	"ls":    "ls",
+}
+
+// piToolNames translates a Claude Code agent's comma-separated tools list
+// into the pi-resolvable subset: each entry is matched case-insensitively
+// against claudeToolToPiTool and emitted as pi's lowercase name, or passed
+// through unchanged if already an `ext:`-selector (pi-subagents-native, not
+// a Claude name); anything else has no pi-side meaning and is dropped.
+func piToolNames(claudeTools string) string {
+	var kept []string
+	for _, t := range strings.Split(claudeTools, ",") {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		if strings.HasPrefix(t, "ext:") {
+			kept = append(kept, t)
+			continue
+		}
+		if pi, ok := claudeToolToPiTool[strings.ToLower(t)]; ok {
+			kept = append(kept, pi)
+		}
+	}
+	return strings.Join(kept, ", ")
+}
+
 // InstallPiAgents translates each embedded *.md agent into a pi-compatible
 // subagent markdown file at target/<name>.md. Pi's subagent extension
 // discovers the same name/description/tools/model frontmatter shape Claude
-// Code uses, so the body copies through unchanged; only the model alias is
-// translated to a pi-resolvable ref and the Claude-only skills/effort keys
-// are dropped (pi has no meaning for either). Mirrors InstallCodexAgents'
-// clobber contract: a byte-identical file is a no-op, a divergent one is
-// refused unless force is true.
+// Code uses, plus skills (a preload list) and thinking (an effort level) —
+// piAgentMarkdown carries the model alias, tools list, skills, and effort
+// through their respective translations; the body copies through unchanged.
+// Mirrors InstallCodexAgents' clobber contract: a byte-identical file is a
+// no-op, a divergent one is refused unless force is true.
 func InstallPiAgents(srcFS fs.FS, target string, force bool) (bool, error) {
 	names, err := listAgentFiles(srcFS)
 	if err != nil {
@@ -342,10 +381,13 @@ func RemovePiAgents(srcFS fs.FS, target string) (bool, error) {
 // unquoted — and pi's subagent extension calls that parse uncaught, so one
 // malformed file aborts discovery of every user agent), model is translated
 // via claudeModelToPiRef (an untranslatable alias is a hard error — emitting
-// it would hand pi a ref it can't resolve), tools carries through when
-// present (pi's frontmatter shape includes it), and the Claude-only
-// skills/effort keys are dropped. The body is pi's system prompt and is not
-// itself Claude-specific, so it copies through unchanged.
+// it would hand pi a ref it can't resolve), tools is narrowed to the
+// pi-resolvable subset via piToolNames, effort carries through as pi's
+// `thinking:` key (same low/medium/high/etc scale, different key name), and
+// skills carries through unchanged as pi's preload list (pi-subagents reads
+// the same comma-separated shape anvil already authors). The body is pi's
+// system prompt and is not itself Claude-specific, so it copies through
+// unchanged.
 func piAgentMarkdown(md []byte) (string, error) {
 	fields, body, err := parseAgentMarkdown(md)
 	if err != nil {
@@ -363,8 +405,14 @@ func piAgentMarkdown(md []byte) (string, error) {
 	fmt.Fprintf(&b, "name: %s\n", fields["name"])
 	fmt.Fprintf(&b, "description: %q\n", fields["description"])
 	fmt.Fprintf(&b, "model: %s\n", piModel)
-	if tools := fields["tools"]; tools != "" {
+	if effort := fields["effort"]; effort != "" {
+		fmt.Fprintf(&b, "thinking: %s\n", effort)
+	}
+	if tools := piToolNames(fields["tools"]); tools != "" {
 		fmt.Fprintf(&b, "tools: %s\n", tools)
+	}
+	if skills := fields["skills"]; skills != "" {
+		fmt.Fprintf(&b, "skills: %s\n", skills)
 	}
 	b.WriteString("---\n")
 	b.WriteString(body)
