@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"gopkg.in/yaml.v3"
 )
 
 func fakeAgentsFS() fstest.MapFS {
@@ -118,7 +120,7 @@ func TestInstallPiAgents_TranslatesModelAndDropsClaudeOnlyKeys(t *testing.T) {
 		t.Fatalf("read emitted agent: %v", err)
 	}
 	got := string(b)
-	for _, want := range []string{"name: anvil-issue-worker", "description: does the thing", "model: claude-bridge/claude-sonnet-5", "tools: Bash, Read"} {
+	for _, want := range []string{"name: anvil-issue-worker", `description: "does the thing"`, "model: claude-bridge/claude-sonnet-5", "tools: Bash, Read"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("emitted agent missing %q\n---\n%s", want, got)
 		}
@@ -130,6 +132,34 @@ func TestInstallPiAgents_TranslatesModelAndDropsClaudeOnlyKeys(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(target, "README")); !os.IsNotExist(err) {
 		t.Errorf("non-.md entry should be skipped, got err=%v", err)
+	}
+}
+
+func TestInstallPiAgents_QuotesDescriptionWithColonSpace(t *testing.T) {
+	srcFS := fstest.MapFS{
+		"agent.md": {Data: []byte("---\nname: agent\ndescription: Use when X: does the thing\nmodel: sonnet\n---\nbody\n")},
+	}
+	target := filepath.Join(t.TempDir(), "agents")
+
+	if _, err := InstallPiAgents(srcFS, target, false); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+
+	b, err := os.ReadFile(filepath.Join(target, "agent.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
+	if err != nil {
+		t.Fatalf("read emitted agent: %v", err)
+	}
+
+	var doc map[string]any
+	for _, line := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(line, "description: ") {
+			if err := yaml.Unmarshal([]byte(line), &doc); err != nil {
+				t.Fatalf("description line is not valid strict YAML: %v\nline=%q", err, line)
+			}
+		}
+	}
+	if got := doc["description"]; got != "Use when X: does the thing" {
+		t.Errorf("description round-tripped through YAML as %q", got)
 	}
 }
 

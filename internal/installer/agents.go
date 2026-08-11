@@ -251,7 +251,7 @@ func tomlMultilineString(s string) string {
 var claudeModelToPiRef = map[string]string{
 	"sonnet": "claude-bridge/claude-sonnet-5",
 	"opus":   "claude-bridge/claude-opus-5",
-	"haiku":  "claude-bridge/claude-haiku-5",
+	"haiku":  "claude-bridge/claude-haiku-4-5",
 }
 
 // InstallPiAgents translates each embedded *.md agent into a pi-compatible
@@ -336,12 +336,16 @@ func RemovePiAgents(srcFS fs.FS, target string) (bool, error) {
 }
 
 // piAgentMarkdown translates one embedded agent markdown file into a
-// pi-compatible subagent markdown document: name/description carry through,
-// model is translated via claudeModelToPiRef (an untranslatable alias is a
-// hard error — emitting it would hand pi a ref it can't resolve), tools
-// carries through when present (pi's frontmatter shape includes it), and the
-// Claude-only skills/effort keys are dropped. The body is pi's system prompt
-// and is not itself Claude-specific, so it copies through unchanged.
+// pi-compatible subagent markdown document: name carries through as a plain
+// scalar, description as a double-quoted YAML scalar (anvil's descriptions
+// routinely contain `: `, which pi's strict YAML frontmatter parse rejects
+// unquoted — and pi's subagent extension calls that parse uncaught, so one
+// malformed file aborts discovery of every user agent), model is translated
+// via claudeModelToPiRef (an untranslatable alias is a hard error — emitting
+// it would hand pi a ref it can't resolve), tools carries through when
+// present (pi's frontmatter shape includes it), and the Claude-only
+// skills/effort keys are dropped. The body is pi's system prompt and is not
+// itself Claude-specific, so it copies through unchanged.
 func piAgentMarkdown(md []byte) (string, error) {
 	fields, body, err := parseAgentMarkdown(md)
 	if err != nil {
@@ -357,7 +361,7 @@ func piAgentMarkdown(md []byte) (string, error) {
 	var b strings.Builder
 	b.WriteString("---\n")
 	fmt.Fprintf(&b, "name: %s\n", fields["name"])
-	fmt.Fprintf(&b, "description: %s\n", fields["description"])
+	fmt.Fprintf(&b, "description: %q\n", fields["description"])
 	fmt.Fprintf(&b, "model: %s\n", piModel)
 	if tools := fields["tools"]; tools != "" {
 		fmt.Fprintf(&b, "tools: %s\n", tools)

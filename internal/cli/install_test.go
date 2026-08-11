@@ -188,7 +188,7 @@ func TestInstallAgentsTargetPi(t *testing.T) {
 			t.Fatalf("read emitted markdown: %v", err)
 		}
 		got := string(b)
-		for _, want := range []string{"name: anvil-issue-worker", "description: ", "model: claude-bridge/claude-sonnet-5"} {
+		for _, want := range []string{"name: anvil-issue-worker", `description: "`, "model: claude-bridge/claude-sonnet-5"} {
 			if !strings.Contains(got, want) {
 				t.Errorf("emitted markdown missing %q\n---\n%s", want, got)
 			}
@@ -229,6 +229,21 @@ func TestInstallAgentsTargetPi(t *testing.T) {
 			t.Errorf("output = %q, want mention of removed", out.String())
 		}
 	})
+}
+
+func TestInstallSkillsTargetPiRefused(t *testing.T) {
+	t.Setenv("PI_CODING_AGENT_DIR", t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"install", "skills", "--target", "pi"})
+	cmd.SetOut(&bytes.Buffer{})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected --target pi to be refused for install skills")
+	}
+	if !strings.Contains(err.Error(), "not supported for skills") {
+		t.Errorf("error = %q, want mention of unsupported skills target", err.Error())
+	}
 }
 
 func TestInstall_Hooks_Uninstall(t *testing.T) {

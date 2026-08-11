@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -359,6 +360,9 @@ func runInstallCodexAgents(cmd *cobra.Command, dir string, uninstall, force bool
 // path (skills/<skill>/SKILL.md) so the agent CLI's user-skill discovery picks
 // them up.
 func resolveAnvilSkillsTarget(target string) (string, error) {
+	if target == "pi" {
+		return "", errors.New("--target pi is not supported for skills; pi consumes ~/.claude/skills via its skills setting")
+	}
 	dir, err := resolveAgentCLIConfigDir(target)
 	if err != nil {
 		return "", err
