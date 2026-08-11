@@ -49,6 +49,9 @@ func InstallSkills(srcFS fs.FS, materialiseDir, target string, useCopy, force bo
 	if err := os.WriteFile(filepath.Join(materialiseDir, skillsHashFile), []byte(hash), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		return false, fmt.Errorf("write skills hash: %w", err)
 	}
+	if err := refuseSymlinkedRoot(target, force); err != nil {
+		return false, err
+	}
 	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		return false, fmt.Errorf("mkdir target %s: %w", target, err)
 	}
@@ -150,6 +153,31 @@ func listSkillNames(srcFS fs.FS) ([]string, error) {
 		names = append(names, e.Name())
 	}
 	return names, nil
+}
+
+// refuseSymlinkedRoot refuses to install into a symlinked target root:
+// pi's skill preloader rejects a symlinked skills root outright, so
+// MkdirAll silently following the link and copying into its destination
+// would report success while pi never sees the bundle. force replaces the
+// symlink with a real directory instead of refusing.
+func refuseSymlinkedRoot(target string, force bool) error {
+	info, err := os.Lstat(target)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("stat target %s: %w", target, err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		return nil
+	}
+	if !force {
+		return fmt.Errorf("refusing to install into symlinked root %s; run `anvil install skills --force` to redeploy, or `rm -rf %q && anvil install skills` to take the destructive path", target, target)
+	}
+	if err := os.Remove(target); err != nil {
+		return fmt.Errorf("replace symlinked root %s: %w", target, err)
+	}
+	return nil
 }
 
 func installOneSkill(materialiseDir, target, name string, useCopy, force bool) (bool, error) {

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -150,8 +149,10 @@ func newInstallSkillsCmd() *cobra.Command {
 		Short: "Install (or remove) the binary-embedded Anvil skills into an agent CLI's skills dir",
 		Long: "Install (or remove) the Anvil skills bundle into the target agent CLI's skills dir:\n" +
 			"--target claude → ~/.claude/skills/<name>/ (symlinked); --target codex →\n" +
-			"~/.codex/skills/<name>/ (copied, honoring $CODEX_HOME). Codex copies because its\n" +
-			"skill discovery following a symlinked skill directory is unverified.\n\n" +
+			"~/.codex/skills/<name>/ (copied, honoring $CODEX_HOME); --target pi →\n" +
+			"~/.pi/agent/skills/<name>/ (copied, honoring $PI_CODING_AGENT_DIR). Codex and pi\n" +
+			"copy because a symlinked skill dir is unverified for codex and rejected outright\n" +
+			"by pi's skill loader.\n\n" +
 			"Skills are embedded into the anvil binary at build time. This command deploys\n" +
 			"that embedded bundle — it does NOT read anvil/skills/ from disk. Editing\n" +
 			"anvil/skills/<name>/SKILL.md in an anvil checkout has no effect until you rebuild\n" +
@@ -191,11 +192,12 @@ func newInstallSkillsCmd() *cobra.Command {
 				}
 				return nil
 			}
-			if target == "codex" {
-				// Codex always copies (symlinked skill dirs unverified) and
-				// skips the freshness shortcut below: that shortcut keys off the
+			if target == "codex" || target == "pi" {
+				// Codex and pi always copy (symlinked skill dirs are unverified
+				// for codex, and outright rejected by pi's skill preloader) and
+				// skip the freshness shortcut below: that shortcut keys off the
 				// materialise dir's hash, which a prior `--target claude` install
-				// can leave fresh while the separate Codex skills dir holds
+				// can leave fresh while the separate codex/pi skills dir holds
 				// nothing — skipping would then report "up to date" without ever
 				// copying. Reinstalling is idempotent and cheap, so just do it.
 				useCopy = true
@@ -238,7 +240,7 @@ func newInstallSkillsCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove anvil skills instead of installing them")
 	cmd.Flags().BoolVar(&useCopy, "copy", false, "copy files instead of symlinking (use when symlinks aren't supported)")
 	cmd.Flags().BoolVar(&force, "force", false, "redeploy even when installed content matches the embedded bundle")
-	cmd.Flags().StringVar(&target, "target", "claude", "agent CLI to install into: claude (~/.claude) or codex (~/.codex, honoring $CODEX_HOME)")
+	cmd.Flags().StringVar(&target, "target", "claude", "agent CLI to install into: claude (~/.claude), codex (~/.codex, honoring $CODEX_HOME), or pi (~/.pi/agent, honoring $PI_CODING_AGENT_DIR)")
 	return cmd
 }
 
@@ -360,9 +362,6 @@ func runInstallCodexAgents(cmd *cobra.Command, dir string, uninstall, force bool
 // path (skills/<skill>/SKILL.md) so the agent CLI's user-skill discovery picks
 // them up.
 func resolveAnvilSkillsTarget(target string) (string, error) {
-	if target == "pi" {
-		return "", errors.New("--target pi is not supported for skills; pi consumes ~/.claude/skills via its skills setting")
-	}
 	dir, err := resolveAgentCLIConfigDir(target)
 	if err != nil {
 		return "", err
