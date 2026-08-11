@@ -255,8 +255,8 @@ func newInstallAgentsCmd() *cobra.Command {
 			"honoring $PI_CODING_AGENT_DIR). The Codex emit translates each markdown agent —\n" +
 			"frontmatter name/description plus the body become the required TOML keys;\n" +
 			"Claude-specific model/tools/skills are dropped. The pi emit keeps the markdown\n" +
-			"shape and tools frontmatter, translates the model alias to a pi-resolvable ref,\n" +
-			"and drops the Claude-only skills/effort keys.\n\n" +
+			"shape, translates the model alias to a pi-resolvable ref, narrows tools to the\n" +
+			"pi-resolvable subset, and maps skills/effort to pi's skills/thinking keys.\n\n" +
 			"Agents are embedded into the anvil binary at build time. This command deploys\n" +
 			"that embedded bundle — editing anvil/agents/<name>.md in a checkout has no\n" +
 			"effect until you rebuild the anvil binary and re-run\n" +

@@ -99,12 +99,28 @@ func TestRemoveAgents_LeavesForeignContent(t *testing.T) {
 
 func fakePiAgentsFS() fstest.MapFS {
 	return fstest.MapFS{
-		"anvil-issue-worker.md": {Data: []byte("---\nname: anvil-issue-worker\ndescription: does the thing\nmodel: sonnet\neffort: medium\ntools: Bash, Read\nskills: completing-issue\n---\nbody\n")},
+		"anvil-issue-worker.md": {Data: []byte("---\nname: anvil-issue-worker\ndescription: does the thing\nmodel: sonnet\neffort: medium\ntools: Bash, Read, Glob, ToolSearch, TaskOutput, TaskStop\nskills: completing-issue\n---\nbody\n")},
 		"README":                {Data: []byte("not an agent\n")},
 	}
 }
 
-func TestInstallPiAgents_TranslatesModelAndDropsClaudeOnlyKeys(t *testing.T) {
+// piFrontmatter strictly YAML-parses the frontmatter block of an emitted pi
+// agent markdown document, so assertions on translated keys can't false-pass
+// against text that merely contains the right substring.
+func piFrontmatter(t *testing.T, md string) map[string]any {
+	t.Helper()
+	parts := strings.SplitN(md, "---\n", 3)
+	if len(parts) < 3 {
+		t.Fatalf("emitted agent missing frontmatter delimiters\n---\n%s", md)
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal([]byte(parts[1]), &doc); err != nil {
+		t.Fatalf("emitted frontmatter is not valid strict YAML: %v\n---\n%s", err, parts[1])
+	}
+	return doc
+}
+
+func TestInstallPiAgents_TranslatesModelEffortToolsAndSkills(t *testing.T) {
 	target := filepath.Join(t.TempDir(), "agents")
 
 	changed, err := InstallPiAgents(fakePiAgentsFS(), target, false)
@@ -119,16 +135,28 @@ func TestInstallPiAgents_TranslatesModelAndDropsClaudeOnlyKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read emitted agent: %v", err)
 	}
-	got := string(b)
-	for _, want := range []string{"name: anvil-issue-worker", `description: "does the thing"`, "model: claude-bridge/claude-sonnet-5", "tools: Bash, Read"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("emitted agent missing %q\n---\n%s", want, got)
-		}
+	doc := piFrontmatter(t, string(b))
+
+	if doc["name"] != "anvil-issue-worker" {
+		t.Errorf("name = %v, want anvil-issue-worker", doc["name"])
 	}
-	for _, unwanted := range []string{"effort:", "skills:", "model: sonnet"} {
-		if strings.Contains(got, unwanted) {
-			t.Errorf("emitted agent should not contain %q\n---\n%s", unwanted, got)
-		}
+	if doc["description"] != "does the thing" {
+		t.Errorf("description = %v, want %q", doc["description"], "does the thing")
+	}
+	if doc["model"] != "claude-bridge/claude-sonnet-5" {
+		t.Errorf("model = %v, want claude-bridge/claude-sonnet-5", doc["model"])
+	}
+	if doc["thinking"] != "medium" {
+		t.Errorf("thinking = %v, want medium (translated from effort)", doc["thinking"])
+	}
+	if doc["tools"] != "bash, read, find" {
+		t.Errorf("tools = %v, want %q (Glob translated to find, Claude-only names dropped)", doc["tools"], "bash, read, find")
+	}
+	if doc["skills"] != "completing-issue" {
+		t.Errorf("skills = %v, want completing-issue", doc["skills"])
+	}
+	if _, ok := doc["effort"]; ok {
+		t.Errorf("effort key should not be emitted, got %v", doc["effort"])
 	}
 	if _, err := os.Stat(filepath.Join(target, "README")); !os.IsNotExist(err) {
 		t.Errorf("non-.md entry should be skipped, got err=%v", err)
