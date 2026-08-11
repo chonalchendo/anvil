@@ -273,19 +273,69 @@ func TestInstallAgentsTargetPi(t *testing.T) {
 	})
 }
 
-func TestInstallSkillsTargetPiRefused(t *testing.T) {
-	t.Setenv("PI_CODING_AGENT_DIR", t.TempDir())
+// TestInstallSkillsTargetPi asserts that `install skills --target pi` copies
+// the embedded bundle (no symlinks) into $PI_CODING_AGENT_DIR/skills, leaves
+// the Claude skills dir untouched, and that --uninstall removes the copy.
+func TestInstallSkillsTargetPi(t *testing.T) {
+	t.Run("copies skills into PI_CODING_AGENT_DIR and leaves Claude untouched", func(t *testing.T) {
+		piDir := t.TempDir()
+		claudeDir := t.TempDir()
+		t.Setenv("PI_CODING_AGENT_DIR", piDir)
+		t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
 
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"install", "skills", "--target", "pi"})
-	cmd.SetOut(&bytes.Buffer{})
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatal("expected --target pi to be refused for install skills")
-	}
-	if !strings.Contains(err.Error(), "not supported for skills") {
-		t.Errorf("error = %q, want mention of unsupported skills target", err.Error())
-	}
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"install", "skills", "--target", "pi"})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("install skills --target pi: %v", err)
+		}
+
+		skillDir := filepath.Join(piDir, "skills", "completing-issue")
+		info, err := os.Lstat(skillDir)
+		if err != nil {
+			t.Fatalf("stat emitted skill dir: %v", err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			t.Error("emitted skill dir should be a real copy, not a symlink")
+		}
+		if _, err := os.ReadFile(filepath.Join(skillDir, "SKILL.md")); err != nil { //nolint:gosec // path is test-controlled
+			t.Fatalf("read copied SKILL.md: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(claudeDir, "skills")); !os.IsNotExist(err) {
+			t.Errorf("Claude skills dir should be untouched by --target pi, got err=%v", err)
+		}
+		if !strings.Contains(out.String(), "copied") {
+			t.Errorf("output = %q, want mention of copied", out.String())
+		}
+	})
+
+	t.Run("uninstall removes the copied skills", func(t *testing.T) {
+		piDir := t.TempDir()
+		t.Setenv("PI_CODING_AGENT_DIR", piDir)
+		t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+
+		install := newRootCmd()
+		install.SetArgs([]string{"install", "skills", "--target", "pi"})
+		install.SetOut(&bytes.Buffer{})
+		if err := install.Execute(); err != nil {
+			t.Fatalf("install: %v", err)
+		}
+
+		uninstall := newRootCmd()
+		uninstall.SetArgs([]string{"install", "skills", "--target", "pi", "--uninstall"})
+		var out bytes.Buffer
+		uninstall.SetOut(&out)
+		if err := uninstall.Execute(); err != nil {
+			t.Fatalf("uninstall: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(piDir, "skills", "completing-issue")); !os.IsNotExist(err) {
+			t.Errorf("copied skill dir should be removed, got err=%v", err)
+		}
+		if !strings.Contains(out.String(), "removed") {
+			t.Errorf("output = %q, want mention of removed", out.String())
+		}
+	})
 }
 
 func TestInstall_Hooks_Uninstall(t *testing.T) {
