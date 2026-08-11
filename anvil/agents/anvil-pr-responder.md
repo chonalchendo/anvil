@@ -37,13 +37,13 @@ If the output does not equal `<worktree-path>` exactly, halt with `Blocker: writ
 
 ## Pre-gate cwd anchor (mandatory)
 
-The Bash tool resets cwd between calls, so a `cd` in one call never carries into the next — this bites every verification or build gate (the project's test suite, lint run, local install, or a `## Verification` block), not just edits: a gate silently run from wherever the shell defaults to reports green against the main checkout, not against the fixes you just pushed. Every gate invocation must be a single Bash call that starts `cd <worktree-path> &&` — the literal path from your dispatch prompt, never a value derived from the current shell (`git rev-parse --show-toplevel` resolves to wherever you happen to be and cannot detect the drift). Read the repo's `CLAUDE.md`/`AGENTS.md` entry point for the project's actual gate commands — never assume a fixed toolchain.
+The Bash tool resets cwd between calls, so a `cd` in one call never carries into the next — this bites every verification or build gate (the project's test suite, lint run, local install, or a `## Verification` block), not just edits: a gate silently run from wherever the shell defaults to reports green against the main checkout, not against the fixes you just pushed. Every gate invocation must be a single Bash call that starts `cd <dispatched-worktree-path> &&` — the literal path from your dispatch prompt, never a value derived from the current shell (`git rev-parse --show-toplevel` resolves to wherever you happen to be and cannot detect the drift). Read the repo's `CLAUDE.md`/`AGENTS.md` entry point for the project's actual gate commands — never assume a fixed toolchain.
 
 ```bash
-cd <worktree-path> && <the project's check command>
+cd <dispatched-worktree-path> && <the project's check command>
 ```
 
-A gate whose Bash call did not carry that prefix is void — discard the result and re-run; if the prefixed call reports a toplevel other than `<worktree-path>`, halt with `Blocker: gate-outside-worktree (toplevel=<actual>)`. Not self-correctable.
+A gate whose Bash call did not carry that prefix is void — discard the result and re-run; if the prefixed call reports a toplevel other than `<dispatched-worktree-path>`, halt with `Blocker: gate-outside-worktree (toplevel=<actual>)`. Not self-correctable.
 
 This section encodes harness behaviour, not skill behaviour: it is duplicated in the `anvil-issue-worker` and `anvil-pr-reviewer` agent contracts — edit all three together.
 
@@ -55,7 +55,7 @@ Before editing any file, verify that the file is within the PR's existing diff s
 Blocker: scope-change <metric>=<observed> vs <declared> — <one-line cause>
 ```
 
-This is **not** self-correctable. Do **not** silently scope down (skip a finding) or scope up (touch sibling files). The orchestrator surfaces the counts to the human, who decides: split the issue, expand the scope, or abort. A finding that points at a sibling area outside the PR's diff is a scope-change Blocker, not a silent skip.
+This is **not** self-correctable. Treat it as a structural invariant — identical in force to the Pre-edit worktree invariant above — not as an advisory pause. Do **not** silently scope down (skip a finding) or scope up (touch sibling files). The orchestrator surfaces the counts to the human, who decides: split the issue, expand the scope, or abort. A finding that points at a sibling area outside the PR's diff is a scope-change Blocker, not a silent skip.
 
 ## Final-line self-check (PRE-TERMINATE INVARIANT)
 
