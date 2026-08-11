@@ -1,6 +1,7 @@
 package installer
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,8 @@ import (
 	"testing/fstest"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/chonalchendo/anvil/anvil/agents"
 )
 
 func fakeAgentsFS() fstest.MapFS {
@@ -283,5 +286,31 @@ func TestRemoveAgents_LeavesDivergentSameName(t *testing.T) {
 	}
 	if _, err := os.Stat(dst); err != nil {
 		t.Errorf("divergent same-name file should survive removal: %v", err)
+	}
+}
+
+// Binds the real embedded bundle: if someone adds a bundled agent whose model
+// alias is absent from claudeModelToPiRef (or whose frontmatter otherwise
+// fails translation), `anvil install agents --target pi|codex` fails at the
+// user's install — synthetic MapFS fixtures cannot catch that.
+func TestBundledAgents_TranslateForAllTargets(t *testing.T) {
+	names, err := listAgentFiles(agents.FS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(names) == 0 {
+		t.Fatal("embedded agents bundle is empty")
+	}
+	for _, name := range names {
+		src, err := fs.ReadFile(agents.FS, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := piAgentMarkdown(src); err != nil {
+			t.Errorf("piAgentMarkdown(%s): %v", name, err)
+		}
+		if _, err := codexAgentTOML(src); err != nil {
+			t.Errorf("codexAgentTOML(%s): %v", name, err)
+		}
 	}
 }

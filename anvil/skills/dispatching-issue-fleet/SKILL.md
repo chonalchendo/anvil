@@ -100,7 +100,9 @@ For each PR url returned, in turn:
 1. **Fire the independent review.** Run `reviewing-pr` against the PR. It dispatches a fresh reviewer subagent (one level down from you — the same topology as the single-PR path) and returns structured findings. This is the only independent review source post-CodeRabbit; the fleet worker can't fire it (a subagent can't dispatch a sub-subagent), which is why it runs here.
 2. **Route findings — fleet override.** `reviewing-pr` Phase 4 would fire `responding-to-pr-review` in-session; on the fleet path you do **not** — the fixes live in a worktree you are not in, and you don't write code. Take its findings and route them yourself:
    - All findings ≤low + CI green → the PR is ready for the human's merge decision.
-   - Any blocker/high/actionable-medium → **dispatch a fresh worker into the PR's worktree**, tasked with `responding-to-pr-review` against the handed findings (the structured report + reviewer subagent id). This worker is a plain subagent (not the `anvil-issue-worker` agent — wrong skill); its contract is `subagent-prompt.md` (worktree invariant, return contract, forbidden-call audit). Interpret its return exactly as in Phase 4.
+   - Any blocker/high/actionable-medium → **dispatch a fresh subagent into the PR's worktree** via `subagent_type: anvil-pr-responder` — the bundled, cost-tuned responder (model pinned, `responding-to-pr-review` preloaded, worktree invariant, stop-at-fixes-pushed, scope-change Blocker, forbidden-call audit, structured return line already baked into the agent file). Fill only the per-call values into the dispatch prompt body: issue-id, worktree-path, branch, and the findings (structured report + reviewer subagent id). Interpret its return exactly as in Phase 4.
+
+   **Restart caveat:** a freshly installed or edited `anvil-pr-responder` (rebuilt, then `anvil install agents`) is not dispatchable until the next session restart — same caveat as Phase 3's `anvil-issue-worker`.
 3. **Halt.** Confirm CI green. Wire any missing rail edge the PR body's `## Context box` names in a `swept` row — the worker is barred from mutating the spine, so that edge is yours. Do not merge.
 
 Present the structured report:
@@ -143,7 +145,7 @@ Never invoke:
 - `git worktree remove` — post-merge cleanup is the human's.
 - `anvil transition resolved` — the future tool-side gate (`anvil-transition-resolved-refuses-when-an-open-pr-is-linked`) will catch this, but until it lands the human is the v0.1 enforcer.
 
-The subagent prompt echoes this checklist verbatim in its final structured report so we can audit non-execution.
+Both bundled agents (`anvil-issue-worker`, `anvil-pr-responder`) echo this checklist verbatim in their final structured report so we can audit non-execution.
 
 ## What NOT to do
 
