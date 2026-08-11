@@ -163,6 +163,74 @@ func TestInstallAgentsTargetCodex(t *testing.T) {
 	})
 }
 
+// TestInstallAgentsTargetPi asserts that `install agents --target pi` emits
+// each embedded agent as pi-compatible markdown under
+// $PI_CODING_AGENT_DIR/agents, leaves the Claude config dir untouched, and
+// that --uninstall removes the emitted file.
+func TestInstallAgentsTargetPi(t *testing.T) {
+	t.Run("emits markdown into PI_CODING_AGENT_DIR and leaves Claude untouched", func(t *testing.T) {
+		piDir := t.TempDir()
+		claudeDir := t.TempDir()
+		t.Setenv("PI_CODING_AGENT_DIR", piDir)
+		t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"install", "agents", "--target", "pi"})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("install agents --target pi: %v", err)
+		}
+
+		md := filepath.Join(piDir, "agents", "anvil-issue-worker.md")
+		b, err := os.ReadFile(md) //nolint:gosec // path is test-controlled
+		if err != nil {
+			t.Fatalf("read emitted markdown: %v", err)
+		}
+		got := string(b)
+		for _, want := range []string{"name: anvil-issue-worker", "description: ", "model: claude-bridge/claude-sonnet-5"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("emitted markdown missing %q\n---\n%s", want, got)
+			}
+		}
+		for _, unwanted := range []string{"effort:", "skills:"} {
+			if strings.Contains(got, unwanted) {
+				t.Errorf("emitted markdown should not contain %q\n---\n%s", unwanted, got)
+			}
+		}
+		if _, err := os.Stat(filepath.Join(claudeDir, "agents")); !os.IsNotExist(err) {
+			t.Errorf("Claude agents dir should be untouched by --target pi, got err=%v", err)
+		}
+	})
+
+	t.Run("uninstall removes the emitted markdown", func(t *testing.T) {
+		piDir := t.TempDir()
+		t.Setenv("PI_CODING_AGENT_DIR", piDir)
+		t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+
+		install := newRootCmd()
+		install.SetArgs([]string{"install", "agents", "--target", "pi"})
+		install.SetOut(&bytes.Buffer{})
+		if err := install.Execute(); err != nil {
+			t.Fatalf("install: %v", err)
+		}
+
+		uninstall := newRootCmd()
+		uninstall.SetArgs([]string{"install", "agents", "--target", "pi", "--uninstall"})
+		var out bytes.Buffer
+		uninstall.SetOut(&out)
+		if err := uninstall.Execute(); err != nil {
+			t.Fatalf("uninstall: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(piDir, "agents", "anvil-issue-worker.md")); !os.IsNotExist(err) {
+			t.Errorf("emitted markdown should be removed, got err=%v", err)
+		}
+		if !strings.Contains(out.String(), "removed") {
+			t.Errorf("output = %q, want mention of removed", out.String())
+		}
+	})
+}
+
 func TestInstall_Hooks_Uninstall(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CLAUDE_CONFIG_DIR", dir)

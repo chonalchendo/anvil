@@ -27,12 +27,13 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	for k, v := range map[string]string{
-		"HOME":              home,
-		"CLAUDE_CONFIG_DIR": filepath.Join(home, ".claude"),
-		"CODEX_HOME":        filepath.Join(home, ".codex"),
-		"ANVIL_SKILLS_DIR":  filepath.Join(home, ".anvil", "skills"),
-		"ANVIL_VAULT":       "",
-		"ANVIL_PROJECT":     "",
+		"HOME":                home,
+		"CLAUDE_CONFIG_DIR":   filepath.Join(home, ".claude"),
+		"CODEX_HOME":          filepath.Join(home, ".codex"),
+		"PI_CODING_AGENT_DIR": filepath.Join(home, ".pi", "agent"),
+		"ANVIL_SKILLS_DIR":    filepath.Join(home, ".anvil", "skills"),
+		"ANVIL_VAULT":         "",
+		"ANVIL_PROJECT":       "",
 	} {
 		_ = os.Setenv(k, v)
 	}

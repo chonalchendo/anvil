@@ -3,6 +3,7 @@ package installer
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -80,6 +81,115 @@ func TestRemoveAgents_LeavesForeignContent(t *testing.T) {
 	}
 
 	changed, err := RemoveAgents(fakeAgentsFS(), target)
+	if err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if !changed {
+		t.Error("removing a deployed anvil agent should report changed=true")
+	}
+	if _, err := os.Stat(filepath.Join(target, "anvil-issue-worker.md")); !os.IsNotExist(err) {
+		t.Errorf("anvil agent should be removed, got err=%v", err)
+	}
+	if _, err := os.Stat(foreign); err != nil {
+		t.Errorf("foreign agent file should survive removal: %v", err)
+	}
+}
+
+func fakePiAgentsFS() fstest.MapFS {
+	return fstest.MapFS{
+		"anvil-issue-worker.md": {Data: []byte("---\nname: anvil-issue-worker\ndescription: does the thing\nmodel: sonnet\neffort: medium\ntools: Bash, Read\nskills: completing-issue\n---\nbody\n")},
+		"README":                {Data: []byte("not an agent\n")},
+	}
+}
+
+func TestInstallPiAgents_TranslatesModelAndDropsClaudeOnlyKeys(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "agents")
+
+	changed, err := InstallPiAgents(fakePiAgentsFS(), target, false)
+	if err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	if !changed {
+		t.Error("first install should report changed=true")
+	}
+
+	b, err := os.ReadFile(filepath.Join(target, "anvil-issue-worker.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
+	if err != nil {
+		t.Fatalf("read emitted agent: %v", err)
+	}
+	got := string(b)
+	for _, want := range []string{"name: anvil-issue-worker", "description: does the thing", "model: claude-bridge/claude-sonnet-5", "tools: Bash, Read"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("emitted agent missing %q\n---\n%s", want, got)
+		}
+	}
+	for _, unwanted := range []string{"effort:", "skills:", "model: sonnet"} {
+		if strings.Contains(got, unwanted) {
+			t.Errorf("emitted agent should not contain %q\n---\n%s", unwanted, got)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(target, "README")); !os.IsNotExist(err) {
+		t.Errorf("non-.md entry should be skipped, got err=%v", err)
+	}
+}
+
+func TestInstallPiAgents_UnmappedModelIsError(t *testing.T) {
+	srcFS := fstest.MapFS{
+		"agent.md": {Data: []byte("---\nname: agent\ndescription: d\nmodel: gpt-5\n---\nbody\n")},
+	}
+	if _, err := InstallPiAgents(srcFS, filepath.Join(t.TempDir(), "agents"), false); err == nil {
+		t.Fatal("expected error for a model alias with no pi translation")
+	}
+}
+
+func TestInstallPiAgents_IdempotentNoOp(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "agents")
+	if _, err := InstallPiAgents(fakePiAgentsFS(), target, false); err != nil {
+		t.Fatalf("first install: %v", err)
+	}
+	changed, err := InstallPiAgents(fakePiAgentsFS(), target, false)
+	if err != nil {
+		t.Fatalf("second install: %v", err)
+	}
+	if changed {
+		t.Error("re-installing identical content should report changed=false")
+	}
+}
+
+func TestInstallPiAgents_RefusesDivergentWithoutForce(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "agents")
+	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+		t.Fatal(err)
+	}
+	dst := filepath.Join(target, "anvil-issue-worker.md")
+	if err := os.WriteFile(dst, []byte("user-edited\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+
+	if _, err := InstallPiAgents(fakePiAgentsFS(), target, false); err == nil {
+		t.Fatal("expected refusal overwriting a divergent file without --force")
+	}
+
+	changed, err := InstallPiAgents(fakePiAgentsFS(), target, true)
+	if err != nil {
+		t.Fatalf("force install: %v", err)
+	}
+	if !changed {
+		t.Error("force install over divergent file should report changed=true")
+	}
+}
+
+func TestRemovePiAgents_LeavesForeignContent(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "agents")
+	if _, err := InstallPiAgents(fakePiAgentsFS(), target, false); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	foreign := filepath.Join(target, "user-agent.md")
+	if err := os.WriteFile(foreign, []byte("mine\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+
+	changed, err := RemovePiAgents(fakePiAgentsFS(), target)
 	if err != nil {
 		t.Fatalf("remove: %v", err)
 	}
