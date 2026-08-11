@@ -151,8 +151,8 @@ func newInstallSkillsCmd() *cobra.Command {
 			"--target claude → ~/.claude/skills/<name>/ (symlinked); --target codex →\n" +
 			"~/.codex/skills/<name>/ (copied, honoring $CODEX_HOME); --target pi →\n" +
 			"~/.pi/agent/skills/<name>/ (copied, honoring $PI_CODING_AGENT_DIR). Codex and pi\n" +
-			"copy because their skill discovery rejects (codex: unverified; pi: explicitly\n" +
-			"refused) a symlinked skill directory.\n\n" +
+			"copy because a symlinked skill dir is unverified for codex and rejected outright\n" +
+			"by pi's skill loader.\n\n" +
 			"Skills are embedded into the anvil binary at build time. This command deploys\n" +
 			"that embedded bundle — it does NOT read anvil/skills/ from disk. Editing\n" +
 			"anvil/skills/<name>/SKILL.md in an anvil checkout has no effect until you rebuild\n" +

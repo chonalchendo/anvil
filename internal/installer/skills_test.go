@@ -46,6 +46,43 @@ func TestInstallSkills_ShippedScriptsAreExecutable(t *testing.T) {
 	}
 }
 
+func TestInstallSkills_RefusesSymlinkedRoot(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	real := filepath.Join(t.TempDir(), "real-pi-skills")
+	if err := os.MkdirAll(real, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(t.TempDir(), "pi-skills")
+	if err := os.Symlink(real, target); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := InstallSkills(fakeSkillsFS(), mat, target, true, false); err == nil {
+		t.Fatal("expected error installing into a symlinked root")
+	}
+	info, err := os.Lstat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Error("target should still be a symlink after the refused install")
+	}
+
+	if _, err := InstallSkills(fakeSkillsFS(), mat, target, true, true); err != nil {
+		t.Fatalf("install --force into symlinked root: %v", err)
+	}
+	info, err = os.Lstat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		t.Error("target should be a real directory after --force")
+	}
+	if _, err := os.Lstat(filepath.Join(target, "capturing-inbox")); err != nil {
+		t.Errorf("skill not copied into replaced root: %v", err)
+	}
+}
+
 func TestInstallSkills_FlatPerSkillSymlinks(t *testing.T) {
 	mat := filepath.Join(t.TempDir(), "skills")
 	target := filepath.Join(t.TempDir(), "claude-skills")
