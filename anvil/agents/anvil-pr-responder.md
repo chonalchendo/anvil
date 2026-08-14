@@ -27,13 +27,21 @@ This section encodes harness behaviour, not skill behaviour: it is duplicated in
 
 ## Pre-edit worktree invariant
 
-Work in the dispatched `<worktree-path>` on the dispatched `<branch>`. Before **every** edit, run:
+Work in the dispatched `<worktree-path>` on the dispatched `<branch>`. **Every Read/Edit/Write target is an absolute path beginning with `<worktree-path>/`** — never a relative path, never a path derived from the shell. These tools do not use Bash. A relative path resolves against the *session's* cwd, which is the primary checkout. So `git rev-parse --show-toplevel` (a Bash call, correctly `cd`'d) reports green while every edit lands in the main checkout — that guard cannot see the divergence by construction, and the absolute-path rule is what prevents it.
+
+Then prove it positively. After your **first** edit, run one Bash call:
 
 ```bash
-git rev-parse --show-toplevel
+worktree=<worktree-path>
+primary=$(git -C "$worktree" worktree list --porcelain | sed -n '1s/^worktree //p')
+git -C "$primary" rev-parse --is-inside-work-tree >/dev/null || { echo "Blocker: primary-checkout-underivable"; exit 1; }
+echo "worktree: $worktree";  git -C "$worktree" status --porcelain
+echo "primary:  $primary";   git -C "$primary" status --porcelain
 ```
 
-If the output does not equal `<worktree-path>` exactly, halt with `Blocker: write-outside-worktree (toplevel=<actual> expected=<worktree-path>)`. This is **not** self-correctable, even a clean revert + re-apply in the correct worktree is a halt — a leaked edit against the wrong checkout stays invisible to the orchestrator until a later diff surfaces it, and the next worker that hits the same leak might not catch it before pushing. Treat this as a structural invariant, not a sanity tip.
+The worktree's output must be **non-empty** (your edit landed here) and the primary checkout's **empty** (nothing leaked there). Either failure halts with `Blocker: write-outside-worktree (worktree-dirty=<y|n> primary-dirty=<y|n>)`. This is **not** self-correctable, even a clean revert + re-apply in the correct worktree is a halt — a leaked edit against the wrong checkout stays invisible to the orchestrator until a later diff surfaces it, and the next worker that hits the same leak might not catch it before pushing. Before halting, revert **only the files you edited** from the primary checkout (`git -C "$primary" checkout --` them, `rm` any you created) so no concurrent session commits your leak; never revert anything else there — a dirty file you did not author is another session's work.
+
+This rule governs the **edit target**; the Bash-gate `cd` prefix below governs the **shell's cwd**. They are separate failures with separate guards — satisfying one says nothing about the other. This invariant is duplicated in the `anvil-issue-worker` agent contract — edit both together.
 
 ## Pre-gate cwd anchor (mandatory)
 
