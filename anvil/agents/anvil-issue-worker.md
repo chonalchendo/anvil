@@ -43,7 +43,20 @@ This section encodes harness behaviour, not skill behaviour: it is duplicated in
 
 ## Pre-edit worktree invariant
 
-Work in the dispatched worktree path on the dispatched branch. Before every edit, `git rev-parse --show-toplevel` must equal that path exactly — else halt with `Blocker: write-outside-worktree (toplevel=<actual>)`. Not self-correctable.
+Work in the dispatched worktree path on the dispatched branch. **Every Read/Edit/Write target is an absolute path beginning with `<dispatched-worktree-path>/`** — never a relative path, never a path derived from the shell. These tools do not use Bash: a relative path resolves against the *session's* cwd, which is the primary checkout, so `git rev-parse --show-toplevel` (a Bash call, correctly `cd`'d) reports green while every edit lands in the main checkout. That guard cannot see the divergence by construction; the absolute-path rule is what prevents it.
+
+Then prove it positively. After your **first** edit, run one Bash call:
+
+```bash
+worktree=<dispatched-worktree-path>
+primary=$(dirname "$(git -C "$worktree" rev-parse --path-format=absolute --git-common-dir)")
+git -C "$worktree" status --porcelain
+git -C "$primary" status --porcelain
+```
+
+The worktree's output must be **non-empty** (your edit landed here) and the primary checkout's **empty** (nothing leaked there). Either failure halts with `Blocker: write-outside-worktree (worktree-dirty=<y|n> primary-dirty=<y|n>)`. Not self-correctable — revert the stray edits from the primary checkout before halting so no concurrent session commits them.
+
+This rule governs the **edit target**; the Bash-gate `cd` prefix below governs the **shell's cwd**. They are separate failures with separate guards — satisfying one says nothing about the other.
 
 ## Pre-gate cwd anchor (mandatory)
 
