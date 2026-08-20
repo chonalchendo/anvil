@@ -273,6 +273,88 @@ func TestInstallAgentsTargetPi(t *testing.T) {
 	})
 }
 
+// TestInstallAgentsTargetAnte asserts that `install agents --target ante`
+// emits each embedded agent as Ante-compatible markdown under
+// $ANTE_HOME/agents, leaves the Claude config dir untouched, and that
+// --uninstall removes the emitted file.
+func TestInstallAgentsTargetAnte(t *testing.T) {
+	t.Run("emits markdown into ANTE_HOME and leaves Claude untouched", func(t *testing.T) {
+		anteDir := t.TempDir()
+		claudeDir := t.TempDir()
+		t.Setenv("ANTE_HOME", anteDir)
+		t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"install", "agents", "--target", "ante"})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("install agents --target ante: %v", err)
+		}
+
+		md := filepath.Join(anteDir, "agents", "anvil-issue-worker.md")
+		b, err := os.ReadFile(md) //nolint:gosec // path is test-controlled
+		if err != nil {
+			t.Fatalf("read emitted markdown: %v", err)
+		}
+		got := string(b)
+		fmParts := strings.SplitN(got, "---\n", 3)
+		if len(fmParts) < 3 {
+			t.Fatalf("emitted markdown missing frontmatter delimiters\n---\n%s", got)
+		}
+		var fm map[string]any
+		if err := yaml.Unmarshal([]byte(fmParts[1]), &fm); err != nil {
+			t.Fatalf("emitted frontmatter is not valid strict YAML: %v\n---\n%s", err, fmParts[1])
+		}
+		if fm["name"] != "anvil-issue-worker" {
+			t.Errorf("fm[name] = %v, want anvil-issue-worker\n---\n%s", fm["name"], got)
+		}
+		if fm["description"] == "" || fm["description"] == nil {
+			t.Errorf("fm[description] empty, want non-empty\n---\n%s", got)
+		}
+		for _, unwanted := range []string{"effort", "skills"} {
+			if _, ok := fm[unwanted]; ok {
+				t.Errorf("fm should not contain %q, got %v\n---\n%s", unwanted, fm[unwanted], got)
+			}
+		}
+		for _, unresolvable := range []string{"ToolSearch", "TaskOutput", "TaskStop"} {
+			if strings.Contains(fmt.Sprint(fm["tools"]), unresolvable) {
+				t.Errorf("tools frontmatter should not contain Claude-only %q, got %v", unresolvable, fm["tools"])
+			}
+		}
+		if _, err := os.Stat(filepath.Join(claudeDir, "agents")); !os.IsNotExist(err) {
+			t.Errorf("Claude agents dir should be untouched by --target ante, got err=%v", err)
+		}
+	})
+
+	t.Run("uninstall removes the emitted markdown", func(t *testing.T) {
+		anteDir := t.TempDir()
+		t.Setenv("ANTE_HOME", anteDir)
+		t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+
+		install := newRootCmd()
+		install.SetArgs([]string{"install", "agents", "--target", "ante"})
+		install.SetOut(&bytes.Buffer{})
+		if err := install.Execute(); err != nil {
+			t.Fatalf("install: %v", err)
+		}
+
+		uninstall := newRootCmd()
+		uninstall.SetArgs([]string{"install", "agents", "--target", "ante", "--uninstall"})
+		var out bytes.Buffer
+		uninstall.SetOut(&out)
+		if err := uninstall.Execute(); err != nil {
+			t.Fatalf("uninstall: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(anteDir, "agents", "anvil-issue-worker.md")); !os.IsNotExist(err) {
+			t.Errorf("emitted markdown should be removed, got err=%v", err)
+		}
+		if !strings.Contains(out.String(), "removed") {
+			t.Errorf("output = %q, want mention of removed", out.String())
+		}
+	})
+}
+
 // TestInstallSkillsTargetPi asserts that `install skills --target pi` copies
 // the embedded bundle (no symlinks) into $PI_CODING_AGENT_DIR/skills, leaves
 // the Claude skills dir untouched, and that --uninstall removes the copy.
@@ -331,6 +413,72 @@ func TestInstallSkillsTargetPi(t *testing.T) {
 		}
 		if _, err := os.Stat(filepath.Join(piDir, "skills", "completing-issue")); !os.IsNotExist(err) {
 			t.Errorf("copied skill dir should be removed, got err=%v", err)
+		}
+		if !strings.Contains(out.String(), "removed") {
+			t.Errorf("output = %q, want mention of removed", out.String())
+		}
+	})
+}
+
+// TestInstallSkillsTargetAnte asserts that `install skills --target ante`
+// symlinks the embedded bundle into $ANTE_HOME/skills (same shape as the
+// default claude target, since resolveAgentCLIConfigDir/resolveAnvilSkillsTarget
+// route ante through the generic path), leaves the Claude skills dir
+// untouched, and that --uninstall removes the symlink.
+func TestInstallSkillsTargetAnte(t *testing.T) {
+	t.Run("symlinks skills into ANTE_HOME and leaves Claude untouched", func(t *testing.T) {
+		anteDir := t.TempDir()
+		claudeDir := t.TempDir()
+		t.Setenv("ANTE_HOME", anteDir)
+		t.Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+		t.Setenv("ANVIL_SKILLS_DIR", t.TempDir())
+
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"install", "skills", "--target", "ante"})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("install skills --target ante: %v", err)
+		}
+
+		skillDir := filepath.Join(anteDir, "skills", "completing-issue")
+		info, err := os.Lstat(skillDir)
+		if err != nil {
+			t.Fatalf("stat emitted skill dir: %v", err)
+		}
+		if info.Mode()&os.ModeSymlink == 0 {
+			t.Error("emitted skill dir should be symlinked, like the default claude target")
+		}
+		if _, err := os.ReadFile(filepath.Join(skillDir, "SKILL.md")); err != nil { //nolint:gosec // path is test-controlled
+			t.Fatalf("read linked SKILL.md: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(claudeDir, "skills")); !os.IsNotExist(err) {
+			t.Errorf("Claude skills dir should be untouched by --target ante, got err=%v", err)
+		}
+	})
+
+	t.Run("uninstall removes the linked skills", func(t *testing.T) {
+		anteDir := t.TempDir()
+		t.Setenv("ANTE_HOME", anteDir)
+		t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+		t.Setenv("ANVIL_SKILLS_DIR", t.TempDir())
+
+		install := newRootCmd()
+		install.SetArgs([]string{"install", "skills", "--target", "ante"})
+		install.SetOut(&bytes.Buffer{})
+		if err := install.Execute(); err != nil {
+			t.Fatalf("install: %v", err)
+		}
+
+		uninstall := newRootCmd()
+		uninstall.SetArgs([]string{"install", "skills", "--target", "ante", "--uninstall"})
+		var out bytes.Buffer
+		uninstall.SetOut(&out)
+		if err := uninstall.Execute(); err != nil {
+			t.Fatalf("uninstall: %v", err)
+		}
+		if _, err := os.Lstat(filepath.Join(anteDir, "skills", "completing-issue")); !os.IsNotExist(err) {
+			t.Errorf("linked skill dir should be removed, got err=%v", err)
 		}
 		if !strings.Contains(out.String(), "removed") {
 			t.Errorf("output = %q, want mention of removed", out.String())

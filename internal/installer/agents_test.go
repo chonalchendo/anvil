@@ -1,9 +1,11 @@
 package installer
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -312,5 +314,122 @@ func TestBundledAgents_TranslateForAllTargets(t *testing.T) {
 		if _, err := codexAgentTOML(src); err != nil {
 			t.Errorf("codexAgentTOML(%s): %v", name, err)
 		}
+		if _, err := anteAgentMarkdown(src); err != nil {
+			t.Errorf("anteAgentMarkdown(%s): %v", name, err)
+		}
+	}
+}
+
+func fakeAnteAgentsFS() fstest.MapFS {
+	return fstest.MapFS{
+		"anvil-issue-worker.md": {Data: []byte("---\nname: anvil-issue-worker\ndescription: does the thing: precisely\nmodel: sonnet\neffort: medium\ntools: Bash, Read, Glob, ToolSearch, TaskOutput, TaskStop\nskills: completing-issue\n---\nbody\n")},
+		"README":                {Data: []byte("not an agent\n")},
+	}
+}
+
+func TestInstallAnteAgents_TranslatesToolsAndDropsUnsupportedKeys(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "agents")
+
+	changed, err := InstallAnteAgents(fakeAnteAgentsFS(), target, false)
+	if err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	if !changed {
+		t.Error("first install should report changed=true")
+	}
+
+	b, err := os.ReadFile(filepath.Join(target, "anvil-issue-worker.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
+	if err != nil {
+		t.Fatalf("read emitted agent: %v", err)
+	}
+	doc := piFrontmatter(t, string(b))
+
+	if doc["name"] != "anvil-issue-worker" {
+		t.Errorf("name = %v, want anvil-issue-worker", doc["name"])
+	}
+	if doc["description"] != "does the thing: precisely" {
+		t.Errorf("description = %v, want round-tripped verbatim", doc["description"])
+	}
+	if doc["model"] != "sonnet" {
+		t.Errorf("model = %v, want sonnet (carried through unchanged)", doc["model"])
+	}
+	tools, _ := doc["tools"].([]any)
+	gotTools := make([]string, 0, len(tools))
+	for _, t := range tools {
+		gotTools = append(gotTools, fmt.Sprint(t))
+	}
+	if want := []string{"Bash", "Read", "Glob"}; !reflect.DeepEqual(gotTools, want) {
+		t.Errorf("tools = %v, want %v (ToolSearch/TaskOutput/TaskStop have no Ante equivalent and are dropped)", gotTools, want)
+	}
+	if _, ok := doc["effort"]; ok {
+		t.Errorf("effort key should not be emitted, got %v", doc["effort"])
+	}
+	if _, ok := doc["skills"]; ok {
+		t.Errorf("skills key should not be emitted, got %v", doc["skills"])
+	}
+	if _, err := os.Stat(filepath.Join(target, "README")); !os.IsNotExist(err) {
+		t.Errorf("non-.md entry should be skipped, got err=%v", err)
+	}
+}
+
+func TestInstallAnteAgents_IdempotentNoOp(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "agents")
+	if _, err := InstallAnteAgents(fakeAnteAgentsFS(), target, false); err != nil {
+		t.Fatalf("first install: %v", err)
+	}
+	changed, err := InstallAnteAgents(fakeAnteAgentsFS(), target, false)
+	if err != nil {
+		t.Fatalf("second install: %v", err)
+	}
+	if changed {
+		t.Error("re-installing identical content should report changed=false")
+	}
+}
+
+func TestInstallAnteAgents_RefusesDivergentWithoutForce(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "agents")
+	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+		t.Fatal(err)
+	}
+	dst := filepath.Join(target, "anvil-issue-worker.md")
+	if err := os.WriteFile(dst, []byte("user-edited\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+
+	if _, err := InstallAnteAgents(fakeAnteAgentsFS(), target, false); err == nil {
+		t.Fatal("expected refusal overwriting a divergent file without --force")
+	}
+
+	changed, err := InstallAnteAgents(fakeAnteAgentsFS(), target, true)
+	if err != nil {
+		t.Fatalf("force install: %v", err)
+	}
+	if !changed {
+		t.Error("force install over divergent file should report changed=true")
+	}
+}
+
+func TestRemoveAnteAgents_LeavesForeignContent(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "agents")
+	if _, err := InstallAnteAgents(fakeAnteAgentsFS(), target, false); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	foreign := filepath.Join(target, "user-agent.md")
+	if err := os.WriteFile(foreign, []byte("mine\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+
+	changed, err := RemoveAnteAgents(fakeAnteAgentsFS(), target)
+	if err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if !changed {
+		t.Error("removing a deployed anvil agent should report changed=true")
+	}
+	if _, err := os.Stat(filepath.Join(target, "anvil-issue-worker.md")); !os.IsNotExist(err) {
+		t.Errorf("anvil agent should be removed, got err=%v", err)
+	}
+	if _, err := os.Stat(foreign); err != nil {
+		t.Errorf("foreign agent file should survive removal: %v", err)
 	}
 }
