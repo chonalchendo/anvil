@@ -278,9 +278,9 @@ func newInstallAgentsCmd() *cobra.Command {
 			"Claude-specific model/tools/skills are dropped. The pi emit keeps the markdown\n" +
 			"shape, translates the model alias to a pi-resolvable ref, narrows tools to the\n" +
 			"pi-resolvable subset, and maps skills/effort to pi's skills/thinking keys. The\n" +
-			"ante emit keeps the markdown shape and the model value unchanged, narrows tools\n" +
-			"to Ante's built-in subset, and drops skills/effort outright — Ante's frontmatter\n" +
-			"has no equivalent keys.\n\n" +
+			"ante emit keeps the markdown shape, translates the model alias to Ante's\n" +
+			"canonical catalog id, narrows tools to Ante's built-in subset, and drops\n" +
+			"skills/effort outright — Ante's frontmatter has no equivalent keys.\n\n" +
 			"Agents are embedded into the anvil binary at build time. This command deploys\n" +
 			"that embedded bundle — editing anvil/agents/<name>.md in a checkout has no\n" +
 			"effect until you rebuild the anvil binary and re-run\n" +

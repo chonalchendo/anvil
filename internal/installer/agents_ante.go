@@ -9,6 +9,17 @@ import (
 	"strings"
 )
 
+// claudeModelToAnteRef translates anvil's Claude Code model aliases to the
+// canonical Ante catalog id (docs.antigma.ai/reference/catalog-reference).
+// Ante does not resolve a bare Claude alias ("sonnet", "opus", "haiku"), so
+// every alias the embedded bundle uses must have an entry here or
+// InstallAnteAgents refuses to emit — mirrors claudeModelToPiRef.
+var claudeModelToAnteRef = map[string]string{
+	"sonnet": "claude-sonnet-5",
+	"opus":   "claude-opus-5",
+	"haiku":  "claude-haiku-4-5",
+}
+
 // claudeToolToAnteTool translates anvil's Claude Code built-in tool names to
 // Ante's built-in tool names (docs.antigma.ai/extend/subagents). Ante's
 // built-ins are near-identical to Claude Code's own naming, so this map is
@@ -130,13 +141,14 @@ func RemoveAnteAgents(srcFS fs.FS, target string) (bool, error) {
 // Ante-compatible subagent markdown document (docs.antigma.ai/extend/subagents):
 // name carries through as a plain scalar, description as a double-quoted YAML
 // scalar (anvil's descriptions routinely contain `: `, which breaks an
-// unquoted YAML scalar — see piAgentMarkdown), model carries through
-// unchanged (Ante treats model as an opaque provider-resolvable override, not
-// a fixed alias registry like pi's), tools narrows to the Ante-resolvable
-// subset via anteToolNames as a YAML block list (the shape Ante's own docs
-// show), and effort/skills are dropped outright — Ante's frontmatter has no
-// equivalent keys for either. The body is Ante's system prompt and copies
-// through unchanged.
+// unquoted YAML scalar — see piAgentMarkdown), model is translated via
+// claudeModelToAnteRef to the canonical catalog id Ante's model resolution
+// requires (an untranslatable alias is a hard error, same as
+// piAgentMarkdown — emitting it would hand Ante a ref it can't resolve),
+// tools narrows to the Ante-resolvable subset via anteToolNames as a YAML
+// block list (the shape Ante's own docs show), and effort/skills are dropped
+// outright — Ante's frontmatter has no equivalent keys for either. The body
+// is Ante's system prompt and copies through unchanged.
 func anteAgentMarkdown(md []byte) (string, error) {
 	fields, body, err := parseAgentMarkdown(md)
 	if err != nil {
@@ -150,7 +162,11 @@ func anteAgentMarkdown(md []byte) (string, error) {
 	fmt.Fprintf(&b, "name: %s\n", fields["name"])
 	fmt.Fprintf(&b, "description: %q\n", fields["description"])
 	if model := fields["model"]; model != "" {
-		fmt.Fprintf(&b, "model: %s\n", model)
+		anteModel, ok := claudeModelToAnteRef[model]
+		if !ok {
+			return "", fmt.Errorf("model %q has no ante ref translation", model)
+		}
+		fmt.Fprintf(&b, "model: %s\n", anteModel)
 	}
 	if tools := anteToolNames(fields["tools"]); len(tools) > 0 {
 		b.WriteString("tools:\n")
