@@ -327,7 +327,7 @@ func fakeAnteAgentsFS() fstest.MapFS {
 	}
 }
 
-func TestInstallAnteAgents_TranslatesToolsAndDropsUnsupportedKeys(t *testing.T) {
+func TestInstallAnteAgents_TranslatesModelToolsAndDropsUnsupportedKeys(t *testing.T) {
 	target := filepath.Join(t.TempDir(), "agents")
 
 	changed, err := InstallAnteAgents(fakeAnteAgentsFS(), target, false)
@@ -350,8 +350,8 @@ func TestInstallAnteAgents_TranslatesToolsAndDropsUnsupportedKeys(t *testing.T) 
 	if doc["description"] != "does the thing: precisely" {
 		t.Errorf("description = %v, want round-tripped verbatim", doc["description"])
 	}
-	if doc["model"] != "sonnet" {
-		t.Errorf("model = %v, want sonnet (carried through unchanged)", doc["model"])
+	if doc["model"] != "claude-sonnet-5" {
+		t.Errorf("model = %v, want claude-sonnet-5 (translated from the sonnet alias)", doc["model"])
 	}
 	tools, _ := doc["tools"].([]any)
 	gotTools := make([]string, 0, len(tools))
@@ -369,6 +369,15 @@ func TestInstallAnteAgents_TranslatesToolsAndDropsUnsupportedKeys(t *testing.T) 
 	}
 	if _, err := os.Stat(filepath.Join(target, "README")); !os.IsNotExist(err) {
 		t.Errorf("non-.md entry should be skipped, got err=%v", err)
+	}
+}
+
+func TestInstallAnteAgents_UnmappedModelIsError(t *testing.T) {
+	srcFS := fstest.MapFS{
+		"agent.md": {Data: []byte("---\nname: agent\ndescription: d\nmodel: gpt-5\n---\nbody\n")},
+	}
+	if _, err := InstallAnteAgents(srcFS, filepath.Join(t.TempDir(), "agents"), false); err == nil {
+		t.Fatal("expected error for a model alias with no ante ref translation")
 	}
 }
 
