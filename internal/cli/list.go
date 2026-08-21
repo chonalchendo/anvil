@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/schema"
 )
 
 const defaultListLimit = 10
@@ -46,6 +48,29 @@ type listFilters struct {
 // issueSeverityEnum mirrors schemas/issue.schema.json. Kept inline because
 // list is the only consumer; promote to schema package on a second use.
 var issueSeverityEnum = []string{"low", "medium", "high", "critical"}
+
+// statusEnum returns t's status enum straight from its embedded schema, so
+// an unrecognised --status value (anvil.0254: in_progress silently matched
+// nothing) is rejected the same way --severity already is. nil (no
+// "status" property, or an unreadable schema) disables the check rather
+// than false-rejecting.
+func statusEnum(t core.Type) []string {
+	b, err := schema.EmbeddedFS.ReadFile(string(t) + ".schema.json")
+	if err != nil {
+		return nil
+	}
+	var raw struct {
+		Properties struct {
+			Status struct {
+				Enum []string `json:"enum"`
+			} `json:"status"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return nil
+	}
+	return raw.Properties.Status.Enum
+}
 
 func newListCmd() *cobra.Command {
 	var (
@@ -84,6 +109,14 @@ func newListCmd() *cobra.Command {
 					Set("flag", "severity").
 					Set("value", flagSeverity).
 					Set("allowed", issueSeverityEnum))
+			}
+			if flagStatus != "" {
+				if allowed := statusEnum(t); len(allowed) > 0 && !slices.Contains(allowed, flagStatus) {
+					return printAndReturn(cmd, errfmt.NewStructured("bad_flag_value").
+						Set("flag", "status").
+						Set("value", flagStatus).
+						Set("allowed", allowed))
+				}
 			}
 			if flagInvalidBody && t != core.TypeIssue {
 				return printAndReturn(cmd, errfmt.NewUnsupportedForType(string(t), []string{"issue"}))

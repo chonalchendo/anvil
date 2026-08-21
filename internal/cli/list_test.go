@@ -38,6 +38,28 @@ func TestList_FiltersByStatus(t *testing.T) {
 	}
 }
 
+// TestList_StatusFilterRejectsUnknownValue guards anvil.0254: an unrecognised
+// --status value (e.g. the underscore typo in_progress) must error loudly
+// instead of silently matching nothing.
+func TestList_StatusFilterRejectsUnknownValue(t *testing.T) {
+	setupVault(t)
+
+	cmd := newRootCmd()
+	stdout, _, err := runCmd(t, cmd, "list", "issue", "--status", "in_progress", "--json")
+	if err == nil {
+		t.Fatalf("expected non-nil error with --json")
+	}
+	if !strings.Contains(stdout, "bad_flag_value") {
+		t.Errorf("stdout missing code: %q", stdout)
+	}
+	if !strings.Contains(stdout, `"flag":"status"`) {
+		t.Errorf("stdout missing flag field: %q", stdout)
+	}
+	if !strings.Contains(stdout, `"allowed":["open","in-progress","resolved","abandoned"]`) {
+		t.Errorf("stdout missing allowed enum: %q", stdout)
+	}
+}
+
 func TestList_JSON(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A issue")
