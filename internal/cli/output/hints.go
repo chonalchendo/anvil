@@ -21,3 +21,10 @@ func BodyClipHint(returned, total int, path string) string {
 	return fmt.Sprintf("body truncated to %d of %d lines; read %s directly for the rest",
 		returned, total, path)
 }
+
+// BodyClipMarker formats the inline, greppable marker for a clipped body — its
+// own line so a caller that pipes stdout and drops stderr can still detect the
+// cut. `=== body clipped` is the anchored prefix callers grep for.
+func BodyClipMarker(total int, path string) string {
+	return fmt.Sprintf("=== body clipped: %d lines total, see %s ===", total, path)
+}

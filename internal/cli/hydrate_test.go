@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
@@ -462,4 +463,52 @@ func TestHydrateManifestEntriesAreNotHeaders(t *testing.T) {
 	if got != 2 {
 		t.Errorf("node-header scrape counted %d headers, want 2 (one per node)\n%s", got, out)
 	}
+}
+
+// TestHydrateClippedBodyCarriesInlineMarker pins anvil.0258: a caller that pipes
+// stdout and drops stderr must still be able to tell a body was truncated — the
+// stderr-only BodyClipHint isn't enough on its own. It also pins the false-positive
+// PR #397 flagged: hydrating an unclipped body must emit zero marker lines, since
+// the marker phrase alone (without the anchored `=== body clipped` line start) is
+// indistinguishable from artifact prose that happens to contain it.
+func TestHydrateClippedBodyCarriesInlineMarker(t *testing.T) {
+	longBody := strings.Repeat("line\n", showBodyLineCap+50)
+
+	t.Run("clipped body carries the full marker line", func(t *testing.T) {
+		v := setupVault(t)
+		writeHydrateIssue(t, v, "foo.i1", map[string]any{"milestone": "[[milestone.foo.m1]]"})
+		writeHydrateMilestone(t, v, "foo.m1", nil, longBody)
+
+		out, _, err := runCmd(t, newRootCmd(), "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		wantPath := filepath.Join(v, "85-milestones", "foo.m1.md")
+		wantMarker := output.BodyClipMarker(showBodyLineCap+51, wantPath)
+		found := false
+		for _, line := range strings.Split(out, "\n") {
+			if line == wantMarker {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("stdout missing exact marker line %q\n%s", wantMarker, out)
+		}
+	})
+
+	t.Run("unclipped body carries zero marker lines", func(t *testing.T) {
+		v := setupVault(t)
+		writeHydrateIssue(t, v, "foo.i1", map[string]any{"milestone": "[[milestone.foo.m1]]"})
+		writeHydrateMilestone(t, v, "foo.m1", nil, "short body\n")
+
+		out, _, err := runCmd(t, newRootCmd(), "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		for _, line := range strings.Split(out, "\n") {
+			if strings.HasPrefix(line, "=== body clipped") {
+				t.Errorf("unclipped hydrate emitted a clip marker line %q\n%s", line, out)
+			}
+		}
+	})
 }

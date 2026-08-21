@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/chonalchendo/anvil/internal/build"
+	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
 )
@@ -61,9 +62,9 @@ func injectHydratedContext(v *core.Vault, tasks []core.Task) {
 		for _, n := range h.nodes {
 			b.WriteString(closureHeader(n))
 			b.WriteByte('\n')
-			body, _, clipped := clipBody(n.Body)
+			body, total, clipped := clipBody(n.Body)
 			if clipped {
-				body += "\n… (body clipped)"
+				body += "\n" + output.BodyClipMarker(total, n.Path)
 			}
 			b.WriteString(body)
 			b.WriteByte('\n')
