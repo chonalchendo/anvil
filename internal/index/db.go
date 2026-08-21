@@ -99,30 +99,56 @@ type columnMigration struct {
 	table, column, ddl string
 }
 
-// runtimeColumnMigrations lists columns added to build_tasks/eval_runs after
-// their initial release. Append here, never rewrite the CREATE TABLE alone.
+// runtimeColumnMigrations lists columns added to build_runs/build_tasks
+// after their initial release. Only a plain column add with a non-NULL
+// default belongs here — ADD COLUMN cannot express a PK or constraint
+// change, so `phase`'s PRIMARY KEY widening to (run_id, task_id, phase)
+// is deliberately not listed: backfilling it via ADD COLUMN alone would
+// leave the old 2-column PK and collide on a task's second phase row.
+// Append here, never rewrite the CREATE TABLE alone.
 var runtimeColumnMigrations = []columnMigration{
 	{"build_tasks", "transcript_path", "TEXT NOT NULL DEFAULT ''"},
+	{"build_tasks", "diagnostic", "TEXT NOT NULL DEFAULT ''"},
 }
 
 // migrateRuntimeColumns backfills runtimeColumnMigrations on an existing
-// vault.db. Runtime telemetry tables have no schema_version rebuild path
-// (they're append-only, not derivable from vault files), so a missing
-// column needs a direct ALTER TABLE instead.
+// vault.db. Runtime telemetry tables have no schema_version rebuild path,
+// so a missing column needs a direct ALTER TABLE instead.
 func migrateRuntimeColumns(s *sql.DB) error {
 	for _, m := range runtimeColumnMigrations {
-		var n int
-		if err := s.QueryRow("SELECT count(*) FROM pragma_table_info(?) WHERE name = ?", m.table, m.column).Scan(&n); err != nil {
-			return fmt.Errorf("check column %s.%s: %w", m.table, m.column, err)
+		if err := migrateColumn(s, m); err != nil {
+			return err
 		}
-		if n > 0 {
-			continue
-		}
-		if _, err := s.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", m.table, m.column, m.ddl)); err != nil {
+	}
+	return nil
+}
+
+// migrateColumn adds one column, tolerating a concurrent Open that wins the
+// same ALTER: on failure it re-checks presence and only errors if the
+// column is still missing, since busy_timeout doesn't cover a schema error.
+func migrateColumn(s *sql.DB, m columnMigration) error {
+	present, err := hasColumn(s, m.table, m.column)
+	if err != nil {
+		return fmt.Errorf("check column %s.%s: %w", m.table, m.column, err)
+	}
+	if present {
+		return nil
+	}
+	if _, err := s.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", m.table, m.column, m.ddl)); err != nil {
+		present, checkErr := hasColumn(s, m.table, m.column)
+		if checkErr != nil || !present {
 			return fmt.Errorf("add column %s.%s: %w", m.table, m.column, err)
 		}
 	}
 	return nil
+}
+
+func hasColumn(s *sql.DB, table, column string) (bool, error) {
+	var n int
+	if err := s.QueryRow("SELECT count(*) FROM pragma_table_info(?) WHERE name = ?", table, column).Scan(&n); err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 // DBPath returns the canonical vault.db location for a given vault root.
