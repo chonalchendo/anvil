@@ -289,65 +289,160 @@ func TestRename_Issue_TargetAlreadyExists_Error(t *testing.T) {
 	}
 }
 
+func TestRename_SlugFlagOverridesTitleDerivation(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "old-slug", "Old Title")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"rename", "issue", "foo.old-slug",
+		"--title", "Investigate the very long auto-derived slug that would be cut instead",
+		"--slug", "custom-slug",
+	})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("rename: %v\n%s", err, out.String())
+	}
+
+	newPath := filepath.Join(vault, "70-issues", "issue.foo.custom-slug.md")
+	if _, err := os.Stat(newPath); err != nil {
+		t.Errorf("expected %s to exist: %v", newPath, err)
+	}
+}
+
+func TestRename_InvalidSlug_Error(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "old-slug", "Old Title")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"rename", "issue", "foo.old-slug",
+		"--title", "New Title",
+		"--slug", "Bad Slug!",
+	})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected validation error for invalid --slug")
+	}
+}
+
 func TestReplaceSlug_ProjectScoped(t *testing.T) {
-	got := replaceSlug(core.TypeIssue, "myproject.old-slug", "new-slug")
+	got, err := replaceSlug(core.TypeIssue, "myproject.old-slug", "new-slug", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got != "issue.myproject.new-slug" {
 		t.Errorf("got %q", got)
 	}
 }
 
 func TestReplaceSlug_PrefixedNumberedIssue_KeepsProjectAndOrdinal(t *testing.T) {
-	got := replaceSlug(core.TypeIssue, "issue.demo.0001.probe-issue-one", "renamed-probe-title")
+	got, err := replaceSlug(core.TypeIssue, "issue.demo.0001.probe-issue-one", "renamed-probe-title", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got != "issue.demo.0001.renamed-probe-title" {
 		t.Errorf("got %q", got)
 	}
 }
 
 func TestReplaceSlug_Milestone_KeepsPrefixAndProject(t *testing.T) {
-	got := replaceSlug(core.TypeMilestone, "milestone.demo.old-slug", "new-slug")
+	got, err := replaceSlug(core.TypeMilestone, "milestone.demo.old-slug", "new-slug", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got != "milestone.demo.new-slug" {
 		t.Errorf("got %q", got)
 	}
 }
 
 func TestReplaceSlug_Inbox(t *testing.T) {
-	got := replaceSlug(core.TypeInbox, "2026-05-13-old-slug", "new-slug")
+	got, err := replaceSlug(core.TypeInbox, "2026-05-13-old-slug", "new-slug", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got != "2026-05-13-new-slug" {
 		t.Errorf("got %q", got)
 	}
 }
 
 func TestReplaceSlug_Thread(t *testing.T) {
-	got := replaceSlug(core.TypeThread, "old-slug", "new-slug")
+	got, err := replaceSlug(core.TypeThread, "old-slug", "new-slug", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got != "new-slug" {
 		t.Errorf("got %q", got)
 	}
 }
 
 func TestReplaceSlug_Decision(t *testing.T) {
-	got := replaceSlug(core.TypeDecision, "mytopic.0001-old-slug", "new-slug")
+	got, err := replaceSlug(core.TypeDecision, "mytopic.0001-old-slug", "new-slug", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got != "mytopic.0001-new-slug" {
 		t.Errorf("got %q", got)
 	}
 }
 
 func TestReplaceSlug_SystemDesign_ScopedShard_KeepsProject(t *testing.T) {
-	got := replaceSlug(core.TypeSystemDesign, "mentat.ingestion-pipeline", "ingestion-cadence")
+	got, err := replaceSlug(core.TypeSystemDesign, "mentat.ingestion-pipeline", "ingestion-cadence", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got != "mentat.ingestion-cadence" {
 		t.Errorf("got %q", got)
 	}
 }
 
 func TestReplaceSlug_SystemDesign_Singleton_Unchanged(t *testing.T) {
-	got := replaceSlug(core.TypeSystemDesign, "mentat", "new-slug")
+	got, err := replaceSlug(core.TypeSystemDesign, "mentat", "new-slug", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got != "mentat" {
 		t.Errorf("got %q", got)
 	}
 }
 
+func TestReplaceSlug_SystemDesign_Singleton_ExplicitSlugBecomesShard(t *testing.T) {
+	got, err := replaceSlug(core.TypeSystemDesign, "mentat", "shard-one", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "mentat.shard-one" {
+		t.Errorf("got %q", got)
+	}
+}
+
 func TestReplaceSlug_ProductDesign_Singleton_Unchanged(t *testing.T) {
-	got := replaceSlug(core.TypeProductDesign, "mentat", "new-slug")
+	got, err := replaceSlug(core.TypeProductDesign, "mentat", "new-slug", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if got != "mentat" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestReplaceSlug_ProductDesign_ExplicitSlug_Error(t *testing.T) {
+	_, err := replaceSlug(core.TypeProductDesign, "mentat", "shard-one", true)
+	if err == nil {
+		t.Fatal("expected error for --slug on product-design")
+	}
+}
+
+func TestReplaceSlug_Convention(t *testing.T) {
+	got, err := replaceSlug(core.TypeConvention, "convention.old-slug", "new-slug", false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "convention.new-slug" {
 		t.Errorf("got %q", got)
 	}
 }

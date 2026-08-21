@@ -319,7 +319,7 @@ User-authored. Anthropic spec at top level + Anvil `metadata:` block. Out of CLI
 
 ## IDs and naming
 
-Slug-based across most artifacts. **Every type but the date/ordinal-keyed ones keeps the type prefix in the id** — issue, milestone, contract, plan, design docs (`product-design`, `system-design`), and conventions — so the id, the on-disk basename, and the `[[wikilink]]` target are one string: Obsidian matches literal basenames, and the index's global `artifacts.id` key would otherwise collide across types. Project-scoped shapes: id and filename `<type>.<project>.<slug>[.md]`. **Issues** additionally carry a per-project ordinal: id `issue.<project>.NNNN.<slug>` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Bare back-catalogue filenames (no type prefix) and legacy long-slug issue files (no ordinal) still resolve until the attended rename (anvil.0201) lands. Design docs shard as `<type>.<project>[.<shard>]` (e.g. `05-product-designs/product-design.anvil.md`, `06-system-designs/system-design.anvil.build.md`). **Conventions** are project-agnostic: id `convention.<slug>`, filename `convention.<slug>.md` (e.g. `35-conventions/convention.python.md`).
+Slug-based across most artifacts. **Every type but the date/ordinal-keyed ones and design docs keeps the type prefix in the id** — issue, milestone, contract, plan, and conventions — so the id, the on-disk basename, and the `[[wikilink]]` target are one string: Obsidian matches literal basenames, and the index's global `artifacts.id` key would otherwise collide across types. Project-scoped shapes: id and filename `<type>.<project>.<slug>[.md]`. **Issues** additionally carry a per-project ordinal: id `issue.<project>.NNNN.<slug>` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Bare back-catalogue filenames (no type prefix) and legacy long-slug issue files (no ordinal) still resolve until the attended rename (anvil.0201) lands. **Design docs** (`product-design`, `system-design`) key on a bare id — `<project>` for the singleton, `<project>.<shard>` for a named shard — with no type prefix (e.g. `05-product-designs/anvil.md`, `06-system-designs/anvil.build.md`). **Conventions** are project-agnostic: id `convention.<slug>`, filename `convention.<slug>.md` (e.g. `35-conventions/convention.python.md`).
 
 Examples:
 
@@ -332,7 +332,7 @@ Examples:
 
 Two rules:
 
-1. Slugs are immutable once allocated. Renaming the title doesn't rename the slug.
+1. Slugs are allocated at create and change only through `anvil rename` (title-derived, or explicit via `--slug`), which also rewrites inbound wikilinks.
 2. `anvil create` allocates the slug from the title at creation time, normalized (lowercase, hyphenated, ASCII).
 
 The plan `id` collapses with the slug: `plan.id == plan.<project>.<slug>`. **Decisions and threads** are the topic-ordinal types: prefix-less id and filename `<topic>.<NNNN>-<slug>`, ordinal allocated per topic within the type's own folder, `--topic` required at create. Bare-slug back-catalogue threads still resolve.
