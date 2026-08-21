@@ -208,8 +208,10 @@ func (h *hydration) descendConventions(v *core.Vault, sourceDesc string, a *core
 // (status) ===` header, to stdout. Full mode prints the body capped at
 // showBodyLineCap; --tldr prints the compact digest (frontmatter + any `## TL;DR`)
 // instead — the cheap boundary map an agent scans to judge relevance before
-// drilling into a load-bearing body. Prose (clip hints, the node count) goes to
-// stderr so a large fan-out doesn't pollute the bundle.
+// drilling into a load-bearing body. The node count goes to stderr so a large
+// fan-out doesn't pollute the bundle; a clipped body's marker goes to stdout
+// (see clipBody) since a stderr-only hint is invisible to a caller that drops
+// stderr.
 func emitHydration(cmd *cobra.Command, nodes []spineNode, tldr bool) {
 	w := cmd.OutOrStdout()
 	emitManifest(w, nodes)
@@ -222,10 +224,8 @@ func emitHydration(cmd *cobra.Command, nodes []spineNode, tldr bool) {
 		body, total, clipped := clipBody(n.Body)
 		if clipped {
 			cmd.PrintErrln(output.BodyClipHint(showBodyLineCap, total, n.Path))
-			// A caller that pipes stdout and drops stderr otherwise receives a
-			// silently truncated body under a manifest asserting the node was
-			// emitted — mirror the marker injectHydratedContext writes inline.
-			body += fmt.Sprintf("\n… (body clipped, %d lines total, see %s)", total, n.Path)
+			// a 2>/dev/null caller must still see the cut; the stderr hint alone is invisible to it
+			body += "\n" + output.BodyClipMarker(total, n.Path)
 		}
 		fmt.Fprintln(w, body)
 	}
@@ -251,9 +251,9 @@ func compactBody(n spineNode) string {
 }
 
 // clipBody truncates body to showBodyLineCap lines, returning the (possibly
-// clipped) text, the original line count, and whether it clipped — so each
-// consumer renders its own clip hint (a stderr line here, an inline marker in
-// the build fold).
+// clipped) text, the original line count, and whether it clipped — both
+// consumers (emitHydration, injectHydratedContext) append output.BodyClipMarker
+// inline on top of it.
 func clipBody(body string) (clipped string, total int, wasClipped bool) {
 	lines := strings.Split(body, "\n")
 	if body == "" || len(lines) <= showBodyLineCap {
