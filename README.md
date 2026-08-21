@@ -37,7 +37,10 @@ anvil init               # scaffold a vault (defaults to ~/anvil-vault)
 anvil install skills     # bundled skills → Claude Code
 anvil install agents     # bundled subagents (e.g. the issue-fleet worker)
 anvil install hooks      # bind each session to the active thread + auto-snapshot the vault at session end
+anvil install cloud      # provision a Claude Code cloud session from its attached clones (inert locally)
 ```
+
+`anvil install cloud` is what a [Claude Code cloud session](https://code.claude.com/docs/en/claude-code-on-the-web) runs for itself, wired as a `SessionStart` hook in a repo's committed `.claude/settings.json`. Attach two repositories to the session — your project **and** the vault repo — so it can find the vault among the clones.
 
 Skills and agents are discovered at session start, so **restart Claude Code** afterward. In a fresh session the available-skills list should include Anvil's skills (`writing-issue`, `completing-issue`, `capturing-inbox`, …) — bare, with no `anvil:` prefix. Pass `--uninstall` to any `install` command to remove it.
 

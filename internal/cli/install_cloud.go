@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/anvil/agents"
 	"github.com/chonalchendo/anvil/anvil/skills"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
@@ -30,6 +31,7 @@ type cloudProvisionReport struct {
 	Reason      string `json:"reason,omitempty"`
 	Vault       string `json:"vault,omitempty"`
 	Skills      string `json:"skills,omitempty"`
+	Agents      string `json:"agents,omitempty"`
 	Hooks       string `json:"hooks,omitempty"`
 	Artifacts   int    `json:"artifacts,omitempty"`
 }
@@ -63,10 +65,10 @@ inert on a developer machine.`,
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(report)
 			}
 			if !report.Provisioned {
-				cmd.Println("not a cloud session (" + cloudSessionEnv + " unset); nothing to provision")
+				cmd.Println(report.Reason + " (" + cloudSessionEnv + " unset); nothing to provision")
 				return nil
 			}
-			cmd.Println("provisioned cloud session: vault", report.Vault+",", report.Skills+",", report.Hooks+",", fmt.Sprint(report.Artifacts), "artifacts indexed")
+			cmd.Println("provisioned cloud session: vault", report.Vault+",", report.Skills+",", report.Agents+",", report.Hooks+",", fmt.Sprint(report.Artifacts), "artifacts indexed")
 			return nil
 		},
 	}
@@ -97,6 +99,18 @@ func provisionCloudSession() (cloudProvisionReport, error) {
 		return report, fmt.Errorf("installing skills: %w", err)
 	}
 	report.Skills = skillsDir
+
+	// The fleet dispatches anvil-issue-worker by subagent_type, so a cloud
+	// session without the agents bundle cannot run one. Registration lands for
+	// the next session, same lag the skills bundle has.
+	agentsDir, err := resolveAnvilAgentsTarget("claude")
+	if err != nil {
+		return report, err
+	}
+	if _, err := installer.InstallAgents(agents.FS, agentsDir, true); err != nil {
+		return report, fmt.Errorf("installing agents: %w", err)
+	}
+	report.Agents = agentsDir
 
 	settings, err := resolveClaudeSettingsPath()
 	if err != nil {
@@ -141,12 +155,20 @@ func bindCloudVault() (string, error) {
 		return "", fmt.Errorf("home dir: %w", err)
 	}
 	target := filepath.Join(home, vaultRemoteMarker)
-	if _, err := os.Lstat(target); err == nil {
+	if looksLikeVault(target) {
 		return target, nil
 	}
 	clone, err := discoverVaultClone(home)
 	if err != nil {
 		return "", err
+	}
+	// The environment cache is a filesystem snapshot, so a link to a clone path
+	// the platform no longer uses survives into the next session. Stat follows
+	// the link, so a dangling one lands here and is replaced rather than kept.
+	if _, err := os.Lstat(target); err == nil {
+		if err := os.Remove(target); err != nil {
+			return "", fmt.Errorf("replacing stale vault link %s: %w", target, err)
+		}
 	}
 	if err := os.Symlink(clone, target); err != nil {
 		return "", fmt.Errorf("linking vault clone %s: %w", clone, err)
@@ -192,10 +214,28 @@ func childDirs(root string) []string {
 	return dirs
 }
 
+// isVaultClone reports whether dir is the vault checkout. Both halves are
+// load-bearing: a `[branch]`, `insteadOf` or submodule line naming the vault
+// matches a bare substring search just as a remote URL does, and the resulting
+// false positive would be symlinked, indexed, and then committed into.
 func isVaultClone(dir string) bool {
 	cfg, err := os.ReadFile(filepath.Join(dir, ".git", "config")) //nolint:gosec // dir is a checkout discovered under the session's own clone roots, not user input
 	if err != nil {
 		return false
 	}
-	return strings.Contains(string(cfg), vaultRemoteMarker)
+	for _, line := range strings.Split(string(cfg), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "url = ") && strings.Contains(line, vaultRemoteMarker) {
+			return looksLikeVault(dir)
+		}
+	}
+	return false
+}
+
+// looksLikeVault reports whether dir holds a vault's artifact tree, following
+// symlinks so a stale link resolves to its target rather than passing on the
+// link's own existence.
+func looksLikeVault(dir string) bool {
+	info, err := os.Stat(filepath.Join(dir, core.TypeIssue.Dir()))
+	return err == nil && info.IsDir()
 }
