@@ -45,32 +45,34 @@ type listFilters struct {
 	InvalidBody          bool
 }
 
-// issueSeverityEnum mirrors schemas/issue.schema.json. Kept inline because
-// list is the only consumer; promote to schema package on a second use.
-var issueSeverityEnum = []string{"low", "medium", "high", "critical"}
-
-// statusEnum returns t's status enum straight from its embedded schema, so
-// an unrecognised --status value (anvil.0254: in_progress silently matched
-// nothing) is rejected the same way --severity already is. nil (no
-// "status" property, or an unreadable schema) disables the check rather
-// than false-rejecting.
-func statusEnum(t core.Type) []string {
+// enumFor returns t's declared enum for the given schema field, straight from
+// its embedded schema — the single source of truth, so a hand-mirrored copy
+// (anvil.0254's issueSeverityEnum) can't drift from what the schema actually
+// enforces. Every t in core.AllTypes has an embedded schema, and
+// internal/schema's package init already proves every embedded schema
+// ReadFile+Unmarshals cleanly (it panics on failure at process start), so a
+// failure here means that invariant broke — panic rather than silently
+// disabling the check.
+func enumFor(t core.Type, field string) []string {
 	b, err := schema.EmbeddedFS.ReadFile(string(t) + ".schema.json")
 	if err != nil {
-		return nil
+		panic(fmt.Sprintf("enumFor: reading embedded schema for %s: %v", t, err))
 	}
 	var raw struct {
-		Properties struct {
-			Status struct {
-				Enum []string `json:"enum"`
-			} `json:"status"`
+		Properties map[string]struct {
+			Enum []string `json:"enum"`
 		} `json:"properties"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
-		return nil
+		panic(fmt.Sprintf("enumFor: parsing embedded schema for %s: %v", t, err))
 	}
-	return raw.Properties.Status.Enum
+	return raw.Properties[field].Enum
 }
+
+// severityEnum is issue's declared severity enum. --severity is issue-only
+// (see flag help below), so it's resolved once against TypeIssue rather than
+// per-invocation against the requested type.
+var severityEnum = enumFor(core.TypeIssue, "severity")
 
 func newListCmd() *cobra.Command {
 	var (
@@ -104,18 +106,20 @@ func newListCmd() *cobra.Command {
 					suggestProjectAlternative(t),
 				))
 			}
-			if flagSeverity != "" && !slices.Contains(issueSeverityEnum, flagSeverity) {
+			if flagSeverity != "" && !slices.Contains(severityEnum, flagSeverity) {
 				return printAndReturn(cmd, errfmt.NewStructured("bad_flag_value").
 					Set("flag", "severity").
 					Set("value", flagSeverity).
-					Set("allowed", issueSeverityEnum))
+					Set("allowed", severityEnum).
+					Set("corrected", fmt.Sprintf("anvil list %s --severity %s [other flags]", t, severityEnum[0])))
 			}
 			if flagStatus != "" {
-				if allowed := statusEnum(t); len(allowed) > 0 && !slices.Contains(allowed, flagStatus) {
+				if allowed := enumFor(t, "status"); !slices.Contains(allowed, flagStatus) {
 					return printAndReturn(cmd, errfmt.NewStructured("bad_flag_value").
 						Set("flag", "status").
 						Set("value", flagStatus).
-						Set("allowed", allowed))
+						Set("allowed", allowed).
+						Set("corrected", fmt.Sprintf("anvil list %s --status %s [other flags]", t, allowed[0])))
 				}
 			}
 			if flagInvalidBody && t != core.TypeIssue {
@@ -164,13 +168,13 @@ func newListCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&flagStatus, "status", "", "filter by status (exact match)")
+	cmd.Flags().StringVar(&flagStatus, "status", "", "filter by status (exact match; allowed values are per-type, see the type's schema; an unknown value errors with the type's enum)")
 	cmd.Flags().StringVar(&flagProject, "project", "", "filter by project (exact match; supported on: "+strings.Join(core.TypesSupportingProject(), ", ")+")")
 	cmd.Flags().StringVar(&flagTag, "tag", "", "filter by tag (substring match, single)")
 	cmd.Flags().StringSliceVar(&flagTags, "tags", nil, "filter by tags (all-of, exact, comma-separated)")
 	cmd.Flags().StringVar(&flagDiataxis, "diataxis", "", "filter by diataxis (exact match)")
 	cmd.Flags().StringVar(&flagConfidence, "confidence", "", "filter by confidence (exact match)")
-	cmd.Flags().StringVar(&flagSeverity, "severity", "", "filter by severity (exact match: "+strings.Join(issueSeverityEnum, "|")+"; issue only)")
+	cmd.Flags().StringVar(&flagSeverity, "severity", "", "filter by severity (exact match: "+strings.Join(severityEnum, "|")+"; issue only)")
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "filter by milestone slug (exact match, e.g. anvil.v0-1-polish-dogfood-findings; issue only)")
 	cmd.Flags().StringVar(&flagSearch, "search", "", "search text; all terms must match, case-insensitive. learning searches TL;DR content ranked by relevance, the rest match title+description, most recent first")
 	cmd.Flags().StringVar(&flagSince, "since", "", "include only artifacts created on or after YYYY-MM-DD")

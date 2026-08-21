@@ -60,6 +60,45 @@ func TestList_StatusFilterRejectsUnknownValue(t *testing.T) {
 	}
 }
 
+// TestEnumFor_StatusNonEmptyForAllTypes guards the invariant behind list.go's
+// collapsed `enumFor(t, "status")` guard: every core.AllTypes entry's
+// embedded schema must declare a non-empty status enum, or the guard
+// silently disables itself (the original anvil.0254 bug) instead of
+// rejecting an unknown --status value. A future statusless type must fail
+// this test, not degrade the CLI check at request time.
+func TestEnumFor_StatusNonEmptyForAllTypes(t *testing.T) {
+	for _, typ := range core.AllTypes {
+		typ := typ
+		t.Run(string(typ), func(t *testing.T) {
+			if allowed := enumFor(typ, "status"); len(allowed) == 0 {
+				t.Errorf("enumFor(%s, %q) = empty; every type must declare a status enum", typ, "status")
+			}
+		})
+	}
+}
+
+// TestList_StatusFilterEnumIsPerType guards against a regression that keeps
+// the enum check green by swapping in a single hardcoded (issue) vocabulary:
+// "resolved" is valid for issue but not for milestone, so a leaked
+// cross-type enum would silently accept it here.
+func TestList_StatusFilterEnumIsPerType(t *testing.T) {
+	setupVault(t)
+
+	cmd := newRootCmd()
+	stdout, _, err := runCmd(t, cmd, "list", "milestone", "--status", "resolved", "--json")
+	if err == nil {
+		t.Fatalf("expected non-nil error: milestone has no \"resolved\" status")
+	}
+	if !strings.Contains(stdout, `"allowed":["planned","in-progress","done","abandoned"]`) {
+		t.Errorf("stdout missing milestone's own enum: %q", stdout)
+	}
+
+	cmd = newRootCmd()
+	if _, _, err := runCmd(t, cmd, "list", "milestone", "--status", "planned", "--json"); err != nil {
+		t.Errorf("list milestone --status planned: unexpected error: %v", err)
+	}
+}
+
 func TestList_JSON(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A issue")
