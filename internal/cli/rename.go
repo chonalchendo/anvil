@@ -18,6 +18,7 @@ import (
 func newRenameCmd() *cobra.Command {
 	var (
 		flagTitle string
+		flagSlug  string
 		flagJSON  bool
 	)
 
@@ -29,6 +30,10 @@ func newRenameCmd() *cobra.Command {
 The new title is slugified using the same rule as create:
   lowercase → ASCII transliterate (NFD) → non-alnum runs to "-" → trim → clip to 60 chars
 
+Use --slug to set the new id's slug explicitly instead of deriving it from
+--title — e.g. when the title-derived slug would collide, or the desired id
+diverges from the title.
+
 If the new slug matches the existing slug (i.e. a cosmetic-only change like
 capitalisation), the file is not moved — only the title and updated fields are
 written. Use ` + "`anvil set <type> <id> title <value>`" + ` for that case if preferred.
@@ -37,7 +42,8 @@ Inbound wikilinks are rewritten across the whole vault. A rewrite failure on
 one file is reported on stderr and does not abort the rename — the artifact
 rename always takes effect first.`,
 		Example: `  anvil rename issue anvil.my-old-title --title "My new title"
-  anvil rename issue anvil.my-old-title --title "My new title" --json`,
+  anvil rename issue anvil.my-old-title --title "My new title" --json
+  anvil rename issue anvil.my-old-title --title "My new title" --slug custom-slug`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if flagTitle == "" {
@@ -67,11 +73,21 @@ rename always takes effect first.`,
 				return fmt.Errorf("loading artifact: %w", err)
 			}
 
-			newSlug := core.Slugify(flagTitle)
-			if newSlug == "" {
-				return fmt.Errorf("new title %q produces an empty slug", flagTitle)
+			newSlug := flagSlug
+			if newSlug != "" {
+				if err := core.ValidateSlug(newSlug); err != nil {
+					return fmt.Errorf("--slug: %w", err)
+				}
+			} else {
+				newSlug = core.Slugify(flagTitle)
+				if newSlug == "" {
+					return fmt.Errorf("new title %q produces an empty slug", flagTitle)
+				}
 			}
-			newID := replaceSlug(t, oldID, newSlug)
+			newID, err := replaceSlug(t, oldID, newSlug, flagSlug != "")
+			if err != nil {
+				return err
+			}
 			newPath := filepath.Join(v.Root, t.Dir(), newID+".md")
 
 			if newID == oldID {
@@ -95,7 +111,7 @@ rename always takes effect first.`,
 			// `issue.foo.new-title.md`, so either blocks the rename.
 			_, existingPath := core.ResolveArtifact(v, t, newID)
 			if _, err := os.Stat(existingPath); err == nil {
-				return fmt.Errorf("target %s already exists; choose a different title", newID)
+				return fmt.Errorf("target %s already exists; choose a different --title or --slug", newID)
 			}
 
 			a.FrontMatter["title"] = flagTitle
@@ -179,36 +195,61 @@ rename always takes effect first.`,
 	}
 
 	cmd.Flags().StringVar(&flagTitle, "title", "", "new title for the artifact (required)")
+	cmd.Flags().StringVar(&flagSlug, "slug", "", "override the title-derived slug (must match ^[a-z0-9][a-z0-9-]*$)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
 	_ = cmd.MarkFlagRequired("title")
 	return cmd
 }
 
 // replaceSlug rebuilds an artifact id around newSlug, preserving everything
-// before the slug segment: issue/plan/milestone/contract keep the canonical
-// type prefix, the project, and (for numbered issues) the ordinal; inbox keeps
-// its date prefix; decision keeps topic + MADR ordinal. Slugs never contain
-// dots, so the slug is always the last dot-segment of the bare id.
-func replaceSlug(t core.Type, oldID, newSlug string) string {
+// before the slug segment: issue/plan/milestone/contract/convention keep the
+// canonical type prefix, the project, and (for numbered issues) the ordinal;
+// inbox keeps its date prefix; decision keeps topic + MADR ordinal. Slugs
+// never contain dots, so the slug is always the last dot-segment of the bare
+// id. explicitSlug is true only when the caller passed --slug rather than
+// deriving newSlug from --title; it governs the design-type branch, where a
+// title-only rename of a singleton must not touch the id (it has no slug
+// component) but an explicit --slug does.
+func replaceSlug(t core.Type, oldID, newSlug string, explicitSlug bool) (string, error) {
 	switch t {
 	case core.TypeIssue, core.TypePlan, core.TypeMilestone, core.TypeContract:
 		bare := core.BareID(t, oldID)
 		if dot := strings.LastIndexByte(bare, '.'); dot >= 0 {
-			return core.CanonicalID(t, bare[:dot+1]+newSlug)
+			return core.CanonicalID(t, bare[:dot+1]+newSlug), nil
 		}
+	case core.TypeConvention:
+		return core.CanonicalID(t, newSlug), nil
+	case core.TypeSystemDesign:
+		// id is bare `<project>` (singleton — no slug component) or
+		// `<project>.<slug>` (named shard). An explicit --slug turns a
+		// singleton into a named shard; a title-only rename never touches
+		// the id.
+		if project, _, ok := strings.Cut(oldID, "."); ok {
+			return project + "." + newSlug, nil
+		}
+		if explicitSlug {
+			return oldID + "." + newSlug, nil
+		}
+		return oldID, nil
+	case core.TypeProductDesign:
+		// id is always <project> — no slug component, ever.
+		if explicitSlug {
+			return "", fmt.Errorf("--slug is not supported for %s: id is always the project (%s)", t, oldID)
+		}
+		return oldID, nil
 	case core.TypeInbox:
 		if len(oldID) > 11 && oldID[10] == '-' {
-			return oldID[:11] + newSlug
+			return oldID[:11] + newSlug, nil
 		}
 	case core.TypeDecision, core.TypeThread:
 		// Slice rather than re-format so a legacy unpadded ordinal survives
 		// verbatim; a bare-slug back-catalogue thread has no topic/ordinal to
 		// preserve and falls through to the plain new slug.
 		if _, _, slug, ok := core.SplitTopicOrdinal(oldID); ok {
-			return strings.TrimSuffix(oldID, slug) + newSlug
+			return strings.TrimSuffix(oldID, slug) + newSlug, nil
 		}
 	}
-	return newSlug
+	return newSlug, nil
 }
 
 type renameResult struct {
