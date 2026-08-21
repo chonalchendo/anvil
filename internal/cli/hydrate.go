@@ -263,9 +263,11 @@ func clipBody(body string) (clipped string, total int, wasClipped bool) {
 // node's body and concludes the contracts and conventions below were never
 // returned — two reviewers did exactly that on 2026-08-21. The two markers start
 // with `=== ` so the block is greppable; the entries deliberately do not, so a
-// `=== <type> <id> (status: <s>) ===` scrape still counts each node once.
+// `=== <type> <id> (status: <s>) ===` scrape still counts each node once. The
+// marker is quoted verbatim by the skills that tell agents to read it, so it
+// stays a fixed string — `=== end manifest ===` bounds the block, no prose does.
 func emitManifest(w io.Writer, nodes []spineNode) {
-	fmt.Fprintf(w, "=== hydrate manifest: %d spine node(s); every one is emitted below ===\n", len(nodes))
+	fmt.Fprintf(w, "=== hydrate manifest: %d spine node(s) ===\n", len(nodes))
 	for _, n := range nodes {
 		fmt.Fprintf(w, "  %-14s %s (%s)\n", n.Type, n.ID, nodeStatus(n))
 	}

@@ -64,7 +64,7 @@ A plainly unmet `goal:` is a **blocker**. When the issue also carries `acceptanc
 - **Documentation staleness** — a doc the diff makes contradict shipped behaviour is **high**; needs-update-but-not-contradicting is **medium**. Scope to docs whose subject the diff touches.
 - **Comment terseness** — an added or edited comment that rambles where a tight line would do is **medium**; the Suggest gives the full rewrite, never "tighten this".
 - **Regression provenance** — classify each correctness defect via `git blame` / `git log -S`: **introduced** (blocker) | **made-visible** | **carried-forward**, confidence clear|likely|unknown. Report `unknown` rather than inventing a cause.
-- **Context manifest** — when the PR body carries a `## Context box`, an available-but-unread node is a **medium**: the box was assembled but not consulted. No manifest is not itself a finding.
+- **Context box** — when the PR body carries a `## Context box`, an available-but-unread node is a **medium**: the box was assembled but not consulted. No `## Context box` section is not itself a finding.
 
 ## Findings contract
 

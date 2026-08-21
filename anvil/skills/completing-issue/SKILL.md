@@ -65,7 +65,7 @@ Aim for code that's easy to reason about — **atomic** (one concern in one plac
 ```bash
 anvil hydrate <id> --tldr   # scan: each node's frontmatter + ## TL;DR, headed `=== <type> <id> (status: <s>) ===`
 anvil hydrate <id>          # full bodies when you need the whole closure; drill one node with `anvil show <type> <id> --body`
-# Both modes open with a `=== hydrate manifest ... ===` block indexing every node — read it before piping to `head`.
+# Both modes open with a `=== hydrate manifest: <N> spine node(s) ===` block indexing every node — read it before piping to `head`.
 ```
 
 A dangling spine edge makes `hydrate` exit non-zero and name the broken edge (in either mode) — the issue is **structurally unhydratable**. A broken milestone or design edge means the grounding this change needs is not loadable: surface the named edge and hand back to repair the spine rather than implement against a partial box (a bad issue→milestone link is the spine-link guard's domain). A peripheral dangling edge (a stale learning link) — note it and proceed.

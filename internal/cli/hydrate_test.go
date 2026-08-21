@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -421,9 +422,19 @@ func TestHydrateManifest(t *testing.T) {
 			if !strings.Contains(head, "=== hydrate manifest: 4 spine node(s)") {
 				t.Errorf("manifest header missing or miscounted\n%s", head)
 			}
-			for _, id := range []string{"issue.foo.i1", "milestone.foo.m1", "product-design foo", "convention.go-style"} {
-				if !strings.Contains(head, id) {
-					t.Errorf("manifest omits %q ahead of the bodies\n%s", id, head)
+			// Match the type and id as separate columns: asserting the rendered
+			// `product-design foo` substring would pass only while the pad width
+			// happens to equal len("product-design"), then fail claiming the node
+			// is missing when the column widens.
+			for _, want := range [][2]string{
+				{"issue", "issue.foo.i1"},
+				{"milestone", "milestone.foo.m1"},
+				{"product-design", "foo"},
+				{"convention", "convention.go-style"},
+			} {
+				line := regexp.MustCompile(`(?m)^\s+` + want[0] + `\s+` + regexp.QuoteMeta(want[1]) + ` \(`)
+				if !line.MatchString(head) {
+					t.Errorf("manifest omits %s %s ahead of the bodies\n%s", want[0], want[1], head)
 				}
 			}
 		})
