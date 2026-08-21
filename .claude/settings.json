@@ -10,6 +10,26 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "export PATH=\"$(go env GOPATH)/bin:$PATH\"; command -v anvil >/dev/null 2>&1 || go install github.com/chonalchendo/anvil/cmd/anvil@latest; anvil install cloud"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$CLAUDE_CODE_REMOTE\" = \"true\" ] && anvil session end --commit --push || true"
+          }
+        ]
+      }
     ]
   }
 }
