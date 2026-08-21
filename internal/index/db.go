@@ -52,6 +52,8 @@ CREATE INDEX IF NOT EXISTS eval_runs_skill_idx ON eval_runs(skill);
 -- build_runs / build_tasks are runtime-inserted by anvil build (like eval_runs),
 -- not extracted from vault markdown. No SchemaVersion bump: Open creates them via
 -- IF NOT EXISTS and ReindexFull never touches them, so there is nothing to backfill.
+-- A later column addition to either table needs an entry in runtimeColumnMigrations
+-- below (Open runs it as an ALTER TABLE) since IF NOT EXISTS alone won't add it.
 CREATE TABLE IF NOT EXISTS build_runs (
     run_id     TEXT PRIMARY KEY,
     started_at TEXT NOT NULL,
@@ -91,6 +93,38 @@ type DB struct {
 	path string
 }
 
+// columnMigration adds one column to a runtime telemetry table that
+// CREATE TABLE IF NOT EXISTS cannot backfill on a vault.db predating it.
+type columnMigration struct {
+	table, column, ddl string
+}
+
+// runtimeColumnMigrations lists columns added to build_tasks/eval_runs after
+// their initial release. Append here, never rewrite the CREATE TABLE alone.
+var runtimeColumnMigrations = []columnMigration{
+	{"build_tasks", "transcript_path", "TEXT NOT NULL DEFAULT ''"},
+}
+
+// migrateRuntimeColumns backfills runtimeColumnMigrations on an existing
+// vault.db. Runtime telemetry tables have no schema_version rebuild path
+// (they're append-only, not derivable from vault files), so a missing
+// column needs a direct ALTER TABLE instead.
+func migrateRuntimeColumns(s *sql.DB) error {
+	for _, m := range runtimeColumnMigrations {
+		var n int
+		if err := s.QueryRow("SELECT count(*) FROM pragma_table_info(?) WHERE name = ?", m.table, m.column).Scan(&n); err != nil {
+			return fmt.Errorf("check column %s.%s: %w", m.table, m.column, err)
+		}
+		if n > 0 {
+			continue
+		}
+		if _, err := s.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", m.table, m.column, m.ddl)); err != nil {
+			return fmt.Errorf("add column %s.%s: %w", m.table, m.column, err)
+		}
+	}
+	return nil
+}
+
 // DBPath returns the canonical vault.db location for a given vault root.
 func DBPath(vaultRoot string) string {
 	return filepath.Join(vaultRoot, ".anvil", "vault.db")
@@ -116,6 +150,10 @@ func Open(path string) (*DB, error) {
 	if _, err := s.Exec(schema); err != nil {
 		s.Close() //nolint:errcheck,gosec // cleanup before returning the schema error; close error not actionable
 		return nil, fmt.Errorf("apply schema: %w", err)
+	}
+	if err := migrateRuntimeColumns(s); err != nil {
+		s.Close() //nolint:errcheck,gosec // cleanup before returning the migration error; close error not actionable
+		return nil, fmt.Errorf("migrate runtime columns: %w", err)
 	}
 	return &DB{sql: s, path: path}, nil
 }
