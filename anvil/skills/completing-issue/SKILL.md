@@ -65,11 +65,12 @@ Aim for code that's easy to reason about — **atomic** (one concern in one plac
 ```bash
 anvil hydrate <id> --tldr   # scan: each node's frontmatter + ## TL;DR, headed `=== <type> <id> (status: <s>) ===`
 anvil hydrate <id>          # full bodies when you need the whole closure; drill one node with `anvil show <type> <id> --body`
+# Both modes open with a `=== hydrate manifest ... ===` block indexing every node — read it before piping to `head`.
 ```
 
 A dangling spine edge makes `hydrate` exit non-zero and name the broken edge (in either mode) — the issue is **structurally unhydratable**. A broken milestone or design edge means the grounding this change needs is not loadable: surface the named edge and hand back to repair the spine rather than implement against a partial box (a bad issue→milestone link is the spine-link guard's domain). A peripheral dangling edge (a stale learning link) — note it and proceed.
 
-Note which of the hydrated nodes you actually consult while implementing (read the body, applied its constraints) versus which stayed unopened after the initial scan — Phase 5 emits this as the **context manifest**, the diagnostic for a wrong completion: available-but-unread names a reading-discipline gap, an empty/broken box for a required object names a box-authoring gap.
+Note which of the hydrated nodes you actually consult while implementing (read the body, applied its constraints) versus which stayed unopened after the initial scan — Phase 5 emits this as the **context box** section, the diagnostic for a wrong completion: available-but-unread names a reading-discipline gap, an empty/broken box for a required object names a box-authoring gap.
 
 From the opened box: treat each contract's `## Does not` as a hard boundary (crossing one → **Scope-change protocol**) and apply its `## Code design` as you write. A contract's `## Code design` binds the house conventions surfaced alongside it — a `*.py`/`*.sql`/etc. edit follows `convention.<lang>`. A design node with `status` other than `active` is advisory — flag it before implementation, do not treat its constraints as authoritative. No contract in the box → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
 
@@ -154,7 +155,7 @@ tmpl=$(ls {.github/,docs/,}{PULL_REQUEST_TEMPLATE,pull_request_template}.md 2>/d
 - **Template found** → fill its sections from the diff and the issue's `goal:`, then append `closes #<issue-number>`. Pass the filled template as `--body`, preserving its headers so a reviewer gets the structure they rely on.
 - **No template** → `--body "<one-paragraph + closes #<issue-number>>"`.
 
-**Append the context manifest.** Re-run `anvil hydrate <id> --tldr` (the manifest needs only the headers, so scan the cheap digest) and list every `=== <type> <id> (status: <s>) ===` header it emitted as the **available** set (grounded — the box `anvil hydrate` actually assembled, not a self-reported list). Mark each `used` if you read its body and applied it in Phase 1, `unread` if you skipped it, and `empty` when the header carried the `, empty` suffix — that node had no body to read, so it is not a reading-discipline gap. Append this as a `## Context box` section of the PR body — the delta between available and used is the diagnostic surfaced above:
+**Append the context box.** Re-run `anvil hydrate <id> --tldr` and read its manifest block — the `=== hydrate manifest: <N> spine node(s) ===` index at the head of the output lists every node the walk assembled, one `<type> <id> (<status>)` line each, so the **available** set is the manifest verbatim (grounded — what `anvil hydrate` actually assembled, not a self-reported list). Mark each `used` if you read its body and applied it in Phase 1, `unread` if you skipped it, and `empty` when its manifest line carried the `, empty` status suffix — that node had no body to read, so it is not a reading-discipline gap. Append this as a `## Context box` section of the PR body — the delta between available and used is the diagnostic surfaced above:
 
 ```text
 ## Context box
