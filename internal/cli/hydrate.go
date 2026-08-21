@@ -222,6 +222,10 @@ func emitHydration(cmd *cobra.Command, nodes []spineNode, tldr bool) {
 		body, total, clipped := clipBody(n.Body)
 		if clipped {
 			cmd.PrintErrln(output.BodyClipHint(showBodyLineCap, total, n.Path))
+			// A caller that pipes stdout and drops stderr otherwise receives a
+			// silently truncated body under a manifest asserting the node was
+			// emitted — mirror the marker injectHydratedContext writes inline.
+			body += fmt.Sprintf("\n… (body clipped, %d lines total, see %s)", total, n.Path)
 		}
 		fmt.Fprintln(w, body)
 	}

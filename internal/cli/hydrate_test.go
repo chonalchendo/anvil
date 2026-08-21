@@ -463,3 +463,21 @@ func TestHydrateManifestEntriesAreNotHeaders(t *testing.T) {
 		t.Errorf("node-header scrape counted %d headers, want 2 (one per node)\n%s", got, out)
 	}
 }
+
+// TestHydrateClippedBodyCarriesInlineMarker pins anvil.0258: a caller that pipes
+// stdout and drops stderr must still be able to tell a body was truncated — the
+// stderr-only BodyClipHint isn't enough on its own.
+func TestHydrateClippedBodyCarriesInlineMarker(t *testing.T) {
+	vault := setupVault(t)
+	longBody := strings.Repeat("line\n", showBodyLineCap+50)
+	writeHydrateIssue(t, vault, "foo.i1", map[string]any{"milestone": "[[milestone.foo.m1]]"})
+	writeHydrateMilestone(t, vault, "foo.m1", nil, longBody)
+
+	out, _, err := runCmd(t, newRootCmd(), "hydrate", "foo.i1")
+	if err != nil {
+		t.Fatalf("hydrate: %v", err)
+	}
+	if !strings.Contains(out, "body clipped") {
+		t.Errorf("stdout missing inline clipped-body marker\n%s", out)
+	}
+}
