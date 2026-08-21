@@ -18,6 +18,7 @@ import (
 func newRenameCmd() *cobra.Command {
 	var (
 		flagTitle string
+		flagSlug  string
 		flagJSON  bool
 	)
 
@@ -28,6 +29,10 @@ func newRenameCmd() *cobra.Command {
 
 The new title is slugified using the same rule as create:
   lowercase → ASCII transliterate (NFD) → non-alnum runs to "-" → trim → clip to 60 chars
+
+Use --slug to set the new id's slug explicitly instead of deriving it from
+--title — e.g. when the title-derived slug would collide, or the desired id
+diverges from the title.
 
 If the new slug matches the existing slug (i.e. a cosmetic-only change like
 capitalisation), the file is not moved — only the title and updated fields are
@@ -67,9 +72,16 @@ rename always takes effect first.`,
 				return fmt.Errorf("loading artifact: %w", err)
 			}
 
-			newSlug := core.Slugify(flagTitle)
-			if newSlug == "" {
-				return fmt.Errorf("new title %q produces an empty slug", flagTitle)
+			newSlug := flagSlug
+			if newSlug != "" {
+				if err := core.ValidateSlug(newSlug); err != nil {
+					return fmt.Errorf("--slug: %w", err)
+				}
+			} else {
+				newSlug = core.Slugify(flagTitle)
+				if newSlug == "" {
+					return fmt.Errorf("new title %q produces an empty slug", flagTitle)
+				}
 			}
 			newID := replaceSlug(t, oldID, newSlug)
 			newPath := filepath.Join(v.Root, t.Dir(), newID+".md")
@@ -179,6 +191,7 @@ rename always takes effect first.`,
 	}
 
 	cmd.Flags().StringVar(&flagTitle, "title", "", "new title for the artifact (required)")
+	cmd.Flags().StringVar(&flagSlug, "slug", "", "explicit slug for the new id, overriding the title-derived slug")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
 	_ = cmd.MarkFlagRequired("title")
 	return cmd
@@ -196,6 +209,13 @@ func replaceSlug(t core.Type, oldID, newSlug string) string {
 		if dot := strings.LastIndexByte(bare, '.'); dot >= 0 {
 			return core.CanonicalID(t, bare[:dot+1]+newSlug)
 		}
+	case core.TypeSystemDesign, core.TypeProductDesign:
+		// id is bare `<project>` (singleton — no slug component, title never
+		// changes it) or `<project>.<slug>` (named shard); no type prefix.
+		if project, _, ok := strings.Cut(oldID, "."); ok {
+			return project + "." + newSlug
+		}
+		return oldID
 	case core.TypeInbox:
 		if len(oldID) > 11 && oldID[10] == '-' {
 			return oldID[:11] + newSlug

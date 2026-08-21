@@ -330,3 +330,24 @@ func TestReplaceSlug_Decision(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+func TestReplaceSlug_SystemDesign_ScopedShard_KeepsProject(t *testing.T) {
+	got := replaceSlug(core.TypeSystemDesign, "mentat.ingestion-pipeline", "ingestion-cadence")
+	if got != "mentat.ingestion-cadence" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestReplaceSlug_SystemDesign_Singleton_Unchanged(t *testing.T) {
+	got := replaceSlug(core.TypeSystemDesign, "mentat", "new-slug")
+	if got != "mentat" {
+		t.Errorf("got %q", got)
+	}
+}
+
+func TestReplaceSlug_ProductDesign_Singleton_Unchanged(t *testing.T) {
+	got := replaceSlug(core.TypeProductDesign, "mentat", "new-slug")
+	if got != "mentat" {
+		t.Errorf("got %q", got)
+	}
+}
