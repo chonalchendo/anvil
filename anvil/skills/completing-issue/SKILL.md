@@ -145,15 +145,17 @@ For a change with runtime behaviour, an Indirect block whose predicates only ass
 
 **On verify + build-gate success:**
 
-Choose the `--body` by whether the target repo defines a PR template — `--body` is always passed (GitHub only auto-populates `.github/PULL_REQUEST_TEMPLATE.md` when it is *absent*, and the `closes #N` link must survive either way):
+Choose the `--body` by whether the target repo defines a PR template — `--body` is always passed (GitHub only auto-populates `.github/PULL_REQUEST_TEMPLATE.md` when it is *absent*, and the issue citation must survive either way):
 
 ```bash
 # GitHub honours the template at repo root, .github/, or docs/, case-insensitively
 tmpl=$(ls {.github/,docs/,}{PULL_REQUEST_TEMPLATE,pull_request_template}.md 2>/dev/null | head -1)
 ```
 
-- **Template found** → fill its sections from the diff and the issue's `goal:`, then append `closes #<issue-number>`. Pass the filled template as `--body`, preserving its headers so a reviewer gets the structure they rely on.
-- **No template** → `--body "<one-paragraph + closes #<issue-number>>"`.
+**Never use a GitHub closing keyword (`close/closes/closed/fix/fixes/fixed/resolve/resolves/resolved` + `#<number>`) against an anvil issue** — the PR/issue number spaces overlap in this repo, so `closes #N` can silently auto-close an unrelated, innocent PR at merge time (anvil.0243). Cite the issue by its full id or in prose instead: `resolves <full-issue-id>` or `for issue <full-issue-id>`.
+
+- **Template found** → fill its sections from the diff and the issue's `goal:`, then append `resolves <full-issue-id>`. Pass the filled template as `--body`, preserving its headers so a reviewer gets the structure they rely on.
+- **No template** → `--body "<one-paragraph + resolves <full-issue-id>>"`.
 
 **Append the context box.** Re-run `anvil hydrate <id> --tldr` and read its manifest block — the `=== hydrate manifest: <N> spine node(s) ===` index at the head of the output lists every node the walk assembled, one `<type> <id> (<status>)` line each, so the **available** set is the manifest verbatim (grounded — what `anvil hydrate` actually assembled, not a self-reported list). Mark each `used` if you read its body and applied it in Phase 1, `unread` if you skipped it, and `empty` when its manifest line carried the `, empty` status suffix — that node had no body to read, so it is not a reading-discipline gap. Append this as a `## Context box` section of the PR body — the delta between available and used is the diagnostic surfaced above:
 
@@ -170,7 +172,7 @@ Assembled by `anvil hydrate <id>` (<N> spine nodes).
 Add one `swept` row per artifact Phase 3b pulled in from outside the box. An empty sweep gets one line instead: `no unlinked contract or convention governs these files`.
 
 ```bash
-gh pr create --title "<conventional-commit summary>" --body "<filled template | one-paragraph, + closes #<issue-number>> + the Context box section above"
+gh pr create --title "<conventional-commit summary>" --body "<filled template | one-paragraph, + resolves <full-issue-id>> + the Context box section above"
 ```
 
 Immediately after the PR opens, stamp its URL onto the issue so staleness detection can map the two:
