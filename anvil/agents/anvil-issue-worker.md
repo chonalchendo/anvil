@@ -107,6 +107,8 @@ You may die mid-task on a terminal error (API 5xx after retries, OOM, killed pro
 
 Never `gh pr merge`, `git worktree remove`, `anvil transition resolved`, or `anvil transition abandoned` — the human owns those.
 
+Never a GitHub closing keyword (`close/closes/closed/fix/fixes/fixed/resolve/resolves/resolved` + `#<number>`) in a PR body — a repo's PR and issue number spaces can share one counter, so it can silently auto-close an unrelated PR at merge time. Cite the full issue id instead.
+
 ## Return contract
 
 Your LAST LINE, alone, is exactly one of: the PR url (`https://github.com/.../pull/<n>`) or `Blocker: <one line>`. Immediately before it, print two lines:
