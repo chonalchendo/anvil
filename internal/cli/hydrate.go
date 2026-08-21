@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -203,14 +204,15 @@ func (h *hydration) descendConventions(v *core.Vault, sourceDesc string, a *core
 	return nil
 }
 
-// emitHydration prints each node under a `=== <type> <id> (status) ===` header to
-// stdout. Full mode prints the body capped at showBodyLineCap; --tldr prints the
-// compact digest (frontmatter + any `## TL;DR`) instead — the cheap boundary map an
-// agent scans to judge relevance before drilling into a load-bearing body. Prose
-// (clip hints, the node count) goes to stderr so a large fan-out doesn't pollute
-// the bundle.
+// emitHydration prints the manifest, then each node under a `=== <type> <id>
+// (status) ===` header, to stdout. Full mode prints the body capped at
+// showBodyLineCap; --tldr prints the compact digest (frontmatter + any `## TL;DR`)
+// instead — the cheap boundary map an agent scans to judge relevance before
+// drilling into a load-bearing body. Prose (clip hints, the node count) goes to
+// stderr so a large fan-out doesn't pollute the bundle.
 func emitHydration(cmd *cobra.Command, nodes []spineNode, tldr bool) {
 	w := cmd.OutOrStdout()
+	emitManifest(w, nodes)
 	for _, n := range nodes {
 		fmt.Fprintln(w, closureHeader(n))
 		if tldr {
@@ -256,20 +258,42 @@ func clipBody(body string) (clipped string, total int, wasClipped bool) {
 	return strings.Join(lines[:showBodyLineCap], "\n"), len(lines), true
 }
 
+// emitManifest prints the bundle's index ahead of every body. A closure runs to
+// thousands of lines, so a caller that pipes hydrate to `head` sees only the first
+// node's body and concludes the contracts and conventions below were never
+// returned — two reviewers did exactly that on 2026-08-21. The two markers start
+// with `=== ` so the block is greppable; the entries deliberately do not, so a
+// `=== <type> <id> (status: <s>) ===` scrape still counts each node once. The
+// marker is quoted verbatim by the skills that tell agents to read it, so it
+// stays a fixed string — `=== end manifest ===` bounds the block, no prose does.
+func emitManifest(w io.Writer, nodes []spineNode) {
+	fmt.Fprintf(w, "=== hydrate manifest: %d spine node(s) ===\n", len(nodes))
+	for _, n := range nodes {
+		fmt.Fprintf(w, "  %-14s %s (%s)\n", n.Type, n.ID, nodeStatus(n))
+	}
+	fmt.Fprintln(w, "=== end manifest ===")
+	fmt.Fprintln(w)
+}
+
 // closureHeader formats a spine node's bundle header — `=== <type> <id> (status:
 // <s>[, empty]) ===`. Shared by the `hydrate` emit and the `build` driver's
-// task-body fold. The `empty` suffix keeps a node with nothing to read distinct
-// from one merely left unread.
+// task-body fold.
 func closureHeader(n spineNode) string {
+	return fmt.Sprintf("=== %s %s (status: %s) ===", n.Type, n.ID, nodeStatus(n))
+}
+
+// nodeStatus renders the status the bundle header and the manifest both report:
+// `unset` when frontmatter carries none, `, empty` appended when the node has no
+// body — which keeps a node with nothing to read distinct from one left unread.
+func nodeStatus(n spineNode) string {
 	status := n.Status
 	if status == "" {
 		status = "unset"
 	}
-	suffix := ""
 	if strings.TrimSpace(n.Body) == "" {
-		suffix = ", empty"
+		status += ", empty"
 	}
-	return fmt.Sprintf("=== %s %s (status: %s%s) ===", n.Type, n.ID, status, suffix)
+	return status
 }
 
 // brokenSpineError names every dangling spine edge so the failure is actionable

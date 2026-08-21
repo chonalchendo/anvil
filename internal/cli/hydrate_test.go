@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -387,4 +388,78 @@ func TestHydrate(t *testing.T) {
 			t.Errorf("bundle missing forward-resolved system-design body\n%s", out)
 		}
 	})
+}
+
+// TestHydrateManifest pins anvil.0256: a convention four hops down the spine sits
+// ~900 lines into a real closure, so a caller reading the head of the output
+// concluded it was never returned. The manifest must name every node before the
+// first body, in both emit modes.
+func TestHydrateManifest(t *testing.T) {
+	for _, mode := range []string{"full", "tldr"} {
+		t.Run("manifest names every node ahead of the first body ("+mode+")", func(t *testing.T) {
+			vault := setupVault(t)
+			writeHydrateIssue(t, vault, "foo.i1", map[string]any{"milestone": "[[milestone.foo.m1]]"})
+			writeHydrateMilestone(t, vault, "foo.m1",
+				map[string]any{"product_design": "[[product-design.foo]]"}, "milestone body\n")
+			writeHydrateDesign(t, vault, "foo", core.TypeProductDesign,
+				map[string]any{"related": []any{"[[convention.go-style]]"}}, "design body\n")
+			writeHydrateConvention(t, vault, "go-style", "## Rules\n\nthe deepest node.\n")
+
+			args := []string{"hydrate", "foo.i1"}
+			if mode == "tldr" {
+				args = append(args, "--tldr")
+			}
+			out, _, err := runCmd(t, newRootCmd(), args...)
+			if err != nil {
+				t.Fatalf("hydrate: %v", err)
+			}
+
+			firstBody := strings.Index(out, "=== issue issue.foo.i1 (status:")
+			if firstBody < 0 {
+				t.Fatalf("no issue body header in output\n%s", out)
+			}
+			head := out[:firstBody]
+			if !strings.Contains(head, "=== hydrate manifest: 4 spine node(s)") {
+				t.Errorf("manifest header missing or miscounted\n%s", head)
+			}
+			// Match the type and id as separate columns: asserting the rendered
+			// `product-design foo` substring would pass only while the pad width
+			// happens to equal len("product-design"), then fail claiming the node
+			// is missing when the column widens.
+			for _, want := range [][2]string{
+				{"issue", "issue.foo.i1"},
+				{"milestone", "milestone.foo.m1"},
+				{"product-design", "foo"},
+				{"convention", "convention.go-style"},
+			} {
+				line := regexp.MustCompile(`(?m)^\s+` + want[0] + `\s+` + regexp.QuoteMeta(want[1]) + ` \(`)
+				if !line.MatchString(head) {
+					t.Errorf("manifest omits %s %s ahead of the bodies\n%s", want[0], want[1], head)
+				}
+			}
+		})
+	}
+}
+
+// TestHydrateManifestEntriesAreNotHeaders pins the scrape contract: callers count
+// bundle nodes with a `^=== <type> <id> (status: …) ===` grep, so the manifest's
+// entry lines must not take that shape or every node would be counted twice.
+func TestHydrateManifestEntriesAreNotHeaders(t *testing.T) {
+	vault := setupVault(t)
+	writeHydrateIssue(t, vault, "foo.i1", map[string]any{"milestone": "[[milestone.foo.m1]]"})
+	writeHydrateMilestone(t, vault, "foo.m1", nil, "milestone body\n")
+
+	out, _, err := runCmd(t, newRootCmd(), "hydrate", "foo.i1")
+	if err != nil {
+		t.Fatalf("hydrate: %v", err)
+	}
+	got := 0
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "=== ") && strings.Contains(line, "(status: ") {
+			got++
+		}
+	}
+	if got != 2 {
+		t.Errorf("node-header scrape counted %d headers, want 2 (one per node)\n%s", got, out)
+	}
 }

@@ -36,7 +36,7 @@ This section encodes harness behaviour, not skill behaviour: it is duplicated in
 
 ## Load the context box
 
-`anvil hydrate <issue-id>` assembles the closure the author worked from — issue → milestone → designs, contracts → conventions, learnings — in one call. That closure is your rubric: judge the diff against what it returns. Discover the CLI as you go (`anvil <verb> --help`) rather than assuming a flag, field, or output shape.
+`anvil hydrate <issue-id>` assembles the closure the author worked from — issue → milestone → designs, contracts → conventions, learnings — in one call. That closure is your rubric: judge the diff against what it returns. Its output opens with a `=== hydrate manifest: <N> spine node(s) ===` block listing every node it assembled — read that index, not the first screen of bodies, before reporting an artifact missing; a closure runs to thousands of lines and the contracts sit far below the head. Discover the CLI as you go (`anvil <verb> --help`) rather than assuming a flag, field, or output shape.
 
 Treat a design or milestone invariant the diff plainly violates as a cited **blocker** finding — cite the `system_design`/`product_design` id (or the milestone's `non-goals`) and the specific invariant text. Treat a convention rule the diff violates as a finding cited against `convention.<id>` and the specific rule text — **high** by default, **blocker** when the violation lands a correctness or test-fragility regression the convention exists to prevent. A diff line crossing a contract's `## Does not` is a **blocker** cited against the contract id and the constraint text.
 
@@ -64,7 +64,7 @@ A plainly unmet `goal:` is a **blocker**. When the issue also carries `acceptanc
 - **Documentation staleness** — a doc the diff makes contradict shipped behaviour is **high**; needs-update-but-not-contradicting is **medium**. Scope to docs whose subject the diff touches.
 - **Comment terseness** — an added or edited comment that rambles where a tight line would do is **medium**; the Suggest gives the full rewrite, never "tighten this".
 - **Regression provenance** — classify each correctness defect via `git blame` / `git log -S`: **introduced** (blocker) | **made-visible** | **carried-forward**, confidence clear|likely|unknown. Report `unknown` rather than inventing a cause.
-- **Context manifest** — when the PR body carries a `## Context box`, an available-but-unread node is a **medium**: the box was assembled but not consulted. No manifest is not itself a finding.
+- **Context box** — when the PR body carries a `## Context box`, an available-but-unread node is a **medium**: the box was assembled but not consulted. No `## Context box` section is not itself a finding.
 
 ## Findings contract
 
