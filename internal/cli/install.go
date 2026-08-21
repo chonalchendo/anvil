@@ -22,7 +22,7 @@ func newInstallCmd() *cobra.Command {
 		Use:   "install",
 		Short: "Install Anvil components into the user environment",
 	}
-	cmd.AddCommand(newInstallHooksCmd(), newInstallSkillsCmd(), newInstallAgentsCmd(), newInstallFireSessionStartCmd())
+	cmd.AddCommand(newInstallHooksCmd(), newInstallSkillsCmd(), newInstallAgentsCmd(), newInstallCloudCmd(), newInstallFireSessionStartCmd())
 	return cmd
 }
 

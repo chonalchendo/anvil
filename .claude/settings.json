@@ -10,6 +10,26 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$CLAUDE_CODE_REMOTE\" = \"true\" ] || exit 0; export PATH=\"$(go env GOPATH)/bin:$PATH\"; if [ -d \"$CLAUDE_PROJECT_DIR/cmd/anvil\" ]; then (cd \"$CLAUDE_PROJECT_DIR\" && go install -ldflags \"-X github.com/chonalchendo/anvil/internal/cli.Version=cloud-$(git rev-parse --short HEAD)\" ./cmd/anvil); else go install github.com/chonalchendo/anvil/cmd/anvil@latest; fi; anvil install cloud --json | jq -e '.provisioned' > /dev/null && anvil install fire-session-start"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ \"$CLAUDE_CODE_REMOTE\" = \"true\" ] || exit 0; export PATH=\"$(go env GOPATH)/bin:$PATH\"; anvil session end --commit --push"
+          }
+        ]
+      }
     ]
   }
 }
