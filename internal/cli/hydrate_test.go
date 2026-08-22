@@ -30,6 +30,26 @@ func writeHydrateIssue(t *testing.T, vault, id string, links map[string]any) {
 	}
 }
 
+// writeHydrateIssueWithBody is writeHydrateIssue with a caller-controlled body,
+// for pinning the `## Links` section walk (which lives in body text, not
+// frontmatter).
+func writeHydrateIssueWithBody(t *testing.T, vault, id string, links map[string]any, body string) {
+	t.Helper()
+	fm := map[string]any{
+		"type": "issue", "title": id, "description": "fixture description",
+		"created": "2026-07-01", "updated": "2026-07-01",
+		"status": "open", "project": "foo", "severity": "medium",
+		"tags": []any{"domain/dev-tools"}, "goal": "fixture goal is done",
+	}
+	for k, v := range links {
+		fm[k] = v
+	}
+	a := &core.Artifact{Path: filepath.Join(vault, "70-issues", id+".md"), FrontMatter: fm, Body: body}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // writeHydrateMilestone seeds a milestone with the given design links and a
 // caller-controlled body so tests can assert the body text reaches the bundle.
 func writeHydrateMilestone(t *testing.T, vault, id string, links map[string]any, body string) {
@@ -387,6 +407,67 @@ func TestHydrate(t *testing.T) {
 		}
 		if !strings.Contains(out, "SYSTEM_DESIGN_MARKER") {
 			t.Errorf("bundle missing forward-resolved system-design body\n%s", out)
+		}
+	})
+
+	t.Run("closure walks a wikilink in the issue body's ## Links section", func(t *testing.T) {
+		// Pins anvil.0240: a convention named only in the issue body's ## Links
+		// section (not a frontmatter slot) was re-derived by hand by two agents
+		// in one PR cycle because hydrate's box omitted it.
+		vault := setupVault(t)
+		body := "## Problem\n\nfixture body.\n\n## Non-goals\n\n- none\n\n" +
+			"## Verification\n\n### Direct\n\njust test\n\n### Indirect\n\nsmoke\n\n" +
+			"## Links\n\n- [[convention.go-style]]\n"
+		writeHydrateIssueWithBody(t, vault, "foo.i1", nil, body)
+		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nBODY_LINKS_SECTION_MARKER for the body-link hop.\n")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if !strings.Contains(out, "BODY_LINKS_SECTION_MARKER") {
+			t.Errorf("bundle missing body ## Links-section convention\n%s", out)
+		}
+		if !strings.Contains(out, "=== convention convention.go-style") {
+			t.Errorf("manifest/header missing body-linked convention\n%s", out)
+		}
+	})
+
+	t.Run("closure ignores wikilinks outside the ## Links section", func(t *testing.T) {
+		vault := setupVault(t)
+		body := "## Problem\n\nSee [[convention.prose-mention]] in passing.\n\n## Non-goals\n\n- none\n\n" +
+			"## Verification\n\n### Direct\n\njust test\n\n### Indirect\n\nsmoke\n\n" +
+			"## Links\n\n- none\n"
+		writeHydrateIssueWithBody(t, vault, "foo.i1", nil, body)
+		writeHydrateConvention(t, vault, "prose-mention", "## Rules\n\nPROSE_MENTION_MARKER must not be walked.\n")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if strings.Contains(out, "PROSE_MENTION_MARKER") {
+			t.Errorf("bundle walked a wikilink outside ## Links (full-body crawl is a non-goal)\n%s", out)
+		}
+	})
+
+	t.Run("a node reachable by both the spine and the body ## Links section enters the closure once", func(t *testing.T) {
+		vault := setupVault(t)
+		body := "## Problem\n\nfixture body.\n\n## Non-goals\n\n- none\n\n" +
+			"## Verification\n\n### Direct\n\njust test\n\n### Indirect\n\nsmoke\n\n" +
+			"## Links\n\n- [[contract.foo.boundaries]]\n"
+		writeHydrateIssueWithBody(t, vault, "foo.i1", map[string]any{"related": []any{"[[contract.foo.boundaries]]"}}, body)
+		writeHydrateContract(t, vault, "foo.boundaries", "convention.go-style")
+		writeHydrateConvention(t, vault, "go-style", "## Rules\n\ndeduped across rails.\n")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if got := strings.Count(out, "=== contract contract.foo.boundaries"); got != 1 {
+			t.Errorf("contract reachable by both related[] and body ## Links emitted %d times, want 1\n%s", got, out)
 		}
 	})
 }

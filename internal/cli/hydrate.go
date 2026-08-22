@@ -188,6 +188,18 @@ func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 		}
 	}
 
+	// issue body `## Links` → whatever the author deliberately placed there.
+	// Unlike the rails above, this is unbounded by type — the section is the
+	// explicit, author-curated edge set, not a fixed spine hop.
+	for _, target := range core.BodyLinksSectionTargets(iss.Body) {
+		// BodyLinksSectionTargets only returns targets whose "<type>." prefix
+		// already parsed, so the dot and ParseType below cannot fail here.
+		lt, _ := core.ParseType(target[:strings.IndexByte(target, '.')])
+		if _, err := h.walk(v, issueSrc, lt, target); err != nil {
+			return nil, err
+		}
+	}
+
 	return h, nil
 }
 

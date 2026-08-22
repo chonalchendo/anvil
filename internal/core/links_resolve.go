@@ -112,6 +112,67 @@ func BodyWikilinkTargetsOfType(body string, t Type) []string {
 	return out
 }
 
+// linksSectionHeadingRe matches a line that is exactly a `## Links` heading;
+// linksSectionEndRe matches any H2 line, which terminates the section. Same
+// per-line, fence-excluded scan shape as index.TLDRSection (core cannot
+// import index, so the pattern is duplicated rather than shared).
+var (
+	linksSectionHeadingRe = regexp.MustCompile(`^##[ \t]+Links[ \t\r]*$`)
+	linksSectionEndRe     = regexp.MustCompile(`^##[ \t]`)
+)
+
+// BodyLinksSectionTargets returns every wikilink target (e.g. "convention.uv")
+// found in an issue body's `## Links` section, in first-seen order, unfiltered
+// by type — a target whose prefix does not parse as a known type is skipped.
+// Unlike BodyWikilinkTargetsOfType, this is not scoped to one edge type:
+// `## Links` is the explicit, author-curated section (a full-body wikilink
+// crawl is out of scope, anvil.0240), so hydrate's spine walk treats every
+// wikilink placed there as a deliberate governing reference regardless of its
+// target type.
+func BodyLinksSectionTargets(body string) []string {
+	lines := strings.Split(StripFencedBlocks(body), "\n")
+	start := -1
+	end := len(lines)
+	for i, line := range lines {
+		if start < 0 {
+			if linksSectionHeadingRe.MatchString(line) {
+				start = i + 1
+			}
+			continue
+		}
+		if linksSectionEndRe.MatchString(line) {
+			end = i
+			break
+		}
+	}
+	if start < 0 {
+		return nil
+	}
+	section := strings.Join(lines[start:end], "\n")
+	matches := wikilinkRe.FindAllStringSubmatch(section, -1)
+	seen := make(map[string]struct{})
+	var out []string
+	for _, m := range matches {
+		target := strings.TrimSpace(m[1])
+		if bar := strings.IndexByte(target, '|'); bar >= 0 {
+			target = strings.TrimSpace(target[:bar])
+		}
+		dot := strings.IndexByte(target, '.')
+		if dot < 0 {
+			continue
+		}
+		if _, err := ParseType(target[:dot]); err != nil {
+			continue
+		}
+		if _, ok := seen[target]; ok {
+			continue
+		}
+		seen[target] = struct{}{}
+		out = append(out, target)
+	}
+	return out
+}
+
 // checkWikilink returns (link, true) if s contains a wikilink whose target
 // resolves to a known type but the file is missing. Strings without a
 // wikilink, and wikilinks with unknown type prefixes, return (_, false).

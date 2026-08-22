@@ -141,6 +141,31 @@ func TestBodyWikilinkTargetsOfType(t *testing.T) {
 	}
 }
 
+// TestBodyLinksSectionTargets pins anvil.0240: only wikilinks inside the
+// `## Links` section are returned, unfiltered by type; a prose mention
+// elsewhere in the body, a fenced illustration, and an unknown type prefix
+// are all excluded.
+func TestBodyLinksSectionTargets(t *testing.T) {
+	body := "## Problem\n\nSee [[convention.prose-mention]] in passing.\n\n" +
+		"## Links\n\n- [[convention.go-style]]\n- [[contract.foo.boundaries|Boundaries]]\n" +
+		"- [[convention.go-style]]\n- [[project.not-a-real-type]]\n```\n[[convention.fenced]]\n```\n\n" +
+		"## Trailing\n\nafter the section, ignored: [[convention.after]].\n"
+	got := BodyLinksSectionTargets(body)
+	want := []string{"convention.go-style", "contract.foo.boundaries"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
+// TestBodyLinksSectionTargets_NoSection asserts a body with no `## Links`
+// heading returns nil rather than falling back to a full-body scan.
+func TestBodyLinksSectionTargets_NoSection(t *testing.T) {
+	body := "## Problem\n\nSee [[convention.go-style]].\n"
+	if got := BodyLinksSectionTargets(body); got != nil {
+		t.Errorf("got %v, want nil", got)
+	}
+}
+
 // TestResolveBodyLinks_FencedWikilinkSkipped asserts that a wikilink inside a
 // fenced code block is not flagged as unresolved — it is illustrative text,
 // not a live vault reference.
