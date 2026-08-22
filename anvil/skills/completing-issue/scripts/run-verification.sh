@@ -6,7 +6,7 @@
 # verdict does not survive the hop to its orchestrator:
 #   stdout: exactly one line of JSON, the verdict —
 #           {"verdict":"pass|fail","checks":N,"failed":[{"check":"Indirect#1",
-#            "exit":4,"preview":"<first command>"}],"commit":"<sha|"">",
+#            "exit":4,"preview":"<first command>"}],"commit":"<sha-or-empty>",
 #            "ran_at":"<UTC RFC3339>"}
 #           "checks" counts blocks attempted; a section with no ```bash block
 #           counts as one attempted (and failed) check. "commit" is `git
