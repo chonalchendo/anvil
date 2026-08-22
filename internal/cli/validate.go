@@ -143,14 +143,8 @@ func newValidateCmd() *cobra.Command {
 				printValidationErrors(cmd, failures)
 			}
 
-			// A SeverityWarning finding is still emitted above (both JSON and
-			// human output) but must not fail the run — the sweep's
-			// grandfather tier for a rule that refuses outright at
-			// create/promote and single-file validate.
-			for _, f := range failures {
-				if f.Severity != errfmt.SeverityWarning {
-					return ErrSchemaInvalid
-				}
+			if hasBlockingFailure(failures) {
+				return ErrSchemaInvalid
 			}
 			return nil
 		},
@@ -243,31 +237,7 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 	}
 
 	if t == core.TypeIssue {
-		for _, vErr := range core.ValidateIssue(a) {
-			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
-		}
-		goal, _ := a.FrontMatter["goal"].(string)
-		title, _ := a.FrontMatter["title"].(string)
-		for _, vErr := range core.ValidateIssueVerbs(a.Body, goal, title, verbs) {
-			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
-		}
-		// ValidateIssueCheckoutPaths is deliberately NOT wired here: the
-		// checkout-path lint gates create/promote only. The ~219 issues
-		// authored before the rule would fail vault-hygiene CI retroactively
-		// if the vault-wide scan enforced it. Lint a single predicate with
-		// `anvil validate --verification-stdin` instead.
-		//
-		// ValidateIssueLakehouseSchema IS wired here so a hand-edited
-		// Verification block never passes through create again unchecked; on
-		// the multi-file sweep it's a warning (retro-fixing the back
-		// catalogue is a non-goal), full refusal elsewhere.
-		for _, vErr := range core.ValidateIssueLakehouseSchema(a.Body) {
-			e := errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error())
-			if sweep {
-				e = e.WithSeverity(errfmt.SeverityWarning)
-			}
-			out = append(out, e)
-		}
+		out = appendIssueTypeErrors(out, a, path, verbs, sweep)
 	}
 
 	// Drift check: flag tags not present in the glossary. Skipped when the
