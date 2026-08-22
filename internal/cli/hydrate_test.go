@@ -141,6 +141,29 @@ func writeHydrateConvention(t *testing.T, vault, slug, body string) {
 	}
 }
 
+// writeHydrateThread seeds a thread — a workspace artifact that must never
+// enter hydrate's box even when named in an issue body's ## Links section
+// (anvil.0240: governingBodyLinkTypes excludes thread/session/plan/issue).
+func writeHydrateThread(t *testing.T, vault, slug, body string) {
+	t.Helper()
+	dir := filepath.Join(vault, core.TypeThread.Dir())
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for traversable dirs
+		t.Fatal(err)
+	}
+	id := slug
+	a := &core.Artifact{
+		Path: filepath.Join(dir, id+".md"),
+		FrontMatter: map[string]any{
+			"type": "thread", "title": id, "description": "fixture",
+			"created": "2026-07-01", "updated": "2026-07-01", "status": "open", "tags": []any{},
+		},
+		Body: body,
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // writeHydrateLearning seeds a learning (id is the bare slug — learnings drop the
 // type prefix on disk) with a caller-controlled body so tests can assert its
 // `## TL;DR` reaches the digest.
@@ -449,6 +472,32 @@ func TestHydrate(t *testing.T) {
 		}
 		if strings.Contains(out, "PROSE_MENTION_MARKER") {
 			t.Errorf("bundle walked a wikilink outside ## Links (full-body crawl is a non-goal)\n%s", out)
+		}
+	})
+
+	t.Run("closure ignores a thread named in the body ## Links section", func(t *testing.T) {
+		// Pins anvil.0240 finding: an unfiltered body-## Links walk dragged a
+		// workspace thread (891 lines on the live vault) into the box.
+		// governingBodyLinkTypes must exclude thread even when the author
+		// placed it in the explicit ## Links section.
+		vault := setupVault(t)
+		body := "## Problem\n\nfixture body.\n\n## Non-goals\n\n- none\n\n" +
+			"## Verification\n\n### Direct\n\njust test\n\n### Indirect\n\nsmoke\n\n" +
+			"## Links\n\n- [[convention.go-style]]\n- [[thread.foo-thread.0001-scratch]]\n"
+		writeHydrateIssueWithBody(t, vault, "foo.i1", nil, body)
+		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nBODY_LINKS_SECTION_MARKER for the body-link hop.\n")
+		writeHydrateThread(t, vault, "foo-thread.0001-scratch", "THREAD_BODY_MUST_NOT_ENTER_BOX_MARKER\n")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if !strings.Contains(out, "BODY_LINKS_SECTION_MARKER") {
+			t.Errorf("bundle missing body ## Links-section convention (governing type)\n%s", out)
+		}
+		if strings.Contains(out, "THREAD_BODY_MUST_NOT_ENTER_BOX_MARKER") {
+			t.Errorf("bundle walked a body ## Links thread (workspace type must be excluded)\n%s", out)
 		}
 	})
 

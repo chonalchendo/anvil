@@ -142,13 +142,17 @@ func TestBodyWikilinkTargetsOfType(t *testing.T) {
 }
 
 // TestBodyLinksSectionTargets pins anvil.0240: only wikilinks inside the
-// `## Links` section are returned, unfiltered by type; a prose mention
-// elsewhere in the body, a fenced illustration, and an unknown type prefix
-// are all excluded.
+// `## Links` section are returned, filtered to governingBodyLinkTypes; a
+// prose mention elsewhere in the body, a fenced illustration, and an unknown
+// type prefix are all excluded — and so is a workspace/history type (thread,
+// sibling issue) placed inside the section itself, since a governing-type
+// link entering the box is only half the regression this pins.
 func TestBodyLinksSectionTargets(t *testing.T) {
 	body := "## Problem\n\nSee [[convention.prose-mention]] in passing.\n\n" +
 		"## Links\n\n- [[convention.go-style]]\n- [[contract.foo.boundaries|Boundaries]]\n" +
-		"- [[convention.go-style]]\n- [[project.not-a-real-type]]\n```\n[[convention.fenced]]\n```\n\n" +
+		"- [[convention.go-style]]\n- [[project.not-a-real-type]]\n" +
+		"- [[thread.foo-thread.0001-scratch]]\n- [[issue.anvil.0001.sibling]]\n" +
+		"```\n[[convention.fenced]]\n```\n\n" +
 		"## Trailing\n\nafter the section, ignored: [[convention.after]].\n"
 	got := BodyLinksSectionTargets(body)
 	want := []string{"convention.go-style", "contract.foo.boundaries"}

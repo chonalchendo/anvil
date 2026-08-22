@@ -121,14 +121,31 @@ var (
 	linksSectionEndRe     = regexp.MustCompile(`^##[ \t]`)
 )
 
+// governingBodyLinkTypes is the closed set of types a body `## Links`
+// wikilink may resolve to and still enter hydrate's box. Only types that
+// ground an implementation qualify. Workspace and history types are
+// excluded on purpose: `thread` is the workspace by definition
+// (distilling-learning: "Threads are the workspace; learnings are the
+// durable output"), and `session`/`plan`/sibling `issue` bodies are history,
+// not grounding — pulling either in dragged 891-line thread bodies into the
+// implementer's context box (anvil.0240, measured on issue.mentat.0419).
+var governingBodyLinkTypes = map[Type]struct{}{
+	TypeContract:      {},
+	TypeConvention:    {},
+	TypeProductDesign: {},
+	TypeSystemDesign:  {},
+	TypeLearning:      {},
+	TypeMilestone:     {},
+}
+
 // BodyLinksSectionTargets returns every wikilink target (e.g. "convention.uv")
-// found in an issue body's `## Links` section, in first-seen order, unfiltered
-// by type — a target whose prefix does not parse as a known type is skipped.
+// found in an issue body's `## Links` section, in first-seen order, filtered
+// to governingBodyLinkTypes — a target whose prefix does not parse as a
+// known type, or whose type is not a governing type, is skipped.
 // Unlike BodyWikilinkTargetsOfType, this is not scoped to one edge type:
 // `## Links` is the explicit, author-curated section (a full-body wikilink
 // crawl is out of scope, anvil.0240), so hydrate's spine walk treats every
-// wikilink placed there as a deliberate governing reference regardless of its
-// target type.
+// governing-typed wikilink placed there as a deliberate reference.
 func BodyLinksSectionTargets(body string) []string {
 	lines := strings.Split(StripFencedBlocks(body), "\n")
 	start := -1
@@ -161,7 +178,11 @@ func BodyLinksSectionTargets(body string) []string {
 		if dot < 0 {
 			continue
 		}
-		if _, err := ParseType(target[:dot]); err != nil {
+		t, err := ParseType(target[:dot])
+		if err != nil {
+			continue
+		}
+		if _, ok := governingBodyLinkTypes[t]; !ok {
 			continue
 		}
 		if _, ok := seen[target]; ok {

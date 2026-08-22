@@ -188,12 +188,16 @@ func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 		}
 	}
 
-	// issue body `## Links` → whatever the author deliberately placed there.
-	// Unlike the rails above, this is unbounded by type — the section is the
-	// explicit, author-curated edge set, not a fixed spine hop.
+	// issue body `## Links` → the governing artifacts the author deliberately
+	// placed there. Unlike the rails above this isn't a fixed spine hop, but
+	// it's still type-bounded: BodyLinksSectionTargets filters to
+	// governingBodyLinkTypes (contract, convention, product-design,
+	// system-design, learning, milestone) so workspace/history types — a
+	// thread body, a sibling issue — never enter the box (anvil.0240).
 	for _, target := range core.BodyLinksSectionTargets(iss.Body) {
 		// BodyLinksSectionTargets only returns targets whose "<type>." prefix
-		// already parsed, so the dot and ParseType below cannot fail here.
+		// already parsed and is a governing type, so the dot/ParseType below
+		// cannot fail here.
 		lt, _ := core.ParseType(target[:strings.IndexByte(target, '.')])
 		if _, err := h.walk(v, issueSrc, lt, target); err != nil {
 			return nil, err
