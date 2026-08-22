@@ -151,6 +151,11 @@ func TestReindexPruneStubs_LeavesIndexReadable(t *testing.T) {
 func TestReindexPruneStubsJSON(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
+	// reindex reports canonical paths (core.ResolveVault resolves the root).
+	vault, err := filepath.EvalSymlinks(vault)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(vault, "issue.x.md"), []byte{}, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}

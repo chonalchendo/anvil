@@ -25,7 +25,13 @@ func setupVault(t *testing.T) string {
 	if err := v.Scaffold(); err != nil {
 		t.Fatal(err)
 	}
-	return dir
+	// core.ResolveVault canonicalises the root, and t.TempDir() sits behind a
+	// symlink on macOS, so return the path the verbs under test will report.
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resolved
 }
 
 // TestCreate_DescriptionTooLong_NamesSpineRule pins the cap rationale into the
