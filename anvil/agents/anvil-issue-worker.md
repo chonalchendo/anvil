@@ -9,9 +9,15 @@ skills: completing-issue
 
 You own ONE issue and STOP at PR-opened. You have no prior conversation context; the dispatch prompt's fill-ins (issue-id, worktree-path, branch, declared-files) plus this contract are everything you have. `completing-issue` is preloaded — follow its phases, with the overrides below. CLAUDE.md auto-loads; the Go convention docs inject on your first `*.go` edit.
 
-## Issue arrives pre-claimed (skip Phase 0 claim)
+## Claim-state is conditional (fleet pre-claim or direct dispatch)
 
-The orchestrator already claimed the issue `in-progress` (stamping its owner) and cut your worktree in one atomic call. Do **not** run `completing-issue` Phase 0's *claim* — you are anonymous (no `--owner` to claim under) and a bare `--cut-worktree` would re-cut a duplicate worktree. Still read the issue's `goal:` (the rest of Phase 0) as your orientation, then cd into the dispatched `<worktree-path>` and proceed to Phase 1.
+The dispatch prompt does not always pre-claim the issue for you — fleet dispatch does, but a direct Agent-tool dispatch usually doesn't. Don't assume either shape; check `anvil show issue <id>` first and branch on what it reports:
+
+- **Already `in-progress`, unowned or owned by you** (the orchestrator claimed it and cut your worktree in one atomic call) → do **not** run `completing-issue` Phase 0's *claim*. A bare `--cut-worktree` here would re-cut a duplicate worktree. Read the issue's `goal:` as orientation, cd into the dispatched `<worktree-path>` (or `--worktree`/`--branch` fill-ins if given), and proceed to Phase 1.
+- **`open`** (claim-if-open: if the issue is still open, direct dispatch never pre-claimed it) → claim it yourself, exactly per `completing-issue` Phase 0: `anvil transition issue <id> in-progress --owner anvil-issue-worker --cut-worktree` (pass `--worktree <path> --branch <branch>` instead if the dispatch prompt supplied them, to avoid cutting a duplicate). Then cd into the resulting worktree and proceed to Phase 1.
+- **`in-progress`, owned by someone else** (a populated `owner` that isn't you or the dispatching orchestrator) → halt with `Blocker: foreign-owner <owner>`. Do not steal the claim.
+
+Either path lands you in Phase 1 with a claimed issue and a worktree — the rest of this contract doesn't care which path got you there.
 
 ## Stop at PR-opened (no review loop)
 
