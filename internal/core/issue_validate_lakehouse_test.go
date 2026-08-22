@@ -41,6 +41,48 @@ func TestValidateIssueLakehouseSchema_HardcodedInDirectOnly_Accepted(t *testing.
 	}
 }
 
+func TestValidateIssueLakehouseSchema_WrittenAsFixturePayload_Accepted(t *testing.T) {
+	// anvil.0241's own Indirect block: a printf assembles a fixture file whose
+	// *content* contains a hardcoded lakehouse schema, then validates that
+	// file (which is expected to be refused). The printf line itself is
+	// writing data, not querying a schema, so it must not trip the rule.
+	line := `printf -- 'SELECT * FROM lakehouse.modelled.foo\n' > "$F"` + "\n" + `if anvil validate "$F"; then exit 1; fi`
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\n" + line + "\n```\n\n## Links\n"
+	if errs := ValidateIssueLakehouseSchema(body); len(errs) != 0 {
+		t.Errorf("payload written by printf must be accepted, got: %v", errs)
+	}
+}
+
+func TestValidateIssueLakehouseSchema_HeredocPayload_Accepted(t *testing.T) {
+	line := "cat <<'EOF' > \"$F\"\nSELECT * FROM lakehouse.modelled.foo\nEOF"
+	body := "\n## Problem\np\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\n" + line + "\n```\n\n## Links\n"
+	if errs := ValidateIssueLakehouseSchema(body); len(errs) != 0 {
+		t.Errorf("heredoc payload must be accepted, got: %v", errs)
+	}
+}
+
+func TestLakehouseSchemaMatches_ShellComment_Ignored(t *testing.T) {
+	if m := LakehouseSchemaMatches("# checks lakehouse.modelled.foo is populated\ntrue"); len(m) != 0 {
+		t.Errorf("comment-only reference must be ignored, got: %v", m)
+	}
+}
+
+func TestLakehouseSchemaMatches_DevSchema_Accepted(t *testing.T) {
+	cases := []string{
+		"SELECT * FROM lakehouse.modelled__dev__mentat_0137.foo",
+		"SELECT * FROM lakehouse.serving__dev_conal.foo",
+		"SELECT * FROM lakehouse.external__dev_conal.foo",
+		"SELECT * FROM lakehouse.normalised__dev_0419_verify.foo",
+		"SELECT * FROM lakehouse.external__dev_baseline.foo",
+		"SELECT * FROM lakehouse.landing__dev_smoke.foo",
+	}
+	for _, line := range cases {
+		if m := LakehouseSchemaMatches(line); len(m) != 0 {
+			t.Errorf("dev schema %q must be accepted, got: %v", line, m)
+		}
+	}
+}
+
 func TestLakehouseSchemaMatches_NoHeadingRequired(t *testing.T) {
 	// anvil validate --verification-stdin feeds raw predicate text with no
 	// "## Verification" wrapper — the matcher must not require one.

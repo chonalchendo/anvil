@@ -17,13 +17,16 @@ import (
 // core.LakehouseSchemaMatches), plus any non-gating `!` assertion (see
 // core.NonGatingNegation) — the same rules `anvil create issue` enforces,
 // so this pre-flight lint never says clean on text create would reject.
-// Distinct from the vault-wide validate path: this
-// mode takes no vault, no artifact — just the predicate text a fleet worker or
-// author wants checked before running it. Emits the same envelope as the
-// vault-wide scan on both paths — an empty ValidationError array on success,
-// emitValidationErrors' shape on failure — so `anvil validate --json` has one
-// schema regardless of mode, per convention.cli-tooling's "--json mandatory on
-// read-shape verbs" rule.
+// Piped text carries no `### Direct`/`### Indirect` heading, so unlike the
+// other two call sites it is not scoped to Indirect — every line is linted
+// as-if-Indirect, on the assumption that a predicate worth pre-flighting is
+// the one about to run as the Indirect check. Distinct from the vault-wide
+// validate path: this mode takes no vault, no artifact — just the predicate
+// text a fleet worker or author wants checked before running it. Emits the
+// same envelope as the vault-wide scan on both paths — an empty
+// ValidationError array on success, emitValidationErrors' shape on failure —
+// so `anvil validate --json` has one schema regardless of mode, per
+// convention.cli-tooling's "--json mandatory on read-shape verbs" rule.
 func runVerificationStdinLint(cmd *cobra.Command, asJSON bool) error {
 	data, err := io.ReadAll(cmd.InOrStdin())
 	if err != nil {

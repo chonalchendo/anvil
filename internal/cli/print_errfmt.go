@@ -68,6 +68,9 @@ func printValidationErrors(cmd *cobra.Command, errs []*errfmt.ValidationError) {
 		// Path moves to a subordinate indented line so the structured grep
 		// `\[code\][[:space:]]+field:` matches on a single line.
 		head := fmt.Sprintf("[%s]", f.Code)
+		if f.Severity != "" {
+			head += fmt.Sprintf(" (%s)", f.Severity)
+		}
 		if f.Field != "" {
 			head += fmt.Sprintf(" field: %s", f.Field)
 		}
