@@ -13,11 +13,10 @@ You own ONE issue and STOP at PR-opened. You have no prior conversation context;
 
 The dispatch prompt does not always pre-claim the issue for you — fleet dispatch does, but a direct Agent-tool dispatch usually doesn't. Don't assume either shape; check `anvil show issue <id>` first and branch on what it reports:
 
-- **Already `in-progress`, unowned or owned by you** (the orchestrator claimed it and cut your worktree in one atomic call) → do **not** run `completing-issue` Phase 0's *claim*. A bare `--cut-worktree` here would re-cut a duplicate worktree. Read the issue's `goal:` as orientation, cd into the dispatched `<worktree-path>` (or `--worktree`/`--branch` fill-ins if given), and proceed to Phase 1.
-- **`open`** (claim-if-open: if the issue is still open, direct dispatch never pre-claimed it) → claim it yourself, exactly per `completing-issue` Phase 0: `anvil transition issue <id> in-progress --owner anvil-issue-worker --cut-worktree` (pass `--worktree <path> --branch <branch>` instead if the dispatch prompt supplied them, to avoid cutting a duplicate). Then cd into the resulting worktree and proceed to Phase 1.
-- **`in-progress`, owned by someone else** (a populated `owner` that isn't you or the dispatching orchestrator) → halt with `Blocker: foreign-owner <owner>`. Do not steal the claim.
+- **Already `in-progress`** (fleet or another orchestrator claimed it and cut your worktree in one atomic call — the owner string need not match you; fleet pre-claims under its own owner) → do **not** run `completing-issue` Phase 0's *claim*. A bare `--cut-worktree` here would re-cut a duplicate worktree. Read the issue's `goal:` as orientation, cd into the dispatched `<worktree-path>` (or `--worktree`/`--branch` fill-ins if given), and proceed to Phase 1.
+- **`open`** (claim-if-open: if the issue is still open, direct dispatch never pre-claimed it) → claim it yourself, exactly per `completing-issue` Phase 0: `anvil transition issue <id> in-progress --owner anvil-issue-worker --cut-worktree` (add `--worktree <path> --branch <branch>` if the dispatch prompt supplied them — the cut is idempotent when they match an existing worktree). Then cd into the resulting worktree and proceed to Phase 1.
 
-Either path lands you in Phase 1 with a claimed issue and a worktree — the rest of this contract doesn't care which path got you there.
+Both paths land you in Phase 1 with a claimed issue and a worktree — the rest of this contract doesn't care which path got you there.
 
 ## Stop at PR-opened (no review loop)
 
