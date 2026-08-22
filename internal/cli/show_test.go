@@ -560,9 +560,9 @@ func TestShowValidate_JSON(t *testing.T) {
 	}
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"show", "issue", "foo.bad", "--validate", "--json"})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	_ = cmd.Execute()
 
 	// Assert wire-format keys are snake_case end-to-end: a struct with explicit
@@ -836,11 +836,11 @@ func TestShow_Issue_ByOrdinal(t *testing.T) {
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"show", "issue", "1", "--json"})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("show issue 1: %v\n%s", err, out.String())
+		t.Fatalf("show issue 1: %v\n%s%s", err, out.String(), errOut.String())
 	}
 	var got map[string]any
 	if err := jsonUnmarshal(t, out.String(), &got); err != nil {

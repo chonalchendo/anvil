@@ -36,11 +36,11 @@ func TestSet_JSONEnvelope_Scalar(t *testing.T) {
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "resolved", "--json"})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("set: %v\n%s", err, out.String())
+		t.Fatalf("set: %v\n%s%s", err, out.String(), errOut.String())
 	}
 	var got map[string]any
 	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &got); err != nil {
@@ -112,11 +112,11 @@ func TestSet_JSONEnvelope_ArrayAdd(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "x", "--add", "--json"})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("set: %v\n%s", err, out.String())
+		t.Fatalf("set: %v\n%s%s", err, out.String(), errOut.String())
 	}
 	var got map[string]any
 	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &got); err != nil {
@@ -144,11 +144,11 @@ func TestSet_JSONEnvelope_ArrayPositionalReplace(t *testing.T) {
 	}
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"set", "issue", "foo.a", "acceptance", "new", "--json"})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("set: %v\n%s", err, out.String())
+		t.Fatalf("set: %v\n%s%s", err, out.String(), errOut.String())
 	}
 	var got map[string]any
 	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &got); err != nil {

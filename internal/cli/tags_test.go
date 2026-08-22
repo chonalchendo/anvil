@@ -41,11 +41,11 @@ func TestTagsList_Aggregates(t *testing.T) {
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"tags", "list", "--json"})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("execute: %v", err)
+		t.Fatalf("execute: %v\n%s", err, errOut.String())
 	}
 
 	var got []struct {
