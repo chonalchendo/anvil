@@ -111,8 +111,7 @@ func TestProjectList_JSON(t *testing.T) {
 }
 
 func TestProject_Switch(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	t.Setenv("ANVIL_HOME", t.TempDir())
 	dir := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Chdir(dir)
 	if err := core.AdoptProject("foo"); err != nil {
