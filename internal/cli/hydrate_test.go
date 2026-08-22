@@ -30,6 +30,26 @@ func writeHydrateIssue(t *testing.T, vault, id string, links map[string]any) {
 	}
 }
 
+// writeHydrateIssueWithBody is writeHydrateIssue with a caller-controlled body,
+// for pinning the `## Links` section walk (which lives in body text, not
+// frontmatter).
+func writeHydrateIssueWithBody(t *testing.T, vault, id string, links map[string]any, body string) {
+	t.Helper()
+	fm := map[string]any{
+		"type": "issue", "title": id, "description": "fixture description",
+		"created": "2026-07-01", "updated": "2026-07-01",
+		"status": "open", "project": "foo", "severity": "medium",
+		"tags": []any{"domain/dev-tools"}, "goal": "fixture goal is done",
+	}
+	for k, v := range links {
+		fm[k] = v
+	}
+	a := &core.Artifact{Path: filepath.Join(vault, "70-issues", id+".md"), FrontMatter: fm, Body: body}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // writeHydrateMilestone seeds a milestone with the given design links and a
 // caller-controlled body so tests can assert the body text reaches the bundle.
 func writeHydrateMilestone(t *testing.T, vault, id string, links map[string]any, body string) {
@@ -113,6 +133,29 @@ func writeHydrateConvention(t *testing.T, vault, slug, body string) {
 		FrontMatter: map[string]any{
 			"type": "convention", "title": id, "description": "fixture",
 			"created": "2026-07-01", "updated": "2026-07-01", "status": "active", "tags": []any{},
+		},
+		Body: body,
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// writeHydrateThread seeds a thread — a workspace artifact that must never
+// enter hydrate's box even when named in an issue body's ## Links section
+// (anvil.0240: governingBodyLinkTypes excludes thread/session/plan/issue).
+func writeHydrateThread(t *testing.T, vault, slug, body string) {
+	t.Helper()
+	dir := filepath.Join(vault, core.TypeThread.Dir())
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for traversable dirs
+		t.Fatal(err)
+	}
+	id := slug
+	a := &core.Artifact{
+		Path: filepath.Join(dir, id+".md"),
+		FrontMatter: map[string]any{
+			"type": "thread", "title": id, "description": "fixture",
+			"created": "2026-07-01", "updated": "2026-07-01", "status": "open", "tags": []any{},
 		},
 		Body: body,
 	}
@@ -387,6 +430,108 @@ func TestHydrate(t *testing.T) {
 		}
 		if !strings.Contains(out, "SYSTEM_DESIGN_MARKER") {
 			t.Errorf("bundle missing forward-resolved system-design body\n%s", out)
+		}
+	})
+
+	t.Run("closure walks a wikilink in the issue body's ## Links section", func(t *testing.T) {
+		// Pins anvil.0240: a convention named only in the issue body's ## Links
+		// section (not a frontmatter slot) was re-derived by hand by two agents
+		// in one PR cycle because hydrate's box omitted it.
+		vault := setupVault(t)
+		body := "## Problem\n\nfixture body.\n\n## Non-goals\n\n- none\n\n" +
+			"## Verification\n\n### Direct\n\njust test\n\n### Indirect\n\nsmoke\n\n" +
+			"## Links\n\n- [[convention.go-style]]\n"
+		writeHydrateIssueWithBody(t, vault, "foo.i1", nil, body)
+		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nBODY_LINKS_SECTION_MARKER for the body-link hop.\n")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if !strings.Contains(out, "BODY_LINKS_SECTION_MARKER") {
+			t.Errorf("bundle missing body ## Links-section convention\n%s", out)
+		}
+		if !strings.Contains(out, "=== convention convention.go-style") {
+			t.Errorf("manifest/header missing body-linked convention\n%s", out)
+		}
+	})
+
+	t.Run("dangling governing-type body ## Links target exits non-zero naming the edge", func(t *testing.T) {
+		// Pins anvil.0240's highest-consequence new behaviour: a governing-type
+		// target named in the issue body's ## Links section but missing on disk
+		// makes hydrate exit non-zero as a broken spine edge, exactly like a
+		// dangling frontmatter edge does (verified live: [[convention.ghost]]
+		// exits 1 naming the edge).
+		vault := setupVault(t)
+		body := "## Problem\n\nfixture body.\n\n## Non-goals\n\n- none\n\n" +
+			"## Verification\n\n### Direct\n\njust test\n\n### Indirect\n\nsmoke\n\n" +
+			"## Links\n\n- [[convention.ghost]]\n"
+		writeHydrateIssueWithBody(t, vault, "foo.i1", nil, body)
+
+		cmd := newRootCmd()
+		_, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err == nil {
+			t.Fatal("expected non-zero exit for dangling body ## Links target")
+		}
+		if !strings.Contains(err.Error(), "convention.ghost") {
+			t.Errorf("error must name the broken edge target, got: %q", err.Error())
+		}
+	})
+
+	t.Run("closure ignores a thread named in the body ## Links section", func(t *testing.T) {
+		// Pins anvil.0240 finding: an unfiltered body-## Links walk dragged a
+		// workspace thread (891 lines on the live vault) into the box.
+		// governingBodyLinkTypes must exclude thread even when the author
+		// placed it in the explicit ## Links section.
+		vault := setupVault(t)
+		body := "## Problem\n\nfixture body.\n\n## Non-goals\n\n- none\n\n" +
+			"## Verification\n\n### Direct\n\njust test\n\n### Indirect\n\nsmoke\n\n" +
+			"## Links\n\n- [[convention.go-style]]\n- [[thread.foo-thread.0001-scratch]]\n"
+		writeHydrateIssueWithBody(t, vault, "foo.i1", nil, body)
+		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nBODY_LINKS_SECTION_MARKER for the body-link hop.\n")
+		writeHydrateThread(t, vault, "foo-thread.0001-scratch", "THREAD_BODY_MUST_NOT_ENTER_BOX_MARKER\n")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if !strings.Contains(out, "BODY_LINKS_SECTION_MARKER") {
+			t.Errorf("bundle missing body ## Links-section convention (governing type)\n%s", out)
+		}
+		if strings.Contains(out, "THREAD_BODY_MUST_NOT_ENTER_BOX_MARKER") {
+			t.Errorf("bundle walked a body ## Links thread (workspace type must be excluded)\n%s", out)
+		}
+		// The dropped target must be stated, never silent (anvil.0240): the
+		// manifest block reports it by name, and the node-header scrape
+		// (`=== <type> <id> (status: <s>) ===`) must still find every node.
+		wantSkipLine := "1 body ## Links target(s) not traversed (non-governing type): thread.foo-thread.0001-scratch"
+		if !strings.Contains(out, wantSkipLine) {
+			t.Errorf("manifest missing skipped-target line %q\n%s", wantSkipLine, out)
+		}
+		headerRe := regexp.MustCompile(`(?m)^=== \S+ \S+ \(status: [^)]+\) ===$`)
+		if got := len(headerRe.FindAllString(out, -1)); got != 2 {
+			t.Errorf("node-header scrape found %d headers, want 2 (issue + convention)\n%s", got, out)
+		}
+	})
+
+	t.Run("a node reachable by both the spine and the body ## Links section enters the closure once", func(t *testing.T) {
+		vault := setupVault(t)
+		body := "## Problem\n\nfixture body.\n\n## Non-goals\n\n- none\n\n" +
+			"## Verification\n\n### Direct\n\njust test\n\n### Indirect\n\nsmoke\n\n" +
+			"## Links\n\n- [[contract.foo.boundaries]]\n"
+		writeHydrateIssueWithBody(t, vault, "foo.i1", map[string]any{"related": []any{"[[contract.foo.boundaries]]"}}, body)
+		writeHydrateContract(t, vault, "foo.boundaries", "convention.go-style")
+		writeHydrateConvention(t, vault, "go-style", "## Rules\n\ndeduped across rails.\n")
+
+		cmd := newRootCmd()
+		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if got := strings.Count(out, "=== contract contract.foo.boundaries"); got != 1 {
+			t.Errorf("contract reachable by both related[] and body ## Links emitted %d times, want 1\n%s", got, out)
 		}
 	})
 }

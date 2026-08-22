@@ -17,13 +17,14 @@ import (
 
 // newHydrateCmd assembles an issue's methodology-spine context closure into one
 // bundle of linked bodies: the issue, its milestone, the milestone's designs, the
-// conventions those designs and the issue's contracts govern by, and its prior
-// learnings. A spine edge whose target does not resolve on disk makes the command
+// conventions those designs and the issue's contracts govern by, its prior
+// learnings, and the governing-type targets named in the issue body's ## Links
+// section. A spine edge whose target does not resolve on disk makes the command
 // exit non-zero naming it, rather than silently omitting it.
 func newHydrateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "hydrate <issue>",
-		Short:   "Assemble an issue's linked-context closure (issue → milestone → designs → conventions, contracts → conventions, learnings) as bodies; a dangling spine edge exits non-zero naming it",
+		Short:   "Assemble an issue's linked-context closure (issue → milestone → designs → conventions, contracts → conventions, learnings, body ## Links) as bodies; a dangling spine edge exits non-zero naming it",
 		Args:    namedArgs("anvil hydrate <issue>", []string{"<issue>"}, 1, 1),
 		Example: "  anvil hydrate anvil.0148.assemble-the-linked",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -73,6 +74,10 @@ type hydration struct {
 	nodes  []spineNode
 	broken []brokenEdge
 	seen   map[string]bool
+	// skippedBodyLinks names the issue body ## Links targets whose type
+	// parsed but is not governing (e.g. thread, sibling issue) — reported so
+	// the omission is stated, never silent (anvil.0240).
+	skippedBodyLinks []string
 }
 
 // walk resolves target of linkType declared by sourceDesc via forward file
@@ -111,7 +116,7 @@ func runHydrate(cmd *cobra.Command, v *core.Vault, issueID string, tldr bool) er
 	if err != nil {
 		return err
 	}
-	emitHydration(cmd, h.nodes, tldr)
+	emitHydration(cmd, h.nodes, h.skippedBodyLinks, tldr)
 	if len(h.broken) > 0 {
 		return brokenSpineError(h.broken)
 	}
@@ -188,6 +193,17 @@ func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 		}
 	}
 
+	// issue body `## Links` → the governing artifacts the author deliberately
+	// placed there. Unlike the rails above this isn't a fixed spine hop; the
+	// type filter is governingBodyLinkTypes (see links_resolve.go).
+	bodyTargets, skipped := core.BodyLinksSectionTargets(iss.Body)
+	h.skippedBodyLinks = skipped
+	for _, target := range bodyTargets {
+		if _, err := h.walk(v, issueSrc, target.Type, target.ID); err != nil {
+			return nil, err
+		}
+	}
+
 	return h, nil
 }
 
@@ -212,9 +228,9 @@ func (h *hydration) descendConventions(v *core.Vault, sourceDesc string, a *core
 // fan-out doesn't pollute the bundle; a clipped body's marker goes to stdout
 // (see clipBody) since a stderr-only hint is invisible to a caller that drops
 // stderr.
-func emitHydration(cmd *cobra.Command, nodes []spineNode, tldr bool) {
+func emitHydration(cmd *cobra.Command, nodes []spineNode, skippedBodyLinks []string, tldr bool) {
 	w := cmd.OutOrStdout()
-	emitManifest(w, nodes)
+	emitManifest(w, nodes, skippedBodyLinks)
 	for _, n := range nodes {
 		fmt.Fprintln(w, closureHeader(n))
 		if tldr {
@@ -270,12 +286,20 @@ func clipBody(body string) (clipped string, total int, wasClipped bool) {
 // `=== <type> <id> (status: <s>) ===` scrape still counts each node once. The
 // marker is quoted verbatim by the skills that tell agents to read it, so it
 // stays a fixed string — `=== end manifest ===` bounds the block, no prose does.
-func emitManifest(w io.Writer, nodes []spineNode) {
+// A body ## Links target dropped for a non-governing type is reported on its
+// own line immediately after the block (never inside it), so the omission is
+// stated rather than silent (anvil.0240) without disturbing the `=== <type>
+// <id> (status: <s>) ===` node-header scrape.
+func emitManifest(w io.Writer, nodes []spineNode, skippedBodyLinks []string) {
 	fmt.Fprintf(w, "=== hydrate manifest: %d spine node(s) ===\n", len(nodes))
 	for _, n := range nodes {
 		fmt.Fprintf(w, "  %-14s %s (%s)\n", n.Type, n.ID, nodeStatus(n))
 	}
 	fmt.Fprintln(w, "=== end manifest ===")
+	if len(skippedBodyLinks) > 0 {
+		fmt.Fprintf(w, "%d body ## Links target(s) not traversed (non-governing type): %s\n",
+			len(skippedBodyLinks), strings.Join(skippedBodyLinks, ", "))
+	}
 	fmt.Fprintln(w)
 }
 

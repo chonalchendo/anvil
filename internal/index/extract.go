@@ -20,45 +20,15 @@ type LinkRow struct {
 	Source, Target, Relation, Anchor string
 }
 
-// tldrHeadingRe matches a line that is exactly a `## TL;DR` heading;
-// tldrEndRe matches any H2 line, which terminates the section. Both are
-// applied per-line, outside fenced code blocks only, so a heading quoted in a
-// code sample neither opens nor closes the section.
-var (
-	tldrHeadingRe = regexp.MustCompile(`^##[ \t]+TL;DR[ \t\r]*$`)
-	tldrEndRe     = regexp.MustCompile(`^##[ \t]`)
-)
-
 // TLDRSection returns the trimmed body text of an artifact's `## TL;DR`
 // section, or "" when the section is absent or empty — the FTS learning index
 // and hydrate's --tldr digest both read it. Fence lines inside the section are
-// kept verbatim, so a TL;DR carrying a code sample survives intact.
+// kept verbatim, so a TL;DR carrying a code sample survives intact. Delegates
+// the heading/end scan to core.Section, which core.BodyLinksSectionTargets
+// (`## Links`) shares; unlike that caller, TLDRSection does not pre-strip
+// fenced blocks, so a code sample inside the TL;DR is not replaced.
 func TLDRSection(body string) string {
-	lines := strings.Split(body, "\n")
-	start := -1
-	inFence := false
-	for i, line := range lines {
-		if strings.HasPrefix(line, "```") {
-			inFence = !inFence
-			continue
-		}
-		if inFence {
-			continue
-		}
-		if start < 0 {
-			if tldrHeadingRe.MatchString(line) {
-				start = i + 1
-			}
-			continue
-		}
-		if tldrEndRe.MatchString(line) {
-			return strings.TrimSpace(strings.Join(lines[start:i], "\n"))
-		}
-	}
-	if start < 0 {
-		return ""
-	}
-	return strings.TrimSpace(strings.Join(lines[start:], "\n"))
+	return core.Section(body, "TL;DR")
 }
 
 var wikilinkRe = regexp.MustCompile(`^\[\[([^\]]+)\]\]$`)
