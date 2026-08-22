@@ -2,12 +2,14 @@ package facets
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/glossary"
 )
 
 // validFacets is the closed set of facets enforced by the CLI gate. pattern/
@@ -21,8 +23,11 @@ func Has(name string) bool { return slices.Contains(validFacets, name) }
 // or mutate without affecting validation behaviour.
 func Names() []string { return slices.Clone(validFacets) }
 
-// CollectValues walks vaultRoot and returns a facet-keyed map of value sets.
-// Every recognised facet key is present even when its set is empty.
+// CollectValues walks vaultRoot and returns a facet-keyed map of value sets:
+// the union of values already in use on artifacts and values registered in
+// the glossary (`anvil tags add`). Every recognised facet key is present even
+// when its set is empty. Reading the glossary as a source (not just usage)
+// is what lets a seeded-but-unused value pass the novelty gate.
 //
 // Artifacts whose YAML frontmatter cannot be parsed are skipped rather than
 // aborting the walk; their paths are returned in the second return value so
@@ -88,5 +93,22 @@ func CollectValues(vaultRoot string) (map[string]map[string]struct{}, []string, 
 			return nil, nil, err
 		}
 	}
+
+	g, gErr := glossary.Load(glossary.Path(vaultRoot))
+	if gErr != nil {
+		return nil, nil, fmt.Errorf("loading glossary: %w", gErr)
+	}
+	for _, tag := range g.Tags() {
+		facet, value, hasSlash := strings.Cut(tag, "/")
+		if !hasSlash || value == "" {
+			continue
+		}
+		bucket, ok := out[facet]
+		if !ok {
+			continue
+		}
+		bucket[value] = struct{}{}
+	}
+
 	return out, skipped, nil
 }
