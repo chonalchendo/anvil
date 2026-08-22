@@ -25,7 +25,6 @@ func runArgs(t *testing.T, args ...string) (string, error) {
 
 func TestContractKinds_AddListRoundTrip(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	if out, err := runArgs(t, "contract", "kinds", "add", "data", "--desc", "data pipeline boundaries"); err != nil {
 		t.Fatalf("kinds add: %v\n%s", err, out)
@@ -49,7 +48,6 @@ func TestContractKinds_AddListRoundTrip(t *testing.T) {
 
 func TestContractKinds_AddIdempotent(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	if _, err := runArgs(t, "contract", "kinds", "add", "data", "--desc", "x"); err != nil {
 		t.Fatal(err)
@@ -66,7 +64,6 @@ func TestContractKinds_AddIdempotent(t *testing.T) {
 
 func TestCreateContract_RoundTripAndKind(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	if _, err := runArgs(t, "contract", "kinds", "add", "data", "--desc", "data boundaries"); err != nil {
 		t.Fatal(err)
@@ -101,7 +98,6 @@ func TestCreateContract_RoundTripAndKind(t *testing.T) {
 
 func TestCreateContract_UnregisteredKindRejected(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	out, err := runArgs(t, "create", "contract", "--project", "burgh",
 		"--title", "Bad", "--kind", "boguskind", "--description", "y")
@@ -115,7 +111,6 @@ func TestCreateContract_UnregisteredKindRejected(t *testing.T) {
 
 func TestCreateContract_RequiresKind(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	_, err := runArgs(t, "create", "contract", "--project", "burgh",
 		"--title", "No kind", "--description", "y")
@@ -129,7 +124,6 @@ func TestCreateContract_RequiresKind(t *testing.T) {
 // register one is `anvil contract kinds add`, not the generic `tags add`.
 func TestTagsAdd_RejectsKindFacet(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	out, err := runArgs(t, "tags", "add", "kind/data", "--desc", "x")
 	if err == nil {

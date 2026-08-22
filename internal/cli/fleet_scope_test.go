@@ -273,7 +273,6 @@ func TestMergeChanged(t *testing.T) {
 // the fork point, so the audit only catches the reversion by deriving the
 // changed set against the fetched origin/main — never a local branch.
 func TestScopeAudit_DerivedDiffCatchesStaleBaseUnderReport(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
 	bare := t.TempDir()
 	if out, err := runIn(bare, "git", "init", "-q", "--bare", "."); err != nil {
 		t.Fatalf("git init --bare: %v\n%s", err, out)
@@ -340,7 +339,6 @@ func TestScopeAudit_DerivedDiffCatchesStaleBaseUnderReport(t *testing.T) {
 // A failed derivation (here: not a git repo) must degrade loudly — warning on
 // stderr, audit of the --changed list alone — never a bare "scope: clean".
 func TestScopeAudit_DerivationFailureWarnsAndDegrades(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 	cmd := newRootCmd()
 	stdout, stderr, err := runCmd(t, cmd, "fleet", "scope-audit",

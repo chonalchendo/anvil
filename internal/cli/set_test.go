@@ -950,7 +950,6 @@ func TestSet_LegacyArtifactMissingRequiredField_Succeeds(t *testing.T) {
 func TestSet_Issue_ByOrdinal(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 	writeFixtureMilestone(t, vault, "foo.cli-substrate", "planned")
 

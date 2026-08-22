@@ -104,7 +104,6 @@ func TestDiscoverVaultCloneReportsMissingVault(t *testing.T) {
 func TestBindCloudVaultPrefersExplicitEnv(t *testing.T) {
 	isolateRootEnv(t)
 	t.Setenv("ANVIL_VAULT", "/explicit/vault")
-	t.Setenv("HOME", t.TempDir())
 
 	got, err := bindCloudVault()
 	if err != nil {

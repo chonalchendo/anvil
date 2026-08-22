@@ -10,7 +10,6 @@ import (
 func TestCreate_NearDuplicate_Surfaces_PriorIssue_JSON(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	for _, args := range [][]string{
@@ -48,7 +47,6 @@ func TestCreate_NearDuplicate_Surfaces_PriorIssue_JSON(t *testing.T) {
 func TestCreate_NearDuplicate_Surfaces_PriorIssue_Text(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	for _, args := range [][]string{
@@ -78,7 +76,6 @@ func TestCreate_NearDuplicate_Surfaces_PriorIssue_Text(t *testing.T) {
 func TestCreate_NearDuplicate_ForceNew_SkipsCheck(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	for _, args := range [][]string{
@@ -102,7 +99,6 @@ func TestCreate_NearDuplicate_ForceNew_SkipsCheck(t *testing.T) {
 func TestCreate_NearDuplicate_NoMatch_NoWarning(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	for _, args := range [][]string{
@@ -147,7 +143,6 @@ func TestSimilarSlugs_OverlapCoefficient(t *testing.T) {
 func TestCreate_ContentDuplicate_DisjointTitles(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	// First milestone: title tokens are "reindex", "drops", "links", "concurrent", "writes".
@@ -206,7 +201,6 @@ func TestCreate_ContentDuplicate_DisjointTitles(t *testing.T) {
 func TestCreate_ContentDuplicate_PriorNotBootstrapReindexed(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	// #1: distinct content X — incidentally bootstrap-reindexed into artifact_fts.

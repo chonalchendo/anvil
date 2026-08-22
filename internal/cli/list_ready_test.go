@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -13,13 +12,13 @@ func TestListReadyFiltersUnblockedIssues(t *testing.T) {
 	execCmd(t, "init", vault)
 	createDemoIssue(t)
 
-	out := execCmd(t, "list", "issue", "--ready", "--json")
+	out := execCmdJSON(t, "list", "issue", "--ready", "--json")
 	var env struct {
 		Items []struct {
 			ID string `json:"id"`
 		} `json:"items"`
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &env); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
 	ids := make(map[string]bool)

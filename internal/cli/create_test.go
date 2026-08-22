@@ -35,7 +35,6 @@ func setupVault(t *testing.T) string {
 func TestCreate_DescriptionTooLong_NamesSpineRule(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	long := strings.Repeat("x", 125)
@@ -64,7 +63,6 @@ func TestCreate_DescriptionTooLong_NamesSpineRule(t *testing.T) {
 func TestCreate_AllCappedFieldViolations_ReportedTogether(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	longDesc := strings.Repeat("x", 130)
@@ -95,7 +93,6 @@ func TestCreate_AllCappedFieldViolations_ReportedTogether(t *testing.T) {
 func TestCreate_NonIssueCappedField_ChecksBeforeProjectResolution(t *testing.T) {
 	setupVault(t)
 	// No --project and a non-git cwd: ResolveProject would fail with ErrNoProject.
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	longDesc := strings.Repeat("x", 130)
@@ -123,7 +120,6 @@ func TestCreate_NonIssueCappedField_ChecksBeforeProjectResolution(t *testing.T) 
 func TestCreate_TitleAndCapViolations_ReportedTogether(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	longDesc := strings.Repeat("x", 130)
@@ -147,7 +143,6 @@ func TestCreate_TitleAndCapViolations_ReportedTogether(t *testing.T) {
 func TestCreate_Issue_WritesValidFile(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	path := createIssueGetPath(t,
@@ -182,7 +177,6 @@ func TestCreate_Issue_DeriveDescription(t *testing.T) {
 	t.Run("omitted derives from title", func(t *testing.T) {
 		setupVault(t)
 		repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-		t.Setenv("HOME", t.TempDir())
 		t.Chdir(repo)
 
 		path := createIssueGetPath(t,
@@ -204,7 +198,6 @@ func TestCreate_Issue_DeriveDescription(t *testing.T) {
 	t.Run("explicit description wins", func(t *testing.T) {
 		setupVault(t)
 		repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-		t.Setenv("HOME", t.TempDir())
 		t.Chdir(repo)
 
 		path := createIssueGetPath(t,
@@ -230,7 +223,6 @@ func TestCreate_Issue_DeriveDescription(t *testing.T) {
 func TestCreate_Milestone_DeriveDescription(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -245,7 +237,6 @@ func TestCreate_Milestone_DeriveDescription(t *testing.T) {
 func TestCreateMilestone_NoOrdinal(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -266,7 +257,6 @@ func TestCreateMilestone_NoOrdinal(t *testing.T) {
 // when both are passed.
 func TestCreateInbox_ProjectFlag_AliasesToSuggestedProject(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
@@ -294,7 +284,6 @@ func TestCreateInbox_ProjectFlag_AliasesToSuggestedProject(t *testing.T) {
 // --suggested-project value rather than clobbering it with the alias.
 func TestCreateInbox_ProjectFlag_ExplicitSuggestedWins(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
@@ -321,7 +310,6 @@ func TestCreate_ProjectFlag_RejectedForUnsupportedTypes(t *testing.T) {
 	for _, typ := range []string{"session", "sweep", "thread"} {
 		t.Run(typ, func(t *testing.T) {
 			setupVault(t)
-			t.Setenv("HOME", t.TempDir())
 			t.Chdir(t.TempDir())
 
 			cmd := newRootCmd()
@@ -347,7 +335,6 @@ func TestCreate_ProjectFlag_RejectedForUnsupportedTypes(t *testing.T) {
 
 func TestCreate_Inbox_NoProjectNeeded(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir()) // not a git repo
 
 	cmd := newRootCmd()
@@ -367,7 +354,6 @@ func TestCreate_Inbox_NoProjectNeeded(t *testing.T) {
 func TestCreate_JSON_ReturnsIDAndPath(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -392,7 +378,6 @@ func TestCreate_JSON_ReturnsIDAndPath(t *testing.T) {
 
 func TestCreate_Decision_TopicScoped(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
@@ -412,7 +397,6 @@ func TestCreate_Decision_TopicScoped(t *testing.T) {
 // together rather than short-circuiting at --topic.
 func TestCreate_Decision_MissingTopic_ReportedWithFacetErrors(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
@@ -455,7 +439,6 @@ func TestCreate_Decision_MissingTopic_ReportedWithFacetErrors(t *testing.T) {
 func TestCreate_Issue_MissingGoalAndFacets_ReportedTogether(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -491,7 +474,6 @@ func TestCreate_Issue_MissingGoalAndFacets_ReportedTogether(t *testing.T) {
 func TestCreate_Milestone_MissingGoal_ReportedAsSchemaViolation(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -512,7 +494,6 @@ func TestCreate_Milestone_MissingGoal_ReportedAsSchemaViolation(t *testing.T) {
 func TestCreatePlan_NewSchema_Succeeds(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -546,7 +527,6 @@ func TestCreatePlan_NewSchema_Succeeds(t *testing.T) {
 
 func TestCreate_Thread_WritesValidFile(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir()) // not a git repo — thread needs no project
 
 	cmd := newRootCmd()
@@ -581,7 +561,6 @@ func TestCreate_Thread_WritesValidFile(t *testing.T) {
 
 func TestCreate_Learning_WritesValidFile(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"create", "learning", "--title", "Postgres FK locks block writes", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
@@ -616,7 +595,6 @@ func TestCreate_Learning_WritesValidFile(t *testing.T) {
 func TestCreate_Issue_WithBody_FlagRoundTrips(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	body := "## Problem\nFrom flag.\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
@@ -641,7 +619,6 @@ func TestCreate_Issue_WithBody_FlagRoundTrips(t *testing.T) {
 func TestCreate_Issue_ScaffoldsH2(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	path := createIssueGetPath(t,
@@ -671,7 +648,6 @@ func TestCreate_Issue_ScaffoldsH2(t *testing.T) {
 
 func TestCreate_Learning_ScaffoldsH2(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"create", "learning", "--title", "scaffold test", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
@@ -703,7 +679,6 @@ func TestCreate_Learning_ScaffoldsH2(t *testing.T) {
 func TestCreate_Issue_ExplicitEmptyBody_RejectsWithMissingSections(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -719,7 +694,6 @@ func TestCreate_Issue_ExplicitEmptyBody_RejectsWithMissingSections(t *testing.T)
 func TestCreate_Issue_BodyFile_RoundTrips(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	body := "## Problem\nFrom file.\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none\n"
@@ -749,7 +723,6 @@ func TestCreate_Issue_BodyFile_RoundTrips(t *testing.T) {
 func TestCreate_Issue_BodyFile_RejectsBadWikilink_RollsBack(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	body := "## Problem\nrefs [[issue.foo.ghost]] which does not exist.\n## Acceptance criteria\n- x\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none\n"
@@ -849,7 +822,6 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			vault := setupVault(t)
 			repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-			t.Setenv("HOME", t.TempDir())
 			probeDir := t.TempDir()
 			t.Chdir(repo)
 
@@ -887,7 +859,6 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 func TestCreate_Issue_FeasibilityGateAnnouncesEachBlock(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	stderr, _ := runCreateIssueBody(t, "probe", feasibilityBody("true", "exit 3"))
@@ -908,7 +879,6 @@ func TestCreate_Issue_FeasibilityGateAnnouncesEachBlock(t *testing.T) {
 func TestCreate_Issue_SkipVerifyPredicates(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	stderr, err := runCreateIssueBody(t, "probe", feasibilityBody("true", "true"), "--skip-verify-predicates")
@@ -931,7 +901,6 @@ func TestCreate_Issue_SkipVerifyPredicates(t *testing.T) {
 func TestCreate_Issue_HeredocH2DoesNotSkipTheBlock(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	indirect := "cat <<'EOF' > \"" + t.TempDir() + "/mini.md\"\n## Links to the mini doc\n- none\nEOF\ntrue"
@@ -963,7 +932,6 @@ func TestCreateLongDescription_DisclosesCodeExecution(t *testing.T) {
 func TestCreate_Issue_BodyFile_RejectsBareProjectSlugWikilink(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	// "anvil" is a project name, not a known Anvil type, so the indexer cannot
@@ -1001,7 +969,6 @@ func TestCreate_Issue_BodyFile_RejectsBareProjectSlugWikilink(t *testing.T) {
 func TestCreate_Issue_BodyStdinDash(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cleanup := withStdin(t, "## Problem\nFrom stdin.\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none\n")
@@ -1039,7 +1006,6 @@ func TestCreate_Issue_BodyStdinDash(t *testing.T) {
 func TestCreate_BodyFlagAndBodyFile_Conflict(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	bodyPath := filepath.Join(t.TempDir(), "b.md")
@@ -1066,7 +1032,6 @@ func TestCreate_BodyFlagAndBodyFile_Conflict(t *testing.T) {
 func TestCreatePlan_BodyReplacesT1Seed_ValidWhenWellFormed(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	body := "\n## Task: T1\n\n" + strings.Repeat("Author-supplied T1 description that exceeds the 200-char body floor. ", 4) + "\n"
@@ -1096,7 +1061,6 @@ func TestCreatePlan_BodyReplacesT1Seed_ValidWhenWellFormed(t *testing.T) {
 func TestCreatePlan_RequiresIssue(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -1157,7 +1121,6 @@ Body for the second task.
 func TestCreatePlan_From_FileRoundTripsTasksAndBody(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	input := filepath.Join(t.TempDir(), "plan.md")
@@ -1198,7 +1161,6 @@ func TestCreatePlan_From_FileRoundTripsTasksAndBody(t *testing.T) {
 func TestCreatePlan_From_StdinPath(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -1229,7 +1191,6 @@ func TestCreatePlan_From_StdinPath(t *testing.T) {
 func TestCreatePlan_From_RejectsOnNonPlan(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	input := filepath.Join(t.TempDir(), "x.md")
@@ -1250,7 +1211,6 @@ func TestCreatePlan_From_RejectsOnNonPlan(t *testing.T) {
 func TestCreatePlan_From_MutexWithBody(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	input := filepath.Join(t.TempDir(), "x.md")
@@ -1278,7 +1238,6 @@ func TestCreatePlan_From_MutexWithBody(t *testing.T) {
 func TestCreatePlan_From_RejectsNonPlanType(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	issueArtifact := `---
@@ -1312,7 +1271,6 @@ body
 func TestCreatePlan_From_EmptyBodyNotScaffolded(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	// Frontmatter only — no body sections. The T1 placeholder must NOT be
@@ -1370,7 +1328,6 @@ tasks:
 func TestCreatePlan_From_CLIFlagsOverrideFileFields(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	input := filepath.Join(t.TempDir(), "plan.md")
@@ -1411,7 +1368,6 @@ func TestCreatePlan_From_CLIFlagsOverrideFileFields(t *testing.T) {
 func TestCreateMilestone_SeedsAcceptanceSlot(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -1441,7 +1397,6 @@ func TestCreateMilestone_SeedsAcceptanceSlot(t *testing.T) {
 func TestCreate_ProductDesign_WritesValidFile(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -1475,7 +1430,6 @@ func TestCreate_ProductDesign_WritesValidFile(t *testing.T) {
 func TestCreate_ProductDesign_Idempotent(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	args := []string{
@@ -1526,7 +1480,6 @@ func TestCreate_ProductDesign_Idempotent(t *testing.T) {
 
 func TestCreate_ProductDesign_RequiresProject(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir()) // not a git repo
 
 	cmd := newRootCmd()
@@ -1541,7 +1494,6 @@ func TestCreate_ProductDesign_RequiresProject(t *testing.T) {
 
 func TestCreate_Sweep_BreakingTrue(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir()) // not a git repo — sweep is exempt
 
 	cmd := newRootCmd()
@@ -1572,7 +1524,6 @@ func TestCreate_Sweep_BreakingTrue(t *testing.T) {
 
 func TestCreate_Sweep_BreakingFalseExplicit(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
@@ -1595,7 +1546,6 @@ func TestCreate_Sweep_BreakingFalseExplicit(t *testing.T) {
 
 func TestCreate_Sweep_MissingScope(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
@@ -1614,7 +1564,6 @@ func TestCreate_Sweep_MissingScope(t *testing.T) {
 
 func TestCreate_Sweep_MissingBreaking(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
@@ -1634,7 +1583,6 @@ func TestCreate_Sweep_MissingBreaking(t *testing.T) {
 func TestCreate_SystemDesign_WritesValidFile(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -1662,7 +1610,6 @@ func TestCreate_SystemDesign_WritesValidFile(t *testing.T) {
 func TestCreate_SystemDesign_Shard_WritesBareShardID(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -1708,7 +1655,6 @@ func TestCreate_SystemDesign_Shard_WritesBareShardID(t *testing.T) {
 func TestCreate_DesignTypes_SameProjectCoexist(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	ids := map[core.Type]string{}
@@ -1959,7 +1905,6 @@ func TestInstallFireSessionStart_WritesSession(t *testing.T) {
 
 func TestCreateInbox_WritesFile(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
@@ -1975,7 +1920,6 @@ func TestCreateInbox_WritesFile(t *testing.T) {
 
 func TestCreateInbox_WithBody(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
@@ -1996,7 +1940,6 @@ func TestCreateInbox_WithBody(t *testing.T) {
 func TestCreate_Issue_RejectsUnknownDomain(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -2025,7 +1968,6 @@ func TestCreate_Issue_RejectsUnknownDomain(t *testing.T) {
 func TestCreate_Issue_AllowNewFacetSucceeds(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -2047,7 +1989,6 @@ func TestCreate_Issue_AllowNewFacetSucceeds(t *testing.T) {
 func TestCreate_Issue_SuggestsContainmentMatch(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -2080,7 +2021,6 @@ func TestCreate_Issue_SuggestsContainmentMatch(t *testing.T) {
 func TestCreate_Issue_NumberedFormat(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	args := []string{
@@ -2148,7 +2088,6 @@ func TestCreate_Issue_NumberedFormat(t *testing.T) {
 func TestCreate_Issue_DriftRefusedWithoutUpdate(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	// Pre-seed an issue so we can link a plan to it.
@@ -2191,7 +2130,6 @@ func TestCreate_Issue_DriftRefusedWithoutUpdate(t *testing.T) {
 func TestCreate_Issue_TagReorder_NoDrift(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	mk := func(tags string) *cobra.Command {
@@ -2220,7 +2158,6 @@ func TestCreate_Issue_TagReorder_NoDrift(t *testing.T) {
 func TestCreate_Issue_BodyDrift_RefusedWithoutUpdate(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	withSections := func(intro string) string {
@@ -2265,7 +2202,6 @@ func TestCreate_Issue_BodyDrift_RefusedWithoutUpdate(t *testing.T) {
 func TestCreate_Issue_UpdateRewritesOnDrift(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	// Pre-seed an issue to link the plan to.
@@ -2327,7 +2263,6 @@ func TestCreate_Issue_UpdateRewritesOnDrift(t *testing.T) {
 func TestCreate_Issue_UpdateWithoutDrift_NoRewrite(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	args := []string{
@@ -2362,7 +2297,6 @@ func TestCreate_Issue_UpdateWithoutDrift_NoRewrite(t *testing.T) {
 func TestCreate_DriftError_FormatsScalar(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	mk := func(desc string) *cobra.Command {
@@ -2405,7 +2339,6 @@ func TestCreate_DriftError_FormatsScalar(t *testing.T) {
 func TestCreate_DriftError_FormatsTagsArray(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	mk := func(tags string) *cobra.Command {
@@ -2430,7 +2363,6 @@ func TestCreate_DriftError_FormatsTagsArray(t *testing.T) {
 func TestCreate_DriftError_FormatsBodyTruncated(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	withSections := func(intro string) string {
@@ -2467,7 +2399,6 @@ func TestCreate_DriftError_FormatsBodyTruncated(t *testing.T) {
 func TestCreate_Decision_StaysAppendOnly(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	args := []string{
@@ -2503,7 +2434,6 @@ func TestCreate_Decision_StaysAppendOnly(t *testing.T) {
 // already_exists.
 func TestCreate_Thread_TopicOrdinalAndAppendOnly(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir()) // not a git repo — thread needs no project
 
 	args := []string{
@@ -2532,7 +2462,6 @@ func TestCreate_Thread_TopicOrdinalAndAppendOnly(t *testing.T) {
 
 func TestCreate_Thread_RequiresTopic(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
@@ -2575,7 +2504,6 @@ func TestCreate_AllSlugTypes_Idempotent(t *testing.T) {
 		t.Run(tcase.name, func(t *testing.T) {
 			setupVault(t)
 			repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-			t.Setenv("HOME", t.TempDir())
 			t.Chdir(repo)
 
 			args := append([]string{}, tcase.args...)
@@ -2611,7 +2539,6 @@ func TestCreate_AllSlugTypes_Idempotent(t *testing.T) {
 func TestCreate_DescriptionPreflight_RejectsOversize(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	long := strings.Repeat("a", 121)
@@ -2644,7 +2571,6 @@ func TestCreate_DescriptionPreflight_RejectsOversize(t *testing.T) {
 func TestCreate_Issue_FreshVault_MissingFacet_OneShotHint(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -2676,7 +2602,6 @@ func TestCreate_Issue_FreshVault_MissingFacet_OneShotHint(t *testing.T) {
 func TestCreate_JSON_SchemaInvalid_EmitsViolationsEnvelope(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -2730,7 +2655,6 @@ func TestCreate_JSON_SchemaInvalid_EmitsViolationsEnvelope(t *testing.T) {
 func TestCreate_Decision_FreshVault_MissingBothFacets_Coalesced(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -2770,7 +2694,6 @@ func TestCreate_Decision_FreshVault_MissingBothFacets_Coalesced(t *testing.T) {
 func TestCreate_Issue_StructuredErrorHead_CodeFieldExpectedOnSameLine(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -2800,7 +2723,6 @@ func TestCreate_Issue_StructuredErrorHead_CodeFieldExpectedOnSameLine(t *testing
 func TestCreate_Learning_OneShot_ReportsFacetAndBodyClasses(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -2833,7 +2755,6 @@ func TestCreate_Learning_OneShot_ReportsFacetAndBodyClasses(t *testing.T) {
 func TestCreateIssue_SeverityFlag(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	for _, sev := range []string{"low", "medium", "high", "critical"} {
@@ -2880,7 +2801,6 @@ func TestCreateIssue_SeverityFlag(t *testing.T) {
 func TestCreateIssue_MilestoneFlag(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cases := []struct {
@@ -2929,7 +2849,6 @@ func TestCreateIssue_MilestoneFlag(t *testing.T) {
 func TestCreateIssue_AcceptanceFlag(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -2970,7 +2889,6 @@ func TestCreateIssue_AcceptanceFlag(t *testing.T) {
 // rejection 0120 fixes.
 func TestCreate_Learning_ShowTemplate(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	cmd := newRootCmd()
 	var out bytes.Buffer
@@ -2993,7 +2911,6 @@ func TestCreate_Learning_ShowTemplate(t *testing.T) {
 
 func TestCreate_ShowTemplate_UnsupportedType(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"create", "decision", "--show-template"})
@@ -3008,7 +2925,6 @@ func TestCreate_ShowTemplate_UnsupportedType(t *testing.T) {
 // at --show-template so the author can see the required shape.
 func TestCreate_Learning_BodyMissingHeadings_RejectionPointsToShowTemplate(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	cmd := newRootCmd()
 	var errBuf bytes.Buffer
@@ -3029,7 +2945,6 @@ func TestCreate_Learning_BodyMissingHeadings_RejectionPointsToShowTemplate(t *te
 // and report already_exists — never fork a duplicate-id bare sibling.
 func TestCreate_Design_LegacyQualifiedFile_AlreadyExists(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	legacy := filepath.Join(vault, core.TypeProductDesign.Dir(), "product-design.burgh.md")
 	fm := "---\ntype: product-design\nid: product-design.burgh\ntitle: \"burgh\"\n" +

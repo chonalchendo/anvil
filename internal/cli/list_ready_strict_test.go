@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -22,13 +21,13 @@ func TestListReadySurfacesUnblockedPrereqExcludesBlockedDependent(t *testing.T) 
 	execCmd(t, "reindex")
 	execCmd(t, "set", "issue", "demo.bravo", "depends_on", "--add", "[[issue.demo.charlie]]")
 
-	out := execCmd(t, "list", "issue", "--ready", "--json")
+	out := execCmdJSON(t, "list", "issue", "--ready", "--json")
 	var env struct {
 		Items []struct {
 			ID string `json:"id"`
 		} `json:"items"`
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &env); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
 	got := map[string]bool{}
@@ -59,7 +58,7 @@ func TestListReadyStrictRecoversWhenBlockerResolves(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.charlie", "in-progress", "--owner", "claude")
 	execCmd(t, "transition", "issue", "demo.charlie", "resolved")
 
-	out := execCmd(t, "list", "issue", "--ready", "--json")
+	out := execCmdJSON(t, "list", "issue", "--ready", "--json")
 	if !strings.Contains(out, `"issue.demo.bravo"`) {
 		t.Errorf("demo.bravo should be ready once demo.charlie is resolved; got: %s", out)
 	}

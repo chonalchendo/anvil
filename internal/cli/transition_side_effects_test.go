@@ -719,7 +719,7 @@ func TestLandPRAlreadyResolvedMergedSucceeds(t *testing.T) {
 	s := stubSideFX(t)
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 
-	out := execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json")
+	out := execCmdJSON(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json")
 	if !strings.Contains(out, `"already_in_state"`) {
 		t.Fatalf("expected already_in_state, got %s", out)
 	}
@@ -1471,7 +1471,7 @@ func TestCutWorktreeEmitsWorktreePath(t *testing.T) {
 	}
 
 	execCmd(t, "transition", "issue", "demo.foo", "open")
-	jsonOut := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--json")
+	jsonOut := execCmdJSON(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--json")
 	var res transitionResult
 	if err := jsonUnmarshal(t, jsonOut, &res); err != nil {
 		t.Fatalf("unmarshal %q: %v", jsonOut, err)

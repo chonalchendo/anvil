@@ -29,7 +29,6 @@ func runIn(dir string, name string, args ...string) ([]byte, error) {
 
 func TestWhere_PrintsVaultAndProject(t *testing.T) {
 	dir := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Setenv("ANVIL_VAULT", filepath.Join(t.TempDir(), "vault"))
 	t.Chdir(dir)
 
@@ -49,7 +48,6 @@ func TestWhere_PrintsVaultAndProject(t *testing.T) {
 
 func TestWhere_JSON(t *testing.T) {
 	dir := setupGitRepo(t, "git@github.com:acme/bar.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Setenv("ANVIL_VAULT", filepath.Join(t.TempDir(), "vault"))
 	t.Chdir(dir)
 

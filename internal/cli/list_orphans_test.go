@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -18,13 +17,13 @@ func TestListOrphansReturnsArtifactsWithNoIncomingLinks(t *testing.T) {
 	execCmd(t, "reindex")
 	execCmd(t, "link", "issue", "demo.linker", "issue", "demo.popular")
 
-	out := execCmd(t, "list", "issue", "--orphans", "--json")
+	out := execCmdJSON(t, "list", "issue", "--orphans", "--json")
 	var env struct {
 		Items []struct {
 			ID string `json:"id"`
 		} `json:"items"`
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &env); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
 	got := map[string]bool{}

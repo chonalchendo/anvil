@@ -203,7 +203,7 @@ func TestRollupCI_DecodesLiveStatusContextJSON(t *testing.T) {
 		`{"__typename":"StatusContext","context":"ci/circleci: imports","startedAt":"2026-07-25T23:53:08Z","state":"SUCCESS","targetUrl":"https://circleci.com/gh/chonalchendo/mentat/617"}]}`
 
 	var pr ghPRSnapshot
-	if err := json.Unmarshal([]byte(live), &pr); err != nil {
+	if err := jsonUnmarshal(t, live, &pr); err != nil {
 		t.Fatalf("unmarshal live rollup: %v", err)
 	}
 	if len(pr.StatusCheckRoll) != 4 {
@@ -485,7 +485,7 @@ func TestFleetStatus_JSONEnvelope(t *testing.T) {
 		t.Fatalf("fleet status: %v", err)
 	}
 	var env fleetEnvelope
-	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+	if err := jsonUnmarshal(t, stdout, &env); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, stdout)
 	}
 	if env.Count != 1 || len(env.Rows) != 1 {

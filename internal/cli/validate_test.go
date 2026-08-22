@@ -17,7 +17,6 @@ import (
 func TestValidate_GoodVault(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	// Add one valid issue.
@@ -75,7 +74,6 @@ func TestValidate_SingleFile_HappyPath(t *testing.T) {
 	vault := setupVault(t)
 	t.Setenv("ANVIL_VAULT", vault)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -121,7 +119,6 @@ func TestValidate_SingleFile_ReportsBadFrontmatter(t *testing.T) {
 
 func TestValidate_Learning_BodyShape(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"create", "learning", "--title", "X", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
@@ -514,7 +511,6 @@ func TestValidate_DuplicateID_CrossFile(t *testing.T) {
 // full-vault count.
 func TestValidate_ProjectFlag_ScopesFindings(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	// Plant an invalid issue for project "alpha" (bad status).
 	alphaIssue := &core.Artifact{
@@ -592,7 +588,6 @@ func TestValidate_ProjectFlag_ScopesFindings(t *testing.T) {
 // the path-based filter would invert both.
 func TestValidate_ProjectFlag_ScopesByFrontmatter(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	// Misfiled: filename says beta, frontmatter declares alpha.
 	misfiled := &core.Artifact{
