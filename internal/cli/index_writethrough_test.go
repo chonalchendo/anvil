@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -13,23 +12,34 @@ import (
 
 // jsonUnmarshal decodes a CLI-command result string. Test callers funnel
 // through here (rather than calling encoding/json directly) so a stdout+
-// stderr-merged buffer never gets treated as JSON input by mistake.
+// stderr-merged buffer never gets treated as JSON input by mistake: a
+// trailing non-JSON diagnostic makes strict Unmarshal fail loudly instead of
+// a Decoder silently ignoring it.
 func jsonUnmarshal(t *testing.T, s string, v any) error {
 	t.Helper()
-	return json.NewDecoder(strings.NewReader(s)).Decode(v)
+	return json.Unmarshal([]byte(s), v)
 }
 
-// execCmd creates a fresh root command, runs it with args, and returns the
-// merged stdout+stderr text. Fails the test if the command returns an error.
-// Callers that parse the result as JSON must use execCmdJSON instead: a
-// stderr diagnostic on an otherwise-successful command corrupts this merged
-// buffer's JSON.
-func execCmd(t *testing.T, args ...string) string {
+// execCmdStreams creates a fresh root command, runs it with args, and
+// returns stdout and stderr separately. Fails the test if the command
+// returns an error.
+func execCmdStreams(t *testing.T, args ...string) (string, string) {
 	t.Helper()
 	stdout, stderr, err := runCmd(t, newRootCmd(), args...)
 	if err != nil {
 		t.Fatalf("anvil %v: %v\noutput: %s%s", args, err, stdout, stderr)
 	}
+	return stdout, stderr
+}
+
+// execCmd returns stdout followed by stderr (concatenated, not
+// interleaved — relative order across the two streams is not preserved).
+// Callers that parse the result as JSON must use execCmdJSON instead: a
+// stderr diagnostic on an otherwise-successful command corrupts this
+// concatenated buffer's JSON.
+func execCmd(t *testing.T, args ...string) string {
+	t.Helper()
+	stdout, stderr := execCmdStreams(t, args...)
 	return stdout + stderr
 }
 
@@ -37,10 +47,7 @@ func execCmd(t *testing.T, args ...string) string {
 // diagnostic can never land inside the JSON a caller unmarshals.
 func execCmdJSON(t *testing.T, args ...string) string {
 	t.Helper()
-	stdout, stderr, err := runCmd(t, newRootCmd(), args...)
-	if err != nil {
-		t.Fatalf("anvil %v: %v\noutput: %s%s", args, err, stdout, stderr)
-	}
+	stdout, _ := execCmdStreams(t, args...)
 	return stdout
 }
 
