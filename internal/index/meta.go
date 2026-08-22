@@ -119,6 +119,7 @@ func (d *DB) CheckFreshness(vaultRoot string) error {
 // saved, so the post-save freshness check doesn't trip on its own write
 // while still catching drift in any other file.
 func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
+	vaultRoot = walkRoot(vaultRoot)
 	stamp, err := d.GetLastReindex()
 	if err != nil {
 		return err
