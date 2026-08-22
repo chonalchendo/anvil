@@ -44,7 +44,7 @@ jobs:
           mapfile -t files < <(git ls-files '*_test.go')
           awk '
             function offend(sel, flag) {
-              printf "::error file=%s::%s: %s runs a root command with %s but never pins %s — the root command exports that flag into the process environment and leaks it into whichever test runs next. Add isolateRootEnv(t) after t.Helper(), route through setupVault/runCmd/runArgs/execCmd, or t.Setenv(\"%s\", ...) in the test.\n", FILENAME, FILENAME, fn, flag, sel, sel
+              printf "::error file=%s::%s: %s runs a root command with %s but never pins %s — the root command exports that flag into the process environment and leaks it into whichever test runs next. Add isolateRootEnv(t) after t.Helper(), route through setupVault/runCmd/runArgs/runArgsJSON/execCmd/execCmdJSON, or t.Setenv(\"%s\", ...) in the test.\n", FILENAME, FILENAME, fn, flag, sel, sel
               rc = 1
             }
             /^func / { fn = $0; body = ""; in_fn = 1 }
@@ -52,7 +52,7 @@ jobs:
             /^}$/ && in_fn {
               in_fn = 0
               if (body !~ /newRootCmd\(\)/) next
-              if (body ~ /(isolateRootEnv|setupVault|runCmd|runArgs|execCmd|createIssueGetPath|runPromoteJSON|runPromoteIssueJSON)\(/) next
+              if (body ~ /(isolateRootEnv|setupVault|runCmd|runArgsJSON|runArgs|execCmdJSON|execCmd|createIssueGetPath|runPromoteJSON|runPromoteIssueJSON)\(/) next
               if (body ~ /"--vault"/   && body !~ /t\.Setenv\("ANVIL_VAULT"/)   offend("ANVIL_VAULT", "--vault")
               if (body ~ /"--project"/ && body !~ /t\.Setenv\("ANVIL_PROJECT"/) offend("ANVIL_PROJECT", "--project")
             }
