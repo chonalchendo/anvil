@@ -246,6 +246,16 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 		// authored before the rule would fail vault-hygiene CI retroactively
 		// if the vault-wide scan enforced it. Lint a single predicate with
 		// `anvil validate --verification-stdin` instead.
+		//
+		// ValidateIssueLakehouseSchema IS wired here, unlike the checkout-path
+		// lint above: anvil.0241 requires the rule to bite on later `anvil
+		// validate` sweeps, not just create/promote — a hand-edited Verification
+		// block (the trust hole this rule closes) never passes through create
+		// again. Retro-fixing the back catalogue is an explicit non-goal of
+		// that issue, so pre-existing violations now surface here too.
+		for _, vErr := range core.ValidateIssueLakehouseSchema(a.Body) {
+			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+		}
 	}
 
 	// Drift check: flag tags not present in the glossary. Skipped when the

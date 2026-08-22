@@ -217,6 +217,50 @@ func ValidateIssueCheckoutPaths(body string) []error {
 	return errs
 }
 
+// lakehouseSchemaRE matches an unparameterised `lakehouse.<schema>.` table
+// reference: `lakehouse.` followed directly by a bare identifier and a dot.
+// The established fix is `${SCHEMA:-modelled}` parameterisation (mentat.0291
+// precedent, now on eight issues) — `${` after `lakehouse.` starts with `$`,
+// not an identifier character, so a parameterised reference never matches.
+var lakehouseSchemaRE = regexp.MustCompile(`\blakehouse\.[A-Za-z_][A-Za-z0-9_]*\.`)
+
+// LakehouseSchemaMatches returns every hardcoded lakehouse.<schema>. reference
+// found in text, one per matching line, in encounter order. A prod-hardcoded
+// schema (mentat.0250/0252/0253's `lakehouse.prod.`) is legitimately red at
+// authoring time and only bites at completion — after dispatch, review and
+// responder rounds have already run — because the worker is forbidden the prod
+// apply the predicate demands.
+func LakehouseSchemaMatches(text string) []string {
+	var out []string
+	for _, line := range strings.Split(text, "\n") {
+		if m := lakehouseSchemaRE.FindString(line); m != "" {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// ValidateIssueLakehouseSchema reports one error per hardcoded lakehouse
+// schema reference found in the issue's Indirect Verification block(s). Scoped
+// to Indirect only: a hardcoded schema in Direct (an in-tree unit/integration
+// test) does not carry the same forbidden-prod-apply failure mode this rule
+// targets. An unterminated fence is already reported by ValidateIssue's
+// fence-balance check, so this returns no errors for that case rather than
+// duplicating it.
+func ValidateIssueLakehouseSchema(body string) []error {
+	blocks, err := VerificationBlocks(body, "Indirect")
+	if err != nil {
+		return nil
+	}
+	var errs []error
+	for _, block := range blocks {
+		for _, m := range LakehouseSchemaMatches(block) {
+			errs = append(errs, fmt.Errorf("Indirect verification block hardcodes a lakehouse schema (%q) — parameterise with ${SCHEMA:-modelled} so a worker without prod-apply rights can satisfy it", m))
+		}
+	}
+	return errs
+}
+
 // RequiredIssueSections is the ordered set of headings validate enforces on
 // issue body content. H3 entries (### Direct, ### Indirect) are sub-headings
 // of ## Verification and must appear after it. Exported so create can scaffold
