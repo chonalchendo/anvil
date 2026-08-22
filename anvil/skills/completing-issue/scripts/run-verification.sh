@@ -6,9 +6,14 @@
 # verdict does not survive the hop to its orchestrator:
 #   stdout: exactly one line of JSON, the verdict —
 #           {"verdict":"pass|fail","checks":N,"failed":[{"check":"Indirect#1",
-#            "exit":4,"preview":"<first command>"}]}
+#            "exit":4,"preview":"<first command>"}],"commit":"<sha|"">",
+#            "ran_at":"<UTC RFC3339>"}
 #           "checks" counts blocks attempted; a section with no ```bash block
-#           counts as one attempted (and failed) check.
+#           counts as one attempted (and failed) check. "commit" is `git
+#           rev-parse HEAD` of the cwd the runner ran in — the checkout the
+#           checks actually exercised, not the caller's assumption — and is
+#           "" when that cwd isn't a git repo. The runner records provenance;
+#           it does not enforce freshness — that's the consumer's call.
 #   stderr: the human PASS/FAIL summary and up to 10 lines per failure.
 #   exit:   0 iff verdict is "pass", 1 otherwise.
 #
@@ -92,6 +97,14 @@ non_gating_negation() {
 checks=0
 failed_json=""
 
+# Provenance: which checkout/commit this verdict was earned against, and when.
+# Derived from the runner's actual cwd, not assumed — a stale hardcoded path
+# is the same staleness bug this field exists to catch. `git rev-parse HEAD`
+# degrades to an empty string outside a git repo so the runner never crashes
+# on a non-repo invocation; the consumer decides what an empty commit means.
+commit=$(git rev-parse HEAD 2>/dev/null || true)
+ran_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
 # Accumulate one failed-check object. Built by hand rather than via jq so the
 # runner keeps its zero-dependency contract; arrays are avoided because macOS
 # still ships bash 3.2, where `${arr[@]}` on an empty array trips `set -u`.
@@ -163,10 +176,10 @@ total=$((direct_fails + indirect_fails))
 echo "" >&2
 if [ "$total" -eq 0 ]; then
     echo "All checks passed." >&2
-    printf '{"verdict":"pass","checks":%d,"failed":[]}\n' "$checks"
+    printf '{"verdict":"pass","checks":%d,"failed":[],"commit":"%s","ran_at":"%s"}\n' "$checks" "$commit" "$ran_at"
     exit 0
 else
     echo "$total check(s) failed." >&2
-    printf '{"verdict":"fail","checks":%d,"failed":[%s]}\n' "$checks" "$failed_json"
+    printf '{"verdict":"fail","checks":%d,"failed":[%s],"commit":"%s","ran_at":"%s"}\n' "$checks" "$failed_json" "$commit" "$ran_at"
     exit 1
 fi
