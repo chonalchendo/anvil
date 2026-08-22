@@ -96,9 +96,21 @@ func CollectValues(vaultRoot string) (map[string]map[string]struct{}, []string, 
 
 	g, gErr := glossary.Load(glossary.Path(vaultRoot))
 	if gErr != nil {
+		// Unlike the artifact walk above, an I/O error here propagates rather
+		// than being tolerated: glossary.Load already treats missing/empty as
+		// New(), so an error here means the path is unreadable or directory-
+		// shaped — a real environment fault, not a malformed-content case.
 		return nil, nil, fmt.Errorf("loading glossary: %w", gErr)
 	}
 	for _, tag := range g.Tags() {
+		if !core.ValidTagShape(tag) {
+			// anvil tags add never checks value shape, so the glossary can
+			// carry an entry (e.g. pattern/Bad_Value) that fails the vault's
+			// own tag-shape rule. Admitting it here would let the gate pass
+			// a tag that anvil validate immediately rejects, so it's
+			// filtered out of the union rather than trusted as a real value.
+			continue
+		}
 		facet, value, hasSlash := strings.Cut(tag, "/")
 		if !hasSlash || value == "" {
 			continue

@@ -8,6 +8,12 @@ import (
 
 var tagShape = regexp.MustCompile(`^[a-z][a-z0-9-]*(/[a-z][a-z0-9-]*)?$`)
 
+// ValidTagShape reports whether tag matches the vault's tag-shape rule:
+// lowercase ASCII + hyphen, with at most one facet-separating slash. Exported
+// so callers outside this package (e.g. the facet novelty gate) can filter
+// glossary entries before trusting them as valid tag values.
+func ValidTagShape(tag string) bool { return tagShape.MatchString(tag) }
+
 // RequiredLearningSections is the ordered set of H2 headings validate enforces
 // on learning body content. Exported so create can scaffold the skeleton without
 // duplicating the list.

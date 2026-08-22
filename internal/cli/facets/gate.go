@@ -47,7 +47,7 @@ func buildUnknownFacetValueError(facet, tag, value string, set map[string]struct
 	if sug, ok := Suggest(value, candidates); ok {
 		full := facet + "/" + sug
 		e.WithSuggest(full).WithFix(fmt.Sprintf(
-			"use --tags %s; run `anvil tags list --prefix %s/` to see all values, or pass --allow-new-facet=%s to introduce %q",
+			"use --tags %s; run `anvil tags list --source all --prefix %s/` to see all values, or pass --allow-new-facet=%s to introduce %q",
 			full, facet, facet, value,
 		))
 	} else {
@@ -55,7 +55,7 @@ func buildUnknownFacetValueError(facet, tag, value string, set map[string]struct
 			"no similar value in vault — likely a genuinely new %s",
 			facet,
 		)).WithFix(fmt.Sprintf(
-			"run `anvil tags list --prefix %s/` to see existing values, or pass --allow-new-facet=%s to introduce it",
+			"run `anvil tags list --source all --prefix %s/` to see existing values, or pass --allow-new-facet=%s to introduce it",
 			facet, facet,
 		))
 	}
