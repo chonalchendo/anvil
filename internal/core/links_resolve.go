@@ -112,23 +112,62 @@ func BodyWikilinkTargetsOfType(body string, t Type) []string {
 	return out
 }
 
-// linksSectionHeadingRe matches a line that is exactly a `## Links` heading;
-// linksSectionEndRe matches any H2 line, which terminates the section. Same
-// per-line, fence-excluded scan shape as index.TLDRSection (core cannot
-// import index, so the pattern is duplicated rather than shared).
-var (
-	linksSectionHeadingRe = regexp.MustCompile(`^##[ \t]+Links[ \t\r]*$`)
-	linksSectionEndRe     = regexp.MustCompile(`^##[ \t]`)
-)
+// sectionEndRe matches any H2 line, which terminates a Section scan — shared
+// by every heading this function is called with.
+var sectionEndRe = regexp.MustCompile(`^##[ \t]`)
+
+// Section returns the body text between a `## <heading>` line and the next H2
+// heading (or EOF), scanned line-by-line with fenced code blocks skipped so a
+// heading or terminator quoted inside a code sample neither opens nor closes
+// the section. Returns "" when the heading is absent. A second occurrence of
+// the same heading is not special-cased: sectionEndRe terminates the first
+// section there like any other H2, since a duplicate heading is malformed
+// input (RequiredIssueSections rejects it), not a section to extend.
+// Shared by index.TLDRSection (`## TL;DR`, scanned as-is so a fenced example
+// inside the digest survives verbatim) and BodyLinksSectionTargets
+// (`## Links`, called on StripFencedBlocks(body) so an illustrative wikilink
+// inside a code sample is excluded from the section text itself, not just
+// from heading detection — the two callers deliberately differ here).
+func Section(body, heading string) string {
+	headingRe := regexp.MustCompile(`^##[ \t]+` + regexp.QuoteMeta(heading) + `[ \t\r]*$`)
+	lines := strings.Split(body, "\n")
+	start := -1
+	inFence := false
+	for i, line := range lines {
+		if strings.HasPrefix(line, "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		if start < 0 {
+			if headingRe.MatchString(line) {
+				start = i + 1
+			}
+			continue
+		}
+		if sectionEndRe.MatchString(line) {
+			return strings.TrimSpace(strings.Join(lines[start:i], "\n"))
+		}
+	}
+	if start < 0 {
+		return ""
+	}
+	return strings.TrimSpace(strings.Join(lines[start:], "\n"))
+}
 
 // governingBodyLinkTypes is the closed set of types a body `## Links`
 // wikilink may resolve to and still enter hydrate's box. Only types that
-// ground an implementation qualify. Workspace and history types are
-// excluded on purpose: `thread` is the workspace by definition
-// (distilling-learning: "Threads are the workspace; learnings are the
-// durable output"), and `session`/`plan`/sibling `issue` bodies are history,
-// not grounding — pulling either in dragged 891-line thread bodies into the
-// implementer's context box (anvil.0240, measured on issue.mentat.0419).
+// ground an implementation qualify. `decision` is included: an ADR is the
+// authorizing record for a design choice and grounds an implementation as
+// directly as a contract, and ADR bodies are cheap (median 45 lines, max 135
+// across 85 artifacts). Workspace and history types are excluded on purpose:
+// `thread` is the workspace by definition (distilling-learning: "Threads are
+// the workspace; learnings are the durable output"), and `session`/`plan`/
+// sibling `issue` bodies are history, not grounding — pulling either in
+// dragged 891-line thread bodies into the implementer's context box
+// (anvil.0240, measured on issue.mentat.0419).
 var governingBodyLinkTypes = map[Type]struct{}{
 	TypeContract:      {},
 	TypeConvention:    {},
@@ -136,43 +175,46 @@ var governingBodyLinkTypes = map[Type]struct{}{
 	TypeSystemDesign:  {},
 	TypeLearning:      {},
 	TypeMilestone:     {},
+	TypeDecision:      {},
 }
 
-// BodyLinksSectionTargets returns every wikilink target (e.g. "convention.uv")
-// found in an issue body's `## Links` section, in first-seen order, filtered
-// to governingBodyLinkTypes — a target whose prefix does not parse as a
-// known type, or whose type is not a governing type, is skipped.
+// BodyLinkTarget is one resolved `## Links` wikilink: its parsed type and the
+// full type-qualified id string (e.g. Type: TypeConvention, ID:
+// "convention.uv"). Carrying the already-parsed Type spares a caller from
+// re-deriving it from ID across the package boundary.
+type BodyLinkTarget struct {
+	Type Type
+	ID   string
+}
+
+// BodyLinksSectionTargets returns every governing-type wikilink target found
+// in an issue body's `## Links` section, in first-seen order, plus the
+// distinct targets skipped because their type parsed but is not in
+// governingBodyLinkTypes (e.g. "thread.x") — a dropped target must be
+// stated, never silent (anvil.0240), so a caller can report what it did not
+// traverse and why. A target whose "<type>." prefix does not parse at all
+// (no dot, unknown type, or an angle-bracket documentation placeholder like
+// `<project>`) is not a vault reference either way and is excluded from both
+// lists, matching ResolveBodyLinks and wikilinkTargetPath.
 // Unlike BodyWikilinkTargetsOfType, this is not scoped to one edge type:
 // `## Links` is the explicit, author-curated section (a full-body wikilink
 // crawl is out of scope, anvil.0240), so hydrate's spine walk treats every
 // governing-typed wikilink placed there as a deliberate reference.
-func BodyLinksSectionTargets(body string) []string {
-	lines := strings.Split(StripFencedBlocks(body), "\n")
-	start := -1
-	end := len(lines)
-	for i, line := range lines {
-		if start < 0 {
-			if linksSectionHeadingRe.MatchString(line) {
-				start = i + 1
-			}
-			continue
-		}
-		if linksSectionEndRe.MatchString(line) {
-			end = i
-			break
-		}
+func BodyLinksSectionTargets(body string) (targets []BodyLinkTarget, skipped []string) {
+	section := Section(StripFencedBlocks(body), "Links")
+	if section == "" {
+		return nil, nil
 	}
-	if start < 0 {
-		return nil
-	}
-	section := strings.Join(lines[start:end], "\n")
 	matches := wikilinkRe.FindAllStringSubmatch(section, -1)
 	seen := make(map[string]struct{})
-	var out []string
+	seenSkipped := make(map[string]struct{})
 	for _, m := range matches {
 		target := strings.TrimSpace(m[1])
 		if bar := strings.IndexByte(target, '|'); bar >= 0 {
 			target = strings.TrimSpace(target[:bar])
+		}
+		if strings.ContainsAny(target, "<>") {
+			continue
 		}
 		dot := strings.IndexByte(target, '.')
 		if dot < 0 {
@@ -183,15 +225,19 @@ func BodyLinksSectionTargets(body string) []string {
 			continue
 		}
 		if _, ok := governingBodyLinkTypes[t]; !ok {
+			if _, ok := seenSkipped[target]; !ok {
+				seenSkipped[target] = struct{}{}
+				skipped = append(skipped, target)
+			}
 			continue
 		}
 		if _, ok := seen[target]; ok {
 			continue
 		}
 		seen[target] = struct{}{}
-		out = append(out, target)
+		targets = append(targets, BodyLinkTarget{Type: t, ID: target})
 	}
-	return out
+	return targets, skipped
 }
 
 // checkWikilink returns (link, true) if s contains a wikilink whose target

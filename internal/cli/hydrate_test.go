@@ -457,21 +457,25 @@ func TestHydrate(t *testing.T) {
 		}
 	})
 
-	t.Run("closure ignores wikilinks outside the ## Links section", func(t *testing.T) {
+	t.Run("dangling governing-type body ## Links target exits non-zero naming the edge", func(t *testing.T) {
+		// Pins anvil.0240's highest-consequence new behaviour: a governing-type
+		// target named in the issue body's ## Links section but missing on disk
+		// makes hydrate exit non-zero as a broken spine edge, exactly like a
+		// dangling frontmatter edge does (verified live: [[convention.ghost]]
+		// exits 1 naming the edge).
 		vault := setupVault(t)
-		body := "## Problem\n\nSee [[convention.prose-mention]] in passing.\n\n## Non-goals\n\n- none\n\n" +
+		body := "## Problem\n\nfixture body.\n\n## Non-goals\n\n- none\n\n" +
 			"## Verification\n\n### Direct\n\njust test\n\n### Indirect\n\nsmoke\n\n" +
-			"## Links\n\n- none\n"
+			"## Links\n\n- [[convention.ghost]]\n"
 		writeHydrateIssueWithBody(t, vault, "foo.i1", nil, body)
-		writeHydrateConvention(t, vault, "prose-mention", "## Rules\n\nPROSE_MENTION_MARKER must not be walked.\n")
 
 		cmd := newRootCmd()
-		out, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
-		if err != nil {
-			t.Fatalf("hydrate: %v", err)
+		_, _, err := runCmd(t, cmd, "hydrate", "foo.i1")
+		if err == nil {
+			t.Fatal("expected non-zero exit for dangling body ## Links target")
 		}
-		if strings.Contains(out, "PROSE_MENTION_MARKER") {
-			t.Errorf("bundle walked a wikilink outside ## Links (full-body crawl is a non-goal)\n%s", out)
+		if !strings.Contains(err.Error(), "convention.ghost") {
+			t.Errorf("error must name the broken edge target, got: %q", err.Error())
 		}
 	})
 
@@ -498,6 +502,17 @@ func TestHydrate(t *testing.T) {
 		}
 		if strings.Contains(out, "THREAD_BODY_MUST_NOT_ENTER_BOX_MARKER") {
 			t.Errorf("bundle walked a body ## Links thread (workspace type must be excluded)\n%s", out)
+		}
+		// The dropped target must be stated, never silent (anvil.0240): the
+		// manifest block reports it by name, and the node-header scrape
+		// (`=== <type> <id> (status: <s>) ===`) must still find every node.
+		wantSkipLine := "1 body ## Links target(s) not traversed (non-governing type): thread.foo-thread.0001-scratch"
+		if !strings.Contains(out, wantSkipLine) {
+			t.Errorf("manifest missing skipped-target line %q\n%s", wantSkipLine, out)
+		}
+		headerRe := regexp.MustCompile(`(?m)^=== \S+ \S+ \(status: [^)]+\) ===$`)
+		if got := len(headerRe.FindAllString(out, -1)); got != 2 {
+			t.Errorf("node-header scrape found %d headers, want 2 (issue + convention)\n%s", got, out)
 		}
 	})
 

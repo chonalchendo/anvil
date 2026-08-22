@@ -146,18 +146,59 @@ func TestBodyWikilinkTargetsOfType(t *testing.T) {
 // prose mention elsewhere in the body, a fenced illustration, and an unknown
 // type prefix are all excluded — and so is a workspace/history type (thread,
 // sibling issue) placed inside the section itself, since a governing-type
-// link entering the box is only half the regression this pins.
+// link entering the box is only half the regression this pins. The
+// non-governing targets come back distinct via the second return, never
+// silent (a dropped target must be stated, anvil.0240).
 func TestBodyLinksSectionTargets(t *testing.T) {
 	body := "## Problem\n\nSee [[convention.prose-mention]] in passing.\n\n" +
 		"## Links\n\n- [[convention.go-style]]\n- [[contract.foo.boundaries|Boundaries]]\n" +
 		"- [[convention.go-style]]\n- [[project.not-a-real-type]]\n" +
 		"- [[thread.foo-thread.0001-scratch]]\n- [[issue.anvil.0001.sibling]]\n" +
+		"- [[thread.foo-thread.0001-scratch]]\n" +
 		"```\n[[convention.fenced]]\n```\n\n" +
 		"## Trailing\n\nafter the section, ignored: [[convention.after]].\n"
-	got := BodyLinksSectionTargets(body)
-	want := []string{"convention.go-style", "contract.foo.boundaries"}
+	got, skipped := BodyLinksSectionTargets(body)
+	want := []BodyLinkTarget{
+		{Type: TypeConvention, ID: "convention.go-style"},
+		{Type: TypeContract, ID: "contract.foo.boundaries"},
+	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
+	}
+	wantSkipped := []string{"thread.foo-thread.0001-scratch", "issue.anvil.0001.sibling"}
+	if !reflect.DeepEqual(skipped, wantSkipped) {
+		t.Errorf("got skipped %v, want %v", skipped, wantSkipped)
+	}
+}
+
+// TestBodyLinksSectionTargets_DecisionIsGoverning pins anvil.0240's ruling
+// that a decision (ADR) is a governing type, on par with contract.
+func TestBodyLinksSectionTargets_DecisionIsGoverning(t *testing.T) {
+	body := "## Links\n\n- [[decision.anvil.0001.example]]\n"
+	got, skipped := BodyLinksSectionTargets(body)
+	want := []BodyLinkTarget{{Type: TypeDecision, ID: "decision.anvil.0001.example"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if skipped != nil {
+		t.Errorf("got skipped %v, want nil", skipped)
+	}
+}
+
+// TestBodyLinksSectionTargets_PlaceholderSkipped asserts an angle-bracket
+// documentation placeholder (e.g. [[convention.<slug>]]) inside ## Links is
+// excluded from both the targets and the skipped list — it is not a real
+// vault reference, so it must not make a vault-valid issue structurally
+// unhydratable (anvil.0240).
+func TestBodyLinksSectionTargets_PlaceholderSkipped(t *testing.T) {
+	body := "## Links\n\n- [[convention.<slug>]]\n- [[convention.go-style]]\n"
+	got, skipped := BodyLinksSectionTargets(body)
+	want := []BodyLinkTarget{{Type: TypeConvention, ID: "convention.go-style"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	if skipped != nil {
+		t.Errorf("got skipped %v, want nil", skipped)
 	}
 }
 
@@ -165,8 +206,9 @@ func TestBodyLinksSectionTargets(t *testing.T) {
 // heading returns nil rather than falling back to a full-body scan.
 func TestBodyLinksSectionTargets_NoSection(t *testing.T) {
 	body := "## Problem\n\nSee [[convention.go-style]].\n"
-	if got := BodyLinksSectionTargets(body); got != nil {
-		t.Errorf("got %v, want nil", got)
+	got, skipped := BodyLinksSectionTargets(body)
+	if got != nil || skipped != nil {
+		t.Errorf("got %v/%v, want nil/nil", got, skipped)
 	}
 }
 
