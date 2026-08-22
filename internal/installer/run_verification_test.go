@@ -33,6 +33,8 @@ type verdict struct {
 		Exit    *int   `json:"exit"`
 		Preview string `json:"preview"`
 	} `json:"failed"`
+	Commit string `json:"commit"`
+	RanAt  string `json:"ran_at"`
 }
 
 func issueDoc(direct, indirect string) string {
@@ -87,6 +89,12 @@ func TestRunVerification_PassEmitsVerdictLine(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "PASS [Direct#1]") || !strings.Contains(stderr, "All checks passed.") {
 		t.Errorf("stderr lost the human summary:\n%s", stderr)
+	}
+	if v.Commit == "" {
+		t.Errorf("commit = %q, want non-empty (test runs inside the anvil git repo)", v.Commit)
+	}
+	if v.RanAt == "" {
+		t.Errorf("ran_at = %q, want non-empty", v.RanAt)
 	}
 }
 
