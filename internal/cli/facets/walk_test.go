@@ -8,6 +8,7 @@ import (
 
 	"github.com/chonalchendo/anvil/internal/cli/facets"
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/glossary"
 )
 
 func TestCollectValues_Empty(t *testing.T) {
@@ -74,6 +75,29 @@ func TestCollectValues_AggregatesAcrossTypes(t *testing.T) {
 	}
 	if _, ok := got["pattern"]["idempotency"]; !ok {
 		t.Error("missing pattern/idempotency")
+	}
+}
+
+func TestCollectValues_UnionsGlossaryDefinedValues(t *testing.T) {
+	dir := t.TempDir()
+	v := &core.Vault{Root: dir}
+	if err := v.Scaffold(); err != nil {
+		t.Fatal(err)
+	}
+	g := glossary.New()
+	if err := g.AddTag("pattern/probe-pattern", "seeded value"); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Save(glossary.Path(dir)); err != nil {
+		t.Fatal(err)
+	}
+
+	got, _, err := facets.CollectValues(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got["pattern"]["probe-pattern"]; !ok {
+		t.Errorf("glossary-defined pattern/probe-pattern missing from CollectValues: %v", got["pattern"])
 	}
 }
 
