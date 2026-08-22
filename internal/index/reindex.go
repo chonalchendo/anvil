@@ -23,7 +23,6 @@ type ReindexStats struct {
 // last_reindex stamp, leaving unchanged rows intact. Falls back to ReindexFull
 // when the stamp is absent (first run). Stamps last_reindex on success.
 func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
-	vaultRoot = walkRoot(vaultRoot)
 	stamp, err := d.GetLastReindex()
 	if errors.Is(err, ErrLastReindexUnset) {
 		return d.ReindexFull(vaultRoot)
@@ -173,7 +172,6 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 // ReindexFull tears down both tables and walks the vault to repopulate them.
 // Stamps the last-reindex time on success. Use Reindex for the common case.
 func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
-	vaultRoot = walkRoot(vaultRoot)
 	start := time.Now()
 	tx, err := d.sql.Begin()
 	if err != nil {

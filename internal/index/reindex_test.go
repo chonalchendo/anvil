@@ -392,14 +392,8 @@ func TestIncrementalRenamePreservedMtimeEqualsFull(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetArtifact a after rename: %v", err)
 	}
-	// Paths are stored canonically (the walk resolves a symlinked vault root),
-	// and t.TempDir() is itself behind a symlink on macOS.
-	wantPath, err := filepath.EvalSymlinks(newPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if row.Path != wantPath {
-		t.Errorf("a.path: got %q want %q", row.Path, wantPath)
+	if row.Path != newPath {
+		t.Errorf("a.path: got %q want %q", row.Path, newPath)
 	}
 }
 

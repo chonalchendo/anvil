@@ -23,12 +23,18 @@ func TestVaultResolve_DefaultsToHome(t *testing.T) {
 func TestVaultResolve_RespectsEnv(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("ANVIL_VAULT", dir)
+	// The env value is honoured, then canonicalised — t.TempDir() sits behind a
+	// symlink on macOS, so compare against the resolved form.
+	want, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	v, err := ResolveVault()
 	if err != nil {
 		t.Fatalf("ResolveVault: %v", err)
 	}
-	if v.Root != dir {
-		t.Errorf("Root = %q, want %q", v.Root, dir)
+	if v.Root != want {
+		t.Errorf("Root = %q, want %q", v.Root, want)
 	}
 }
 

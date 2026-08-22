@@ -119,15 +119,21 @@ func (d *DB) CheckFreshness(vaultRoot string) error {
 // saved, so the post-save freshness check doesn't trip on its own write
 // while still catching drift in any other file.
 func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
-	vaultRoot = walkRoot(vaultRoot)
 	stamp, err := d.GetLastReindex()
 	if err != nil {
 		return err
 	}
+	// Walked paths are canonical (core.ResolveVault resolves the vault root),
+	// and filepath.Abs cleans without resolving symlinks — so the skip must be
+	// resolved too or the just-saved file never matches and every write through
+	// a symlinked root reports itself as drift.
 	skipAbs := ""
 	if skipPath != "" {
 		if abs, aerr := filepath.Abs(skipPath); aerr == nil {
 			skipAbs = abs
+			if resolved, rerr := filepath.EvalSymlinks(abs); rerr == nil {
+				skipAbs = resolved
+			}
 		}
 	}
 	// One clock read for the whole walk, so files aren't compared against

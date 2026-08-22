@@ -42,14 +42,26 @@ type Vault struct {
 // ResolveVault returns the vault implied by $ANVIL_VAULT or the default
 // ~/anvil-vault/. The directory is not required to exist.
 func ResolveVault() (*Vault, error) {
-	if v := os.Getenv("ANVIL_VAULT"); v != "" {
-		return &Vault{Root: v}, nil
+	root := os.Getenv("ANVIL_VAULT")
+	if root == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("resolving home: %w", err)
+		}
+		root = filepath.Join(home, "anvil-vault")
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("resolving home: %w", err)
+	// filepath.WalkDir does not descend a symlinked root — it reports the root
+	// as a symlink entry and stops — so every vault-wide walk (reindex, freshness,
+	// rename's wikilink rewrite) silently covers nothing when the vault is reached
+	// by a link. Canonicalising once here fixes every walker, including ones added
+	// later; `anvil install cloud` makes a symlinked root the norm in cloud sessions.
+	//
+	// A vault that does not exist yet has nothing to resolve; keep the literal path
+	// so `anvil init` still scaffolds where the operator asked.
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved
 	}
-	return &Vault{Root: filepath.Join(home, "anvil-vault")}, nil
+	return &Vault{Root: root}, nil
 }
 
 // Scaffold creates every directory in VaultDirs under v.Root. It is idempotent:
