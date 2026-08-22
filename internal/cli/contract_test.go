@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -10,17 +9,22 @@ import (
 	"github.com/chonalchendo/anvil/internal/schema"
 )
 
-// runArgs executes a fresh root command with args, capturing stdout.
+// runArgs executes a fresh root command with args, capturing stdout and
+// stderr merged into one buffer. Callers that parse the result as JSON must
+// use runArgsJSON instead: a stderr diagnostic on an otherwise-successful
+// command corrupts this merged buffer's JSON.
 func runArgs(t *testing.T, args ...string) (string, error) {
 	t.Helper()
-	isolateRootEnv(t)
-	cmd := newRootCmd()
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	cmd.SetArgs(args)
-	err := cmd.Execute()
-	return out.String(), err
+	stdout, stderr, err := runCmd(t, newRootCmd(), args...)
+	return stdout + stderr, err
+}
+
+// runArgsJSON is like runArgs but returns stdout only, so a stderr
+// diagnostic can never land inside the JSON a caller unmarshals.
+func runArgsJSON(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	stdout, _, err := runCmd(t, newRootCmd(), args...)
+	return stdout, err
 }
 
 func TestContractKinds_AddListRoundTrip(t *testing.T) {
@@ -33,7 +37,7 @@ func TestContractKinds_AddListRoundTrip(t *testing.T) {
 		t.Fatalf("kinds add (no desc): %v\n%s", err, out)
 	}
 
-	out, err := runArgs(t, "contract", "kinds", "list", "--json")
+	out, err := runArgsJSON(t, "contract", "kinds", "list", "--json")
 	if err != nil {
 		t.Fatalf("kinds list: %v\n%s", err, out)
 	}
@@ -69,7 +73,7 @@ func TestCreateContract_RoundTripAndKind(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	out, err := runArgs(t, "create", "contract", "--project", "burgh",
+	out, err := runArgsJSON(t, "create", "contract", "--project", "burgh",
 		"--title", "Data boundaries", "--kind", "data",
 		"--description", "what the pipeline does / does not", "--json")
 	if err != nil {

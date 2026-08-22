@@ -250,7 +250,7 @@ func TestShow_IssueJSON_ExposesContractLink(t *testing.T) {
 	if _, err := runArgs(t, "link", "issue", "foo.i001", "contract", "foo.data-bounds"); err != nil {
 		t.Fatalf("link: %v", err)
 	}
-	out, err := runArgs(t, "show", "issue", "foo.i001", "--json")
+	out, err := runArgsJSON(t, "show", "issue", "foo.i001", "--json")
 	if err != nil {
 		t.Fatalf("show issue --json: %v\n%s", err, out)
 	}
