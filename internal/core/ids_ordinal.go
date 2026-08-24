@@ -230,32 +230,42 @@ func ReserveIssueOrdinal(v *Vault, project, slug string, want int) (id, path str
 	if err := os.MkdirAll(reserveDir, 0o750); err != nil {
 		return "", "", noop, fmt.Errorf("creating ordinal reservations dir: %w", err)
 	}
-	if want > 0 {
-		if held := resolveIssueOrdinalAll(v, project, strconv.Itoa(want)); len(held) > 0 {
-			return "", "", noop, fmt.Errorf("ordinal %s.%04d is taken by %s", project, want, strings.Join(held, ", "))
-		}
-	}
-	for attempt := 0; attempt < 20; attempt++ {
-		ordinal := want
-		if ordinal == 0 {
-			next, err := nextIssueOrdinal(v, project)
-			if err != nil {
-				return "", "", noop, err
-			}
-			ordinal = next
-		}
+	claim := func(ordinal int) (id, path string, release func(), err error) {
 		marker := filepath.Join(reserveDir, fmt.Sprintf("%s.%04d", project, ordinal))
 		f, err := os.OpenFile(marker, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644) //nolint:gosec // marker is a zero-byte lock; 0644 keeps it removable by any session sharing the vault
+		if err != nil {
+			return "", "", noop, err
+		}
+		_ = f.Close()
+		candidate := fmt.Sprintf("%s.%s.%04d.%s", TypeIssue, project, ordinal, slug)
+		return candidate, filepath.Join(dir, candidate+".md"), func() { _ = os.Remove(marker) }, nil
+	}
+	if want > 0 {
+		// An explicit ordinal is claimed once; there is nothing to retry onto.
+		nextFree := "omit --to to take the next free ordinal"
+		if held := resolveIssueOrdinalAll(v, project, strconv.Itoa(want)); len(held) > 0 {
+			return "", "", noop, fmt.Errorf("ordinal %s.%04d is taken by %s — %s", project, want, strings.Join(held, ", "), nextFree)
+		}
+		id, path, release, err := claim(want)
+		if errors.Is(err, os.ErrExist) {
+			return "", "", noop, fmt.Errorf("ordinal %s.%04d is reserved by an in-flight create — %s", project, want, nextFree)
+		}
+		if err != nil {
+			return "", "", noop, fmt.Errorf("reserving ordinal %s.%04d: %w", project, want, err)
+		}
+		return id, path, release, nil
+	}
+	for attempt := 0; attempt < 20; attempt++ {
+		ordinal, err := nextIssueOrdinal(v, project)
+		if err != nil {
+			return "", "", noop, err
+		}
+		id, path, release, err := claim(ordinal)
 		if err == nil {
-			_ = f.Close()
-			candidate := fmt.Sprintf("%s.%s.%04d.%s", TypeIssue, project, ordinal, slug)
-			return candidate, filepath.Join(dir, candidate+".md"), func() { _ = os.Remove(marker) }, nil
+			return id, path, release, nil
 		}
 		if !errors.Is(err, os.ErrExist) {
-			return "", "", noop, fmt.Errorf("reserving ordinal %s: %w", marker, err)
-		}
-		if want > 0 {
-			return "", "", noop, fmt.Errorf("ordinal %s.%04d is reserved by an in-flight create", project, want)
+			return "", "", noop, fmt.Errorf("reserving ordinal %s.%04d: %w", project, ordinal, err)
 		}
 		// EEXIST: a concurrent create holds this ordinal; retry with the next.
 	}

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,10 +61,18 @@ one file is reported on stderr and does not undo the move.`,
 				return fmt.Errorf("%s carries no ordinal to renumber", oldID)
 			}
 			project, slug := parts[0], parts[2]
+			if flagTo < 0 {
+				return fmt.Errorf("--to %d: ordinal must be positive — corrected: anvil renumber issue %s --to <N>, or omit --to for the next free ordinal", flagTo, oldID)
+			}
+			if current, _ := strconv.Atoi(parts[1]); flagTo == current {
+				// Already in the requested state: a retry after a lost response
+				// must not fail (agent-cli-principles §6).
+				return emitRenumberResult(cmd, flagJSON, renumberResult{ID: oldID, OldID: oldID, OldPath: oldPath, NewPath: oldPath, LinksRewritten: []string{}, LinksSkipped: []string{}})
+			}
 
 			newID, newPath, release, err := core.ReserveIssueOrdinal(v, project, slug, flagTo)
 			if err != nil {
-				return err
+				return fmt.Errorf("%w — corrected: anvil renumber issue %s", err, oldID)
 			}
 			defer release()
 
@@ -87,27 +96,34 @@ one file is reported on stderr and does not undo the move.`,
 				cmd.PrintErrf("WARN: reindex after renumber failed: %v\n", err)
 			}
 
-			r := renumberResult{
+			return emitRenumberResult(cmd, flagJSON, renumberResult{
 				ID: newID, OldID: oldID,
 				OldPath: oldPath, NewPath: newPath,
 				LinksRewritten: rewritten, LinksSkipped: skipped,
-			}
-			if flagJSON {
-				b, _ := json.Marshal(r)
-				fmt.Fprintln(cmd.OutOrStdout(), string(b))
-				return nil
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%s → %s\n", oldID, newID)
-			if len(rewritten) > 0 {
-				fmt.Fprintf(cmd.OutOrStdout(), "  rewritten links in %d file(s)\n", len(rewritten))
-			}
-			return nil
+			})
 		},
 	}
 
-	cmd.Flags().IntVar(&flagTo, "to", 0, "claim this ordinal instead of the next free one")
+	cmd.Flags().IntVar(&flagTo, "to", 0, "claim this positive ordinal instead of the next free one")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
 	return cmd
+}
+
+func emitRenumberResult(cmd *cobra.Command, asJSON bool, r renumberResult) error {
+	if asJSON {
+		b, _ := json.Marshal(r)
+		fmt.Fprintln(cmd.OutOrStdout(), string(b))
+		return nil
+	}
+	if r.ID == r.OldID {
+		fmt.Fprintf(cmd.OutOrStdout(), "%s: already on that ordinal\n", r.ID)
+		return nil
+	}
+	fmt.Fprintf(cmd.OutOrStdout(), "%s → %s\n", r.OldID, r.ID)
+	if len(r.LinksRewritten) > 0 {
+		fmt.Fprintf(cmd.OutOrStdout(), "  rewritten links in %d file(s)\n", len(r.LinksRewritten))
+	}
+	return nil
 }
 
 type renumberResult struct {

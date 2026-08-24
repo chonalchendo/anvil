@@ -109,9 +109,12 @@ func TestRenumber_MovesToNextFreeOrdinalAndSweepsLinks(t *testing.T) {
 func TestRenumber_ToOccupiedOrdinalRefuses(t *testing.T) {
 	vault := setupVault(t)
 	writeDuplicateOrdinalPair(t, vault)
+	if err := os.WriteFile(filepath.Join(vault, "70-issues", "issue.demo.0002.gamma.md"), []byte("---\ntype: issue\n---\n"), 0o644); err != nil { //nolint:gosec // test file
+		t.Fatal(err)
+	}
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"renumber", "issue", "issue.demo.0001.beta", "--to", "1"})
+	cmd.SetArgs([]string{"renumber", "issue", "issue.demo.0001.beta", "--to", "2"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -120,6 +123,40 @@ func TestRenumber_ToOccupiedOrdinalRefuses(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(vault, "70-issues", "issue.demo.0001.beta.md")); err != nil {
 		t.Errorf("refused renumber moved the file: %v", err)
+	}
+}
+
+func TestRenumber_NegativeToRefuses(t *testing.T) {
+	vault := setupVault(t)
+	writeDuplicateOrdinalPair(t, vault)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"renumber", "issue", "issue.demo.0001.beta", "--to", "-5"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "positive") {
+		t.Fatalf("err = %v, want positive-ordinal refusal", err)
+	}
+	if _, err := os.Stat(filepath.Join(vault, "70-issues", "issue.demo.0001.beta.md")); err != nil {
+		t.Errorf("refused renumber moved the file: %v", err)
+	}
+}
+
+func TestRenumber_ToOwnOrdinalIsNoop(t *testing.T) {
+	vault := setupVault(t)
+	writeDuplicateOrdinalPair(t, vault)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"renumber", "issue", "issue.demo.0001.beta", "--to", "1", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("retry onto own ordinal failed: %v", err)
+	}
+	if !strings.Contains(out.String(), `"id":"issue.demo.0001.beta"`) {
+		t.Errorf("out = %s, want the unchanged id", out.String())
 	}
 }
 

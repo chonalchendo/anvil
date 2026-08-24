@@ -598,6 +598,17 @@ func TestReserveIssueOrdinal_WantTakenRefuses(t *testing.T) {
 	if _, _, _, err := ReserveIssueOrdinal(v, "demo", "beta", 2); err == nil || !strings.Contains(err.Error(), "issue.demo.0002.taken") {
 		t.Fatalf("err = %v, want taken-by issue.demo.0002.taken", err)
 	}
+	// A live reservation marker — the in-flight create the design guards
+	// against — refuses too, rather than retrying onto a different ordinal.
+	if err := os.MkdirAll(ordinalReservationsDir(v), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ordinalReservationsDir(v), "demo.0007"), nil, 0o644); err != nil { //nolint:gosec // marker
+		t.Fatal(err)
+	}
+	if _, _, _, err := ReserveIssueOrdinal(v, "demo", "beta", 7); err == nil || !strings.Contains(err.Error(), "in-flight") {
+		t.Fatalf("err = %v, want in-flight refusal", err)
+	}
 	id, _, release, err := ReserveIssueOrdinal(v, "demo", "beta", 3)
 	defer release()
 	if err != nil || id != "issue.demo.0003.beta" {
