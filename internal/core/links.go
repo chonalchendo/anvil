@@ -10,7 +10,10 @@ import (
 // structural slots (issue.milestone, plan.issue, milestone.product_design,
 // milestone.system_design) are written via `anvil set`, not `link`.
 func AppendLink(v *Vault, src Type, srcID string, tgt Type, tgtID, field string) error {
-	_, path := ResolveArtifact(v, src, srcID)
+	_, path, err := ResolveArtifact(v, src, srcID)
+	if err != nil {
+		return err
+	}
 	a, err := LoadArtifact(path)
 	if err != nil {
 		return fmt.Errorf("load source: %w", err)
@@ -31,7 +34,10 @@ func AppendLink(v *Vault, src Type, srcID string, tgt Type, tgtID, field string)
 // `related[]` — external pointers live in their own field so the link-graph
 // indexer (which parses `related[]` as wikilinks) never tries to resolve them.
 func AppendExternalLink(v *Vault, src Type, srcID, uri string) error {
-	_, path := ResolveArtifact(v, src, srcID)
+	_, path, err := ResolveArtifact(v, src, srcID)
+	if err != nil {
+		return err
+	}
 	a, err := LoadArtifact(path)
 	if err != nil {
 		return fmt.Errorf("load source: %w", err)

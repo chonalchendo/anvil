@@ -70,7 +70,10 @@ func findClaimMismatches(v *core.Vault, body, currentSessionID, authorSessionID 
 	}
 	seen := map[string]bool{}
 	for _, m := range issueRefRe.FindAllStringSubmatch(body, -1) {
-		id := core.ResolveIssueArg(v, m[2])
+		id, err := core.ResolveIssueArg(v, m[2])
+		if err != nil {
+			continue
+		}
 		basename := core.ArtifactBasename(v, core.TypeIssue, id)
 		if seen[basename] {
 			continue

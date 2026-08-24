@@ -38,7 +38,10 @@ func newHydrateCmd() *cobra.Command {
 			}
 			// Node ids are canonical, never the on-disk basename — hydrate must
 			// print the same id shape every other read verb emits.
-			id, _ := core.ResolveArtifact(v, core.TypeIssue, args[0])
+			id, _, err := core.ResolveArtifact(v, core.TypeIssue, args[0])
+			if err != nil {
+				return err
+			}
 			return runHydrate(cmd, v, id, tldr)
 		},
 	}
@@ -87,7 +90,10 @@ type hydration struct {
 // missing target records a broken edge and returns nil so the walk continues;
 // the loaded artifact is returned so the caller can descend into its own links.
 func (h *hydration) walk(v *core.Vault, sourceDesc string, linkType core.Type, target string) (*core.Artifact, error) {
-	basename := canonicalArtifactID(v, linkType, target)
+	basename, err := canonicalArtifactID(v, linkType, target)
+	if err != nil {
+		return nil, err
+	}
 	a, err := core.LoadArtifact(resolveArtifactPath(v.Root, linkType, basename))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -131,7 +137,10 @@ func runHydrate(cmd *cobra.Command, v *core.Vault, issueID string, tldr bool) er
 func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 	// Callers hand a canonical id (walkability derives one per file), which may
 	// differ from the on-disk basename until the back catalogue is renamed.
-	_, issPath := core.ResolveArtifact(v, core.TypeIssue, issueID)
+	_, issPath, err := core.ResolveArtifact(v, core.TypeIssue, issueID)
+	if err != nil {
+		return nil, err
+	}
 	iss, err := core.LoadArtifact(issPath)
 	if err != nil {
 		if os.IsNotExist(err) {

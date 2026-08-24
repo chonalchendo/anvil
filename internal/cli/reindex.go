@@ -58,6 +58,18 @@ populated after the fact, and removing them would be destructive.`,
 				return err
 			}
 
+			// A synced clone can land a second file on an ordinal the origin
+			// already used; git merges it silently, so this is the sync-time
+			// moment to say so.
+			issuePaths, err := collectArtifactPaths(v.Root, core.TypeIssue)
+			if err != nil {
+				return fmt.Errorf("scanning issues: %w", err)
+			}
+			dupes := checkDuplicateOrdinals(issuePaths)
+			for _, f := range dupes {
+				cmd.PrintErrf("WARN: duplicate-ordinal: %s (%s)\n", f.Evidence, f.Fix)
+			}
+
 			stubs, err := core.FindStubs(v.Root)
 			if err != nil {
 				return fmt.Errorf("scanning for stubs: %w", err)
@@ -93,11 +105,12 @@ populated after the fact, and removing them would be destructive.`,
 
 			if asJSON {
 				payload := map[string]any{
-					"artifacts":   stats.Artifacts,
-					"links":       stats.Links,
-					"duration_ms": stats.DurationMS,
-					"stubs":       stubFilenames(stubs),
-					"pruned":      stubFilenames(pruned),
+					"artifacts":          stats.Artifacts,
+					"links":              stats.Links,
+					"duration_ms":        stats.DurationMS,
+					"stubs":              stubFilenames(stubs),
+					"pruned":             stubFilenames(pruned),
+					"duplicate_ordinals": duplicateOrdinalIDs(dupes),
 				}
 				b, _ := json.Marshal(payload)
 				fmt.Fprintln(cmd.OutOrStdout(), string(b))
@@ -114,6 +127,14 @@ populated after the fact, and removing them would be destructive.`,
 	cmd.Flags().BoolVar(&full, "full", false, "force a full teardown+rebuild instead of incremental")
 	cmd.Flags().BoolVar(&pruneStubs, "prune-stubs", false, "delete 0-byte stray <type>.*.md files at vault root (non-empty stubs are kept and warned about)")
 	return cmd
+}
+
+func duplicateOrdinalIDs(findings []doctorFinding) []string {
+	out := make([]string, 0, len(findings))
+	for _, f := range findings {
+		out = append(out, f.ID)
+	}
+	return out
 }
 
 func stubFilenames(stubs []core.Stub) []string {

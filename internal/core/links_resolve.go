@@ -359,13 +359,16 @@ func artifactPath(v *Vault, t Type, basename string) string {
 // the canonical id to report under, and the path to load from. The two differ
 // while the back catalogue still carries bare filenames — reporting the
 // basename would print an id `anvil list` never emits. Issue args route
-// through ResolveIssueArg first so an ordinal expands before the lookup.
-func ResolveArtifact(v *Vault, t Type, raw string) (id, path string) {
+// through ResolveIssueArg first so an ordinal expands before the lookup; an
+// ambiguous ordinal is the only error.
+func ResolveArtifact(v *Vault, t Type, raw string) (id, path string, err error) {
 	if t == TypeIssue {
-		raw = ResolveIssueArg(v, raw)
+		if raw, err = ResolveIssueArg(v, raw); err != nil {
+			return "", "", err
+		}
 	}
 	basename := ArtifactBasename(v, t, raw)
-	return CanonicalID(t, basename), artifactPath(v, t, basename)
+	return CanonicalID(t, basename), artifactPath(v, t, basename), nil
 }
 
 // WikilinkTargetExists reports whether target names an artifact file present

@@ -49,7 +49,10 @@ func newSetCmd() *cobra.Command {
 			// Canonicalise through the same resolver as the show read path so
 			// write and read accept identical forms (qualified type prefix,
 			// project-qualified ordinal, bare ordinal) and both filename shapes.
-			id, path := core.ResolveArtifact(v, t, args[1])
+			id, path, err := core.ResolveArtifact(v, t, args[1])
+			if err != nil {
+				return err
+			}
 			a, err := core.LoadArtifact(path)
 			if err != nil {
 				if os.IsNotExist(err) {

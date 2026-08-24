@@ -52,7 +52,9 @@ func newShowCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			args[1] = canonicalArtifactID(v, t, args[1])
+			if args[1], err = canonicalArtifactID(v, t, args[1]); err != nil {
+				return err
+			}
 			if flagBody && flagNoBody {
 				return fmt.Errorf("--body and --no-body are mutually exclusive")
 			}
@@ -312,12 +314,17 @@ func resolveArtifactPath(vaultRoot string, t core.Type, id string) string {
 
 // canonicalArtifactID maps a raw id/wikilink-target to type t's on-disk
 // basename. Issue args first route through the shared resolver so an ordinal
-// (`0200`) expands before the filename shape is picked.
-func canonicalArtifactID(v *core.Vault, t core.Type, raw string) string {
+// (`0200`) expands before the filename shape is picked; an ambiguous ordinal
+// is the only error.
+func canonicalArtifactID(v *core.Vault, t core.Type, raw string) (string, error) {
 	if t == core.TypeIssue {
-		raw = core.ResolveIssueArg(v, raw)
+		resolved, err := core.ResolveIssueArg(v, raw)
+		if err != nil {
+			return "", err
+		}
+		raw = resolved
 	}
-	return core.ArtifactBasename(v, t, raw)
+	return core.ArtifactBasename(v, t, raw), nil
 }
 
 // runShowSkill prints the embedded SKILL.md body for the named bundled skill.

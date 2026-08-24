@@ -44,7 +44,10 @@ func newTransitionCmd() *cobra.Command {
 			// Canonicalise through the same resolver as the show read path so
 			// write and read accept identical forms (qualified type prefix,
 			// project-qualified ordinal, bare ordinal) and both filename shapes.
-			id, path := core.ResolveArtifact(v, t, id)
+			id, path, err := core.ResolveArtifact(v, t, id)
+			if err != nil {
+				return err
+			}
 			a, err := core.LoadArtifact(path)
 			if err != nil {
 				// Only a genuinely missing file is "not found"; a corrupt
@@ -427,7 +430,7 @@ func milestoneCloseAdvisory(v *core.Vault, resolved *core.Artifact) string {
 	if ms == "" {
 		return ""
 	}
-	_, msPath := core.ResolveArtifact(v, core.TypeMilestone, ms)
+	_, msPath, _ := core.ResolveArtifact(v, core.TypeMilestone, ms)
 	m, err := core.LoadArtifact(msPath)
 	if err != nil {
 		return ""

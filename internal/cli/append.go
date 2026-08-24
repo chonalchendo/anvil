@@ -51,7 +51,10 @@ func newAppendCmd() *cobra.Command {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 
-			id, path := core.ResolveArtifact(v, t, args[1])
+			id, path, err := core.ResolveArtifact(v, t, args[1])
+			if err != nil {
+				return err
+			}
 			a, err := core.LoadArtifact(path)
 			if err != nil {
 				if os.IsNotExist(err) {

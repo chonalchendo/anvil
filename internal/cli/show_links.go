@@ -103,7 +103,10 @@ func linkTargetsOfType(a *core.Artifact, linkType core.Type) []string {
 func emitLinkBodies(cmd *cobra.Command, v *core.Vault, linkType core.Type, targets []string, asJSON bool) error {
 	bodies := make([]linkBody, 0, len(targets))
 	for _, target := range targets {
-		id := canonicalArtifactID(v, linkType, target)
+		id, err := canonicalArtifactID(v, linkType, target)
+		if err != nil {
+			return err
+		}
 		a, err := core.LoadArtifact(resolveArtifactPath(v.Root, linkType, id))
 		if err != nil {
 			// One dangling spine edge must not abort the whole context load:
