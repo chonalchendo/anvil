@@ -167,7 +167,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	case "promoted":
 		recordedType, _ := inbox.FrontMatter["promoted_type"].(string)
 		recordedTo := promotedToID(target, inbox.FrontMatter["promoted_to"])
-		_, recordedToPath := core.ResolveArtifact(v, target, recordedTo)
+		_, recordedToPath, _ := core.ResolveArtifact(v, target, recordedTo)
 		if recordedType == string(target) {
 			tt, ti, si := recordedType, recordedTo, inboxID
 			return emitPromoteOutput(cmd, asJSON,

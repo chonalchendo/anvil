@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"regexp"
 
 	"github.com/chonalchendo/anvil/internal/core"
@@ -70,24 +71,36 @@ func findClaimMismatches(v *core.Vault, body, currentSessionID, authorSessionID 
 	}
 	seen := map[string]bool{}
 	for _, m := range issueRefRe.FindAllStringSubmatch(body, -1) {
-		id := core.ResolveIssueArg(v, m[2])
-		basename := core.ArtifactBasename(v, core.TypeIssue, id)
-		if seen[basename] {
-			continue
+		ids := []string{}
+		id, err := core.ResolveIssueArg(v, m[2])
+		var amb *core.AmbiguousOrdinalError
+		switch {
+		case errors.As(err, &amb):
+			// A colliding ordinal names every member; skipping would blind the
+			// guard on exactly the issues a sync just doubled.
+			ids = amb.Candidates
+		case err == nil:
+			ids = append(ids, id)
 		}
-		seen[basename] = true
-		a, err := core.LoadArtifact(core.TypeIssue.Path(v.Root, basename))
-		if err != nil {
-			continue
+		for _, id := range ids {
+			basename := core.ArtifactBasename(v, core.TypeIssue, id)
+			if seen[basename] {
+				continue
+			}
+			seen[basename] = true
+			a, err := core.LoadArtifact(core.TypeIssue.Path(v.Root, basename))
+			if err != nil {
+				continue
+			}
+			if status, _ := a.FrontMatter["status"].(string); status != "in-progress" {
+				continue
+			}
+			claim, _ := a.FrontMatter["claim_session"].(string)
+			if claim == "" || claim == currentSessionID || claim == authorSessionID {
+				continue
+			}
+			out = append(out, claimMismatch{IssueID: id, ClaimSession: claim})
 		}
-		if status, _ := a.FrontMatter["status"].(string); status != "in-progress" {
-			continue
-		}
-		claim, _ := a.FrontMatter["claim_session"].(string)
-		if claim == "" || claim == currentSessionID || claim == authorSessionID {
-			continue
-		}
-		out = append(out, claimMismatch{IssueID: id, ClaimSession: claim})
 	}
 	return out
 }

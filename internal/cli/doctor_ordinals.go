@@ -35,9 +35,7 @@ func checkDuplicateOrdinals(issuePaths []string) []doctorFinding {
 			ID:   core.CanonicalID(core.TypeIssue, key),
 			Evidence: fmt.Sprintf("ordinal shorthand %s resolves to %d issues: %s",
 				key, len(ids), strings.Join(ids, ", ")),
-			Fix: fmt.Sprintf("renumber all but one of %s onto free ordinals, sweeping inbound references; "+
-				"prefer the member with no landed PR (a merged PR title bakes the old ordinal into an immutable git trail), "+
-				"falling back to the member not currently claimed in-flight",
+			Fix: fmt.Sprintf("anvil renumber issue <id> for all but one of %s — keep the member with a landed PR (its title bakes the ordinal into git), else the one claimed in-flight",
 				strings.Join(ids, ", ")),
 		})
 	}

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -487,7 +488,10 @@ func TestResolveIssueOrdinal_ProjectQualified(t *testing.T) {
 	}
 
 	// Resolving via extracted project+ordinal must find the file.
-	id, found := ResolveIssueOrdinal(v, project, ordinal)
+	id, found, err := ResolveIssueOrdinal(v, project, ordinal)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !found {
 		t.Fatal("ResolveIssueOrdinal returned not-found for anvil.0019")
 	}
@@ -541,5 +545,73 @@ func TestIndexKey(t *testing.T) {
 		if got := IndexKey(tc.t, tc.id); got != tc.want {
 			t.Errorf("IndexKey(%s, %q) = %q, want %q", tc.t, tc.id, got, tc.want)
 		}
+	}
+}
+
+// TestResolveIssueArg_AmbiguousOrdinalRefuses pins the synced-clone collision:
+// two files on one ordinal must refuse the shorthand and name both, while the
+// full id of either still resolves.
+func TestResolveIssueArg_AmbiguousOrdinalRefuses(t *testing.T) {
+	root := t.TempDir()
+	v := &Vault{Root: root}
+	dir := filepath.Join(root, TypeIssue.Dir())
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // test dir
+		t.Fatal(err)
+	}
+	for _, name := range []string{"issue.demo.0001.alpha.md", "issue.demo.0001.beta.md"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("---\ntype: issue\n---\n"), 0o644); err != nil { //nolint:gosec // test file
+			t.Fatal(err)
+		}
+	}
+
+	_, err := ResolveIssueArg(v, "demo.0001")
+	var amb *AmbiguousOrdinalError
+	if !errors.As(err, &amb) {
+		t.Fatalf("err = %v, want *AmbiguousOrdinalError", err)
+	}
+	if amb.Ordinal != "demo.0001" {
+		t.Errorf("Ordinal = %q, want demo.0001", amb.Ordinal)
+	}
+	want := []string{"issue.demo.0001.alpha", "issue.demo.0001.beta"}
+	if strings.Join(amb.Candidates, ",") != strings.Join(want, ",") {
+		t.Errorf("Candidates = %v, want %v", amb.Candidates, want)
+	}
+
+	id, err := ResolveIssueArg(v, "issue.demo.0001.beta")
+	if err != nil || id != "issue.demo.0001.beta" {
+		t.Errorf("full id resolved to (%q, %v), want (issue.demo.0001.beta, nil)", id, err)
+	}
+}
+
+// TestReserveIssueOrdinal_WantTakenRefuses: --to on an occupied ordinal must
+// refuse rather than mint a third duplicate.
+func TestReserveIssueOrdinal_WantTakenRefuses(t *testing.T) {
+	root := t.TempDir()
+	v := &Vault{Root: root}
+	dir := filepath.Join(root, TypeIssue.Dir())
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // test dir
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "issue.demo.0002.taken.md"), []byte("---\ntype: issue\n---\n"), 0o644); err != nil { //nolint:gosec // test file
+		t.Fatal(err)
+	}
+	if _, _, _, err := ReserveIssueOrdinal(v, "demo", "beta", 2); err == nil || !strings.Contains(err.Error(), "issue.demo.0002.taken") {
+		t.Fatalf("err = %v, want taken-by issue.demo.0002.taken", err)
+	}
+	// A live reservation marker — the in-flight create the design guards
+	// against — refuses too, rather than retrying onto a different ordinal.
+	if err := os.MkdirAll(ordinalReservationsDir(v), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ordinalReservationsDir(v), "demo.0007"), nil, 0o644); err != nil { //nolint:gosec // marker
+		t.Fatal(err)
+	}
+	if _, _, _, err := ReserveIssueOrdinal(v, "demo", "beta", 7); err == nil || !strings.Contains(err.Error(), "in-flight") {
+		t.Fatalf("err = %v, want in-flight refusal", err)
+	}
+	id, _, release, err := ReserveIssueOrdinal(v, "demo", "beta", 3)
+	defer release()
+	if err != nil || id != "issue.demo.0003.beta" {
+		t.Fatalf("want=3 → (%q, %v), want issue.demo.0003.beta", id, err)
 	}
 }

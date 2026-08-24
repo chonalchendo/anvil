@@ -54,7 +54,10 @@ func newLinkCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("resolving vault: %w", err)
 				}
-				srcID, srcPath := core.ResolveArtifact(v, src, args[1])
+				srcID, srcPath, err := core.ResolveArtifact(v, src, args[1])
+				if err != nil {
+					return err
+				}
 				if err := core.AppendExternalLink(v, src, srcID, externalURI); err != nil {
 					return err
 				}
@@ -89,10 +92,15 @@ func newLinkCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			srcID, srcPath := core.ResolveArtifact(v, src, args[1])
+			srcID, srcPath, err := core.ResolveArtifact(v, src, args[1])
+			if err != nil {
+				return err
+			}
 			tgtID := args[3]
 			if tgt == core.TypeIssue {
-				tgtID = core.ResolveIssueArg(v, tgtID)
+				if tgtID, err = core.ResolveIssueArg(v, tgtID); err != nil {
+					return err
+				}
 			}
 			tgtID, err = resolveLinkTarget(v, tgt, tgtID)
 			if err != nil {

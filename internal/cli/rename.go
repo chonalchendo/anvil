@@ -64,7 +64,10 @@ rename always takes effect first.`,
 			// ResolveArtifact accepts either filename shape (canonical
 			// `issue.foo.x.md` or bare back-catalogue `foo.x.md`) and either
 			// id shape as the argument, same as every other write verb.
-			oldID, oldPath := core.ResolveArtifact(v, t, oldID)
+			oldID, oldPath, err := core.ResolveArtifact(v, t, oldID)
+			if err != nil {
+				return err
+			}
 			a, err := core.LoadArtifact(oldPath)
 			if err != nil {
 				if os.IsNotExist(err) {
@@ -109,7 +112,7 @@ rename always takes effect first.`,
 			// Probe both filename shapes: a bare back-catalogue
 			// `foo.new-title.md` names the same artifact as canonical
 			// `issue.foo.new-title.md`, so either blocks the rename.
-			_, existingPath := core.ResolveArtifact(v, t, newID)
+			_, existingPath, _ := core.ResolveArtifact(v, t, newID)
 			if _, err := os.Stat(existingPath); err == nil {
 				return fmt.Errorf("target %s already exists; choose a different --title or --slug", newID)
 			}
@@ -137,58 +140,13 @@ rename always takes effect first.`,
 				cmd.PrintErrf("WARN: reindex after rename failed: %v\n", err)
 			}
 
-			oldWikilink := "[[" + core.WikilinkTarget(t, oldID) + "]]"
-			newWikilink := "[[" + core.WikilinkTarget(t, newID) + "]]"
-
-			rewritten := make([]string, 0)
-			skipped := make([]string, 0)
-			_ = filepath.WalkDir(v.Root, func(path string, d fs.DirEntry, err error) error {
-				if err != nil {
-					skipped = append(skipped, fmt.Sprintf("%s: %v", path, err))
-					return nil
-				}
-				if d.IsDir() {
-					return nil
-				}
-				if !strings.HasSuffix(path, ".md") {
-					return nil
-				}
-				if path == newPath {
-					return nil
-				}
-				b, rerr := os.ReadFile(path) //nolint:gosec // G304: path is a descendant of v.Root yielded by filepath.WalkDir
-				if rerr != nil {
-					skipped = append(skipped, path)
-					return nil //nolint:nilerr // best-effort rewrite; unreadable files surface via skipped[]
-				}
-				content := string(b)
-				if !strings.Contains(content, oldWikilink) {
-					return nil
-				}
-				fi, statErr := os.Stat(path)
-				mode := os.FileMode(0o644)
-				if statErr == nil {
-					mode = fi.Mode().Perm()
-				}
-				updated := strings.ReplaceAll(content, oldWikilink, newWikilink)
-				if werr := os.WriteFile(path, []byte(updated), mode); werr != nil { //nolint:gosec // G304: path is a descendant of v.Root yielded by filepath.WalkDir; mode preserved from the existing file
-					skipped = append(skipped, path)
-					return nil //nolint:nilerr // best-effort rewrite; unwritable files surface via skipped[]
-				}
-				rewritten = append(rewritten, path)
-				return nil
-			})
+			rewritten, skipped := sweepWikilinks(cmd, v, t, oldID, newID, newPath)
 
 			r := renameResult{
 				OldID: oldID, NewID: newID,
 				OldPath: oldPath, NewPath: newPath,
 				LinksRewritten: rewritten, LinksSkipped: skipped,
 				Status: "renamed",
-			}
-			if len(skipped) > 0 {
-				for _, s := range skipped {
-					cmd.PrintErrf("WARN: could not rewrite wikilink in %s\n", s)
-				}
 			}
 			return emitRenameResult(cmd, flagJSON, r)
 		},
@@ -199,6 +157,49 @@ rename always takes effect first.`,
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
 	_ = cmd.MarkFlagRequired("title")
 	return cmd
+}
+
+// sweepWikilinks rewrites [[old]] → [[new]] across every .md in the vault
+// except newPath, reporting each file it could not read or write on stderr.
+// Best-effort by design: the artifact move has already landed.
+func sweepWikilinks(cmd *cobra.Command, v *core.Vault, t core.Type, oldID, newID, newPath string) (rewritten, skipped []string) {
+	oldWikilink := "[[" + core.WikilinkTarget(t, oldID) + "]]"
+	newWikilink := "[[" + core.WikilinkTarget(t, newID) + "]]"
+	rewritten = make([]string, 0)
+	skipped = make([]string, 0)
+	_ = filepath.WalkDir(v.Root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			skipped = append(skipped, fmt.Sprintf("%s: %v", path, err))
+			return nil
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".md") || path == newPath {
+			return nil
+		}
+		b, rerr := os.ReadFile(path) //nolint:gosec // G304: path is a descendant of v.Root yielded by filepath.WalkDir
+		if rerr != nil {
+			skipped = append(skipped, path)
+			return nil //nolint:nilerr // best-effort rewrite; unreadable files surface via skipped[]
+		}
+		content := string(b)
+		if !strings.Contains(content, oldWikilink) {
+			return nil
+		}
+		mode := os.FileMode(0o644)
+		if fi, statErr := os.Stat(path); statErr == nil {
+			mode = fi.Mode().Perm()
+		}
+		updated := strings.ReplaceAll(content, oldWikilink, newWikilink)
+		if werr := os.WriteFile(path, []byte(updated), mode); werr != nil { //nolint:gosec // G304: path is a descendant of v.Root yielded by filepath.WalkDir; mode preserved from the existing file
+			skipped = append(skipped, path)
+			return nil //nolint:nilerr // best-effort rewrite; unwritable files surface via skipped[]
+		}
+		rewritten = append(rewritten, path)
+		return nil
+	})
+	for _, s := range skipped {
+		cmd.PrintErrf("WARN: could not rewrite wikilink in %s\n", s)
+	}
+	return rewritten, skipped
 }
 
 // replaceSlug rebuilds an artifact id around newSlug, preserving everything

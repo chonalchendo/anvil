@@ -100,6 +100,7 @@ func newRootCmd() *cobra.Command {
 		newReindexCmd(),
 		newTransitionCmd(),
 		newRenameCmd(),
+		newRenumberCmd(),
 		newFleetCmd(),
 		newSessionCmd(),
 		newVaultCmd(),

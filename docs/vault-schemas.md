@@ -332,7 +332,7 @@ Examples:
 
 Two rules:
 
-1. Slugs are allocated at create and change only through `anvil rename` (title-derived, or explicit via `--slug`), which also rewrites inbound wikilinks.
+1. Slugs are allocated at create and change only through `anvil rename` (title-derived, or explicit via `--slug`), which also rewrites inbound wikilinks. Issue ordinals change only through `anvil renumber issue <id> [--to N]`, which sweeps inbound wikilinks the same way. It repairs a synced clone that landed a second file on an ordinal. `anvil doctor` and `anvil reindex` report the collision, and ordinal shorthand refuses while it is ambiguous.
 2. `anvil create` allocates the slug from the title at creation time, normalized (lowercase, hyphenated, ASCII).
 
 The plan `id` collapses with the slug: `plan.id == plan.<project>.<slug>`. **Decisions and threads** are the topic-ordinal types: prefix-less id and filename `<topic>.<NNNN>-<slug>`, ordinal allocated per topic within the type's own folder, `--topic` required at create. Bare-slug back-catalogue threads still resolve.
