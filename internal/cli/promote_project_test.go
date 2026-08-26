@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -15,13 +14,13 @@ func TestPromoteProjectFlagOverridesResolver(t *testing.T) {
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
 
-	out := execCmd(t, "create", "inbox", "--title", "fix-the-thing", "--description", "drive-by", "--json")
+	out := execCmdJSON(t, "create", "inbox", "--title", "fix-the-thing", "--description", "drive-by", "--json")
 	var created struct{ ID string }
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &created); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &created); err != nil {
 		t.Fatalf("create json: %v\nout: %s", err, out)
 	}
 
-	promoteOut := execCmd(t, "promote", created.ID,
+	promoteOut := execCmdJSON(t, "promote", created.ID,
 		"--as", "issue",
 		"--project", "demo",
 		"--tags", "domain/dev-tools",
@@ -30,7 +29,7 @@ func TestPromoteProjectFlagOverridesResolver(t *testing.T) {
 	var p struct {
 		TargetID *string `json:"target_id"`
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(promoteOut)), &p); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(promoteOut), &p); err != nil {
 		t.Fatalf("promote json: %v\nout: %s", err, promoteOut)
 	}
 	if p.TargetID == nil {

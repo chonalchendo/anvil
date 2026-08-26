@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -39,9 +38,9 @@ func TestMilestoneStatus_JSON_ReportsDoneSignal(t *testing.T) {
 	writeMilestoneIssue(t, vault, "demo.b", "open", "demo.m1")
 	execCmd(t, "reindex")
 
-	out := execCmd(t, "milestone", "status", "demo.m1", "--json")
+	out := execCmdJSON(t, "milestone", "status", "demo.m1", "--json")
 	var got map[string]any
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &got); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &got); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
 	if got["milestone"] != "milestone.demo.m1" || got["resolved"] != float64(1) || got["total"] != float64(2) || got["done"] != false {
@@ -51,8 +50,8 @@ func TestMilestoneStatus_JSON_ReportsDoneSignal(t *testing.T) {
 	// Resolve the open issue: the milestone is now done.
 	writeMilestoneIssue(t, vault, "demo.b", "resolved", "demo.m1")
 	execCmd(t, "reindex")
-	out = execCmd(t, "milestone", "status", "demo.m1", "--json")
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &got); err != nil {
+	out = execCmdJSON(t, "milestone", "status", "demo.m1", "--json")
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &got); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
 	if got["resolved"] != float64(2) || got["done"] != true {

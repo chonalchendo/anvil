@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,11 +17,11 @@ func TestLinkFromReturnsOutgoingEdges(t *testing.T) {
 	execCmd(t, "reindex")
 	execCmd(t, "link", "issue", "demo.a", "issue", "demo.b")
 
-	out := execCmd(t, "link", "--from", "issue.demo.a", "--json")
+	out := execCmdJSON(t, "link", "--from", "issue.demo.a", "--json")
 	var rows []struct {
 		Source, Target, Relation, Path string
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &rows); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &rows); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
 	if len(rows) != 1 || rows[0].Target != "issue.demo.b" || !strings.HasSuffix(rows[0].Path, "demo.a.md") {
@@ -39,11 +38,11 @@ func TestLinkToReturnsIncomingEdges(t *testing.T) {
 	execCmd(t, "reindex")
 	execCmd(t, "link", "issue", "demo.a", "issue", "demo.b")
 
-	out := execCmd(t, "link", "--to", "issue.demo.b", "--json")
+	out := execCmdJSON(t, "link", "--to", "issue.demo.b", "--json")
 	var rows []struct {
 		Source, Target, Relation string
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &rows); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &rows); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
 	if len(rows) != 1 || rows[0].Source != "issue.demo.a" {
@@ -65,11 +64,11 @@ func TestLinkUnresolvedReturnsDanglingEdges(t *testing.T) {
 	}
 	execCmd(t, "reindex")
 
-	out := execCmd(t, "link", "--unresolved", "--json")
+	out := execCmdJSON(t, "link", "--unresolved", "--json")
 	var rows []struct {
 		Source, Target string
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &rows); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &rows); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
 	if len(rows) != 1 || rows[0].Target != "milestone.demo.gone" {

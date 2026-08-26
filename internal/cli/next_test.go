@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -116,8 +115,8 @@ func TestNext_JSON_ReturnsHeadDeterministically(t *testing.T) {
 	writeReadyIssueFile(t, vault, "demo.crit", "critical", "2026-02-01", "", []any{"[[contract.demo.c1]]"})
 	execCmd(t, "reindex")
 
-	out1 := execCmd(t, "next", "--json", "--project", "demo")
-	out2 := execCmd(t, "next", "--json", "--project", "demo")
+	out1 := execCmdJSON(t, "next", "--json", "--project", "demo")
+	out2 := execCmdJSON(t, "next", "--json", "--project", "demo")
 	if strings.TrimSpace(out1) != strings.TrimSpace(out2) {
 		t.Errorf("next --json not deterministic:\nfirst:\n%s\nsecond:\n%s", out1, out2)
 	}
@@ -129,7 +128,7 @@ func TestNext_JSON_ReturnsHeadDeterministically(t *testing.T) {
 		Contracts []string `json:"contracts"`
 		Path      string   `json:"path"`
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out1)), &u); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out1), &u); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out1)
 	}
 	if u.ID != "issue.demo.crit" {
@@ -148,7 +147,7 @@ func TestNext_JSON_EmptyObjectWhenNoReady(t *testing.T) {
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
 
-	out := execCmd(t, "next", "--json")
+	out := execCmdJSON(t, "next", "--json")
 	if strings.TrimSpace(out) != "{}" {
 		t.Errorf("no-ready next --json = %q, want {}", strings.TrimSpace(out))
 	}

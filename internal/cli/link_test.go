@@ -250,12 +250,12 @@ func TestShow_IssueJSON_ExposesContractLink(t *testing.T) {
 	if _, err := runArgs(t, "link", "issue", "foo.i001", "contract", "foo.data-bounds"); err != nil {
 		t.Fatalf("link: %v", err)
 	}
-	out, err := runArgs(t, "show", "issue", "foo.i001", "--json")
+	out, err := runArgsJSON(t, "show", "issue", "foo.i001", "--json")
 	if err != nil {
 		t.Fatalf("show issue --json: %v\n%s", err, out)
 	}
 	var got map[string]any
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &got); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
 	// The contract wikilink must appear somewhere in the JSON output so a
@@ -578,11 +578,11 @@ func TestLinkQueryAndIndex_BareDesignID(t *testing.T) {
 	execCmd(t, "reindex")
 	execCmd(t, "link", "issue", "demo.a", "product-design", "acme")
 
-	out := execCmd(t, "link", "--to", "acme", "--json")
+	out := execCmdJSON(t, "link", "--to", "acme", "--json")
 	var rows []struct {
 		Source, Target, Relation string
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &rows); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &rows); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
 	if len(rows) != 1 || rows[0].Source != "issue.demo.a" || rows[0].Target != "product-design.acme" {

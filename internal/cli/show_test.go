@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -63,7 +62,7 @@ func TestShow_JSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	var got map[string]any
-	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+	if err := jsonUnmarshal(t, out.String(), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
 	}
 	// Frontmatter fields are flattened onto the top-level envelope so callers
@@ -95,7 +94,7 @@ func TestShow_JSON_ShapeParityWithList(t *testing.T) {
 		t.Fatal(err)
 	}
 	var showGot map[string]any
-	if err := json.Unmarshal([]byte(showOut), &showGot); err != nil {
+	if err := jsonUnmarshal(t, showOut, &showGot); err != nil {
 		t.Fatalf("show JSON invalid: %v\n%s", err, showOut)
 	}
 	if showGot["status"] != "open" {
@@ -113,7 +112,7 @@ func TestShow_JSON_ShapeParityWithList(t *testing.T) {
 	var listGot struct {
 		Items []map[string]any `json:"items"`
 	}
-	if err := json.Unmarshal([]byte(listOut), &listGot); err != nil {
+	if err := jsonUnmarshal(t, listOut, &listGot); err != nil {
 		t.Fatalf("list JSON invalid: %v\n%s", err, listOut)
 	}
 	if len(listGot.Items) == 0 {
@@ -150,7 +149,7 @@ func TestShow_JSON_EnvelopeKeysShadowFrontmatter(t *testing.T) {
 		t.Fatal(err)
 	}
 	var got map[string]any
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
+	if err := jsonUnmarshal(t, out, &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
 	if got["id"] != "issue.foo.bar" {
@@ -169,7 +168,7 @@ func TestShow_IssueDefaultIncludesBody(t *testing.T) {
 	cmd := newRootCmd()
 	out, _, _ := runCmd(t, cmd, "show", "issue", "foo.bar", "--json")
 	var got map[string]any
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
+	if err := jsonUnmarshal(t, out, &got); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 	body, ok := got["body"].(string)
@@ -195,7 +194,7 @@ func TestShow_IssueNoBodyOptsOut(t *testing.T) {
 	cmd := newRootCmd()
 	out, _, _ := runCmd(t, cmd, "show", "issue", "foo.bar", "--no-body", "--json")
 	var got map[string]any
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
+	if err := jsonUnmarshal(t, out, &got); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 	if got["body"] != nil {
@@ -222,7 +221,7 @@ func TestShow_PlanDefaultIsFrontmatterOnly(t *testing.T) {
 	cmd := newRootCmd()
 	out, _, _ := runCmd(t, cmd, "show", "plan", "anv-1", "--json")
 	var got map[string]any
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
+	if err := jsonUnmarshal(t, out, &got); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 	if got["body"] != nil {
@@ -262,7 +261,7 @@ func TestShow_BodyFlagPopulatesBody(t *testing.T) {
 	cmd := newRootCmd()
 	out, _, _ := runCmd(t, cmd, "show", "issue", "foo.bar", "--body", "--json")
 	var got map[string]any
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
+	if err := jsonUnmarshal(t, out, &got); err != nil {
 		t.Fatal(err)
 	}
 	if got["body"] != "body content" {
@@ -288,7 +287,7 @@ func TestShow_BodyFlagClipsAt500Lines(t *testing.T) {
 	cmd := newRootCmd()
 	out, errOut, _ := runCmd(t, cmd, "show", "issue", "foo.bar", "--body", "--json")
 	var got map[string]any
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
+	if err := jsonUnmarshal(t, out, &got); err != nil {
 		t.Fatal(err)
 	}
 	if got["body_truncated"] != true {
@@ -561,14 +560,14 @@ func TestShowValidate_JSON(t *testing.T) {
 	}
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"show", "issue", "foo.bad", "--validate", "--json"})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	_ = cmd.Execute()
 
 	// Assert wire-format keys are snake_case end-to-end: a struct with explicit
-	// `json:"field"`/`json:"target"` tags would still accept CamelCase via
-	// json.Unmarshal's case-insensitive matching, so we check the raw bytes.
+	// `json:"field"`/`json:"target"` tags would still accept CamelCase via a
+	// case-insensitive JSON decode, so we check the raw bytes instead.
 	if !bytes.Contains(out.Bytes(), []byte(`"field":"milestone"`)) {
 		t.Errorf("expected lowercase JSON key \"field\", got:\n%s", out.String())
 	}
@@ -583,7 +582,7 @@ func TestShowValidate_JSON(t *testing.T) {
 			Target string `json:"target"`
 		} `json:"unresolved_links"`
 	}
-	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+	if err := jsonUnmarshal(t, out.String(), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
 	}
 	if !got.SchemaOK {
@@ -607,14 +606,14 @@ func TestShow_IncomingEdges(t *testing.T) {
 	execCmd(t, "link", "issue", "demo.source-issue", "issue", "demo.target-issue")
 
 	// JSON shape: incoming.<type> -> [{id, title}]
-	out := execCmd(t, "show", "issue", "demo.target-issue", "--json", "--no-body")
+	out := execCmdJSON(t, "show", "issue", "demo.target-issue", "--json", "--no-body")
 	var got struct {
 		Incoming map[string][]struct {
 			ID    string `json:"id"`
 			Title string `json:"title"`
 		} `json:"incoming"`
 	}
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
+	if err := jsonUnmarshal(t, out, &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
 	issues, ok := got.Incoming["issue"]
@@ -669,9 +668,9 @@ func TestShow_NoIncomingFlagSuppresses(t *testing.T) {
 	execCmd(t, "reindex")
 	execCmd(t, "link", "issue", "demo.a", "issue", "demo.b")
 
-	out := execCmd(t, "show", "issue", "demo.b", "--no-incoming", "--json", "--no-body")
+	out := execCmdJSON(t, "show", "issue", "demo.b", "--no-incoming", "--json", "--no-body")
 	var got map[string]any
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
+	if err := jsonUnmarshal(t, out, &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
 	if _, present := got["incoming"]; present {
@@ -705,7 +704,7 @@ func TestShow_PrefixedIDResolvesLikeBareID(t *testing.T) {
 				t.Fatalf("id=%q: unexpected error: %v", tc.id, err)
 			}
 			var got map[string]any
-			if err := json.Unmarshal([]byte(out), &got); err != nil {
+			if err := jsonUnmarshal(t, out, &got); err != nil {
 				t.Fatalf("invalid JSON: %v\n%s", err, out)
 			}
 			if got["title"] != "Bar issue" {
@@ -728,7 +727,7 @@ func TestShow_BareProjectMatchesType(t *testing.T) {
 		t.Fatalf("id=%q: unexpected error: %v", "issue.foo", err)
 	}
 	var got map[string]any
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
+	if err := jsonUnmarshal(t, out, &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
 	if got["title"] != "Issue-project issue" {
@@ -750,9 +749,9 @@ func TestShow_NoIncomingEdgesRendersCleanly(t *testing.T) {
 		t.Errorf("section header should be absent when no incoming edges:\n%s", text)
 	}
 
-	out := execCmd(t, "show", "issue", "demo.lonely", "--json", "--no-body")
+	out := execCmdJSON(t, "show", "issue", "demo.lonely", "--json", "--no-body")
 	var got map[string]any
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
+	if err := jsonUnmarshal(t, out, &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
 	if _, present := got["incoming"]; present {
@@ -820,7 +819,6 @@ func TestShow_SkillUnknown(t *testing.T) {
 func TestShow_Issue_ByOrdinal(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	path := createIssueGetPath(t,
@@ -838,14 +836,14 @@ func TestShow_Issue_ByOrdinal(t *testing.T) {
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"show", "issue", "1", "--json"})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("show issue 1: %v\n%s", err, out.String())
+		t.Fatalf("show issue 1: %v\n%s%s", err, out.String(), errOut.String())
 	}
 	var got map[string]any
-	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+	if err := jsonUnmarshal(t, out.String(), &got); err != nil {
 		t.Fatalf("parse: %v\n%s", err, out.String())
 	}
 	if got["id"] != id {
@@ -916,7 +914,7 @@ func TestShowLinks_JSON(t *testing.T) {
 		t.Fatalf("show --links milestone --json: %v", err)
 	}
 	var got []string
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
+	if err := jsonUnmarshal(t, out, &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
 	if len(got) != 1 || got[0] != "milestone.foo.some-milestone" {
@@ -933,7 +931,7 @@ func TestShowLinks_JSONEmpty(t *testing.T) {
 		t.Fatalf("show --links contract --json (no matches) must exit 0, got: %v", err)
 	}
 	var got []string
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
+	if err := jsonUnmarshal(t, out, &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
 	if len(got) != 0 {
@@ -1065,7 +1063,7 @@ func TestShowLinks_BodyJSON(t *testing.T) {
 	var got []struct {
 		ID, Status, Body string
 	}
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
+	if err := jsonUnmarshal(t, out, &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
 	if len(got) != 1 || got[0].ID != "contract.foo.c1" || got[0].Status != "active" {

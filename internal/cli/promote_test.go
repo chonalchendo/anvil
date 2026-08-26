@@ -18,7 +18,6 @@ var numberedIssueIDRe = regexp.MustCompile(`^issue\.foo\.[0-9]{4}\..+`)
 func TestPromote_TopLevel_Issue(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	add := newRootCmd()
@@ -53,7 +52,6 @@ func TestPromote_TopLevel_Issue(t *testing.T) {
 func TestPromote_Issue_NumberedIDAndGoalOverride(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	longTitle := strings.Repeat("x", 130)
@@ -107,7 +105,6 @@ func TestPromote_Issue_NumberedIDAndGoalOverride(t *testing.T) {
 func TestPromote_Issue_RefusesSlugCollision(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	bodyFile := filepath.Join(t.TempDir(), "b.md")
@@ -138,7 +135,6 @@ func TestPromote_Issue_RefusesSlugCollision(t *testing.T) {
 
 func TestPromote_TopLevel_Idempotent(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
@@ -168,7 +164,6 @@ func TestPromote_TopLevel_Idempotent(t *testing.T) {
 
 func TestPromote_TopLevel_InvalidAsSuggestsTopLevelCommand(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
@@ -192,7 +187,6 @@ func TestPromote_TopLevel_InvalidAsSuggestsTopLevelCommand(t *testing.T) {
 
 func TestPromote_TopLevel_JSON(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
@@ -225,7 +219,6 @@ func TestPromote_TopLevel_JSON(t *testing.T) {
 func TestPromote_AsThread(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	var buf bytes.Buffer
@@ -264,7 +257,6 @@ func TestPromote_AsThread(t *testing.T) {
 
 func TestPromote_ToLearning(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"create", "inbox", "--title", "FK locks block writes", "--json"})
@@ -303,7 +295,6 @@ func TestPromote_ToLearning(t *testing.T) {
 
 func TestPromote_Discard(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
@@ -340,7 +331,6 @@ func TestPromote_Discard(t *testing.T) {
 func TestPromote_RequiresAsFlag(t *testing.T) {
 	vault := setupVault(t)
 	_ = vault
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
@@ -366,7 +356,6 @@ func TestPromote_RequiresAsFlag(t *testing.T) {
 func TestPromote_InvalidAsValue(t *testing.T) {
 	vault := setupVault(t)
 	_ = vault
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
@@ -395,7 +384,6 @@ func TestPromote_InvalidAsValue(t *testing.T) {
 
 func TestPromote_DiscardIdempotent(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
@@ -424,7 +412,6 @@ func TestPromote_DiscardIdempotent(t *testing.T) {
 
 func TestPromote_MismatchedAs(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
@@ -459,7 +446,6 @@ func TestPromote_MismatchedAs(t *testing.T) {
 
 func TestPromote_OnDropped(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
@@ -488,7 +474,6 @@ func TestPromote_OnDropped(t *testing.T) {
 
 func TestPromote_DiscardOnPromoted(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
@@ -539,7 +524,6 @@ func runPromoteJSON(t *testing.T, args ...string) promoteJSONResult {
 
 func TestPromote_JSON_AlreadyPromoted(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
@@ -560,7 +544,6 @@ func TestPromote_JSON_AlreadyPromoted(t *testing.T) {
 
 func TestPromote_JSON_Discarded(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
@@ -580,7 +563,6 @@ func TestPromote_JSON_Discarded(t *testing.T) {
 
 func TestPromote_JSON_AlreadyDiscarded(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()
@@ -605,7 +587,6 @@ func TestPromote_JSON_AlreadyDiscarded(t *testing.T) {
 func TestPromote_IssueScaffoldsBody(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	add := newRootCmd()
@@ -648,7 +629,6 @@ func TestPromote_IssueScaffoldsBody(t *testing.T) {
 func TestPromote_IssueBodyFlagOverridesScaffold(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	const authored = "\n## Problem\n\ndetails\n\n## Non-goals\n\nnone\n\n## Verification\n\n### Direct\n\n```bash\ntrue\n```\n\n### Indirect\n\n```bash\nexit 3\n```\n\n## Links\n\nnone\n"
@@ -690,7 +670,6 @@ func TestPromote_IssueBodyFlagOverridesScaffold(t *testing.T) {
 func TestPromote_IssueBodyRejectsUnresolvedWikilink(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	const authored = "\n## Problem\n\nsee [[issue.foo.does-not-exist]]\n\n## Non-goals\n\nnone\n\n## Verification\n\n### Direct\n\n```bash\ntrue\n```\n\n### Indirect\n\n```bash\ntrue\n```\n\n## Links\n\nnone\n"
@@ -723,7 +702,6 @@ func TestPromote_IssueBodyRejectsUnresolvedWikilink(t *testing.T) {
 // fresh ordinal instead and so never reach the suffix path.
 func TestPromote_PreExistingTargetGetsSuffix(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	learningsDir := filepath.Join(vault, "20-learnings")
@@ -783,7 +761,6 @@ func TestPromote_PreExistingTargetGetsSuffix(t *testing.T) {
 
 func TestPromote_Issue_RequiresTags(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	cmd := newRootCmd()
@@ -845,7 +822,6 @@ func runPromoteIssueJSON(t *testing.T, args ...string) promoteIssueResult {
 func TestPromote_Issue_SeverityFlag(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	var buf bytes.Buffer
@@ -898,7 +874,6 @@ func TestPromote_Issue_SeverityFlag(t *testing.T) {
 func TestPromote_Issue_MilestoneFlag(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	var buf bytes.Buffer
@@ -937,7 +912,6 @@ func TestPromote_Issue_MilestoneFlag(t *testing.T) {
 func TestPromote_Issue_AcceptanceFlag(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	var buf bytes.Buffer
@@ -980,7 +954,6 @@ func TestPromote_Issue_AcceptanceFlag(t *testing.T) {
 func TestPromote_JSON_IDIsTargetID(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	var buf bytes.Buffer

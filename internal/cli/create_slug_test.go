@@ -149,7 +149,6 @@ func TestCreate_SlugFlag_AppliesToDecisionsToo(t *testing.T) {
 func TestCreate_Plan_DefaultsSlugFromIssueLink(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -180,7 +179,6 @@ func TestCreate_Plan_DefaultsSlugFromIssueLink(t *testing.T) {
 func TestCreate_Plan_SlugFlagOverridesIssueDerivation(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -18,7 +17,7 @@ func TestListReadyJSON_IncludesTitleAndSeverity(t *testing.T) {
 	execCmd(t, "reindex")
 	execCmd(t, "set", "issue", "demo.fix-login-flake", "severity", "high")
 
-	out := execCmd(t, "list", "issue", "--ready", "--json")
+	out := execCmdJSON(t, "list", "issue", "--ready", "--json")
 	var env struct {
 		Items []struct {
 			ID       string `json:"id"`
@@ -26,7 +25,7 @@ func TestListReadyJSON_IncludesTitleAndSeverity(t *testing.T) {
 			Severity string `json:"severity"`
 		} `json:"items"`
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &env); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
 	if len(env.Items) != 1 {
@@ -59,14 +58,14 @@ func TestListReadyJSON_DefaultLimitIsUnbounded(t *testing.T) {
 		)
 	}
 
-	out := execCmd(t, "list", "issue", "--ready", "--json")
+	out := execCmdJSON(t, "list", "issue", "--ready", "--json")
 	var env struct {
 		Items     []map[string]any `json:"items"`
 		Total     int              `json:"total"`
 		Returned  int              `json:"returned"`
 		Truncated bool             `json:"truncated"`
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &env); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
 	if env.Total != 12 {
@@ -109,7 +108,7 @@ func TestListReadyJSON_TotalIsUnboundedMatchCount(t *testing.T) {
 		Returned  int              `json:"returned"`
 		Truncated bool             `json:"truncated"`
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &env); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
 	if env.Total != 3 {

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -31,9 +30,9 @@ func TestTransitionHappyPathWritesFrontmatter(t *testing.T) {
 	execCmd(t, "init", vault)
 	createDemoIssue(t)
 
-	out := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--json")
+	out := execCmdJSON(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--json")
 	var got map[string]any
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &got); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &got); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
 	if got["status"] != "transitioned" || got["from"] != "open" || got["to"] != "in-progress" || got["owner"] != "claude" {
@@ -55,7 +54,7 @@ func TestTransitionIdempotentWhenAlreadyInState(t *testing.T) {
 	execCmd(t, "init", vault)
 	createDemoIssue(t)
 
-	out := execCmd(t, "transition", "issue", "demo.foo", "open", "--json")
+	out := execCmdJSON(t, "transition", "issue", "demo.foo", "open", "--json")
 	if !strings.Contains(out, `"already_in_state"`) {
 		t.Fatalf("expected already_in_state, got %s", out)
 	}
@@ -101,7 +100,7 @@ func TestTransitionIllegalJSON(t *testing.T) {
 		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
 	var env map[string]any
-	if err := json.Unmarshal([]byte(strings.TrimSpace(stdout.String())), &env); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(stdout.String()), &env); err != nil {
 		t.Fatalf("stdout must be valid JSON with --json; stdout=%q stderr=%q err=%v", stdout.String(), stderr.String(), err)
 	}
 	if env["code"] != "illegal_transition" {
@@ -186,7 +185,7 @@ func TestTransitionReclaimSameSessionIsIdempotent(t *testing.T) {
 	createDemoIssue(t)
 
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
-	out := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--json")
+	out := execCmdJSON(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--json")
 	if !strings.Contains(out, `"already_in_state"`) {
 		t.Fatalf("same-session re-claim: expected already_in_state, got %s", out)
 	}
@@ -252,7 +251,7 @@ func TestTransitionForceTakeoverTransfersClaimSession(t *testing.T) {
 	}
 
 	// session-b can now re-claim idempotently without --force.
-	out := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--json")
+	out := execCmdJSON(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--json")
 	if !strings.Contains(out, `"already_in_state"`) {
 		t.Fatalf("new holder re-claim: expected already_in_state, got %s", out)
 	}
@@ -279,7 +278,6 @@ func TestTransitionOwnerSurvivesValidate(t *testing.T) {
 func TestTransitionPlanToLocked_RejectsPlaceholderPlan(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
-	t.Setenv("HOME", t.TempDir())
 	execCmd(t, "init", vault)
 	repo := setupGitRepo(t, "git@github.com:acme/demo.git")
 	t.Chdir(repo)
@@ -328,7 +326,6 @@ func TestTransitionPlanToLocked_RejectsPlaceholderPlan(t *testing.T) {
 func TestTransitionPlanToLocked_AcceptsRealVerify(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
-	t.Setenv("HOME", t.TempDir())
 	execCmd(t, "init", vault)
 	repo := setupGitRepo(t, "git@github.com:acme/demo.git")
 	t.Chdir(repo)
@@ -603,7 +600,7 @@ func TestTransitionBucketMilestoneToDoneRejected(t *testing.T) {
 			t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 		}
 		var env map[string]any
-		if err := json.Unmarshal([]byte(strings.TrimSpace(stdout.String())), &env); err != nil {
+		if err := jsonUnmarshal(t, strings.TrimSpace(stdout.String()), &env); err != nil {
 			t.Fatalf("stdout must be valid JSON; stdout=%q stderr=%q err=%v", stdout.String(), stderr.String(), err)
 		}
 		if env["code"] != "bucket_milestone_no_done" {
@@ -630,9 +627,9 @@ func TestTransitionBucketMilestoneToDoneRejected(t *testing.T) {
 		writeFixtureMilestone(t, vault, "demo.scoped", "planned")
 		execCmd(t, "reindex")
 
-		out := execCmd(t, "transition", "milestone", "demo.scoped", "done", "--json")
+		out := execCmdJSON(t, "transition", "milestone", "demo.scoped", "done", "--json")
 		var env map[string]any
-		if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &env); err != nil {
+		if err := jsonUnmarshal(t, strings.TrimSpace(out), &env); err != nil {
 			t.Fatalf("json: %v\nout: %s", err, out)
 		}
 		if env["status"] != "transitioned" || env["to"] != "done" {
@@ -666,7 +663,7 @@ func TestTransitionResolveLastIssueAdvisory(t *testing.T) {
 			t.Fatalf("resolve %s: %v\nstderr: %s", id, err, stderr)
 		}
 		var got map[string]any
-		if err := json.Unmarshal([]byte(strings.TrimSpace(stdout)), &got); err != nil {
+		if err := jsonUnmarshal(t, strings.TrimSpace(stdout), &got); err != nil {
 			t.Fatalf("json: %v\nstdout: %s", err, stdout)
 		}
 		return got
@@ -741,7 +738,7 @@ func TestTransitionResolveLastIssueAdvisory(t *testing.T) {
 			t.Fatalf("abandon: %v\nstderr: %s", err, stderr)
 		}
 		var got map[string]any
-		if err := json.Unmarshal([]byte(strings.TrimSpace(stdout)), &got); err != nil {
+		if err := jsonUnmarshal(t, strings.TrimSpace(stdout), &got); err != nil {
 			t.Fatalf("json: %v\nstdout: %s", err, stdout)
 		}
 		if adv, ok := got["advisory"]; ok {
@@ -769,7 +766,7 @@ func TestTransitionResolveLastIssueAdvisory(t *testing.T) {
 			t.Fatalf("stale close: %v\nstderr: %s", err, stderr)
 		}
 		var got map[string]any
-		if err := json.Unmarshal([]byte(strings.TrimSpace(stdout)), &got); err != nil {
+		if err := jsonUnmarshal(t, strings.TrimSpace(stdout), &got); err != nil {
 			t.Fatalf("json: %v\nstdout: %s", err, stdout)
 		}
 		adv, _ := got["advisory"].(string)
@@ -798,7 +795,6 @@ func TestTransitionResolveLastIssueAdvisory(t *testing.T) {
 func TestTransition_Issue_ByOrdinal(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	path := createIssueGetPath(t,
@@ -895,7 +891,7 @@ func TestTransitionNotFoundJSON(t *testing.T) {
 		t.Fatalf("error must unwrap to ErrArtifactNotFound, got: %v", err)
 	}
 	var env map[string]any
-	if err := json.Unmarshal([]byte(strings.TrimSpace(stdout.String())), &env); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(stdout.String()), &env); err != nil {
 		t.Fatalf("stdout must be valid JSON with --json; stdout=%q stderr=%q err=%v", stdout.String(), stderr.String(), err)
 	}
 	if env["code"] != "artifact_not_found" {
@@ -909,11 +905,11 @@ func TestTransitionNotFoundJSON(t *testing.T) {
 // mkThread creates a thread under topic and returns its topic-ordinal id.
 func mkThread(t *testing.T, topic, title string) string {
 	t.Helper()
-	out := execCmd(t, "create", "thread", "--title", title, "--topic", topic,
+	out := execCmdJSON(t, "create", "thread", "--title", title, "--topic", topic,
 		"--tags", "domain/dev-tools,activity/research",
 		"--allow-new-facet=domain", "--allow-new-facet=activity", "--json")
 	var res struct{ ID, Path string }
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &res); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &res); err != nil {
 		t.Fatalf("create thread: %v\n%s", err, out)
 	}
 	return res.ID
@@ -948,11 +944,11 @@ func TestTransition_Thread_Closed_SilentWithOutcomeLink(t *testing.T) {
 
 	// A body-authored learning link and an `anvil link`-written frontmatter
 	// edge are both outcomes; neither may draw the warning.
-	learnOut := execCmd(t, "create", "learning", "--title", "Catalog backend tradeoffs",
+	learnOut := execCmdJSON(t, "create", "learning", "--title", "Catalog backend tradeoffs",
 		"--tags", "domain/dev-tools,activity/research",
 		"--allow-new-facet=domain", "--allow-new-facet=activity", "--json")
 	var learn struct{ ID string }
-	if err := json.Unmarshal([]byte(strings.TrimSpace(learnOut)), &learn); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(learnOut), &learn); err != nil {
 		t.Fatalf("create learning: %v\n%s", err, learnOut)
 	}
 
@@ -968,12 +964,12 @@ func TestTransition_Thread_Closed_SilentWithOutcomeLink(t *testing.T) {
 	}
 
 	fmLinked := mkThread(t, "ducklake", "Frontmatter linked question")
-	decOut := execCmd(t, "create", "decision", "--title", "Use Postgres catalog",
+	decOut := execCmdJSON(t, "create", "decision", "--title", "Use Postgres catalog",
 		"--topic", "ducklake", "--description", "d",
 		"--tags", "domain/dev-tools,activity/research",
 		"--allow-new-facet=domain", "--allow-new-facet=activity", "--json")
 	var dec struct{ ID string }
-	if err := json.Unmarshal([]byte(strings.TrimSpace(decOut)), &dec); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(decOut), &dec); err != nil {
 		t.Fatalf("create decision: %v\n%s", err, decOut)
 	}
 	execCmd(t, "link", "thread", fmLinked, "decision", dec.ID)

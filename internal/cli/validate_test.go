@@ -17,7 +17,6 @@ import (
 func TestValidate_GoodVault(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	// Add one valid issue.
@@ -75,7 +74,6 @@ func TestValidate_SingleFile_HappyPath(t *testing.T) {
 	vault := setupVault(t)
 	t.Setenv("ANVIL_VAULT", vault)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
@@ -121,7 +119,6 @@ func TestValidate_SingleFile_ReportsBadFrontmatter(t *testing.T) {
 
 func TestValidate_Learning_BodyShape(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"create", "learning", "--title", "X", "--tags", "domain/dev-tools,activity/research", "--allow-new-facet=domain", "--allow-new-facet=activity"})
@@ -170,16 +167,16 @@ func TestValidate_JSON_StructuredErrors(t *testing.T) {
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"validate", vault, "--json"})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	err := cmd.Execute()
 	if err == nil {
 		t.Fatal("expected non-zero exit")
 	}
 	var got []map[string]any
 	if jerr := json.Unmarshal(out.Bytes(), &got); jerr != nil {
-		t.Fatalf("invalid JSON: %v\n%s", jerr, out.String())
+		t.Fatalf("invalid JSON: %v\n%s%s", jerr, out.String(), errOut.String())
 	}
 	if len(got) == 0 {
 		t.Fatal("expected at least one error")
@@ -223,13 +220,13 @@ func TestValidate_JSON_MissingRequired(t *testing.T) {
 	}
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"validate", vault, "--json"})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	_ = cmd.Execute()
 	var got []map[string]any
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
-		t.Fatal(err)
+		t.Fatalf("%v\n%s", err, errOut.String())
 	}
 	var found map[string]any
 	for _, e := range got {
@@ -262,13 +259,13 @@ func TestValidate_JSON_SchemaAndBodyFindings_Coexist(t *testing.T) {
 	}
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"validate", vault, "--json"})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	_ = cmd.Execute()
 	var got []map[string]any
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
-		t.Fatalf("invalid JSON: %v\n%s", err, out.String())
+		t.Fatalf("invalid JSON: %v\n%s%s", err, out.String(), errOut.String())
 	}
 	var schemaHit, bodyHit bool
 	for _, e := range got {
@@ -306,14 +303,14 @@ func TestValidate_MissingRequiredFacet_Issue(t *testing.T) {
 	}
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"validate", "--json", vault})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	_ = cmd.Execute()
 
 	var failures []map[string]any
 	if err := json.Unmarshal(out.Bytes(), &failures); err != nil {
-		t.Fatalf("parse json: %v\n%s", err, out.String())
+		t.Fatalf("parse json: %v\n%s%s", err, out.String(), errOut.String())
 	}
 	found := false
 	for _, f := range failures {
@@ -475,15 +472,15 @@ func TestValidate_DuplicateID_CrossFile(t *testing.T) {
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"validate", "--json", vault})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	if err := cmd.Execute(); err == nil {
 		t.Fatal("expected validate to fail for duplicate id")
 	}
 	var failures []map[string]any
 	if err := json.Unmarshal(out.Bytes(), &failures); err != nil {
-		t.Fatalf("parse json: %v\n%s", err, out.String())
+		t.Fatalf("parse json: %v\n%s%s", err, out.String(), errOut.String())
 	}
 	var found map[string]any
 	for _, f := range failures {
@@ -514,7 +511,6 @@ func TestValidate_DuplicateID_CrossFile(t *testing.T) {
 // full-vault count.
 func TestValidate_ProjectFlag_ScopesFindings(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	// Plant an invalid issue for project "alpha" (bad status).
 	alphaIssue := &core.Artifact{
@@ -545,14 +541,14 @@ func TestValidate_ProjectFlag_ScopesFindings(t *testing.T) {
 	// Full-vault run: must see both findings.
 	fullCmd := newRootCmd()
 	fullCmd.SetArgs([]string{"validate", vault, "--json"})
-	var fullOut bytes.Buffer
+	var fullOut, fullErrOut bytes.Buffer
 	fullCmd.SetOut(&fullOut)
-	fullCmd.SetErr(&fullOut)
+	fullCmd.SetErr(&fullErrOut)
 	_ = fullCmd.Execute()
 
 	var fullFailures []map[string]any
 	if err := json.Unmarshal(fullOut.Bytes(), &fullFailures); err != nil {
-		t.Fatalf("parse full json: %v\n%s", err, fullOut.String())
+		t.Fatalf("parse full json: %v\n%s%s", err, fullOut.String(), fullErrOut.String())
 	}
 	if len(fullFailures) < 2 {
 		t.Fatalf("expected at least 2 findings in full-vault run, got %d", len(fullFailures))
@@ -561,14 +557,14 @@ func TestValidate_ProjectFlag_ScopesFindings(t *testing.T) {
 	// Project-scoped run: --project alpha must return only alpha's finding.
 	scopedCmd := newRootCmd()
 	scopedCmd.SetArgs([]string{"--project", "alpha", "validate", vault, "--json"})
-	var scopedOut bytes.Buffer
+	var scopedOut, scopedErrOut bytes.Buffer
 	scopedCmd.SetOut(&scopedOut)
-	scopedCmd.SetErr(&scopedOut)
+	scopedCmd.SetErr(&scopedErrOut)
 	_ = scopedCmd.Execute()
 
 	var scopedFailures []map[string]any
 	if err := json.Unmarshal(scopedOut.Bytes(), &scopedFailures); err != nil {
-		t.Fatalf("parse scoped json: %v\n%s", err, scopedOut.String())
+		t.Fatalf("parse scoped json: %v\n%s%s", err, scopedOut.String(), scopedErrOut.String())
 	}
 
 	// Scoped count must be strictly less than full-vault count.
@@ -592,7 +588,6 @@ func TestValidate_ProjectFlag_ScopesFindings(t *testing.T) {
 // the path-based filter would invert both.
 func TestValidate_ProjectFlag_ScopesByFrontmatter(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	// Misfiled: filename says beta, frontmatter declares alpha.
 	misfiled := &core.Artifact{
@@ -610,13 +605,13 @@ func TestValidate_ProjectFlag_ScopesByFrontmatter(t *testing.T) {
 	run := func(slug string) []map[string]any {
 		cmd := newRootCmd()
 		cmd.SetArgs([]string{"--project", slug, "validate", vault, "--json"})
-		var out bytes.Buffer
+		var out, errOut bytes.Buffer
 		cmd.SetOut(&out)
-		cmd.SetErr(&out)
+		cmd.SetErr(&errOut)
 		_ = cmd.Execute()
 		var failures []map[string]any
 		if err := json.Unmarshal(out.Bytes(), &failures); err != nil {
-			t.Fatalf("parse json (slug=%s): %v\n%s", slug, err, out.String())
+			t.Fatalf("parse json (slug=%s): %v\n%s%s", slug, err, out.String(), errOut.String())
 		}
 		return failures
 	}

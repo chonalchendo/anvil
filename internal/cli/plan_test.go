@@ -215,7 +215,6 @@ func TestShow_PlanTaskTerseByDefault(t *testing.T) {
 func TestCreatePlan_BareIDIssue_PersistedFormIsIndexerCompatible(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(repo)
 
 	cmd := newRootCmd()

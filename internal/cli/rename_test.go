@@ -98,11 +98,11 @@ func TestRename_Issue_JSONEnvelope(t *testing.T) {
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"rename", "issue", "foo.old-slug", "--title", "New Title", "--json"})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("rename: %v\n%s", err, out.String())
+		t.Fatalf("rename: %v\n%s%s", err, out.String(), errOut.String())
 	}
 	var r renameResult
 	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &r); err != nil {
@@ -171,11 +171,11 @@ func TestRename_Issue_PrefixedNumberedFile_PreservesProjectAndOrdinal(t *testing
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"rename", "issue", "issue.demo.0001.probe-issue-one", "--title", "Renamed probe title", "--json"})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("rename: %v\n%s", err, out.String())
+		t.Fatalf("rename: %v\n%s%s", err, out.String(), errOut.String())
 	}
 	var r renameResult
 	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &r); err != nil {

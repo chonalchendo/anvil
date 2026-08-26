@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -11,25 +10,45 @@ import (
 	"github.com/chonalchendo/anvil/internal/index"
 )
 
+// jsonUnmarshal decodes a CLI-command result string. Test callers funnel
+// through here (rather than calling encoding/json directly) so a stdout+
+// stderr-merged buffer never gets treated as JSON input by mistake: a
+// trailing non-JSON diagnostic makes strict Unmarshal fail loudly instead of
+// a Decoder silently ignoring it.
 func jsonUnmarshal(t *testing.T, s string, v any) error {
 	t.Helper()
 	return json.Unmarshal([]byte(s), v)
 }
 
-// execCmd creates a fresh root command, runs it with args, and returns stdout+stderr.
-// Fails the test if the command returns an error.
+// execCmdStreams creates a fresh root command, runs it with args, and
+// returns stdout and stderr separately. Fails the test if the command
+// returns an error.
+func execCmdStreams(t *testing.T, args ...string) (string, string) {
+	t.Helper()
+	stdout, stderr, err := runCmd(t, newRootCmd(), args...)
+	if err != nil {
+		t.Fatalf("anvil %v: %v\noutput: %s%s", args, err, stdout, stderr)
+	}
+	return stdout, stderr
+}
+
+// execCmd returns stdout followed by stderr (concatenated, not
+// interleaved — relative order across the two streams is not preserved).
+// Callers that parse the result as JSON must use execCmdJSON instead: a
+// stderr diagnostic on an otherwise-successful command corrupts this
+// concatenated buffer's JSON.
 func execCmd(t *testing.T, args ...string) string {
 	t.Helper()
-	isolateRootEnv(t)
-	cmd := newRootCmd()
-	cmd.SetArgs(args)
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("anvil %v: %v\noutput: %s", args, err, out.String())
-	}
-	return out.String()
+	stdout, stderr := execCmdStreams(t, args...)
+	return stdout + stderr
+}
+
+// execCmdJSON is like execCmd but returns stdout only, so a stderr
+// diagnostic can never land inside the JSON a caller unmarshals.
+func execCmdJSON(t *testing.T, args ...string) string {
+	t.Helper()
+	stdout, _ := execCmdStreams(t, args...)
+	return stdout
 }
 
 func openIndex(t *testing.T, vault string) *index.DB {
@@ -48,7 +67,7 @@ func TestCreateWritesThroughToIndex(t *testing.T) {
 	execCmd(t, "init", vault)
 
 	// Use create issue with --json to capture the allocated numbered ID.
-	out := execCmd(t, "create", "issue",
+	out := execCmdJSON(t, "create", "issue",
 		"--project", "demo",
 		"--title", "foo",
 		"--description", "foo desc",
@@ -81,7 +100,7 @@ func TestCreateWritesThroughTagsToIndex(t *testing.T) {
 	// anyway and would hide the gap this test guards).
 	execCmd(t, "reindex")
 
-	out := execCmd(t, "create", "issue",
+	out := execCmdJSON(t, "create", "issue",
 		"--project", "demo",
 		"--title", "tagged",
 		"--description", "tagged desc",
@@ -122,7 +141,7 @@ func TestCreateWritesThroughLearningFTSToIndex(t *testing.T) {
 	// mask the gap this test guards).
 	execCmd(t, "reindex")
 
-	out := execCmd(t, "create", "learning",
+	out := execCmdJSON(t, "create", "learning",
 		"--title", "fts canary",
 		"--tags", "domain/dev-tools,activity/governance",
 		"--allow-new-facet", "domain,activity",

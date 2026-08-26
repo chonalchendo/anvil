@@ -177,7 +177,6 @@ func TestList_TagSubstring(t *testing.T) {
 
 func TestList_Learning_MultiTagAllOf(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	mustCreateLearning := func(title string, tags []string, diataxis, confidence string) {
 		t.Helper()
@@ -239,7 +238,6 @@ func TestList_Learning_MultiTagAllOf(t *testing.T) {
 
 func TestList_Learning_DiataxisAndConfidence(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	_ = vault
 
 	mustCreateLearning := func(title, diataxis, confidence string) {
@@ -455,7 +453,6 @@ func TestList_JSONItemFields(t *testing.T) {
 
 func TestListInbox_NonEmpty(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	t.Chdir(t.TempDir())
 
 	add := newRootCmd()

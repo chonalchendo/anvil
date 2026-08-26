@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -17,13 +16,13 @@ func TestPromoteWritesWikilinkSoLinkQueryFindsInbox(t *testing.T) {
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
 
-	out := execCmd(t, "create", "inbox", "--title", "fix-the-thing", "--description", "drive-by", "--json")
+	out := execCmdJSON(t, "create", "inbox", "--title", "fix-the-thing", "--description", "drive-by", "--json")
 	var created struct{ ID string }
-	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &created); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &created); err != nil {
 		t.Fatalf("create json: %v\nout: %s", err, out)
 	}
 
-	promote := execCmd(t, "promote", created.ID,
+	promote := execCmdJSON(t, "promote", created.ID,
 		"--as", "issue",
 		"--tags", "domain/dev-tools",
 		"--allow-new-facet=domain",
@@ -31,7 +30,7 @@ func TestPromoteWritesWikilinkSoLinkQueryFindsInbox(t *testing.T) {
 	var p struct {
 		TargetID *string `json:"target_id"`
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(promote)), &p); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(promote), &p); err != nil {
 		t.Fatalf("promote json: %v\nout: %s", err, promote)
 	}
 	if p.TargetID == nil || *p.TargetID == "" {
@@ -39,11 +38,11 @@ func TestPromoteWritesWikilinkSoLinkQueryFindsInbox(t *testing.T) {
 	}
 
 	// `link --to <issue-id>` must find the inbox edge with relation=promoted_to.
-	queryOut := execCmd(t, "link", "--to", *p.TargetID, "--json")
+	queryOut := execCmdJSON(t, "link", "--to", *p.TargetID, "--json")
 	var rows []struct {
 		Source, Target, Relation string
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(queryOut)), &rows); err != nil {
+	if err := jsonUnmarshal(t, strings.TrimSpace(queryOut), &rows); err != nil {
 		t.Fatalf("link --to json: %v\nout: %s", err, queryOut)
 	}
 	var found bool

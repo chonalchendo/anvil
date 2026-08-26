@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -18,7 +17,7 @@ func TestBuild_DryRunJSON_EmitsPlanEnvelope(t *testing.T) {
 	execCmd(t, "init", vault)
 	createDemoIssue(t) // demo.foo: open, unblocked → ready
 
-	out := execCmd(t, "build", "--dry-run", "--json", "--project", "demo")
+	out := execCmdJSON(t, "build", "--dry-run", "--json", "--project", "demo")
 	// --dry-run --json emits a single plan envelope so callers can assert
 	// per-task fields (config_dir uniqueness, auto_merge) and the run id without
 	// slurp mode.
@@ -39,8 +38,8 @@ func TestBuild_DryRun_PersistsQueryableTelemetry(t *testing.T) {
 	var env struct {
 		RunID string `json:"run_id"`
 	}
-	out := execCmd(t, "build", "--dry-run", "--json", "--project", "demo")
-	if err := json.Unmarshal([]byte(out), &env); err != nil {
+	out := execCmdJSON(t, "build", "--dry-run", "--json", "--project", "demo")
+	if err := jsonUnmarshal(t, out, &env); err != nil {
 		t.Fatalf("plan envelope not JSON: %v\n%s", err, out)
 	}
 	if env.RunID == "" {
@@ -53,8 +52,8 @@ func TestBuild_DryRun_PersistsQueryableTelemetry(t *testing.T) {
 		Items []map[string]any `json:"items"`
 		Total int              `json:"total"`
 	}
-	tasksOut := execCmd(t, "build", "tasks", env.RunID, "--json")
-	if err := json.Unmarshal([]byte(tasksOut), &env2); err != nil {
+	tasksOut := execCmdJSON(t, "build", "tasks", env.RunID, "--json")
+	if err := jsonUnmarshal(t, tasksOut, &env2); err != nil {
 		t.Fatalf("tasks output not JSON: %v\n%s", err, tasksOut)
 	}
 	if env2.Total != 1 || len(env2.Items) != 1 {
@@ -417,14 +416,14 @@ func TestBuildLearningsInjection_SurfacesRelatedLearningInCompleteTask(t *testin
 		"domain/dev-tools") // shares demo.foo's facet → related
 	execCmd(t, "reindex")
 
-	out := execCmd(t, "build", "--dry-run", "--json", "--project", "demo")
+	out := execCmdJSON(t, "build", "--dry-run", "--json", "--project", "demo")
 	var env struct {
 		Tasks []struct {
 			TaskID      string `json:"task_id"`
 			Instruction string `json:"instruction"`
 		} `json:"tasks"`
 	}
-	if err := json.Unmarshal([]byte(out), &env); err != nil {
+	if err := jsonUnmarshal(t, out, &env); err != nil {
 		t.Fatalf("plan envelope not JSON: %v\n%s", err, out)
 	}
 	if len(env.Tasks) != 1 || env.Tasks[0].TaskID != "issue.demo.foo" {

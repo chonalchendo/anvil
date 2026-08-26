@@ -41,11 +41,11 @@ func TestTagsList_Aggregates(t *testing.T) {
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"tags", "list", "--json"})
-	var out bytes.Buffer
+	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
-	cmd.SetErr(&out)
+	cmd.SetErr(&errOut)
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("execute: %v", err)
+		t.Fatalf("execute: %v\n%s", err, errOut.String())
 	}
 
 	var got []struct {
@@ -236,7 +236,6 @@ func TestTagsList_LimitEmitsTruncationHint(t *testing.T) {
 
 func TestTagsAdd_Idempotent(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	first := newRootCmd()
 	first.SetArgs([]string{"tags", "add", "domain/postgres", "--desc", "rdbms"})
@@ -263,7 +262,6 @@ func TestTagsAdd_Idempotent(t *testing.T) {
 
 func TestTagsAdd_DriftErrorsWithoutUpdate(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	first := newRootCmd()
 	first.SetArgs([]string{"tags", "add", "domain/postgres", "--desc", "rdbms"})
@@ -284,7 +282,6 @@ func TestTagsAdd_DriftErrorsWithoutUpdate(t *testing.T) {
 
 func TestTagsAdd_UpdateRewrites(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	first := newRootCmd()
 	first.SetArgs([]string{"tags", "add", "domain/postgres", "--desc", "rdbms"})
@@ -312,7 +309,6 @@ func TestTagsAdd_UpdateRewrites(t *testing.T) {
 
 func TestTagsAdd_RejectsUnknownFacet(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"tags", "add", "bogus/foo", "--desc", "x"})
@@ -327,7 +323,6 @@ func TestTagsAdd_RejectsUnknownFacet(t *testing.T) {
 
 func TestTagsDefine_KnownAndMissing(t *testing.T) {
 	vault := setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 	body := "# Vault Glossary\n\n## Tags\n\n## Definitions\n- **thread** — live workspace\n"
 	path := glossary.Path(vault)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
@@ -439,7 +434,6 @@ func TestTagsList_Undefined_FreshVaultNoSuffix(t *testing.T) {
 
 func TestTagsParent_UnknownSubcommandErrors(t *testing.T) {
 	setupVault(t)
-	t.Setenv("HOME", t.TempDir())
 
 	bad := newRootCmd()
 	bad.SetArgs([]string{"tags", "show"})
