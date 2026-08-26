@@ -88,7 +88,7 @@ Run the bundled verification runner against the issue. It parses `## Verificatio
 anvil show issue <id> | bash ~/.claude/skills/completing-issue/scripts/run-verification.sh
 ```
 
-Exit 0 = every check passed. Non-zero = at least one failed; the summary names which. stdout carries exactly one JSON line (`{"verdict":"pass|fail","checks":N,"failed":[…]}`) — the machine-checkable verdict; the summary and failure output go to stderr.
+Exit 0 = every check passed. Non-zero = at least one failed; the summary names which. stdout carries exactly one JSON line (`{"verdict":"pass|fail","checks":N,"failed":[…],"commit":"<sha-or-empty>","ran_at":"<UTC RFC3339>"}`) — the machine-checkable verdict; the summary and failure output go to stderr.
 
 Outcomes:
 
