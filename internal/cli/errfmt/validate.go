@@ -18,6 +18,14 @@ const (
 	CodeDuplicateID = "duplicate_id"
 )
 
+// SeverityWarning marks a ValidationError that should be surfaced but must
+// not fail the run — the vault-wide `anvil validate` sweep's grandfather tier
+// for a rule that also gates create/promote and single-file validate at full
+// (empty-Severity, exit-1) strength. Retro-fixing the back catalogue against
+// a newly added rule is out of scope; a warning still tells the operator it's
+// there.
+const SeverityWarning = "warning"
+
 // ValidationError is the canonical shape. Optional fields use omitempty so
 // keys are absent (not null) when not applicable.
 type ValidationError struct {
@@ -29,6 +37,9 @@ type ValidationError struct {
 	Suggest  string `json:"suggest,omitempty"`  // similarity-based hint (unknown_facet_value)
 	Note     string `json:"note,omitempty"`     // narrative hint (e.g. genuine novelty)
 	Fix      string `json:"fix,omitempty"`
+	// Severity is empty for the default (exit-1) tier. SeverityWarning marks
+	// a finding that must be reported but must not fail the run.
+	Severity string `json:"severity,omitempty"`
 }
 
 // NewValidationError constructs a ValidationError with the required core
@@ -58,6 +69,12 @@ func (e *ValidationError) WithNote(s string) *ValidationError {
 // WithFix attaches a copy-pasteable fix string.
 func (e *ValidationError) WithFix(fix string) *ValidationError {
 	e.Fix = fix
+	return e
+}
+
+// WithSeverity marks the error at a non-default tier (see SeverityWarning).
+func (e *ValidationError) WithSeverity(s string) *ValidationError {
+	e.Severity = s
 	return e
 }
 

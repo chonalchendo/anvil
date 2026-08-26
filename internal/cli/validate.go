@@ -78,7 +78,7 @@ func newValidateCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				_, fs := validateOne(t, singleFile, known, verbs, vault)
+				_, fs := validateOne(t, singleFile, known, verbs, vault, false)
 				failures = fs
 			} else {
 				// idPaths accumulates every path seen per index id to detect
@@ -94,7 +94,7 @@ func newValidateCmd() *cobra.Command {
 						return err
 					}
 					for _, p := range paths {
-						a, fs := validateOne(t, p, known, verbs, vault)
+						a, fs := validateOne(t, p, known, verbs, vault, true)
 						if projectFilter != "" && !artifactInProject(a, p, t, projectFilter) {
 							continue
 						}
@@ -143,14 +143,14 @@ func newValidateCmd() *cobra.Command {
 				printValidationErrors(cmd, failures)
 			}
 
-			if len(failures) > 0 {
+			if hasBlockingFailure(failures) {
 				return ErrSchemaInvalid
 			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON array of structured errors")
-	cmd.Flags().BoolVar(&verificationStdin, "verification-stdin", false, "lint a Verification block's bash script (read from stdin) for a hardcoded checkout path that would override worktree anchoring, and for a non-gating `!` assertion set -e would exempt — the rules `create issue` enforces; no vault lookup, ignores [path], honours --json")
+	cmd.Flags().BoolVar(&verificationStdin, "verification-stdin", false, "lint a Verification block's bash script (read from stdin) for a hardcoded checkout path that would override worktree anchoring, a hardcoded lakehouse schema a worker without prod-apply rights can't satisfy, and for a non-gating `!` assertion set -e would exempt — the rules `create issue` enforces; no vault lookup, ignores [path], honours --json")
 	cmd.AddCommand(newValidateSkillCmd())
 	return cmd
 }
@@ -203,7 +203,11 @@ func verbPathValidator(root *cobra.Command) core.VerbPathValidator {
 // so one artifact reports every violation class in one pass (anvil.0218). The
 // artifact is nil on a parse failure (the only failure that prevents loading);
 // callers reuse it for cross-file id-collision detection without a second load.
-func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs core.VerbPathValidator, v *core.Vault) (*core.Artifact, []*errfmt.ValidationError) {
+// sweep is true only for the multi-file vault-wide walk (as opposed to a
+// single-file `anvil validate <path>` or the create/promote gate), so a
+// type-specific check can grandfather the back catalogue at warning severity
+// there while still refusing outright everywhere else.
+func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs core.VerbPathValidator, v *core.Vault, sweep bool) (*core.Artifact, []*errfmt.ValidationError) {
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		return nil, []*errfmt.ValidationError{errfmt.NewValidationError(errfmt.CodeParseError, path, "", err.Error())}
@@ -233,19 +237,7 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 	}
 
 	if t == core.TypeIssue {
-		for _, vErr := range core.ValidateIssue(a) {
-			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
-		}
-		goal, _ := a.FrontMatter["goal"].(string)
-		title, _ := a.FrontMatter["title"].(string)
-		for _, vErr := range core.ValidateIssueVerbs(a.Body, goal, title, verbs) {
-			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
-		}
-		// ValidateIssueCheckoutPaths is deliberately NOT wired here: the
-		// checkout-path lint gates create/promote only. The ~219 issues
-		// authored before the rule would fail vault-hygiene CI retroactively
-		// if the vault-wide scan enforced it. Lint a single predicate with
-		// `anvil validate --verification-stdin` instead.
+		out = appendIssueTypeErrors(out, a, path, verbs, sweep)
 	}
 
 	// Drift check: flag tags not present in the glossary. Skipped when the
