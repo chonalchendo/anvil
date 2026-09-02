@@ -10,7 +10,7 @@ metadata:
   skill_type: workflow
   side: design
   created: 2026-04-30
-  updated: 2026-09-02
+  updated: 2026-09-03
   tags: [type/skill, activity/milestone]
   diataxis: how-to
   authored_via: manual
@@ -24,94 +24,49 @@ Workflow for creating a milestone artifact via the `anvil` CLI. Milestones sit o
 
 ## When this skill runs
 
-- A product-design or system-design exists for the project.
-- User wants to carve the next shippable increment (M1, M2, etc.).
-- Before any issues are written for that increment.
+- A product-design or system-design exists for the project, and the user wants to carve the next shippable increment (M1, M2, etc.), before any issues are written for it.
 
 ## When not to use
 
-- No design doc exists yet → use `writing-product-design` or `writing-system-design` first.
+- No design doc exists yet → `writing-product-design` or `writing-system-design` first.
 - Work item level (a task, bug, feature) → `writing-issue`.
-- Editing existing milestone frontmatter only (date bump, status flip) — that's a direct `anvil set` call, not this workflow.
-
----
+- Editing existing milestone frontmatter only (date bump, status flip) → a direct `anvil set` call, not this workflow.
 
 ## Phase 1 — Read the design doc
 
-Find the active project, then read the design doc.
-
 ```bash
 anvil project current
+anvil list product-design --project <project>
+anvil list system-design --project <project>
 ```
 
-The design doc lives at `05-projects/<project>/product-design.md` or `05-projects/<project>/system-design.md` inside the vault. Read the file at that path directly — designs are not yet typed artifacts in the CLI.
-
-Confirm with the user which design doc to derive from (product or system, or both).
+Read the returned artifact(s) directly (`anvil show product-design <id> --body` / `anvil show system-design <id> --body`).
 
 **Gate:** user confirms which design doc drives scope.
 
----
-
 ## Phase 2 — Shape the milestone body
 
-Draft the following before calling the CLI:
+Draft before calling the CLI: **title** (verb-noun, one line), **goal** (one sentence, ≤120 chars, terminal predicate — required by schema), **kind** (`scoped` default, or `bucket` for rolling-findings trackers only), **acceptance** (runnable predicates — required for `kind: scoped`).
 
-- **title** — one line; verb-noun ("Ship X", "Validate Y", "Deliver Z").
-- **goal** — one sentence, ≤120 chars: the terminal predicate (what "done" means for this milestone), mirroring how issues carry a `goal`. Required by the schema; `anvil create milestone` fails without it.
-- **kind** — `scoped` (the default — discrete shippable bundle with acceptance criteria) or `bucket` (rolling-findings tracker; `acceptance` stays `[]`). Pick `bucket` only for friction-collection milestones; everything else is `scoped`.
-- **acceptance** — testable conditions for "done"; each must be a runnable predicate (a command that exits 0/1, or an observation a reader can re-check without ambiguity), never prose that merely looks testable. Each bullet names the command or query that measures it and what green reads as (`exits 0`, `= 0 rows`); "SQL predicate: zero X" with no SQL is prose. Required substance for `kind: scoped`.
+**REQUIRED REFERENCE:** Use skills/writing-milestone/references/finish-line.md — refuse a state-phrased goal or silent empty acceptance before proceeding.
 
-### Finish-line gate (scoped only)
+**REQUIRED REFERENCE:** Use skills/writing-milestone/references/body-shape.md — the four-section body a cold reader needs.
 
-A scoped milestone needs a **witnessable finish line** — a point a future agent can run and see is reached. Two silent ways it lacks one; refuse both here rather than carry them into Phase 3:
-
-- **State-phrased goal.** The `goal` names an ongoing condition ("docs *stay* accurate", "the CLI *remains* fast") instead of an event. A persisting state never closes, so the milestone never ends. Refuse it: rewrite the goal as a terminal predicate ("docs match the shipped flags as of <sha>"), or — if the work genuinely is open-ended collection — flip to a bucket (below).
-- **Silent empty acceptance.** `acceptance` is left `[]` on a `kind: scoped` milestone. That is the bucket anti-pattern smuggled into the wrong kind: a scoped milestone with no closeable AC. Refuse it — do not proceed with empty acceptance on a scoped milestone.
-
-The author resolves a refusal one of two ways, deliberately:
-
-1. **Write the finish line** — supply at least one runnable-predicate acceptance criterion (and an event-phrased goal). This is the default.
-2. **Explicit bucket affirmation** — the work really is a rolling-findings tracker with no end. Affirm it out loud, then flip `kind` to `bucket` in Phase 3; `acceptance: []` is then legal *because the choice was made, not defaulted into*.
-
-### Body shape (cold reader)
-
-The reader is a human deciding what to work next, or an agent at issue-start reading one hop up the spine. Four sections, in this order:
-
-- `## Objective`
-  - Lead sentence: what ships and what it changes for whom. ≤25 words, no history or mechanism.
-  - Why now: the gap, with its measurement in a short list.
-  - **Waves**: an ordered list, one line each, naming what lands. Add issue ids as they are written. Wave order becomes typed edges on the issues (`writing-issue` Phase 4b), never prose alone.
-- `## Non-goals` — bulleted scope fence.
-- `## Links` — sibling milestones and reader-facing references. The governing design travels in the typed slots (Phase 4); contracts reach a worker via `writing-issue` Phase 4b, not from here.
-- `## Status` — one dated block, rewritten in place: each AC with met / not met and the measured value. The issue map is `anvil list issue --milestone <id>`; do not copy it here.
-
-No `## Success criteria` section. `acceptance:` is the single source; refine it with `anvil set milestone <id> acceptance --add/--remove`, never by appending an "AC refinement" section.
-
-One idea per sentence, about 20 words, no chained clauses. Test before create: cover everything after the Objective's first sentence. Can a reader say what ships?
-
-**Gate:** user confirms title, goal, kind, and acceptance criteria — and, for a scoped milestone, that the goal is event-phrased and acceptance carries at least one runnable predicate; for a bucket, that the open-ended kind was explicitly affirmed.
-
----
+**Gate:** user confirms title, goal, kind, and acceptance — and, for scoped, that the goal is event-phrased and acceptance carries a runnable predicate; for bucket, that the open-ended kind was explicitly affirmed.
 
 ## Phase 3 — Create
 
 ```bash
-anvil create milestone \
-  --title "<title>" \
-  --description "<one-line preview>" \
-  --goal "<terminal predicate>" \
-  --json
+anvil create milestone --title "<title>" --description "<one-line preview>" --goal "<terminal predicate>" --json
 ```
 
-Capture `id` and `path` from the JSON output. The artifact ships with `kind: scoped` by default. If this is a bucket milestone, flip it now:
+Capture `id` and `path` from the JSON output; ships `kind: scoped` by default — flip if bucket:
 
 ```bash
 anvil set milestone <id> kind bucket
 ```
 
-Then direct-edit the body sections (shape in Phase 2) into the file the CLI created at `path`.
-
----
+Then direct-edit the body sections (shaped in Phase 2) into the file at `path`.
 
 ## Phase 4 — Link to design docs
 
@@ -120,23 +75,11 @@ anvil set milestone <id> product_design "[[product-design.<project>]]"
 anvil set milestone <id> system_design "[[system-design.<project>]]"
 ```
 
-Both calls land in dedicated typed slots. The `system_design` slot is the milestone's governing spine edge — issues scoped under it inherit that design as their box grounding. Make an absent link an **explicit decision**, never a silent omission: attach the governing design, or affirm to the user that no design governs this milestone's scope ("no design governs this slice") before leaving the slot empty.
-
----
+`system_design` is the governing spine edge — issues scoped under it inherit that design as box grounding. Make an absent link an **explicit decision**: attach the governing design, or affirm to the user that none governs this slice, before leaving the slot empty.
 
 ## Phase 4b — Contract coverage
 
-Name the component families this milestone owns (read them off the acceptance criteria), then see which already have a governing contract:
-
-```bash
-anvil list contract --json
-```
-
-A contract **accretes from building**, so it is authored at the start of the milestone that owns the family (`docs/system-design.md`, contract cadence). For an **extremely obvious** uncovered family — one this milestone plainly owns and builds against — surface the gap and, on the user's confirmation, fire `writing-contract` (author mode) for it. Skip silently when every family the milestone owns is already covered, or when the gap is ambiguous — never author speculatively. This is the authoring end of the cadence; `writing-issue` Phase 4b stays link-only.
-
-**REQUIRED SUB-SKILL (on confirmed gap only):** Use `writing-contract`.
-
----
+**REQUIRED REFERENCE:** Use skills/writing-milestone/references/contract-coverage.md
 
 ## Phase 5 — Validate
 
@@ -145,8 +88,6 @@ anvil show milestone <id> --validate
 ```
 
 Fix any schema errors reported. Re-run until clean.
-
----
 
 ## Hand-off
 
