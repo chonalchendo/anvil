@@ -147,6 +147,10 @@ func staticBodyFailures(cmd *cobra.Command, v *core.Vault, t core.Type, path str
 		for _, vErr := range core.ValidateLearning(a, nil) {
 			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
 		}
+	case core.TypeMilestone:
+		for _, vErr := range core.ValidateMilestone(a) {
+			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
+		}
 	}
 	return failures
 }

@@ -142,6 +142,8 @@ func sectionsForType(t core.Type) []string {
 		return core.RequiredLearningSections
 	case core.TypeIssue:
 		return core.RequiredIssueSections
+	case core.TypeMilestone:
+		return core.RequiredMilestoneSections
 	default:
 		return nil
 	}
@@ -154,7 +156,7 @@ func sectionsForType(t core.Type) []string {
 func runShowTemplate(cmd *cobra.Command, t core.Type) error {
 	sections := sectionsForType(t)
 	if sections == nil {
-		return fmt.Errorf("--show-template: no required body template for %s (learning, issue)", t)
+		return fmt.Errorf("--show-template: no required body template for %s (learning, issue, milestone)", t)
 	}
 	w := cmd.OutOrStdout()
 	fmt.Fprintln(w, core.ScaffoldSections(sections))

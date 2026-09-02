@@ -92,7 +92,7 @@ anvil set milestone <id> system_design "[[system-design.<project>]]"
 anvil show milestone <id> --validate
 ```
 
-Fix any schema errors reported. Re-run until clean.
+Fix any schema errors reported. Re-run until clean. Validate now also enforces body shape: the four required headings in order, no `## Success criteria` section, and (for `kind: scoped`) non-empty `acceptance`.
 
 ## Hand-off
 
