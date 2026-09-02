@@ -39,10 +39,8 @@ func initGitRepo(t *testing.T, dir string) {
 	runGit(t, dir, "commit", "-q", "-m", "init")
 }
 
-// realGitWorktreeFns swaps the gitWorktree*/gitDeleteLocalBranch seams for
-// their real (process-executing) implementations, restoring the stubSideFX
-// fakes on cleanup. Used by tests that need the real `git worktree remove`
-// effect, not just the recorded call the stub asserts.
+// realGitWorktreeFns swaps the gitWorktree*/gitDeleteLocalBranch seams for the real
+// implementations — tests asserting the filesystem effect, not the stub's recorded call.
 func realGitWorktreeFns(t *testing.T) {
 	t.Helper()
 	prevAdd, prevList, prevFetch, prevOriginHEAD := gitWorktreeAddFn, gitWorktreeListFn, gitFetchOriginFn, gitResolveOriginHEADFn
@@ -302,8 +300,14 @@ func TestCutWorktreeHookTimeoutRefusesAndCleansUp(t *testing.T) {
 
 	repoDir := t.TempDir()
 	// Backgrounds an orphan that inherits stderr and outlives the hook's own
-	// foreground sleep, recording its pid so the test can prove it's dead.
-	writeHookScript(t, repoDir, "#!/bin/sh\nsleep 100 &\necho $! > orphan.pid\nsleep 100\n", 0o700) //nolint:gosec // G306: fixture must stay executable
+	// foreground sleep — group liveness is asserted via hookStartedFn below,
+	// not by reading a fixture-written pid file against the deadline.
+	writeHookScript(t, repoDir, "#!/bin/sh\nsleep 100 &\nsleep 100\n", 0o700) //nolint:gosec // G306: fixture must stay executable
+
+	var hookPid int
+	prevHookStartedFn := hookStartedFn
+	hookStartedFn = func(pid int) { hookPid = pid }
+	t.Cleanup(func() { hookStartedFn = prevHookStartedFn })
 
 	s := stubSideFX(t)
 	s.repoDir = repoDir
@@ -336,8 +340,7 @@ func TestCutWorktreeHookTimeoutRefusesAndCleansUp(t *testing.T) {
 		t.Errorf("missing cut_worktree_hook_timeout code: %s", stdout.String())
 	}
 
-	pid := readOrphanPid(t, repoDir)
-	assertOrphanDead(t, pid)
+	assertGroupDead(t, hookPid)
 
 	if len(s.removeForceCalls) != 1 || s.removeForceCalls[0].Path != wtPath {
 		t.Errorf("expected worktree force-removed on hook timeout; removeForceCalls = %+v", s.removeForceCalls)
@@ -349,6 +352,48 @@ func TestCutWorktreeHookTimeoutRefusesAndCleansUp(t *testing.T) {
 	if a.FrontMatter["status"] != "open" {
 		t.Errorf("status = %v after refusal, want open (unchanged)", a.FrontMatter["status"])
 	}
+}
+
+// A hook that fails (not via timeout or orphaned-stderr) must still have its
+// process group killed — regression test for the hoisted group-kill on any
+// non-nil Run error. Race-free: Run cannot return before the pid file is
+// written, since the hook exits only after writing it.
+func TestCutWorktreeHookFailureKillsOrphan(t *testing.T) {
+	prevWaitDelayFn := worktreeHookWaitDelayFn
+	worktreeHookWaitDelayFn = func() time.Duration { return 200 * time.Millisecond }
+	t.Cleanup(func() { worktreeHookWaitDelayFn = prevWaitDelayFn })
+
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	repoDir := t.TempDir()
+	// exit 1 races Wait's WaitDelay against the orphan holding stderr; shrink
+	// WaitDelay so the test doesn't pay the default 5s to observe the same kill.
+	writeHookScript(t, repoDir, "#!/bin/sh\nsleep 100 &\necho $! > orphan.pid\nexit 1\n", 0o700) //nolint:gosec // G306: fixture must stay executable
+
+	s := stubSideFX(t)
+	s.repoDir = repoDir
+	wtPath := filepath.Join(t.TempDir(), "wt")
+	if err := os.MkdirAll(wtPath, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--worktree", wtPath, "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected refusal; stdout: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "cut_worktree_hook_failed") {
+		t.Errorf("missing cut_worktree_hook_failed code: %s", stdout.String())
+	}
+
+	pid := readOrphanPid(t, repoDir)
+	assertOrphanDead(t, pid)
 }
 
 // A hook that exits 0 but leaves a descendant holding the stderr pipe open
@@ -456,5 +501,24 @@ func assertOrphanDead(t *testing.T, pid int) {
 	}
 	if !errors.Is(killErr, syscall.ESRCH) {
 		t.Errorf("orphan pid %d still alive after refusal (kill -0 = %v), want ESRCH — group-kill left a descendant running", pid, killErr)
+	}
+}
+
+// assertGroupDead polls kill(-pid, 0) — the process-group form — for up to
+// 500ms, proving every process the hook started (itself and any backgrounded
+// child) is dead, without depending on a fixture-written pid file.
+func assertGroupDead(t *testing.T, pid int) {
+	t.Helper()
+	deadline := time.Now().Add(500 * time.Millisecond)
+	var killErr error
+	for {
+		killErr = syscall.Kill(-pid, 0)
+		if errors.Is(killErr, syscall.ESRCH) || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !errors.Is(killErr, syscall.ESRCH) {
+		t.Errorf("group %d still alive after refusal (kill -0 = %v), want ESRCH — group-kill left a descendant running", pid, killErr)
 	}
 }

@@ -37,6 +37,11 @@ var worktreeHookWaitDelayFn = func() time.Duration { return worktreeHookWaitDela
 
 var runWorktreeHookFn = runWorktreeHookReal
 
+// hookStartedFn fires with the hook's own pid right after Start — a seam so
+// a test can assert group liveness via syscall.Kill(-pid, 0) instead of
+// racing a fixture-written pid file against the timeout deadline.
+var hookStartedFn = func(_ int) {}
+
 // runWorktreeHookReal runs repoDir's worktreeHookName if present, synchronously.
 // Missing hook is a no-op; a present-but-failing one (incl. timeout) returns
 // Structured — the caller cleans up the worktree and branch.
@@ -65,10 +70,8 @@ func runWorktreeHookReal(repoDir, worktreePath string) error {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, hookPath, worktreePath) //nolint:gosec // G204: fixed repo-relative name, executable bit checked above, bounded by worktreeHookTimeout
 	cmd.Dir = repoDir
-	// Setpgid + group-kill Cancel make the process group the unit: a timeout
-	// or interrupt must kill every descendant, not just the direct child, or
-	// an orphan keeps the stderr pipe open and wedges Wait for the full
-	// WaitDelay.
+	// Setpgid + group-kill Cancel: a timeout or interrupt must kill every
+	// descendant, or an orphan holds stderr and wedges Wait for WaitDelay.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error {
 		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
@@ -76,7 +79,13 @@ func runWorktreeHookReal(repoDir, worktreePath string) error {
 	cmd.WaitDelay = worktreeHookWaitDelayFn()
 	stderr := &boundedBuffer{capBytes: tailByteCap}
 	cmd.Stderr = stderr
-	runErr := cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return errfmt.NewStructured("cut_worktree_hook_failed").
+			Set("hook", hookPath).
+			Set("error", err.Error())
+	}
+	hookStartedFn(cmd.Process.Pid)
+	runErr := cmd.Wait()
 	// Any non-nil error may leave an orphan holding stderr — kill the group
 	// unconditionally, not just on the timeout/ErrWaitDelay branches below.
 	if runErr != nil && cmd.Process != nil {
