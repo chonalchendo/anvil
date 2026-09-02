@@ -10,7 +10,7 @@ metadata:
   skill_type: workflow
   side: design
   created: 2026-04-30
-  updated: 2026-06-04
+  updated: 2026-09-02
   tags: [type/skill, activity/milestone]
   diataxis: how-to
   authored_via: manual
@@ -59,7 +59,7 @@ Draft the following before calling the CLI:
 - **title** — one line; verb-noun ("Ship X", "Validate Y", "Deliver Z").
 - **goal** — one sentence, ≤120 chars: the terminal predicate (what "done" means for this milestone), mirroring how issues carry a `goal`. Required by the schema; `anvil create milestone` fails without it.
 - **kind** — `scoped` (the default — discrete shippable bundle with acceptance criteria) or `bucket` (rolling-findings tracker; `acceptance` stays `[]`). Pick `bucket` only for friction-collection milestones; everything else is `scoped`.
-- **acceptance** — testable conditions for "done"; each must be a runnable predicate (a command that exits 0/1, or an observation a reader can re-check without ambiguity), never prose that merely looks testable. Required substance for `kind: scoped`.
+- **acceptance** — testable conditions for "done"; each must be a runnable predicate (a command that exits 0/1, or an observation a reader can re-check without ambiguity), never prose that merely looks testable. Each bullet names the command or query that measures it and what green reads as (`exits 0`, `= 0 rows`); "SQL predicate: zero X" with no SQL is prose. Required substance for `kind: scoped`.
 
 ### Finish-line gate (scoped only)
 
@@ -72,6 +72,22 @@ The author resolves a refusal one of two ways, deliberately:
 
 1. **Write the finish line** — supply at least one runnable-predicate acceptance criterion (and an event-phrased goal). This is the default.
 2. **Explicit bucket affirmation** — the work really is a rolling-findings tracker with no end. Affirm it out loud, then flip `kind` to `bucket` in Phase 3; `acceptance: []` is then legal *because the choice was made, not defaulted into*.
+
+### Body shape (cold reader)
+
+The reader is a human deciding what to work next, or an agent at issue-start reading one hop up the spine. Four sections, in this order:
+
+- `## Objective`
+  - Lead sentence: what ships and what it changes for whom. ≤25 words, no history or mechanism.
+  - Why now: the gap, with its measurement in a short list.
+  - **Waves**: an ordered list, one line each, naming what lands. Add issue ids as they are written. Wave order becomes typed edges on the issues (`writing-issue` Phase 4b), never prose alone.
+- `## Non-goals` — bulleted scope fence.
+- `## Links` — sibling milestones and reader-facing references. The governing design travels in the typed slots (Phase 4); contracts reach a worker via `writing-issue` Phase 4b, not from here.
+- `## Status` — one dated block, rewritten in place: each AC with met / not met and the measured value. The issue map is `anvil list issue --milestone <id>`; do not copy it here.
+
+No `## Success criteria` section. `acceptance:` is the single source; refine it with `anvil set milestone <id> acceptance --add/--remove`, never by appending an "AC refinement" section.
+
+One idea per sentence, about 20 words, no chained clauses. Test before create: cover everything after the Objective's first sentence. Can a reader say what ships?
 
 **Gate:** user confirms title, goal, kind, and acceptance criteria — and, for a scoped milestone, that the goal is event-phrased and acceptance carries at least one runnable predicate; for a bucket, that the open-ended kind was explicitly affirmed.
 
@@ -93,7 +109,7 @@ Capture `id` and `path` from the JSON output. The artifact ships with `kind: sco
 anvil set milestone <id> kind bucket
 ```
 
-Then direct-edit the body sections (objectives, success criteria, non-goals) into the file the CLI created at `path`.
+Then direct-edit the body sections (shape in Phase 2) into the file the CLI created at `path`.
 
 ---
 

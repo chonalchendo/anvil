@@ -6,7 +6,7 @@ For frontmatter, see [vault-schemas.md](vault-schemas.md#issue). The issue's ter
 
 ## Required body sections
 
-- `## Problem` — one paragraph. What is broken or missing.
+- `## Problem` — lead sentence naming what is wrong, then evidence, cause, direction, sequencing; `writing-issue` owns the shape.
 - `## Non-goals` — bulleted. What is explicitly out of scope.
 - `## Verification` — operational checks; both subsections below required.
 - `## Links` — `[[wikilink]]` form. Targets must resolve.

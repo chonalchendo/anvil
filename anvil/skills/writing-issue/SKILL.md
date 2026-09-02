@@ -10,7 +10,7 @@ metadata:
   skill_type: workflow
   side: execution
   created: 2026-04-30
-  updated: 2026-04-30
+  updated: 2026-09-02
   tags: [type/skill, activity/issue]
   diataxis: how-to
   authored_via: manual
@@ -192,7 +192,7 @@ When promoting an inbox item, pass `--tags` on the `anvil promote <id> --as issu
 
 Compose the **goal** first: one sentence, ≤120 chars, naming what "done" means — the issue's terminal predicate. It is required (`--goal`) and gates the claim later. Keep it a predicate ("inbox no longer drops items on concurrent writes"), not a task list.
 
-**Outcome, not mechanism.** ACs and `goal:` must name an observable outcome ("dev run rows auto-reap on a cadence"), not a mechanism ("a cron workflow invokes `gc_dev_runs`"). An AC that prescribes a mechanism ties the implementer to an unverified assumption and makes the issue fragile to a mechanism pivot. Mechanism detail belongs in `## Problem` prose where it informs but does not constrain.
+**Outcome, not mechanism.** ACs and `goal:` must name an observable outcome ("dev run rows auto-reap on a cadence"), not a mechanism ("a cron workflow invokes `gc_dev_runs`"). An AC that prescribes a mechanism ties the implementer to an unverified assumption and makes the issue fragile to a mechanism pivot. Mechanism detail belongs in the Direction paragraph of `## Problem` (shape below) where it informs but does not constrain.
 
 **Feasibility gate for prescribed mechanisms.** If any AC or `## Verification` block names a specific tool, CLI command, or runtime behaviour as the mechanism, verify runtime feasibility before the issue lands: run the one command that proves the mechanism works (or fails) in this environment. If it fails, either rewrite the AC as an outcome and drop the mechanism, or split out a feasibility spike issue. Prescribing an unverified mechanism defers the discovery cost to `completing-issue` — after a fleet dispatch, a review, and multiple responder rounds have already run.
 
@@ -206,15 +206,26 @@ Every predicate, contract-drawn or not, satisfies the universal bars:
 - **Exercise, not presence** — assert on behaviour (output, a returned value, a side-effect), never that a source file contains a string. The carve-out is a doc/skill-body change with no runtime behaviour: there, grep the *built/installed* artifact, never the source tree.
 - **Create the unmet condition first** — prescribe a pre-step so the check fails *before* the change and passes *after* (a `max(A)==max(B)` freshness check is false-green when prior state already aligned both sides).
 - **Anchor structurally** — assert against parsed structure (`jq` path, a typed field, an equality), not a bare substring grep.
+- **The goal's own measure** — when `goal:` names a count, rate, or corpus state, the Indirect block computes that measure after its stated pre-step, never a fixture proxy. A prose "post-merge: re-measure" under the block is the tell that the goal is unverified.
 - **Feasibility gate** — run each prescribed command in this environment before the issue lands (the gate stated above), so a block copied from a sibling never ships unrunnable.
 - **No pipe from a side-effect command into an early-exit reader** — `grep -q`/`head` closes the pipe on first match and SIGPIPE-kills the producer mid-run, so the predicate passes while the side effect never completed. Capture first, then assert: `o=$(mktemp); producer > "$o"; grep -q X "$o"`.
+
+**Write `## Problem` for a cold reader.** The reader is a human triaging the queue weeks later, not the agent that found the gap, and they get one pass. Order the section so the first sentence alone says what is wrong, and lead plus evidence together let them judge severity:
+
+1. **Lead sentence** — what is broken or missing and what it stops. Plain words, ≤25 words. No cause, evidence, history, or identifiers.
+2. **Evidence** — what proves the gap today: a measurement, a reproduction, or the thing a user cannot do. Counts, ids, paths, and timestamps go in a short list or table, never inline in prose.
+3. **Cause** — its own paragraph when known; a refactor's forcing function goes here. Omit when the kind has none.
+4. **Direction** — the fix in one short paragraph, closing with the files or modules it touches. Mechanism informs but does not constrain; design depth lives in the plan or PR.
+5. **Sequencing** — dependencies and ordering, one line at the end. Every issue it names becomes a typed edge in Phase 4b, direction stated. Omit when none.
+
+One idea per sentence, about 20 words, no chained clauses. Cut anything the reader does not need to decide whether and when to work the issue. Test before `create`. Cover everything after the first sentence: can a reader say what is wrong? Cover everything after the evidence: could they pick a severity? Either fails, rewrite.
 
 Author the body up front and pass it to `create` via `--body-file` (or `--body -` for piped stdin). `create` validates the frontmatter AND body (required H2s, wikilink targets) and rolls back the write on failure — no separate `anvil validate` step. The `## Verification` block uses fenced bash; the format is specified below.
 
 ````bash
 cat > /tmp/issue-body.md <<'EOF'
 ## Problem
-<one paragraph from convergence (fuzzy) or the stated problem (decisive)>
+<lead sentence: what is wrong. Then evidence, cause, direction, sequencing — shape above>
 
 ## Non-goals
 - <from Phase 3 smallest-viable or stated up front>
@@ -263,7 +274,7 @@ Bare positional values on array fields **replace** the array; use `--add VALUE` 
 
 Required body sections (enforced by `create`):
 
-- `## Problem` — one paragraph from convergence (fuzzy) or the stated problem (decisive).
+- `## Problem` — lead sentence, then evidence, cause, direction, sequencing (shape in Phase 4 above).
 - `## Non-goals` — from Phase 3 smallest-viable (fuzzy) or stated up front (decisive).
 - `## Verification` — operational checks in fenced bash blocks. Two subsections, both required:
   - `### Direct` — fenced `bash` block with ≥1 line. Each line must exit 0. Typically unit/integration tests run against the dev tree.
@@ -274,9 +285,9 @@ Required body sections (enforced by `create`):
 
 ---
 
-## Phase 4b — Link governing contract(s) and system-design
+## Phase 4b — Typed slots: contracts, system-design, dependencies, anchor
 
-After the issue is created, link the governing context a worker loads at issue-start (`completing-issue` Phase 1, via `--links … --body`) and a reviewer uses as a rubric (`reviewing-pr`).
+After the issue is created, link the governing context a worker loads at issue-start (`completing-issue` Phase 1, via `--links … --body`) and a reviewer uses as a rubric (`reviewing-pr`), then set the slots the queue and the claim gate read.
 
 **Contract(s)** — `anvil list contract --json`; for each whose scope description matches the issue's domain:
 
@@ -293,6 +304,17 @@ anvil link issue <issue-id> system-design <project>   # bare `burgh` or canonica
 Substitute the real ids: `anvil link` refuses a target still carrying `<`, `>`, or whitespace rather than writing a dead edge.
 
 This is the Option-A routing association and the issue's governing spine edge that `completing-issue` walks to hydrate the box. Make a missing link an **explicit decision**: attach the governing design, or affirm to the user in one line that none governs this slice ("no design governs this slice") — never a silent skip. Don't invent a link to satisfy the check.
+
+**Dependencies** — one edge per issue the Sequencing line names. A prerequisite this issue waits on takes `depends_on`; an issue that waits on this one takes `blocks`:
+
+```bash
+anvil link issue <issue-id> issue <prereq-id> --relation depends_on
+anvil link issue <issue-id> issue <waiting-id> --relation blocks
+```
+
+`anvil list issue --ready` reads typed edges only (`depends_on`, `blocks`). Ordering left in prose ("after PR #517 lands") is invisible to it, and a fleet worker claims the issue early.
+
+**Reproduction anchor** — bug kind only; the command and shape live in `references/bug.md`. Author one whenever a command can capture the failure; skipping it is a stated one-line decision, never a silent default.
 
 ---
 
