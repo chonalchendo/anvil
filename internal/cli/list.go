@@ -222,20 +222,11 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 		return err
 	}
 
-	// Milestone rows carry a derived children summary + staleness flag, so
-	// the queue view surfaces drift between stored status and linked-issue
-	// progress (anvil.0275) without a separate `anvil milestone status` call
-	// per row. An unopenable index degrades to Children/Stale left nil rather
-	// than failing the whole list — matching show.go's degraded path, since
-	// the vault scan below still works without the index.
-	var db *index.DB
-	if t == core.TypeMilestone {
-		if opened, dberr := indexForRead(v); dberr != nil {
-			cmd.PrintErrln("warning: milestone children: " + dberr.Error())
-		} else {
-			db = opened
-			defer db.Close() //nolint:errcheck,gosec // close in defer; error not actionable
-		}
+	// Milestone rows carry a derived children summary + staleness flag
+	// (anvil.0275); see list_milestone.go.
+	db := openMilestoneListIndex(cmd, v, t)
+	if db != nil {
+		defer db.Close() //nolint:errcheck,gosec // close in defer; error not actionable
 	}
 
 	var items []listItem
@@ -278,15 +269,9 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 			Milestone: milestone, Tags: stringTags(a.FrontMatter["tags"]), Path: path,
 			MissingSection: missingSection,
 		}
-		if db != nil {
-			mc, merr := db.MilestoneChildren(id)
-			if merr != nil {
-				return merr
-			}
-			kind, _ := a.FrontMatter["kind"].(string)
-			stale := index.MilestoneStale(mc, status, kind)
-			item.Children = &mc
-			item.Stale = &stale
+		kind, _ := a.FrontMatter["kind"].(string)
+		if err := enrichMilestoneItem(db, &item, id, status, kind); err != nil {
+			return err
 		}
 		items = append(items, item)
 	}
