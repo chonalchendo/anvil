@@ -242,7 +242,11 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 
 	if t == core.TypeMilestone {
 		for _, vErr := range core.ValidateMilestone(a) {
-			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+			e := errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error())
+			if sweep {
+				e = e.WithSeverity(errfmt.SeverityWarning)
+			}
+			out = append(out, e)
 		}
 	}
 
