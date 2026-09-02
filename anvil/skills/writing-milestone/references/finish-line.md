@@ -1,5 +1,7 @@
 # Finish-line gate (scoped only)
 
+Each acceptance bullet is a runnable predicate — a command that exits 0/1, or an observation a reader can re-check without ambiguity — never prose that merely looks testable. Each bullet names the command or query that measures it and what green reads as (`exits 0`, `= 0 rows`); "SQL predicate: zero X" with no SQL is prose.
+
 A scoped milestone needs a **witnessable finish line** — a point a future agent can run and see is reached. Two silent ways it lacks one; refuse both here rather than carry them into Phase 3:
 
 - **State-phrased goal.** The `goal` names an ongoing condition ("docs *stay* accurate", "the CLI *remains* fast") instead of an event. A persisting state never closes, so the milestone never ends. Refuse it: rewrite the goal as a terminal predicate ("docs match the shipped flags as of <sha>"), or — if the work genuinely is open-ended collection — flip to a bucket.

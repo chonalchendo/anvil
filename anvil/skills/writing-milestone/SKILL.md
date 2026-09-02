@@ -24,7 +24,9 @@ Workflow for creating a milestone artifact via the `anvil` CLI. Milestones sit o
 
 ## When this skill runs
 
-- A product-design or system-design exists for the project, and the user wants to carve the next shippable increment (M1, M2, etc.), before any issues are written for it.
+- A product-design or system-design exists for the project.
+- The user wants to carve the next shippable increment (M1, M2, etc.).
+- Before any issues are written for that increment.
 
 ## When not to use
 
@@ -40,16 +42,19 @@ anvil list product-design --project <project>
 anvil list system-design --project <project>
 ```
 
-Read the returned artifact(s) directly (`anvil show product-design <id> --body` / `anvil show system-design <id> --body`).
+Read the returned artifact(s) directly (`anvil show product-design <id> --body` / `anvil show system-design <id> --body`). If both lookups return empty, say so and stop: `writing-product-design` or `writing-system-design` runs first.
 
 **Gate:** user confirms which design doc drives scope.
 
 ## Phase 2 — Shape the milestone body
 
-Draft before calling the CLI: **title** (verb-noun, one line), **goal** (one sentence, ≤120 chars, terminal predicate — required by schema), **kind** (`scoped` default, or `bucket` for rolling-findings trackers only), **acceptance** (runnable predicates — required for `kind: scoped`).
+Draft before calling the CLI:
+- **title** — verb-noun, one line.
+- **goal** — one sentence, ≤120 chars, terminal predicate; required by schema.
+- **kind** — `scoped` default, or `bucket` for rolling-findings trackers only.
+- **acceptance** — runnable predicates (substance: `references/finish-line.md`); required for `kind: scoped`.
 
 **REQUIRED REFERENCE:** Use skills/writing-milestone/references/finish-line.md — refuse a state-phrased goal or silent empty acceptance before proceeding.
-
 **REQUIRED REFERENCE:** Use skills/writing-milestone/references/body-shape.md — the four-section body a cold reader needs.
 
 **Gate:** user confirms title, goal, kind, and acceptance — and, for scoped, that the goal is event-phrased and acceptance carries a runnable predicate; for bucket, that the open-ended kind was explicitly affirmed.
@@ -60,7 +65,7 @@ Draft before calling the CLI: **title** (verb-noun, one line), **goal** (one sen
 anvil create milestone --title "<title>" --description "<one-line preview>" --goal "<terminal predicate>" --json
 ```
 
-Capture `id` and `path` from the JSON output; ships `kind: scoped` by default — flip if bucket:
+Capture `id` and `path` from the JSON output. It ships `kind: scoped` by default; flip if bucket:
 
 ```bash
 anvil set milestone <id> kind bucket
@@ -75,7 +80,7 @@ anvil set milestone <id> product_design "[[product-design.<project>]]"
 anvil set milestone <id> system_design "[[system-design.<project>]]"
 ```
 
-`system_design` is the governing spine edge — issues scoped under it inherit that design as box grounding. Make an absent link an **explicit decision**: attach the governing design, or affirm to the user that none governs this slice, before leaving the slot empty.
+`system_design` is the governing spine edge — issues scoped under it inherit that design as box grounding. Make an absent link an **explicit decision**, not a silent omission. Either attach the governing design, or affirm to the user that none governs this slice, before leaving the slot empty.
 
 ## Phase 4b — Contract coverage
 
@@ -91,6 +96,4 @@ Fix any schema errors reported. Re-run until clean.
 
 ## Hand-off
 
-**REQUIRED SUB-SKILL:** Use `writing-issue`.
-
-Next: `writing-issue` for the first issue under this milestone.
+**REQUIRED SUB-SKILL:** Use `writing-issue` for the first issue under this milestone.
