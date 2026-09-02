@@ -108,6 +108,20 @@ func gitWorktreeRemoveReal(repoDir, path string) error {
 	return nil
 }
 
+// gitWorktreeRemoveForceReal is gitWorktreeRemoveReal's --force variant: a
+// plain remove refuses once the hook wrote a non-gitignored file; land-pr
+// stays non-force so uncommitted work isn't discarded.
+func gitWorktreeRemoveForceReal(repoDir, path string) error {
+	cmd := exec.Command("git", "worktree", "remove", "--force", path) //nolint:gosec // binary path resolved from trusted sources; not user input
+	if repoDir != "" {
+		cmd.Dir = repoDir
+	}
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git worktree remove --force: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 // gitDeleteLocalBranchReal deletes the local branch via `git branch -D`, run
 // from repoDir (the main worktree) so it does not depend on the caller's cwd —
 // which may be the worktree just removed. Run after the worktree is removed so

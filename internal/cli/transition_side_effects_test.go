@@ -31,6 +31,8 @@ type sideFXStub struct {
 	addCalls               []addCall
 	removeErr              error
 	removeCalls            []removeCall
+	removeForceErr         error
+	removeForceCalls       []removeCall
 	localBranchDeleteErr   error
 	localBranchDeleteCalls []localBranchDeleteCall
 	mainRoot               string
@@ -92,6 +94,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 	prevList := gitWorktreeListFn
 	prevAdd := gitWorktreeAddFn
 	prevRemove := gitWorktreeRemoveFn
+	prevRemoveForce := gitWorktreeRemoveForceFn
 	prevLocalBranchDelete := gitDeleteLocalBranchFn
 	prevMain := gitMainRootFn
 	prevFetch := gitFetchOriginFn
@@ -115,6 +118,10 @@ func stubSideFX(t *testing.T) *sideFXStub {
 	gitWorktreeRemoveFn = func(dir, path string) error {
 		s.removeCalls = append(s.removeCalls, removeCall{Dir: dir, Path: path})
 		return s.removeErr
+	}
+	gitWorktreeRemoveForceFn = func(dir, path string) error {
+		s.removeForceCalls = append(s.removeForceCalls, removeCall{Dir: dir, Path: path})
+		return s.removeForceErr
 	}
 	gitDeleteLocalBranchFn = func(dir, branch string) error {
 		s.localBranchDeleteCalls = append(s.localBranchDeleteCalls, localBranchDeleteCall{Dir: dir, Branch: branch})
@@ -175,6 +182,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		gitWorktreeListFn = prevList
 		gitWorktreeAddFn = prevAdd
 		gitWorktreeRemoveFn = prevRemove
+		gitWorktreeRemoveForceFn = prevRemoveForce
 		gitDeleteLocalBranchFn = prevLocalBranchDelete
 		gitMainRootFn = prevMain
 		gitFetchOriginFn = prevFetch

@@ -76,6 +76,12 @@ A gate whose Bash call did not carry that prefix is void — discard the result 
 
 This section encodes harness behaviour, not skill behaviour: it is duplicated in the other two dispatched-worker contracts (the `anvil-pr-reviewer` agent, the `anvil-pr-responder` agent) — edit all three together.
 
+## Worktree-env invariant
+
+Every project command runs from the dispatched worktree — never the parent checkout. The worktree's own `.env` is the dispatch environment: never source or symlink the parent checkout's `.env` into it, and never `cd` to the parent checkout to run a project verb — either silently swaps in the wrong environment. Never unset or override `MENTAT_CATALOG_PRINCIPAL` (the mentat instance of a project-declared principal variable) — the worktree's `.env` already carries the read-only agent identity the contract grants; touching it trades that for access the contract never gave.
+
+This section is duplicated in the `anvil-issue-worker`, `anvil-pr-responder`, and `anvil-pr-reviewer` contracts — edit all three together.
+
 ## Scope-change check (PRE-EDIT INVARIANT)
 
 Before editing any file, grep to confirm it is within the declared file set. Before committing, verify the LOC delta does not materially exceed the issue estimate. If either check fails, **halt immediately** with:
