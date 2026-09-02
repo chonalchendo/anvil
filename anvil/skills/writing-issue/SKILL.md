@@ -10,7 +10,7 @@ metadata:
   skill_type: workflow
   side: execution
   created: 2026-04-30
-  updated: 2026-04-30
+  updated: 2026-09-02
   tags: [type/skill, activity/issue]
   diataxis: how-to
   authored_via: manual
@@ -192,7 +192,7 @@ When promoting an inbox item, pass `--tags` on the `anvil promote <id> --as issu
 
 Compose the **goal** first: one sentence, ≤120 chars, naming what "done" means — the issue's terminal predicate. It is required (`--goal`) and gates the claim later. Keep it a predicate ("inbox no longer drops items on concurrent writes"), not a task list.
 
-**Outcome, not mechanism.** ACs and `goal:` must name an observable outcome ("dev run rows auto-reap on a cadence"), not a mechanism ("a cron workflow invokes `gc_dev_runs`"). An AC that prescribes a mechanism ties the implementer to an unverified assumption and makes the issue fragile to a mechanism pivot. Mechanism detail belongs in `## Problem` prose where it informs but does not constrain.
+**Outcome, not mechanism.** ACs and `goal:` must name an observable outcome ("dev run rows auto-reap on a cadence"), not a mechanism ("a cron workflow invokes `gc_dev_runs`"). An AC that prescribes a mechanism ties the implementer to an unverified assumption and makes the issue fragile to a mechanism pivot. Mechanism detail belongs in the Direction paragraph of `## Problem` (shape below) where it informs but does not constrain.
 
 **Feasibility gate for prescribed mechanisms.** If any AC or `## Verification` block names a specific tool, CLI command, or runtime behaviour as the mechanism, verify runtime feasibility before the issue lands: run the one command that proves the mechanism works (or fails) in this environment. If it fails, either rewrite the AC as an outcome and drop the mechanism, or split out a feasibility spike issue. Prescribing an unverified mechanism defers the discovery cost to `completing-issue` — after a fleet dispatch, a review, and multiple responder rounds have already run.
 
@@ -209,12 +209,22 @@ Every predicate, contract-drawn or not, satisfies the universal bars:
 - **Feasibility gate** — run each prescribed command in this environment before the issue lands (the gate stated above), so a block copied from a sibling never ships unrunnable.
 - **No pipe from a side-effect command into an early-exit reader** — `grep -q`/`head` closes the pipe on first match and SIGPIPE-kills the producer mid-run, so the predicate passes while the side effect never completed. Capture first, then assert: `o=$(mktemp); producer > "$o"; grep -q X "$o"`.
 
+**Write `## Problem` for a cold reader.** The reader is a human triaging the queue weeks later, not the agent that found the gap, and they get one pass. Order the section so the first sentence alone says what is wrong and the first paragraph alone lets them judge severity:
+
+1. **Lead sentence** — what is broken or missing and what it stops. Plain words, ≤25 words. No cause, evidence, history, or identifiers.
+2. **Evidence** — the measurement or reproduction that proves it. Counts, ids, paths, and timestamps go in a short list or table, never inline in prose.
+3. **Cause** — its own paragraph when known; write "cause unknown" when not.
+4. **Direction** — the fix, one short paragraph. Deep mechanism belongs in the plan or PR, not here.
+5. **Sequencing** — dependencies and ordering, one line at the end. Omit when none.
+
+One idea per sentence, about 20 words. No dash- or semicolon-chained clauses, no nested parentheticals. Cut anything the reader does not need to decide whether and when to work the issue. Test before `create`: cover everything after the first sentence — can a reader say what is wrong? Cover everything after the first paragraph — could they pick a severity? Either fails → rewrite.
+
 Author the body up front and pass it to `create` via `--body-file` (or `--body -` for piped stdin). `create` validates the frontmatter AND body (required H2s, wikilink targets) and rolls back the write on failure — no separate `anvil validate` step. The `## Verification` block uses fenced bash; the format is specified below.
 
 ````bash
 cat > /tmp/issue-body.md <<'EOF'
 ## Problem
-<one paragraph from convergence (fuzzy) or the stated problem (decisive)>
+<lead sentence: what is wrong. Then evidence, cause, direction, sequencing — shape above>
 
 ## Non-goals
 - <from Phase 3 smallest-viable or stated up front>
