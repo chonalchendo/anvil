@@ -239,7 +239,14 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 	if t == core.TypeIssue {
 		out = appendIssueTypeErrors(out, a, path, verbs, sweep)
 	}
-	out = appendLeadSentenceErrors(out, t, a, path)
+	// lead_sentence is skipped on the vault-wide sweep: the back catalogue
+	// carries ~1200 pre-rule artifacts, and the rule is a create/promote-time
+	// backstop (writing-issue/writing-milestone prescribe it in prose), not a
+	// retroactive rewrite obligation (anvil.0274 non-goal). Single-file
+	// `anvil validate <path>` still runs it — sweep is false there.
+	if !sweep {
+		out = append(out, leadSentenceFailures(t, a.Body, path)...)
+	}
 
 	if t == core.TypeMilestone {
 		for _, vErr := range core.ValidateMilestone(a) {

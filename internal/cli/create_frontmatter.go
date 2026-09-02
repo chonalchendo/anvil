@@ -114,9 +114,16 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 		return nil
 	}
 	// A warning-severity finding (e.g. lead_sentence) must never fail create:
-	// print it so the author sees it, but proceed to write the artifact.
+	// surface it so the author sees it, but proceed to write the artifact.
+	// Text mode prints to stderr; JSON mode stays quiet here — a `--json`
+	// caller expects a clean success envelope on stdout, and printing human
+	// text to stderr alongside it is confusing noise for a machine consumer
+	// (full envelope-threading of warning findings is tracked separately;
+	// scoped out of this PR's file set — anvil.0274 review).
 	if !hasBlockingFailure(failures) {
-		printValidationErrors(cmd, failures)
+		if !asJSON {
+			printValidationErrors(cmd, failures)
+		}
 		return nil
 	}
 	return emitValidationErrors(cmd, asJSON, failures)
@@ -156,9 +163,6 @@ func staticBodyFailures(cmd *cobra.Command, v *core.Vault, t core.Type, path str
 		for _, vErr := range core.ValidateIssueLakehouseSchema(body) {
 			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 		}
-		failures = append(failures, leadSentenceFailures(t, body, path)...)
-	case core.TypeMilestone:
-		failures = append(failures, leadSentenceFailures(t, body, path)...)
 	case core.TypeLearning:
 		for _, vErr := range core.ValidateLearning(a, nil) {
 			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
@@ -168,6 +172,7 @@ func staticBodyFailures(cmd *cobra.Command, v *core.Vault, t core.Type, path str
 			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
 		}
 	}
+	failures = append(failures, leadSentenceFailures(t, body, path)...)
 	return failures
 }
 

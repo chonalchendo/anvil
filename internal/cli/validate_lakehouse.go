@@ -33,18 +33,13 @@ var leadSentenceHeading = map[core.Type]string{
 	core.TypeMilestone: "Objective",
 }
 
-// appendLeadSentenceErrors runs core.ValidateLeadSentence against the
-// heading t governs and appends its finding, always at SeverityWarning — the
-// rule must never fail create or validate (writing-issue/writing-milestone
-// prescribe it in prose only; this is the deterministic backstop).
-func appendLeadSentenceErrors(out []*errfmt.ValidationError, t core.Type, a *core.Artifact, path string) []*errfmt.ValidationError {
-	return append(out, leadSentenceFailures(t, a.Body, path)...)
-}
-
 // leadSentenceFailures runs core.ValidateLeadSentence for t's governing
-// heading and wraps the result as SeverityWarning findings — the create-time
-// counterpart to appendLeadSentenceErrors, called on the in-memory body
-// before an Artifact exists.
+// heading and wraps the result as SeverityWarning findings — always at
+// warning severity because the rule must never fail create, promote, or
+// validate (writing-issue/writing-milestone prescribe it in prose only;
+// this is the deterministic backstop). Shared by validateOne (an already
+// loaded Artifact) and staticBodyFailures (the in-memory body before an
+// Artifact exists).
 func leadSentenceFailures(t core.Type, body, path string) []*errfmt.ValidationError {
 	heading, ok := leadSentenceHeading[t]
 	if !ok {

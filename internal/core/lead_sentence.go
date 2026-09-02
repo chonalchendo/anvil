@@ -32,6 +32,13 @@ func ValidateLeadSentence(body, heading string) []error {
 	if i := strings.Index(section, "```"); i >= 0 {
 		section = section[:i]
 	}
+	// Cut at the first paragraph break so a heading whose opening line ends
+	// in a colon (a list lead-in) or a following bullet list never joins the
+	// lead sentence: sentenceEndRE only splits on [.?!], so an unterminated
+	// opening line would otherwise absorb the whole section as one sentence.
+	if i := strings.Index(section, "\n\n"); i >= 0 {
+		section = section[:i]
+	}
 	section = strings.TrimSpace(section)
 	if section == "" {
 		return nil
@@ -51,22 +58,24 @@ func ValidateLeadSentence(body, heading string) []error {
 
 	var reasons []string
 	if overLength {
-		reasons = append(reasons, fmt.Sprintf("%d words (max %d)", len(words), LeadSentenceMaxWords))
+		reasons = append(reasons, fmt.Sprintf("is %d words (max %d)", len(words), LeadSentenceMaxWords))
 	}
 	if hasBacktick {
 		reasons = append(reasons, "contains a code span")
 	}
 	return []error{fmt.Errorf(
-		"## %s lead sentence is %s — plain words, no identifiers, for a cold-reading triager: %q",
+		"## %s lead sentence %s — plain words, no identifiers, for a cold-reading triager: %q",
 		heading, strings.Join(reasons, "; "), truncateForError(sentence, 120),
 	)}
 }
 
 // truncateForError bounds the quoted sentence in ValidateLeadSentence's
 // message so a genuinely long lead sentence doesn't blow out the finding.
+// Slices runes, not bytes, so a multi-byte rune at the boundary is never cut.
 func truncateForError(s string, limit int) string {
-	if len(s) <= limit {
+	r := []rune(s)
+	if len(r) <= limit {
 		return s
 	}
-	return s[:limit] + "…"
+	return string(r[:limit]) + "…"
 }
