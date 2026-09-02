@@ -16,6 +16,10 @@ const (
 	// CodeDuplicateID flags two vault files that resolve to the same index id.
 	// Both paths are reported so the operator can decide which file is canonical.
 	CodeDuplicateID = "duplicate_id"
+	// CodeLeadSentence flags an issue `## Problem` or milestone `## Objective`
+	// whose first sentence exceeds core.LeadSentenceMaxWords or contains a
+	// backtick. Always SeverityWarning — never blocks create or validate.
+	CodeLeadSentence = "lead_sentence"
 )
 
 // SeverityWarning marks a ValidationError that should be surfaced but must

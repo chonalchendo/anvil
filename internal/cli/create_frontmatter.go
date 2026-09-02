@@ -105,12 +105,18 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 		// so growing an issue's body never executes its Verification blocks
 		// (whose Indirect predicates are red-until-fixed by design and flip
 		// green — i.e. refusable — the moment the issue is fixed).
-		if t == core.TypeIssue && len(failures) == len(preErrors) && !flagSkipVerifyPredicates {
+		if t == core.TypeIssue && !hasBlockingFailure(failures) && !flagSkipVerifyPredicates {
 			failures = append(failures, runFeasibilityGate(cmd, path, body)...)
 		}
 	}
 
 	if len(failures) == 0 {
+		return nil
+	}
+	// A warning-severity finding (e.g. lead_sentence) must never fail create:
+	// print it so the author sees it, but proceed to write the artifact.
+	if !hasBlockingFailure(failures) {
+		printValidationErrors(cmd, failures)
 		return nil
 	}
 	return emitValidationErrors(cmd, asJSON, failures)
@@ -150,6 +156,9 @@ func staticBodyFailures(cmd *cobra.Command, v *core.Vault, t core.Type, path str
 		for _, vErr := range core.ValidateIssueLakehouseSchema(body) {
 			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
 		}
+		failures = append(failures, leadSentenceFailures(t, body, path)...)
+	case core.TypeMilestone:
+		failures = append(failures, leadSentenceFailures(t, body, path)...)
 	case core.TypeLearning:
 		for _, vErr := range core.ValidateLearning(a, nil) {
 			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))

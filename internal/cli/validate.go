@@ -239,6 +239,7 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 	if t == core.TypeIssue {
 		out = appendIssueTypeErrors(out, a, path, verbs, sweep)
 	}
+	out = appendLeadSentenceErrors(out, t, a, path)
 
 	if t == core.TypeMilestone {
 		for _, vErr := range core.ValidateMilestone(a) {

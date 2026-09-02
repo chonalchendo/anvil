@@ -348,6 +348,8 @@ The plan `id` collapses with the slug: `plan.id == plan.<project>.<slug>`. **Dec
 
 Wikilinks are vault-global, not project-scoped. Because the project name is part of every issue/plan/milestone ID, `[[issue.<other-project>.<slug>]]` resolves the same way as a same-project link — useful when work spans repos (e.g. a `dbt-warehouse` issue declaring `depends_on: ["[[issue.airflow-pipelines.<slug>]]"]`). `anvil validate` flags broken cross-project links as `unresolved_link` with no special-casing.
 
+`anvil validate`/`create` also flag the lead sentence of an issue's `## Problem` or a milestone's `## Objective`, when it runs over 25 words or contains a backtick, as a `lead_sentence` warning — always non-blocking (`create` still writes the artifact).
+
 ## Folder structure
 
 ```
