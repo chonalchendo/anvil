@@ -208,6 +208,19 @@ func doCutWorktree(errW io.Writer, a *core.Artifact, id, pathOverride, branchOve
 		if err := copyCarryFiles(repoDir, wtPath, carry); err != nil {
 			return "", "", err
 		}
+		// The hook runs only on a fresh cut, mirroring carry: a reused worktree
+		// may hold local edits the hook's derivation would clobber. A failing
+		// hook must not orphan the worktree+branch it just made, so remove both
+		// before surfacing the refusal.
+		if herr := runWorktreeHookFn(repoDir, wtPath); herr != nil {
+			if rerr := gitWorktreeRemoveFn(repoDir, wtPath); rerr != nil {
+				fmt.Fprintf(errW, "warning: cleanup after failed hook: worktree remove failed: %v\n", rerr)
+			}
+			if berr := gitDeleteLocalBranchFn(repoDir, branch); berr != nil {
+				fmt.Fprintf(errW, "warning: cleanup after failed hook: branch delete failed: %v\n", berr)
+			}
+			return "", "", herr
+		}
 	}
 	return wtPath, branch, nil
 }
