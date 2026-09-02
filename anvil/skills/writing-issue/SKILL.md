@@ -10,7 +10,7 @@ metadata:
   skill_type: workflow
   side: execution
   created: 2026-04-30
-  updated: 2026-09-02
+  updated: 2026-09-03
   tags: [type/skill, activity/issue]
   diataxis: how-to
   authored_via: manual
@@ -34,29 +34,12 @@ Wrong-choice example: user is dumping a half-formed thought with no nameable goa
 
 If no milestone fits, the workflow stops at Phase 2 and offers two exits: log a `decision` artifact with `status: rejected`, or hand off to `writing-milestone` and resume here once the milestone exists. There is no `--no-milestone` escape hatch.
 
-## When this skill runs
+## When this skill runs / not
 
-- A problem worth tracking has surfaced — inbox item, ad-hoc message, or direct request.
-- The user wants to think about whether to build something, OR already knows.
-- A milestone exists for the target project, OR you are willing to create one mid-flight.
+- **Runs:** a problem worth tracking surfaced (inbox item, ad-hoc message, direct request); the user wants to weigh whether to build something, or already knows; a milestone exists for the project, or you are willing to create one mid-flight.
+- **Not:** the user is dumping a thought without engagement (`capturing-inbox`); you need to implement the issue (`completing-issue`); editing existing issue frontmatter only (a direct `anvil set` call).
 
-## When not to use
-
-- The user is dumping a thought without engagement → `capturing-inbox`.
-- You need to implement the issue → `completing-issue`.
-- Editing existing issue frontmatter only (status flip, tag) → a direct `anvil set` call.
-
----
-
-## Autonomous mode (unattended runs)
-
-When the caller declares an unattended run (e.g. an overnight self-test loop), resolve every human-confirm in this skill from the rubric instead of asking — the morning PR review is the gate. The Iron Law still holds: no issue lands without a milestone link.
-
-- **Severity (Phase 4):** pick from the rubric; do not confirm.
-- **Convergence (Phase 1):** skip — an unattended self-test finding already carries a problem, a goal, and a reproduction, so there is nothing fuzzy to converge. If a finding is genuinely fuzzy (no nameable goal), do not converge solo: capture it as an `inbox` item and stop.
-- **Milestone-fit (Phase 2):** auto file-or-skip. A fitting milestone → file. No fit → do not prompt and do not invent one: capture as `inbox` and stop.
-
----
+**REQUIRED REFERENCE:** Use skills/writing-issue/references/autonomous-mode.md when the caller declares an unattended run — resolves every human-confirm below from the severity rubric instead of asking.
 
 ## Severity rubric
 
@@ -67,56 +50,33 @@ Anchor severity on **blast-radius × workaround-cost**:
 - `medium` — adds friction (time, tokens, round-trips) to a workflow but does not block it. Clear, cheap workaround.
 - `low` — polish, cosmetic, missing affordance that costs little to live with.
 
----
-
 ## Phase 0 — Entry detection
 
-Classify the user's first message before doing anything else. The classification chooses which phases run.
+Classify the user's first message before doing anything else — the classification chooses which phases run.
 
-- **Decisive** when the message contains *all three* of:
-  - a problem statement (one sentence describing what is broken or missing),
-  - a goal — a one-sentence terminal predicate naming what "done" means,
-  - a milestone reference — either an explicit id, or a phrase the agent can map to exactly one existing milestone in `~/anvil-vault/85-milestones/` (filtered by `project` frontmatter) without further user input. If two or more milestones could plausibly match, treat as fuzzy.
-- **Fuzzy** otherwise — including "should we build X", "I've been thinking about Y", "is this worth doing", or any message missing one of the three signals.
-- **Tie-break:** when in doubt, run convergence. Misclassifying decisive→fuzzy costs one extra round-trip; misclassifying fuzzy→decisive ships a thin issue.
+- **Decisive** when the message names all three of a problem statement, a goal (one-sentence terminal predicate), and a milestone reference (an id, or a phrase mapping to exactly one existing milestone under `~/anvil-vault/85-milestones/`, filtered by `project`; two-or-more plausible matches count as fuzzy).
+- **Fuzzy** otherwise ("should we build X", "is this worth doing", or any message missing one of the three signals).
+- **Tie-break:** when in doubt, run convergence — misclassifying decisive→fuzzy costs one round-trip; fuzzy→decisive ships a thin issue.
 
-Decisive path: skip to Phase 2.
-Fuzzy path: continue to Phase 1.
-
-Phase 0 produces no artifact and no chat output beyond your internal routing decision.
-
----
+Decisive → skip to Phase 2. Fuzzy → continue to Phase 1. No artifact or chat output beyond the routing decision.
 
 ## Phase 1 — Convergence (fuzzy path only)
 
-Goal: a one-sentence shared understanding of what is being proposed. Without it, the pressure-test in Phase 3 stress-tests your interpretation, not the user's idea.
-
-- Restate the idea in one sentence. Ask: "Did I get this right?"
-- One clarifying question at a time. Multiple-choice preferred.
-- Stop when the user explicitly confirms. "Sure, whatever" is not confirmation; ask again.
-- Output: a `Problem` sentence and a `Proposal` sentence held in chat for use in Phase 4.
-
----
+Goal: a one-sentence shared understanding of what is being proposed, so Phase 3's pressure-test stress-tests the user's idea, not your interpretation. Restate it in one sentence, ask "did I get this right?", one clarifying question at a time (multiple-choice preferred), stop only on explicit confirmation ("sure, whatever" doesn't count). Output: a `Problem` sentence and a `Proposal` sentence held in chat for Phase 4.
 
 ## Phase 2 — Milestone-fit gate (always; Iron Law)
 
-Compare the converged proposal (fuzzy path) or the decisive-path's stated proposal against `~/anvil-vault/85-milestones/`, filtered by the project's `project` frontmatter.
+Compare the converged/stated proposal against `~/anvil-vault/85-milestones/`, filtered by `project`.
 
-- **Match found** → record the milestone id; continue to Phase 2b, then Phase 3 if fuzzy or Phase 4 if decisive.
-- **No match, idea is small or orthogonal** → offer the user two exits:
-  - (a) log a `decision` artifact with `status: rejected` (one paragraph: what was considered, why rejected). See "Terminal states" below for the CLI sequence.
-  - (b) stop without an artifact (inbox source, if any, stays as-is for later resumption).
-- **No match, idea reshapes the system** → stop and offer to hand off to `writing-milestone`. Resume `writing-issue` after the milestone exists. **REQUIRED SUB-SKILL:** Use writing-milestone.
+- **Match found** → record the milestone id; continue to Phase 2b, then Phase 3 (fuzzy) or Phase 4 (decisive).
+- **No match, idea is small or orthogonal** → offer two exits: (a) log a `decision` artifact with `status: rejected` — CLI sequence in **REQUIRED REFERENCE:** skills/writing-issue/references/terminal-states.md; (b) stop without an artifact (inbox source, if any, stays as-is).
+- **No match, idea reshapes the system** → stop, offer to hand off. **REQUIRED SUB-SKILL:** Use writing-milestone. Resume here after the milestone exists.
 
-Never skip the gate to issue creation.
-
-**Frame the fork, then recommend.** When the gate forks — log-vs-stop, build-now-vs-defer, this milestone vs that — make it legible in a few lines *before* recommending: name the options plainly, state the tension, surface the rejected alternative *and why it fails*, and give the one fact that discriminates. Then recommend a single direction — don't hand back a bare menu. A default, not a template: stay silent on trivial choices, never manufacture tension to fill slots, and keep it brief — legible means clearer, not longer.
-
----
+Never skip the gate to issue creation. **Frame the fork, then recommend.** When the gate forks — log-vs-stop, build-now-vs-defer, this milestone vs that — make it legible in a few lines before recommending: name the options, state the tension, surface the rejected alternative *and why it fails*, give the one discriminating fact. Then recommend a single direction, don't hand back a bare menu. Stay silent on trivial choices; never manufacture tension.
 
 ## Phase 2b — Read the upstream design closure (always)
 
-Issues authored against a milestone with no design read come out bare — missing the implementation grounding that lives one hop up the spine (product-design/system-design), discovered only at completion instead of at authoring. Read that closure now, before drafting `## Problem`:
+Issues authored against a milestone with no design read come out bare. Read the closure now, before drafting `## Problem`:
 
 ```bash
 anvil show milestone <id> --body                     # the milestone's own objectives/non-goals
@@ -124,232 +84,62 @@ anvil show milestone <id> --links product-design --body
 anvil show milestone <id> --links system-design --body
 ```
 
-Hold whichever bodies resolve as authoring context — let them ground `## Problem` prose in the real implementation constraints and sharpen `## Non-goals`, and note which subsystem governs so Phase 4b's link targets the same one. **Read, don't copy**: the box stays reachable-not-stored — no design paragraph gets pasted into the issue body, only prose the read informed.
-
-Neither link resolves (milestone carries no `product_design`/`system_design`) → nothing to read; continue.
-
----
+Hold whichever bodies resolve as authoring context — ground `## Problem` prose in real implementation constraints, sharpen `## Non-goals`, and note which subsystem governs for Phase 4b's link. **Read, don't copy**: no design paragraph gets pasted into the issue body. Neither link resolves → nothing to read; continue.
 
 ## Phase 3 — Pressure-test (fuzzy path only)
 
-Three short frames against the converged proposal. Each is a paragraph or less. Outputs are *gate-side* — discarded after the gate passes — except `smallest-viable`, which persists into the issue body as `## Non-goals`.
+Three short frames (a paragraph or less each) against the converged proposal. Gate-side and discarded after passing, except `smallest-viable`, which persists as `## Non-goals`.
 
-1. **Pre-mortem.** "Six months from now, this shipped but it was the wrong call. Why?" 2–3 plausible failure reasons. If a frame surfaces a load-bearing concern, that concern becomes a non-goal in Phase 4 or kills the issue entirely.
-2. **Smallest viable version.** What is the thinnest cut that still delivers the win named in the product design? What is explicitly out of scope? *This output persists* into Phase 4 as `## Non-goals`.
-3. **Working-backwards headline.** One-line release note: "We shipped X so users can Y." If boring, vague, or disconnected from a product-design success metric, return to Phase 1.
+1. **Pre-mortem.** "Six months from now, this shipped but it was the wrong call — why?" 2–3 plausible failure reasons; a load-bearing one becomes a non-goal or kills the issue.
+2. **Smallest viable version.** Thinnest cut that still delivers the win; what's explicitly out of scope. *Persists* into Phase 4 as `## Non-goals`.
+3. **Working-backwards headline.** "We shipped X so users can Y." Boring, vague, or disconnected from a product-design success metric → return to Phase 1.
 
-Skip a frame only when it is genuinely not applicable; record why in chat.
-
-If a frame surfaces an unknown that needs evidence (a dependency, a competitor behaviour, a technical constraint), recommend research as a separate side task. Do not block the issue on research the user did not ask for.
-
----
+Skip a frame only when genuinely not applicable; record why in chat. A frame surfacing an unknown needing evidence → recommend research as a separate side task, don't block on it.
 
 ## Phase 3b — Surface prior learnings (always)
 
-Before authoring, dispatch `anvil-learnings-researcher` via the Agent tool's `subagent_type` to pull what the vault already knows about this slice — it reads widely and returns a tight findings list, so the bulk stays out of your window. Build the `<work-context>` from Phases 1–2:
-
-```text
-<work-context>
-work: <converged/stated proposal, one sentence>
-domain: <domain/ tag(s) for this issue>
-activity: activity/issue
-artifacts: [[milestone.<project>.<slug>]]
-files: <paths the fix will likely touch, if known>
-</work-context>
-Return the findings that genuinely bear on this work, highest-precision first.
-```
-
-Fold the return into the issue: on findings, add a `## Prior learnings` section before `## Links` (one bullet per finding, keeping its `[[learning.<id>]]` source and `stale?` flag) and let any non-stale high-confidence one sharpen Problem / Non-goals / Verification. On `Findings: none`, skip the section. `stale?: yes` is a signal to weigh against present evidence, not a directive.
-
----
+Before authoring, dispatch `anvil-learnings-researcher` via the Agent tool's `subagent_type` to pull what the vault already knows about this slice. **REQUIRED REFERENCE:** Use skills/writing-issue/references/learnings-dispatch.md for the `<work-context>` shape and how to fold findings into the issue.
 
 ## Phase 4 — Author the issue (always)
 
-### Classify the kind (drives body content)
+Classify the issue into exactly one kind before composing the body — bug (concrete + reproducible), feature (new capability), refactor (internal shape change, held invariant), docs (gap for a named audience). **REQUIRED REFERENCE:** Use skills/writing-issue/references/<kind>.md for the kind-specific body shape (and, for bugs, the `reproduction_anchor`).
 
-Classify the issue into exactly one kind before composing the body — it decides what the body must carry. Each kind has different load-bearing content, and forcing the wrong shape (e.g. a `reproduction_anchor` on a feature) is a category error.
+- **Severity & domain tags** — propose severity from the rubric above, confirm with the user (don't default to `medium`); reuse an existing `domain/` value (`anvil tags list --source used --prefix domain/ --json`) over coining a near-duplicate (the CLI rejects an unrecognised value unless `--allow-new-facet=domain`). Promoting an inbox item: same check, then `--tags` on `anvil promote <id> --as issue`.
+- **Goal** — one sentence, ≤120 chars, naming what "done" means (`--goal`, required, gates the later claim). Outcome, not mechanism: mechanism detail belongs in `## Problem`'s Direction paragraph, not `goal:`/AC.
+- **Feasibility gate** — if an AC or `## Verification` block prescribes a specific tool/command/behaviour as the mechanism, run that one command in this environment before the issue lands; on failure, rewrite as an outcome or split a feasibility spike. `create`/`promote --as issue` enforce this mechanically too: every `### Direct`/`### Indirect` block actually runs, judged by exit status (an Indirect block that already passes is the failure — it can't discriminate fixed from broken). Full verdict table, `set -e`/SIGPIPE rules: `docs/issue-spec.md`.
+- **Draw verification from the governing contract, don't invent predicates** — identify it before authoring (`anvil list contract` → `anvil show contract <id> --body`; link recorded in Phase 4b) and write `### Direct`/`### Indirect` as its concrete instance. No contract governs → apply the universal bars: same code path, exercise not presence (behaviour, never a source grep — except doc/skill-only changes, which grep the *built/installed* artifact), create the unmet condition first, anchor structurally, and the goal's own measure. Full predicate-writing rules: `docs/issue-spec.md`.
+- **`## Problem` for a cold reader** — one pass, weeks later: (1) lead sentence, what's broken/missing, ≤25 words; (2) evidence — counts/ids/paths in a list, not inline prose; (3) cause, its own paragraph when known; (4) direction — the fix, closing with files/modules touched; (5) sequencing — one line, becomes a Phase 4b typed edge. ~20 words/sentence, no chained clauses.
 
-- **bug** — something concrete is broken today and a command reproduces it.
-- **feature** — a new capability; nothing exists to reproduce yet.
-- **refactor** — an internal shape change behind a held invariant.
-- **docs** — a documentation gap for a named audience.
-
-**REQUIRED REFERENCE:** Use skills/writing-issue/references/<kind>.md
-
-The reference owns the kind-specific body shape (and, for bugs, the `reproduction_anchor`). The phases above and the CLI mechanics below are kind-agnostic.
-
-Before calling the CLI, **propose severity using the rubric** above, then confirm with the user. The agent does the first-pass classification rather than defaulting to `medium`; severity is required by the schema and gates triage queries.
-
-List the existing `domain/` taxonomy so you reuse a value the user has already introduced rather than coining a near-duplicate:
+Print the required skeleton, fill it, and pass via `--body-file` (`create` validates frontmatter + body and rolls back on failure — no separate `validate` step):
 
 ```bash
-anvil tags list --source used --prefix domain/ --json
+anvil create issue --show-template   # prints the required-H2 skeleton
+
+anvil create issue --title "<title>" --description "<one-line preview>" \
+  --goal "<one-sentence definition of done>" --tags domain/<x> \
+  --body-file /tmp/issue-body.md --json
 ```
 
-Pick the closest existing value if one fits; only invent a new one if no existing value matches. The CLI will reject an unrecognised value unless you pass `--allow-new-facet=domain` — verbosity is intentional friction.
+Required H2s (`create` rejects a body missing any): `## Problem`, `## Non-goals` (bulleted), `## Verification` (`### Direct` + `### Indirect`, fenced `bash` blocks — shape/rules in `docs/issue-spec.md`), `## Links` (`[[wikilink]]`, targets must resolve). `## Acceptance criteria` is optional, only when a bulleted checklist beats `goal:` + `## Verification` alone.
 
-When promoting an inbox item, pass `--tags` on the `anvil promote <id> --as issue` call after consulting the same list.
-
-Compose the **goal** first: one sentence, ≤120 chars, naming what "done" means — the issue's terminal predicate. It is required (`--goal`) and gates the claim later. Keep it a predicate ("inbox no longer drops items on concurrent writes"), not a task list.
-
-**Outcome, not mechanism.** ACs and `goal:` must name an observable outcome ("dev run rows auto-reap on a cadence"), not a mechanism ("a cron workflow invokes `gc_dev_runs`"). An AC that prescribes a mechanism ties the implementer to an unverified assumption and makes the issue fragile to a mechanism pivot. Mechanism detail belongs in the Direction paragraph of `## Problem` (shape below) where it informs but does not constrain.
-
-**Feasibility gate for prescribed mechanisms.** If any AC or `## Verification` block names a specific tool, CLI command, or runtime behaviour as the mechanism, verify runtime feasibility before the issue lands: run the one command that proves the mechanism works (or fails) in this environment. If it fails, either rewrite the AC as an outcome and drop the mechanism, or split out a feasibility spike issue. Prescribing an unverified mechanism defers the discovery cost to `completing-issue` — after a fleet dispatch, a review, and multiple responder rounds have already run.
-
-`anvil create issue` and `anvil promote --as issue` enforce this mechanically: they execute every `### Direct`/`### Indirect` block and judge it by exit status. **An Indirect block that already passes is the failure** — it asserts post-fix behaviour, so exiting 0 against the unfixed tree proves it cannot tell fixed from broken. A red Indirect block is the expected, healthy shape; write the predicate to be red until the fix lands. Either subsection is refused on 126/127 (command not found / not executable) — the predicate never ran, so fix the mechanism, not the code. Be aware the blocks run unsandboxed with your privileges and their side effects survive a refusal; see `docs/issue-spec.md` for the full verdict table.
-
-**Draw verification from the governing contract — don't invent predicates.** The contract's `## Verification` carries the strategy: a **Direct** part (in-tree suites) and an **Indirect (live)** part (the change exercised through the built/served artifact). Identify the governing contract *before* authoring the body (`anvil list contract` → `anvil show contract <id> --body`; the link is recorded in Phase 4b) and write this issue's `### Direct`/`### Indirect` as the concrete instance — the contract names the strategy, the issue writes the command. No contract governs → author from the universal bars below.
-
-Every predicate, contract-drawn or not, satisfies the universal bars:
-
-- **Same code path** — the predicate travels the real system's path, not a proxy/metadata path that happens to be green (a dev check that can't reach the prod registry the goal lives in doesn't verify the goal).
-- **Exercise, not presence** — assert on behaviour (output, a returned value, a side-effect), never that a source file contains a string. The carve-out is a doc/skill-body change with no runtime behaviour: there, grep the *built/installed* artifact, never the source tree.
-- **Create the unmet condition first** — prescribe a pre-step so the check fails *before* the change and passes *after* (a `max(A)==max(B)` freshness check is false-green when prior state already aligned both sides).
-- **Anchor structurally** — assert against parsed structure (`jq` path, a typed field, an equality), not a bare substring grep.
-- **The goal's own measure** — when `goal:` names a count, rate, or corpus state, the Indirect block computes that measure after its stated pre-step, never a fixture proxy. A prose "post-merge: re-measure" under the block is the tell that the goal is unverified.
-- **Feasibility gate** — run each prescribed command in this environment before the issue lands (the gate stated above), so a block copied from a sibling never ships unrunnable.
-- **No pipe from a side-effect command into an early-exit reader** — `grep -q`/`head` closes the pipe on first match and SIGPIPE-kills the producer mid-run, so the predicate passes while the side effect never completed. Capture first, then assert: `o=$(mktemp); producer > "$o"; grep -q X "$o"`.
-
-**Write `## Problem` for a cold reader.** The reader is a human triaging the queue weeks later, not the agent that found the gap, and they get one pass. Order the section so the first sentence alone says what is wrong, and lead plus evidence together let them judge severity:
-
-1. **Lead sentence** — what is broken or missing and what it stops. Plain words, ≤25 words. No cause, evidence, history, or identifiers.
-2. **Evidence** — what proves the gap today: a measurement, a reproduction, or the thing a user cannot do. Counts, ids, paths, and timestamps go in a short list or table, never inline in prose.
-3. **Cause** — its own paragraph when known; a refactor's forcing function goes here. Omit when the kind has none.
-4. **Direction** — the fix in one short paragraph, closing with the files or modules it touches. Mechanism informs but does not constrain; design depth lives in the plan or PR.
-5. **Sequencing** — dependencies and ordering, one line at the end. Every issue it names becomes a typed edge in Phase 4b, direction stated. Omit when none.
-
-One idea per sentence, about 20 words, no chained clauses. Cut anything the reader does not need to decide whether and when to work the issue. Test before `create`. Cover everything after the first sentence: can a reader say what is wrong? Cover everything after the evidence: could they pick a severity? Either fails, rewrite.
-
-Author the body up front and pass it to `create` via `--body-file` (or `--body -` for piped stdin). `create` validates the frontmatter AND body (required H2s, wikilink targets) and rolls back the write on failure — no separate `anvil validate` step. The `## Verification` block uses fenced bash; the format is specified below.
-
-````bash
-cat > /tmp/issue-body.md <<'EOF'
-## Problem
-<lead sentence: what is wrong. Then evidence, cause, direction, sequencing — shape above>
-
-## Non-goals
-- <from Phase 3 smallest-viable or stated up front>
-
-## Verification
-
-### Direct (unit/integration)
-```bash
-<shell command — exit 0 = pass>
-```
-
-### Indirect (live smoke)
-```bash
-<shell command with predicate baked in — grep -q "X", jq -r .field, [ ... = ... ]>
-```
-
-## Prior learnings
-<!-- optional; from Phase 3b — omit when the agent returned "Findings: none" -->
-- <finding insight> — [[learning.<id>]] (stale?:<yes|no>)
-
-## Links
-- [[milestone.<project>.<slug>]]
-EOF
-
-anvil create issue --title "<title>" --description "<one-line preview>" --goal "<one-sentence definition of done>" --tags domain/<x> --body-file /tmp/issue-body.md --json
-````
-
-An optional `## Acceptance criteria` prose checklist may follow `## Problem` when an unambiguous bulleted list aids the implementer — but it is no longer required, and the binary gate is `## Verification`, not AC.
-
-Capture `id` and `path` from the JSON output. The file lands at `~/anvil-vault/70-issues/issue.<project>.NNNN.<slug>.md`.
-
-Set typed frontmatter slots (these are still post-create — typed setters live outside the body):
+Capture `id`/`path` from the JSON output (`~/anvil-vault/70-issues/issue.<project>.NNNN.<slug>.md`), then set typed slots — bare positional values on array fields **replace** the array, use `--add`/`--remove VALUE_OR_INDEX`:
 
 ```bash
 anvil set issue <id> milestone "[[milestone.<project>.<slug>]]"
 anvil set issue <id> severity <low|medium|high|critical>
+anvil set issue <id> acceptance --add "<criterion>"   # optional, one --add per criterion
 ```
-
-`acceptance[]` is **optional**. Add bullets only when a prose checklist genuinely aids the implementer beyond `goal:` + `## Verification`; most issues need none. When you do, run one `--add` per criterion:
-
-```bash
-anvil set issue <id> acceptance --add "<criterion>"
-```
-
-Bare positional values on array fields **replace** the array; use `--add VALUE` to append and `--remove VALUE_OR_INDEX` to delete.
-
-Required body sections (enforced by `create`):
-
-- `## Problem` — lead sentence, then evidence, cause, direction, sequencing (shape in Phase 4 above).
-- `## Non-goals` — from Phase 3 smallest-viable (fuzzy) or stated up front (decisive).
-- `## Verification` — operational checks in fenced bash blocks. Two subsections, both required:
-  - `### Direct` — fenced `bash` block with ≥1 line. Each line must exit 0. Typically unit/integration tests run against the dev tree.
-  - `### Indirect` — fenced `bash` block with ≥1 line. Each line must exit 0. Live invocations against the built/installed/served artifact; bake the predicate into the command (`grep -q "X"`, `jq -r .field`, `[ ... = ... ]`). `completing-issue` re-runs these against the installed binary in its Phase 4 build gate — they catch behavioral gaps the Direct checks can't see. Each predicate honours the universal bars above (chiefly exercise-not-presence). **Expected-non-zero / set -e safety:** the runner executes each block under `bash -ec` (`set -e`), so `cmd; [ "$?" -ne 0 ]` is unsafe — `set -e` aborts at the failing `cmd` before the assertion runs, producing a false-FAIL. Assert the non-zero exit as `if cmd; then exit 1; fi`, which gates on any line of the block. `! cmd` gates **only** as the block's last line: `set -e` exempts a `!`-negated command in every command position (`! c`, `x; ! c`, `a && ! c`, `for …; do ! c; done`, `if a; then ! c; fi`), so anywhere earlier a failing `! cmd` is silently skipped and the block false-PASSes — both the runner and `anvil create` refuse that shape unrun, and `anvil validate --verification-stdin` flags it pre-flight. The general rule behind it: a predicate survives only as one self-contained exit-code line.
-- `## Links` — to milestone, design docs, related issues. Use `[[wikilink]]` form. Targets must resolve (the file must exist) or `create` rejects. `anvil hydrate` walks this section too, but only for governing types (contract, convention, product-design, system-design, learning, milestone, decision) — a link to another type (e.g. a sibling issue or thread) resolves but stays inert for hydrate's box.
-
-`anvil validate <path>` remains useful as a re-check after edits (e.g. after `anvil set ... acceptance --add`), but it is **not** required after `create` when the body was supplied via `--body-file` / `--body -`.
-
----
 
 ## Phase 4b — Typed slots: contracts, system-design, dependencies, anchor
 
-After the issue is created, link the governing context a worker loads at issue-start (`completing-issue` Phase 1, via `--links … --body`) and a reviewer uses as a rubric (`reviewing-pr`), then set the slots the queue and the claim gate read.
+Link the governing context a worker loads at issue-start (`completing-issue` Phase 1) and a reviewer uses as a rubric (`reviewing-pr`), then set the slots the queue and claim gate read. Substitute real ids — `anvil link` refuses a target still carrying `<`, `>`, or whitespace.
 
-**Contract(s)** — `anvil list contract --json`; for each whose scope description matches the issue's domain:
+- **Contract(s)** — `anvil list contract --json`; for each whose scope matches: `anvil link issue <issue-id> contract <contract-id>`.
+- **System-design** — `anvil list system-design --json`; match on `project` equality: `anvil link issue <issue-id> system-design <project>`. This is the issue's governing spine edge that `completing-issue` walks to hydrate its box; make a missing link an explicit decision (attach it, or state "no design governs this slice") — never a silent skip.
+- **Dependencies** — one edge per issue the Sequencing line names: `anvil link issue <issue-id> issue <prereq-id> --relation depends_on` / `--relation blocks`. `anvil list issue --ready` reads only these typed edges — prose ordering is invisible to it.
+- **Reproduction anchor** — bug kind only; shape lives in `references/bug.md`. Author one whenever a command can capture the failure; skipping it is a stated decision, never a silent default.
 
-```bash
-anvil link issue <issue-id> contract <contract-id>
-```
-
-**System-design** — `anvil list system-design --json`; match the issue's subsystem on `project` equality (designs are sharded as `system-design.<project>[.<shard>]`):
-
-```bash
-anvil link issue <issue-id> system-design <project>   # bare `burgh` or canonical `system-design.burgh` — both resolve
-```
-
-Substitute the real ids: `anvil link` refuses a target still carrying `<`, `>`, or whitespace rather than writing a dead edge.
-
-This is the Option-A routing association and the issue's governing spine edge that `completing-issue` walks to hydrate the box. Make a missing link an **explicit decision**: attach the governing design, or affirm to the user in one line that none governs this slice ("no design governs this slice") — never a silent skip. Don't invent a link to satisfy the check.
-
-**Dependencies** — one edge per issue the Sequencing line names. A prerequisite this issue waits on takes `depends_on`; an issue that waits on this one takes `blocks`:
-
-```bash
-anvil link issue <issue-id> issue <prereq-id> --relation depends_on
-anvil link issue <issue-id> issue <waiting-id> --relation blocks
-```
-
-`anvil list issue --ready` reads typed edges only (`depends_on`, `blocks`). Ordering left in prose ("after PR #517 lands") is invisible to it, and a fleet worker claims the issue early.
-
-**Reproduction anchor** — bug kind only; the command and shape live in `references/bug.md`. Author one whenever a command can capture the failure; skipping it is a stated one-line decision, never a silent default.
-
----
-
-## Working the issue (state machine)
-
-The issue lifecycle is `open → in-progress → resolved` (with `→ abandoned` and reverse audit edges). All status changes go through `anvil transition`, not direct frontmatter edits.
-
-```bash
-# Claim — --owner is required (open → in-progress)
-anvil transition issue <id> in-progress --owner <name>
-
-# Resolve when the work is merged (in-progress → resolved)
-anvil transition issue <id> resolved
-
-# Reopen with audit trail (resolved → open requires --reason)
-anvil transition issue <id> open --reason "<why>"
-```
-
-Use `anvil set ... status` only as a force-edit escape hatch when `transition` rejects a legal-but-unusual move.
-
-## Terminal states
-
-Three exits:
-
-1. **`issue` created** — file exists, validates, milestone link set. Hand off to `completing-issue` for implementation.
-2. **`decision/rejected`** — user bailed mid-session. Prompt: "log this as a rejected decision?" If yes:
-   ```bash
-   anvil create decision --title "Considered: <X>" --json
-   anvil set decision <id> status rejected
-   anvil set decision <id> date <today>
-   ```
-   Decision file lands at `~/anvil-vault/30-decisions/<topic>.<NNNN>-<slug>.md` (MADR-conformant; see your project's decision-doc conventions). Body is one paragraph: what was considered, why rejected. If no, no artifact.
-3. **Paused** — user wants to think more. No artifact. If the source was an inbox item, it stays as-is for later resumption.
-
----
+**REQUIRED REFERENCE:** Use skills/writing-issue/references/terminal-states.md for the `anvil transition` state machine and the three completion exits (issue created, decision/rejected, paused).
 
 ## What this skill does NOT do
 
