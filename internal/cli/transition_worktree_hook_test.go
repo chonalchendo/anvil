@@ -3,10 +3,59 @@ package cli
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
+
+// runGit runs a git command in dir, failing the test on error — used to build
+// a real repo fixture for tests that exercise the real `git worktree remove`
+// rather than the removeCalls-recording stub.
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...) //nolint:gosec // test-controlled args
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v: %s", args, err, out)
+	}
+}
+
+// initGitRepo creates a real git repo at dir with one commit — enough for
+// `git worktree add -b <branch>` to succeed against it.
+func initGitRepo(t *testing.T, dir string) {
+	t.Helper()
+	runGit(t, dir, "init", "-q")
+	runGit(t, dir, "config", "user.email", "test@example.com")
+	runGit(t, dir, "config", "user.name", "test")
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("fixture\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, dir, "add", "README.md")
+	runGit(t, dir, "commit", "-q", "-m", "init")
+}
+
+// realGitWorktreeFns swaps the gitWorktree*/gitDeleteLocalBranch seams for
+// their real (process-executing) implementations, restoring the stubSideFX
+// fakes on cleanup. Used by tests that need the real `git worktree remove`
+// effect, not just the recorded call the stub asserts.
+func realGitWorktreeFns(t *testing.T) {
+	t.Helper()
+	prevAdd, prevList, prevFetch, prevOriginHEAD := gitWorktreeAddFn, gitWorktreeListFn, gitFetchOriginFn, gitResolveOriginHEADFn
+	prevRemove, prevRemoveForce, prevBranchDelete := gitWorktreeRemoveFn, gitWorktreeRemoveForceFn, gitDeleteLocalBranchFn
+	gitWorktreeAddFn = gitWorktreeAddReal
+	gitWorktreeListFn = gitWorktreeListReal
+	gitFetchOriginFn = gitFetchOriginReal
+	gitResolveOriginHEADFn = gitResolveOriginHEADReal
+	gitWorktreeRemoveFn = gitWorktreeRemoveReal
+	gitWorktreeRemoveForceFn = gitWorktreeRemoveForceReal
+	gitDeleteLocalBranchFn = gitDeleteLocalBranchReal
+	t.Cleanup(func() {
+		gitWorktreeAddFn, gitWorktreeListFn, gitFetchOriginFn, gitResolveOriginHEADFn = prevAdd, prevList, prevFetch, prevOriginHEAD
+		gitWorktreeRemoveFn, gitWorktreeRemoveForceFn, gitDeleteLocalBranchFn = prevRemove, prevRemoveForce, prevBranchDelete
+	})
+}
 
 func writeHookScript(t *testing.T, repoDir, body string, mode os.FileMode) {
 	t.Helper()
@@ -98,8 +147,8 @@ func TestCutWorktreeHookNotExecutableRefusesAndCleansUp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "cut_worktree_hook_not_executable") {
 		t.Errorf("missing cut_worktree_hook_not_executable code: %s", stdout.String())
 	}
-	if len(s.removeCalls) != 1 || s.removeCalls[0].Path != wtPath {
-		t.Errorf("expected worktree removed on hook refusal; removeCalls = %+v", s.removeCalls)
+	if len(s.removeForceCalls) != 1 || s.removeForceCalls[0].Path != wtPath {
+		t.Errorf("expected worktree force-removed on hook refusal; removeForceCalls = %+v", s.removeForceCalls)
 	}
 	if len(s.localBranchDeleteCalls) != 1 || s.localBranchDeleteCalls[0].Branch != "demo/foo" {
 		t.Errorf("expected branch deleted on hook refusal; calls = %+v", s.localBranchDeleteCalls)
@@ -140,8 +189,8 @@ func TestCutWorktreeHookFailureRefusesAndCleansUp(t *testing.T) {
 	if !strings.Contains(stdout.String(), "boom") {
 		t.Errorf("expected stderr tail carried in refusal: %s", stdout.String())
 	}
-	if len(s.removeCalls) != 1 || s.removeCalls[0].Path != wtPath {
-		t.Errorf("expected worktree removed on hook failure; removeCalls = %+v", s.removeCalls)
+	if len(s.removeForceCalls) != 1 || s.removeForceCalls[0].Path != wtPath {
+		t.Errorf("expected worktree force-removed on hook failure; removeForceCalls = %+v", s.removeForceCalls)
 	}
 	if len(s.localBranchDeleteCalls) != 1 || s.localBranchDeleteCalls[0].Branch != "demo/foo" {
 		t.Errorf("expected branch deleted on hook failure; calls = %+v", s.localBranchDeleteCalls)
@@ -174,5 +223,109 @@ func TestCutWorktreeReusedWorktreeSkipsHook(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(wtPath, ".hook-ran")); !os.IsNotExist(err) {
 		t.Errorf("expected hook skipped on reuse; stat err = %v", err)
+	}
+}
+
+// TestCutWorktreeHookFailureForceRemovesRealWorktree guards anvil.0270's
+// blocker finding: a plain `git worktree remove` refuses once the hook has
+// written a non-gitignored file, orphaning both the worktree dir and the
+// branch. This drives doCutWorktree against a real repo (real `git worktree
+// add`/`remove --force`/`branch -D`, not the removeCalls-recording stub) so
+// the assertion is on the actual filesystem/branch effect, not just the call.
+func TestCutWorktreeHookFailureForceRemovesRealWorktree(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	repoDir := t.TempDir()
+	initGitRepo(t, repoDir)
+	// Writes a non-gitignored file into the worktree before failing — the
+	// case a plain `git worktree remove` refuses on.
+	writeHookScript(t, repoDir, "#!/bin/sh\nprintf derived > \"$1/derived.txt\"\nexit 1\n", 0o700) //nolint:gosec // G306: fixture must stay executable
+
+	s := stubSideFX(t)
+	s.repoDir = repoDir
+	realGitWorktreeFns(t)
+	wtPath := filepath.Join(t.TempDir(), "wt")
+	// Real `git worktree add` creates the directory; do not pre-create it.
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--worktree", wtPath, "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected refusal; stdout: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "cut_worktree_hook_failed") {
+		t.Errorf("missing cut_worktree_hook_failed code: %s", stdout.String())
+	}
+
+	if _, err := os.Stat(wtPath); !os.IsNotExist(err) {
+		t.Errorf("expected worktree dir removed; stat err = %v", err)
+	}
+	out := bytes.Buffer{}
+	branchList := exec.Command("git", "branch", "--list", "demo/foo") //nolint:gosec // test-controlled args
+	branchList.Dir = repoDir
+	branchList.Stdout = &out
+	if err := branchList.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(out.String()) != "" {
+		t.Errorf("expected branch demo/foo deleted; git branch --list = %q", out.String())
+	}
+
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "open" {
+		t.Errorf("status = %v after refusal, want open (unchanged)", a.FrontMatter["status"])
+	}
+}
+
+// TestCutWorktreeHookTimeoutRefusesAndCleansUp guards the high finding: a
+// hung hook must not wedge the transition indefinitely. Uses the stub (not
+// real git) since the assertion here is on the timeout/cleanup wiring, not
+// the git-remove effect covered by the test above.
+func TestCutWorktreeHookTimeoutRefusesAndCleansUp(t *testing.T) {
+	prevTimeoutFn := worktreeHookTimeoutFn
+	worktreeHookTimeoutFn = func() time.Duration { return 200 * time.Millisecond }
+	t.Cleanup(func() { worktreeHookTimeoutFn = prevTimeoutFn })
+
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	repoDir := t.TempDir()
+	// Sleeps well past the shrunk timeout above but still short in wall time.
+	writeHookScript(t, repoDir, "#!/bin/sh\nsleep 5\n", 0o700) //nolint:gosec // G306: fixture must stay executable
+
+	s := stubSideFX(t)
+	s.repoDir = repoDir
+	wtPath := filepath.Join(t.TempDir(), "wt")
+	if err := os.MkdirAll(wtPath, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--worktree", wtPath, "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected refusal; stdout: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "cut_worktree_hook_timeout") {
+		t.Errorf("missing cut_worktree_hook_timeout code: %s", stdout.String())
+	}
+	if len(s.removeForceCalls) != 1 || s.removeForceCalls[0].Path != wtPath {
+		t.Errorf("expected worktree force-removed on hook timeout; removeForceCalls = %+v", s.removeForceCalls)
+	}
+	if len(s.localBranchDeleteCalls) != 1 || s.localBranchDeleteCalls[0].Branch != "demo/foo" {
+		t.Errorf("expected branch deleted on hook timeout; calls = %+v", s.localBranchDeleteCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "open" {
+		t.Errorf("status = %v after refusal, want open (unchanged)", a.FrontMatter["status"])
 	}
 }

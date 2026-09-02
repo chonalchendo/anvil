@@ -18,20 +18,21 @@ import (
 // without shimming binaries on PATH. Pattern mirrors ghPRListFn. The
 // gitWorktreeListFn used here is declared once in fleet.go.
 var (
-	gitWorktreeAddFn       = gitWorktreeAddReal
-	gitWorktreeRemoveFn    = gitWorktreeRemoveReal
-	gitDeleteLocalBranchFn = gitDeleteLocalBranchReal
-	gitMainRootFn          = gitMainRootReal
-	gitFetchOriginFn       = gitFetchOriginReal
-	gitResolveOriginHEADFn = gitResolveOriginHEADReal
-	resolveProjectRepoFn   = resolveProjectRepoReal
-	gitToplevelFn          = gitToplevelReal
-	ghPRViewJSONFn         = ghPRViewJSONReal
-	ghPRChecksFn           = ghPRChecksReal
-	ghPRMergeFn            = ghPRMergeReal
-	ghDeleteBranchFn       = ghDeleteBranchReal
-	userHomeFn             = os.UserHomeDir
-	mergeabilityPollSleep  = time.Sleep
+	gitWorktreeAddFn         = gitWorktreeAddReal
+	gitWorktreeRemoveFn      = gitWorktreeRemoveReal
+	gitWorktreeRemoveForceFn = gitWorktreeRemoveForceReal
+	gitDeleteLocalBranchFn   = gitDeleteLocalBranchReal
+	gitMainRootFn            = gitMainRootReal
+	gitFetchOriginFn         = gitFetchOriginReal
+	gitResolveOriginHEADFn   = gitResolveOriginHEADReal
+	resolveProjectRepoFn     = resolveProjectRepoReal
+	gitToplevelFn            = gitToplevelReal
+	ghPRViewJSONFn           = ghPRViewJSONReal
+	ghPRChecksFn             = ghPRChecksReal
+	ghPRMergeFn              = ghPRMergeReal
+	ghDeleteBranchFn         = ghDeleteBranchReal
+	userHomeFn               = os.UserHomeDir
+	mergeabilityPollSleep    = time.Sleep
 )
 
 // claimConflict reports whether claiming `a` (issue → in-progress) collides with
@@ -186,6 +187,14 @@ func doCutWorktree(errW io.Writer, a *core.Artifact, id, pathOverride, branchOve
 		}
 		wtPath = p
 	}
+	// Resolve to absolute before the cut: the hook contract documents $1 as
+	// the absolute worktree path (anvil.0270), and a relative --worktree
+	// override would otherwise leak a relative path to both git and the hook.
+	absWtPath, aerr := filepath.Abs(wtPath)
+	if aerr != nil {
+		return "", "", errfmt.NewStructured("cut_worktree_path_failed").Set("error", aerr.Error())
+	}
+	wtPath = absWtPath
 	branch = branchOverride
 	if branch == "" {
 		branch = project + "/" + slug
@@ -211,9 +220,10 @@ func doCutWorktree(errW io.Writer, a *core.Artifact, id, pathOverride, branchOve
 		// The hook runs only on a fresh cut, mirroring carry: a reused worktree
 		// may hold local edits the hook's derivation would clobber. A failing
 		// hook must not orphan the worktree+branch it just made, so remove both
-		// before surfacing the refusal.
+		// before surfacing the refusal. Forced: a hook can write non-gitignored
+		// files before it fails, and a plain remove refuses on those.
 		if herr := runWorktreeHookFn(repoDir, wtPath); herr != nil {
-			if rerr := gitWorktreeRemoveFn(repoDir, wtPath); rerr != nil {
+			if rerr := gitWorktreeRemoveForceFn(repoDir, wtPath); rerr != nil {
 				fmt.Fprintf(errW, "warning: cleanup after failed hook: worktree remove failed: %v\n", rerr)
 			}
 			if berr := gitDeleteLocalBranchFn(repoDir, branch); berr != nil {
