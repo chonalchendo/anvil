@@ -229,12 +229,9 @@ func TestCutWorktreeReusedWorktreeSkipsHook(t *testing.T) {
 	}
 }
 
-// TestCutWorktreeHookFailureForceRemovesRealWorktree guards anvil.0270's
-// blocker finding: a plain `git worktree remove` refuses once the hook has
-// written a non-gitignored file, orphaning both the worktree dir and the
-// branch. This drives doCutWorktree against a real repo (real `git worktree
-// add`/`remove --force`/`branch -D`, not the removeCalls-recording stub) so
-// the assertion is on the actual filesystem/branch effect, not just the call.
+// A plain `git worktree remove` refuses once the hook has written a
+// non-gitignored file. Drives doCutWorktree against a real repo (real `git
+// worktree add`/`remove --force`/`branch -D`), not the removeCalls stub.
 func TestCutWorktreeHookFailureForceRemovesRealWorktree(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
@@ -287,16 +284,10 @@ func TestCutWorktreeHookFailureForceRemovesRealWorktree(t *testing.T) {
 
 // A hook whose orphaned child holds the stderr pipe must still refuse within
 // timeout+WaitDelay, not the child's remaining lifetime.
-//
-// Deterministic by construction, unlike the tail-exec-dependent fixture this
-// replaces: the assertion is that the whole process group dies on cancel, so
-// it doesn't matter whether the shell tail-exec's into its foreground sleep
-// (collapsing pid==pgid leader) or keeps its own pid — the backgrounded sleep
-// is in the same pgid either way, and group-kill reaches it regardless.
 func TestCutWorktreeHookTimeoutRefusesAndCleansUp(t *testing.T) {
 	prevTimeoutFn, prevWaitDelayFn := worktreeHookTimeoutFn, worktreeHookWaitDelayFn
-	timeout := 2 * time.Second
-	waitDelay := 800 * time.Millisecond
+	timeout := 500 * time.Millisecond
+	waitDelay := 200 * time.Millisecond
 	worktreeHookTimeoutFn = func() time.Duration { return timeout }
 	worktreeHookWaitDelayFn = func() time.Duration { return waitDelay }
 	t.Cleanup(func() {
@@ -336,9 +327,8 @@ func TestCutWorktreeHookTimeoutRefusesAndCleansUp(t *testing.T) {
 		t.Errorf("elapsed = %v, want >= timeout %v — refused too early", elapsed, timeout)
 	}
 	// Upper bound: group-kill closes the orphan's inherited stderr fd on
-	// cancel, so elapsed stays near timeout — well under timeout+WaitDelay
-	// (%v), which would mean the kill missed the orphan and Wait sat out the
-	// full WaitDelay before force-closing the pipe.
+	// cancel, so elapsed stays near timeout, well under timeout+WaitDelay —
+	// which would mean the kill missed the orphan and Wait sat out the delay.
 	if maxElapsed := timeout + 1*time.Second; elapsed > maxElapsed {
 		t.Errorf("elapsed = %v, want < %v (timeout+slack, well under timeout+WaitDelay=%v) — group-kill didn't reach the orphan", elapsed, maxElapsed, timeout+waitDelay)
 	}
@@ -361,10 +351,9 @@ func TestCutWorktreeHookTimeoutRefusesAndCleansUp(t *testing.T) {
 	}
 }
 
-// TestCutWorktreeHookOrphanProcessRefusesAndCleansUp guards the high
-// finding: a hook that exits 0 but leaves a descendant holding the stderr
-// pipe open must refuse with a dedicated code, not the exec-internal
-// WaitDelay string, and the descendant must not survive the refusal.
+// A hook that exits 0 but leaves a descendant holding the stderr pipe open
+// must refuse with a dedicated code, not the exec-internal WaitDelay string,
+// and the descendant must not survive the refusal.
 func TestCutWorktreeHookOrphanProcessRefusesAndCleansUp(t *testing.T) {
 	prevTimeoutFn, prevWaitDelayFn := worktreeHookTimeoutFn, worktreeHookWaitDelayFn
 	worktreeHookTimeoutFn = func() time.Duration { return 5 * time.Second }
