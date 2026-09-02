@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -26,12 +25,20 @@ const worktreeHookTimeout = 30 * time.Second
 // the full 30s to exercise the timeout path for real.
 var worktreeHookTimeoutFn = func() time.Duration { return worktreeHookTimeout }
 
+// worktreeHookWaitDelay bounds how long Wait waits for a killed hook's
+// orphaned descendants (e.g. a backgrounded child) to close the stderr pipe
+// before force-closing it — otherwise a timeout refuses correctly but not in
+// bounded wall-clock time (anvil.0270 pass 2).
+const worktreeHookWaitDelay = 5 * time.Second
+
+// worktreeHookWaitDelayFn: worktreeHookTimeoutFn's counterpart, also test-shrinkable.
+var worktreeHookWaitDelayFn = func() time.Duration { return worktreeHookWaitDelay }
+
 var runWorktreeHookFn = runWorktreeHookReal
 
-// runWorktreeHookReal runs repoDir's worktreeHookName if present. Synchronous:
-// a process outliving the call wedges a later worktree remove. Missing hook is
-// a no-op; a present-but-failing one (incl. timeout) returns Structured — the
-// caller cleans up the worktree and branch.
+// runWorktreeHookReal runs repoDir's worktreeHookName if present, synchronously.
+// Missing hook is a no-op; a present-but-failing one (incl. timeout) returns
+// Structured — the caller cleans up the worktree and branch.
 func runWorktreeHookReal(repoDir, worktreePath string) error {
 	hookPath := filepath.Join(repoDir, worktreeHookName)
 	info, err := os.Stat(hookPath)
@@ -53,8 +60,9 @@ func runWorktreeHookReal(repoDir, worktreePath string) error {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, hookPath, worktreePath) //nolint:gosec // G204: fixed repo-relative name, executable bit checked above, bounded by worktreeHookTimeout
 	cmd.Dir = repoDir
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+	cmd.WaitDelay = worktreeHookWaitDelayFn()
+	stderr := &boundedBuffer{capBytes: tailByteCap}
+	cmd.Stderr = stderr
 	if runErr := cmd.Run(); runErr != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return errfmt.NewStructured("cut_worktree_hook_timeout").
@@ -70,9 +78,28 @@ func runWorktreeHookReal(repoDir, worktreePath string) error {
 	return nil
 }
 
-// tailByteCap bounds tailLines' input before line-splitting — a hook that
-// floods stderr must not buffer unbounded output into the refusal.
+// tailByteCap bounds both boundedBuffer's stored bytes and tailLines' line-
+// splitting input — a hook that floods stderr must not buffer unbounded
+// output into memory or the refusal.
 const tailByteCap = 4 * 1024
+
+// boundedBuffer is an io.Writer that keeps only the last capBytes written —
+// cmd.Stderr must not accumulate a flooding hook's output unbounded just
+// because the refusal only ever surfaces a tail of it.
+type boundedBuffer struct {
+	buf      []byte
+	capBytes int
+}
+
+func (b *boundedBuffer) Write(p []byte) (int, error) {
+	b.buf = append(b.buf, p...)
+	if len(b.buf) > b.capBytes {
+		b.buf = b.buf[len(b.buf)-b.capBytes:]
+	}
+	return len(p), nil
+}
+
+func (b *boundedBuffer) String() string { return string(b.buf) }
 
 // tailLines returns the last n lines of the last tailByteCap bytes of s,
 // trimmed — enough to diagnose a failing hook without dumping unbounded

@@ -217,11 +217,7 @@ func doCutWorktree(errW io.Writer, a *core.Artifact, id, pathOverride, branchOve
 		if err := copyCarryFiles(repoDir, wtPath, carry); err != nil {
 			return "", "", err
 		}
-		// The hook runs only on a fresh cut, mirroring carry: a reused worktree
-		// may hold local edits the hook's derivation would clobber. A failing
-		// hook must not orphan the worktree+branch it just made, so remove both
-		// before surfacing the refusal. Forced: a hook can write non-gitignored
-		// files before it fails, and a plain remove refuses on those.
+		// Fresh cut only — a reused worktree may hold local edits.
 		if herr := runWorktreeHookFn(repoDir, wtPath); herr != nil {
 			if rerr := gitWorktreeRemoveForceFn(repoDir, wtPath); rerr != nil {
 				fmt.Fprintf(errW, "warning: cleanup after failed hook: worktree remove failed: %v\n", rerr)

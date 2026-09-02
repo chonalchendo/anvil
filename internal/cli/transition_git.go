@@ -108,12 +108,9 @@ func gitWorktreeRemoveReal(repoDir, path string) error {
 	return nil
 }
 
-// gitWorktreeRemoveForceReal is gitWorktreeRemoveReal's --force variant,
-// reserved for cleanup after a failed .anvil-worktree-hook: the hook can
-// write non-gitignored files before it fails, which a plain `remove` refuses
-// ("contains modified or untracked files"), orphaning both the worktree and
-// the branch (anvil.0270). Never used for a normal land-pr removal, where an
-// unclean worktree should stay fatal so uncommitted work isn't discarded.
+// gitWorktreeRemoveForceReal is gitWorktreeRemoveReal's --force variant: a
+// plain remove refuses once the hook wrote a non-gitignored file; land-pr
+// stays non-force so uncommitted work isn't discarded.
 func gitWorktreeRemoveForceReal(repoDir, path string) error {
 	cmd := exec.Command("git", "worktree", "remove", "--force", path) //nolint:gosec // binary path resolved from trusted sources; not user input
 	if repoDir != "" {

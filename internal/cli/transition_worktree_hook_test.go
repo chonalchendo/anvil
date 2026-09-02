@@ -283,13 +283,24 @@ func TestCutWorktreeHookFailureForceRemovesRealWorktree(t *testing.T) {
 }
 
 // TestCutWorktreeHookTimeoutRefusesAndCleansUp guards the high finding: a
-// hung hook must not wedge the transition indefinitely. Uses the stub (not
-// real git) since the assertion here is on the timeout/cleanup wiring, not
-// the git-remove effect covered by the test above.
+// hung hook must not wedge the transition indefinitely — including when the
+// kill signal doesn't land on the sleeping process itself. The fixture backgrounds
+// a long sleep before its own foreground sleep, so the process exec.CommandContext
+// kills (the shell, or whatever it tail-exec's into) is not the process still
+// holding the stderr pipe open afterwards; a single-command `sleep N` script
+// doesn't reproduce this because the shell tail-exec's straight into it, so the
+// kill lands on the sleeper directly and the bug never surfaces. Asserts wall-clock
+// elapsed stays bounded by timeout+WaitDelay+slack, not by the orphan's remaining
+// sleep — that bound is only possible because runWorktreeHookReal sets
+// cmd.WaitDelay.
 func TestCutWorktreeHookTimeoutRefusesAndCleansUp(t *testing.T) {
-	prevTimeoutFn := worktreeHookTimeoutFn
+	prevTimeoutFn, prevWaitDelayFn := worktreeHookTimeoutFn, worktreeHookWaitDelayFn
 	worktreeHookTimeoutFn = func() time.Duration { return 200 * time.Millisecond }
-	t.Cleanup(func() { worktreeHookTimeoutFn = prevTimeoutFn })
+	worktreeHookWaitDelayFn = func() time.Duration { return 300 * time.Millisecond }
+	t.Cleanup(func() {
+		worktreeHookTimeoutFn = prevTimeoutFn
+		worktreeHookWaitDelayFn = prevWaitDelayFn
+	})
 
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
@@ -297,8 +308,10 @@ func TestCutWorktreeHookTimeoutRefusesAndCleansUp(t *testing.T) {
 	createDemoIssue(t)
 
 	repoDir := t.TempDir()
-	// Sleeps well past the shrunk timeout above but still short in wall time.
-	writeHookScript(t, repoDir, "#!/bin/sh\nsleep 5\n", 0o700) //nolint:gosec // G306: fixture must stay executable
+	// Backgrounds a 5s sleep (an orphan that outlives the killed foreground
+	// process and keeps the inherited stderr pipe open) before its own 5s
+	// foreground sleep, well past the shrunk timeout/waitDelay above.
+	writeHookScript(t, repoDir, "#!/bin/sh\nsleep 5 &\nsleep 5\n", 0o700) //nolint:gosec // G306: fixture must stay executable
 
 	s := stubSideFX(t)
 	s.repoDir = repoDir
@@ -312,8 +325,13 @@ func TestCutWorktreeHookTimeoutRefusesAndCleansUp(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)
+	start := time.Now()
 	if err := cmd.Execute(); err == nil {
 		t.Fatalf("expected refusal; stdout: %s", stdout.String())
+	}
+	elapsed := time.Since(start)
+	if maxElapsed := 200*time.Millisecond + 300*time.Millisecond + 2*time.Second; elapsed > maxElapsed {
+		t.Errorf("elapsed = %v, want < %v (timeout+WaitDelay+slack) — an orphaned descendant wedged Wait", elapsed, maxElapsed)
 	}
 	if !strings.Contains(stdout.String(), "cut_worktree_hook_timeout") {
 		t.Errorf("missing cut_worktree_hook_timeout code: %s", stdout.String())
