@@ -345,7 +345,7 @@ func newCreateCmd() *cobra.Command {
 			if flagMilestone != "" && t == core.TypeIssue {
 				fm["milestone"] = normalizeMilestone(flagMilestone)
 			}
-			if len(flagAcceptance) > 0 && t == core.TypeIssue {
+			if len(flagAcceptance) > 0 && (t == core.TypeIssue || t == core.TypeMilestone) {
 				anyAcc := make([]any, len(flagAcceptance))
 				for i, s := range flagAcceptance {
 					anyAcc[i] = s
@@ -478,8 +478,8 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagForceNew, "force-new", false, "skip the near-duplicate similarity check")
 	cmd.Flags().StringVar(&flagSeverity, "severity", "", "issue severity (low|medium|high|critical; issue only)")
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "milestone slug or wikilink to assign (issue only)")
-	cmd.Flags().StringArrayVar(&flagAcceptance, "acceptance", nil, "acceptance criterion to add (repeatable; issue only)")
-	cmd.Flags().StringVar(&flagKind, "kind", "", "contract kind, a registered label (required for contract; register via `anvil contract kinds add`)")
+	cmd.Flags().StringArrayVar(&flagAcceptance, "acceptance", nil, "acceptance criterion to add (repeatable; issue, milestone)")
+	cmd.Flags().StringVar(&flagKind, "kind", "", "contract kind (registered label, required — register via `anvil contract kinds add`) or milestone kind (scoped|bucket, defaults to scoped)")
 	cmd.Flags().BoolVar(&flagShowTemplate, "show-template", false, "print the required body skeleton + tag rules for <type> and exit (learning, issue)")
 	cmd.Flags().BoolVar(&flagSkipVerifyPredicates, "skip-verify-predicates", false, skipVerifyPredicatesFlagUsage)
 

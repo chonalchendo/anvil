@@ -152,6 +152,7 @@ func TestCreate_ContentDuplicate_DisjointTitles(t *testing.T) {
 		"--title", "Reindex drops links on concurrent writes",
 		"--description", "concurrent saves lose graph edges in the index",
 		"--goal", "concurrent index writes no longer drop link rows",
+		"--kind", "bucket",
 		"--json",
 	}
 	// Second milestone: title tokens are "index", "loses", "edges", "under",
@@ -163,6 +164,7 @@ func TestCreate_ContentDuplicate_DisjointTitles(t *testing.T) {
 		"--title", "Index loses edges under parallel saves",
 		"--description", "concurrent saves lose graph edges in the index",
 		"--goal", "concurrent index writes no longer drop link rows",
+		"--kind", "bucket",
 		"--json",
 	}
 
@@ -209,6 +211,7 @@ func TestCreate_ContentDuplicate_PriorNotBootstrapReindexed(t *testing.T) {
 		"--title", "Reindex drops links on concurrent writes",
 		"--description", "concurrent saves lose graph edges in the index",
 		"--goal", "concurrent index writes no longer drop link rows",
+		"--kind", "bucket",
 		"--json",
 	}
 	// #2: distinct content Y, disjoint title and content from #1. Created with the
@@ -218,6 +221,7 @@ func TestCreate_ContentDuplicate_PriorNotBootstrapReindexed(t *testing.T) {
 		"--title", "Validate rejects malformed frontmatter keys",
 		"--description", "schema validation skips unknown top-level fields entirely",
 		"--goal", "validation flags every unexpected frontmatter key as an error",
+		"--kind", "bucket",
 		"--json",
 	}
 	// #3: content Y again, title disjoint from #2 — matches ONLY #2 by content.
@@ -226,6 +230,7 @@ func TestCreate_ContentDuplicate_PriorNotBootstrapReindexed(t *testing.T) {
 		"--title", "Frontmatter typos slip past the checker",
 		"--description", "schema validation skips unknown top-level fields entirely",
 		"--goal", "validation flags every unexpected frontmatter key as an error",
+		"--kind", "bucket",
 		"--json",
 	}
 

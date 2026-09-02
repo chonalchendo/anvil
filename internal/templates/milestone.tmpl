@@ -5,7 +5,7 @@ goal: {{ printf "%q" .Goal }}
 created: {{ .Created }}
 updated: {{ .Created }}
 status: planned
-kind: scoped
+kind: {{ if .Kind }}{{ .Kind }}{{ else }}scoped{{ end }}
 tags: [type/milestone]
 project: {{ .Project }}
 acceptance: []
