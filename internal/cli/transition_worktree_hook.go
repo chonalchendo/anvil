@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
@@ -25,10 +26,9 @@ const worktreeHookTimeout = 30 * time.Second
 // the full 30s to exercise the timeout path for real.
 var worktreeHookTimeoutFn = func() time.Duration { return worktreeHookTimeout }
 
-// worktreeHookWaitDelay bounds how long Wait waits for a killed hook's
-// orphaned descendants (e.g. a backgrounded child) to close the stderr pipe
-// before force-closing it — otherwise a timeout refuses correctly but not in
-// bounded wall-clock time (anvil.0270 pass 2).
+// worktreeHookWaitDelay bounds Wait when a killed hook's orphaned child
+// still holds the stderr pipe — otherwise the refusal is correct but
+// unbounded in wall-clock time.
 const worktreeHookWaitDelay = 5 * time.Second
 
 // worktreeHookWaitDelayFn: worktreeHookTimeoutFn's counterpart, also test-shrinkable.
@@ -60,10 +60,31 @@ func runWorktreeHookReal(repoDir, worktreePath string) error {
 	defer cancel()
 	cmd := exec.CommandContext(ctx, hookPath, worktreePath) //nolint:gosec // G204: fixed repo-relative name, executable bit checked above, bounded by worktreeHookTimeout
 	cmd.Dir = repoDir
+	// Setpgid + group-kill Cancel make the process group the unit: a timeout
+	// must kill every descendant, not just the direct child, or an orphan
+	// keeps the stderr pipe open and wedges Wait for the full WaitDelay.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
 	cmd.WaitDelay = worktreeHookWaitDelayFn()
 	stderr := &boundedBuffer{capBytes: tailByteCap}
 	cmd.Stderr = stderr
-	if runErr := cmd.Run(); runErr != nil {
+	runErr := cmd.Run()
+	if runErr != nil && errors.Is(runErr, exec.ErrWaitDelay) && cmd.ProcessState != nil && cmd.ProcessState.Success() {
+		// Hook exited 0 but a descendant it spawned still held stderr open
+		// past WaitDelay — the exact orphan the docs forbid. Kill the group
+		// (the hook itself already exited; only its orphan remains) and
+		// refuse with a dedicated code instead of leaking Go's internal
+		// "exec: WaitDelay expired" string.
+		if cmd.Process != nil {
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+		return errfmt.NewStructured("cut_worktree_hook_orphan_process").
+			Set("hook", hookPath).
+			Set("fix_hint", "the hook must spawn nothing that outlives it")
+	}
+	if runErr != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return errfmt.NewStructured("cut_worktree_hook_timeout").
 				Set("hook", hookPath).

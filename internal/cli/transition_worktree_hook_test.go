@@ -2,10 +2,13 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -282,21 +285,20 @@ func TestCutWorktreeHookFailureForceRemovesRealWorktree(t *testing.T) {
 	}
 }
 
-// TestCutWorktreeHookTimeoutRefusesAndCleansUp guards the high finding: a
-// hung hook must not wedge the transition indefinitely — including when the
-// kill signal doesn't land on the sleeping process itself. The fixture backgrounds
-// a long sleep before its own foreground sleep, so the process exec.CommandContext
-// kills (the shell, or whatever it tail-exec's into) is not the process still
-// holding the stderr pipe open afterwards; a single-command `sleep N` script
-// doesn't reproduce this because the shell tail-exec's straight into it, so the
-// kill lands on the sleeper directly and the bug never surfaces. Asserts wall-clock
-// elapsed stays bounded by timeout+WaitDelay+slack, not by the orphan's remaining
-// sleep — that bound is only possible because runWorktreeHookReal sets
-// cmd.WaitDelay.
+// A hook whose orphaned child holds the stderr pipe must still refuse within
+// timeout+WaitDelay, not the child's remaining lifetime.
+//
+// Deterministic by construction, unlike the tail-exec-dependent fixture this
+// replaces: the assertion is that the whole process group dies on cancel, so
+// it doesn't matter whether the shell tail-exec's into its foreground sleep
+// (collapsing pid==pgid leader) or keeps its own pid — the backgrounded sleep
+// is in the same pgid either way, and group-kill reaches it regardless.
 func TestCutWorktreeHookTimeoutRefusesAndCleansUp(t *testing.T) {
 	prevTimeoutFn, prevWaitDelayFn := worktreeHookTimeoutFn, worktreeHookWaitDelayFn
-	worktreeHookTimeoutFn = func() time.Duration { return 200 * time.Millisecond }
-	worktreeHookWaitDelayFn = func() time.Duration { return 300 * time.Millisecond }
+	timeout := 2 * time.Second
+	waitDelay := 800 * time.Millisecond
+	worktreeHookTimeoutFn = func() time.Duration { return timeout }
+	worktreeHookWaitDelayFn = func() time.Duration { return waitDelay }
 	t.Cleanup(func() {
 		worktreeHookTimeoutFn = prevTimeoutFn
 		worktreeHookWaitDelayFn = prevWaitDelayFn
@@ -308,10 +310,9 @@ func TestCutWorktreeHookTimeoutRefusesAndCleansUp(t *testing.T) {
 	createDemoIssue(t)
 
 	repoDir := t.TempDir()
-	// Backgrounds a 5s sleep (an orphan that outlives the killed foreground
-	// process and keeps the inherited stderr pipe open) before its own 5s
-	// foreground sleep, well past the shrunk timeout/waitDelay above.
-	writeHookScript(t, repoDir, "#!/bin/sh\nsleep 5 &\nsleep 5\n", 0o700) //nolint:gosec // G306: fixture must stay executable
+	// Backgrounds an orphan that inherits stderr and outlives the hook's own
+	// foreground sleep, recording its pid so the test can prove it's dead.
+	writeHookScript(t, repoDir, "#!/bin/sh\nsleep 100 &\necho $! > orphan.pid\nsleep 100\n", 0o700) //nolint:gosec // G306: fixture must stay executable
 
 	s := stubSideFX(t)
 	s.repoDir = repoDir
@@ -330,12 +331,24 @@ func TestCutWorktreeHookTimeoutRefusesAndCleansUp(t *testing.T) {
 		t.Fatalf("expected refusal; stdout: %s", stdout.String())
 	}
 	elapsed := time.Since(start)
-	if maxElapsed := 200*time.Millisecond + 300*time.Millisecond + 2*time.Second; elapsed > maxElapsed {
-		t.Errorf("elapsed = %v, want < %v (timeout+WaitDelay+slack) — an orphaned descendant wedged Wait", elapsed, maxElapsed)
+	// Lower bound: the refusal can't fire before the hook's own timeout.
+	if elapsed < timeout {
+		t.Errorf("elapsed = %v, want >= timeout %v — refused too early", elapsed, timeout)
+	}
+	// Upper bound: group-kill closes the orphan's inherited stderr fd on
+	// cancel, so elapsed stays near timeout — well under timeout+WaitDelay
+	// (%v), which would mean the kill missed the orphan and Wait sat out the
+	// full WaitDelay before force-closing the pipe.
+	if maxElapsed := timeout + 1*time.Second; elapsed > maxElapsed {
+		t.Errorf("elapsed = %v, want < %v (timeout+slack, well under timeout+WaitDelay=%v) — group-kill didn't reach the orphan", elapsed, maxElapsed, timeout+waitDelay)
 	}
 	if !strings.Contains(stdout.String(), "cut_worktree_hook_timeout") {
 		t.Errorf("missing cut_worktree_hook_timeout code: %s", stdout.String())
 	}
+
+	pid := readOrphanPid(t, repoDir)
+	assertOrphanDead(t, pid)
+
 	if len(s.removeForceCalls) != 1 || s.removeForceCalls[0].Path != wtPath {
 		t.Errorf("expected worktree force-removed on hook timeout; removeForceCalls = %+v", s.removeForceCalls)
 	}
@@ -345,5 +358,114 @@ func TestCutWorktreeHookTimeoutRefusesAndCleansUp(t *testing.T) {
 	a := loadIssueDoc(t, vault, "demo.foo")
 	if a.FrontMatter["status"] != "open" {
 		t.Errorf("status = %v after refusal, want open (unchanged)", a.FrontMatter["status"])
+	}
+}
+
+// TestCutWorktreeHookOrphanProcessRefusesAndCleansUp guards the high
+// finding: a hook that exits 0 but leaves a descendant holding the stderr
+// pipe open must refuse with a dedicated code, not the exec-internal
+// WaitDelay string, and the descendant must not survive the refusal.
+func TestCutWorktreeHookOrphanProcessRefusesAndCleansUp(t *testing.T) {
+	prevTimeoutFn, prevWaitDelayFn := worktreeHookTimeoutFn, worktreeHookWaitDelayFn
+	worktreeHookTimeoutFn = func() time.Duration { return 5 * time.Second }
+	waitDelay := 300 * time.Millisecond
+	worktreeHookWaitDelayFn = func() time.Duration { return waitDelay }
+	t.Cleanup(func() {
+		worktreeHookTimeoutFn = prevTimeoutFn
+		worktreeHookWaitDelayFn = prevWaitDelayFn
+	})
+
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	repoDir := t.TempDir()
+	// Exits 0 immediately but backgrounds an orphan that inherits stderr and
+	// keeps it open — the hook succeeded, but left a daemon behind.
+	writeHookScript(t, repoDir, "#!/bin/sh\nsleep 100 &\necho $! > orphan.pid\nexit 0\n", 0o700) //nolint:gosec // G306: fixture must stay executable
+
+	s := stubSideFX(t)
+	s.repoDir = repoDir
+	wtPath := filepath.Join(t.TempDir(), "wt")
+	if err := os.MkdirAll(wtPath, 0o750); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--worktree", wtPath, "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	start := time.Now()
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected refusal; stdout: %s", stdout.String())
+	}
+	elapsed := time.Since(start)
+	// Bounded by WaitDelay, not the timeout — the hook process itself
+	// already exited, so ctx is never cancelled; only the orphan holding the
+	// pipe delays the refusal, and only by WaitDelay.
+	if elapsed < waitDelay {
+		t.Errorf("elapsed = %v, want >= WaitDelay %v — refused before Wait had a chance to detect the orphan", elapsed, waitDelay)
+	}
+	if maxElapsed := waitDelay + 3*time.Second; elapsed > maxElapsed {
+		t.Errorf("elapsed = %v, want < %v (WaitDelay+slack)", elapsed, maxElapsed)
+	}
+	if !strings.Contains(stdout.String(), "cut_worktree_hook_orphan_process") {
+		t.Errorf("missing cut_worktree_hook_orphan_process code: %s", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "WaitDelay expired") {
+		t.Errorf("leaked exec-internal error string into refusal: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "the hook must spawn nothing that outlives it") {
+		t.Errorf("missing fix_hint: %s", stdout.String())
+	}
+
+	pid := readOrphanPid(t, repoDir)
+	assertOrphanDead(t, pid)
+
+	if len(s.removeForceCalls) != 1 || s.removeForceCalls[0].Path != wtPath {
+		t.Errorf("expected worktree force-removed on hook orphan refusal; removeForceCalls = %+v", s.removeForceCalls)
+	}
+	if len(s.localBranchDeleteCalls) != 1 || s.localBranchDeleteCalls[0].Branch != "demo/foo" {
+		t.Errorf("expected branch deleted on hook orphan refusal; calls = %+v", s.localBranchDeleteCalls)
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if a.FrontMatter["status"] != "open" {
+		t.Errorf("status = %v after refusal, want open (unchanged)", a.FrontMatter["status"])
+	}
+}
+
+// readOrphanPid reads the pid a fixture hook recorded for its backgrounded
+// orphan — written to repoDir (not the worktree, which cleanup may remove).
+func readOrphanPid(t *testing.T, repoDir string) int {
+	t.Helper()
+	pidBytes, err := os.ReadFile(filepath.Join(repoDir, "orphan.pid")) //nolint:gosec // G304: test-controlled temp dir
+	if err != nil {
+		t.Fatalf("reading orphan pid: %v", err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(pidBytes)))
+	if err != nil {
+		t.Fatalf("parsing orphan pid %q: %v", pidBytes, err)
+	}
+	return pid
+}
+
+// assertOrphanDead polls kill(pid, 0) for up to 500ms — SIGKILL delivery is
+// near-instant but not synchronous with the group-kill call returning, so a
+// single immediate check can catch the orphan mid-teardown.
+func assertOrphanDead(t *testing.T, pid int) {
+	t.Helper()
+	deadline := time.Now().Add(500 * time.Millisecond)
+	var killErr error
+	for {
+		killErr = syscall.Kill(pid, 0)
+		if errors.Is(killErr, syscall.ESRCH) || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if !errors.Is(killErr, syscall.ESRCH) {
+		t.Errorf("orphan pid %d still alive after refusal (kill -0 = %v), want ESRCH — group-kill left a descendant running", pid, killErr)
 	}
 }
