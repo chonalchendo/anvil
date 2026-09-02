@@ -110,6 +110,8 @@ acceptance: ["criterion", ...]
 
 Cut entirely: `target_date`, `horizon`, `ordinal`, `predecessors`, `successors`, `plans`, `issues`, `objectives`, `risks`. Milestones are structural, not scheduled. Done = all child issues `resolved`.
 
+Status follows child claims, only partway: `transition issue <id> in-progress` moves a `planned` parent milestone to `in-progress` on the first child claim (anvil.0275). `done` stays a human transition — acceptance is measured, not inferred from issue count. `list milestone --json`/`show milestone --json` carry a derived `children` summary (`open`/`in_progress`/`resolved`/`total` counts from linked issues) and a `stale` flag, true when every child is resolved but status hasn't caught up to `done`.
+
 **Legal transitions:** see `internal/core/transitions.go`.
 
 ### `contract`

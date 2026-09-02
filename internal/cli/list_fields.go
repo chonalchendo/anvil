@@ -14,7 +14,7 @@ import (
 var listItemFields = []string{
 	"id", "type", "title", "description", "status",
 	"severity", "created", "project", "milestone", "tags",
-	"path", "missing_section",
+	"path", "missing_section", "children", "stale",
 }
 
 // parseFields splits the comma-separated --fields flag and rejects any value
