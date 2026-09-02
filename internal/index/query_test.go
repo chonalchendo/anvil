@@ -167,6 +167,76 @@ func TestMilestoneStatusNonMilestoneIDErrors(t *testing.T) {
 	}
 }
 
+func TestMilestoneChildrenCountsByStatus(t *testing.T) {
+	db := openTestDB(t)
+	seedMilestone(t, db, "milestone.m", map[string]string{
+		"i1": "open", "i2": "in-progress", "i3": "resolved", "i4": "abandoned",
+	})
+	got, err := db.MilestoneChildren("m")
+	if err != nil {
+		t.Fatalf("MilestoneChildren: %v", err)
+	}
+	want := MilestoneChildren{Open: 1, InProgress: 1, Resolved: 1, Abandoned: 1, Total: 4}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("children mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestMilestoneStaleReportsDriftAndCaughtUp(t *testing.T) {
+	tests := []struct {
+		name   string
+		mc     MilestoneChildren
+		status string
+		kind   string
+		want   bool
+	}{
+		{
+			name:   "all resolved but status planned -> stale",
+			mc:     MilestoneChildren{Resolved: 2, Total: 2},
+			status: "planned",
+			want:   true,
+		},
+		{
+			name:   "resolved+abandoned caught up but status in-progress -> stale",
+			mc:     MilestoneChildren{Resolved: 1, Abandoned: 1, Total: 2},
+			status: "in-progress",
+			want:   true,
+		},
+		{
+			name:   "status already done -> not stale",
+			mc:     MilestoneChildren{Resolved: 2, Total: 2},
+			status: "done",
+			want:   false,
+		},
+		{
+			name:   "open child remains -> not stale",
+			mc:     MilestoneChildren{Open: 1, Resolved: 1, Total: 2},
+			status: "in-progress",
+			want:   false,
+		},
+		{
+			name:   "no linked issues -> not stale",
+			mc:     MilestoneChildren{},
+			status: "planned",
+			want:   false,
+		},
+		{
+			name:   "bucket milestone never stale even fully caught up",
+			mc:     MilestoneChildren{Resolved: 2, Total: 2},
+			status: "in-progress",
+			kind:   "bucket",
+			want:   false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := MilestoneStale(tc.mc, tc.status, tc.kind); got != tc.want {
+				t.Fatalf("MilestoneStale(%+v, %q, %q) = %v, want %v", tc.mc, tc.status, tc.kind, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestLinksFromAndTo(t *testing.T) {
 	db := openTestDB(t)
 	must := func(err error) {

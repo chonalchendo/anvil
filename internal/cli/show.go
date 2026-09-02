@@ -204,15 +204,16 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename string, as
 
 	if t == core.TypeMilestone {
 		if db, dberr := indexForRead(v); dberr != nil {
-			cmd.PrintErrln(dberr)
+			cmd.PrintErrln("warning: milestone children: " + dberr.Error())
 		} else {
 			mc, merr := db.MilestoneChildren(id)
-			db.Close() //nolint:errcheck // close immediately; error not actionable
+			db.Close() //nolint:errcheck,gosec // close immediately; error not actionable
 			if merr != nil {
 				cmd.PrintErrln(merr)
 			} else {
 				status, _ := a.FrontMatter["status"].(string)
-				stale := index.MilestoneStale(mc, status)
+				kind, _ := a.FrontMatter["kind"].(string)
+				stale := index.MilestoneStale(mc, status, kind)
 				out.Children = &mc
 				out.Stale = &stale
 			}

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/chonalchendo/anvil/internal/core"
 )
 
 // QueryFilters layers filters onto ListReady / ListOrphans. Empty fields are no-ops.
@@ -479,44 +477,4 @@ func (d *DB) linkQuery(q, arg string) ([]LinkRow, error) {
 		out = append(out, r)
 	}
 	return out, rs.Err()
-}
-
-// MilestoneChildren is the per-status breakdown of issues linked to a
-// milestone via the `milestone` frontmatter slot, so a queue view can show
-// the derived progress next to the stored status.
-type MilestoneChildren struct {
-	Open       int `json:"open"`
-	InProgress int `json:"in_progress"`
-	Resolved   int `json:"resolved"`
-	Total      int `json:"total"`
-}
-
-// MilestoneChildren counts a milestone's linked issues by status. An
-// unresolvable milestoneID (typo, or a non-milestone id) is the caller's
-// concern — this always reports zero counts rather than erroring, since the
-// counts are advisory display data, not a gate.
-func (d *DB) MilestoneChildren(milestoneID string) (MilestoneChildren, error) {
-	milestoneID = core.CanonicalID(core.TypeMilestone, milestoneID)
-	const q = `
-SELECT
-    COUNT(CASE WHEN a.status = 'open' THEN 1 END),
-    COUNT(CASE WHEN a.status = 'in-progress' THEN 1 END),
-    COUNT(CASE WHEN a.status = 'resolved' THEN 1 END),
-    COUNT(*)
-FROM links l
-JOIN artifacts a ON a.id = l.source AND a.type = 'issue'
-WHERE l.relation = 'milestone' AND l.target = ?`
-	var mc MilestoneChildren
-	if err := d.sql.QueryRow(q, milestoneID).Scan(&mc.Open, &mc.InProgress, &mc.Resolved, &mc.Total); err != nil {
-		return MilestoneChildren{}, fmt.Errorf("milestone children %s: %w", milestoneID, err)
-	}
-	return mc, nil
-}
-
-// MilestoneStale reports whether every linked issue is resolved but the
-// milestone's own stored status hasn't caught up to done — the drift
-// anvil.0275 makes visible in list/show milestone. A milestone with no
-// linked issues is never stale.
-func MilestoneStale(mc MilestoneChildren, status string) bool {
-	return mc.Total > 0 && mc.Resolved == mc.Total && status != "done"
 }

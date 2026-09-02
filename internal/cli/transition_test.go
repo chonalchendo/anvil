@@ -788,6 +788,59 @@ func TestTransitionResolveLastIssueAdvisory(t *testing.T) {
 	})
 }
 
+// TestTransitionClaimAdvancesMilestone pins anvil.0275's follow: claiming an
+// issue moves its planned parent milestone to in-progress, and a milestone
+// already past planned (in-progress, done, or abandoned) is left untouched —
+// this is a derived-state follow, not a required edge, so a stale close of a
+// non-planned milestone must never be reported as advanced.
+func TestTransitionClaimAdvancesMilestone(t *testing.T) {
+	const milestone = "demo.m2"
+
+	setup := func(t *testing.T) string {
+		t.Helper()
+		vault := t.TempDir()
+		t.Setenv("ANVIL_VAULT", vault)
+		execCmd(t, "init", vault)
+		return vault
+	}
+
+	milestoneStatus := func(t *testing.T, vault string) string {
+		t.Helper()
+		a, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", milestone+".md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		status, _ := a.FrontMatter["status"].(string)
+		return status
+	}
+
+	t.Run("first claim moves planned milestone to in-progress", func(t *testing.T) {
+		vault := setup(t)
+		writeFixtureMilestone(t, vault, milestone, "planned")
+		writeFixtureIssueWithMilestone(t, vault, "demo", "a", milestone)
+		execCmd(t, "reindex")
+
+		execCmd(t, "transition", "issue", "demo.a", "in-progress", "--owner", "claude")
+
+		if got := milestoneStatus(t, vault); got != "in-progress" {
+			t.Fatalf("milestone status = %q, want in-progress", got)
+		}
+	})
+
+	t.Run("milestone already done is left untouched by a child claim", func(t *testing.T) {
+		vault := setup(t)
+		writeFixtureMilestone(t, vault, milestone, "done")
+		writeFixtureIssueWithMilestone(t, vault, "demo", "a", milestone)
+		execCmd(t, "reindex")
+
+		execCmd(t, "transition", "issue", "demo.a", "in-progress", "--owner", "claude")
+
+		if got := milestoneStatus(t, vault); got != "done" {
+			t.Fatalf("milestone status = %q, want done (untouched by claim)", got)
+		}
+	})
+}
+
 // TestTransition_Issue_ByOrdinal pins the write-path counterpart to
 // show_test.go's TestShow_Issue_ByOrdinal: a bare ordinal ("1") and a
 // project-qualified ordinal ("foo.0001") both resolve to the full issue ID on

@@ -477,11 +477,11 @@ func advanceMilestoneOnClaim(v *core.Vault, claimed *core.Artifact) error {
 	}
 	_, msPath, err := core.ResolveArtifact(v, core.TypeMilestone, ms)
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // best-effort follow
 	}
 	m, err := core.LoadArtifact(msPath)
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // best-effort follow
 	}
 	if status, _ := m.FrontMatter["status"].(string); status != "planned" {
 		return nil
