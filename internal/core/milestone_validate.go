@@ -17,25 +17,15 @@ var RequiredMilestoneSections = []string{"## Objective", "## Non-goals", "## Lin
 //     frontmatter is the single source of truth, refined via `anvil set`
 //   - a `kind: scoped` milestone does not carry an empty `acceptance` list
 func ValidateMilestone(a *Artifact) []error {
-	var errs []error
-
-	pos := 0
 	body := a.Body
-	for _, h := range RequiredMilestoneSections {
-		idx := strings.Index(body[pos:], "\n"+h)
-		if idx < 0 && !strings.HasPrefix(body[pos:], h) {
-			errs = append(errs, fmt.Errorf("milestone body missing required heading %q", h))
-			continue
-		}
-		if idx >= 0 {
-			pos = pos + idx + len(h) + 1
-		} else {
-			pos += len(h)
-		}
-	}
+	errs := scanOrderedHeadings(body, "milestone", RequiredMilestoneSections)
 
+	// Fence-stripped so a `## Success criteria` heading quoted inside a code
+	// fence (e.g. an illustrative example of the forbidden shape) doesn't
+	// trip the refusal — same treatment ResolveBodyLinks gives wikilinks.
 	const successHeading = "## Success criteria"
-	if strings.Contains(body, "\n"+successHeading) || strings.HasPrefix(body, successHeading) {
+	stripped := StripFencedBlocks(body)
+	if strings.Contains(stripped, "\n"+successHeading) || strings.HasPrefix(stripped, successHeading) {
 		errs = append(errs, fmt.Errorf("milestone body carries %q — acceptance criteria live in the `acceptance:` frontmatter field, refined via `anvil set milestone <id> acceptance --add/--remove`, not a body section", successHeading))
 	}
 

@@ -25,22 +25,7 @@ var RequiredLearningSections = []string{"## TL;DR", "## Evidence", "## Caveats"}
 //   - no status/ tag (status is a frontmatter field)
 //   - if known != nil, every tag must be in known
 func ValidateLearning(a *Artifact, known map[string]struct{}) []error {
-	var errs []error
-
-	pos := 0
-	body := a.Body
-	for _, h := range RequiredLearningSections {
-		idx := strings.Index(body[pos:], "\n"+h)
-		if idx < 0 && !strings.HasPrefix(body[pos:], h) {
-			errs = append(errs, fmt.Errorf("learning body missing required heading %q", h))
-			continue
-		}
-		if idx >= 0 {
-			pos = pos + idx + len(h) + 1
-		} else {
-			pos += len(h)
-		}
-	}
+	errs := scanOrderedHeadings(a.Body, "learning", RequiredLearningSections)
 
 	tagsRaw, _ := a.FrontMatter["tags"].([]any)
 	for _, raw := range tagsRaw {

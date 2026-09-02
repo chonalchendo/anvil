@@ -108,7 +108,12 @@ acceptance: ["criterion", ...]
 
 `kind` distinguishes the two milestone shapes: `scoped` (a discrete shippable bundle with acceptance criteria) and `bucket` (a deliberate rolling-findings tracker that may keep `acceptance: []`). Defaults to `scoped` on `anvil create milestone`; pick `bucket` only for friction-collection milestones. The schema requires `kind`; both create and validate fail without it.
 
-Body must carry `## Objective`, `## Non-goals`, `## Links`, `## Status` in order (`anvil validate`, `core.ValidateMilestone`); `create milestone` scaffolds them. A `## Success criteria` section is refused — `acceptance:` is the single source, refined via `anvil set milestone <id> acceptance --add/--remove`. `kind: scoped` with empty `acceptance` is refused; flip to `bucket` if the work is genuinely open-ended. Legacy vault milestones predating this rule go red on validate; `anvil list`/`reindex` still serve them (those verbs check the issue validator only).
+Body rules (`anvil validate`, `core.ValidateMilestone`; `create milestone` scaffolds the headings):
+
+- `## Objective`, `## Non-goals`, `## Links`, `## Status` must appear, in order.
+- A `## Success criteria` section is refused — `acceptance:` is the single source, refined via `anvil set milestone <id> acceptance --add/--remove`.
+- `kind: scoped` with empty `acceptance` is refused; flip to `bucket` if the work is genuinely open-ended.
+- Legacy vault milestones predating this rule go red on the vault-wide sweep (warning severity there) and on single-file `anvil validate`; `anvil list`/`reindex` run no body validator at all, so they still serve pre-existing milestones untouched.
 
 Cut entirely: `target_date`, `horizon`, `ordinal`, `predecessors`, `successors`, `plans`, `issues`, `objectives`, `risks`. Milestones are structural, not scheduled. Done = all child issues `resolved`.
 
