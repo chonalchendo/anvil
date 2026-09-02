@@ -209,15 +209,15 @@ Every predicate, contract-drawn or not, satisfies the universal bars:
 - **Feasibility gate** — run each prescribed command in this environment before the issue lands (the gate stated above), so a block copied from a sibling never ships unrunnable.
 - **No pipe from a side-effect command into an early-exit reader** — `grep -q`/`head` closes the pipe on first match and SIGPIPE-kills the producer mid-run, so the predicate passes while the side effect never completed. Capture first, then assert: `o=$(mktemp); producer > "$o"; grep -q X "$o"`.
 
-**Write `## Problem` for a cold reader.** The reader is a human triaging the queue weeks later, not the agent that found the gap, and they get one pass. Order the section so the first sentence alone says what is wrong and the first paragraph alone lets them judge severity:
+**Write `## Problem` for a cold reader.** The reader is a human triaging the queue weeks later, not the agent that found the gap, and they get one pass. Order the section so the first sentence alone says what is wrong, and lead plus evidence together let them judge severity:
 
 1. **Lead sentence** — what is broken or missing and what it stops. Plain words, ≤25 words. No cause, evidence, history, or identifiers.
-2. **Evidence** — the measurement or reproduction that proves it. Counts, ids, paths, and timestamps go in a short list or table, never inline in prose.
-3. **Cause** — its own paragraph when known; write "cause unknown" when not.
-4. **Direction** — the fix, one short paragraph. Deep mechanism belongs in the plan or PR, not here.
+2. **Evidence** — what proves the gap today: a measurement, a reproduction, or the thing a user cannot do. Counts, ids, paths, and timestamps go in a short list or table, never inline in prose.
+3. **Cause** — its own paragraph when known; a refactor's forcing function goes here. Omit when the kind has none.
+4. **Direction** — the fix in one short paragraph. Mechanism informs but does not constrain; design depth lives in the plan or PR.
 5. **Sequencing** — dependencies and ordering, one line at the end. Omit when none.
 
-One idea per sentence, about 20 words. No dash- or semicolon-chained clauses, no nested parentheticals. Cut anything the reader does not need to decide whether and when to work the issue. Test before `create`: cover everything after the first sentence — can a reader say what is wrong? Cover everything after the first paragraph — could they pick a severity? Either fails → rewrite.
+One idea per sentence, about 20 words, no chained clauses. Cut anything the reader does not need to decide whether and when to work the issue. Test before `create`. Cover everything after the first sentence: can a reader say what is wrong? Cover everything after the evidence: could they pick a severity? Either fails, rewrite.
 
 Author the body up front and pass it to `create` via `--body-file` (or `--body -` for piped stdin). `create` validates the frontmatter AND body (required H2s, wikilink targets) and rolls back the write on failure — no separate `anvil validate` step. The `## Verification` block uses fenced bash; the format is specified below.
 
@@ -273,7 +273,7 @@ Bare positional values on array fields **replace** the array; use `--add VALUE` 
 
 Required body sections (enforced by `create`):
 
-- `## Problem` — one paragraph from convergence (fuzzy) or the stated problem (decisive).
+- `## Problem` — lead sentence, then evidence, cause, direction, sequencing (shape in Phase 4 above).
 - `## Non-goals` — from Phase 3 smallest-viable (fuzzy) or stated up front (decisive).
 - `## Verification` — operational checks in fenced bash blocks. Two subsections, both required:
   - `### Direct` — fenced `bash` block with ≥1 line. Each line must exit 0. Typically unit/integration tests run against the dev tree.
