@@ -216,7 +216,7 @@ Every predicate, contract-drawn or not, satisfies the universal bars:
 2. **Evidence** — what proves the gap today: a measurement, a reproduction, or the thing a user cannot do. Counts, ids, paths, and timestamps go in a short list or table, never inline in prose.
 3. **Cause** — its own paragraph when known; a refactor's forcing function goes here. Omit when the kind has none.
 4. **Direction** — the fix in one short paragraph, closing with the files or modules it touches. Mechanism informs but does not constrain; design depth lives in the plan or PR.
-5. **Sequencing** — dependencies and ordering, one line at the end. Every issue it names becomes a `depends_on` edge in Phase 4b. Omit when none.
+5. **Sequencing** — dependencies and ordering, one line at the end. Every issue it names becomes a typed edge in Phase 4b, direction stated. Omit when none.
 
 One idea per sentence, about 20 words, no chained clauses. Cut anything the reader does not need to decide whether and when to work the issue. Test before `create`. Cover everything after the first sentence: can a reader say what is wrong? Cover everything after the evidence: could they pick a severity? Either fails, rewrite.
 
@@ -278,7 +278,7 @@ Required body sections (enforced by `create`):
 - `## Non-goals` — from Phase 3 smallest-viable (fuzzy) or stated up front (decisive).
 - `## Verification` — operational checks in fenced bash blocks. Two subsections, both required:
   - `### Direct` — fenced `bash` block with ≥1 line. Each line must exit 0. Typically unit/integration tests run against the dev tree.
-  - `### Indirect` — fenced `bash` block with ≥1 line. Each line must exit 0. Live invocations against the built/installed/served artifact; bake the predicate into the command (`grep -q "X"`, `jq -r .field`, `[ ... = ... ]`). `completing-issue` re-runs these against the installed binary in its Phase 4 build gate — they catch behavioral gaps the Direct checks can't see. Each predicate honours the universal bars above (chiefly exercise-not-presence). **Expected-non-zero / set -e safety:** the runner executes each block under `bash -ec` (`set -e`), so `cmd; [ "$?" -ne 0 ]` is unsafe — `set -e` aborts at the failing `cmd` before the assertion runs, producing a false-FAIL. Assert the non-zero exit as `if cmd; then exit 1; fi`, which gates on any line of the block. `! cmd` gates **only** as the block's last line: `set -e` exempts a `!`-negated command in every command position (`! c`, `x; ! c`, `a && ! c`, `for …; do ! c; done`, `if a; then ! c; fi`), so anywhere earlier a failing `! cmd` is silently skipped and the block false-PASSes — both the runner and `anvil create` refuse that shape unrun, and `anvil validate --verification-stdin` flags it pre-flight. The general rule behind it: a predicate survives only as one self-contained exit-code line. Prose under a block follows the `## Problem` sentence rules.
+  - `### Indirect` — fenced `bash` block with ≥1 line. Each line must exit 0. Live invocations against the built/installed/served artifact; bake the predicate into the command (`grep -q "X"`, `jq -r .field`, `[ ... = ... ]`). `completing-issue` re-runs these against the installed binary in its Phase 4 build gate — they catch behavioral gaps the Direct checks can't see. Each predicate honours the universal bars above (chiefly exercise-not-presence). **Expected-non-zero / set -e safety:** the runner executes each block under `bash -ec` (`set -e`), so `cmd; [ "$?" -ne 0 ]` is unsafe — `set -e` aborts at the failing `cmd` before the assertion runs, producing a false-FAIL. Assert the non-zero exit as `if cmd; then exit 1; fi`, which gates on any line of the block. `! cmd` gates **only** as the block's last line: `set -e` exempts a `!`-negated command in every command position (`! c`, `x; ! c`, `a && ! c`, `for …; do ! c; done`, `if a; then ! c; fi`), so anywhere earlier a failing `! cmd` is silently skipped and the block false-PASSes — both the runner and `anvil create` refuse that shape unrun, and `anvil validate --verification-stdin` flags it pre-flight. The general rule behind it: a predicate survives only as one self-contained exit-code line.
 - `## Links` — to milestone, design docs, related issues. Use `[[wikilink]]` form. Targets must resolve (the file must exist) or `create` rejects. `anvil hydrate` walks this section too, but only for governing types (contract, convention, product-design, system-design, learning, milestone, decision) — a link to another type (e.g. a sibling issue or thread) resolves but stays inert for hydrate's box.
 
 `anvil validate <path>` remains useful as a re-check after edits (e.g. after `anvil set ... acceptance --add`), but it is **not** required after `create` when the body was supplied via `--body-file` / `--body -`.
@@ -305,15 +305,16 @@ Substitute the real ids: `anvil link` refuses a target still carrying `<`, `>`, 
 
 This is the Option-A routing association and the issue's governing spine edge that `completing-issue` walks to hydrate the box. Make a missing link an **explicit decision**: attach the governing design, or affirm to the user in one line that none governs this slice ("no design governs this slice") — never a silent skip. Don't invent a link to satisfy the check.
 
-**Dependencies** — one edge per issue the Sequencing line names:
+**Dependencies** — one edge per issue the Sequencing line names. A prerequisite this issue waits on takes `depends_on`; an issue that waits on this one takes `blocks`:
 
 ```bash
-anvil link issue <issue-id> issue <dep-id> --relation depends_on
+anvil link issue <issue-id> issue <prereq-id> --relation depends_on
+anvil link issue <issue-id> issue <waiting-id> --relation blocks
 ```
 
-`anvil list issue --ready` reads only this edge. Ordering left in prose ("after PR #517 lands") is invisible to it, and a fleet worker claims the issue early.
+`anvil list issue --ready` reads typed edges only (`depends_on`, `blocks`). Ordering left in prose ("after PR #517 lands") is invisible to it, and a fleet worker claims the issue early.
 
-**Reproduction anchor** — bug kind only; the command and shape live in `references/bug.md`. A bug with a measured count and no anchor is the failure: leaving it off is a stated one-line decision, never a default.
+**Reproduction anchor** — bug kind only; the command and shape live in `references/bug.md`. Author one whenever a command can capture the failure; skipping it is a stated one-line decision, never a silent default.
 
 ---
 
