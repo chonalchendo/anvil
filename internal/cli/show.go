@@ -120,6 +120,11 @@ type showOutput struct {
 	BodyTruncated  bool
 	BodyLinesTotal int
 	Incoming       map[string][]incomingEdge
+	// Children/Stale are populated for milestone shows only (anvil.0275):
+	// the derived issue-status breakdown and whether the milestone's stored
+	// status has drifted behind it.
+	Children *index.MilestoneChildren
+	Stale    *bool
 }
 
 type incomingEdge struct {
@@ -133,6 +138,7 @@ type incomingEdge struct {
 var envelopeKeys = map[string]struct{}{
 	"id": {}, "path": {}, "body": {},
 	"body_truncated": {}, "body_lines_total": {}, "incoming": {},
+	"children": {}, "stale": {},
 }
 
 // MarshalJSON produces the flat envelope: frontmatter merged onto the top
@@ -156,6 +162,12 @@ func (o showOutput) MarshalJSON() ([]byte, error) {
 	out["body_lines_total"] = o.BodyLinesTotal
 	if o.Incoming != nil {
 		out["incoming"] = o.Incoming
+	}
+	if o.Children != nil {
+		out["children"] = o.Children
+	}
+	if o.Stale != nil {
+		out["stale"] = *o.Stale
 	}
 	return json.Marshal(out)
 }
@@ -188,6 +200,24 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename string, as
 		Path:           a.Path,
 		FrontMatter:    a.FrontMatter,
 		BodyLinesTotal: totalLines,
+	}
+
+	if t == core.TypeMilestone {
+		if db, dberr := indexForRead(v); dberr != nil {
+			cmd.PrintErrln("warning: milestone children: " + dberr.Error())
+		} else {
+			mc, merr := db.MilestoneChildren(id)
+			db.Close() //nolint:errcheck,gosec // close immediately; error not actionable
+			if merr != nil {
+				cmd.PrintErrln(merr)
+			} else {
+				status, _ := a.FrontMatter["status"].(string)
+				kind, _ := a.FrontMatter["kind"].(string)
+				stale := index.MilestoneStale(mc, status, kind)
+				out.Children = &mc
+				out.Stale = &stale
+			}
+		}
 	}
 
 	if includeIncoming {
@@ -223,6 +253,10 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename string, as
 	}
 
 	emitFrontMatterText(cmd, a.FrontMatter)
+	if out.Children != nil {
+		fmt.Fprintf(w, "children: %d open, %d in-progress, %d resolved (of %d)\tstale=%t\n",
+			out.Children.Open, out.Children.InProgress, out.Children.Resolved, out.Children.Total, *out.Stale)
+	}
 	// Body before incoming so a --body or default-body load surfaces the artifact
 	// body first, not buried under the incoming-links wall (anvil.0129).
 	if includeBody && out.Body != nil {

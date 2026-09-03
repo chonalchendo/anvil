@@ -14,6 +14,7 @@ import (
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/index"
 	"github.com/chonalchendo/anvil/internal/schema"
 )
 
@@ -32,6 +33,11 @@ type listItem struct {
 	Tags           []string `json:"tags,omitempty"`
 	Path           string   `json:"path"`
 	MissingSection string   `json:"missing_section,omitempty"`
+	// Children/Stale are populated for milestone rows only (anvil.0275):
+	// the derived issue-status breakdown and whether the milestone's stored
+	// status has drifted behind it (every child resolved but status != done).
+	Children *index.MilestoneChildren `json:"children,omitempty"`
+	Stale    *bool                    `json:"stale,omitempty"`
 }
 
 type listFilters struct {
@@ -216,6 +222,13 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 		return err
 	}
 
+	// Milestone rows carry a derived children summary + staleness flag
+	// (anvil.0275); see list_milestone.go.
+	db := openMilestoneListIndex(cmd, v, t)
+	if db != nil {
+		defer db.Close() //nolint:errcheck,gosec // close in defer; error not actionable
+	}
+
 	var items []listItem
 	for _, path := range paths {
 		a, err := core.LoadArtifact(path)
@@ -250,12 +263,17 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 			missingSection = firstMissingSection(errs)
 		}
 
-		items = append(items, listItem{
+		item := listItem{
 			ID: id, Type: string(t), Title: title, Description: description,
 			Status: status, Severity: severity, Created: created, Project: project,
 			Milestone: milestone, Tags: stringTags(a.FrontMatter["tags"]), Path: path,
 			MissingSection: missingSection,
-		})
+		}
+		kind, _ := a.FrontMatter["kind"].(string)
+		if err := enrichMilestoneItem(db, &item, id, status, kind); err != nil {
+			return err
+		}
+		items = append(items, item)
 	}
 
 	sort.Slice(items, func(i, j int) bool {

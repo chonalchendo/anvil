@@ -52,3 +52,53 @@ WHERE l.relation = 'milestone' AND l.target = ?`
 		Done:      total > 0 && resolved == total,
 	}, nil
 }
+
+// MilestoneChildren is the per-status breakdown of issues linked to a
+// milestone via the `milestone` frontmatter slot, so a queue view can show
+// the derived progress next to the stored status.
+type MilestoneChildren struct {
+	Open       int `json:"open"`
+	InProgress int `json:"in_progress"`
+	Resolved   int `json:"resolved"`
+	Abandoned  int `json:"abandoned"`
+	Total      int `json:"total"`
+}
+
+// MilestoneChildren counts a milestone's linked issues by status. An
+// unresolvable milestoneID (typo, or a non-milestone id) is the caller's
+// concern — this always reports zero counts rather than erroring, since the
+// counts are advisory display data, not a gate.
+func (d *DB) MilestoneChildren(milestoneID string) (MilestoneChildren, error) {
+	milestoneID = core.CanonicalID(core.TypeMilestone, milestoneID)
+	const q = `
+SELECT
+    COUNT(CASE WHEN a.status = 'open' THEN 1 END),
+    COUNT(CASE WHEN a.status = 'in-progress' THEN 1 END),
+    COUNT(CASE WHEN a.status = 'resolved' THEN 1 END),
+    COUNT(CASE WHEN a.status = 'abandoned' THEN 1 END),
+    COUNT(*)
+FROM links l
+JOIN artifacts a ON a.id = l.source AND a.type = 'issue'
+WHERE l.relation = 'milestone' AND l.target = ?`
+	var mc MilestoneChildren
+	if err := d.sql.QueryRow(q, milestoneID).Scan(&mc.Open, &mc.InProgress, &mc.Resolved, &mc.Abandoned, &mc.Total); err != nil {
+		return MilestoneChildren{}, fmt.Errorf("milestone children %s: %w", milestoneID, err)
+	}
+	return mc, nil
+}
+
+// MilestoneStale reports whether every linked issue is caught up (resolved or
+// abandoned) but the milestone's own stored status hasn't caught up to done —
+// the drift anvil.0275 makes visible in list/show milestone. A milestone with
+// no linked issues is never stale, and a bucket milestone is never stale:
+// buckets are rolling trackers with no terminal done state (doctor.go's
+// checkFinishedMilestone carve-out, and the transition table refuses
+// planned/in-progress → done for kind: bucket), so "all children caught up"
+// never implies drift for one.
+func MilestoneStale(mc MilestoneChildren, status, kind string) bool {
+	if kind == "bucket" {
+		return false
+	}
+	caughtUp := mc.Resolved + mc.Abandoned
+	return mc.Total > 0 && caughtUp == mc.Total && status != "done"
+}

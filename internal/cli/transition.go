@@ -381,6 +381,12 @@ func newTransitionCmd() *cobra.Command {
 				return err
 			}
 
+			if t == core.TypeIssue && to == "in-progress" {
+				if merr := advanceMilestoneOnClaim(v, a); merr != nil {
+					cmd.PrintErrln("warning: milestone advance: " + merr.Error())
+				}
+			}
+
 			var advisory string
 			if t == core.TypeIssue && to == "resolved" {
 				advisory = milestoneCloseAdvisory(v, a)
