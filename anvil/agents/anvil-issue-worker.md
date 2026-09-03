@@ -114,9 +114,13 @@ The audit does not trust `$changed` alone: it also derives the branch's changed 
 
 You may die mid-task on a terminal error (API 5xx after retries, OOM, killed process) — long before `gh pr create`. Uncommitted work is invisible to the orchestrator and unrecoverable without a human reading your dirty tree. So commit WIP incrementally: after each coherent unit of progress (a file implemented, a test added) `git commit` it on your branch with a `wip:` prefix. A mid-task death then leaves recoverable checkpoint commits on the branch, not a silent dirty tree; the final PR squashes them, so granularity costs nothing.
 
-## Self-review
+## Self-review (Phase 3 override)
 
-After the verdict reads `pass` and before `gh pr create`, read `~/.claude/agents/anvil-pr-reviewer.md` — the same rubric the independent reviewer runs against this diff. Read only its `## Judgment` and `## Findings contract` sections; that file's `## Forbidden calls` and `## Return contract` bind the reviewer, not you. Walk your diff against the rubric, fixing blocker and high findings in place — but only within your declared file set. A rubric finding whose fix lands outside it is out of scope for you: do not edit sibling files to chase it; instead record it as a finding in the PR body for the independent reviewer to pick up. This does not replace the reviewer: it still runs on every PR; self-review only lowers the finding count it has to raise. Any self-review edit voids the verdict — re-run the runner (Phase 2) and paste the new line into the PR body, unconditionally, not only when you judge the fix "changes behaviour".
+This replaces Phase 3's generic anti-pattern checklist. Phase 3's project-specific pass and Phase 3b's governs-sweep still run.
+
+After the verdict reads `pass` and before `gh pr create`, read `~/.claude/agents/anvil-pr-reviewer.md`. Read only its `## Judgment — what no lookup gives you` and `## Findings contract` sections. Phase 3's project-specific pass and Phase 3b's sweep already cover that file's `## Load the context box` rules; this read adds its judgment axes on top. That file's `## Forbidden calls` and `## Return contract` bind the reviewer, not you.
+
+Walk your diff against the rubric. Fix blocker and high findings in place, inside your declared file set only. A fix that lands outside that set is out of scope: record it in the PR body for the reviewer instead. The reviewer still runs on every PR; self-review only lowers the finding count. Any self-review edit voids the verdict: re-run the runner and paste the new line into the PR body.
 
 ## Forbidden calls
 
