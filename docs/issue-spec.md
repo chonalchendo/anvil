@@ -66,6 +66,16 @@ grep -q "transitioned to in-progress" "$o"
 
 **Doc/skill-only changes.** When the change is purely a doc or skill update with no invocable binary artifact, assert on the rendered/installed content rather than the source tree: `anvil show skill <name> | grep -q "..."` exercises the install path (see `docs/skill-authoring.md`). Grepping the SKILL.md source file directly is still an anti-pattern — it skips the install step where the content could differ.
 
+## Universal predicate bars
+
+`writing-issue` Phase 4 writes `### Direct`/`### Indirect` from the governing contract when one exists. No contract governs → every predicate, contract-drawn or not, still satisfies these bars:
+
+- **Same code path** — the predicate travels the real system's path, not a proxy/metadata path that happens to be green (a dev check that can't reach the prod registry the goal lives in doesn't verify the goal).
+- **Exercise, not presence** — assert on behaviour, never that a source file contains a string; the carve-out is a doc/skill-only change, which greps the *built/installed* artifact, never the source tree.
+- **Create the unmet condition first** — prescribe a pre-step so the check fails before the change and passes after (a `max(A)==max(B)` freshness check is false-green when prior state already aligned both sides).
+- **Anchor structurally** — assert against parsed structure (`jq` path, a typed field, an equality), not a bare substring grep.
+- **The goal's own measure** — when `goal:` names a count, rate, or corpus state, the Indirect block computes that measure after its stated pre-step, never a fixture proxy. A prose "post-merge: re-measure" under the block is the tell that the goal is unverified.
+
 ## Parsing rules
 
 - Each `` ```bash `` block is one check: its lines run together as a single script under `set -e`, so state set on one line (`out=$(cmd)`) is visible to the next, and the block FAILS on the **first** line that exits non-zero (all lines pass = PASS). Guard an intentionally-non-fatal line with `… || true`. **Positional caveat — negative assertions:** `set -e` exempts a `!`-negated command in every command position (`! c`, `x; ! c`, `a && ! c`, `for …; do ! c; done`, `if a; then ! c; fi`, `{ ! c; }`), so such a line fails the block only as its **last** line; anywhere earlier its failure is silently skipped. Write a non-last-line negative assertion as `if cmd; then exit 1; fi` — `anvil create issue` and `run-verification.sh` both refuse the vacuous form unrun, and `anvil validate --verification-stdin` flags it pre-flight. Pipelines are **not** under `pipefail`, so assert on a pipeline's final stage — a failing non-final stage (`cmd | grep …`) does not fail the block. Split genuinely independent assertions into separate blocks — each block is its own check.
