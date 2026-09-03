@@ -757,3 +757,36 @@ func TestValidate_VerificationStdin_HardcodedPathRejected(t *testing.T) {
 		t.Errorf("output %q must mention 'checkout path'", out.String())
 	}
 }
+
+// TestValidate_Sweep_MilestoneBodyShape_WarnsNotFails proves the sweep's
+// grandfather tier for the milestone body-shape check (validate.go): the
+// vault-wide walk must still surface a missing required heading (visible in
+// --json output, severity warning) but must not fail the run.
+func TestValidate_Sweep_MilestoneBodyShape_WarnsNotFails(t *testing.T) {
+	vault := setupVault(t)
+
+	a := &core.Artifact{
+		Path: filepath.Join(vault, "85-milestones", "milestone.foo.no-status.md"),
+		FrontMatter: map[string]any{
+			"type": "milestone", "title": "no status", "created": "2026-08-06",
+			"status": "planned", "project": "foo", "goal": "fixed",
+			"description": "test", "kind": "bucket",
+		},
+		Body: "\n## Objective\nobj\n\n## Non-goals\nng\n\n## Links\nlinks\n",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"validate", vault, "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("a missing milestone heading must warn, not fail the sweep, got: %v\noutput: %s", err, out.String())
+	}
+	if !strings.Contains(out.String(), `"severity":"warning"`) {
+		t.Errorf("output should carry severity warning, got: %s", out.String())
+	}
+}

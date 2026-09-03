@@ -17,6 +17,18 @@ import (
 	"github.com/chonalchendo/anvil/internal/schema"
 )
 
+// hasBlockingFailure reports whether failures carries any finding above
+// SeverityWarning. A warning is emitted but must not fail the run — the
+// sweep's grandfather tier for the milestone body check (validate.go).
+func hasBlockingFailure(failures []*errfmt.ValidationError) bool {
+	for _, f := range failures {
+		if f.Severity != errfmt.SeverityWarning {
+			return true
+		}
+	}
+	return false
+}
+
 func newValidateCmd() *cobra.Command {
 	var asJSON bool
 	var verificationStdin bool
@@ -145,7 +157,7 @@ func newValidateCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON array of structured errors")
-	cmd.Flags().BoolVar(&verificationStdin, "verification-stdin", false, "lint a Verification block's bash script (read from stdin) for a hardcoded checkout path that would override worktree anchoring, a hardcoded lakehouse schema a worker without prod-apply rights can't satisfy, and for a non-gating `!` assertion set -e would exempt — the rules `create issue` enforces; no vault lookup, ignores [path], honours --json")
+	cmd.Flags().BoolVar(&verificationStdin, "verification-stdin", false, "lint a Verification block's bash script (read from stdin) for a hardcoded checkout path that would override worktree anchoring, and for a non-gating `!` assertion set -e would exempt — the rules `create issue` enforces; no vault lookup, ignores [path], honours --json")
 	cmd.AddCommand(newValidateSkillCmd())
 	return cmd
 }
@@ -232,7 +244,19 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 	}
 
 	if t == core.TypeIssue {
-		out = appendIssueTypeErrors(out, a, path, verbs, sweep)
+		for _, vErr := range core.ValidateIssue(a) {
+			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+		}
+		goal, _ := a.FrontMatter["goal"].(string)
+		title, _ := a.FrontMatter["title"].(string)
+		for _, vErr := range core.ValidateIssueVerbs(a.Body, goal, title, verbs) {
+			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+		}
+		// ValidateIssueCheckoutPaths is deliberately NOT wired here: the
+		// checkout-path lint gates create/promote only. The ~219 issues
+		// authored before the rule would fail vault-hygiene CI retroactively
+		// if the vault-wide scan enforced it. Lint a single predicate with
+		// `anvil validate --verification-stdin` instead.
 	}
 	// lead_sentence is skipped on the vault-wide sweep: the back catalogue
 	// carries ~1200 pre-rule artifacts, and the rule is a create/promote-time
