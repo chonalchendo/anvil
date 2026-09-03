@@ -13,8 +13,21 @@ import (
 )
 
 const (
-	sessionStartHookCommand = `anvil install fire-session-start`
-	sessionEndHookCommand   = `anvil session end --commit --push`
+	sessionStartHookCommand  = `anvil install fire-session-start`
+	sessionResumeHookCommand = `anvil install fire-session-resume`
+	preCompactHookCommand    = `anvil install fire-pre-compact`
+	sessionEndHookCommand    = `anvil session end --commit --push`
+
+	// sessionResumeMatcher scopes sessionResumeHookCommand to a compacted or
+	// resumed session — never startup/clear/fork, where the recency-window
+	// disambiguation in resuming-session (a human picking up old work) applies
+	// instead.
+	sessionResumeMatcher = "resume|compact"
+
+	// defaultAutoCompactWindow clamps the 1M-model auto-compact threshold to
+	// ~200K context instead of the ~800K an unset window yields under this
+	// operator's CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=80 (issue.anvil.0279).
+	defaultAutoCompactWindow = 200000
 )
 
 func newInstallCmd() *cobra.Command {
@@ -22,7 +35,7 @@ func newInstallCmd() *cobra.Command {
 		Use:   "install",
 		Short: "Install Anvil components into the user environment",
 	}
-	cmd.AddCommand(newInstallHooksCmd(), newInstallSkillsCmd(), newInstallAgentsCmd(), newInstallCloudCmd(), newInstallFireSessionStartCmd())
+	cmd.AddCommand(newInstallHooksCmd(), newInstallSkillsCmd(), newInstallAgentsCmd(), newInstallCloudCmd(), newInstallFireSessionStartCmd(), newInstallFireSessionResumeCmd(), newInstallFirePreCompactCmd())
 	return cmd
 }
 
@@ -119,11 +132,19 @@ func newInstallHooksCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("removing SessionStart hook: %w", err)
 				}
+				changedResume, err := installer.RemoveSessionStartMatcherHook(path, sessionResumeMatcher, sessionResumeHookCommand)
+				if err != nil {
+					return fmt.Errorf("removing SessionStart resume|compact hook: %w", err)
+				}
+				changedPreCompact, err := installer.RemovePreCompactHook(path, preCompactHookCommand)
+				if err != nil {
+					return fmt.Errorf("removing PreCompact hook: %w", err)
+				}
 				changedEnd, err := installer.RemoveSessionEndHook(path, sessionEndHookCommand)
 				if err != nil {
 					return fmt.Errorf("removing SessionEnd hook: %w", err)
 				}
-				if changedStart || changedEnd {
+				if changedStart || changedResume || changedPreCompact || changedEnd {
 					cmd.Println("removed anvil hooks from", path)
 				} else {
 					cmd.Println("no matching anvil hooks in", path)
@@ -134,11 +155,23 @@ func newInstallHooksCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("installing SessionStart hook: %w", err)
 			}
+			changedResume, err := installer.MergeSessionStartMatcherHook(path, sessionResumeMatcher, sessionResumeHookCommand)
+			if err != nil {
+				return fmt.Errorf("installing SessionStart resume|compact hook: %w", err)
+			}
+			changedPreCompact, err := installer.MergePreCompactHook(path, preCompactHookCommand)
+			if err != nil {
+				return fmt.Errorf("installing PreCompact hook: %w", err)
+			}
 			changedEnd, err := installer.MergeSessionEndHook(path, sessionEndHookCommand)
 			if err != nil {
 				return fmt.Errorf("installing SessionEnd hook: %w", err)
 			}
-			if changedStart || changedEnd {
+			changedWindow, err := installer.MergeAutoCompactWindow(path, defaultAutoCompactWindow)
+			if err != nil {
+				return fmt.Errorf("setting autoCompactWindow: %w", err)
+			}
+			if changedStart || changedResume || changedPreCompact || changedEnd || changedWindow {
 				cmd.Println("installed anvil hooks in", path)
 			} else {
 				cmd.Println("anvil hooks already installed in", path)
