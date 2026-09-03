@@ -41,7 +41,7 @@ Wrong-choice example: user is dumping a half-formed thought with no nameable goa
 
 ## Running delegated on a cheaper model
 
-For bulk decisive-path authoring, the orchestrator can dispatch this skill per issue to an isolated subagent on a cheaper model (e.g. Opus main → Sonnet worker) — fill and fire `dispatch-single.md`. The worker cannot sub-dispatch `anvil-learnings-researcher` (Phase 3b), so the orchestrator passes the learnings gist in the prompt instead.
+For bulk decisive-path authoring, the orchestrator can dispatch this skill per batch to `anvil-issue-author`, an isolated subagent on a cheaper model (e.g. Opus main → Sonnet worker) — fill and fire `dispatch-single.md`. The worker cannot sub-dispatch `anvil-learnings-researcher` (Phase 3b), so the orchestrator passes the learnings gist in the prompt instead.
 
 ## Severity rubric
 
