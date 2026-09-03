@@ -120,7 +120,7 @@ func newInstallHooksCmd() *cobra.Command {
 	var uninstall bool
 	cmd := &cobra.Command{
 		Use:   "hooks",
-		Short: "Install (or remove) the Claude Code SessionStart and SessionEnd hooks",
+		Short: "Install (or remove) the Claude Code SessionStart, PreCompact and SessionEnd hooks, plus the autoCompactWindow setting",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			path, err := resolveClaudeSettingsPath()
@@ -183,7 +183,7 @@ func newInstallHooksCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove the SessionStart, PreCompact and SessionEnd hooks instead of installing them")
+	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove the SessionStart, PreCompact and SessionEnd hooks instead of installing them, and the autoCompactWindow setting when it still holds anvil's default")
 	return cmd
 }
 

@@ -43,22 +43,15 @@ func newInstallFireSessionStartCmd() *cobra.Command {
 	return cmd
 }
 
-// fireSessionResumePreamble is printed ahead of this session's own handoff
-// so a compacted or resumed session does not treat the raw resuming-session
-// skill body (written for a human invoking it explicitly, Phase 1 of which
-// instructs running `anvil session resume`) as its own next step: Phases 1-3
-// of that skill are already satisfied by this hook, and re-running
-// `anvil session resume` here would apply the recency window instead of the
-// hook payload's session id, leaking a parallel session's handoff in.
+// Re-running resuming-session's Phase 1 here would resolve the handoff by
+// recency window instead of this session's id, loading a parallel session's
+// state.
 const fireSessionResumePreamble = "This session's own handoff is loaded below by session id. " +
 	"Do not run `anvil session resume`; Phases 1-3 of resuming-session are already satisfied.\n\n"
 
 // newInstallFireSessionResumeCmd wraps the SessionStart hook fired on
 // matcher "resume|compact": it re-anchors the session on its own handoff by
-// session id (never the recency window resuming-session uses for a human
-// picking up old work — that would leak a parallel session's state into a
-// compacted one), prefixed by a hook-authored preamble so the loop re-applies
-// its own load procedure without a human invoking the skill.
+// session id.
 func newInstallFireSessionResumeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "fire-session-resume",
