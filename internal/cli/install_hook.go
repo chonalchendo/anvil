@@ -3,13 +3,11 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"io/fs"
-	"path/filepath"
+	"io"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/chonalchendo/anvil/anvil/skills"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/state"
 )
@@ -45,12 +43,22 @@ func newInstallFireSessionStartCmd() *cobra.Command {
 	return cmd
 }
 
+// fireSessionResumePreamble is printed ahead of this session's own handoff
+// so a compacted or resumed session does not treat the raw resuming-session
+// skill body (written for a human invoking it explicitly, Phase 1 of which
+// instructs running `anvil session resume`) as its own next step: Phases 1-3
+// of that skill are already satisfied by this hook, and re-running
+// `anvil session resume` here would apply the recency window instead of the
+// hook payload's session id, leaking a parallel session's handoff in.
+const fireSessionResumePreamble = "This session's own handoff is loaded below by session id. " +
+	"Do not run `anvil session resume`; Phases 1-3 of resuming-session are already satisfied.\n\n"
+
 // newInstallFireSessionResumeCmd wraps the SessionStart hook fired on
 // matcher "resume|compact": it re-anchors the session on its own handoff by
 // session id (never the recency window resuming-session uses for a human
 // picking up old work — that would leak a parallel session's state into a
-// compacted one), prefixed by the resuming-session skill body so the loop
-// re-applies its own load procedure without a human invoking the skill.
+// compacted one), prefixed by a hook-authored preamble so the loop re-applies
+// its own load procedure without a human invoking the skill.
 func newInstallFireSessionResumeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "fire-session-resume",
@@ -68,10 +76,6 @@ func newInstallFireSessionResumeCmd() *cobra.Command {
 			if payload.SessionID == "" {
 				return fmt.Errorf("stdin JSON missing session_id")
 			}
-			skillBody, err := fs.ReadFile(skills.FS, filepath.Join("resuming-session", "SKILL.md"))
-			if err != nil {
-				return fmt.Errorf("reading resuming-session skill: %w", err)
-			}
 			v, err := core.ResolveVault()
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
@@ -81,7 +85,7 @@ func newInstallFireSessionResumeCmd() *cobra.Command {
 				return err
 			}
 			w := cmd.OutOrStdout()
-			fmt.Fprint(w, string(skillBody))
+			fmt.Fprint(w, fireSessionResumePreamble)
 
 			var own *sessionItem
 			for i := range items {
@@ -123,14 +127,11 @@ func newInstallFirePreCompactCmd() *cobra.Command {
 		Hidden: true,
 		Args:   cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			var payload struct {
-				SessionID          string `json:"session_id"`
-				Trigger            string `json:"trigger"`
-				CustomInstructions string `json:"custom_instructions"`
-			}
-			if err := json.NewDecoder(cmd.InOrStdin()).Decode(&payload); err != nil {
-				return fmt.Errorf("decoding stdin JSON: %w", err)
-			}
+			// The hook payload (session_id, trigger, custom_instructions) is
+			// unused: this hook's output is a fixed instruction, not a
+			// function of the trigger. Drain stdin so an empty or malformed
+			// payload never hard-fails the hook.
+			_, _ = io.Copy(io.Discard, cmd.InOrStdin())
 			additionalContext := "Before this compaction summary replaces the window, capture a " +
 				"handing-off-session-shaped record: the milestone frontier (active milestone id, " +
 				"next open AC), any in-flight agent and issue ids awaiting completion, open PRs and " +

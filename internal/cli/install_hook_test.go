@@ -34,8 +34,8 @@ func TestInstallFireSessionResume_LoadsOwnHandoffNotRecency(t *testing.T) {
 	if strings.Contains(got, "HANDOFF-bbbb-new") {
 		t.Errorf("output leaked a different session's handoff:\n%s", got)
 	}
-	if !strings.Contains(got, "# Resuming Session") {
-		t.Errorf("output missing resuming-session skill body header:\n%s", got)
+	if !strings.Contains(got, "Do not run `anvil session resume`") {
+		t.Errorf("output missing the hook-authored preamble instructing against re-running resuming-session's Phase 1:\n%s", got)
 	}
 	if !strings.Contains(got, "handing-off-session") {
 		t.Errorf("output missing compact-trigger instruction to write a fresh handoff:\n%s", got)
@@ -81,6 +81,20 @@ func TestInstallFirePreCompact_EmitsHandoffShapedAdditionalContext(t *testing.T)
 	}
 	if !strings.Contains(got.HookSpecificOutput.AdditionalContext, "in-flight") {
 		t.Errorf("additionalContext missing in-flight agent/issue guidance:\n%s", got.HookSpecificOutput.AdditionalContext)
+	}
+}
+
+func TestInstallFirePreCompact_EmptyStdinStillSucceeds(t *testing.T) {
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"install", "fire-pre-compact"})
+	cmd.SetIn(strings.NewReader(""))
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("hook with empty stdin: %v", err)
+	}
+	if !strings.Contains(out.String(), "in-flight") {
+		t.Errorf("additionalContext missing in-flight agent/issue guidance:\n%s", out.String())
 	}
 }
 

@@ -144,7 +144,11 @@ func newInstallHooksCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("removing SessionEnd hook: %w", err)
 				}
-				if changedStart || changedResume || changedPreCompact || changedEnd {
+				changedWindow, err := installer.RemoveAutoCompactWindow(path, defaultAutoCompactWindow)
+				if err != nil {
+					return fmt.Errorf("removing autoCompactWindow: %w", err)
+				}
+				if changedStart || changedResume || changedPreCompact || changedEnd || changedWindow {
 					cmd.Println("removed anvil hooks from", path)
 				} else {
 					cmd.Println("no matching anvil hooks in", path)
@@ -179,7 +183,7 @@ func newInstallHooksCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove the SessionStart and SessionEnd hooks instead of installing them")
+	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove the SessionStart, PreCompact and SessionEnd hooks instead of installing them")
 	return cmd
 }
 

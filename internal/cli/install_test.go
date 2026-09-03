@@ -520,4 +520,7 @@ func TestInstall_Hooks_Uninstall(t *testing.T) {
 	if !strings.Contains(out.String(), "removed") {
 		t.Errorf("output = %q, want to mention removed", out.String())
 	}
+	if _, exists := got["autoCompactWindow"]; exists {
+		t.Errorf("autoCompactWindow still present after uninstall: %v", got["autoCompactWindow"])
+	}
 }

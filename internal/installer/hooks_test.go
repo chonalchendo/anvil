@@ -445,6 +445,57 @@ func TestMergePreCompactHook_NewFile(t *testing.T) {
 	}
 }
 
+func TestMergeSessionStartMatcherHook_DropsOrphanUnderDifferentMatcher(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	// Simulate a prior install that scoped testMatcherCmd to a different
+	// matcher (e.g. a since-edited matcher string).
+	if _, err := MergeSessionStartMatcherHook(path, "old-matcher", testMatcherCmd); err != nil {
+		t.Fatalf("seed stale matcher entry: %v", err)
+	}
+
+	changed, err := MergeSessionStartMatcherHook(path, testMatcher, testMatcherCmd)
+	if err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if !changed {
+		t.Error("changed = false, want true: stale-matcher orphan must be dropped")
+	}
+
+	got := readJSON(t, path)
+	ss := got["hooks"].(map[string]any)["SessionStart"].([]any)
+	if len(ss) != 1 {
+		t.Fatalf("SessionStart len = %d, want 1 (orphan dropped, new matcher entry kept)", len(ss))
+	}
+	m := ss[0].(map[string]any)
+	if m["matcher"] != testMatcher {
+		t.Errorf("surviving entry matcher = %v, want %q", m["matcher"], testMatcher)
+	}
+}
+
+func TestMergeSessionStartMatcherHook_KeepsForeignEntryUnderDifferentMatcher(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	writeJSON(t, path, map[string]any{
+		"hooks": map[string]any{
+			"SessionStart": []any{
+				map[string]any{
+					"matcher": "old-matcher",
+					"hooks":   []any{map[string]any{"type": "command", "command": "not-anvil-managed"}},
+				},
+			},
+		},
+	})
+
+	if _, err := MergeSessionStartMatcherHook(path, testMatcher, testMatcherCmd); err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+
+	got := readJSON(t, path)
+	ss := got["hooks"].(map[string]any)["SessionStart"].([]any)
+	if len(ss) != 2 {
+		t.Fatalf("SessionStart len = %d, want 2 (foreign entry preserved + new matcher entry)", len(ss))
+	}
+}
+
 func TestMergeAutoCompactWindow_SetsWhenAbsent(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 
@@ -477,5 +528,55 @@ func TestMergeAutoCompactWindow_NeverOverwritesExplicitValue(t *testing.T) {
 	got := readJSON(t, path)
 	if got["autoCompactWindow"] != 50000.0 {
 		t.Errorf("autoCompactWindow = %v, want unchanged 50000", got["autoCompactWindow"])
+	}
+}
+
+func TestRemoveAutoCompactWindow_RemovesInstallWrittenDefault(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if _, err := MergeAutoCompactWindow(path, 200000); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	changed, err := RemoveAutoCompactWindow(path, 200000)
+	if err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if !changed {
+		t.Error("changed = false, want true")
+	}
+
+	got := readJSON(t, path)
+	if _, exists := got["autoCompactWindow"]; exists {
+		t.Errorf("autoCompactWindow still present after remove: %v", got["autoCompactWindow"])
+	}
+}
+
+func TestRemoveAutoCompactWindow_PreservesOperatorChangedValue(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	writeJSON(t, path, map[string]any{"autoCompactWindow": 50000})
+
+	changed, err := RemoveAutoCompactWindow(path, 200000)
+	if err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if changed {
+		t.Error("changed = true, want false: an operator-changed value must not be removed")
+	}
+
+	got := readJSON(t, path)
+	if got["autoCompactWindow"] != 50000.0 {
+		t.Errorf("autoCompactWindow = %v, want unchanged 50000", got["autoCompactWindow"])
+	}
+}
+
+func TestRemoveAutoCompactWindow_NoOpWhenAbsent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+
+	changed, err := RemoveAutoCompactWindow(path, 200000)
+	if err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if changed {
+		t.Error("changed = true, want false: no key to remove")
 	}
 }

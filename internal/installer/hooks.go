@@ -69,6 +69,29 @@ func MergeAutoCompactWindow(settingsPath string, window int) (bool, error) {
 	return true, nil
 }
 
+// RemoveAutoCompactWindow deletes settings["autoCompactWindow"] only when its
+// value still equals defaultValue — the value install wrote. An operator who
+// has since changed it owns that value; uninstall never touches it.
+func RemoveAutoCompactWindow(settingsPath string, defaultValue int) (bool, error) {
+	settings, err := loadSettings(settingsPath)
+	if err != nil {
+		return false, err
+	}
+	current, exists := settings["autoCompactWindow"]
+	if !exists {
+		return false, nil
+	}
+	// JSON numbers decode as float64 through map[string]any.
+	if f, ok := current.(float64); !ok || int(f) != defaultValue {
+		return false, nil
+	}
+	delete(settings, "autoCompactWindow")
+	if err := writeSettings(settingsPath, settings); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // MergeSessionEndHook registers command under the Claude Code SessionEnd hook
 // event in settingsPath.
 func MergeSessionEndHook(settingsPath, command string) (bool, error) {
@@ -115,6 +138,14 @@ func mergeMatcherHook(settingsPath, event, matcher, command string) (bool, error
 	hasCurrent := false
 	for _, e := range entries {
 		if entryMatcher(e) != matcher {
+			// Drop an anvil-managed entry running this command under a
+			// different matcher — e.g. a prior matcher edit — so it doesn't
+			// survive as an orphan that double-fires alongside the entry
+			// re-created below and that uninstall (matcher-scoped) can't
+			// remove.
+			if entryIsManaged(e) && entryMatchesCommand(e, command) {
+				continue
+			}
 			kept = append(kept, e)
 			continue
 		}
