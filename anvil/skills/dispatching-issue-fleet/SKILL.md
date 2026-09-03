@@ -67,6 +67,16 @@ A worker stops at PR opened — it cannot dispatch the reviewer sub-subagent, so
 
 Dispatch all N in a single tool-use block so they run in parallel. **Restart caveat:** the Agent tool enumerates `subagent_type` values at session start, so a freshly installed or edited `anvil-issue-worker` (rebuilt with the project's build-and-install command, then `anvil install agents`) is not dispatchable until the next restart. If dispatch errors with "Agent type not found", restart the session once, then retry.
 
+**After dispatch, end the turn.** The legal wait is not "poll" vs. "block forever" — it is: stop producing output and let the harness re-invoke you. A finished subagent delivers a completion notification unprompted, whether or not anyone polled; that notification is the resume signal. `Monitor` or `SendMessage` against an in-flight worker is forbidden — it re-reads the full context window for no new information the notification won't hand you for free. An autonomous orchestrator has no re-invocation signal — it polls its own dispatch handles instead; this rule binds the attended orchestrator.
+
+Nudge — one `SendMessage`, never `Monitor` — only when both hold:
+- another wave member's completion notification has arrived, and
+- this worker's branch has no PR url and no `/tmp/verdict.<id>.json`.
+
+Write the checkpoint handoff below before ending the turn.
+
+**Checkpoint handoff (attended orchestrator only).** Write it after this dispatch block, and again once Phase 5 halts the whole wave green. Use `anvil session handoff --project <p> --body -`, not `handing-off-session`'s template — its cuts drop the per-worker rows. The checkpoint is the one raw-verb exception; `handing-off-session` still owns end-of-session. Specify the body as: `## Handoff`, the `Working in <repo path>.` framing line, the `**Objective.**` line carried forward verbatim, then a `**Wave.**` block with one row per wave member: `<issue-id> → <worktree-path> → <branch> → returned|in-flight`, plus the PR url or verdict-artifact path where returned. A resumed session reloads this file by session id. An autonomous orchestrator skips this — the handoff binds to an interactive session id — and instead lets the next resume derive wave state from `git branch` / `gh pr list`.
+
 ## Phase 4 — Interpret returns
 
 Each subagent's last line is structurally one of:
@@ -103,7 +113,11 @@ For each PR url returned, in turn:
    - Any blocker/high/actionable-medium → **dispatch a fresh subagent into the PR's worktree** via `subagent_type: anvil-pr-responder` — the bundled, cost-tuned responder (model pinned, `responding-to-pr-review` preloaded, worktree invariant, stop-at-fixes-pushed, scope-change Blocker, forbidden-call audit, structured return line already baked into the agent file). Fill only the per-call values into the dispatch prompt body: issue-id, worktree-path, branch, and the findings (structured report + reviewer subagent id). Interpret its return exactly as in Phase 4.
 
    **Restart caveat:** a freshly installed or edited `anvil-pr-responder` (rebuilt, then `anvil install agents`) is not dispatchable until the next session restart — same caveat as Phase 3's `anvil-issue-worker`.
+
+   **Same no-wait rule as Phase 3.** After dispatching the responder, end the turn — its completion notification resumes you. No `Monitor`/`SendMessage` while it is in flight, same one-nudge exception. Write the checkpoint handoff (Phase 3) before ending the turn, marking the responder's issue `in-flight`.
 3. **Halt.** Confirm CI green. Wire any missing rail edge the PR body's `## Context box` names in a `swept` row — the worker is barred from mutating the spine, so that edge is yours. Do not merge.
+
+Once every PR in the wave is green, write the checkpoint handoff (Phase 3) — this fires once per wave, not once per PR.
 
 Present the structured report:
 
