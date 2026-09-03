@@ -21,9 +21,12 @@ git rev-parse --show-toplevel                    # worktree path
 git status --short                               # uncommitted state
 git log --oneline -5                             # recent commits
 anvil list issue --project <p> --status open --ready --json   # what's pickable next
+bash ~/.claude/skills/handing-off-session/scripts/usage.sh --since 1d   # today's token usage per model/agent type
 ```
 
 If the session resolved issues, also run `anvil list issue --status resolved` filtered to today (or grep recent transitions) — but only to confirm IDs you'll cite, not to recap.
+
+`usage.sh` reads local transcripts under `~/.claude/projects` (dedupe by `message.id`, since transcripts log one line per content block) and prints one JSON row per `(model, agent_type)` pair. Fold its top row(s) into the **Token reflection** section below so weekly totals accumulate in the vault across handoffs.
 
 ## Brevity budget
 
@@ -36,7 +39,7 @@ Section-by-section cuts to apply *before* writing, not after:
 - **Open threads:** one line each, pointing to an artifact id (inbox slug, PR number, issue id). No paraphrase.
 - **Don't redo:** approach + one-word reason. No reasoning chain.
 - **Reminders:** if every candidate line restates AGENTS.md, omit the section entirely. AGENTS.md auto-loads. Keep only session-specific deltas (a transient env var, a one-off stash).
-- **Token reflection:** 2–3 bullets, ≤200 B total. Top sinks (avoidable reads, redundant searches, oversized tool output) + one-phrase cut each. Not optional — a session with no token-side observation is itself a finding; write *"no avoidable sinks observed"* if true.
+- **Token reflection:** 2–3 bullets, ≤200 B total. Lead with the `usage.sh` row(s) for this session (model, agent_type, total tokens), then top sinks (avoidable reads, redundant searches, oversized tool output) + one-phrase cut each. Not optional — a session with no token-side observation is itself a finding; write *"no avoidable sinks observed"* if true.
 
 If a section would be empty after these cuts, omit the section header too. "Skip if empty" in the template is a hard rule, not a suggestion.
 
@@ -61,7 +64,7 @@ Working in <repo path>. <One-sentence framing: what kind of work, which project.
 
 **Reminders.** <Session-specific rules the receiving agent might not infer from AGENTS.md alone. Skip if nothing.>
 
-**Token reflection.** <2–3 bullets, ≤200 B. Top sinks this session → one-phrase cut. Required; satisfies the CLAUDE.md MUST. Write *"no avoidable sinks observed"* if none.>
+**Token reflection.** <2–3 bullets, ≤200 B. First bullet: `usage.sh` row(s) for this session (model, agent_type, total tokens). Then top sinks this session → one-phrase cut. Required; satisfies the CLAUDE.md MUST. Write *"no avoidable sinks observed"* if none beyond the usage row.>
 ```
 
 ## Phase 3 — Write into the session file and stop
