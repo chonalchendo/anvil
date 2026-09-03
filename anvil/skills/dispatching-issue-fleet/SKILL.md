@@ -67,9 +67,15 @@ A worker stops at PR opened — it cannot dispatch the reviewer sub-subagent, so
 
 Dispatch all N in a single tool-use block so they run in parallel. **Restart caveat:** the Agent tool enumerates `subagent_type` values at session start, so a freshly installed or edited `anvil-issue-worker` (rebuilt with the project's build-and-install command, then `anvil install agents`) is not dispatchable until the next restart. If dispatch errors with "Agent type not found", restart the session once, then retry.
 
-**After dispatch, end the turn.** The legal wait is not "poll" vs. "block forever" — it is: stop producing output and let the harness re-invoke you. A finished subagent delivers a completion notification unprompted, whether or not anyone polled; that notification is the resume signal. `Monitor` or `SendMessage` against an in-flight worker is forbidden — it re-reads the full context window for no new information the notification won't hand you for free. The one exception: a worker that has produced neither a PR url nor a verdict artifact (`/tmp/verdict.<id>.json`) on its branch after a completion notification for a *different* wave member — check the branch and the artifact before nudging (a vanished agent is not a dead task; see prior learnings). Write the wave checkpoint below before ending the turn.
+**After dispatch, end the turn.** The legal wait is not "poll" vs. "block forever" — it is: stop producing output and let the harness re-invoke you. A finished subagent delivers a completion notification unprompted, whether or not anyone polled; that notification is the resume signal. `Monitor` or `SendMessage` against an in-flight worker is forbidden — it re-reads the full context window for no new information the notification won't hand you for free.
 
-**Wave-boundary checkpoint.** After this dispatch block, and again after Phase 5 halts a wave green, write a checkpoint handoff via `handing-off-session` into the current session file. `anvil.0279`'s resume hooks reload by session id after a compaction or restart — a checkpoint at every wave boundary keeps that reload never more than one wave stale.
+Nudge a worker only when both hold:
+- another wave member's completion notification has arrived, and
+- this worker's branch has no PR url and no `/tmp/verdict.<id>.json`.
+
+Write the checkpoint handoff below before ending the turn.
+
+**Checkpoint handoff (attended orchestrator only).** After this dispatch block, and again once Phase 5 halts the whole wave green, write a checkpoint via `anvil session handoff --project <p> --body -` — not `handing-off-session`'s template, whose exclusion list drops exactly the per-worker rows this needs — with one row per wave member: `<issue-id> → <worktree-path> → <branch> → returned|in-flight`, plus the PR url or verdict-artifact path where returned. A resumed or post-compaction session reloads this file by session id. An autonomous orchestrator skips this — the handoff binds to an interactive session id — and instead lets the next resume derive wave state from `git branch` / `gh pr list`.
 
 ## Phase 4 — Interpret returns
 
@@ -109,7 +115,9 @@ For each PR url returned, in turn:
    **Restart caveat:** a freshly installed or edited `anvil-pr-responder` (rebuilt, then `anvil install agents`) is not dispatchable until the next session restart — same caveat as Phase 3's `anvil-issue-worker`.
 
    **Same no-wait rule as Phase 3.** After dispatching the responder, end the turn — its completion notification resumes you. No `Monitor`/`SendMessage` while it is in flight, same one-nudge exception.
-3. **Halt.** Confirm CI green. Wire any missing rail edge the PR body's `## Context box` names in a `swept` row — the worker is barred from mutating the spine, so that edge is yours. Do not merge. Write the wave-boundary checkpoint (Phase 3) now that this wave is green.
+3. **Halt.** Confirm CI green. Wire any missing rail edge the PR body's `## Context box` names in a `swept` row — the worker is barred from mutating the spine, so that edge is yours. Do not merge.
+
+Once every PR in the wave is green, write the checkpoint handoff (Phase 3) — this fires once per wave, not once per PR.
 
 Present the structured report:
 
