@@ -94,7 +94,7 @@ When an issue renames a symbol, table, layer, or identifier across a multi-packa
 
 ```bash
 # wrong: only covers one package
-grep -r "OldName" pkg/models
+grep -r "OldName" renamed-pkg/models
 
 # right: cross-package / repo-wide
 git grep -r "OldName" -- '*.go'

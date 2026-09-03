@@ -17,6 +17,18 @@ import (
 	"github.com/chonalchendo/anvil/internal/schema"
 )
 
+// hasBlockingFailure reports whether failures carries any finding above
+// SeverityWarning. A warning is emitted but must not fail the run — the
+// sweep's grandfather tier for the milestone body check (validate.go).
+func hasBlockingFailure(failures []*errfmt.ValidationError) bool {
+	for _, f := range failures {
+		if f.Severity != errfmt.SeverityWarning {
+			return true
+		}
+	}
+	return false
+}
+
 func newValidateCmd() *cobra.Command {
 	var asJSON bool
 	var verificationStdin bool
@@ -232,7 +244,19 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 	}
 
 	if t == core.TypeIssue {
-		out = appendIssueTypeErrors(out, a, path, verbs)
+		for _, vErr := range core.ValidateIssue(a) {
+			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+		}
+		goal, _ := a.FrontMatter["goal"].(string)
+		title, _ := a.FrontMatter["title"].(string)
+		for _, vErr := range core.ValidateIssueVerbs(a.Body, goal, title, verbs) {
+			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+		}
+		// ValidateIssueCheckoutPaths is deliberately NOT wired here: the
+		// checkout-path lint gates create/promote only. The ~219 issues
+		// authored before the rule would fail vault-hygiene CI retroactively
+		// if the vault-wide scan enforced it. Lint a single predicate with
+		// `anvil validate --verification-stdin` instead.
 	}
 	// lead_sentence is skipped on the vault-wide sweep: the back catalogue
 	// carries ~1200 pre-rule artifacts, and the rule is a create/promote-time
