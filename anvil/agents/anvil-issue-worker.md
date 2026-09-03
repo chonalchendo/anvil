@@ -116,7 +116,7 @@ You may die mid-task on a terminal error (API 5xx after retries, OOM, killed pro
 
 ## Self-review
 
-After the verdict reads `pass` and before `gh pr create`, read the installed `anvil-pr-reviewer.md` — the same rubric the independent reviewer runs against this diff — and walk your diff against it, fixing blocker and high findings in place before opening the PR. This does not replace the reviewer: it still runs on every PR; self-review only lowers the finding count it has to raise. Re-run the verdict (Phase 2) if a fix changes behaviour.
+After the verdict reads `pass` and before `gh pr create`, read `~/.claude/agents/anvil-pr-reviewer.md` — the same rubric the independent reviewer runs against this diff. Read only its `## Judgment` and `## Findings contract` sections; that file's `## Forbidden calls` and `## Return contract` bind the reviewer, not you. Walk your diff against the rubric, fixing blocker and high findings in place — but only within your declared file set. A rubric finding whose fix lands outside it is out of scope for you: do not edit sibling files to chase it; instead record it as a finding in the PR body for the independent reviewer to pick up. This does not replace the reviewer: it still runs on every PR; self-review only lowers the finding count it has to raise. Any self-review edit voids the verdict — re-run the runner (Phase 2) and paste the new line into the PR body, unconditionally, not only when you judge the fix "changes behaviour".
 
 ## Forbidden calls
 
