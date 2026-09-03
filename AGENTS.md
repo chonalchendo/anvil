@@ -14,6 +14,7 @@ This file is an index — per-turn rules below; everything else loads on demand 
 - **No `fmt.Println` for control flow output.** CLI output through cobra's `cmd.Println` / `cmd.PrintErrln`; structured logging through `log/slog`.
 - **No new top-level dependencies without explicit user approval.**
 - **No whole-file `Read` of files >150 lines without grepping first.** See [Reading Discipline](docs/guardrails.md#reading-discipline).
+- **`convention.cli-tooling`'s route-through-the-CLI rule carves out one shape: a shipped `.sh` under a skill's `scripts/` dir, embedded via `go:embed` and invoked with `bash <script>`.** Three so far: `run-verification.sh`, `wait-for-pr.sh`, `usage.sh`. Anything beyond that shape is a new CLI verb, not another script.
 
 Ask: "Would a senior engineer call this overcomplicated?" If yes, simplify.
 

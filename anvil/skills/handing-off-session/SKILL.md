@@ -21,12 +21,12 @@ git rev-parse --show-toplevel                    # worktree path
 git status --short                               # uncommitted state
 git log --oneline -5                             # recent commits
 anvil list issue --project <p> --status open --ready --json   # what's pickable next
-bash ~/.claude/skills/handing-off-session/scripts/usage.sh --since 1d   # today's token usage per model/agent type
+bash ~/.claude/skills/handing-off-session/scripts/usage.sh --since 1d --session "$CLAUDE_CODE_SESSION_ID"   # this session's token usage per model/agent type
 ```
 
 If the session resolved issues, also run `anvil list issue --status resolved` filtered to today (or grep recent transitions) — but only to confirm IDs you'll cite, not to recap.
 
-`usage.sh` reads local transcripts under `~/.claude/projects` (dedupe by `message.id`, since transcripts log one line per content block) and prints one JSON row per `(model, agent_type)` pair. Fold its top row(s) into the **Token reflection** section below so weekly totals accumulate in the vault across handoffs.
+`usage.sh` reads local transcripts under `~/.claude/projects` (dedupe by `message.id`, since transcripts log one line per content block), `--session` narrows to this session's own transcript plus its subagents, and it prints one JSON row per `(model, agent_type)` pair sorted by `total` tokens descending. Fold its top row(s) into the **Token reflection** section below so weekly totals accumulate in the vault across handoffs.
 
 ## Brevity budget
 
