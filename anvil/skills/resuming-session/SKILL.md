@@ -86,7 +86,7 @@ After surfacing, hand control back to the user (or, if the handoff names an unam
 
 ## What NOT to do
 
-- Do not auto-load on session start. This skill fires on explicit user invocation only — auto-loading would pollute sessions opened for unrelated work.
+- Do not auto-load on `startup` or `fork`. The `resume|compact` SessionStart hook injects this session's own handoff automatically; explicit invocation is for a human picking up old work.
 - Do not merge multiple handoffs. Only the most-recent non-empty one. Stitching across sessions belongs in `distilling-learning`.
 - Do not summarise or paraphrase the handoff before acting on it. The handoff is the user's prompt, not raw material.
 - Do not delete or mutate empty session files. Retention belongs elsewhere (`retention_until` frontmatter + a future sweep verb).

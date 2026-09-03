@@ -26,6 +26,72 @@ func RemoveSessionStartHook(settingsPath, command string) (bool, error) {
 	return removeHook(settingsPath, "SessionStart", command)
 }
 
+// MergeSessionStartMatcherHook registers command under SessionStart scoped to
+// matcher (e.g. "resume|compact"), coexisting with the unmatched entry
+// MergeSessionStartHook manages — the two fire on disjoint sources.
+func MergeSessionStartMatcherHook(settingsPath, matcher, command string) (bool, error) {
+	return mergeMatcherHook(settingsPath, "SessionStart", matcher, command)
+}
+
+// RemoveSessionStartMatcherHook strips command from the SessionStart entry
+// scoped to matcher in settingsPath.
+func RemoveSessionStartMatcherHook(settingsPath, matcher, command string) (bool, error) {
+	return removeMatcherHook(settingsPath, "SessionStart", matcher, command)
+}
+
+// MergePreCompactHook registers command under the Claude Code PreCompact hook
+// event in settingsPath.
+func MergePreCompactHook(settingsPath, command string) (bool, error) {
+	return mergeHook(settingsPath, "PreCompact", command)
+}
+
+// RemovePreCompactHook strips command from the PreCompact hook event in
+// settingsPath.
+func RemovePreCompactHook(settingsPath, command string) (bool, error) {
+	return removeHook(settingsPath, "PreCompact", command)
+}
+
+// MergeAutoCompactWindow sets settings["autoCompactWindow"] to window only
+// when the key is absent. An operator who has already set the key — to this
+// value or any other — owns it from then on; anvil never overwrites it.
+func MergeAutoCompactWindow(settingsPath string, window int) (bool, error) {
+	settings, err := loadSettings(settingsPath)
+	if err != nil {
+		return false, err
+	}
+	if _, exists := settings["autoCompactWindow"]; exists {
+		return false, nil
+	}
+	settings["autoCompactWindow"] = window
+	if err := writeSettings(settingsPath, settings); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// RemoveAutoCompactWindow deletes settings["autoCompactWindow"] only when its
+// value still equals defaultValue — the value install wrote. An operator who
+// has since changed it owns that value; uninstall never touches it.
+func RemoveAutoCompactWindow(settingsPath string, defaultValue int) (bool, error) {
+	settings, err := loadSettings(settingsPath)
+	if err != nil {
+		return false, err
+	}
+	current, exists := settings["autoCompactWindow"]
+	if !exists {
+		return false, nil
+	}
+	// JSON numbers decode as float64 through map[string]any.
+	if f, ok := current.(float64); !ok || int(f) != defaultValue {
+		return false, nil
+	}
+	delete(settings, "autoCompactWindow")
+	if err := writeSettings(settingsPath, settings); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // MergeSessionEndHook registers command under the Claude Code SessionEnd hook
 // event in settingsPath.
 func MergeSessionEndHook(settingsPath, command string) (bool, error) {
@@ -39,12 +105,27 @@ func RemoveSessionEndHook(settingsPath, command string) (bool, error) {
 }
 
 // mergeHook ensures settingsPath contains a Claude Code hook for the given
-// event that runs command. The file is created if missing. Unrelated keys and
-// non-anvil hook entries are preserved; any stale anvil-managed entry (a prior
-// command string) is replaced so a changed command upserts instead of
-// accumulating a duplicate that double-fires. Returns changed=false only when
-// command is already the sole anvil entry and nothing stale needed dropping.
+// event that runs command, unscoped by matcher. See mergeMatcherHook.
 func mergeHook(settingsPath, event, command string) (bool, error) {
+	return mergeMatcherHook(settingsPath, event, "", command)
+}
+
+// removeHook strips any unmatched hook entry under event whose inner command
+// matches command. See removeMatcherHook.
+func removeHook(settingsPath, event, command string) (bool, error) {
+	return removeMatcherHook(settingsPath, event, "", command)
+}
+
+// mergeMatcherHook ensures settingsPath contains a Claude Code hook for the
+// given event and matcher ("" for an unmatched entry, which fires on every
+// source) that runs command. The file is created if missing. Unrelated keys,
+// entries scoped to a different matcher, and non-anvil entries are preserved;
+// only a stale anvil-managed entry for the same matcher (a prior command
+// string) is replaced, so a changed command upserts instead of accumulating a
+// duplicate that double-fires, and two anvil entries with different matchers
+// coexist on the same event. Returns changed=false only when command is
+// already the sole anvil entry for matcher and nothing stale needed dropping.
+func mergeMatcherHook(settingsPath, event, matcher, command string) (bool, error) {
 	settings, err := loadSettings(settingsPath)
 	if err != nil {
 		return false, err
@@ -56,12 +137,24 @@ func mergeHook(settingsPath, event, command string) (bool, error) {
 	kept := make([]any, 0, len(entries))
 	hasCurrent := false
 	for _, e := range entries {
+		if entryMatcher(e) != matcher {
+			// Drop an anvil-managed entry running this command under a
+			// different matcher — e.g. a prior matcher edit — so it doesn't
+			// survive as an orphan that double-fires alongside the entry
+			// re-created below and that uninstall (matcher-scoped) can't
+			// remove.
+			if entryIsManaged(e) && entryMatchesCommand(e, command) {
+				continue
+			}
+			kept = append(kept, e)
+			continue
+		}
 		switch {
 		case entryMatchesCommand(e, command):
 			hasCurrent = true
 			kept = append(kept, e)
 		case entryIsManaged(e):
-			continue // drop a stale anvil-managed variant
+			continue // drop a stale anvil-managed variant for this matcher
 		default:
 			kept = append(kept, e)
 		}
@@ -70,11 +163,15 @@ func mergeHook(settingsPath, event, command string) (bool, error) {
 		return false, nil
 	}
 	if !hasCurrent {
-		kept = append(kept, map[string]any{
+		newEntry := map[string]any{
 			"hooks": []any{
 				map[string]any{"type": "command", "command": command},
 			},
-		})
+		}
+		if matcher != "" {
+			newEntry["matcher"] = matcher
+		}
+		kept = append(kept, newEntry)
 	}
 	hooks[event] = kept
 	settings["hooks"] = hooks
@@ -85,9 +182,10 @@ func mergeHook(settingsPath, event, command string) (bool, error) {
 	return true, nil
 }
 
-// removeHook strips any hook entry under event whose inner command matches
-// command. Missing file or missing hook is not an error.
-func removeHook(settingsPath, event, command string) (bool, error) {
+// removeMatcherHook strips any hook entry under event, scoped to matcher,
+// whose inner command matches command. Missing file or missing hook is not an
+// error.
+func removeMatcherHook(settingsPath, event, matcher, command string) (bool, error) {
 	settings, err := loadSettings(settingsPath)
 	if err != nil {
 		return false, err
@@ -105,7 +203,7 @@ func removeHook(settingsPath, event, command string) (bool, error) {
 	kept := make([]any, 0, len(entries))
 	changed := false
 	for _, e := range entries {
-		if entryMatchesCommand(e, command) {
+		if entryMatcher(e) == matcher && entryMatchesCommand(e, command) {
 			changed = true
 			continue
 		}
@@ -120,6 +218,16 @@ func removeHook(settingsPath, event, command string) (bool, error) {
 		return false, err
 	}
 	return true, nil
+}
+
+// entryMatcher returns entry's "matcher" field, or "" for an unmatched entry.
+func entryMatcher(entry any) string {
+	m, ok := entry.(map[string]any)
+	if !ok {
+		return ""
+	}
+	matcher, _ := m["matcher"].(string)
+	return matcher
 }
 
 func loadSettings(path string) (map[string]any, error) {

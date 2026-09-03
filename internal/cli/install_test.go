@@ -80,9 +80,12 @@ func TestInstall_Hooks_Idempotent(t *testing.T) {
 	b, _ := os.ReadFile(filepath.Join(dir, "settings.json")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	var got map[string]any
 	_ = json.Unmarshal(b, &got)
+	// Two anvil-managed entries: the unmatched fire-session-start (every
+	// source) and the resume|compact matcher-scoped fire-session-resume.
+	// Idempotence means this stays at 2, not that it grows past it.
 	ss := got["hooks"].(map[string]any)["SessionStart"].([]any)
-	if len(ss) != 1 {
-		t.Errorf("SessionStart len = %d after 2 installs, want 1", len(ss))
+	if len(ss) != 2 {
+		t.Errorf("SessionStart len = %d after 2 installs, want 2", len(ss))
 	}
 }
 
@@ -516,5 +519,8 @@ func TestInstall_Hooks_Uninstall(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "removed") {
 		t.Errorf("output = %q, want to mention removed", out.String())
+	}
+	if _, exists := got["autoCompactWindow"]; exists {
+		t.Errorf("autoCompactWindow still present after uninstall: %v", got["autoCompactWindow"])
 	}
 }
