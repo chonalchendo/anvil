@@ -108,6 +108,13 @@ acceptance: ["criterion", ...]
 
 `kind` distinguishes the two milestone shapes: `scoped` (a discrete shippable bundle with acceptance criteria) and `bucket` (a deliberate rolling-findings tracker that may keep `acceptance: []`). Defaults to `scoped` on `anvil create milestone`; pick `bucket` only for friction-collection milestones. The schema requires `kind`; both create and validate fail without it.
 
+Body rules (`anvil validate`, `core.ValidateMilestone`; `create milestone` scaffolds the headings):
+
+- `## Objective`, `## Non-goals`, `## Links`, `## Status` must appear, in order.
+- A `## Success criteria` section is refused — `acceptance:` is the single source, refined via `anvil set milestone <id> acceptance --add/--remove`.
+- `kind: scoped` with empty `acceptance` is refused; flip to `bucket` if the work is genuinely open-ended.
+- Legacy vault milestones predating this rule go red on the vault-wide sweep (warning severity there) and on single-file `anvil validate`; `anvil list`/`reindex` run no body validator at all, so they still serve pre-existing milestones untouched.
+
 Cut entirely: `target_date`, `horizon`, `ordinal`, `predecessors`, `successors`, `plans`, `issues`, `objectives`, `risks`. Milestones are structural, not scheduled. Done = all child issues `resolved`.
 
 Status follows child claims, only partway: `transition issue <id> in-progress` moves a `planned` parent milestone to `in-progress` on the first child claim (anvil.0275). `done` stays a human transition — acceptance is measured, not inferred from issue count. `list milestone --json`/`show milestone` (JSON and text) carry a derived `children` summary (`open`/`in_progress`/`resolved`/`abandoned`/`total` counts from linked issues) and a `stale` flag, true when every child is resolved-or-abandoned but status hasn't caught up to `done`; `list milestone`'s plain-text rows omit the summary. Bucket milestones (`kind: bucket`) are never stale — they have no terminal done state.

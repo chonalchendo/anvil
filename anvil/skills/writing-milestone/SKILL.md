@@ -62,14 +62,10 @@ Draft before calling the CLI:
 ## Phase 3 — Create
 
 ```bash
-anvil create milestone --title "<title>" --description "<one-line preview>" --goal "<terminal predicate>" --json
+anvil create milestone --title "<title>" --description "<one-line preview>" --goal "<terminal predicate>" --acceptance "<criterion>" --json
 ```
 
-Capture `id` and `path` from the JSON output. It ships `kind: scoped` by default; flip if bucket:
-
-```bash
-anvil set milestone <id> kind bucket
-```
+`--acceptance` repeats, one per Phase 2 criterion. A bucket passes `--kind bucket` and no `--acceptance`. Capture `id` and `path` from the JSON output.
 
 Then direct-edit the body sections (shaped in Phase 2) into the file at `path`.
 
@@ -92,7 +88,7 @@ anvil set milestone <id> system_design "[[system-design.<project>]]"
 anvil show milestone <id> --validate
 ```
 
-Fix any schema errors reported. Re-run until clean.
+Fix any schema errors reported. Re-run until clean. Validate now also enforces body shape: the four required headings in order, no `## Success criteria` section, and (for `kind: scoped`) non-empty `acceptance`.
 
 ## Hand-off
 

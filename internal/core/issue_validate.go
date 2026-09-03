@@ -248,17 +248,21 @@ func ScaffoldSections(headings []string) string {
 	return sb.String()
 }
 
-// ValidateIssue checks that the issue body contains the required headings in
-// order and that code fences in the Verification section are balanced.
-// Same ordered-scan algorithm as ValidateLearning.
-func ValidateIssue(a *Artifact) []error {
+// scanOrderedHeadings reports one error per heading in headings that is
+// missing from body, or appears out of order relative to the headings before
+// it. noun names the artifact kind in the error message (e.g. "issue"). Same
+// single-pass algorithm shared by ValidateIssue, ValidateLearning and
+// ValidateMilestone: a heading found before pos is "missing" (it either
+// isn't present at all, or the scan already consumed everything up to and
+// including a later occurrence), the same signal an out-of-order heading
+// produces.
+func scanOrderedHeadings(body, noun string, headings []string) []error {
 	var errs []error
 	pos := 0
-	body := a.Body
-	for _, h := range RequiredIssueSections {
+	for _, h := range headings {
 		idx := strings.Index(body[pos:], "\n"+h)
 		if idx < 0 && !strings.HasPrefix(body[pos:], h) {
-			errs = append(errs, fmt.Errorf("issue body missing required heading %q", h))
+			errs = append(errs, fmt.Errorf("%s body missing required heading %q", noun, h))
 			continue
 		}
 		if idx >= 0 {
@@ -267,6 +271,15 @@ func ValidateIssue(a *Artifact) []error {
 			pos += len(h)
 		}
 	}
+	return errs
+}
+
+// ValidateIssue checks that the issue body contains the required headings in
+// order and that code fences in the Verification section are balanced.
+// Same ordered-scan algorithm as ValidateLearning.
+func ValidateIssue(a *Artifact) []error {
+	body := a.Body
+	errs := scanOrderedHeadings(body, "issue", RequiredIssueSections)
 
 	// Fence-balance check, scoped to the Verification section per the issue's
 	// goal ("only fence balance in the Verification section"). An odd number of

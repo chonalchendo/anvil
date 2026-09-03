@@ -240,6 +240,16 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 		out = appendIssueTypeErrors(out, a, path, verbs, sweep)
 	}
 
+	if t == core.TypeMilestone {
+		for _, vErr := range core.ValidateMilestone(a) {
+			e := errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error())
+			if sweep {
+				e = e.WithSeverity(errfmt.SeverityWarning)
+			}
+			out = append(out, e)
+		}
+	}
+
 	// Drift check: flag tags not present in the glossary. Skipped when the
 	// glossary is empty so fresh vaults don't fail until any tags are defined.
 	if knownTags != nil {

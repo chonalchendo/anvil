@@ -87,7 +87,14 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 		}
 	}
 
-	if authoredBody {
+	// Milestone runs staticBodyFailures even on the CLI-generated scaffold
+	// body (authoredBody false): the check that actually bites an
+	// un-authored milestone is frontmatter-shaped (kind: scoped + empty
+	// acceptance), not body prose, and the scaffold always satisfies the
+	// heading/wikilink layers — so a bare `create milestone` without
+	// --acceptance is refused up front with the templateFix hint, instead of
+	// writing an artifact `anvil validate` immediately refuses.
+	if authoredBody || t == core.TypeMilestone {
 		failures = append(failures, staticBodyFailures(cmd, v, t, path, fm, body)...)
 		// Feasibility gate (anvil.0196): last, because it is the only layer
 		// that shells out. Every cheaper layer must be clean first — a body
@@ -145,6 +152,10 @@ func staticBodyFailures(cmd *cobra.Command, v *core.Vault, t core.Type, path str
 		}
 	case core.TypeLearning:
 		for _, vErr := range core.ValidateLearning(a, nil) {
+			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
+		}
+	case core.TypeMilestone:
+		for _, vErr := range core.ValidateMilestone(a) {
 			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
 		}
 	}

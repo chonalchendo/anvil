@@ -112,7 +112,8 @@ func createLongDescription() string {
 		"Body authoring: pass --body <literal>, --body-file <path>, or --body - " +
 		"(reads stdin). The full artifact lands in one call — no follow-up edit.\n\n" +
 		"Required body sections: learning bodies need " + strings.Join(core.RequiredLearningSections, " / ") + "; " +
-		"issue bodies need " + strings.Join(core.RequiredIssueSections, " / ") + " (in order). " +
+		"issue bodies need " + strings.Join(core.RequiredIssueSections, " / ") + "; " +
+		"milestone bodies need " + strings.Join(core.RequiredMilestoneSections, " / ") + " (in order). " +
 		"Faceted tags (domain/, activity/, pattern/) must reuse existing vault values or pass --allow-new-facet. " +
 		"Run 'anvil create <type> --show-template' to print the skeleton before composing.\n\n" +
 		"Validation: create always validates the frontmatter it just wrote. " +
@@ -134,14 +135,16 @@ func createLongDescription() string {
 }
 
 // sectionsForType returns the required body headings for the types that carry
-// a scaffold (learning, issue), or nil for the rest. Shared by the no-body
-// scaffold path and --show-template so the two can't drift.
+// a scaffold (learning, issue, milestone), or nil for the rest. Shared by the
+// no-body scaffold path and --show-template so the two can't drift.
 func sectionsForType(t core.Type) []string {
 	switch t {
 	case core.TypeLearning:
 		return core.RequiredLearningSections
 	case core.TypeIssue:
 		return core.RequiredIssueSections
+	case core.TypeMilestone:
+		return core.RequiredMilestoneSections
 	default:
 		return nil
 	}
@@ -149,12 +152,12 @@ func sectionsForType(t core.Type) []string {
 
 // runShowTemplate prints the required body skeleton and tag rules an author
 // needs before composing, then exits — moving create's section/facet checks
-// from a post-hoc rollback to an up-front affordance. Only learning and issue
-// carry a required-section template.
+// from a post-hoc rollback to an up-front affordance. Only learning, issue and
+// milestone carry a required-section template.
 func runShowTemplate(cmd *cobra.Command, t core.Type) error {
 	sections := sectionsForType(t)
 	if sections == nil {
-		return fmt.Errorf("--show-template: no required body template for %s (learning, issue)", t)
+		return fmt.Errorf("--show-template: no required body template for %s (learning, issue, milestone)", t)
 	}
 	w := cmd.OutOrStdout()
 	fmt.Fprintln(w, core.ScaffoldSections(sections))

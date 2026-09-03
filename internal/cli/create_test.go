@@ -232,7 +232,7 @@ func TestCreate_Milestone_DeriveDescription(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "milestone", "--title", "Milestone derive probe", "--goal", "milestone done"})
+	cmd.SetArgs([]string{"create", "milestone", "--title", "Milestone derive probe", "--goal", "milestone done", "--acceptance", "milestone derive probe ships"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
@@ -246,7 +246,7 @@ func TestCreateMilestone_NoOrdinal(t *testing.T) {
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate", "--description", "test description", "--goal", "CLI substrate ships and all attached issues are resolved"})
+	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate", "--description", "test description", "--goal", "CLI substrate ships and all attached issues are resolved", "--acceptance", "CLI substrate lands"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -1371,13 +1371,17 @@ func TestCreatePlan_From_CLIFlagsOverrideFileFields(t *testing.T) {
 	}
 }
 
+// TestCreateMilestone_SeedsAcceptanceSlot pins the bucket path: kind: bucket
+// is the deliberate opt-in for a genuinely open-ended milestone, and only
+// there does an empty acceptance slot stay legal through create's body gate
+// (core.ValidateMilestone refuses kind: scoped with empty acceptance).
 func TestCreateMilestone_SeedsAcceptanceSlot(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Chdir(repo)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate", "--description", "test description", "--goal", "CLI substrate ships and all attached issues are resolved"})
+	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate", "--description", "test description", "--goal", "CLI substrate ships and all attached issues are resolved", "--kind", "bucket"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -1392,11 +1396,64 @@ func TestCreateMilestone_SeedsAcceptanceSlot(t *testing.T) {
 	if len(acc) != 0 {
 		t.Errorf("acceptance = %v, want empty slice", acc)
 	}
-	if got := a.FrontMatter["kind"]; got != "scoped" {
-		t.Errorf("kind = %v, want \"scoped\" (template default)", got)
+	if got := a.FrontMatter["kind"]; got != "bucket" {
+		t.Errorf("kind = %v, want \"bucket\" (--kind bucket)", got)
 	}
 	if err := schema.Validate("milestone", a.FrontMatter); err != nil {
 		t.Errorf("frontmatter fails milestone schema: %v", err)
+	}
+}
+
+// TestCreateMilestone_KindDefaultsToScoped pins the omitted---kind default:
+// the schema's deliberate choice, unchanged by --kind now being accepted for
+// milestone.
+func TestCreateMilestone_KindDefaultsToScoped(t *testing.T) {
+	vault := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate", "--description", "test description", "--goal", "CLI substrate ships and all attached issues are resolved", "--acceptance", "CLI substrate lands"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", "milestone.foo.cli-substrate.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := a.FrontMatter["kind"]; got != "scoped" {
+		t.Errorf("kind = %v, want \"scoped\" (template default)", got)
+	}
+	acc, ok := a.FrontMatter["acceptance"].([]any)
+	if !ok || len(acc) != 1 {
+		t.Fatalf("acceptance = %#v, want one entry from --acceptance", a.FrontMatter["acceptance"])
+	}
+}
+
+// TestCreateMilestone_ScopedWithoutAcceptance_Refused pins the create-time
+// gate (anvil.0273): a bare `create milestone` with no --acceptance defaults
+// to kind: scoped and is refused up front, with an actionable hint, instead
+// of writing an artifact `anvil validate` immediately refuses.
+func TestCreateMilestone_ScopedWithoutAcceptance_Refused(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "milestone", "--title", "no acceptance", "--description", "test description", "--goal", "milestone done"})
+	var errBuf bytes.Buffer
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&errBuf)
+	err := cmd.Execute()
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
+	}
+	combined := errBuf.String()
+	if !strings.Contains(combined, "empty acceptance") {
+		t.Errorf("output must name the empty-acceptance refusal; got:\n%s", combined)
+	}
+	if !strings.Contains(combined, "--acceptance") && !strings.Contains(combined, "--show-template") {
+		t.Errorf("output must hint --acceptance or --show-template; got:\n%s", combined)
 	}
 }
 
