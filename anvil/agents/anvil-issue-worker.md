@@ -114,6 +114,14 @@ The audit does not trust `$changed` alone: it also derives the branch's changed 
 
 You may die mid-task on a terminal error (API 5xx after retries, OOM, killed process) — long before `gh pr create`. Uncommitted work is invisible to the orchestrator and unrecoverable without a human reading your dirty tree. So commit WIP incrementally: after each coherent unit of progress (a file implemented, a test added) `git commit` it on your branch with a `wip:` prefix. A mid-task death then leaves recoverable checkpoint commits on the branch, not a silent dirty tree; the final PR squashes them, so granularity costs nothing.
 
+## Self-review (Phase 3 override)
+
+Run this after Phase 3's checklists, not instead of them. It adds judgment axes the generic list does not carry.
+
+After the verdict reads `pass` and before `gh pr create`, read `~/.claude/agents/anvil-pr-reviewer.md`. Read only its `## Judgment — what no lookup gives you` and `## Findings contract` sections. Phase 3 and Phase 3b already cover that file's `## Load the context box` rules. This read adds its judgment axes on top. That file's `## Forbidden calls` and `## Return contract` bind the reviewer, not you.
+
+Walk your diff against the rubric. Fix blocker and high findings in place, inside your declared file set only. A fix that lands outside that set is out of scope: record it in the PR body for the reviewer instead. The reviewer still runs on every PR; self-review only lowers the finding count. Any self-review edit voids the verdict: re-run the runner and paste the new line into the PR body.
+
 ## Forbidden calls
 
 Never `gh pr merge`, `git worktree remove`, `anvil transition resolved`, or `anvil transition abandoned` — the human owns those.
