@@ -55,7 +55,7 @@ Draft before calling the CLI:
 - **acceptance** — runnable predicates (substance: `references/finish-line.md`); required for `kind: scoped`.
 
 **REQUIRED REFERENCE:** Use skills/writing-milestone/references/finish-line.md — refuse a state-phrased goal or silent empty acceptance before proceeding.
-**REQUIRED REFERENCE:** Use skills/writing-milestone/references/body-shape.md — the four-section body a cold reader needs.
+**REQUIRED REFERENCE:** Use skills/writing-milestone/references/body-shape.md — the four-section body a cold reader scans: labelled parts, one nested bullet per issue under each wave, the Status acceptance table.
 
 **Gate:** user confirms title, goal, kind, and acceptance — and, for scoped, that the goal is event-phrased and acceptance carries a runnable predicate; for bucket, that the open-ended kind was explicitly affirmed.
 
