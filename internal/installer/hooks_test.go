@@ -345,3 +345,137 @@ func TestRemoveSessionEndHook_MissingFileNoOp(t *testing.T) {
 		t.Error("changed = true on missing file, want false")
 	}
 }
+
+const (
+	testMatcher    = "resume|compact"
+	testMatcherCmd = "anvil install fire-session-resume"
+)
+
+func TestMergeSessionStartMatcherHook_CoexistsWithUnmatched(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if _, err := MergeSessionStartHook(path, testCmd); err != nil {
+		t.Fatalf("seed unmatched: %v", err)
+	}
+
+	if _, err := MergeSessionStartMatcherHook(path, testMatcher, testMatcherCmd); err != nil {
+		t.Fatalf("merge matcher hook: %v", err)
+	}
+
+	got := readJSON(t, path)
+	ss := got["hooks"].(map[string]any)["SessionStart"].([]any)
+	if len(ss) != 2 {
+		t.Fatalf("SessionStart len = %d, want 2 (unmatched + matcher-scoped)", len(ss))
+	}
+	var sawUnmatched, sawMatcher bool
+	for _, e := range ss {
+		m := e.(map[string]any)
+		if _, hasMatcher := m["matcher"]; !hasMatcher {
+			sawUnmatched = true
+		} else if m["matcher"] == testMatcher {
+			sawMatcher = true
+		}
+	}
+	if !sawUnmatched || !sawMatcher {
+		t.Errorf("expected both unmatched and matcher-scoped entries, got %v", ss)
+	}
+}
+
+func TestMergeSessionStartMatcherHook_Idempotent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if _, err := MergeSessionStartMatcherHook(path, testMatcher, testMatcherCmd); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	changed, err := MergeSessionStartMatcherHook(path, testMatcher, testMatcherCmd)
+	if err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	if changed {
+		t.Error("changed = true on second merge, want false")
+	}
+	got := readJSON(t, path)
+	ss := got["hooks"].(map[string]any)["SessionStart"].([]any)
+	if len(ss) != 1 {
+		t.Fatalf("SessionStart len = %d, want 1", len(ss))
+	}
+}
+
+func TestRemoveSessionStartMatcherHook_KeepsUnmatched(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	if _, err := MergeSessionStartHook(path, testCmd); err != nil {
+		t.Fatalf("seed unmatched: %v", err)
+	}
+	if _, err := MergeSessionStartMatcherHook(path, testMatcher, testMatcherCmd); err != nil {
+		t.Fatalf("seed matcher: %v", err)
+	}
+
+	changed, err := RemoveSessionStartMatcherHook(path, testMatcher, testMatcherCmd)
+	if err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if !changed {
+		t.Error("changed = false, want true")
+	}
+	got := readJSON(t, path)
+	ss := got["hooks"].(map[string]any)["SessionStart"].([]any)
+	if len(ss) != 1 {
+		t.Fatalf("SessionStart len = %d, want 1 (unmatched retained)", len(ss))
+	}
+	if _, hasMatcher := ss[0].(map[string]any)["matcher"]; hasMatcher {
+		t.Errorf("remaining entry unexpectedly has a matcher: %v", ss[0])
+	}
+}
+
+func TestMergePreCompactHook_NewFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	const preCompactCmd = "anvil install fire-pre-compact"
+
+	changed, err := MergePreCompactHook(path, preCompactCmd)
+	if err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if !changed {
+		t.Error("changed = false, want true on new file")
+	}
+
+	got := readJSON(t, path)
+	hooks := got["hooks"].(map[string]any)
+	pc, ok := hooks["PreCompact"].([]any)
+	if !ok || len(pc) != 1 {
+		t.Fatalf("PreCompact = %v", hooks["PreCompact"])
+	}
+}
+
+func TestMergeAutoCompactWindow_SetsWhenAbsent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+
+	changed, err := MergeAutoCompactWindow(path, 200000)
+	if err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if !changed {
+		t.Error("changed = false, want true on absent key")
+	}
+
+	got := readJSON(t, path)
+	if got["autoCompactWindow"] != 200000.0 {
+		t.Errorf("autoCompactWindow = %v, want 200000", got["autoCompactWindow"])
+	}
+}
+
+func TestMergeAutoCompactWindow_NeverOverwritesExplicitValue(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	writeJSON(t, path, map[string]any{"autoCompactWindow": 50000})
+
+	changed, err := MergeAutoCompactWindow(path, 200000)
+	if err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	if changed {
+		t.Error("changed = true, want false: an explicit operator value must not be overwritten")
+	}
+
+	got := readJSON(t, path)
+	if got["autoCompactWindow"] != 50000.0 {
+		t.Errorf("autoCompactWindow = %v, want unchanged 50000", got["autoCompactWindow"])
+	}
+}

@@ -80,9 +80,12 @@ func TestInstall_Hooks_Idempotent(t *testing.T) {
 	b, _ := os.ReadFile(filepath.Join(dir, "settings.json")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	var got map[string]any
 	_ = json.Unmarshal(b, &got)
+	// Two anvil-managed entries: the unmatched fire-session-start (every
+	// source) and the resume|compact matcher-scoped fire-session-resume.
+	// Idempotence means this stays at 2, not that it grows past it.
 	ss := got["hooks"].(map[string]any)["SessionStart"].([]any)
-	if len(ss) != 1 {
-		t.Errorf("SessionStart len = %d after 2 installs, want 1", len(ss))
+	if len(ss) != 2 {
+		t.Errorf("SessionStart len = %d after 2 installs, want 2", len(ss))
 	}
 }
 
