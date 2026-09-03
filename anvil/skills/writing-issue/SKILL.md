@@ -104,13 +104,13 @@ Classify the issue into exactly one kind before composing the body — bug (conc
 - **Severity & domain tags**
   - Propose severity from the rubric above; confirm with the user. Don't default to `medium`.
   - Reuse an existing `domain/` value (`anvil tags list --source used --prefix domain/ --json`) over coining a near-duplicate — the CLI rejects an unrecognised value unless `--allow-new-facet=domain`. Promoting an inbox item: same check, then `--tags` on `anvil promote <id> --as issue`.
-- **Goal** — one sentence, ≤120 chars, naming what "done" means (`--goal`, required, gates the later claim). Outcome, not mechanism: mechanism detail belongs in `## Problem`'s Direction paragraph, not `goal:`/AC. A predicate, not a task list.
+- **Goal** — one sentence, ≤120 chars, naming what "done" means (`--goal`, required, gates the later claim). Outcome, not mechanism: mechanism detail belongs in `## Problem`'s Direction part, not `goal:`/AC. A predicate, not a task list.
 - **Feasibility gate**
   - If an AC or `## Verification` block prescribes a tool/command/behaviour as the mechanism, run that command in this environment before the issue lands; on failure, rewrite as an outcome or split a feasibility spike.
   - `create`/`promote --as issue` enforce this mechanically: every `### Direct`/`### Indirect` block actually runs, judged by exit status. An Indirect block that already passes is the failure — it can't discriminate fixed from broken.
   - Full verdict table, `set -e`/SIGPIPE rules: `docs/issue-spec.md`.
 - **Draw verification from the governing contract, don't invent predicates** — identify it before authoring (`anvil list contract` → `anvil show contract <id> --body`; link recorded in Phase 4b) and write `### Direct`/`### Indirect` as its concrete instance. Every predicate, contract-drawn or not, satisfies the universal bars: same code path, exercise not presence (behaviour, never a source grep — except doc/skill-only changes, which grep the *built/installed* artifact), create the unmet condition first, anchor structurally, and the goal's own measure. Definitions and full predicate-writing rules: `docs/issue-spec.md`.
-- **`## Problem` for a cold reader** — lead sentence, evidence, cause, direction, sequencing. **REQUIRED REFERENCE:** Use skills/writing-issue/references/problem-shape.md for the per-part shape and the cold-reader self-test.
+- **`## Problem` for a cold reader** — lead sentence, then bold-labelled parts (evidence, cause, direction, sequencing); enumerations are lists or tables, never paragraphs. **REQUIRED REFERENCE:** Use skills/writing-issue/references/problem-shape.md for the per-part shape and the cold-reader and glance tests.
 
 Print the required skeleton, fill it, and pass via `--body-file` (`create` validates frontmatter + body and rolls back on failure — no separate `validate` step):
 
