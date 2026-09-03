@@ -13,8 +13,7 @@ import (
 
 // runVerificationStdinLint reads a Verification predicate's raw bash text from
 // stdin and reports any hardcoded checkout path it contains (see
-// core.CheckoutPathMatches), any hardcoded lakehouse schema (see
-// core.LakehouseSchemaMatches), plus any non-gating `!` assertion (see
+// core.CheckoutPathMatches), plus any non-gating `!` assertion (see
 // core.NonGatingNegation) — the same rules `anvil create issue` enforces,
 // so this pre-flight lint never says clean on text create would reject.
 // Piped text carries no `### Direct`/`### Indirect` heading, so unlike the
@@ -38,11 +37,6 @@ func runVerificationStdinLint(cmd *cobra.Command, asJSON bool) error {
 			fmt.Sprintf("checkout path: verification block hardcodes a checkout path (%q)", h)).
 			WithFix("anchor with $(git rev-parse --show-toplevel) instead so a dispatched worktree verifies itself, not the main checkout"))
 	}
-	for _, h := range core.LakehouseSchemaMatches(string(data)) {
-		failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, "-", "",
-			fmt.Sprintf("lakehouse schema: verification block hardcodes a lakehouse schema (%q)", h)).
-			WithFix("parameterise with ${SCHEMA:-modelled} so a worker without prod-apply rights can satisfy it"))
-	}
 	if vacuous := core.NonGatingNegation(string(data)); vacuous != "" {
 		failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, "-", "",
 			fmt.Sprintf("non-gating negation: verification block carries `%s`: %s", vacuous, nonGatingNegationWhy)).
@@ -53,7 +47,7 @@ func runVerificationStdinLint(cmd *cobra.Command, asJSON bool) error {
 			b, _ := json.Marshal([]*errfmt.ValidationError{})
 			fmt.Fprintln(cmd.OutOrStdout(), string(b))
 		} else {
-			cmd.PrintErrln("verification lint: no hardcoded checkout path, no hardcoded lakehouse schema, no non-gating negation found")
+			cmd.PrintErrln("verification lint: no hardcoded checkout path, no non-gating negation found")
 		}
 		return nil
 	}

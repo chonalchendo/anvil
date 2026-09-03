@@ -83,7 +83,6 @@ grep -q "transitioned to in-progress" "$o"
 - Multiple `` ```bash `` blocks in the same subsection are separate checks, run in order. State is **not** shared across blocks.
 - The block opener must be exactly `` ```bash `` (with no trailing chars); other fence languages are not parsed as checks. A block's own content may contain nested `` ``` `` fences (e.g. a heredoc holding a mini issue doc) — fence depth is tracked, so only the outermost opener starts a check, and a `## `/`### ` line inside an open fence is block content, not a section boundary. An unterminated fence fails closed: the create is refused rather than running a partial block list.
 - Blocks run in the cwd the runner is invoked from — the worktree under test. Do **not** reference an absolute main-checkout path in any command (`cd /Users/<user>/Development/<repo>`, `git -C ~/Development/<repo>`, `ls $HOME/Development/<repo>/…`); anchor with `$(git rev-parse --show-toplevel)` if you need the repo root. `anvil create issue`/`anvil promote --as issue` reject a hardcoded checkout path mechanically — a fleet worker dispatched to a worktree would otherwise silently verify the wrong tree; the vault-wide `anvil validate` scan deliberately does not (pre-existing issues predate the rule). Lint a predicate directly with `anvil validate --verification-stdin` (reads the bash text from stdin).
-- An `### Indirect` block must not hardcode a `lakehouse.<schema>.` table reference — parameterise with `${SCHEMA:-modelled}` instead. A prod-hardcoded schema (`lakehouse.prod.…`) is a predicate a worker forbidden a prod apply can never satisfy; it reads red at authoring time and only bites at completion, after dispatch, review and responder rounds have already run. Unlike the checkout-path rule above, this one **is** enforced on the vault-wide `anvil validate` sweep too, not just create/promote — a hand-edited Verification block never passes through create again, which is exactly the trust hole this rule closes.
 - A subsection with no `` ```bash `` block is a validation failure — author at least one check or remove the subsection (and accept the validation reject from `anvil create issue`).
 - `anvil <verb> <subverb>…` invocations inside fenced blocks are validated at create/validate time against the live command tree: the full subcommand path is walked, so an unknown top-level verb (`anvil frobnicate`) **and** an unknown nested subcommand (`anvil project init` — `project` is real, `init` is not) both reject. Trailing flags/positionals are not checked.
 
@@ -95,7 +94,7 @@ When an issue renames a symbol, table, layer, or identifier across a multi-packa
 
 ```bash
 # wrong: only covers one package
-grep -r "OldName" burgh-data/models
+grep -r "OldName" pkg/models
 
 # right: cross-package / repo-wide
 git grep -r "OldName" -- '*.go'
