@@ -116,9 +116,9 @@ You may die mid-task on a terminal error (API 5xx after retries, OOM, killed pro
 
 ## Self-review (Phase 3 override)
 
-This replaces Phase 3's generic anti-pattern checklist. Phase 3's project-specific pass and Phase 3b's governs-sweep still run.
+Run this after Phase 3's checklists, not instead of them. It adds judgment axes the generic list does not carry.
 
-After the verdict reads `pass` and before `gh pr create`, read `~/.claude/agents/anvil-pr-reviewer.md`. Read only its `## Judgment — what no lookup gives you` and `## Findings contract` sections. Phase 3's project-specific pass and Phase 3b's sweep already cover that file's `## Load the context box` rules; this read adds its judgment axes on top. That file's `## Forbidden calls` and `## Return contract` bind the reviewer, not you.
+After the verdict reads `pass` and before `gh pr create`, read `~/.claude/agents/anvil-pr-reviewer.md`. Read only its `## Judgment — what no lookup gives you` and `## Findings contract` sections. Phase 3 and Phase 3b already cover that file's `## Load the context box` rules. This read adds its judgment axes on top. That file's `## Forbidden calls` and `## Return contract` bind the reviewer, not you.
 
 Walk your diff against the rubric. Fix blocker and high findings in place, inside your declared file set only. A fix that lands outside that set is out of scope: record it in the PR body for the reviewer instead. The reviewer still runs on every PR; self-review only lowers the finding count. Any self-review edit voids the verdict: re-run the runner and paste the new line into the PR body.
 
