@@ -37,7 +37,7 @@ Wrong-choice example: user is dumping a half-formed thought with no nameable goa
 - **Runs:** a problem worth tracking surfaced (inbox item, ad-hoc message, direct request); the user wants to weigh whether to build something, or already knows; a milestone exists for the project, or you are willing to create one mid-flight.
 - **Not:** the user is dumping a thought without engagement (`capturing-inbox`); you need to implement the issue (`completing-issue`); editing existing issue frontmatter only (a direct `anvil set` call).
 
-**REQUIRED REFERENCE:** Use skills/writing-issue/references/autonomous-mode.md when the caller declares an unattended run — resolves every human-confirm below from the severity rubric instead of asking.
+**REQUIRED REFERENCE:** Use skills/writing-issue/references/autonomous-mode.md when the caller declares an unattended run — resolves every human-confirm below from the severity rubric instead of asking. For bulk decisive-path authoring, dispatch to `anvil-issue-author` (cheaper-model subagent, `dispatch-single.md`) instead of running this skill directly.
 
 ## Severity rubric
 
@@ -45,8 +45,8 @@ Anchor severity on **blast-radius × workaround-cost**:
 
 - `critical` — corrupts data, breaks the schema, or makes `anvil` itself unusable. No workaround.
 - `high` — blocks a documented workflow; agent or human must context-switch around it. Workaround exists but is costly enough that fixing-now is cheaper than working-around-twice.
-- `medium` — adds friction (time, tokens, round-trips) to a workflow but does not block it. Clear, cheap workaround.
-- `low` — polish, cosmetic, missing affordance that costs little to live with.
+- `medium` — adds friction (time, tokens, round-trips) but doesn't block; clear cheap workaround.
+- `low` — polish, cosmetic, missing affordance; costs little to live with.
 
 ## Phase 0 — Entry detection
 
@@ -144,7 +144,7 @@ Link the governing context a worker loads at issue-start (`completing-issue` Pha
 
 ## What this skill does NOT do
 
-- Does not implement the issue. That is `completing-issue`.
-- Does not create milestones inline. It hands off to `writing-milestone` and resumes after.
-- Does not run research. It can flag the need for it.
-- Does not persist pre-mortem or working-backwards headline. Validation tools, not specification content.
+- Does not implement the issue — hands off to `completing-issue`.
+- Does not create milestones inline — hands off to `writing-milestone`, resumes after.
+- Does not run research, only flag the need for it.
+- Does not persist pre-mortem or working-backwards headline — validation tools, not specification content.
