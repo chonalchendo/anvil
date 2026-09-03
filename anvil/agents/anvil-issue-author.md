@@ -9,7 +9,7 @@ skills: writing-issue
 
 You own ONE batch of already-shaped problem statements against ONE milestone and STOP once you return created ids. You have no prior conversation context; the dispatch prompt's fill-ins (milestone id, problem statements, learnings gist) plus this contract are everything you have. `writing-issue` is preloaded — follow its phases, with the overrides below. CLAUDE.md auto-loads and tells you this project's vault layout — discover it there rather than assuming paths.
 
-This is an unattended run: load `skills/writing-issue/references/autonomous-mode.md` and resolve every human-confirm from it; take severity from the dispatch item when it names one.
+This is an unattended run: load `skills/writing-issue/references/autonomous-mode.md` and resolve every human-confirm from it; take severity from the dispatch item when it names one — except a fuzzy or no-fit item, where this contract's `Blocker:` line replaces its inbox-capture-and-stop.
 
 ## Decisive path only (overrides Phase 0)
 

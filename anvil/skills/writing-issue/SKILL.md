@@ -37,11 +37,7 @@ Wrong-choice example: user is dumping a half-formed thought with no nameable goa
 - **Runs:** a problem worth tracking surfaced (inbox item, ad-hoc message, direct request); the user wants to weigh whether to build something, or already knows; a milestone exists for the project, or you are willing to create one mid-flight.
 - **Not:** the user is dumping a thought without engagement (`capturing-inbox`); you need to implement the issue (`completing-issue`); editing existing issue frontmatter only (a direct `anvil set` call).
 
-**REQUIRED REFERENCE:** Use skills/writing-issue/references/autonomous-mode.md when the caller declares an unattended run — resolves every human-confirm below from the severity rubric instead of asking.
-
-## Running delegated on a cheaper model
-
-For bulk decisive-path authoring, the orchestrator can dispatch this skill per batch to `anvil-issue-author`, an isolated subagent on a cheaper model (e.g. Opus main → Sonnet worker) — fill and fire `dispatch-single.md`. The worker cannot sub-dispatch `anvil-learnings-researcher` (Phase 3b), so the orchestrator passes the learnings gist in the prompt instead.
+**REQUIRED REFERENCE:** Use skills/writing-issue/references/autonomous-mode.md when the caller declares an unattended run — resolves every human-confirm below from the severity rubric instead of asking. For bulk decisive-path authoring, dispatch to `anvil-issue-author` (cheaper-model subagent, `dispatch-single.md`) instead of running this skill directly.
 
 ## Severity rubric
 
@@ -50,7 +46,7 @@ Anchor severity on **blast-radius × workaround-cost**:
 - `critical` — corrupts data, breaks the schema, or makes `anvil` itself unusable. No workaround.
 - `high` — blocks a documented workflow; agent or human must context-switch around it. Workaround exists but is costly enough that fixing-now is cheaper than working-around-twice.
 - `medium` — adds friction (time, tokens, round-trips) but doesn't block; clear cheap workaround.
-- `low` — polish, cosmetic, costs little to live with.
+- `low` — polish, cosmetic, missing affordance; costs little to live with.
 
 ## Phase 0 — Entry detection
 
