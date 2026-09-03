@@ -39,7 +39,7 @@ Section-by-section cuts to apply *before* writing, not after:
 - **Open threads:** one line each, pointing to an artifact id (inbox slug, PR number, issue id). No paraphrase.
 - **Don't redo:** approach + one-word reason. No reasoning chain.
 - **Reminders:** if every candidate line restates AGENTS.md, omit the section entirely. AGENTS.md auto-loads. Keep only session-specific deltas (a transient env var, a one-off stash).
-- **Token reflection:** 2–3 bullets, ≤200 B total. Lead with the `usage.sh` row(s) for this session (model, agent_type, total tokens), then top sinks (avoidable reads, redundant searches, oversized tool output) + one-phrase cut each. Not optional — a session with no token-side observation is itself a finding; write *"no avoidable sinks observed"* if true.
+- **Token reflection:** 2–3 bullets, ≤200 B total. Lead with the top row (model, agent_type, total) from `usage.sh`, then top sinks (avoidable reads, redundant searches, oversized tool output) + one-phrase cut each. Not optional — a session with no token-side observation is itself a finding; write *"no avoidable sinks observed"* if true.
 
 If a section would be empty after these cuts, omit the section header too. "Skip if empty" in the template is a hard rule, not a suggestion.
 
@@ -64,7 +64,7 @@ Working in <repo path>. <One-sentence framing: what kind of work, which project.
 
 **Reminders.** <Session-specific rules the receiving agent might not infer from AGENTS.md alone. Skip if nothing.>
 
-**Token reflection.** <2–3 bullets, ≤200 B. First bullet: `usage.sh` row(s) for this session (model, agent_type, total tokens). Then top sinks this session → one-phrase cut. Required; satisfies the CLAUDE.md MUST. Write *"no avoidable sinks observed"* if none beyond the usage row.>
+**Token reflection.** <2–3 bullets, ≤200 B. First bullet: the top row (model, agent_type, total) from `usage.sh`. Then top sinks this session → one-phrase cut. Required; satisfies the CLAUDE.md MUST. Write *"no avoidable sinks observed"* if none beyond the usage row.>
 ```
 
 ## Phase 3 — Write into the session file and stop

@@ -4,9 +4,10 @@
 #
 # Transcripts log one JSONL line per content block, so a naive sum over
 # `message.usage` overcounts roughly twofold: dedupe by `message.id` first.
-# Subagent transcripts sit under <project>/<session>/subagents/*.jsonl with
-# no agent-type field, so type is recovered from the first user message in
-# that file (the dispatch prompt).
+# Subagent transcripts sit under <project>/<session>/subagents/*.jsonl and
+# carry a structured `attributionAgent` field naming the dispatched agent
+# (e.g. "anvil-pr-responder"); that field is used verbatim as agent_type,
+# falling back to "subagent-unknown" only when it is absent.
 #
 # Usage:
 #   usage.sh --since <N>d [--dir <projects-dir>] [--session <id>]
@@ -43,6 +44,7 @@ while [ $# -gt 0 ]; do
         ;;
     --session)
         [ $# -ge 2 ] || { echo "usage.sh: --session needs a value, e.g. --session \$CLAUDE_CODE_SESSION_ID" >&2; exit 2; }
+        [ -n "$2" ] || { echo "usage.sh: --session needs a non-empty value, e.g. --session \$CLAUDE_CODE_SESSION_ID" >&2; exit 2; }
         session="$2"
         shift 2
         ;;
@@ -74,22 +76,13 @@ if [ ! -d "$dir" ]; then
     exit 0
 fi
 
-# agent_type for a subagent transcript is recovered from the first user
-# message in the file: the dispatch prompt names the role. Slurp the whole
-# message (not just its first line) and flatten embedded newlines before
-# matching, since a multi-line dispatch prompt otherwise truncates to its
-# first line under a naive `head -1`.
+# agent_type for a subagent transcript is the literal `attributionAgent`
+# field Claude Code stamps on subagent transcript lines (e.g.
+# "anvil-pr-responder"). Take the first non-null occurrence in the file;
+# fall back to "subagent-unknown" only when the field is absent throughout.
 classify_subagent() {
     local file=$1
-    local prompt
-    prompt=$(jq -rs 'first(.[] | select(.type == "user")) // {} | .message.content
-        | if type == "array" then map(select(.type == "text") | .text) | join(" ") else tostring end' "$file" 2>/dev/null | tr '\n' ' ')
-    case "$prompt" in
-    *"Complete anvil issue"*) echo "worker" ;;
-    "Issue: "*"PR: #"*) echo "responder" ;;
-    *"PR: #"* | *"Review PR"*) echo "reviewer" ;;
-    *) echo "subagent-unknown" ;;
-    esac
+    jq -rs 'first(.[] | select(.attributionAgent != null) | .attributionAgent) // "subagent-unknown"' "$file" 2>/dev/null
 }
 
 rows=$(mktemp)
@@ -119,7 +112,7 @@ while IFS= read -r -d '' file; do
             cache_read: (.message.usage.cache_read_input_tokens // 0),
             output: (.message.usage.output_tokens // 0)
         }
-    ' "$file" 2>/dev/null >>"$rows" || true
+    ' "$file" 2>/dev/null >>"$rows" || echo "usage.sh: skipped $file" >&2
 done < <("${find_cmd[@]}")
 
 jq -s '
