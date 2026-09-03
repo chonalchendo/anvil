@@ -49,14 +49,16 @@ Anchor severity on **blast-radius × workaround-cost**:
 
 - `critical` — corrupts data, breaks the schema, or makes `anvil` itself unusable. No workaround.
 - `high` — blocks a documented workflow; agent or human must context-switch around it. Workaround exists but is costly enough that fixing-now is cheaper than working-around-twice.
-- `medium` — adds friction (time, tokens, round-trips) but doesn't block; clear cheap workaround. `low` — polish, cosmetic, costs little to live with.
+- `medium` — adds friction (time, tokens, round-trips) but doesn't block; clear cheap workaround.
+- `low` — polish, cosmetic, costs little to live with.
 
 ## Phase 0 — Entry detection
 
 Classify the user's first message before doing anything else — the classification chooses which phases run.
 
 - **Decisive** when the message names all three of a problem statement, a goal (one-sentence terminal predicate), and a milestone reference (an id, or a phrase mapping to exactly one existing milestone under `~/anvil-vault/85-milestones/`, filtered by `project`; two-or-more plausible matches count as fuzzy).
-- **Fuzzy** otherwise ("should we build X", "is this worth doing", or any message missing one of the three signals). **Tie-break:** when in doubt, run convergence — misclassifying decisive→fuzzy costs one round-trip; fuzzy→decisive ships a thin issue.
+- **Fuzzy** otherwise ("should we build X", "is this worth doing", or any message missing one of the three signals).
+- **Tie-break:** when in doubt, run convergence — misclassifying decisive→fuzzy costs one round-trip; fuzzy→decisive ships a thin issue.
 
 Decisive → skip to Phase 2. Fuzzy → continue to Phase 1. No artifact or chat output beyond the routing decision.
 
@@ -146,5 +148,7 @@ Link the governing context a worker loads at issue-start (`completing-issue` Pha
 
 ## What this skill does NOT do
 
-- Does not implement the issue (`completing-issue`) or create milestones inline (hands off to `writing-milestone`, resumes after).
-- Does not run research, only flag the need for it, and does not persist pre-mortem or working-backwards headline — validation tools, not specification content.
+- Does not implement the issue — hands off to `completing-issue`.
+- Does not create milestones inline — hands off to `writing-milestone`, resumes after.
+- Does not run research, only flag the need for it.
+- Does not persist pre-mortem or working-backwards headline — validation tools, not specification content.

@@ -9,6 +9,8 @@ skills: writing-issue
 
 You own ONE batch of already-shaped problem statements against ONE milestone and STOP once you return created ids. You have no prior conversation context; the dispatch prompt's fill-ins (milestone id, problem statements, learnings gist) plus this contract are everything you have. `writing-issue` is preloaded — follow its phases, with the overrides below. CLAUDE.md auto-loads and tells you this project's vault layout — discover it there rather than assuming paths.
 
+This is an unattended run: load `skills/writing-issue/references/autonomous-mode.md` and resolve every human-confirm from it; take severity from the dispatch item when it names one.
+
 ## Decisive path only (overrides Phase 0)
 
 Every item in the dispatch prompt is already decisive by contract — the orchestrator converged any fuzzy thought with the human before batching (`writing-issue` Phase 0's bar: problem + goal + milestone hint, all three named). Skip Phase 0's classification and Phase 1's convergence entirely; go straight to Phase 2 for each item, using the dispatch prompt's milestone id.
@@ -17,7 +19,7 @@ If an item arrives missing a goal or a nameable definition of done despite the c
 
 ## Learnings without a sub-dispatch (overrides Phase 3b)
 
-`writing-issue` Phase 3b dispatches `anvil-learnings-researcher` via `subagent_type` — a subagent cannot sub-dispatch a sub-subagent, so that call fails silently or errors here. Skip it. The dispatch prompt's `<learnings-gist>` fill-in stands in for its findings: fold any non-stale, high-confidence entry into `## Problem` / `## Non-goals` / `## Verification` exactly as Phase 3b's fold-in step directs, and add the `## Prior learnings` section when the gist names something. An empty gist means skip the section — do not invent findings.
+`writing-issue` Phase 3b dispatches `anvil-learnings-researcher` via `subagent_type` — a subagent cannot sub-dispatch a sub-subagent, so that call fails silently or errors here. Skip only the sub-dispatch — still load `references/learnings-dispatch.md` for the fold-in shape. The dispatch prompt's `<learnings-gist>` fill-in stands in for the sub-dispatch's findings: fold any non-stale, high-confidence entry into `## Problem` / `## Non-goals` / `## Verification` per that shape, and add the `## Prior learnings` section when the gist names something. An empty gist means skip the section — do not invent findings.
 
 ## One milestone, no milestone creation (bounds on Phase 2)
 
@@ -39,4 +41,4 @@ Never `anvil transition` anything past issue creation, never `anvil create miles
 
 ## Return contract
 
-Return exactly one line per item, in dispatch order: `Created: [[issue.<id>]]` on success, `Blocker: item-underspecified <n> <what's missing>` or `Blocker: item-milestone-mismatch <n> <one line>` on failure, nothing else. No narrative tail, no "let me check", no offer to do more.
+Return exactly one line per item, in dispatch order: `Created: [[<id>]]` on success — the `id` from `anvil create issue --json` is already fully qualified (`issue.anvil.NNNN.slug`), do not prepend `issue.` again — `Blocker: item-underspecified <n> <what's missing>` or `Blocker: item-milestone-mismatch <n> <one line>` on failure, nothing else. No narrative tail, no "let me check", no offer to do more.
