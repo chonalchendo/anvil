@@ -6,7 +6,7 @@ For frontmatter, see [vault-schemas.md](vault-schemas.md#issue). The issue's ter
 
 ## Required body sections
 
-- `## Problem` — lead sentence naming what is wrong, then evidence, cause, direction, sequencing; `writing-issue` owns the shape.
+- `## Problem` — lead sentence naming what is wrong, then evidence, cause, direction, sequencing; `writing-issue` owns the shape. `anvil validate`/`create` flag a lead sentence over 25 words or containing a backtick as a `lead_sentence` warning — never blocking.
 - `## Non-goals` — bulleted. What is explicitly out of scope.
 - `## Verification` — operational checks; both subsections below required.
 - `## Links` — `[[wikilink]]` form. Targets must resolve.

@@ -105,12 +105,25 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 		// so growing an issue's body never executes its Verification blocks
 		// (whose Indirect predicates are red-until-fixed by design and flip
 		// green — i.e. refusable — the moment the issue is fixed).
-		if t == core.TypeIssue && len(failures) == len(preErrors) && !flagSkipVerifyPredicates {
+		if t == core.TypeIssue && !hasBlockingFailure(failures) && !flagSkipVerifyPredicates {
 			failures = append(failures, runFeasibilityGate(cmd, path, body)...)
 		}
 	}
 
 	if len(failures) == 0 {
+		return nil
+	}
+	// A warning-severity finding (e.g. lead_sentence) must never fail create:
+	// surface it so the author sees it, but proceed to write the artifact.
+	// Text mode prints to stderr; JSON mode stays quiet here — a `--json`
+	// caller expects a clean success envelope on stdout, and printing human
+	// text to stderr alongside it is confusing noise for a machine consumer
+	// (full envelope-threading of warning findings is tracked separately;
+	// scoped out of this PR's file set — anvil.0274 review).
+	if !hasBlockingFailure(failures) {
+		if !asJSON {
+			printValidationErrors(cmd, failures)
+		}
 		return nil
 	}
 	return emitValidationErrors(cmd, asJSON, failures)
@@ -159,6 +172,7 @@ func staticBodyFailures(cmd *cobra.Command, v *core.Vault, t core.Type, path str
 			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
 		}
 	}
+	failures = append(failures, leadSentenceFailures(t, body, path)...)
 	return failures
 }
 

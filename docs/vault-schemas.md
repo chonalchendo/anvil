@@ -119,6 +119,8 @@ Cut entirely: `target_date`, `horizon`, `ordinal`, `predecessors`, `successors`,
 
 Status follows child claims, only partway: `transition issue <id> in-progress` moves a `planned` parent milestone to `in-progress` on the first child claim (anvil.0275). `done` stays a human transition — acceptance is measured, not inferred from issue count. `list milestone --json`/`show milestone` (JSON and text) carry a derived `children` summary (`open`/`in_progress`/`resolved`/`abandoned`/`total` counts from linked issues) and a `stale` flag, true when every child is resolved-or-abandoned but status hasn't caught up to `done`; `list milestone`'s plain-text rows omit the summary. Bucket milestones (`kind: bucket`) are never stale — they have no terminal done state.
 
+`anvil validate`/`create` flag the lead sentence of `## Objective`, when it runs over 25 words or contains a backtick, as a `lead_sentence` warning — always non-blocking (`create` still writes the artifact).
+
 **Legal transitions:** see `internal/core/transitions.go`.
 
 ### `contract`
@@ -179,6 +181,8 @@ acceptance: ["criterion", ...]   # optional prose checklist; the binary gate is 
 Single source of truth. Knowledge attaches via the child side: `learning.related: [[issue.X]]`. No `learnings`, `discovered_in`, or `promoted_from` arrays on the issue.
 
 Tags: required `domain/<x>`; `activity/<x>` and `pattern/<x>` optional.
+
+`anvil validate`/`create` flag the lead sentence of `## Problem`, when it runs over 25 words or contains a backtick, as a `lead_sentence` warning — always non-blocking (`create` still writes the artifact).
 
 **Legal transitions:** see `internal/core/transitions.go`.
 
