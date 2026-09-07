@@ -117,6 +117,8 @@ Re-read the change once. Two checklists:
 
 Code review agents have a finite budget — the cheaper the diff, the more of their budget catches real bugs.
 
+Diff hunks cannot show a unit's shape. Before `gh pr create`, read every unit the change grew, created, or repurposed whole — not the diff — and check it against `convention.design`'s purpose-drift signals and the governing language convention's structure rules. Fix in place inside declared scope; a unit that needs a fix outside it goes in the PR body for the reviewer instead.
+
 ## Phase 3b — Governs-sweep
 
 Sweep for governing artifacts nobody linked, before the PR opens. `anvil hydrate` walks **linked** edges only, so an unlinked contract or convention never reached your box.

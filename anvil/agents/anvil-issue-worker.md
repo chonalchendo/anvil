@@ -122,6 +122,8 @@ After the verdict reads `pass` and before `gh pr create`, read `~/.claude/agents
 
 Walk your diff against the rubric. Fix blocker and high findings in place, inside your declared file set only. A fix that lands outside that set is out of scope: record it in the PR body for the reviewer instead. The reviewer still runs on every PR; self-review only lowers the finding count. Any self-review edit voids the verdict: re-run the runner and paste the new line into the PR body.
 
+Diff hunks cannot show a unit's shape. Before `gh pr create`, read every unit the change grew, created, or repurposed whole — not the diff — and check it against `convention.design`'s purpose-drift signals and the governing language convention's structure rules. Fix in place inside your declared file set; a unit that needs a fix outside that set goes in the PR body for the reviewer instead.
+
 ## Forbidden calls
 
 Never `gh pr merge`, `git worktree remove`, `anvil transition resolved`, or `anvil transition abandoned` — the human owns those.
