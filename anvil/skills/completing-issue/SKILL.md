@@ -100,7 +100,7 @@ Outcomes:
 
 A Direct pass with an Indirect fail is the precise gap this skill exists to catch. Treat it as a regular fail; iterate.
 
-## Phase 3 — Self-review the diff
+## Phase 3 — Self-review the change
 
 Re-read the change once. Two checklists:
 
@@ -117,7 +117,7 @@ Re-read the change once. Two checklists:
 
 Code review agents have a finite budget — the cheaper the diff, the more of their budget catches real bugs.
 
-Diff hunks cannot show a unit's shape. Before `gh pr create`, read every unit the change grew, created, or repurposed whole — not the diff — and check it against `convention.design`'s purpose-drift signals and the governing language convention's structure rules. Fix in place inside declared scope; a unit that needs a fix outside it goes in the PR body for the reviewer instead.
+Diff hunks cannot show a unit's shape — read every unit the change grew, created, or repurposed whole against `convention.design` (`anvil show convention convention.design --body`) and the governing language convention's structure rules.
 
 ## Phase 3b — Governs-sweep
 
