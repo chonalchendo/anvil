@@ -24,7 +24,7 @@ Reviewer identity does **not** change the loop. A finding that cites a documente
 
 ## Phase 1 — Collect findings
 
-Inline threads come from the API. A `reviewing-pr` report comes in-hand from that skill's Phase 4 handoff (the structured report + subagent id). On resume with no report in hand, run `anvil show issue <issue-id>` and take the latest `## Review findings — PR <n>, round <k>` section — `reviewing-pr` persists every round there. It is a recovery surface only: if the branch has moved since the round, re-fire `reviewing-pr` for an independent re-review rather than trusting stale findings.
+Inline threads come from the API. A `reviewing-pr` report comes in-hand from that skill's Phase 4 handoff (the structured report + subagent id). On resume with no report in hand, run `anvil show issue <issue-id>` and take the latest `## Review findings — PR <n>, round <k> @ <head-sha>` section (if show reports the body truncated, read the file path it names and take the last matching section) — `reviewing-pr` persists every round there. It is a recovery surface only: re-fire `reviewing-pr` for an independent re-review only when `git log <head-sha>..HEAD` holds commits that are not fixes for this round's findings.
 
 ```bash
 gh pr view <n>                                              # status, branch, mergeability
