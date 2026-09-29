@@ -64,6 +64,19 @@ func ResolveVault() (*Vault, error) {
 	return &Vault{Root: root}, nil
 }
 
+// ResolveExistingVault is ResolveVault for verbs that read an existing vault:
+// a missing root is an error naming the remedies, not an empty result.
+func ResolveExistingVault() (*Vault, error) {
+	v, err := ResolveVault()
+	if err != nil {
+		return nil, err
+	}
+	if fi, statErr := os.Stat(v.Root); statErr != nil || !fi.IsDir() {
+		return nil, fmt.Errorf("no vault found at %s: pass --vault, set $ANVIL_VAULT, or run `anvil init`", v.Root)
+	}
+	return v, nil
+}
+
 // Scaffold creates every directory in VaultDirs under v.Root. It is idempotent:
 // existing dirs and user content are never touched.
 func (v *Vault) Scaffold() error {

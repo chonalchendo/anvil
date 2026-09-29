@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -113,5 +114,17 @@ func TestVaultScaffold_Idempotent(t *testing.T) {
 	got, err := os.ReadFile(probe) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil || string(got) != "hand-written" {
 		t.Errorf("user file modified or removed: %s, %v", got, err)
+	}
+}
+
+func TestResolveExistingVault(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("ANVIL_VAULT", filepath.Join(root, "missing"))
+	if _, err := ResolveExistingVault(); err == nil || !strings.Contains(err.Error(), "no vault found") {
+		t.Fatalf("missing root: err = %v, want no-vault error", err)
+	}
+	t.Setenv("ANVIL_VAULT", root)
+	if _, err := ResolveExistingVault(); err != nil {
+		t.Fatalf("existing root: %v", err)
 	}
 }
