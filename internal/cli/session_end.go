@@ -31,7 +31,7 @@ func newSessionEndCmd() *cobra.Command {
 			if st.NotRepo || st.Dirty == 0 {
 				return nil
 			}
-			return snapshotVault(cmd, v.Root, "", st, flagPush)
+			return snapshotVault(cmd, v.Root, "", st, flagPush, ownSessionID())
 		},
 	}
 	cmd.Flags().BoolVar(&flagCommit, "commit", false, "snapshot uncommitted vault artifacts with git")
