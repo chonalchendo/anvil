@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -12,10 +13,13 @@ import (
 // backup-discipline nudge at session current/handoff and acted on by
 // `anvil vault commit`.
 type VaultGitStatus struct {
-	NotRepo    bool
-	Dirty      int
-	HasRemote  bool
-	LastCommit string // git's relative age (e.g. "2 days ago"); "" when no commits yet
+	NotRepo   bool
+	Dirty     int
+	HasRemote bool
+	// HasUpstream is false when the branch tracks nothing, so Unpushed is 0.
+	HasUpstream bool
+	Unpushed    int
+	LastCommit  string // git's relative age (e.g. "2 days ago"); "" when no commits yet
 }
 
 func gitIn(dir string, args ...string) (string, error) {
@@ -45,11 +49,15 @@ func VaultGitState(root string) (VaultGitStatus, error) {
 		dirty = len(strings.Split(porcelain, "\n"))
 	}
 	_, remoteErr := gitRemoteOrigin(root)
+	unpushed, upstreamErr := gitIn(root, "rev-list", "--count", "@{u}..HEAD")
+	n, _ := strconv.Atoi(unpushed)
 	lastCommit, _ := gitIn(root, "log", "-1", "--format=%cr") // "" when no commits yet
 	return VaultGitStatus{
-		Dirty:      dirty,
-		HasRemote:  remoteErr == nil,
-		LastCommit: lastCommit,
+		Dirty:       dirty,
+		HasRemote:   remoteErr == nil,
+		HasUpstream: upstreamErr == nil,
+		Unpushed:    n,
+		LastCommit:  lastCommit,
 	}, nil
 }
 
@@ -64,6 +72,9 @@ func (s VaultGitStatus) BackupNudge() string {
 	var risks []string
 	if s.Dirty > 0 {
 		risks = append(risks, fmt.Sprintf("%d uncommitted change(s)", s.Dirty))
+	}
+	if s.Unpushed > 0 {
+		risks = append(risks, fmt.Sprintf("%d unpushed commit(s)", s.Unpushed))
 	}
 	if !s.HasRemote {
 		risks = append(risks, "no remote (no off-machine backup)")

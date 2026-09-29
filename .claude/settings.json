@@ -26,7 +26,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "export PATH=\"$(go env GOPATH)/bin:$PATH\"; anvil session end --commit --push"
+            "command": "[ \"$CLAUDE_CODE_REMOTE\" = \"true\" ] || exit 0; export PATH=\"$(go env GOPATH)/bin:$PATH\"; anvil session end --commit --push",
+            "timeout": 30
           }
         ]
       }

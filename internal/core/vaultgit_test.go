@@ -18,6 +18,7 @@ func TestBackupNudge(t *testing.T) {
 		{"dirty no remote", VaultGitStatus{Dirty: 5, HasRemote: false, LastCommit: "2 days ago"}, "5 uncommitted change(s)"},
 		{"no remote only", VaultGitStatus{Dirty: 0, HasRemote: false}, "no off-machine backup"},
 		{"never committed", VaultGitStatus{Dirty: 3, HasRemote: true}, "last commit never"},
+		{"unpushed commits", VaultGitStatus{HasRemote: true, HasUpstream: true, Unpushed: 250, LastCommit: "1 hour ago"}, "250 unpushed commit(s)"},
 		{"clean and backed up", VaultGitStatus{Dirty: 0, HasRemote: true, LastCommit: "1 hour ago"}, ""},
 	}
 	for _, tt := range tests {

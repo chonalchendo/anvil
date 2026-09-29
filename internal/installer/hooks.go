@@ -17,7 +17,7 @@ const anvilHookPrefix = "anvil "
 // MergeSessionStartHook registers command under the Claude Code SessionStart
 // hook event in settingsPath.
 func MergeSessionStartHook(settingsPath, command string) (bool, error) {
-	return mergeHook(settingsPath, "SessionStart", command)
+	return mergeHook(settingsPath, "SessionStart", command, 0)
 }
 
 // RemoveSessionStartHook strips command from the SessionStart hook event in
@@ -30,7 +30,7 @@ func RemoveSessionStartHook(settingsPath, command string) (bool, error) {
 // matcher (e.g. "resume|compact"), coexisting with the unmatched entry
 // MergeSessionStartHook manages — the two fire on disjoint sources.
 func MergeSessionStartMatcherHook(settingsPath, matcher, command string) (bool, error) {
-	return mergeMatcherHook(settingsPath, "SessionStart", matcher, command)
+	return mergeMatcherHook(settingsPath, "SessionStart", matcher, command, 0)
 }
 
 // RemoveSessionStartMatcherHook strips command from the SessionStart entry
@@ -42,7 +42,7 @@ func RemoveSessionStartMatcherHook(settingsPath, matcher, command string) (bool,
 // MergePreCompactHook registers command under the Claude Code PreCompact hook
 // event in settingsPath.
 func MergePreCompactHook(settingsPath, command string) (bool, error) {
-	return mergeHook(settingsPath, "PreCompact", command)
+	return mergeHook(settingsPath, "PreCompact", command, 0)
 }
 
 // RemovePreCompactHook strips command from the PreCompact hook event in
@@ -92,10 +92,14 @@ func RemoveAutoCompactWindow(settingsPath string, defaultValue int) (bool, error
 	return true, nil
 }
 
+// sessionEndTimeout (seconds) overrides Claude Code's ~1.5s SessionEnd hook
+// default, which kills the vault push (~1.2s alone) before it finishes.
+const sessionEndTimeout = 30
+
 // MergeSessionEndHook registers command under the Claude Code SessionEnd hook
 // event in settingsPath.
 func MergeSessionEndHook(settingsPath, command string) (bool, error) {
-	return mergeHook(settingsPath, "SessionEnd", command)
+	return mergeHook(settingsPath, "SessionEnd", command, sessionEndTimeout)
 }
 
 // RemoveSessionEndHook strips command from the SessionEnd hook event in
@@ -106,8 +110,8 @@ func RemoveSessionEndHook(settingsPath, command string) (bool, error) {
 
 // mergeHook ensures settingsPath contains a Claude Code hook for the given
 // event that runs command, unscoped by matcher. See mergeMatcherHook.
-func mergeHook(settingsPath, event, command string) (bool, error) {
-	return mergeMatcherHook(settingsPath, event, "", command)
+func mergeHook(settingsPath, event, command string, timeout int) (bool, error) {
+	return mergeMatcherHook(settingsPath, event, "", command, timeout)
 }
 
 // removeHook strips any unmatched hook entry under event whose inner command
@@ -125,7 +129,7 @@ func removeHook(settingsPath, event, command string) (bool, error) {
 // duplicate that double-fires, and two anvil entries with different matchers
 // coexist on the same event. Returns changed=false only when command is
 // already the sole anvil entry for matcher and nothing stale needed dropping.
-func mergeMatcherHook(settingsPath, event, matcher, command string) (bool, error) {
+func mergeMatcherHook(settingsPath, event, matcher, command string, timeout int) (bool, error) {
 	settings, err := loadSettings(settingsPath)
 	if err != nil {
 		return false, err
@@ -150,11 +154,11 @@ func mergeMatcherHook(settingsPath, event, matcher, command string) (bool, error
 			continue
 		}
 		switch {
-		case entryMatchesCommand(e, command):
+		case entryMatchesCommand(e, command) && entryTimeout(e) == timeout:
 			hasCurrent = true
 			kept = append(kept, e)
 		case entryIsManaged(e):
-			continue // drop a stale anvil-managed variant for this matcher
+			continue // drop a stale variant (old command or timeout); re-created below
 		default:
 			kept = append(kept, e)
 		}
@@ -163,11 +167,11 @@ func mergeMatcherHook(settingsPath, event, matcher, command string) (bool, error
 		return false, nil
 	}
 	if !hasCurrent {
-		newEntry := map[string]any{
-			"hooks": []any{
-				map[string]any{"type": "command", "command": command},
-			},
+		hook := map[string]any{"type": "command", "command": command}
+		if timeout > 0 {
+			hook["timeout"] = timeout
 		}
+		newEntry := map[string]any{"hooks": []any{hook}}
 		if matcher != "" {
 			newEntry["matcher"] = matcher
 		}
@@ -218,6 +222,18 @@ func removeMatcherHook(settingsPath, event, matcher, command string) (bool, erro
 		return false, err
 	}
 	return true, nil
+}
+
+// entryTimeout returns the timeout of entry's first inner hook, 0 when unset.
+func entryTimeout(entry any) int {
+	m, _ := entry.(map[string]any)
+	inner, _ := m["hooks"].([]any)
+	if len(inner) == 0 {
+		return 0
+	}
+	hm, _ := inner[0].(map[string]any)
+	f, _ := hm["timeout"].(float64) // JSON numbers decode as float64
+	return int(f)
 }
 
 // entryMatcher returns entry's "matcher" field, or "" for an unmatched entry.

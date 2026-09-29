@@ -220,6 +220,28 @@ func TestMergeSessionEndHook_NewFile(t *testing.T) {
 	if !ok || len(se) != 1 {
 		t.Fatalf("SessionEnd = %v", hooks["SessionEnd"])
 	}
+	if got := entryTimeout(se[0]); got != 30 {
+		t.Errorf("SessionEnd timeout = %d, want 30", got)
+	}
+}
+
+func TestMergeSessionEndHook_UpgradesMissingTimeout(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	old := `{"hooks":{"SessionEnd":[{"hooks":[{"type":"command","command":"` + testEndCmd + `"}]}]}}`
+	if err := os.WriteFile(path, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := MergeSessionEndHook(path, testEndCmd)
+	if err != nil || !changed {
+		t.Fatalf("upgrade: changed=%v err=%v", changed, err)
+	}
+	se := readJSON(t, path)["hooks"].(map[string]any)["SessionEnd"].([]any)
+	if len(se) != 1 || entryTimeout(se[0]) != 30 {
+		t.Fatalf("SessionEnd = %v, want one entry with timeout 30", se)
+	}
+	if changed, _ := MergeSessionEndHook(path, testEndCmd); changed {
+		t.Error("second merge changed = true, want idempotent")
+	}
 }
 
 func TestMergeSessionEndHook_Idempotent(t *testing.T) {
