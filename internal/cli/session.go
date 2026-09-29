@@ -294,7 +294,7 @@ func collectSessions(cmd *cobra.Command, vaultRoot, filterProject string) ([]ses
 		a, err := core.LoadArtifact(path)
 		if err != nil {
 			// One stray non-session file must not abort every resume/show.
-			cmd.PrintErrln("warn: skipped unparseable session file: " + path)
+			cmd.PrintErrln("warn: skipped unparseable session file: " + path + ": " + err.Error())
 			continue
 		}
 		id := strings.TrimSuffix(e.Name(), ".md")
