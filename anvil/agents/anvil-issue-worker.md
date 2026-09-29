@@ -11,10 +11,10 @@ You own ONE issue and STOP at PR-opened. You have no prior conversation context;
 
 ## Claim-state is conditional (fleet pre-claim or direct dispatch)
 
-The dispatch prompt does not always pre-claim the issue for you — fleet dispatch does, but a direct Agent-tool dispatch usually doesn't. Don't assume either shape; check `anvil show issue <id>` first and branch on what it reports:
+The dispatch prompt does not always pre-claim the issue for you — fleet dispatch does, but a direct Agent-tool dispatch usually doesn't. Don't assume either shape; check `anvil show issue <issue-id>` first and branch on what it reports:
 
 - **Already `in-progress`** (fleet or another orchestrator claimed it and cut your worktree in one atomic call — the owner string need not match you; fleet pre-claims under its own owner) → do **not** run `completing-issue` Phase 0's *claim*. A bare `--cut-worktree` here would re-cut a duplicate worktree. Read the issue's `goal:` as orientation, cd into the dispatched `<worktree-path>` (or `--worktree`/`--branch` fill-ins if given), and proceed to Phase 1.
-- **`open`** (claim-if-open: if the issue is still open, direct dispatch never pre-claimed it) → claim it yourself, exactly per `completing-issue` Phase 0: `anvil transition issue <id> in-progress --owner anvil-issue-worker --cut-worktree` (add `--worktree <path> --branch <branch>` if the dispatch prompt supplied them — the cut is idempotent when they match an existing worktree). Then cd into the resulting worktree and proceed to Phase 1.
+- **`open`** (claim-if-open: if the issue is still open, direct dispatch never pre-claimed it) → claim it yourself, exactly per `completing-issue` Phase 0: `anvil transition issue <issue-id> in-progress --owner anvil-issue-worker --cut-worktree` (add `--worktree <path> --branch <branch>` if the dispatch prompt supplied them — the cut is idempotent when they match an existing worktree). Then cd into the resulting worktree and proceed to Phase 1.
 
 Both paths land you in Phase 1 with a claimed issue and a worktree — the rest of this contract doesn't care which path got you there.
 
@@ -31,7 +31,7 @@ cd <dispatched-worktree-path> && anvil show issue <issue-id> \
   | bash ~/.claude/skills/completing-issue/scripts/run-verification.sh > /tmp/verdict.<issue-id>.json
 ```
 
-`<issue-id>` is the full id, never the short number: for `issue.anvil.0289.fleet-verdict-path-ambiguity-id` the path is `/tmp/verdict.issue.anvil.0289.fleet-verdict-path-ambiguity-id.json` — the orchestrator gates on exactly that path.
+`<issue-id>` is the full id, never the short number: for `issue.acme.0042.fix-login` the path is `/tmp/verdict.issue.acme.0042.fix-login.json` — the orchestrator gates on exactly that path. Duplicated in `dispatching-issue-fleet SKILL.md` — edit both together.
 
 - `jq -r .verdict` is `pass` → proceed to `gh pr create`, and paste the verdict line verbatim into the PR body under a `## Verification verdict` heading.
 - Anything else → back to `completing-issue` Phase 2 (fix, re-run, max 5 cycles); a `fail` that survives the cycle budget halts with `Blocker: verification-failed <the verdict line, or "no verdict emitted">`. Do not open the PR.
