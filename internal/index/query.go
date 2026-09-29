@@ -17,16 +17,17 @@ type QueryFilters struct {
 }
 
 // ListReady returns the random-pickup pool: issues that are open, have no
-// unresolved outgoing blocks/depends_on, AND are not themselves the target of
+// unresolved outgoing depends_on, AND are not themselves the target of
 // an unresolved 'blocks' edge. The third clause keeps issues waiting behind an
 // active blocker out of the pool — they belong to that blocker's owner.
-// depends_on targets (prerequisites) are intentionally surfaced: an unblocked
-// prerequisite is the first thing agents should pick up.
+// An outgoing blocks edge never hides its source: the blocker is the work to
+// do first. depends_on targets (prerequisites) are surfaced on purpose: an
+// unblocked prerequisite is the first thing agents should pick up.
 func (d *DB) ListReady(typ string, f QueryFilters) ([]ArtifactRow, error) {
 	const q = `
 SELECT a.id, a.type, a.status, a.project, a.path, a.created, a.updated
 FROM artifacts a
-LEFT JOIN links l ON l.source = a.id AND l.relation IN ('blocks', 'depends_on')
+LEFT JOIN links l ON l.source = a.id AND l.relation = 'depends_on'
 LEFT JOIN artifacts t ON t.id = l.target
 WHERE a.type = ? AND a.status = 'open'
   AND a.id NOT IN (

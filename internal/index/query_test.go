@@ -22,7 +22,11 @@ func seedReadinessFixture(t *testing.T) *DB {
 	must(db.UpsertArtifact(ArtifactRow{ID: "blocker-resolved", Type: "issue", Status: "resolved", Path: "/br.md"}))
 	must(db.UpsertArtifact(ArtifactRow{ID: "blocker-open", Type: "issue", Status: "open", Path: "/bo.md"}))
 
+	must(db.UpsertArtifact(ArtifactRow{ID: "blocks-open", Type: "issue", Status: "open", Path: "/bko.md"}))
+	must(db.UpsertArtifact(ArtifactRow{ID: "held-up", Type: "issue", Status: "open", Path: "/hu.md"}))
+
 	must(db.ReplaceLinks("a", nil))
+	must(db.ReplaceLinks("blocks-open", []LinkRow{{Source: "blocks-open", Target: "held-up", Relation: "blocks"}}))
 	must(db.ReplaceLinks("b", []LinkRow{{Source: "b", Target: "blocker-resolved", Relation: "blocks"}}))
 	must(db.ReplaceLinks("c", []LinkRow{{Source: "c", Target: "blocker-open", Relation: "depends_on"}}))
 	return db
@@ -41,7 +45,8 @@ func TestListReadySurfacesUnblockedPrereqButExcludesBlockedDependents(t *testing
 	// blocker-open is the target of c's depends_on edge; it has no open blockers of
 	// its own so it must surface as ready (highest-priority prerequisite work).
 	// c depends on blocker-open and is therefore still blocked — must stay excluded.
-	want := []string{"a", "b", "blocker-open"}
+	// blocks-open blocks open held-up: the blocker must be ready (anvil.0293), held-up must not.
+	want := []string{"a", "b", "blocker-open", "blocks-open"}
 	if diff := cmp.Diff(want, ids, cmpopts.SortSlices(func(x, y string) bool { return x < y })); diff != "" {
 		t.Fatalf("ready ids mismatch (-want +got):\n%s", diff)
 	}
