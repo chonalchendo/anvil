@@ -58,6 +58,7 @@ func TestVaultCommit_Scope(t *testing.T) {
 		setup    func(t *testing.T, vault string)
 		want     []string
 		wantHeld []string
+		wantNoop bool // nothing to commit, yet the vault must end clean
 	}{
 		{
 			name:    "peer session stub held back",
@@ -150,6 +151,30 @@ func TestVaultCommit_Scope(t *testing.T) {
 			want: []string{"note.md"},
 		},
 		{
+			name:    "intent-to-add after mv commits rename with origin deletion",
+			session: "mine",
+			setup: func(t *testing.T, v string) {
+				commitSeed(t, v, "seed.md")
+				if err := os.Rename(filepath.Join(v, "seed.md"), filepath.Join(v, "moved.md")); err != nil {
+					t.Fatal(err)
+				}
+				gitMust(t, v, "add", "-N", "moved.md")
+			},
+			want: []string{"moved.md"},
+		},
+		{
+			name:    "staged-new deleted from disk alone leaves the vault clean",
+			session: "mine",
+			setup: func(t *testing.T, v string) {
+				writeVaultFile(t, v, "tmp.md", "x")
+				gitMust(t, v, "add", "tmp.md")
+				if err := os.Remove(filepath.Join(v, "tmp.md")); err != nil {
+					t.Fatal(err)
+				}
+			},
+			wantNoop: true,
+		},
+		{
 			name:    "rename into a held path holds both ends",
 			session: "mine",
 			setup: func(t *testing.T, v string) {
@@ -173,6 +198,12 @@ func TestVaultCommit_Scope(t *testing.T) {
 				if !strings.Contains(errOut, h) {
 					t.Errorf("stderr should name held file %q: %q", h, errOut)
 				}
+			}
+			if tt.wantNoop {
+				if st, _ := gitOutput(vault, "status", "--porcelain"); st != "" {
+					t.Errorf("vault should be clean, got %q", st)
+				}
+				return
 			}
 			if got := committedFiles(t, vault); !slices.Equal(got, tt.want) {
 				t.Errorf("committed %v, want %v", got, tt.want)

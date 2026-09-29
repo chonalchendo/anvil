@@ -79,16 +79,17 @@ func snapshotVault(cmd *cobra.Command, root, msg string, st core.VaultGitStatus,
 		}
 		cmd.PrintErrln(label, strings.Join(held, ", "))
 	}
-	if len(mine) == 0 {
-		cmd.Println("nothing of this session's to commit")
-		return nil
-	}
-	paths := strings.Join(mine, "\x00") + "\x00"
+	// Add before the empty check: an "AD" entry is only unstaged by its add.
 	if len(toAdd) > 0 {
 		if err := gitRunStdin(root, strings.Join(toAdd, "\x00")+"\x00", "--literal-pathspecs", "add", "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil {
 			return fmt.Errorf("git add: %w", err)
 		}
 	}
+	if len(mine) == 0 {
+		cmd.Println("nothing of this session's to commit")
+		return nil
+	}
+	paths := strings.Join(mine, "\x00") + "\x00"
 	// Pathspec commit ignores anything a peer staged in the shared index.
 	if err := gitRunStdin(root, paths, "--literal-pathspecs", "commit", "-m", msg, "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil {
 		return fmt.Errorf("git commit: %w", err)
@@ -126,7 +127,7 @@ func partitionVaultChanges(root, porcelain, ownID string) (mine, toAdd, held []s
 		}
 		xy, p := e[:2], e[3:]
 		origin := ""
-		if strings.ContainsAny(xy[:1], "RC") && i+1 < len(entries) {
+		if strings.ContainsAny(xy, "RC") && i+1 < len(entries) {
 			i++
 			origin = entries[i]
 		}
@@ -139,8 +140,12 @@ func partitionVaultChanges(root, porcelain, ownID string) (mine, toAdd, held []s
 			held = append(held, p)
 			continue
 		}
-		if xy[:1] == "R" {
+		if strings.Contains(xy, "R") {
 			mine = append(mine, origin)
+			// A worktree rename (" R") leaves the origin's deletion unstaged.
+			if xy[1] == 'R' {
+				toAdd = append(toAdd, origin)
+			}
 		}
 		// A staged delete has nothing for `git add` to name; a staged-new file
 		// gone from disk must be added (unstaged) but never committed.
