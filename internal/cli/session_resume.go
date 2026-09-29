@@ -32,7 +32,7 @@ all shapes also carry claim_mismatches: [{issue_id, claim_session}] (empty when 
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			all, err := collectSessions(v.Root, "")
+			all, err := collectSessions(cmd, v.Root, "")
 			if err != nil {
 				return err
 			}

@@ -708,3 +708,24 @@ func TestSessionList_ProjectFilter(t *testing.T) {
 		t.Errorf("project = %q, want anvil", items[0].Project)
 	}
 }
+
+func TestSession_UnparseableFileIsSkippedWithWarning(t *testing.T) {
+	vault := setupVault(t)
+	writeSessionFixture(t, vault, "good-1", "good-1", "Good", "## Handoff\n\n**Objective.** keep going\n")
+	stray := filepath.Join(vault, "10-sessions", "stray.md")
+	if err := os.WriteFile(stray, []byte("no frontmatter here\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"session", "resume", "--json"}, {"session", "show", "good-1"}} {
+		out, errOut, err := runCmd(t, newRootCmd(), args...)
+		if err != nil {
+			t.Fatalf("%v: unexpected error: %v", args, err)
+		}
+		if !strings.Contains(out, "good-1") {
+			t.Errorf("%v: missing good session in %q", args, out)
+		}
+		if !strings.Contains(errOut, "stray.md") {
+			t.Errorf("%v: stderr should name skipped file, got %q", args, errOut)
+		}
+	}
+}
