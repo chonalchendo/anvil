@@ -58,8 +58,10 @@ func newDoctorCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			projSlug := ""
-			if p, err := core.ResolveProject(); err == nil {
+			// An explicit --project names a slug that may have no registered
+			// binding, which ResolveProject would silently drop.
+			projSlug := os.Getenv("ANVIL_PROJECT")
+			if p, err := core.ResolveProject(); projSlug == "" && err == nil {
 				projSlug = p.Slug
 			}
 			findings, err := runDoctor(v, projSlug)
