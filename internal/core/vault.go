@@ -71,7 +71,7 @@ func ResolveExistingVault() (*Vault, error) {
 	if err != nil {
 		return nil, err
 	}
-	if fi, statErr := os.Stat(v.Root); statErr != nil || !fi.IsDir() {
+	if fi, statErr := os.Stat(filepath.Clean(v.Root)); statErr != nil || !fi.IsDir() {
 		return nil, fmt.Errorf("no vault found at %s: pass --vault, set $ANVIL_VAULT, or run `anvil init`", v.Root)
 	}
 	return v, nil
