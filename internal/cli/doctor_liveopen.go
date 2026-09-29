@@ -29,13 +29,8 @@ func checkLiveOpenIssue(id string, worktrees map[string]worktreeInfo, branches [
 	slug := slugFromIssueID(id)
 	evidence := ""
 	for branch, wt := range worktrees {
-		switch {
-		case filepath.Base(wt.path) == slug:
+		if filepath.Base(wt.path) == slug {
 			evidence = fmt.Sprintf("worktree %s (branch %s)", wt.path, branch)
-		case strings.HasSuffix(branch, "/"+slug):
-			evidence = fmt.Sprintf("branch %s", branch)
-		}
-		if evidence != "" {
 			break
 		}
 	}

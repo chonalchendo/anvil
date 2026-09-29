@@ -975,15 +975,20 @@ func TestDoctorLiveWorkOnOpenIssue(t *testing.T) {
 		branches  []string
 		project   string
 		runProj   string
+		status    string
 		want      bool
 	}{
-		{"worktree dir matches slug", map[string]worktreeInfo{"other/branch": {path: "/wt/0777.live-open"}}, nil, "foo", "foo", true},
-		{"foreign-prefixed branch matches slug", map[string]worktreeInfo{"mentat/0777.live-open": {path: "/wt/x"}}, nil, "foo", "foo", true},
-		{"unrelated worktree", map[string]worktreeInfo{"foo/0888.other": {path: "/wt/0888.other"}}, nil, "foo", "foo", false},
-		{"branch only, no worktree", nil, []string{"demo/0777.live-open"}, "foo", "foo", true},
-		{"remote branch only", nil, []string{"origin/foo/0777.live-open"}, "foo", "foo", true},
-		{"other project issue not judged", map[string]worktreeInfo{"foo/0777.live-open": {path: "/wt/0777.live-open"}}, nil, "bar", "foo", false},
-		{"empty project scope judges nothing", map[string]worktreeInfo{"foo/0777.live-open": {path: "/wt/0777.live-open"}}, nil, "foo", "", false},
+		{"worktree dir matches slug", map[string]worktreeInfo{"other/branch": {path: "/wt/0777.live-open"}}, nil, "foo", "foo", "open", true},
+		{"foreign-prefixed branch matches slug", nil, []string{"mentat/0777.live-open"}, "foo", "foo", "open", true},
+		{"unrelated worktree", map[string]worktreeInfo{"foo/0888.other": {path: "/wt/0888.other"}}, nil, "foo", "foo", "open", false},
+		{"branch only, no worktree", nil, []string{"demo/0777.live-open"}, "foo", "foo", "open", true},
+		{"remote branch only", nil, []string{"origin/foo/0777.live-open"}, "foo", "foo", "open", true},
+		{"branch with non-boundary prefix", nil, []string{"demo/x0777.live-open"}, "foo", "foo", "open", false},
+		{"branch with extended slug", nil, []string{"demo/0777.live-open-extended"}, "foo", "foo", "open", false},
+		{"in-progress issue not flagged", nil, []string{"demo/0777.live-open"}, "foo", "foo", "in-progress", false},
+		{"resolved issue not flagged", nil, []string{"demo/0777.live-open"}, "foo", "foo", "resolved", false},
+		{"other project issue not judged", map[string]worktreeInfo{"foo/0777.live-open": {path: "/wt/0777.live-open"}}, nil, "bar", "foo", "open", false},
+		{"empty project scope judges nothing", map[string]worktreeInfo{"foo/0777.live-open": {path: "/wt/0777.live-open"}}, nil, "foo", "", "open", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -993,7 +998,7 @@ func TestDoctorLiveWorkOnOpenIssue(t *testing.T) {
 			a := &core.Artifact{
 				Path: filepath.Join(vault, "70-issues", id+".md"),
 				FrontMatter: map[string]any{
-					"type": "issue", "title": "open with live work", "status": "open",
+					"type": "issue", "title": "open with live work", "status": tc.status,
 					"project": tc.project, "created": "2026-06-01", "updated": "2026-06-01", "severity": "medium",
 				},
 				Body: fixtureIssueBody,
