@@ -48,7 +48,7 @@ func newVaultCommitCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&flagMessage, "message", "m", "", "commit message (default: timestamped snapshot)")
-	cmd.Flags().BoolVar(&flagPush, "push", false, "push to the vault's remote after committing (warns, never fails, on push error or no remote)")
+	cmd.Flags().BoolVar(&flagPush, "push", false, "push to the vault's remote after committing (fails on push error; no-op without a remote)")
 	return cmd
 }
 
@@ -96,12 +96,17 @@ func snapshotVault(cmd *cobra.Command, root, msg string, st core.VaultGitStatus,
 	}
 	cmd.Printf("committed %d change(s) to the vault\n", len(mine))
 	if push && st.HasRemote {
-		if err := gitRun(root, "push"); err != nil {
-			cmd.PrintErrln("⚠ vault push failed (commit is safe locally):", err)
-			return nil
-		}
-		cmd.Println("pushed the vault to its remote")
+		return pushVault(cmd, root)
 	}
+	return nil
+}
+
+// pushVault fails loud: a swallowed rejection leaves the remote silently stale.
+func pushVault(cmd *cobra.Command, root string) error {
+	if err := gitRun(root, "push"); err != nil {
+		return fmt.Errorf("vault push failed (commits are safe locally): %w", err)
+	}
+	cmd.Println("pushed the vault to its remote")
 	return nil
 }
 

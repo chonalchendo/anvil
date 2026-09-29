@@ -239,3 +239,27 @@ func TestSessionEnd_HookPayloadSessionID(t *testing.T) {
 		t.Errorf("committed %v, want only the payload session's stub", got)
 	}
 }
+
+func TestSessionEnd_PushesUnpushedCommitsAndFailsLoud(t *testing.T) {
+	vault := seedVaultRepo(t, "mine")
+	remote := t.TempDir()
+	gitMust(t, remote, "init", "-q", "--bare")
+	gitMust(t, vault, "remote", "add", "origin", remote)
+	gitMust(t, vault, "push", "-q", "-u", "origin", "HEAD")
+	// Committed but unpushed, vault clean.
+	writeVaultFile(t, vault, "10-sessions/mine.md", "own")
+	gitMust(t, vault, "add", "-A")
+	gitMust(t, vault, "commit", "-qm", "local")
+	if _, _, err := runCmd(t, newRootCmd(), "session", "end", "--commit", "--push"); err != nil {
+		t.Fatal(err)
+	}
+	if out, _ := gitOutput(vault, "rev-list", "--count", "@{u}..HEAD"); strings.TrimSpace(out) != "0" {
+		t.Errorf("unpushed commits remain: %q", out)
+	}
+	// A rejected push must error.
+	gitMust(t, vault, "remote", "set-url", "origin", filepath.Join(remote, "missing"))
+	writeVaultFile(t, vault, "10-sessions/mine.md", "changed")
+	if _, _, err := runCmd(t, newRootCmd(), "session", "end", "--commit", "--push"); err == nil {
+		t.Error("push failure returned nil, want error")
+	}
+}
