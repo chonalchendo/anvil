@@ -52,9 +52,10 @@ func newVaultCommitCmd() *cobra.Command {
 	return cmd
 }
 
-// snapshotVault commits the vault's pending changes except a concurrent peer's
-// in-flight files: other sessions' stubs under the sessions dir and in-progress
-// issues claimed by another session. Held files are named on stderr and left
+// snapshotVault commits the vault's pending changes except the in-flight files
+// it can attribute to a concurrent peer: other sessions' stubs under the
+// sessions dir and in-progress issues claimed by another session. Other
+// peer-edited artifacts are not tracked per session and still ride along. Held files are named on stderr and left
 // dirty; deletions under the sessions dir are always committed (a deleted file
 // is not in-flight, and no other verb would ever commit a gc'd stub). ownID is
 // the caller's resolved session id, "" when none — then every session file and
@@ -70,7 +71,7 @@ func snapshotVault(cmd *cobra.Command, root, msg string, st core.VaultGitStatus,
 	if err != nil {
 		return fmt.Errorf("git status: %w", err)
 	}
-	mine, held := partitionVaultChanges(root, out, ownID)
+	mine, toAdd, held := partitionVaultChanges(root, out, ownID)
 	if len(held) > 0 {
 		label := "held back (another session's files, left uncommitted):"
 		if ownID == "" {
@@ -83,8 +84,10 @@ func snapshotVault(cmd *cobra.Command, root, msg string, st core.VaultGitStatus,
 		return nil
 	}
 	paths := strings.Join(mine, "\x00") + "\x00"
-	if err := gitRunStdin(root, paths, "--literal-pathspecs", "add", "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil {
-		return fmt.Errorf("git add: %w", err)
+	if len(toAdd) > 0 {
+		if err := gitRunStdin(root, strings.Join(toAdd, "\x00")+"\x00", "--literal-pathspecs", "add", "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil {
+			return fmt.Errorf("git add: %w", err)
+		}
 	}
 	// Pathspec commit ignores anything a peer staged in the shared index.
 	if err := gitRunStdin(root, paths, "--literal-pathspecs", "commit", "-m", msg, "--pathspec-from-file=-", "--pathspec-file-nul"); err != nil {
@@ -102,9 +105,14 @@ func snapshotVault(cmd *cobra.Command, root, msg string, st core.VaultGitStatus,
 }
 
 // partitionVaultChanges splits `git status --porcelain=v1 -z` output into the
-// paths this session may commit and the peer-owned ones to hold back. Status
-// (not ls-files) is the source so staged-only changes are seen.
-func partitionVaultChanges(root, porcelain, ownID string) (mine, held []string) {
+// paths this session may commit, the subset of those `git add` can name, and
+// the peer-owned ones to hold back. Status (not ls-files) is the source so
+// staged-only changes are seen. The add set differs from the commit set because
+// `git add` rejects a path absent from both disk and index (a staged delete or
+// rename origin), while `git commit --pathspec` rejects a path absent from
+// both HEAD and the index (a staged-new file deleted from disk, "AD"; adding it
+// is what unstages it).
+func partitionVaultChanges(root, porcelain, ownID string) (mine, toAdd, held []string) {
 	sessionsPrefix := core.TypeSession.Dir() + "/"
 	ownPath := ""
 	if ownID != "" {
@@ -117,22 +125,33 @@ func partitionVaultChanges(root, porcelain, ownID string) (mine, held []string) 
 			continue
 		}
 		xy, p := e[:2], e[3:]
-		if strings.ContainsAny(xy, "RC") && i+1 < len(entries) {
-			// Rename/copy lists the origin as the next entry; commit both ends.
+		origin := ""
+		if strings.ContainsAny(xy[:1], "RC") && i+1 < len(entries) {
 			i++
-			mine = append(mine, entries[i])
+			origin = entries[i]
 		}
 		deleted := strings.Contains(xy, "D")
-		switch {
-		case strings.HasPrefix(p, sessionsPrefix) && p != ownPath && !deleted:
+		isHeld := (strings.HasPrefix(p, sessionsPrefix) && p != ownPath && !deleted) ||
+			(strings.HasPrefix(p, core.TypeIssue.Dir()+"/") && !deleted && claimedByPeer(root, p, ownID))
+		if isHeld {
+			// A rename is held by its destination; committing only the origin's
+			// deletion would strand the content.
 			held = append(held, p)
-		case strings.HasPrefix(p, core.TypeIssue.Dir()+"/") && !deleted && claimedByPeer(root, p, ownID):
-			held = append(held, p)
-		default:
+			continue
+		}
+		if xy[:1] == "R" {
+			mine = append(mine, origin)
+		}
+		// A staged delete has nothing for `git add` to name; a staged-new file
+		// gone from disk must be added (unstaged) but never committed.
+		if xy[:1] != "D" {
+			toAdd = append(toAdd, p)
+		}
+		if !strings.ContainsAny(xy[:1], "ARC") || xy[1] != 'D' {
 			mine = append(mine, p)
 		}
 	}
-	return mine, held
+	return mine, toAdd, held
 }
 
 // claimedByPeer reports whether the in-progress issue at rel carries a

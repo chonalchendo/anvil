@@ -118,6 +118,48 @@ func TestVaultCommit_Scope(t *testing.T) {
 			want:     []string{"note.md"},
 			wantHeld: []string{"10-sessions/live.md"},
 		},
+		{
+			name:    "staged rename committed with its origin deletion",
+			session: "mine",
+			setup: func(t *testing.T, v string) {
+				commitSeed(t, v, "seed.md")
+				gitMust(t, v, "mv", "seed.md", "moved.md")
+			},
+			want: []string{"moved.md"}, // --name-only collapses the rename pair
+		},
+		{
+			name:    "staged delete committed",
+			session: "mine",
+			setup: func(t *testing.T, v string) {
+				commitSeed(t, v, "seed.md")
+				gitMust(t, v, "rm", "-q", "seed.md")
+			},
+			want: []string{"seed.md"},
+		},
+		{
+			name:    "staged-new then deleted from disk does not abort",
+			session: "mine",
+			setup: func(t *testing.T, v string) {
+				writeVaultFile(t, v, "tmp.md", "x")
+				gitMust(t, v, "add", "tmp.md")
+				if err := os.Remove(filepath.Join(v, "tmp.md")); err != nil {
+					t.Fatal(err)
+				}
+				writeVaultFile(t, v, "note.md", "x")
+			},
+			want: []string{"note.md"},
+		},
+		{
+			name:    "rename into a held path holds both ends",
+			session: "mine",
+			setup: func(t *testing.T, v string) {
+				commitSeed(t, v, "seed.md")
+				gitMust(t, v, "mv", "seed.md", "10-sessions/peer.md")
+				writeVaultFile(t, v, "note.md", "x")
+			},
+			want:     []string{"note.md"},
+			wantHeld: []string{"10-sessions/peer.md"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -136,5 +178,33 @@ func TestVaultCommit_Scope(t *testing.T) {
 				t.Errorf("committed %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func gitMust(t *testing.T, v string, args ...string) {
+	t.Helper()
+	if err := gitRun(v, args...); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func commitSeed(t *testing.T, v, rel string) {
+	t.Helper()
+	writeVaultFile(t, v, rel, "seed")
+	gitMust(t, v, "add", "-A")
+	gitMust(t, v, "commit", "-qm", "add "+rel)
+}
+
+func TestSessionEnd_HookPayloadSessionID(t *testing.T) {
+	vault := seedVaultRepo(t, "")
+	writeVaultFile(t, vault, "10-sessions/mine.md", "own")
+	writeVaultFile(t, vault, "10-sessions/peer.md", "HALF-WRIT")
+	root := newRootCmd()
+	root.SetIn(strings.NewReader(`{"session_id":"mine"}`))
+	if _, _, err := runCmd(t, root, "session", "end", "--commit"); err != nil {
+		t.Fatal(err)
+	}
+	if got := committedFiles(t, vault); !slices.Equal(got, []string{"10-sessions/mine.md"}) {
+		t.Errorf("committed %v, want only the payload session's stub", got)
 	}
 }

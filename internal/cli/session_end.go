@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -31,10 +33,33 @@ func newSessionEndCmd() *cobra.Command {
 			if st.NotRepo || st.Dirty == 0 {
 				return nil
 			}
-			return snapshotVault(cmd, v.Root, "", st, flagPush, ownSessionID())
+			return snapshotVault(cmd, v.Root, "", st, flagPush, endSessionID(cmd))
 		},
 	}
 	cmd.Flags().BoolVar(&flagCommit, "commit", false, "snapshot uncommitted vault artifacts with git")
 	cmd.Flags().BoolVar(&flagPush, "push", false, "push to the vault's remote after committing (requires --commit; warns, never fails, on push error)")
 	return cmd
+}
+
+// endSessionID resolves the ending session: the env id when set, else the
+// SessionEnd hook payload's session_id on stdin (Claude Code delivers the
+// payload there but not always the env var). A terminal stdin is never read,
+// so a manual run cannot block.
+func endSessionID(cmd *cobra.Command) string {
+	if id := ownSessionID(); id != "" {
+		return id
+	}
+	in := cmd.InOrStdin()
+	if f, ok := in.(*os.File); ok {
+		if fi, err := f.Stat(); err != nil || fi.Mode()&os.ModeCharDevice != 0 {
+			return ""
+		}
+	}
+	var payload struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.NewDecoder(in).Decode(&payload); err != nil {
+		return ""
+	}
+	return payload.SessionID
 }
