@@ -20,9 +20,9 @@ type QueryFilters struct {
 // unresolved outgoing depends_on, AND are not themselves the target of
 // an unresolved 'blocks' edge. The third clause keeps issues waiting behind an
 // active blocker out of the pool — they belong to that blocker's owner.
-// An outgoing blocks edge never unreadies its source: the blocker is the work
-// to do first. depends_on targets (prerequisites) are intentionally surfaced: an unblocked
-// prerequisite is the first thing agents should pick up.
+// An outgoing blocks edge never hides its source: the blocker is the work to
+// do first. depends_on targets (prerequisites) are surfaced on purpose: an
+// unblocked prerequisite is the first thing agents should pick up.
 func (d *DB) ListReady(typ string, f QueryFilters) ([]ArtifactRow, error) {
 	const q = `
 SELECT a.id, a.type, a.status, a.project, a.path, a.created, a.updated

@@ -45,6 +45,7 @@ func TestListReadySurfacesUnblockedPrereqButExcludesBlockedDependents(t *testing
 	// blocker-open is the target of c's depends_on edge; it has no open blockers of
 	// its own so it must surface as ready (highest-priority prerequisite work).
 	// c depends on blocker-open and is therefore still blocked — must stay excluded.
+	// blocks-open blocks open held-up: the blocker must be ready (anvil.0293), held-up must not.
 	want := []string{"a", "b", "blocker-open", "blocks-open"}
 	if diff := cmp.Diff(want, ids, cmpopts.SortSlices(func(x, y string) bool { return x < y })); diff != "" {
 		t.Fatalf("ready ids mismatch (-want +got):\n%s", diff)
