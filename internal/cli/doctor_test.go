@@ -972,11 +972,18 @@ func TestDoctorLiveWorkOnOpenIssue(t *testing.T) {
 	cases := []struct {
 		name      string
 		worktrees map[string]worktreeInfo
+		branches  []string
+		project   string
+		runProj   string
 		want      bool
 	}{
-		{"worktree dir matches slug", map[string]worktreeInfo{"other/branch": {path: "/wt/0777.live-open"}}, true},
-		{"foreign-prefixed branch matches slug", map[string]worktreeInfo{"mentat/0777.live-open": {path: "/wt/x"}}, true},
-		{"unrelated worktree", map[string]worktreeInfo{"foo/0888.other": {path: "/wt/0888.other"}}, false},
+		{"worktree dir matches slug", map[string]worktreeInfo{"other/branch": {path: "/wt/0777.live-open"}}, nil, "foo", "foo", true},
+		{"foreign-prefixed branch matches slug", map[string]worktreeInfo{"mentat/0777.live-open": {path: "/wt/x"}}, nil, "foo", "foo", true},
+		{"unrelated worktree", map[string]worktreeInfo{"foo/0888.other": {path: "/wt/0888.other"}}, nil, "foo", "foo", false},
+		{"branch only, no worktree", nil, []string{"demo/0777.live-open"}, "foo", "foo", true},
+		{"remote branch only", nil, []string{"origin/foo/0777.live-open"}, "foo", "foo", true},
+		{"other project issue not judged", map[string]worktreeInfo{"foo/0777.live-open": {path: "/wt/0777.live-open"}}, nil, "bar", "foo", false},
+		{"empty project scope judges nothing", map[string]worktreeInfo{"foo/0777.live-open": {path: "/wt/0777.live-open"}}, nil, "foo", "", false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -987,18 +994,21 @@ func TestDoctorLiveWorkOnOpenIssue(t *testing.T) {
 				Path: filepath.Join(vault, "70-issues", id+".md"),
 				FrontMatter: map[string]any{
 					"type": "issue", "title": "open with live work", "status": "open",
-					"project": "foo", "created": "2026-06-01", "updated": "2026-06-01", "severity": "medium",
+					"project": tc.project, "created": "2026-06-01", "updated": "2026-06-01", "severity": "medium",
 				},
 				Body: fixtureIssueBody,
 			}
 			if err := a.Save(); err != nil {
 				t.Fatal(err)
 			}
+			oldB := gitLocalBranchesFn
+			t.Cleanup(func() { gitLocalBranchesFn = oldB })
+			gitLocalBranchesFn = func() ([]string, error) { return tc.branches, nil }
 			old := gitWorktreeListFn
 			t.Cleanup(func() { gitWorktreeListFn = old })
 			gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return tc.worktrees, nil }
 
-			findings, err := runDoctor(v, "foo")
+			findings, err := runDoctor(v, tc.runProj)
 			if err != nil {
 				t.Fatal(err)
 			}
