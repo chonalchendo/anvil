@@ -73,7 +73,7 @@ func newInstallFireSessionResumeCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			items, err := collectSessions(v.Root, "")
+			items, err := collectSessions(cmd, v.Root, "")
 			if err != nil {
 				return err
 			}

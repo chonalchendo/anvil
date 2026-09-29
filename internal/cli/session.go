@@ -68,7 +68,7 @@ func newSessionListCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			items, err := collectSessions(v.Root, flagProject)
+			items, err := collectSessions(cmd, v.Root, flagProject)
 			if err != nil {
 				return err
 			}
@@ -189,7 +189,7 @@ func newSessionShowCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			items, err := collectSessions(v.Root, "")
+			items, err := collectSessions(cmd, v.Root, "")
 			if err != nil {
 				return err
 			}
@@ -271,8 +271,8 @@ type sessionItem struct {
 
 // collectSessions returns session items from the vault, newest-first.
 // When filterProject is non-empty only sessions whose project frontmatter
-// matches are returned.
-func collectSessions(vaultRoot, filterProject string) ([]sessionItem, error) {
+// matches are returned. Unparseable files are skipped with a stderr warning.
+func collectSessions(cmd *cobra.Command, vaultRoot, filterProject string) ([]sessionItem, error) {
 	dir := filepath.Join(vaultRoot, core.TypeSession.Dir())
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -293,7 +293,9 @@ func collectSessions(vaultRoot, filterProject string) ([]sessionItem, error) {
 		}
 		a, err := core.LoadArtifact(path)
 		if err != nil {
-			return nil, fmt.Errorf("loading %s: %w", filepath.Base(path), err)
+			// One stray non-session file must not abort every resume/show.
+			cmd.PrintErrln("warn: skipped unparseable session file: " + path)
+			continue
 		}
 		id := strings.TrimSuffix(e.Name(), ".md")
 		if sid, _ := a.FrontMatter["session_id"].(string); sid != "" {
