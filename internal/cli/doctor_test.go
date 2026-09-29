@@ -966,3 +966,53 @@ func TestDoctorJSON_EmptyFindings(t *testing.T) {
 		t.Error("findings must be an array (not null) even when empty")
 	}
 }
+
+func TestDoctorLiveWorkOnOpenIssue(t *testing.T) {
+	cases := []struct {
+		name      string
+		worktrees map[string]worktreeInfo
+		want      bool
+	}{
+		{"worktree dir matches slug", map[string]worktreeInfo{"other/branch": {path: "/wt/0777.live-open"}}, true},
+		{"foreign-prefixed branch matches slug", map[string]worktreeInfo{"mentat/0777.live-open": {path: "/wt/x"}}, true},
+		{"unrelated worktree", map[string]worktreeInfo{"foo/0888.other": {path: "/wt/0888.other"}}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vault := setupVault(t)
+			v := &core.Vault{Root: vault}
+			id := "issue.foo.0777.live-open"
+			a := &core.Artifact{
+				Path: filepath.Join(vault, "70-issues", id+".md"),
+				FrontMatter: map[string]any{
+					"type": "issue", "title": "open with live work", "status": "open",
+					"project": "foo", "created": "2026-06-01", "updated": "2026-06-01", "severity": "medium",
+				},
+				Body: fixtureIssueBody,
+			}
+			if err := a.Save(); err != nil {
+				t.Fatal(err)
+			}
+			old := gitWorktreeListFn
+			t.Cleanup(func() { gitWorktreeListFn = old })
+			gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return tc.worktrees, nil }
+
+			findings, err := runDoctor(v, "foo")
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := false
+			for _, f := range findings {
+				if f.Kind == "live-work-on-open" && f.ID == id {
+					got = true
+					if strings.Contains(f.Fix, "worktree remove") {
+						t.Errorf("fix must not remove the worktree: %s", f.Fix)
+					}
+				}
+			}
+			if got != tc.want {
+				t.Errorf("live-work-on-open finding = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

@@ -126,10 +126,20 @@ func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 			status:    status,
 			milestone: milestoneSlug(a.FrontMatter["milestone"]),
 		})
-		if status != "in-progress" {
+		if status != "in-progress" && status != "open" {
 			continue
 		}
 		id := core.CanonicalID(core.TypeIssue, strings.TrimSuffix(filepath.Base(p), ".md"))
+		if status == "open" {
+			// Shape 7: live work under an open issue. Repo-local evidence,
+			// so only the current project's issues are judged.
+			if proj, _ := a.FrontMatter["project"].(string); projectSlug != "" && proj == projectSlug {
+				if f := checkLiveOpenIssue(id, a, worktrees); f != nil {
+					findings = append(findings, *f)
+				}
+			}
+			continue
+		}
 
 		// Shape 1: merged-PR issue. PR state is queried by absolute URL, so
 		// this is correct for every project in the vault.
