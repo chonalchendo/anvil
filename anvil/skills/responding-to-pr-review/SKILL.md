@@ -15,7 +15,7 @@ Your job is to drive every review finding — inline thread or thread-less repor
 
 The same pipeline handles `reviewing-pr`'s fresh-subagent report and a human reviewer's inline comments. Findings arrive in one of two shapes:
 
-- **Thread-less structured report** (a `reviewing-pr` subagent's Phase 3 findings, handed in-hand) — the default source; no GH thread exists to reply on.
+- **Thread-less structured report** (a `reviewing-pr` subagent's Phase 3 findings, handed in-hand, or recovered from the issue on resume) — the default source; no GH thread exists to reply on.
 - **Inline thread on a hunk** (a human reviewer) — reply via `gh api .../comments/<id>/replies`.
 
 The shape decides only *where the reply lands*, never *whether the finding is evaluated*. Every finding — threaded or thread-less — runs Phase 2's apply / skip-with-reason / push-back. A thread-less blocker gets implemented, not summarized. Routing thread-less findings to a top-level `gh pr comment` *instead of* Phase 2 is the silent-drop this skill forbids; the only legitimate top-level comment is the Phase 3 summary posted *after* each finding is resolved.
@@ -24,7 +24,7 @@ Reviewer identity does **not** change the loop. A finding that cites a documente
 
 ## Phase 1 — Collect findings
 
-Inline threads come from the API. A `reviewing-pr` report comes in-hand from that skill's Phase 4 handoff (the structured report + subagent id) — there is nothing to fetch for it.
+Inline threads come from the API. A `reviewing-pr` report comes in-hand from that skill's Phase 4 handoff (the structured report + subagent id). On resume with no report in hand, run `anvil show issue <issue-id>` and take the latest `## Review findings — PR <n>, round <k>` section — `reviewing-pr` persists every round there. It is a recovery surface only: if the branch has moved since the round, re-fire `reviewing-pr` for an independent re-review rather than trusting stale findings.
 
 ```bash
 gh pr view <n>                                              # status, branch, mergeability
@@ -33,7 +33,7 @@ gh api repos/<o>/<r>/pulls/<n>/comments \
 gh pr checks <n>                                            # CI state
 ```
 
-If there are zero inline comments AND no thread-less report was handed in AND CI is green: the review-respond loop is no-op. Surface that and return.
+If there are zero inline comments AND no thread-less report was handed in or persisted on the issue AND CI is green: the review-respond loop is no-op. Surface that and return.
 
 ## Phase 2 — Evaluate
 
