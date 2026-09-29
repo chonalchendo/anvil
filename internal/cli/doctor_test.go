@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -964,5 +965,70 @@ func TestDoctorJSON_EmptyFindings(t *testing.T) {
 	items, _ := raw["findings"].([]any)
 	if items == nil {
 		t.Error("findings must be an array (not null) even when empty")
+	}
+}
+
+func TestDoctorLiveWorkOnOpenIssue(t *testing.T) {
+	cases := []struct {
+		name      string
+		worktrees map[string]worktreeInfo
+		branches  []string
+		project   string
+		runProj   string
+		status    string
+		want      bool
+	}{
+		{"worktree dir matches slug", map[string]worktreeInfo{"other/branch": {path: "/wt/0777.live-open"}}, nil, "foo", "foo", "open", true},
+		{"foreign-prefixed branch matches slug", nil, []string{"mentat/0777.live-open"}, "foo", "foo", "open", true},
+		{"unrelated worktree", map[string]worktreeInfo{"foo/0888.other": {path: "/wt/0888.other"}}, nil, "foo", "foo", "open", false},
+		{"branch only, no worktree", nil, []string{"demo/0777.live-open"}, "foo", "foo", "open", true},
+		{"remote branch only", nil, []string{"origin/foo/0777.live-open"}, "foo", "foo", "open", true},
+		{"branch with non-boundary prefix", nil, []string{"demo/x0777.live-open"}, "foo", "foo", "open", false},
+		{"branch with extended slug", nil, []string{"demo/0777.live-open-extended"}, "foo", "foo", "open", false},
+		{"in-progress issue not flagged", nil, []string{"demo/0777.live-open"}, "foo", "foo", "in-progress", false},
+		{"resolved issue not flagged", nil, []string{"demo/0777.live-open"}, "foo", "foo", "resolved", false},
+		{"other project issue not judged", map[string]worktreeInfo{"foo/0777.live-open": {path: "/wt/0777.live-open"}}, nil, "bar", "foo", "open", false},
+		{"empty project scope judges nothing", map[string]worktreeInfo{"foo/0777.live-open": {path: "/wt/0777.live-open"}}, nil, "foo", "", "open", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vault := setupVault(t)
+			v := &core.Vault{Root: vault}
+			id := "issue.foo.0777.live-open"
+			a := &core.Artifact{
+				Path: filepath.Join(vault, "70-issues", id+".md"),
+				FrontMatter: map[string]any{
+					"type": "issue", "title": "open with live work", "status": tc.status,
+					"project": tc.project, "created": "2026-06-01", "updated": "2026-06-01", "severity": "medium",
+				},
+				Body: fixtureIssueBody,
+			}
+			if err := a.Save(); err != nil {
+				t.Fatal(err)
+			}
+			oldB := gitLocalBranchesFn
+			t.Cleanup(func() { gitLocalBranchesFn = oldB })
+			gitLocalBranchesFn = func() ([]string, error) { return tc.branches, nil }
+			old := gitWorktreeListFn
+			t.Cleanup(func() { gitWorktreeListFn = old })
+			gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) { return tc.worktrees, nil }
+
+			findings, err := runDoctor(v, tc.runProj)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := false
+			for _, f := range findings {
+				if f.Kind == "live-work-on-open" && f.ID == id {
+					got = true
+					if strings.Contains(f.Fix, "worktree remove") {
+						t.Errorf("fix must not remove the worktree: %s", f.Fix)
+					}
+				}
+			}
+			if got != tc.want {
+				t.Errorf("live-work-on-open finding = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

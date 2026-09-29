@@ -51,15 +51,16 @@ func newDoctorCmd() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "doctor",
-		Short: "Detect stale lifecycle state (merged-PR issues, dead claims, finished milestones, orphan worktrees, empty contract convention rails, duplicate ordinals)",
+		Short: "Detect stale lifecycle state (merged-PR issues, dead claims, finished milestones, orphan worktrees, empty contract convention rails, duplicate ordinals, live work on open issues)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
-			projSlug := ""
-			if p, err := core.ResolveProject(); err == nil {
+			// --project (exported as $ANVIL_PROJECT) may name an unregistered slug; ResolveProject drops those, which would skip the repo-local checks.
+			projSlug := os.Getenv("ANVIL_PROJECT")
+			if p, err := core.ResolveProject(); projSlug == "" && err == nil {
 				projSlug = p.Slug
 			}
 			findings, err := runDoctor(v, projSlug)
@@ -99,10 +100,10 @@ type childIssue struct {
 	milestone string
 }
 
-// runDoctor checks all six stale-lifecycle shapes and returns the findings.
+// runDoctor checks all seven stale-lifecycle shapes and returns the findings.
 // Best-effort: a check that cannot shell out (gh missing, no network) skips
 // rather than aborts so doctor is always usable in offline environments.
-// projectSlug is the current project binding; repo-local checks (dead claim)
+// projectSlug is the current project binding; repo-local checks (dead claim, live work on open)
 // only judge issues bound to it, because the worktree evidence comes from the
 // cwd's repo and would be wrong for every other project in the vault.
 func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
@@ -114,6 +115,7 @@ func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 	}
 
 	worktrees, _ := gitWorktreeListFn("") // best-effort
+	branches, _ := gitLocalBranchesFn()   // best-effort
 
 	children := make([]childIssue, 0, len(issuePaths))
 	for _, p := range issuePaths {
@@ -126,10 +128,20 @@ func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 			status:    status,
 			milestone: milestoneSlug(a.FrontMatter["milestone"]),
 		})
-		if status != "in-progress" {
+		if status != "in-progress" && status != "open" {
 			continue
 		}
 		id := core.CanonicalID(core.TypeIssue, strings.TrimSuffix(filepath.Base(p), ".md"))
+		if status == "open" {
+			// Shape 7: live work under an open issue. Repo-local evidence,
+			// so only the current project's issues are judged.
+			if proj, _ := a.FrontMatter["project"].(string); projectSlug != "" && proj == projectSlug {
+				if f := checkLiveOpenIssue(id, worktrees, branches); f != nil {
+					findings = append(findings, *f)
+				}
+			}
+			continue
+		}
 
 		// Shape 1: merged-PR issue. PR state is queried by absolute URL, so
 		// this is correct for every project in the vault.
