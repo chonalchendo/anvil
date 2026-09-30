@@ -19,7 +19,7 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 		e := errfmt.NewUnsupportedForType(string(t), []string{"issue"})
 		return printAndReturn(cmd, e)
 	}
-	v, err := core.ResolveExistingVault()
+	v, err := core.ResolveVault()
 	if err != nil {
 		return fmt.Errorf("resolving vault: %w", err)
 	}
@@ -95,7 +95,7 @@ func indexRowsToItems(rows []index.ArtifactRow, f listFilters) []listItem {
 // runListSearch runs an FTS content search over learning TL;DRs, emitting hits
 // in FTS rank order. Only the learning type is searchable.
 func runListSearch(cmd *cobra.Command, t core.Type, query string, f listFilters, asJSON bool, limit int, fields []string) error {
-	v, err := core.ResolveExistingVault()
+	v, err := core.ResolveVault()
 	if err != nil {
 		return fmt.Errorf("resolving vault: %w", err)
 	}

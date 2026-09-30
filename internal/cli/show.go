@@ -48,7 +48,7 @@ func newShowCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			v, err := core.ResolveExistingVault()
+			v, err := core.ResolveVault()
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}

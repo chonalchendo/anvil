@@ -52,8 +52,8 @@ func TestErrorHandlerSkipsJSONRendered(t *testing.T) {
 }
 
 func TestRoot_VaultFlagOverridesEnvAndCwd(t *testing.T) {
-	flagDir := t.TempDir()
-	envDir := t.TempDir()
+	flagDir := scaffoldedTempDir(t)
+	envDir := scaffoldedTempDir(t)
 
 	// Seed envDir with a real issue so we can detect which vault was read.
 	if err := (&core.Vault{Root: envDir}).Scaffold(); err != nil {
@@ -93,7 +93,7 @@ func TestRoot_VaultFlagOverridesEnvAndCwd(t *testing.T) {
 }
 
 func TestRoot_VaultEnvOverridesCwdFallback(t *testing.T) {
-	envDir := t.TempDir()
+	envDir := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", envDir)
 	t.Chdir(t.TempDir())
 

@@ -157,7 +157,7 @@ func newListCmd() *cobra.Command {
 					InvalidBody: flagInvalidBody,
 				}, flagJSON, limit, fields)
 			}
-			v, err := core.ResolveExistingVault()
+			v, err := core.ResolveVault()
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}

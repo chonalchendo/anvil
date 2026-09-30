@@ -3,7 +3,7 @@ package cli
 import "testing"
 
 func TestListSearch_DecisionMatchesTitleAndDescription(t *testing.T) {
-	vault := t.TempDir()
+	vault := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", vault)
 	writeArtifact(t, vault, "30-decisions/spdji-fetch-venue.0001.md",
 		"type: decision\ntitle: spdji fetch venue stays Cloud Run\nstatus: accepted\ncreated: 2026-08-01\n")
@@ -40,7 +40,7 @@ func TestListSearch_DecisionMatchesTitleAndDescription(t *testing.T) {
 // Every walk type searches — there is no allowlist to fall off, so a flag the
 // CLI accepts can never be silently discarded.
 func TestListSearch_AppliesToAnyWalkType(t *testing.T) {
-	vault := t.TempDir()
+	vault := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", vault)
 	writeArtifact(t, vault, "35-conventions/cli-tooling.md",
 		"type: convention\ntitle: CLI tooling\ndescription: flags and exit codes\nstatus: active\ncreated: 2026-08-01\n")

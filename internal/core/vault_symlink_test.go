@@ -21,7 +21,7 @@ func TestResolveVaultCanonicalisesSymlinkedRoot(t *testing.T) {
 	}
 	t.Setenv("ANVIL_VAULT", link)
 
-	v, err := ResolveVault()
+	v, err := ResolveVaultPath()
 	if err != nil {
 		t.Fatalf("ResolveVault: %v", err)
 	}
@@ -40,7 +40,7 @@ func TestResolveVaultKeepsPathThatDoesNotExist(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "not-created-yet")
 	t.Setenv("ANVIL_VAULT", missing)
 
-	v, err := ResolveVault()
+	v, err := ResolveVaultPath()
 	if err != nil {
 		t.Fatalf("ResolveVault: %v", err)
 	}

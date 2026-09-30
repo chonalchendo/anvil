@@ -29,7 +29,7 @@ func writeArtifact(t *testing.T, root, rel string, fm string) {
 }
 
 func TestTagsList_Aggregates(t *testing.T) {
-	root := t.TempDir()
+	root := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", root)
 
 	writeArtifact(t, root, "20-learnings/anvil.a.md",
@@ -71,7 +71,7 @@ func TestTagsList_Aggregates(t *testing.T) {
 }
 
 func TestTagsList_FilterByType(t *testing.T) {
-	root := t.TempDir()
+	root := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", root)
 
 	writeArtifact(t, root, "20-learnings/anvil.a.md",
@@ -94,7 +94,7 @@ func TestTagsList_FilterByType(t *testing.T) {
 }
 
 func TestTagsList_FilterByPrefix(t *testing.T) {
-	root := t.TempDir()
+	root := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", root)
 
 	writeArtifact(t, root, "20-learnings/anvil.a.md",
@@ -116,7 +116,7 @@ func TestTagsList_FilterByPrefix(t *testing.T) {
 }
 
 func TestTagsList_TextOutput(t *testing.T) {
-	root := t.TempDir()
+	root := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", root)
 
 	writeArtifact(t, root, "20-learnings/anvil.a.md",
@@ -144,7 +144,7 @@ func TestTagsList_TextOutput(t *testing.T) {
 }
 
 func TestTagsList_SourceDefined_FromGlossary(t *testing.T) {
-	root := t.TempDir()
+	root := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", root)
 
 	g := glossary.New()
@@ -179,7 +179,7 @@ func TestTagsList_SourceDefined_FromGlossary(t *testing.T) {
 }
 
 func TestTagsList_SourceAll_UnionShape(t *testing.T) {
-	root := t.TempDir()
+	root := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", root)
 
 	writeArtifact(t, root, "20-learnings/anvil.a.md",
@@ -214,7 +214,7 @@ func TestTagsList_SourceAll_UnionShape(t *testing.T) {
 }
 
 func TestTagsList_LimitEmitsTruncationHint(t *testing.T) {
-	root := t.TempDir()
+	root := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", root)
 	for i := 0; i < 3; i++ {
 		writeArtifact(t, root, fmt.Sprintf("20-learnings/anvil.%d.md", i),
@@ -351,7 +351,7 @@ func TestTagsDefine_KnownAndMissing(t *testing.T) {
 }
 
 func TestTagsList_Undefined_JSON(t *testing.T) {
-	root := t.TempDir()
+	root := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", root)
 
 	g := glossary.New()
@@ -386,7 +386,7 @@ func TestTagsList_Undefined_JSON(t *testing.T) {
 }
 
 func TestTagsList_Undefined_TextSuffix(t *testing.T) {
-	root := t.TempDir()
+	root := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", root)
 
 	g := glossary.New()
@@ -414,7 +414,7 @@ func TestTagsList_Undefined_TextSuffix(t *testing.T) {
 }
 
 func TestTagsList_Undefined_FreshVaultNoSuffix(t *testing.T) {
-	root := t.TempDir()
+	root := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", root)
 	// No glossary at all.
 	writeArtifact(t, root, "20-learnings/anvil.a.md",
@@ -462,7 +462,7 @@ func TestTagsParent_UnknownSubcommandErrors(t *testing.T) {
 // streams to the same buffer; this test redirects os.Stdout/os.Stderr at the
 // FD level and asserts data lands on stdout.
 func TestTagsList_DataGoesToStdout(t *testing.T) {
-	root := t.TempDir()
+	root := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", root)
 	writeArtifact(t, root, "20-learnings/anvil.a.md",
 		"type: learning\ntitle: A\ntags: [domain/dev-tools]\n")

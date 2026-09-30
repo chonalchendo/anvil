@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,7 @@ import (
 func TestVaultResolve_DefaultsToHome(t *testing.T) {
 	t.Setenv("ANVIL_VAULT", "")
 	t.Setenv("HOME", t.TempDir())
-	v, err := ResolveVault()
+	v, err := ResolveVaultPath()
 	if err != nil {
 		t.Fatalf("ResolveVault: %v", err)
 	}
@@ -30,7 +31,7 @@ func TestVaultResolve_RespectsEnv(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err := ResolveVault()
+	v, err := ResolveVaultPath()
 	if err != nil {
 		t.Fatalf("ResolveVault: %v", err)
 	}
@@ -117,14 +118,20 @@ func TestVaultScaffold_Idempotent(t *testing.T) {
 	}
 }
 
-func TestResolveExistingVault(t *testing.T) {
+func TestResolveVault_RequiresScaffold(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("ANVIL_VAULT", filepath.Join(root, "missing"))
-	if _, err := ResolveExistingVault(); err == nil || !strings.Contains(err.Error(), "no vault found") {
-		t.Fatalf("missing root: err = %v, want no-vault error", err)
-	}
 	t.Setenv("ANVIL_VAULT", root)
-	if _, err := ResolveExistingVault(); err != nil {
-		t.Fatalf("existing root: %v", err)
+	_, err := ResolveVault()
+	if !errors.Is(err, ErrNoVault) || !strings.Contains(err.Error(), root) || !strings.Contains(err.Error(), "$ANVIL_VAULT") {
+		t.Fatalf("bare root: err = %v, want ErrNoVault naming root and source", err)
+	}
+	if v, err := ResolveVaultPath(); err != nil || v.Root == "" {
+		t.Fatalf("ResolveVaultPath on bare root: %v", err)
+	}
+	if err := (&Vault{Root: root}).Scaffold(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ResolveVault(); err != nil {
+		t.Fatalf("scaffolded root: %v", err)
 	}
 }

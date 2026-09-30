@@ -186,3 +186,14 @@ func writeFixtureIssueDated(t *testing.T, vault, project, slug, title, created s
 	}
 	return path
 }
+
+// scaffoldedTempDir is a t.TempDir that ResolveVault accepts as a vault; a bare
+// temp dir is deliberately rejected as "no vault".
+func scaffoldedTempDir(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := (&core.Vault{Root: dir}).Scaffold(); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}

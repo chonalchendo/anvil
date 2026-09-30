@@ -72,7 +72,7 @@ func newRootCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.PersistentFlags().StringVar(&flagVault, "vault", "", "override vault root (precedence: flag > $ANVIL_VAULT > cwd resolution)")
+	cmd.PersistentFlags().StringVar(&flagVault, "vault", "", "override vault root (precedence: flag > $ANVIL_VAULT > $HOME/anvil-vault)")
 	cmd.PersistentFlags().StringVar(&flagProject, "project", "", "override current project slug (precedence: flag > $ANVIL_PROJECT > cwd resolution)")
 	cmd.AddCommand(
 		newWhereCmd(),

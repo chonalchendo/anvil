@@ -2,7 +2,9 @@ package index
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -157,7 +159,7 @@ func DBPath(vaultRoot string) string {
 }
 
 // Open opens (or creates) the DB at path, ensuring the parent directory
-// exists and the schema is applied. Idempotent.
+// exists (one level only: a missing vault root must stay an error, not be conjured) and the schema is applied. Idempotent.
 //
 // busy_timeout(5000) makes SQLite retry for up to 5 s before returning
 // SQLITE_BUSY, which is enough to serialise concurrent anvil invocations on
@@ -165,7 +167,7 @@ func DBPath(vaultRoot string) string {
 // journal_mode=WAL lets readers proceed concurrently with the single writer,
 // cutting the window during which writers block each other.
 func Open(path string) (*DB, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+	if err := os.Mkdir(filepath.Dir(path), 0o755); err != nil && !errors.Is(err, fs.ErrExist) { //nolint:gosec // 0755 is correct for directories that must be traversable
 		return nil, fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 	}
 	dsn := path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"

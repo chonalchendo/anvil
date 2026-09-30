@@ -28,7 +28,7 @@ func newInitCmd() *cobra.Command {
 			if len(args) == 1 {
 				v = &core.Vault{Root: args[0]}
 			} else {
-				rv, err := core.ResolveVault()
+				rv, err := core.ResolveVaultPath()
 				if err != nil {
 					return err
 				}

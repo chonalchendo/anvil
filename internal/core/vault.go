@@ -39,16 +39,50 @@ type Vault struct {
 	Root string
 }
 
-// ResolveVault returns the vault implied by $ANVIL_VAULT or the default
-// ~/anvil-vault/. The directory is not required to exist.
+// ErrNoVault marks a resolved root that Scaffold has never populated. Hooks match
+// it to exit silently rather than block session start/end.
+var ErrNoVault = errors.New("no vault")
+
+// vaultMarker is a directory only Scaffold creates; a root holding it is a vault.
+// A bare directory (t.TempDir, a mistyped $ANVIL_VAULT, a root some earlier
+// command conjured) is not.
+const vaultMarker = "schemas"
+
+// ResolveVaultPath returns the vault root implied by $ANVIL_VAULT or the default
+// ~/anvil-vault/ without requiring it to exist. Only verbs that run pre-vault
+// (init, where) call it; every other verb goes through ResolveVault.
+func ResolveVaultPath() (*Vault, error) {
+	v, _, err := resolveVaultRoot()
+	return v, err
+}
+
+// ResolveVault is the one owner of the "a vault must exist" rule: it resolves
+// the root as ResolveVaultPath does, then errors (wrapping ErrNoVault) unless the
+// root holds a scaffolded vault.
 func ResolveVault() (*Vault, error) {
-	root := os.Getenv("ANVIL_VAULT")
+	v, source, err := resolveVaultRoot()
+	if err != nil {
+		return nil, err
+	}
+	fi, statErr := os.Stat(filepath.Clean(filepath.Join(v.Root, vaultMarker)))
+	switch {
+	case statErr == nil && fi.IsDir():
+		return v, nil
+	case statErr == nil || errors.Is(statErr, fs.ErrNotExist):
+		return nil, fmt.Errorf("%w at %s (from %s): rerun with --vault <path>, export ANVIL_VAULT=<path>, or run 'anvil init %s' to create one", ErrNoVault, v.Root, source, v.Root)
+	default:
+		return nil, fmt.Errorf("checking vault at %s: %w", v.Root, statErr)
+	}
+}
+
+func resolveVaultRoot() (*Vault, string, error) {
+	root, source := os.Getenv("ANVIL_VAULT"), "$ANVIL_VAULT"
 	if root == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return nil, fmt.Errorf("resolving home: %w", err)
+			return nil, "", fmt.Errorf("resolving home: %w", err)
 		}
-		root = filepath.Join(home, "anvil-vault")
+		root, source = filepath.Join(home, "anvil-vault"), "default $HOME/anvil-vault"
 	}
 	// filepath.WalkDir does not descend a symlinked root — it reports the root
 	// as a symlink entry and stops — so every vault-wide walk (reindex, freshness,
@@ -61,20 +95,7 @@ func ResolveVault() (*Vault, error) {
 	if resolved, err := filepath.EvalSymlinks(root); err == nil {
 		root = resolved
 	}
-	return &Vault{Root: root}, nil
-}
-
-// ResolveExistingVault is ResolveVault for verbs that read an existing vault:
-// a missing root is an error naming the remedies, not an empty result.
-func ResolveExistingVault() (*Vault, error) {
-	v, err := ResolveVault()
-	if err != nil {
-		return nil, err
-	}
-	if fi, statErr := os.Stat(filepath.Clean(v.Root)); statErr != nil || !fi.IsDir() {
-		return nil, fmt.Errorf("no vault found at %s: pass --vault, set $ANVIL_VAULT, or run `anvil init`", v.Root)
-	}
-	return v, nil
+	return &Vault{Root: root}, source, nil
 }
 
 // Scaffold creates every directory in VaultDirs under v.Root. It is idempotent:

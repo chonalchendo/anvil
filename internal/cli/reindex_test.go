@@ -10,7 +10,7 @@ import (
 )
 
 func TestReindexEmptyVault(t *testing.T) {
-	vault := t.TempDir()
+	vault := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", vault)
 
 	cmd := newRootCmd()
@@ -27,7 +27,7 @@ func TestReindexEmptyVault(t *testing.T) {
 }
 
 func TestReindexJSONShape(t *testing.T) {
-	vault := t.TempDir()
+	vault := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", vault)
 	if err := os.MkdirAll(filepath.Join(vault, "70-issues"), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
 		t.Fatal(err)
@@ -59,7 +59,7 @@ func TestReindexJSONShape(t *testing.T) {
 }
 
 func TestReindexWarnsOnStub(t *testing.T) {
-	vault := t.TempDir()
+	vault := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", vault)
 	stubPath := filepath.Join(vault, "issue.burgh.fake.md")
 	if err := os.WriteFile(stubPath, []byte{}, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
@@ -86,7 +86,7 @@ func TestReindexWarnsOnStub(t *testing.T) {
 }
 
 func TestReindexPruneStubs(t *testing.T) {
-	vault := t.TempDir()
+	vault := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", vault)
 
 	emptyStub := filepath.Join(vault, "issue.burgh.empty.md")
@@ -149,7 +149,7 @@ func TestReindexPruneStubs_LeavesIndexReadable(t *testing.T) {
 }
 
 func TestReindexPruneStubsJSON(t *testing.T) {
-	vault := t.TempDir()
+	vault := scaffoldedTempDir(t)
 	t.Setenv("ANVIL_VAULT", vault)
 	// reindex reports canonical paths (core.ResolveVault resolves the root).
 	vault, err := filepath.EvalSymlinks(vault)
