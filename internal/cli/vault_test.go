@@ -293,17 +293,17 @@ func TestSessionEnd_CleanVaultNothingUnpushedDoesNotPush(t *testing.T) {
 func TestVaultCommit_PushWithoutUpstreamHints(t *testing.T) {
 	vault, _ := seedVaultWithRemote(t, "mine", false)
 	writeVaultFile(t, vault, "10-sessions/mine.md", "own")
-	stdout, _, err := runCmd(t, newRootCmd(), "vault", "commit", "--push")
+	_, stderr, err := runCmd(t, newRootCmd(), "vault", "commit", "--push")
 	if err != nil {
 		t.Fatalf("no-upstream push must not fail: %v", err)
 	}
-	if !strings.Contains(stdout, "git push -u origin") {
-		t.Errorf("stdout %q lacks the upstream hint", stdout)
+	if !strings.Contains(stderr, "git push -u origin") {
+		t.Errorf("stderr %q lacks the upstream hint", stderr)
 	}
 }
 
-func TestVaultCommit_PushesUnpushedOnCleanVaultAndFailsLoud(t *testing.T) {
-	vault, remote := seedVaultWithRemote(t, "mine", true)
+func TestVaultCommit_PushesUnpushedOnCleanVault(t *testing.T) {
+	vault, _ := seedVaultWithRemote(t, "mine", true)
 	writeVaultFile(t, vault, "10-sessions/mine.md", "own")
 	gitMust(t, vault, "add", "-A")
 	gitMust(t, vault, "commit", "-qm", "local")
@@ -313,6 +313,10 @@ func TestVaultCommit_PushesUnpushedOnCleanVaultAndFailsLoud(t *testing.T) {
 	if got := unpushed(t, vault); got != "0" {
 		t.Errorf("unpushed = %s, want 0", got)
 	}
+}
+
+func TestSessionEnd_UnreachableRemote_ReturnsError(t *testing.T) {
+	vault, remote := seedVaultWithRemote(t, "mine", true)
 	gitMust(t, vault, "remote", "set-url", "origin", filepath.Join(remote, "missing"))
 	writeVaultFile(t, vault, "10-sessions/mine.md", "changed")
 	if _, _, err := runCmd(t, newRootCmd(), "session", "end", "--commit", "--push"); err == nil {

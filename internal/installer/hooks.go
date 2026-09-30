@@ -125,8 +125,8 @@ func removeHook(settingsPath, event, command string) (bool, error) {
 // source) that runs command. The file is created if missing. Unrelated keys,
 // entries scoped to a different matcher, and non-anvil entries are preserved;
 // only a stale anvil-managed entry for the same matcher (a prior command
-// string) is replaced, so a changed command upserts instead of accumulating a
-// duplicate that double-fires, and two anvil entries with different matchers
+// string, or a timeout below the wanted one, raised in place) is updated, so a
+// changed command upserts instead of accumulating a duplicate that double-fires, and two anvil entries with different matchers
 // coexist on the same event. Returns changed=false only when command is
 // already the sole anvil entry for matcher and nothing stale needed dropping.
 func mergeMatcherHook(settingsPath, event, matcher, command string, timeout int) (bool, error) {
@@ -140,6 +140,7 @@ func mergeMatcherHook(settingsPath, event, matcher, command string, timeout int)
 
 	kept := make([]any, 0, len(entries))
 	hasCurrent := false
+	raised := false
 	for _, e := range entries {
 		if entryMatcher(e) != matcher {
 			// Drop an anvil-managed entry running this command under a
@@ -154,16 +155,20 @@ func mergeMatcherHook(settingsPath, event, matcher, command string, timeout int)
 			continue
 		}
 		switch {
-		case entryMatchesCommand(e, command) && entryTimeout(e) == timeout:
+		case entryMatchesCommand(e, command):
 			hasCurrent = true
+			// Raise in place so a user's sibling hook in the same entry survives.
+			if raiseTimeout(e, command, timeout) {
+				raised = true
+			}
 			kept = append(kept, e)
 		case entryIsManaged(e):
-			continue // drop a stale variant (old command or timeout); re-created below
+			continue // drop a stale command variant; re-created below
 		default:
 			kept = append(kept, e)
 		}
 	}
-	if hasCurrent && len(kept) == len(entries) {
+	if hasCurrent && !raised && len(kept) == len(entries) {
 		return false, nil
 	}
 	if !hasCurrent {
@@ -224,16 +229,29 @@ func removeMatcherHook(settingsPath, event, matcher, command string) (bool, erro
 	return true, nil
 }
 
-// entryTimeout returns the timeout of entry's first inner hook, 0 when unset.
-func entryTimeout(entry any) int {
+// raiseTimeout treats timeout as a floor on the inner hook running command:
+// a lower or missing value is raised in place, a user-raised one is kept. A
+// timeout of 0 means none wanted, so nothing is touched. Reports whether it
+// changed the hook.
+func raiseTimeout(entry any, command string, timeout int) bool {
+	if timeout <= 0 {
+		return false
+	}
 	m, _ := entry.(map[string]any)
 	inner, _ := m["hooks"].([]any)
-	if len(inner) == 0 {
-		return 0
+	for _, h := range inner {
+		hm, _ := h.(map[string]any)
+		if c, _ := hm["command"].(string); c != command {
+			continue
+		}
+		f, _ := hm["timeout"].(float64) // JSON numbers decode as float64
+		if int(f) >= timeout {
+			return false
+		}
+		hm["timeout"] = timeout
+		return true
 	}
-	hm, _ := inner[0].(map[string]any)
-	f, _ := hm["timeout"].(float64) // JSON numbers decode as float64
-	return int(f)
+	return false
 }
 
 // entryMatcher returns entry's "matcher" field, or "" for an unmatched entry.

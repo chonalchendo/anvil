@@ -115,7 +115,7 @@ func pushVault(cmd *cobra.Command, root string) error {
 	}
 	if !st.HasUpstream {
 		branch, _ := gitOutput(root, "rev-parse", "--abbrev-ref", "HEAD")
-		cmd.Printf("vault has a remote but no upstream; run `git push -u origin %s` once\n", strings.TrimSpace(branch))
+		cmd.PrintErrf("vault has a remote but no upstream; run `git push -u origin %s` once\n", strings.TrimSpace(branch))
 		return nil
 	}
 	if st.Unpushed == 0 {

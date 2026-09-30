@@ -62,8 +62,8 @@ func VaultGitState(root string) (VaultGitStatus, error) {
 }
 
 // BackupNudge returns a one- or two-line warning when the vault is a data-loss
-// risk (untracked, uncommitted, or no off-machine remote), or "" when the vault
-// has a clean tree and a remote. Callers print it on stderr so stdout stays
+// risk (untracked, uncommitted, unpushed, or no off-machine remote), or "" when the
+// tree is clean, fully pushed and has a remote. Callers print it on stderr so stdout stays
 // machine-readable.
 func (s VaultGitStatus) BackupNudge() string {
 	if s.NotRepo {
