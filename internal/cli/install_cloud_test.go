@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/chonalchendo/anvil/internal/core"
 )
 
 // writeVaultClone materialises a checkout that is both remote-matched and
@@ -13,7 +11,7 @@ import (
 func writeVaultClone(t *testing.T, dir, origin string) string {
 	t.Helper()
 	writeClone(t, dir, origin)
-	if err := os.MkdirAll(filepath.Join(dir, core.TypeIssue.Dir()), 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "schemas"), 0o750); err != nil {
 		t.Fatal(err)
 	}
 	return dir
@@ -149,7 +147,7 @@ func TestDiscoverVaultCloneIgnoresNonRemoteMention(t *testing.T) {
 	dir := filepath.Join(home, "some-app")
 	writeCloneConfig(t, dir, "[remote \"origin\"]\n\turl = https://github.com/chonalchendo/some-app.git\n"+
 		"[branch \"anvil-vault\"]\n\tremote = origin\n")
-	if err := os.MkdirAll(filepath.Join(dir, core.TypeIssue.Dir()), 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "schemas"), 0o750); err != nil {
 		t.Fatal(err)
 	}
 

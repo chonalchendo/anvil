@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -46,7 +45,7 @@ func newWhereCmd() *cobra.Command {
 // vaultMissingNote flags a root Scaffold never populated, so `where` does not
 // present a typo'd $ANVIL_VAULT as if it were a live vault.
 func vaultMissingNote(v *core.Vault) string {
-	if _, err := os.Stat(v.SchemasDir()); err != nil {
+	if !core.IsVault(v.Root) {
 		return " (missing — run anvil init or pass --vault)"
 	}
 	return ""

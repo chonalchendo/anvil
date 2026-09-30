@@ -55,10 +55,7 @@ func TestRoot_VaultFlagOverridesEnvAndCwd(t *testing.T) {
 	flagDir := scaffoldedTempDir(t)
 	envDir := scaffoldedTempDir(t)
 
-	// Seed envDir with a real issue so we can detect which vault was read.
-	if err := (&core.Vault{Root: envDir}).Scaffold(); err != nil {
-		t.Fatal(err)
-	}
+	// Seed envDir (already scaffolded) with a real issue so we can detect which vault was read.
 	issuePath := filepath.Join(envDir, "70-issues", "foo.bar.md")
 	a := &core.Artifact{
 		Path: issuePath,

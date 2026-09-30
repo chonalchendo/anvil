@@ -155,7 +155,7 @@ func bindCloudVault() (string, error) {
 		return "", fmt.Errorf("home dir: %w", err)
 	}
 	target := filepath.Join(home, vaultRemoteMarker)
-	if looksLikeVault(target) {
+	if core.IsVault(target) {
 		return target, nil
 	}
 	clone, err := discoverVaultClone(home)
@@ -226,16 +226,8 @@ func isVaultClone(dir string) bool {
 	for _, line := range strings.Split(string(cfg), "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "url = ") && strings.Contains(line, vaultRemoteMarker) {
-			return looksLikeVault(dir)
+			return core.IsVault(dir)
 		}
 	}
 	return false
-}
-
-// looksLikeVault reports whether dir holds a vault's artifact tree, following
-// symlinks so a stale link resolves to its target rather than passing on the
-// link's own existence.
-func looksLikeVault(dir string) bool {
-	info, err := os.Stat(filepath.Join(dir, core.TypeIssue.Dir()))
-	return err == nil && info.IsDir()
 }

@@ -75,8 +75,15 @@ func ResolveVault() (*Vault, error) {
 	}
 }
 
+// IsVault reports whether root holds a scaffolded vault. It is the one owner of
+// the marker test; ResolveVault, `where` and the cloud-clone probe all share it.
+func IsVault(root string) bool {
+	fi, err := os.Stat(filepath.Join(root, vaultMarker))
+	return err == nil && fi.IsDir()
+}
+
 func resolveVaultRoot() (*Vault, string, error) {
-	root, source := os.Getenv("ANVIL_VAULT"), "$ANVIL_VAULT"
+	root, source := os.Getenv("ANVIL_VAULT"), "--vault / $ANVIL_VAULT"
 	if root == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
@@ -113,7 +120,7 @@ func (v *Vault) Scaffold() error {
 }
 
 // SchemasDir returns the canonical path where schemas live in the vault.
-func (v *Vault) SchemasDir() string { return filepath.Join(v.Root, "schemas") }
+func (v *Vault) SchemasDir() string { return filepath.Join(v.Root, vaultMarker) }
 
 // BasesDir returns the canonical path where Obsidian Bases dashboards live.
 func (v *Vault) BasesDir() string { return filepath.Join(v.Root, "90-bases") }

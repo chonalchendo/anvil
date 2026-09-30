@@ -158,8 +158,8 @@ func DBPath(vaultRoot string) string {
 	return filepath.Join(vaultRoot, ".anvil", "vault.db")
 }
 
-// Open opens (or creates) the DB at path, ensuring the parent directory
-// exists (one level only: a missing vault root must stay an error, not be conjured) and the schema is applied. Idempotent.
+// Open opens (or creates) the DB at path. It creates only the .anvil dir, never
+// the vault root, so a missing vault stays an error. Applies the schema; idempotent.
 //
 // busy_timeout(5000) makes SQLite retry for up to 5 s before returning
 // SQLITE_BUSY, which is enough to serialise concurrent anvil invocations on
