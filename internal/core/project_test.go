@@ -180,3 +180,16 @@ func TestProject_AnvilHomeOverride_RedirectsStore(t *testing.T) {
 		t.Errorf("ListProjects under override = %v, want [foo]", ps)
 	}
 }
+
+func TestResolveProject_VaultCheckout_Refuses(t *testing.T) {
+	dir := t.TempDir()
+	gitInit(t, dir, "git@github.com:acme/anvil-vault.git")
+	if err := os.Mkdir(filepath.Join(dir, "schemas"), 0o755); err != nil { //nolint:gosec // test dir
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", t.TempDir())
+	t.Chdir(dir)
+	if _, err := ResolveProject(); !errors.Is(err, ErrNoProject) {
+		t.Fatalf("err = %v, want ErrNoProject", err)
+	}
+}

@@ -22,7 +22,7 @@ var ErrNoProject = errors.New("no project: not a git repo and no anvil binding")
 
 // ResolveProject resolves the current project. Precedence:
 // $ANVIL_PROJECT (if it names an adopted binding) → adopted binding for
-// cwd's git tree → git remote → current-project pointer → error.
+// cwd's git tree → git remote (never for a vault checkout) → current-project pointer → error.
 func ResolveProject() (*Project, error) {
 	if slug := os.Getenv("ANVIL_PROJECT"); slug != "" {
 		if p, err := projectFromSlug(slug); err == nil {
@@ -35,6 +35,10 @@ func ResolveProject() (*Project, error) {
 	if err == nil {
 		if p, err := readAdoptedBinding(root); err == nil {
 			return p, nil
+		}
+		// A vault checkout is itself a git repo; its remote slug names no real project.
+		if IsVault(root) {
+			return nil, ErrNoProject
 		}
 		if remote, err := gitRemoteOrigin(root); err == nil {
 			return &Project{Slug: slugFromRemote(remote), Root: root}, nil
