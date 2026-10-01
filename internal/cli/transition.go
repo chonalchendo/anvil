@@ -84,6 +84,16 @@ func newTransitionCmd() *cobra.Command {
 						}
 					}
 				}
+				// A takeover (--cut-worktree on an issue already in-progress) must
+				// still yield the worktree; the cut is idempotent for a re-claim.
+				var wtPath, wtSource string
+				if cutWorktree && t == core.TypeIssue && to == "in-progress" {
+					p, _, src, cerr := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride)
+					if cerr != nil {
+						return printAndReturn(cmd, cerr)
+					}
+					wtPath, wtSource = p, src
+				}
 				// --land-pr against an already-resolved issue must not report
 				// exit 0 unless the named PR is actually merged: a batch driver
 				// reads exit 0 as "the PR landed," and this short-circuit never
@@ -95,6 +105,7 @@ func newTransitionCmd() *cobra.Command {
 				}
 				return emitTransitionJSON(cmd, asJSON, transitionResult{
 					ID: id, Path: path, From: from, To: to, Status: "already_in_state",
+					Worktree: wtPath, WorktreeBranchSource: wtSource,
 				})
 			}
 
@@ -262,13 +273,13 @@ func newTransitionCmd() *cobra.Command {
 				}
 			}
 
-			var wtPath string
+			var wtPath, wtSource string
 			if cutWorktree {
-				p, _, err := doCutWorktree(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride)
+				p, _, src, err := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride)
 				if err != nil {
 					return printAndReturn(cmd, err)
 				}
-				wtPath = p
+				wtPath, wtSource = p, src
 			}
 
 			if landPRNum != 0 {
@@ -394,7 +405,7 @@ func newTransitionCmd() *cobra.Command {
 
 			return emitTransitionJSON(cmd, asJSON, transitionResult{
 				ID: id, Path: path, From: from, To: to, Owner: owner, Reason: reason, Status: "transitioned",
-				Advisory: advisory, Worktree: wtPath,
+				Advisory: advisory, Worktree: wtPath, WorktreeBranchSource: wtSource,
 			})
 		},
 	}
@@ -421,6 +432,9 @@ type transitionResult struct {
 	Status   string `json:"status"`
 	Advisory string `json:"advisory,omitempty"`
 	Worktree string `json:"worktree,omitempty"`
+	// WorktreeBranchSource is "origin" when --cut-worktree adopted an existing
+	// origin branch rather than cutting from origin/HEAD.
+	WorktreeBranchSource string `json:"worktree_branch_source,omitempty"`
 }
 
 // milestoneCloseAdvisory returns the milestone-close hint when the
@@ -472,6 +486,9 @@ func emitTransitionJSON(cmd *cobra.Command, asJSON bool, r transitionResult) err
 	}
 	if r.Status == "already_in_state" {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s already in state %s\n", r.ID, r.To)
+		if r.Worktree != "" {
+			fmt.Fprintln(cmd.OutOrStdout(), "worktree: "+r.Worktree)
+		}
 		return nil
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s: %s → %s\n", r.ID, r.From, r.To)

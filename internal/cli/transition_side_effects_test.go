@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -40,11 +41,12 @@ type sideFXStub struct {
 	homeDir                string
 	homeErr                error
 
-	fetchErr      error
-	fetchCalls    int
-	fetchDirs     []string
-	originHEAD    string
-	originHEADErr error
+	fetchErr       error
+	fetchCalls     int
+	fetchDirs      []string
+	originHEAD     string
+	originHEADErr  error
+	originBranches map[string]bool
 
 	repoDir     string
 	repoDirErr  error
@@ -99,6 +101,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 	prevMain := gitMainRootFn
 	prevFetch := gitFetchOriginFn
 	prevOriginHEAD := gitResolveOriginHEADFn
+	prevOriginBranch := gitOriginBranchExistsFn
 	prevResolveRepo := resolveProjectRepoFn
 	prevHome := userHomeFn
 	prevView := ghPRViewJSONFn
@@ -134,6 +137,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		return s.fetchErr
 	}
 	gitResolveOriginHEADFn = func(_ string) (string, error) { return s.originHEAD, s.originHEADErr }
+	gitOriginBranchExistsFn = func(_, branch string) bool { return s.originBranches[branch] }
 	// Default mirrors the `~/Development/<project>` convention used by
 	// defaultWorktreePath, but from a static homeDir rather than userHomeFn
 	// (so tests exercising homeErr aren't coupled to repo resolution).
@@ -187,6 +191,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		gitMainRootFn = prevMain
 		gitFetchOriginFn = prevFetch
 		gitResolveOriginHEADFn = prevOriginHEAD
+		gitOriginBranchExistsFn = prevOriginBranch
 		resolveProjectRepoFn = prevResolveRepo
 		userHomeFn = prevHome
 		ghPRViewJSONFn = prevView
@@ -2130,5 +2135,71 @@ func TestLandPRChdirsToRootBeforeWorktreeRemoval(t *testing.T) {
 	}
 	if !substepAtRoot {
 		t.Errorf("branch-delete substep did not run from root %s", root)
+	}
+}
+
+func TestTransitionCutWorktreeAdoptsOriginBranch(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	s.originBranches = map[string]bool{"demo/foo": true}
+	out := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--json")
+
+	if len(s.addCalls) != 1 || s.addCalls[0].StartPoint != "origin/demo/foo" {
+		t.Fatalf("add calls = %+v; want one starting at origin/demo/foo", s.addCalls)
+	}
+	var r transitionResult
+	if err := json.Unmarshal([]byte(out), &r); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	if r.WorktreeBranchSource != "origin" {
+		t.Errorf("worktree_branch_source = %q, want origin", r.WorktreeBranchSource)
+	}
+}
+
+func TestTransitionCutWorktreeTakeoverOfInProgressIssue(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "dead")
+	s.originBranches = map[string]bool{"demo/foo": true}
+	out := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "me", "--cut-worktree", "--force", "--json")
+
+	if len(s.addCalls) != 1 || s.addCalls[0].StartPoint != "origin/demo/foo" {
+		t.Fatalf("add calls = %+v; want one starting at origin/demo/foo", s.addCalls)
+	}
+	var r transitionResult
+	if err := json.Unmarshal([]byte(out), &r); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	if r.Status != "already_in_state" || r.WorktreeBranchSource != "origin" || r.Worktree == "" {
+		t.Errorf("result = %+v; want already_in_state with adopted worktree", r)
+	}
+}
+
+func TestTransitionCutWorktreeAdoptListsFromResolvedRepo(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	s.repoDir = "/repo/demo"
+	s.originBranches = map[string]bool{"demo/foo": true}
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree")
+
+	for _, d := range append(append([]string{}, s.listDirs...), s.fetchDirs...) {
+		if d != "/repo/demo" {
+			t.Errorf("git query ran from %q, want resolved repo /repo/demo", d)
+		}
+	}
+	if len(s.addCalls) != 1 || s.addCalls[0].Dir != "/repo/demo" {
+		t.Errorf("add calls = %+v", s.addCalls)
 	}
 }

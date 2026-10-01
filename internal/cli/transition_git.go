@@ -60,6 +60,14 @@ func gitResolveOriginHEADReal(repoDir string) (string, error) {
 	return ref, nil
 }
 
+// gitOriginBranchExistsReal reports whether the remote-tracking ref
+// origin/<branch> exists in repoDir. Run after a fetch so it reflects origin.
+func gitOriginBranchExistsReal(repoDir, branch string) bool {
+	cmd := exec.Command("git", "rev-parse", "--verify", "--quiet", "refs/remotes/origin/"+branch) //nolint:gosec // binary path resolved from trusted sources; not user input
+	cmd.Dir = repoDir
+	return cmd.Run() == nil
+}
+
 // resolveProjectRepoReal resolves the on-disk repo for a project via the
 // `~/Development/<project>` convention (the sibling of
 // `~/Development/<project>-worktrees` used by defaultWorktreePath). Refuses
