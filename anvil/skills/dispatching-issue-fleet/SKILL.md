@@ -71,7 +71,7 @@ Dispatch all N in a single tool-use block so they run in parallel. **Restart cav
 
 Nudge — one `SendMessage`, never `Monitor` — only when both hold:
 - another wave member's completion notification has arrived, and
-- this worker's branch has no PR url and no `/tmp/verdict.<id>.json`.
+- this worker's branch has no PR url and no `/tmp/verdict.<issue-id>.json`.
 
 Write the checkpoint handoff below before ending the turn.
 
@@ -85,14 +85,15 @@ Each subagent's last line is structurally one of:
 - `^Blocker: .+$` — explicit blocker. Record, surface to user, do not re-dispatch.
 - Anything else — **malformed return** (narrative-as-final-output) or a worker that died mid-task (API 5xx, OOM, killed). This is the recurring 100-200 LOC stall pattern (sessions 2026-05-13, 2026-05-14, 2026-05-15 all hit it). Re-dispatch action-only: a step-by-step plain-text prompt with **no skill wrapper**, naming the exact next commit + push + PR commands. If the second dispatch also malforms, fall back to main-session takeover for that issue.
 
-**A PR url is only as good as its verdict.** The worker's contract writes the runner's stdout to `/tmp/verdict.<id>.json` and echoes it as `Verdict: {…}` above the url (see `anvil-issue-worker.md` — Verdict is data, not prose). The echo is a pointer, not the evidence — a worker retypes it into prose. Gate on the artifact mechanically before Phase 5, per PR:
+**A PR url is only as good as its verdict.** The worker's contract writes the runner's stdout to `/tmp/verdict.<issue-id>.json` and echoes it as `Verdict: {…}` above the url (see `anvil-issue-worker.md` — Verdict is data, not prose). The echo is a pointer, not the evidence — a worker retypes it into prose. `<issue-id>` is the full id, never the short number: for `issue.acme.0042.fix-login` the path is `/tmp/verdict.issue.acme.0042.fix-login.json`. Duplicated in `anvil-issue-worker.md` — edit both together. Gate on the artifact mechanically before Phase 5, per PR:
 
-- `jq -r .verdict /tmp/verdict.<id>.json` is `pass` → proceed to review.
+- `jq -r .verdict /tmp/verdict.<issue-id>.json` is `pass` → proceed to review.
 - It is `fail`, the file is absent, or the return *narrates* why a check went red → **re-measure yourself** before believing any of it:
 
+  First rebuild the worktree's artifact with the project's build-and-install command (read it from CLAUDE.md/AGENTS.md); if that yields a worktree-local binary, put its dir first on PATH for both commands.
+
   ```bash
-  cd <worktree-path> && anvil show issue <id> \
-    | bash ~/.claude/skills/completing-issue/scripts/run-verification.sh | jq -r .verdict
+  cd <worktree-path> && anvil show issue <issue-id> | bash ~/.claude/skills/completing-issue/scripts/run-verification.sh | jq -r .verdict
   ```
 
   Red on re-measure → treat the PR as a `Blocker:` return (record, surface, do not review or land). Green → the worker's own run was stale; proceed and note the discrepancy in the report.
