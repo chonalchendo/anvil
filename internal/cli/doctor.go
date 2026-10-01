@@ -51,7 +51,7 @@ func newDoctorCmd() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "doctor",
-		Short: "Detect stale lifecycle state (merged-PR issues, dead claims, finished milestones, orphan worktrees, empty contract convention rails, duplicate ordinals, live work on open issues)",
+		Short: "Detect stale lifecycle state (merged-PR issues, dead claims, finished milestones, orphan worktrees, empty contract convention rails, duplicate ordinals, live work on open issues, stale or retired-target installed skills)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
