@@ -189,8 +189,32 @@ func TestResolveProject_VaultCheckout_Refuses(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ANVIL_VAULT", dir)
 	t.Chdir(dir)
-	if _, err := ResolveProject(); !errors.Is(err, ErrNoProject) {
-		t.Fatalf("err = %v, want ErrNoProject", err)
+	_, err := ResolveProject()
+	if !errors.Is(err, ErrVaultCheckout) || !errors.Is(err, ErrNoProject) {
+		t.Fatalf("err = %v, want ErrVaultCheckout wrapping ErrNoProject", err)
+	}
+}
+
+func TestResolveProject_RepoWithSchemasDir_IsProject(t *testing.T) {
+	vault := t.TempDir()
+	if err := os.Mkdir(filepath.Join(vault, "schemas"), 0o755); err != nil { //nolint:gosec // test dir
+		t.Fatal(err)
+	}
+	repo := t.TempDir()
+	gitInit(t, repo, "git@github.com:acme/widgets.git")
+	if err := os.Mkdir(filepath.Join(repo, "schemas"), 0o755); err != nil { //nolint:gosec // test dir
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ANVIL_VAULT", vault)
+	t.Chdir(repo)
+	p, err := ResolveProject()
+	if err != nil {
+		t.Fatalf("ResolveProject: %v", err)
+	}
+	if p.Slug != "widgets" {
+		t.Errorf("slug = %q, want widgets", p.Slug)
 	}
 }

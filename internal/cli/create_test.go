@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -3033,5 +3034,24 @@ func TestCreate_Design_LegacyQualifiedFile_AlreadyExists(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(vault, core.TypeProductDesign.Dir(), "burgh.md")); err == nil {
 		t.Error("create forked a bare burgh.md sibling next to the legacy qualified file")
+	}
+}
+
+func TestCreateIssue_FromVaultCheckout_RefusesNamingProjectFlag(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ANVIL_HOME", t.TempDir())
+	t.Setenv("ANVIL_PROJECT", "")
+	for _, c := range [][]string{{"init", "-q"}, {"remote", "add", "origin", "git@github.com:acme/anvil-vault.git"}} {
+		if out, err := exec.Command("git", append([]string{"-C", vault}, c...)...).CombinedOutput(); err != nil { //nolint:gosec // fixed git argv in test
+			t.Fatalf("git %v: %v\n%s", c, err, out)
+		}
+	}
+	t.Chdir(vault)
+	_, _, err := runCmd(t, newRootCmd(), "create", "issue", "--title", "probe", "--description", "x")
+	if err == nil || !strings.Contains(err.Error(), "--project <slug>") || !strings.Contains(err.Error(), "vault checkout") {
+		t.Fatalf("err = %v, want vault-checkout refusal naming --project", err)
 	}
 }
