@@ -803,8 +803,9 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 		indirect string
 		refused  bool
 		wantMsg  string
+		wantWarn bool
 	}{
-		{name: "indirect red is the healthy shape", direct: "true", indirect: "exit 3"},
+		{name: "indirect red is the healthy shape", direct: "true", indirect: "exit 3", wantWarn: true},
 		{name: "direct non-zero is not the gate's business", direct: "exit 4", indirect: "exit 3"},
 		{
 			name: "indirect already passes", direct: "true", indirect: "true",
@@ -844,6 +845,9 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 				if _, statErr := os.Stat(created); statErr != nil {
 					t.Errorf("issue should exist at %s: %v", created, statErr)
 				}
+				if got := strings.Contains(stderr, "Direct block 1 exits 0"); got != tc.wantWarn {
+					t.Errorf("warned = %v, want %v\nstderr: %s", got, tc.wantWarn, stderr)
+				}
 				return
 			}
 			if !errors.Is(err, ErrSchemaInvalid) {
@@ -875,27 +879,6 @@ func TestCreate_Issue_FeasibilityGateAnnouncesEachBlock(t *testing.T) {
 	} {
 		if !strings.Contains(stderr, want) {
 			t.Errorf("stderr should contain %q, got: %s", want, stderr)
-		}
-	}
-}
-
-// TestCreate_Issue_FeasibilityGateWarnsOnGreenDirect: a Direct block that exits
-// 0 is accepted but never silent (anvil.0286); a red Direct draws no warning.
-func TestCreate_Issue_FeasibilityGateWarnsOnGreenDirect(t *testing.T) {
-	for _, tc := range []struct {
-		direct string
-		warn   bool
-	}{{"true", true}, {"exit 4", false}} {
-		setupVault(t)
-		repo := setupGitRepo(t, "git@github.com:acme/foo.git")
-		t.Chdir(repo)
-		stderr, err := runCreateIssueBody(t, "probe", feasibilityBody(tc.direct, "exit 3"))
-		if err != nil {
-			t.Fatalf("direct %q: err = %v\nstderr: %s", tc.direct, err, stderr)
-		}
-		got := strings.Contains(stderr, "Direct block 1 exits 0")
-		if got != tc.warn {
-			t.Errorf("direct %q: warned = %v, want %v\nstderr: %s", tc.direct, got, tc.warn, stderr)
 		}
 	}
 }
