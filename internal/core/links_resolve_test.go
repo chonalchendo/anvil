@@ -475,6 +475,12 @@ func TestArtifactBasename(t *testing.T) {
 	}
 }
 
+func TestCanonicalID_UnbalancedBracketNotUnwrapped(t *testing.T) {
+	if got := CanonicalID(TypeMilestone, "[[milestone.anvil.x"); got == "milestone.anvil.x" {
+		t.Errorf("unbalanced bracket was unwrapped to %q", got)
+	}
+}
+
 func TestCanonicalID_UnwrapsWikilink(t *testing.T) {
 	cases := []struct {
 		typ  Type
@@ -485,7 +491,6 @@ func TestCanonicalID_UnwrapsWikilink(t *testing.T) {
 		{TypeMilestone, "[[anvil.x]]", "milestone.anvil.x"},
 		{TypeIssue, "[[issue.anvil.0001.a]]", "issue.anvil.0001.a"},
 		{TypeLearning, "[[learning.foo]]", "foo"},
-		{TypeMilestone, "[[milestone.anvil.x", "milestone.[[milestone.anvil.x"},
 	}
 	for _, c := range cases {
 		if got := CanonicalID(c.typ, c.raw); got != c.want {

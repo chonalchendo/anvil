@@ -16,6 +16,15 @@ import (
 // prefix is first so fang's title-case transform capitalises a real word.
 var ErrArtifactNotFound = errors.New("artifact not found")
 
+// notFoundErr wraps ErrArtifactNotFound with the canonical id, naming the raw
+// input too when it differs so an alias or wikilink paste is traceable.
+func notFoundErr(canonical, input string) error {
+	if input == canonical {
+		return fmt.Errorf("%w: %s", ErrArtifactNotFound, canonical)
+	}
+	return fmt.Errorf("%w: %s (from %q; pass the id `anvil list <type>` prints)", ErrArtifactNotFound, canonical, input)
+}
+
 // ErrSchemaInvalid is returned when frontmatter fails JSON Schema validation.
 var ErrSchemaInvalid = errors.New("schema invalid")
 

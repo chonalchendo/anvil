@@ -271,6 +271,17 @@ func wikilinkTargetPath(v *Vault, target string) (string, bool) {
 	return artifactPath(v, t, ArtifactBasename(v, t, target)), true
 }
 
+// UnwrapWikilink strips one surrounding `[[...]]` pair (the frontmatter form).
+// A string without both delimiters is returned unchanged.
+func UnwrapWikilink(s string) string {
+	if inner, ok := strings.CutPrefix(s, "[["); ok {
+		if inner, ok = strings.CutSuffix(inner, "]]"); ok {
+			return inner
+		}
+	}
+	return s
+}
+
 // CanonicalID maps a raw id or wikilink target — with or without its `<type>.`
 // prefix — to the id shape type t registers under. Convention, issue,
 // milestone, contract and plan keep the prefix, so their id, their on-disk
@@ -280,12 +291,7 @@ func wikilinkTargetPath(v *Vault, target string) (string, bool) {
 // types. A surrounding `[[...]]` pair (the frontmatter form) is unwrapped
 // first, so every id-taking verb accepts a pasted reference.
 func CanonicalID(t Type, raw string) string {
-	if inner, ok := strings.CutPrefix(raw, "[["); ok {
-		if inner, ok = strings.CutSuffix(inner, "]]"); ok {
-			raw = inner
-		}
-	}
-	bare := strings.TrimPrefix(raw, string(t)+".")
+	bare := strings.TrimPrefix(UnwrapWikilink(raw), string(t)+".")
 	switch t {
 	case TypeConvention, TypeIssue, TypeMilestone, TypeContract, TypePlan:
 		return string(t) + "." + bare
