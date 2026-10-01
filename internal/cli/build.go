@@ -316,7 +316,7 @@ func claimAndCutForBuild(v *core.Vault, errW io.Writer, units []readyUnit, tasks
 		if err != nil {
 			return fmt.Errorf("loading %s: %w", units[i].ID, err)
 		}
-		wt, branch, err := doCutWorktree(errW, a, units[i].ID, "", "")
+		wt, branch, _, err := doCutWorktreeSource(errW, a, units[i].ID, "", "", false)
 		if err != nil {
 			return err
 		}

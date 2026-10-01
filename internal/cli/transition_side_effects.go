@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -26,6 +27,7 @@ var (
 	gitFetchOriginFn         = gitFetchOriginReal
 	gitResolveOriginHEADFn   = gitResolveOriginHEADReal
 	gitOriginBranchExistsFn  = gitOriginBranchExistsReal
+	gitLocalBranchExistsFn   = gitLocalBranchExistsReal
 	resolveProjectRepoFn     = resolveProjectRepoReal
 	gitToplevelFn            = gitToplevelReal
 	ghPRViewJSONFn           = ghPRViewJSONReal
@@ -131,22 +133,21 @@ func defaultWorktreePath(project, slug string) (string, error) {
 // a warning lands on errW (the command's stderr) and the worktree falls back
 // to local HEAD.
 //
-// When origin already has the branch (a takeover of a dead or cloud session's
-// work), the worktree adopts it — tracking origin/<branch> — instead of
-// cutting a duplicate from origin/HEAD; source reports "origin" then.
-func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string) (created bool, source string, err error) {
+// An existing origin/<branch> is adopted (source "origin") rather than re-cut from origin/HEAD.
+// adopt=false (anvil build) always cuts fresh.
+func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string, adopt bool) (created bool, source string, err error) {
 	worktrees, err := gitWorktreeListFn(repoDir)
 	if err != nil {
 		return false, "", err
 	}
 	if info, ok := worktrees[branch]; ok {
-		if info.path == path {
+		if samePath(info.path, path) {
 			return false, "", nil
 		}
 		return false, "", fmt.Errorf("branch %q already checked out at %s (expected %s)", branch, info.path, path)
 	}
 	for b, info := range worktrees {
-		if info.path == path {
+		if samePath(info.path, path) {
 			return false, "", fmt.Errorf("worktree at %s already on branch %q (expected %q)", path, b, branch)
 		}
 	}
@@ -154,12 +155,17 @@ func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string) (created 
 	startPoint := ""
 	if ferr := gitFetchOriginFn(repoDir); ferr != nil {
 		fmt.Fprintf(errW, "warning: git fetch origin failed (%v); branching from local HEAD\n", ferr)
-	} else if gitOriginBranchExistsFn(repoDir, branch) {
+	} else if adopt && gitOriginBranchExistsFn(repoDir, branch) {
 		startPoint, source = "origin/"+branch, "origin"
 	} else if ref, rerr := gitResolveOriginHEADFn(repoDir); rerr != nil {
 		fmt.Fprintf(errW, "warning: resolving origin/HEAD failed (%v); branching from local HEAD\n", rerr)
 	} else {
 		startPoint = ref
+	}
+	if gitLocalBranchExistsFn(repoDir, branch) {
+		return false, "", errfmt.NewStructured("local_branch_exists").
+			Set("branch", branch).
+			Set("fix_hint", "git worktree add "+path+" "+branch+", or pass --branch <other>")
 	}
 	if aerr := gitWorktreeAddFn(repoDir, path, branch, startPoint); aerr != nil {
 		return false, "", aerr
@@ -172,7 +178,7 @@ func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string) (created 
 // can emit it — the skill contract is "the claim tells you where to work" —
 // or a Structured error on failure so callers can uniformly refuse the
 // transition without writing to disk.
-func doCutWorktreeSource(errW io.Writer, a *core.Artifact, id, pathOverride, branchOverride string) (path, branch, source string, err error) {
+func doCutWorktreeSource(errW io.Writer, a *core.Artifact, id, pathOverride, branchOverride string, adopt bool) (path, branch, source string, err error) {
 	project := projectFromArtifact(a, id)
 	slug := slugFromIssueID(id)
 	if project == "" || slug == "" {
@@ -213,8 +219,12 @@ func doCutWorktreeSource(errW io.Writer, a *core.Artifact, id, pathOverride, bra
 	if err != nil {
 		return "", "", "", err
 	}
-	created, source, cerr := cutWorktreeIfNeeded(errW, repoDir, wtPath, branch)
+	created, source, cerr := cutWorktreeIfNeeded(errW, repoDir, wtPath, branch, adopt)
 	if cerr != nil {
+		var se *errfmt.Structured
+		if errors.As(cerr, &se) {
+			return "", "", "", se
+		}
 		return "", "", "", errfmt.NewStructured("cut_worktree_failed").
 			Set("path", wtPath).
 			Set("branch", branch).
@@ -238,11 +248,15 @@ func doCutWorktreeSource(errW io.Writer, a *core.Artifact, id, pathOverride, bra
 	return wtPath, branch, source, nil
 }
 
-// doCutWorktree is doCutWorktreeSource for callers that ignore how the branch
-// was sourced.
-func doCutWorktree(errW io.Writer, a *core.Artifact, id, pathOverride, branchOverride string) (path, branch string, err error) {
-	path, branch, _, err = doCutWorktreeSource(errW, a, id, pathOverride, branchOverride)
-	return path, branch, err
+// samePath compares paths after symlink resolution (macOS reports /private/var
+// for a /var temp dir); falls back to the raw strings when resolution fails.
+func samePath(a, b string) bool {
+	if a == b {
+		return true
+	}
+	ra, ea := filepath.EvalSymlinks(a)
+	rb, eb := filepath.EvalSymlinks(b)
+	return ea == nil && eb == nil && ra == rb
 }
 
 // doLandPR derives the worktree path from the issue and runs landPR. When

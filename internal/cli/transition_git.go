@@ -68,6 +68,13 @@ func gitOriginBranchExistsReal(repoDir, branch string) bool {
 	return cmd.Run() == nil
 }
 
+// gitLocalBranchExistsReal reports whether refs/heads/<branch> exists in repoDir.
+func gitLocalBranchExistsReal(repoDir, branch string) bool {
+	cmd := exec.Command("git", "rev-parse", "--verify", "--quiet", "refs/heads/"+branch) //nolint:gosec // binary path resolved from trusted sources; not user input
+	cmd.Dir = repoDir
+	return cmd.Run() == nil
+}
+
 // resolveProjectRepoReal resolves the on-disk repo for a project via the
 // `~/Development/<project>` convention (the sibling of
 // `~/Development/<project>-worktrees` used by defaultWorktreePath). Refuses

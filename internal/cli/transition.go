@@ -65,15 +65,23 @@ func newTransitionCmd() *cobra.Command {
 				// session (or no session id on either side) is idempotent; a
 				// different session under the same owner is refused unless
 				// --force, so two parallel sessions can't both adopt the claim.
+				var wtPath, wtSource string
 				if t == core.TypeIssue && to == "in-progress" {
 					if !force {
 						if err := claimConflict(a, id, os.Getenv(envSessionID)); err != nil {
 							return printAndReturn(cmd, err)
 						}
-					} else if sid := os.Getenv(envSessionID); sid != "" {
-						// --force takeover: transfer the claim to the current session
-						// so the "take over the claim" hint is truthful and the new
-						// session can subsequently re-claim idempotently.
+					}
+					// Cut before the claim transfer: a refused cut leaves the claim untouched.
+					if cutWorktree {
+						p, _, src, cerr := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride, true)
+						if cerr != nil {
+							return printAndReturn(cmd, cerr)
+						}
+						wtPath, wtSource = p, src
+					}
+					if sid := os.Getenv(envSessionID); force && sid != "" {
+						// --force takeover: transfer the claim to this session.
 						a.FrontMatter["claim_session"] = sid
 						a.FrontMatter["updated"] = time.Now().UTC().Format("2006-01-02")
 						if err := a.Save(); err != nil {
@@ -83,15 +91,6 @@ func newTransitionCmd() *cobra.Command {
 							return err
 						}
 					}
-				}
-				// Takeover: an already-in-progress claim must still yield the worktree.
-				var wtPath, wtSource string
-				if cutWorktree && t == core.TypeIssue && to == "in-progress" {
-					p, _, src, cerr := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride)
-					if cerr != nil {
-						return printAndReturn(cmd, cerr)
-					}
-					wtPath, wtSource = p, src
 				}
 				// --land-pr against an already-resolved issue must not report
 				// exit 0 unless the named PR is actually merged: a batch driver
@@ -274,7 +273,7 @@ func newTransitionCmd() *cobra.Command {
 
 			var wtPath, wtSource string
 			if cutWorktree {
-				p, _, src, err := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride)
+				p, _, src, err := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride, true)
 				if err != nil {
 					return printAndReturn(cmd, err)
 				}
