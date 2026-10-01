@@ -105,6 +105,9 @@ func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.Validat
 			if r.timedOut && label == "Direct" {
 				cmd.PrintErrln("anvil: " + name + " did not finish within " + feasibilityTimeout.String() + "; accepted unjudged (Direct is only checked for runnability)")
 			}
+			if label == "Direct" && r.runErr == nil && !r.timedOut && r.exit == 0 {
+				cmd.PrintErrln("anvil: " + name + " exits 0 — " + directGreenNote)
+			}
 			msg, fix := classifyFeasibility(label, name, r)
 			if msg == "" {
 				continue
@@ -127,6 +130,12 @@ const (
 		"and where a loop or if tail does gate, only its final iteration's status survives"
 	nonGatingNegationFix = "rewrite the negative assertion as `if <cmd>; then exit 1; fi`, which gates on any line — or make it the block's last line"
 )
+
+// directGreenNote is a warning, not a refusal: a green Direct is the healthy
+// state for a suite invocation, but it is indistinguishable from an
+// issue-specific check that already passes before the change.
+const directGreenNote = "it passes against the unfixed tree, so it proves nothing about this change; " +
+	"put any check of the new behaviour under Indirect, where exit 0 is refused"
 
 // classifyFeasibility maps one block's observed outcome to a refusal message
 // and its fix, or ("", "") to accept. See runFeasibilityGate for why the two

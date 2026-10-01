@@ -879,6 +879,27 @@ func TestCreate_Issue_FeasibilityGateAnnouncesEachBlock(t *testing.T) {
 	}
 }
 
+// TestCreate_Issue_FeasibilityGateWarnsOnGreenDirect: a Direct block that exits
+// 0 is accepted but never silent (anvil.0286); a red Direct draws no warning.
+func TestCreate_Issue_FeasibilityGateWarnsOnGreenDirect(t *testing.T) {
+	for _, tc := range []struct {
+		direct string
+		warn   bool
+	}{{"true", true}, {"exit 4", false}} {
+		setupVault(t)
+		repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+		t.Chdir(repo)
+		stderr, err := runCreateIssueBody(t, "probe", feasibilityBody(tc.direct, "exit 3"))
+		if err != nil {
+			t.Fatalf("direct %q: err = %v\nstderr: %s", tc.direct, err, stderr)
+		}
+		got := strings.Contains(stderr, "Direct block 1 exits 0")
+		if got != tc.warn {
+			t.Errorf("direct %q: warned = %v, want %v\nstderr: %s", tc.direct, got, tc.warn, stderr)
+		}
+	}
+}
+
 // TestCreate_Issue_SkipVerifyPredicates opts out of the gate: a body the gate
 // would refuse lands, because the escape hatch is opt-OUT (the gate stays the
 // default) rather than the opt-in flag the issue argues against.
