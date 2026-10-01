@@ -197,12 +197,13 @@ func claimedByPeer(root, rel, ownID string) bool {
 }
 
 // ownSessionID resolves the calling session for snapshot scope, or "" when
-// unresolvable. The Codex newest-rollout guess is deliberately rejected: from a
-// plain terminal it would name a live Codex session and commit its in-flight
-// file as this caller's own.
+// unresolvable. Only the Codex newest-rollout guess is rejected: from a plain
+// terminal it would name a live Codex session and commit its in-flight file as
+// this caller's own. Claude, opencode and explicit bindings are harness- or
+// user-stated, so their own handoffs are not held back.
 func ownSessionID() string {
 	id, _, src, err := resolveCurrentSession()
-	if err != nil || src != "claude-code" {
+	if err != nil || src == "codex" {
 		return ""
 	}
 	return id

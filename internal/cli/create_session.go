@@ -15,7 +15,7 @@ import (
 	"github.com/chonalchendo/anvil/internal/schema"
 )
 
-var validSessionSources = []string{"claude-code", "codex", "chatgpt", "claude-web", "cursor", "continue"}
+var validSessionSources = []string{"claude-code", "codex", "opencode", "other", "chatgpt", "claude-web", "cursor", "continue"}
 
 func runCreateSession(cmd *cobra.Command, v *core.Vault, sessionID, source, startedAt, activeThread string, asJSON, update bool) error {
 	if sessionID == "" {

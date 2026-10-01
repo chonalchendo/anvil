@@ -8,7 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/schemas"
 )
 
 // writeSessionFixture writes a session file at 10-sessions/<filenameID>.md whose
@@ -727,5 +730,114 @@ func TestSession_UnparseableFileIsSkippedWithWarning(t *testing.T) {
 		if !strings.Contains(errOut, "stray.md") {
 			t.Errorf("%v: stderr should name skipped file, got %q", args, errOut)
 		}
+	}
+}
+
+// clearSessionEnv blanks every binding signal so a test sets only its own.
+func clearSessionEnv(t *testing.T) (codexHome string) {
+	t.Helper()
+	for _, k := range []string{envSessionID, envExplicitID, envExplicitSource, "OPENCODE_PID"} {
+		t.Setenv(k, "")
+	}
+	codexHome = t.TempDir()
+	t.Setenv("CODEX_HOME", codexHome)
+	return codexHome
+}
+
+func TestSessionBinding_OpencodeAndExplicit(t *testing.T) {
+	cases := []struct {
+		name       string
+		env        map[string]string
+		wantID     string
+		wantSource string
+	}{
+		{"opencode", map[string]string{"OPENCODE_PID": "4242"}, "opencode-4242", "opencode"},
+		{"explicit default source", map[string]string{envExplicitID: "ante-123"}, "ante-123", "other"},
+		{"explicit source", map[string]string{envExplicitID: "x1", envExplicitSource: "cursor"}, "x1", "cursor"},
+		{"opencode beats codex history", map[string]string{"OPENCODE_PID": "4242", "withCodex": "1"}, "opencode-4242", "opencode"},
+		{"explicit beats codex history", map[string]string{envExplicitID: "x", "withCodex": "1"}, "x", "other"},
+		{"opencode beats explicit", map[string]string{"OPENCODE_PID": "4242", envExplicitID: "mine"}, "opencode-4242", "opencode"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vault := setupVault(t)
+			codexHome := clearSessionEnv(t)
+			for k, v := range tc.env {
+				if k == "withCodex" {
+					dir := filepath.Join(codexHome, "sessions", "2026", "10", "01")
+					if err := os.MkdirAll(dir, 0o750); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(filepath.Join(dir, "rollout-2026-10-01T10-00-00-x.jsonl"), nil, 0o600); err != nil {
+						t.Fatal(err)
+					}
+					continue
+				}
+				t.Setenv(k, v)
+			}
+			if _, _, err := runCmd(t, newRootCmd(), "session", "handoff", "--body", "ctx-"+tc.name, "--project", "anvil"); err != nil {
+				t.Fatalf("handoff: %v", err)
+			}
+			a, err := core.LoadArtifact(filepath.Join(vault, "10-sessions", tc.wantID+".md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got, _ := a.FrontMatter["source"].(string); got != tc.wantSource {
+				t.Errorf("source = %q, want %q", got, tc.wantSource)
+			}
+			if !strings.Contains(a.Body, "ctx-"+tc.name) {
+				t.Errorf("body = %q", a.Body)
+			}
+		})
+	}
+}
+
+func TestSessionBinding_BadExplicitSourceRefuses(t *testing.T) {
+	setupVault(t)
+	clearSessionEnv(t)
+	t.Setenv(envExplicitID, "x")
+	t.Setenv(envExplicitSource, "bogus")
+	if _, _, err := runCmd(t, newRootCmd(), "session", "current"); err == nil {
+		t.Fatal("expected error for unknown ANVIL_SESSION_SOURCE")
+	}
+}
+
+func TestSessionCurrent_UnsetEnv_NamesExplicitRemedy(t *testing.T) {
+	setupVault(t)
+	clearSessionEnv(t)
+	_, _, err := runCmd(t, newRootCmd(), "session", "current")
+	if err == nil || !strings.Contains(err.Error(), envExplicitID) {
+		t.Fatalf("refusal should name %s, got %v", envExplicitID, err)
+	}
+}
+
+func TestValidSessionSources_MatchSchemaEnum(t *testing.T) {
+	raw, err := schemas.FS.ReadFile("session.schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sch struct {
+		Properties struct {
+			Source struct {
+				Enum []string `json:"enum"`
+			} `json:"source"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(raw, &sch); err != nil {
+		t.Fatal(err)
+	}
+	if diff := cmp.Diff(sch.Properties.Source.Enum, validSessionSources); diff != "" {
+		t.Errorf("validSessionSources vs schema enum (-schema +code):\n%s", diff)
+	}
+}
+
+func TestSessionBinding_ClaudeBeatsExplicitAndOpencode(t *testing.T) {
+	clearSessionEnv(t)
+	t.Setenv(envSessionID, "claude")
+	t.Setenv(envExplicitID, "mine")
+	t.Setenv("OPENCODE_PID", "4242")
+	id, src, err := currentSessionBinding()
+	if err != nil || id != "claude" || src != "claude-code" {
+		t.Fatalf("got (%q, %q, %v), want (claude, claude-code, nil)", id, src, err)
 	}
 }
