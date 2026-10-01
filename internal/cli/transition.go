@@ -84,8 +84,7 @@ func newTransitionCmd() *cobra.Command {
 						}
 					}
 				}
-				// A takeover (--cut-worktree on an issue already in-progress) must
-				// still yield the worktree; the cut is idempotent for a re-claim.
+				// Takeover: an already-in-progress claim must still yield the worktree.
 				var wtPath, wtSource string
 				if cutWorktree && t == core.TypeIssue && to == "in-progress" {
 					p, _, src, cerr := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride)
@@ -432,8 +431,7 @@ type transitionResult struct {
 	Status   string `json:"status"`
 	Advisory string `json:"advisory,omitempty"`
 	Worktree string `json:"worktree,omitempty"`
-	// WorktreeBranchSource is "origin" when --cut-worktree adopted an existing
-	// origin branch rather than cutting from origin/HEAD.
+	// "origin" when --cut-worktree adopted an existing origin branch.
 	WorktreeBranchSource string `json:"worktree_branch_source,omitempty"`
 }
 
