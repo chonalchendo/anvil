@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -53,5 +54,19 @@ func TestNamedArgs_MinimumOnlyAcceptsSurplus(t *testing.T) {
 		t.Fatal("expected under-arity error for set with 2 args")
 	} else if !strings.Contains(err.Error(), "missing required argument <field>") {
 		t.Fatalf("error %q missing named positional <field>", err.Error())
+	}
+}
+
+func TestNotFoundErr_NamesRawInputOnlyWhenDifferent(t *testing.T) {
+	const suffix = `(from "`
+	alias := notFoundErr("milestone.anvil.x", "[[milestone.anvil.x|X]]").Error()
+	if !strings.Contains(alias, suffix+`[[milestone.anvil.x|X]]"`) {
+		t.Errorf("alias paste lacks from-suffix: %q", alias)
+	}
+	if !errors.Is(notFoundErr("a", "b"), ErrArtifactNotFound) {
+		t.Error("not-found error does not wrap ErrArtifactNotFound")
+	}
+	if got := notFoundErr("milestone.anvil.x", "milestone.anvil.x").Error(); strings.Contains(got, suffix) {
+		t.Errorf("canonical input got from-suffix: %q", got)
 	}
 }

@@ -52,6 +52,7 @@ func newShowCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
+			rawID := args[1]
 			if args[1], err = canonicalArtifactID(v, t, args[1]); err != nil {
 				return err
 			}
@@ -91,7 +92,7 @@ func newShowCmd() *cobra.Command {
 				}
 				return runShowLinks(cmd, v, t, args[1], lt, flagJSON, flagBody)
 			}
-			return runShow(cmd, v, t, args[1], flagJSON, includeBody, !flagNoIncoming)
+			return runShow(cmd, v, t, args[1], rawID, flagJSON, includeBody, !flagNoIncoming)
 		},
 	}
 
@@ -172,7 +173,7 @@ func (o showOutput) MarshalJSON() ([]byte, error) {
 	return json.Marshal(out)
 }
 
-func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename string, asJSON, includeBody, includeIncoming bool) error {
+func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename, rawID string, asJSON, includeBody, includeIncoming bool) error {
 	path := resolveArtifactPath(v.Root, t, basename)
 	// id is the reported/canonical id (bare for design types); the index keys
 	// artifacts and link targets on the type-qualified IndexKey instead, so a
@@ -183,7 +184,7 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename string, as
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("%w: %s", ErrArtifactNotFound, id)
+			return notFoundErr(id, rawID)
 		}
 		return fmt.Errorf("loading artifact: %w", err)
 	}

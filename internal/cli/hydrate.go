@@ -38,9 +38,14 @@ func newHydrateCmd() *cobra.Command {
 			}
 			// Node ids are canonical, never the on-disk basename — hydrate must
 			// print the same id shape every other read verb emits.
-			id, _, err := core.ResolveArtifact(v, core.TypeIssue, args[0])
+			id, path, err := core.ResolveArtifact(v, core.TypeIssue, args[0])
 			if err != nil {
 				return err
+			}
+			// Probed here, where the raw arg is still in hand: assembleHydration
+			// only ever sees the canonical id.
+			if _, err := os.Stat(path); os.IsNotExist(err) {
+				return notFoundErr(id, args[0])
 			}
 			return runHydrate(cmd, v, id, tldr)
 		},
@@ -137,14 +142,14 @@ func runHydrate(cmd *cobra.Command, v *core.Vault, issueID string, tldr bool) er
 func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 	// Callers hand a canonical id (walkability derives one per file), which may
 	// differ from the on-disk basename until the back catalogue is renamed.
-	_, issPath, err := core.ResolveArtifact(v, core.TypeIssue, issueID)
+	issID, issPath, err := core.ResolveArtifact(v, core.TypeIssue, issueID)
 	if err != nil {
 		return nil, err
 	}
 	iss, err := core.LoadArtifact(issPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("%w: %s", ErrArtifactNotFound, issueID)
+			return nil, notFoundErr(issID, issueID)
 		}
 		return nil, fmt.Errorf("loading issue: %w", err)
 	}
