@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,27 +19,73 @@ import (
 // mtime heuristic that lets concurrent sessions clobber each other's handoffs.
 const envSessionID = "CLAUDE_CODE_SESSION_ID"
 
+// envExplicitID and envExplicitSource let any harness bind a session without
+// anvil guessing; source defaults to "other".
+const (
+	envExplicitID     = "ANVIL_SESSION_ID"
+	envExplicitSource = "ANVIL_SESSION_SOURCE"
+)
+
 // resolveCurrentSession derives this terminal's session id and the path of its
-// session file. It prefers Claude Code's envSessionID; failing that it binds to
-// the active Codex session, which exports no session-id env var but persists a
-// per-session rollout file we can read. The path is deterministic from the id;
-// the file's existence is the caller's concern. source distinguishes the two so
-// callers can apply the right missing-file behaviour (Claude relies on the
-// SessionStart hook; Codex has none and creates the file lazily).
+// session file. The path is deterministic from the id; the file's existence is
+// the caller's concern. source lets callers apply the right missing-file
+// behaviour (Claude relies on the SessionStart hook; every other source has no
+// hook and creates the file lazily).
 func resolveCurrentSession() (id, path, source string, err error) {
-	id, source = os.Getenv(envSessionID), "claude-code"
-	if id == "" {
-		id, err = codexSessionID()
-		if err != nil {
-			return "", "", "", err
-		}
-		source = "codex"
+	id, source, err = currentSessionBinding()
+	if err != nil {
+		return "", "", "", err
 	}
 	v, err := core.ResolveVault()
 	if err != nil {
 		return "", "", "", fmt.Errorf("resolving vault: %w", err)
 	}
 	return id, core.TypeSession.Path(v.Root, id), source, nil
+}
+
+// currentSessionBinding picks the id by precedence: harness-set signals first,
+// guesses last. Claude and opencode set their own env, so they are trusted over
+// $ANVIL_SESSION_ID, which a child session can inherit from a parent shell's
+// export and would then merge distinct sessions into one file. Explicit is the
+// fallback for harnesses anvil does not recognise. The Codex newest-rollout
+// file is a guess (Codex exports no id), so it comes last and never shadows a
+// harness that announced itself.
+func currentSessionBinding() (id, source string, err error) {
+	if id = os.Getenv(envSessionID); id != "" {
+		return id, "claude-code", nil
+	}
+	if id = opencodeSessionID(); id != "" {
+		return id, "opencode", nil
+	}
+	if id = os.Getenv(envExplicitID); id != "" {
+		source = os.Getenv(envExplicitSource)
+		if source == "" {
+			return id, "other", nil
+		}
+		if !slices.Contains(validSessionSources, source) {
+			return "", "", fmt.Errorf("%s=%q is not one of %s", envExplicitSource, source, strings.Join(validSessionSources, ", "))
+		}
+		return id, source, nil
+	}
+	if id, err = codexSessionID(); err == nil {
+		return id, "codex", nil
+	}
+	return "", "", err
+}
+
+// opencodeSessionID keys on opencode's process id: its shell env carries only
+// OPENCODE=1/OPENCODE_PID, and its on-disk session dirs are keyed by project,
+// not by running process, so none can be mapped to this terminal reliably.
+// The binding is therefore per opencode process, not per conversation: a
+// restarted opencode gets a new id, and a recycled PID can land a later
+// session on an earlier one's file (the integrity backstop only catches a
+// mismatched stored id, not a reused one). Export ANVIL_SESSION_ID for a
+// stable id.
+func opencodeSessionID() string {
+	if pid := os.Getenv("OPENCODE_PID"); pid != "" {
+		return "opencode-" + pid
+	}
+	return ""
 }
 
 // codexRolloutID extracts the session id trailing the timestamp in a Codex
@@ -92,7 +139,7 @@ func codexSessionID() (string, error) {
 	// Split the two misses so a naming-format drift in Codex is diagnosable
 	// rather than masquerading as "no session".
 	if sawRollout {
-		return "", fmt.Errorf("found Codex rollout files under %s but none matched the expected name rollout-<YYYY-MM-DDThh-mm-ss>-<id>.jsonl; report this so the binding can be fixed", root)
+		return "", fmt.Errorf("found Codex rollout files under %s but none matched the expected name rollout-<YYYY-MM-DDThh-mm-ss>-<id>.jsonl; report this so the binding can be fixed, or export %s=<stable id>", root, envExplicitID)
 	}
-	return "", fmt.Errorf("no active session: set %s, or run under Codex (no rollout-*.jsonl under %s)", envSessionID, root)
+	return "", fmt.Errorf("no active session: set %s, run under Codex (no rollout-*.jsonl under %s) or opencode, or for any other harness export %s=<stable id>", envSessionID, root, envExplicitID)
 }

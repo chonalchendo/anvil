@@ -127,14 +127,14 @@ func newSessionHandoffCmd() *cobra.Command {
 					return fmt.Errorf("loading %s: %w", path, err)
 				}
 				// Claude pre-creates the file via its SessionStart hook; a missing
-				// file there is a setup error. Codex has no such hook, so the first
-				// handoff of a Codex session creates the file it writes into.
-				if source != "codex" {
+				// file there is a setup error. Other harnesses have no such hook, so
+				// the first handoff creates the file it writes into.
+				if source == "claude-code" {
 					return fmt.Errorf("session file %s not found; is the SessionStart hook installed?", path)
 				}
 				a, err = writeSessionFile(v, path, id, source, "", "")
 				if err != nil {
-					return fmt.Errorf("creating codex session file: %w", err)
+					return fmt.Errorf("creating session file: %w", err)
 				}
 			}
 			// Deriving the path from the resolved session id is what prevents the

@@ -469,7 +469,7 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagBreaking, "breaking", false, "sweep is breaking (required for sweep, must be explicit)")
 	cmd.Flags().StringVar(&flagScope, "scope", "", "sweep scope (required for sweep)")
 	cmd.Flags().StringVar(&flagSessionID, "session-id", "", "session UUID (required for session)")
-	cmd.Flags().StringVar(&flagSource, "source", "claude-code", "session source (claude-code|chatgpt|claude-web|cursor|continue)")
+	cmd.Flags().StringVar(&flagSource, "source", "claude-code", "session source ("+strings.Join(validSessionSources, "|")+")")
 	cmd.Flags().StringVar(&flagStartedAt, "started-at", "", "RFC3339 session start time (defaults to now)")
 	cmd.Flags().StringVar(&flagActiveThread, "active-thread", "", "active thread slug to record in related[]")
 	cmd.Flags().BoolVar(&flagUpdate, "update", false, "rewrite existing session artifact on drift")

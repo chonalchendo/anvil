@@ -287,7 +287,7 @@ Body absorbs: target-repos, prs, metrics, driver. `breaking` and `scope` drive C
 
 ```yaml
 type: transcript | session
-source: claude-code | codex | chatgpt | claude-web | cursor | continue
+source: claude-code | codex | opencode | other | chatgpt | claude-web | cursor | continue
 session_id: <id>
 status: raw | triaged | distilled | archived
 retention_until: <iso-date>
