@@ -220,6 +220,28 @@ func TestMergeSessionEndHook_NewFile(t *testing.T) {
 	if !ok || len(se) != 1 {
 		t.Fatalf("SessionEnd = %v", hooks["SessionEnd"])
 	}
+	if got := entryTimeout(se[0]); got != 30 {
+		t.Errorf("SessionEnd timeout = %d, want 30", got)
+	}
+}
+
+func TestMergeSessionEndHook_UpgradesMissingTimeout(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	old := `{"hooks":{"SessionEnd":[{"hooks":[{"type":"command","command":"` + testEndCmd + `"}]}]}}`
+	if err := os.WriteFile(path, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := MergeSessionEndHook(path, testEndCmd)
+	if err != nil || !changed {
+		t.Fatalf("upgrade: changed=%v err=%v", changed, err)
+	}
+	se := readJSON(t, path)["hooks"].(map[string]any)["SessionEnd"].([]any)
+	if len(se) != 1 || entryTimeout(se[0]) != 30 {
+		t.Fatalf("SessionEnd = %v, want one entry with timeout 30", se)
+	}
+	if changed, _ := MergeSessionEndHook(path, testEndCmd); changed {
+		t.Error("second merge changed = true, want idempotent")
+	}
 }
 
 func TestMergeSessionEndHook_Idempotent(t *testing.T) {
@@ -578,5 +600,52 @@ func TestRemoveAutoCompactWindow_NoOpWhenAbsent(t *testing.T) {
 	}
 	if changed {
 		t.Error("changed = true, want false: no key to remove")
+	}
+}
+
+// entryTimeout returns the timeout of entry's first inner hook, 0 when unset.
+func entryTimeout(entry any) int {
+	inner, _ := entry.(map[string]any)["hooks"].([]any)
+	if len(inner) == 0 {
+		return 0
+	}
+	f, _ := inner[0].(map[string]any)["timeout"].(float64)
+	return int(f)
+}
+
+func TestMergeSessionEndHook_GroupedEntryKeepsUserHook(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	old := `{"hooks":{"SessionEnd":[{"hooks":[{"command":"my-backup.sh","timeout":5},{"command":"` + testEndCmd + `"}]}]}}`
+	if err := os.WriteFile(path, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := MergeSessionEndHook(path, testEndCmd); err != nil || !changed {
+		t.Fatalf("merge: changed=%v err=%v", changed, err)
+	}
+	se := readJSON(t, path)["hooks"].(map[string]any)["SessionEnd"].([]any)
+	inner := se[0].(map[string]any)["hooks"].([]any)
+	if len(se) != 1 || len(inner) != 2 {
+		t.Fatalf("SessionEnd = %v, want one grouped entry with both hooks", se)
+	}
+	if inner[0].(map[string]any)["command"] != "my-backup.sh" || inner[0].(map[string]any)["timeout"] != float64(5) {
+		t.Errorf("user hook altered: %v", inner[0])
+	}
+	if inner[1].(map[string]any)["timeout"] != float64(30) {
+		t.Errorf("anvil hook timeout = %v, want 30", inner[1])
+	}
+}
+
+func TestMergeSessionEndHook_KeepsUserRaisedTimeout(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.json")
+	old := `{"hooks":{"SessionEnd":[{"hooks":[{"command":"` + testEndCmd + `","timeout":120}]}]}}`
+	if err := os.WriteFile(path, []byte(old), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := MergeSessionEndHook(path, testEndCmd); err != nil || changed {
+		t.Fatalf("merge: changed=%v err=%v, want unchanged", changed, err)
+	}
+	se := readJSON(t, path)["hooks"].(map[string]any)["SessionEnd"].([]any)
+	if got := entryTimeout(se[0]); got != 120 {
+		t.Errorf("timeout = %d, want 120", got)
 	}
 }

@@ -42,13 +42,17 @@ func newVaultCommitCmd() *cobra.Command {
 			}
 			if st.Dirty == 0 {
 				cmd.Println("vault clean — nothing to commit")
-				return nil
+			} else if err := snapshotVault(cmd, v.Root, flagMessage, ownSessionID()); err != nil {
+				return err
 			}
-			return snapshotVault(cmd, v.Root, flagMessage, st, flagPush, ownSessionID())
+			if flagPush {
+				return pushVault(cmd, v.Root)
+			}
+			return nil
 		},
 	}
 	cmd.Flags().StringVarP(&flagMessage, "message", "m", "", "commit message (default: timestamped snapshot)")
-	cmd.Flags().BoolVar(&flagPush, "push", false, "push to the vault's remote after committing (warns, never fails, on push error or no remote)")
+	cmd.Flags().BoolVar(&flagPush, "push", false, "push the vault's unpushed commits to its remote (fails on push error)")
 	return cmd
 }
 
@@ -60,10 +64,9 @@ func newVaultCommitCmd() *cobra.Command {
 // is not in-flight, and no other verb would ever commit a gc'd stub). ownID is
 // the caller's resolved session id, "" when none — then every session file and
 // every claimed issue is held. Callers decide the not-repo/clean-tree policy
-// first; an empty msg gets the timestamped default. When push is set the commit
-// is pushed — a no-op when st has no remote, and a stderr warning (never a
-// returned error) on push failure, so a missing network never breaks teardown.
-func snapshotVault(cmd *cobra.Command, root, msg string, st core.VaultGitStatus, push bool, ownID string) error {
+// first; an empty msg gets the timestamped default. Pushing is the caller's
+// separate step (pushVault): it must run even when this commits nothing.
+func snapshotVault(cmd *cobra.Command, root, msg, ownID string) error {
 	if msg == "" {
 		msg = "anvil vault snapshot: " + time.Now().UTC().Format(time.RFC3339)
 	}
@@ -95,13 +98,33 @@ func snapshotVault(cmd *cobra.Command, root, msg string, st core.VaultGitStatus,
 		return fmt.Errorf("git commit: %w", err)
 	}
 	cmd.Printf("committed %d change(s) to the vault\n", len(mine))
-	if push && st.HasRemote {
-		if err := gitRun(root, "push"); err != nil {
-			cmd.PrintErrln("⚠ vault push failed (commit is safe locally):", err)
-			return nil
-		}
-		cmd.Println("pushed the vault to its remote")
+	return nil
+}
+
+// pushVault pushes the vault's unpushed commits, whatever a preceding snapshot
+// did or didn't commit. It fails loud on a real push error: a swallowed
+// rejection leaves the remote silently stale. No remote or nothing unpushed is
+// a silent no-op; a remote with no upstream prints the one-time fix instead.
+func pushVault(cmd *cobra.Command, root string) error {
+	st, err := core.VaultGitState(root)
+	if err != nil {
+		return err
 	}
+	if st.NotRepo || !st.HasRemote {
+		return nil
+	}
+	if !st.HasUpstream {
+		branch, _ := gitOutput(root, "rev-parse", "--abbrev-ref", "HEAD")
+		cmd.PrintErrf("vault has a remote but no upstream; run `git push -u origin %s` once\n", strings.TrimSpace(branch))
+		return nil
+	}
+	if st.Unpushed == 0 {
+		return nil
+	}
+	if err := gitRun(root, "push"); err != nil {
+		return fmt.Errorf("vault push failed (commits are safe locally): %w", err)
+	}
+	cmd.Println("pushed the vault to its remote")
 	return nil
 }
 

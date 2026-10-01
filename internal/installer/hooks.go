@@ -17,7 +17,7 @@ const anvilHookPrefix = "anvil "
 // MergeSessionStartHook registers command under the Claude Code SessionStart
 // hook event in settingsPath.
 func MergeSessionStartHook(settingsPath, command string) (bool, error) {
-	return mergeHook(settingsPath, "SessionStart", command)
+	return mergeHook(settingsPath, "SessionStart", command, 0)
 }
 
 // RemoveSessionStartHook strips command from the SessionStart hook event in
@@ -30,7 +30,7 @@ func RemoveSessionStartHook(settingsPath, command string) (bool, error) {
 // matcher (e.g. "resume|compact"), coexisting with the unmatched entry
 // MergeSessionStartHook manages — the two fire on disjoint sources.
 func MergeSessionStartMatcherHook(settingsPath, matcher, command string) (bool, error) {
-	return mergeMatcherHook(settingsPath, "SessionStart", matcher, command)
+	return mergeMatcherHook(settingsPath, "SessionStart", matcher, command, 0)
 }
 
 // RemoveSessionStartMatcherHook strips command from the SessionStart entry
@@ -42,7 +42,7 @@ func RemoveSessionStartMatcherHook(settingsPath, matcher, command string) (bool,
 // MergePreCompactHook registers command under the Claude Code PreCompact hook
 // event in settingsPath.
 func MergePreCompactHook(settingsPath, command string) (bool, error) {
-	return mergeHook(settingsPath, "PreCompact", command)
+	return mergeHook(settingsPath, "PreCompact", command, 0)
 }
 
 // RemovePreCompactHook strips command from the PreCompact hook event in
@@ -92,10 +92,14 @@ func RemoveAutoCompactWindow(settingsPath string, defaultValue int) (bool, error
 	return true, nil
 }
 
+// sessionEndTimeout (seconds) overrides Claude Code's ~1.5s SessionEnd hook
+// default, which kills the vault push (~1.2s alone) before it finishes.
+const sessionEndTimeout = 30
+
 // MergeSessionEndHook registers command under the Claude Code SessionEnd hook
 // event in settingsPath.
 func MergeSessionEndHook(settingsPath, command string) (bool, error) {
-	return mergeHook(settingsPath, "SessionEnd", command)
+	return mergeHook(settingsPath, "SessionEnd", command, sessionEndTimeout)
 }
 
 // RemoveSessionEndHook strips command from the SessionEnd hook event in
@@ -106,8 +110,8 @@ func RemoveSessionEndHook(settingsPath, command string) (bool, error) {
 
 // mergeHook ensures settingsPath contains a Claude Code hook for the given
 // event that runs command, unscoped by matcher. See mergeMatcherHook.
-func mergeHook(settingsPath, event, command string) (bool, error) {
-	return mergeMatcherHook(settingsPath, event, "", command)
+func mergeHook(settingsPath, event, command string, timeout int) (bool, error) {
+	return mergeMatcherHook(settingsPath, event, "", command, timeout)
 }
 
 // removeHook strips any unmatched hook entry under event whose inner command
@@ -121,11 +125,11 @@ func removeHook(settingsPath, event, command string) (bool, error) {
 // source) that runs command. The file is created if missing. Unrelated keys,
 // entries scoped to a different matcher, and non-anvil entries are preserved;
 // only a stale anvil-managed entry for the same matcher (a prior command
-// string) is replaced, so a changed command upserts instead of accumulating a
-// duplicate that double-fires, and two anvil entries with different matchers
+// string, or a timeout below the wanted one, raised in place) is updated, so a
+// changed command upserts instead of accumulating a duplicate that double-fires, and two anvil entries with different matchers
 // coexist on the same event. Returns changed=false only when command is
 // already the sole anvil entry for matcher and nothing stale needed dropping.
-func mergeMatcherHook(settingsPath, event, matcher, command string) (bool, error) {
+func mergeMatcherHook(settingsPath, event, matcher, command string, timeout int) (bool, error) {
 	settings, err := loadSettings(settingsPath)
 	if err != nil {
 		return false, err
@@ -136,6 +140,7 @@ func mergeMatcherHook(settingsPath, event, matcher, command string) (bool, error
 
 	kept := make([]any, 0, len(entries))
 	hasCurrent := false
+	raised := false
 	for _, e := range entries {
 		if entryMatcher(e) != matcher {
 			// Drop an anvil-managed entry running this command under a
@@ -152,22 +157,26 @@ func mergeMatcherHook(settingsPath, event, matcher, command string) (bool, error
 		switch {
 		case entryMatchesCommand(e, command):
 			hasCurrent = true
+			// Raise in place so a user's sibling hook in the same entry survives.
+			if raiseTimeout(e, command, timeout) {
+				raised = true
+			}
 			kept = append(kept, e)
 		case entryIsManaged(e):
-			continue // drop a stale anvil-managed variant for this matcher
+			continue // drop a stale command variant; re-created below
 		default:
 			kept = append(kept, e)
 		}
 	}
-	if hasCurrent && len(kept) == len(entries) {
+	if hasCurrent && !raised && len(kept) == len(entries) {
 		return false, nil
 	}
 	if !hasCurrent {
-		newEntry := map[string]any{
-			"hooks": []any{
-				map[string]any{"type": "command", "command": command},
-			},
+		hook := map[string]any{"type": "command", "command": command}
+		if timeout > 0 {
+			hook["timeout"] = timeout
 		}
+		newEntry := map[string]any{"hooks": []any{hook}}
 		if matcher != "" {
 			newEntry["matcher"] = matcher
 		}
@@ -218,6 +227,31 @@ func removeMatcherHook(settingsPath, event, matcher, command string) (bool, erro
 		return false, err
 	}
 	return true, nil
+}
+
+// raiseTimeout treats timeout as a floor on the inner hook running command:
+// a lower or missing value is raised in place, a user-raised one is kept. A
+// timeout of 0 means none wanted, so nothing is touched. Reports whether it
+// changed the hook.
+func raiseTimeout(entry any, command string, timeout int) bool {
+	if timeout <= 0 {
+		return false
+	}
+	m, _ := entry.(map[string]any)
+	inner, _ := m["hooks"].([]any)
+	for _, h := range inner {
+		hm, _ := h.(map[string]any)
+		if c, _ := hm["command"].(string); c != command {
+			continue
+		}
+		f, _ := hm["timeout"].(float64) // JSON numbers decode as float64
+		if int(f) >= timeout {
+			return false
+		}
+		hm["timeout"] = timeout
+		return true
+	}
+	return false
 }
 
 // entryMatcher returns entry's "matcher" field, or "" for an unmatched entry.

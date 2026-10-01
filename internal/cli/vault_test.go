@@ -239,3 +239,87 @@ func TestSessionEnd_HookPayloadSessionID(t *testing.T) {
 		t.Errorf("committed %v, want only the payload session's stub", got)
 	}
 }
+
+func seedVaultWithRemote(t *testing.T, sessionID string, upstream bool) (vault, remote string) {
+	t.Helper()
+	vault = seedVaultRepo(t, sessionID)
+	remote = t.TempDir()
+	gitMust(t, remote, "init", "-q", "--bare")
+	gitMust(t, vault, "remote", "add", "origin", remote)
+	if upstream {
+		gitMust(t, vault, "push", "-q", "-u", "origin", "HEAD")
+	}
+	return vault, remote
+}
+
+func unpushed(t *testing.T, vault string) string {
+	t.Helper()
+	out, err := gitOutput(vault, "rev-list", "--count", "@{u}..HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.TrimSpace(out)
+}
+
+func TestSessionEnd_PushesPeerOnlyDirtyWithUnpushedCommit(t *testing.T) {
+	vault, _ := seedVaultWithRemote(t, "mine", true)
+	writeVaultFile(t, vault, "10-sessions/earlier.md", "own")
+	gitMust(t, vault, "add", "-A")
+	gitMust(t, vault, "commit", "-qm", "local")
+	// Only a peer's in-flight file is dirty: nothing to commit, yet the push must run.
+	writeVaultFile(t, vault, "10-sessions/peer.md", "HALF-WRIT")
+	if _, _, err := runCmd(t, newRootCmd(), "session", "end", "--commit", "--push"); err != nil {
+		t.Fatal(err)
+	}
+	if got := unpushed(t, vault); got != "0" {
+		t.Errorf("unpushed = %s, want 0", got)
+	}
+}
+
+func TestSessionEnd_CleanVaultNothingUnpushedDoesNotPush(t *testing.T) {
+	vault, _ := seedVaultWithRemote(t, "mine", true)
+	stdout, _, err := runCmd(t, newRootCmd(), "session", "end", "--commit", "--push")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(stdout, "pushed") {
+		t.Errorf("stdout %q claims a push with nothing unpushed", stdout)
+	}
+	if got := unpushed(t, vault); got != "0" {
+		t.Errorf("unpushed = %s", got)
+	}
+}
+
+func TestVaultCommit_PushWithoutUpstreamHints(t *testing.T) {
+	vault, _ := seedVaultWithRemote(t, "mine", false)
+	writeVaultFile(t, vault, "10-sessions/mine.md", "own")
+	_, stderr, err := runCmd(t, newRootCmd(), "vault", "commit", "--push")
+	if err != nil {
+		t.Fatalf("no-upstream push must not fail: %v", err)
+	}
+	if !strings.Contains(stderr, "git push -u origin") {
+		t.Errorf("stderr %q lacks the upstream hint", stderr)
+	}
+}
+
+func TestVaultCommit_PushesUnpushedOnCleanVault(t *testing.T) {
+	vault, _ := seedVaultWithRemote(t, "mine", true)
+	writeVaultFile(t, vault, "10-sessions/mine.md", "own")
+	gitMust(t, vault, "add", "-A")
+	gitMust(t, vault, "commit", "-qm", "local")
+	if _, _, err := runCmd(t, newRootCmd(), "vault", "commit", "--push"); err != nil {
+		t.Fatal(err)
+	}
+	if got := unpushed(t, vault); got != "0" {
+		t.Errorf("unpushed = %s, want 0", got)
+	}
+}
+
+func TestSessionEnd_UnreachableRemote_ReturnsError(t *testing.T) {
+	vault, remote := seedVaultWithRemote(t, "mine", true)
+	gitMust(t, vault, "remote", "set-url", "origin", filepath.Join(remote, "missing"))
+	writeVaultFile(t, vault, "10-sessions/mine.md", "changed")
+	if _, _, err := runCmd(t, newRootCmd(), "session", "end", "--commit", "--push"); err == nil {
+		t.Error("unreachable remote returned nil, want error")
+	}
+}

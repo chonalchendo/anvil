@@ -30,14 +30,22 @@ func newSessionEndCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if st.NotRepo || st.Dirty == 0 {
+			if st.NotRepo {
 				return nil
 			}
-			return snapshotVault(cmd, v.Root, "", st, flagPush, endSessionID(cmd))
+			if st.Dirty > 0 {
+				if err := snapshotVault(cmd, v.Root, "", endSessionID(cmd)); err != nil {
+					return err
+				}
+			}
+			if flagPush {
+				return pushVault(cmd, v.Root)
+			}
+			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&flagCommit, "commit", false, "snapshot uncommitted vault artifacts with git")
-	cmd.Flags().BoolVar(&flagPush, "push", false, "push to the vault's remote after committing (requires --commit; warns, never fails, on push error)")
+	cmd.Flags().BoolVar(&flagPush, "push", false, "push the vault's unpushed commits to its remote (requires --commit; fails on push error)")
 	return cmd
 }
 
