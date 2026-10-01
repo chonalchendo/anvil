@@ -277,8 +277,14 @@ func wikilinkTargetPath(v *Vault, target string) (string, bool) {
 // basename and their `[[wikilink]]` target are one string; the rest (design
 // types, inbox, thread, learning, sweep, decision, session) key on a bare
 // slug — the index (IndexKey) still disambiguates a bare id shared across
-// types.
+// types. A surrounding `[[...]]` pair (the frontmatter form) is unwrapped
+// first, so every id-taking verb accepts a pasted reference.
 func CanonicalID(t Type, raw string) string {
+	if inner, ok := strings.CutPrefix(raw, "[["); ok {
+		if inner, ok = strings.CutSuffix(inner, "]]"); ok {
+			raw = inner
+		}
+	}
 	bare := strings.TrimPrefix(raw, string(t)+".")
 	switch t {
 	case TypeConvention, TypeIssue, TypeMilestone, TypeContract, TypePlan:

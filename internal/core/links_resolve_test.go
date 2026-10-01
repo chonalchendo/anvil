@@ -474,3 +474,22 @@ func TestArtifactBasename(t *testing.T) {
 		}
 	}
 }
+
+func TestCanonicalID_UnwrapsWikilink(t *testing.T) {
+	cases := []struct {
+		typ  Type
+		raw  string
+		want string
+	}{
+		{TypeMilestone, "[[milestone.anvil.x]]", "milestone.anvil.x"},
+		{TypeMilestone, "[[anvil.x]]", "milestone.anvil.x"},
+		{TypeIssue, "[[issue.anvil.0001.a]]", "issue.anvil.0001.a"},
+		{TypeLearning, "[[learning.foo]]", "foo"},
+		{TypeMilestone, "[[milestone.anvil.x", "milestone.[[milestone.anvil.x"},
+	}
+	for _, c := range cases {
+		if got := CanonicalID(c.typ, c.raw); got != c.want {
+			t.Errorf("CanonicalID(%s, %q) = %q, want %q", c.typ, c.raw, got, c.want)
+		}
+	}
+}
