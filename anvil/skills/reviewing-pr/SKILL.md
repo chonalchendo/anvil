@@ -47,7 +47,7 @@ The report shape, the severity bands (**blocker** / **high** / **medium** / **lo
 
 ## Phase 4 — Interpret findings
 
-Read the subagent's report and route:
+Read the subagent's report. **First persist it** — a session death mid-loop otherwise loses the round: write the report verbatim to a temp file headed `## Review findings — PR <n>, round <k> @ <head-sha>` (k = 1 + `anvil show issue <issue-id> | grep -c '^## Review findings — PR <n>,'`) and run `anvil append issue <issue-id> --body-file <f>`. If append rejects an unresolved wikilink, strip the `[[ ]]` and retry; a failed persist never blocks routing. Skip only when the PR has no owning issue. Then route:
 
 - **All findings ≤low and CI green** — surface "no actionable findings" to the user; the PR is ready for the human's merge decision.
 - **Any blocker/high, or actionable medium** — fire `responding-to-pr-review`, handing it **the structured report (Phase 3 findings) and the subagent id**. These findings are thread-less, so its loop drives each through apply / skip-with-reason / push-back exactly as it does a human reviewer's inline threads — a blocker gets implemented, not summarized. The subagent id keys the post-resolution summary so the audit trail survives the handoff.
