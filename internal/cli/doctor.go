@@ -194,6 +194,9 @@ func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 	// Shape 6: two issues minted under one ordinal.
 	findings = append(findings, checkDuplicateOrdinals(issuePaths)...)
 
+	// Shape 8: installed skills bundle stale or symlinked at a retired dir.
+	findings = append(findings, checkInstalledSkillsDefault()...)
+
 	return findings, nil
 }
 
