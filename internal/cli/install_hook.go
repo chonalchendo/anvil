@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -34,6 +35,9 @@ func newInstallFireSessionStartCmd() *cobra.Command {
 			}
 			v, err := core.ResolveVault()
 			if err != nil {
+				if errors.Is(err, core.ErrNoVault) {
+					return nil
+				}
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 			startedAt := time.Now().UTC().Format(time.RFC3339)
@@ -71,6 +75,9 @@ func newInstallFireSessionResumeCmd() *cobra.Command {
 			}
 			v, err := core.ResolveVault()
 			if err != nil {
+				if errors.Is(err, core.ErrNoVault) {
+					return nil
+				}
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 			items, err := collectSessions(cmd, v.Root, "")

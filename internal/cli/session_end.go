@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -24,6 +25,9 @@ func newSessionEndCmd() *cobra.Command {
 			}
 			v, err := core.ResolveVault()
 			if err != nil {
+				if errors.Is(err, core.ErrNoVault) {
+					return nil
+				}
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 			st, err := core.VaultGitState(v.Root)
