@@ -149,3 +149,24 @@ func TestCheckInstalledSkills_NoSkillsDir(t *testing.T) {
 		t.Errorf("want nil, got %+v", got)
 	}
 }
+
+// A retired-dir link whose name is bundled is cleared by the very command its
+// Fix names: InstallSkills replaces anvil's symlink at that name.
+func TestCheckInstalledSkills_RetiredBundledFixClears(t *testing.T) {
+	f := newSkillsFixture(t)
+	name := bundledName(t)
+	if err := os.MkdirAll(filepath.Join(f.retired, name), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	f.link(t, name, filepath.Join(f.retired, name))
+	d, ok := f.byID(t)[name]
+	if !ok || !strings.Contains(d.Fix, "install skills --force") {
+		t.Fatalf("want install fix, got %+v", d)
+	}
+	if _, err := installer.InstallSkills(skills.FS, f.mat, f.skillsDir, false, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.byID(t); len(got) != 0 {
+		t.Errorf("fix did not clear findings: %+v", got)
+	}
+}
