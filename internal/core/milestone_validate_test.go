@@ -133,27 +133,30 @@ func TestValidateMilestone_BucketEmptyAcceptance_Allowed(t *testing.T) {
 }
 
 func TestMeasurementStale(t *testing.T) {
-	now := time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 10, 3, 10, 0, 0, 0, time.UTC)
 	body := func(status string) string {
 		return "## Objective\no\n\n## Status\n" + status + "\n"
 	}
 	cases := []struct {
 		name, kind, status, body string
-		want                     bool
+		want, wantOK             bool
 	}{
-		{"old scoped in-progress", "scoped", "in-progress", body("Measured: 2026-08-01"), true},
-		{"fresh", "scoped", "in-progress", body("Measured: 2026-10-01"), false},
-		{"exactly threshold", "scoped", "in-progress", body("Measured: 2026-09-19"), false},
-		{"bucket never", "bucket", "in-progress", body("Measured: 2026-08-01"), false},
-		{"not in-progress", "scoped", "planned", body("Measured: 2026-08-01"), false},
-		{"no line", "scoped", "in-progress", body("prose"), false},
-		{"fenced line ignored", "scoped", "in-progress", body("```\nMeasured: 2026-08-01\n```"), false},
+		{"old scoped in-progress", "scoped", "in-progress", body("Measured: 2026-08-01"), true, true},
+		{"fresh", "scoped", "in-progress", body("Measured: 2026-10-01"), false, true},
+		{"exactly threshold, mid-day now", "scoped", "in-progress", body("Measured: 2026-09-19"), false, true},
+		{"one day past threshold", "scoped", "in-progress", body("Measured: 2026-09-18"), true, true},
+		{"bucket absent", "bucket", "in-progress", body("Measured: 2026-08-01"), false, false},
+		{"not in-progress absent", "scoped", "planned", body("Measured: 2026-08-01"), false, false},
+		{"no line absent", "scoped", "in-progress", body("prose"), false, false},
+		{"bold form absent", "scoped", "in-progress", body("**Measured:** 2026-08-01"), false, false},
+		{"fenced line absent", "scoped", "in-progress", body("```\nMeasured: 2026-08-01\n```"), false, false},
+		{"line outside Status absent", "scoped", "in-progress", "## Objective\nMeasured: 2026-08-01\n\n## Status\nprose\n", false, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			a := &Artifact{FrontMatter: map[string]any{"kind": c.kind, "status": c.status}, Body: c.body}
-			if got := MeasurementStale(a, now); got != c.want {
-				t.Errorf("got %v, want %v", got, c.want)
+			if got, ok := MeasurementStale(a, now); got != c.want || ok != c.wantOK {
+				t.Errorf("got (%v, %v), want (%v, %v)", got, ok, c.want, c.wantOK)
 			}
 		})
 	}

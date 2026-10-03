@@ -2,8 +2,9 @@ package cli
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
 	"time"
+
+	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
@@ -50,15 +51,24 @@ func measurementStaleWarning(id string) string {
 	return fmt.Sprintf("warning: %s Status block was measured over %d days ago; re-measure and update its Measured: line", id, core.MeasurementStaleDays)
 }
 
-// flagMeasurementStale sets item.MeasurementStale for a milestone row and
-// warns on stderr when true; no-op for other types.
-func flagMeasurementStale(cmd *cobra.Command, item *listItem, a *core.Artifact) {
+// flagMeasurementStale sets item.MeasurementStale for a milestone row when
+// the verdict applies (scoped, in-progress, dated); otherwise it stays nil
+// and the key is omitted. The stderr warning is emitted separately, after
+// --limit truncation, by warnMeasurementStale.
+func flagMeasurementStale(item *listItem, a *core.Artifact) {
 	if item.Type != string(core.TypeMilestone) {
 		return
 	}
-	ms := core.MeasurementStale(a, time.Now())
-	item.MeasurementStale = &ms
-	if ms {
-		cmd.PrintErrln(measurementStaleWarning(item.ID))
+	if ms, ok := core.MeasurementStale(a, time.Now()); ok {
+		item.MeasurementStale = &ms
+	}
+}
+
+// warnMeasurementStale warns on stderr for each returned item flagged stale.
+func warnMeasurementStale(cmd *cobra.Command, items []listItem) {
+	for _, it := range items {
+		if it.MeasurementStale != nil && *it.MeasurementStale {
+			cmd.PrintErrln(measurementStaleWarning(it.ID))
+		}
 	}
 }

@@ -276,7 +276,7 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 		if err := enrichMilestoneItem(db, &item, id, status, kind); err != nil {
 			return err
 		}
-		flagMeasurementStale(cmd, &item, a)
+		flagMeasurementStale(&item, a)
 		items = append(items, item)
 	}
 
@@ -291,6 +291,7 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 	if limit > 0 && len(items) > limit {
 		items = items[:limit]
 	}
+	warnMeasurementStale(cmd, items)
 	return emitList(cmd, items, total, asJSON, t, fields)
 }
 

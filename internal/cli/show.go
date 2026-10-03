@@ -210,10 +210,11 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename, rawID str
 	}
 
 	if t == core.TypeMilestone {
-		ms := core.MeasurementStale(a, time.Now())
-		out.MeasurementStale = &ms
-		if ms {
-			cmd.PrintErrln(measurementStaleWarning(id))
+		if ms, ok := core.MeasurementStale(a, time.Now()); ok {
+			out.MeasurementStale = &ms
+			if ms {
+				cmd.PrintErrln(measurementStaleWarning(id))
+			}
 		}
 		if db, dberr := indexForRead(v); dberr != nil {
 			cmd.PrintErrln("warning: milestone children: " + dberr.Error())
