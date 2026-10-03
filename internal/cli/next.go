@@ -12,7 +12,7 @@ import (
 
 // newNextCmd is the deterministic front-door for "what should I work on next":
 // it returns the single highest-priority ready issue plus the start-context an
-// agent needs to begin it (goal, severity, milestone, governing contracts,
+// agent needs to begin it (goal, severity, milestone, governing component designs,
 // path). The selection and ordering are shared with `anvil build` (via
 // selectReadyUnits) so an interactive agent and the build loop agree on the
 // same next unit.
@@ -55,8 +55,8 @@ func newNextCmd() *cobra.Command {
 					return enc.Encode(struct{}{})
 				}
 				u := units[0]
-				if u.Contracts == nil {
-					u.Contracts = []string{}
+				if u.ComponentDesigns == nil {
+					u.ComponentDesigns = []string{}
 				}
 				return enc.Encode(u)
 			}

@@ -12,10 +12,10 @@ import (
 
 // readyUnitsToTasks maps the priority-ordered ready frontier to dispatch tasks.
 // Each unit becomes a completing-issue task whose body carries the assembled
-// start-context (goal, severity, milestone, governing contracts, path) — the
+// start-context (goal, severity, milestone, governing component designs, path) — the
 // same context `anvil next` hands an interactive agent, so a dispatched agent
 // starts from the unit-with-context rather than a bare id. Milestone and
-// contracts lines are omitted when empty so the body carries no blank scaffolding.
+// component designs lines are omitted when empty so the body carries no blank scaffolding.
 func readyUnitsToTasks(units []readyUnit) []core.Task {
 	tasks := make([]core.Task, 0, len(units))
 	for _, u := range units {
@@ -26,8 +26,8 @@ func readyUnitsToTasks(units []readyUnit) []core.Task {
 		if u.Milestone != "" {
 			fmt.Fprintf(&b, "Milestone: %s\n", u.Milestone)
 		}
-		if len(u.Contracts) > 0 {
-			fmt.Fprintf(&b, "Governing contracts: %s\n", strings.Join(u.Contracts, ", "))
+		if len(u.ComponentDesigns) > 0 {
+			fmt.Fprintf(&b, "Governing component designs: %s\n", strings.Join(u.ComponentDesigns, ", "))
 		}
 		fmt.Fprintf(&b, "Issue path: %s\n", u.Path)
 
@@ -42,7 +42,7 @@ func readyUnitsToTasks(units []readyUnit) []core.Task {
 
 // injectHydratedContext folds each dispatch task's spine-closure bodies into its
 // prompt — the milestone objectives, its design bodies, the issue's
-// contracts→conventions, and prior learnings — the same box `anvil hydrate`
+// component designs→conventions, and prior learnings — the same box `anvil hydrate`
 // opens for an interactive agent in completing-issue Phase 1. Without it, the
 // headless worker starts from the bare identifiers readyUnitsToTasks carries and
 // the milestone→designs edge never opens (anvil.0154). The driver owns the vault

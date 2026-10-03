@@ -310,7 +310,7 @@ func TestRespondPhase_TelemetryTagsEachPhaseRow(t *testing.T) {
 
 func TestReadyUnitsToTasks_MapsIDSkillAndStartContext(t *testing.T) {
 	units := []readyUnit{
-		{ID: "demo.a", Goal: "ship a", Severity: "high", Milestone: "demo.m1", Contracts: []string{"demo.c1"}, Path: "/v/demo.a.md"},
+		{ID: "demo.a", Goal: "ship a", Severity: "high", Milestone: "demo.m1", ComponentDesigns: []string{"demo.c1"}, Path: "/v/demo.a.md"},
 		{ID: "demo.b", Goal: "ship b", Severity: "low", Path: "/v/demo.b.md"},
 	}
 	tasks := readyUnitsToTasks(units)
@@ -324,14 +324,14 @@ func TestReadyUnitsToTasks_MapsIDSkillAndStartContext(t *testing.T) {
 		t.Errorf("task[0].SkillsToLoad = %v, want [completing-issue]", tasks[0].SkillsToLoad)
 	}
 	// The body carries the assembled start-context, not just the id.
-	for _, want := range []string{"demo.a", "Goal: ship a", "Severity: high", "Milestone: demo.m1", "Governing contracts: demo.c1", "Issue path: /v/demo.a.md"} {
+	for _, want := range []string{"demo.a", "Goal: ship a", "Severity: high", "Milestone: demo.m1", "Governing component designs: demo.c1", "Issue path: /v/demo.a.md"} {
 		if !strings.Contains(tasks[0].Body, want) {
 			t.Errorf("task[0].Body missing %q; got:\n%s", want, tasks[0].Body)
 		}
 	}
-	// Empty milestone/contracts produce no blank scaffolding lines.
-	if strings.Contains(tasks[1].Body, "Milestone:") || strings.Contains(tasks[1].Body, "Governing contracts:") {
-		t.Errorf("task[1].Body should omit empty milestone/contracts; got:\n%s", tasks[1].Body)
+	// Empty milestone/component designs produce no blank scaffolding lines.
+	if strings.Contains(tasks[1].Body, "Milestone:") || strings.Contains(tasks[1].Body, "Governing component designs:") {
+		t.Errorf("task[1].Body should omit empty milestone/component designs; got:\n%s", tasks[1].Body)
 	}
 }
 

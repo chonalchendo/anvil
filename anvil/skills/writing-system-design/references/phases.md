@@ -34,6 +34,7 @@ For each milestone in the product-design, identify which component delivers it. 
 Output:
 - 3–8 components (more is a smell; fold related responsibilities).
 - Per component: name, one-line responsibility, which milestones it serves.
+- Per component: one line saying whether it gets a component design (`writing-component-design`) and why — yes only if it has an interface others build against, state or invariants beyond this design's, or spans more than one milestone. The component design itself is written later, when the milestone building the component starts.
 
 Draft "Components and responsibilities" body section.
 

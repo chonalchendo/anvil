@@ -17,14 +17,14 @@ import (
 
 // newHydrateCmd assembles an issue's methodology-spine context closure into one
 // bundle of linked bodies: the issue, its milestone, the milestone's designs, the
-// conventions those designs and the issue's contracts govern by, its prior
+// conventions those designs and the issue's component designs govern by, its prior
 // learnings, and the governing-type targets named in the issue body's ## Links
 // section. A spine edge whose target does not resolve on disk makes the command
 // exit non-zero naming it, rather than silently omitting it.
 func newHydrateCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "hydrate <issue>",
-		Short:   "Assemble an issue's linked-context closure (issue → milestone → designs → conventions, contracts → conventions, learnings, body ## Links) as bodies; a dangling spine edge exits non-zero naming it",
+		Short:   "Assemble an issue's linked-context closure (issue → milestone → designs → conventions, component designs → conventions, learnings, body ## Links) as bodies; a dangling spine edge exits non-zero naming it",
 		Args:    namedArgs("anvil hydrate <issue>", []string{"<issue>"}, 1, 1),
 		Example: "  anvil hydrate anvil.0148.assemble-the-linked",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -76,7 +76,7 @@ type brokenEdge struct {
 
 // hydration accumulates the assembled closure and any broken edges as the walk
 // descends the fixed methodology spine. seen keys the nodes already emitted, so a
-// convention reachable by two rails (a contract and a design) enters the bundle
+// convention reachable by two rails (a component design and a design) enters the bundle
 // once — a duplicated body is pure context cost to the reader.
 type hydration struct {
 	nodes  []spineNode
@@ -186,16 +186,16 @@ func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 		}
 	}
 
-	// issue → contract → convention
-	for _, ct := range linkTargetsOfType(iss, core.TypeContract) {
-		c, err := h.walk(v, issueSrc, core.TypeContract, ct)
+	// issue → component design → convention
+	for _, ct := range linkTargetsOfType(iss, core.TypeComponentDesign) {
+		c, err := h.walk(v, issueSrc, core.TypeComponentDesign, ct)
 		if err != nil {
 			return nil, err
 		}
 		if c == nil {
 			continue
 		}
-		if err := h.descendConventions(v, "contract "+ct, c); err != nil {
+		if err := h.descendConventions(v, "component design "+ct, c); err != nil {
 			return nil, err
 		}
 	}
@@ -223,8 +223,8 @@ func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 
 // descendConventions walks an artifact's convention links — the shared last hop of
 // both governing rails. A design carries the house style every issue under it must
-// obey, so reaching conventions only through a contract left them unreachable for
-// any issue whose repo declares no contract.
+// obey, so reaching conventions only through a component design left them unreachable for
+// any issue whose repo declares no component design.
 func (h *hydration) descendConventions(v *core.Vault, sourceDesc string, a *core.Artifact) error {
 	for _, cv := range linkTargetsOfType(a, core.TypeConvention) {
 		if _, err := h.walk(v, sourceDesc, core.TypeConvention, cv); err != nil {
@@ -294,7 +294,7 @@ func clipBody(body string) (clipped string, total int, wasClipped bool) {
 
 // emitManifest prints the bundle's index ahead of every body. A closure runs to
 // thousands of lines, so a caller that pipes hydrate to `head` sees only the first
-// node's body and concludes the contracts and conventions below were never
+// node's body and concludes the component designs and conventions below were never
 // returned — two reviewers did exactly that on 2026-08-21. The two markers start
 // with `=== ` so the block is greppable; the entries deliberately do not, so a
 // `=== <type> <id> (status: <s>) ===` scrape still counts each node once. The

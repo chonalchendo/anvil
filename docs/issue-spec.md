@@ -68,7 +68,7 @@ grep -q "transitioned to in-progress" "$o"
 
 ## Universal predicate bars
 
-`writing-issue` Phase 4 writes `### Direct`/`### Indirect` from the governing contract when one exists. No contract governs → every predicate, contract-drawn or not, still satisfies these bars:
+`writing-issue` Phase 4 writes `### Direct`/`### Indirect` from the governing component design when one exists. No component design governs → every predicate, component-design-drawn or not, still satisfies these bars:
 
 - **Same code path** — the predicate travels the real system's path, not a proxy/metadata path that happens to be green (a dev check that can't reach the prod registry the goal lives in doesn't verify the goal).
 - **Exercise, not presence** — assert on behaviour, never that a source file contains a string; the carve-out is a doc/skill-only change, which greps the *built/installed* artifact, never the source tree.

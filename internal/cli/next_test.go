@@ -10,7 +10,7 @@ import (
 )
 
 // writeReadyIssueFile writes an open issue with a custom severity/created and an
-// optional milestone + contract links, returning the index row that points at
+// optional milestone + component design links, returning the index row that points at
 // it. Used to exercise selectReadyUnits' enrichment and deterministic sort
 // without standing up the index.
 func writeReadyIssueFile(t *testing.T, vault, id, severity, created, milestone string, related []any) index.ArtifactRow {
@@ -62,13 +62,13 @@ func TestSelectReadyUnits_OrdersBySeverityThenCreatedThenID(t *testing.T) {
 	}
 }
 
-func TestSelectReadyUnits_EnrichesGoalAndContracts(t *testing.T) {
+func TestSelectReadyUnits_EnrichesGoalAndComponentDesigns(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
 
 	row := writeReadyIssueFile(t, vault, "demo.x", "high", "2026-01-01", "",
-		[]any{"[[contract.demo.c1]]", "[[issue.demo.sibling]]", "[[contract.demo.c2]]"})
+		[]any{"[[component-design.demo.c1]]", "[[issue.demo.sibling]]", "[[component-design.demo.c2]]"})
 	units := selectReadyUnits([]index.ArtifactRow{row}, "")
 	if len(units) != 1 {
 		t.Fatalf("got %d units, want 1", len(units))
@@ -77,9 +77,9 @@ func TestSelectReadyUnits_EnrichesGoalAndContracts(t *testing.T) {
 	if u.Goal != "goal of demo.x" {
 		t.Errorf("goal = %q, want %q", u.Goal, "goal of demo.x")
 	}
-	// Only contract relations survive; the sibling issue link is dropped.
-	if strings.Join(u.Contracts, ",") != "demo.c1,demo.c2" {
-		t.Errorf("contracts = %v, want [demo.c1 demo.c2]", u.Contracts)
+	// Only component design relations survive; the sibling issue link is dropped.
+	if strings.Join(u.ComponentDesigns, ",") != "demo.c1,demo.c2" {
+		t.Errorf("component designs = %v, want [demo.c1 demo.c2]", u.ComponentDesigns)
 	}
 }
 
@@ -112,7 +112,7 @@ func TestNext_JSON_ReturnsHeadDeterministically(t *testing.T) {
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
 	writeReadyIssueFile(t, vault, "demo.low", "low", "2026-01-01", "", nil)
-	writeReadyIssueFile(t, vault, "demo.crit", "critical", "2026-02-01", "", []any{"[[contract.demo.c1]]"})
+	writeReadyIssueFile(t, vault, "demo.crit", "critical", "2026-02-01", "", []any{"[[component-design.demo.c1]]"})
 	execCmd(t, "reindex")
 
 	out1 := execCmdJSON(t, "next", "--json", "--project", "demo")
@@ -122,11 +122,11 @@ func TestNext_JSON_ReturnsHeadDeterministically(t *testing.T) {
 	}
 
 	var u struct {
-		ID        string   `json:"id"`
-		Goal      string   `json:"goal"`
-		Severity  string   `json:"severity"`
-		Contracts []string `json:"contracts"`
-		Path      string   `json:"path"`
+		ID               string   `json:"id"`
+		Goal             string   `json:"goal"`
+		Severity         string   `json:"severity"`
+		ComponentDesigns []string `json:"component_designs"`
+		Path             string   `json:"path"`
 	}
 	if err := jsonUnmarshal(t, strings.TrimSpace(out1), &u); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out1)
@@ -137,8 +137,8 @@ func TestNext_JSON_ReturnsHeadDeterministically(t *testing.T) {
 	if u.Goal == "" || u.Severity != "critical" || u.Path == "" {
 		t.Errorf("start-context fields incomplete: %+v", u)
 	}
-	if len(u.Contracts) != 1 || u.Contracts[0] != "demo.c1" {
-		t.Errorf("contracts = %v, want [demo.c1]", u.Contracts)
+	if len(u.ComponentDesigns) != 1 || u.ComponentDesigns[0] != "demo.c1" {
+		t.Errorf("component designs = %v, want [demo.c1]", u.ComponentDesigns)
 	}
 }
 

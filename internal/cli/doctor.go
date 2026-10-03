@@ -51,7 +51,7 @@ func newDoctorCmd() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "doctor",
-		Short: "Detect stale lifecycle state (merged-PR issues, dead claims, finished milestones, orphan worktrees, empty contract convention rails, duplicate ordinals, live work on open issues, stale or retired-target installed skills)",
+		Short: "Detect stale lifecycle state (merged-PR issues, dead claims, finished milestones, orphan worktrees, empty component design convention rails, duplicate ordinals, live work on open issues, stale or retired-target installed skills)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
@@ -184,12 +184,12 @@ func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 		}
 	}
 
-	// Shape 5: active contract with an empty convention rail.
-	contractFindings, err := checkContractConventionRails(v)
+	// Shape 5: active component design with an empty convention rail.
+	componentDesignFindings, err := checkComponentDesignConventionRails(v)
 	if err != nil {
 		return nil, err
 	}
-	findings = append(findings, contractFindings...)
+	findings = append(findings, componentDesignFindings...)
 
 	// Shape 6: two issues minted under one ordinal.
 	findings = append(findings, checkDuplicateOrdinals(issuePaths)...)
@@ -200,14 +200,14 @@ func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 	return findings, nil
 }
 
-// checkContractConventionRails returns a finding for each active contract
+// checkComponentDesignConventionRails returns a finding for each active component design
 // whose body links zero conventions while conventions exist in the vault.
-// reviewing-pr resolves its convention rubric exclusively through contract
-// body links, so an empty rail silently weakens every review the contract
+// reviewing-pr resolves its convention rubric exclusively through component design
+// body links, so an empty rail silently weakens every review the component design
 // governs. A vault with no conventions at all yields no findings — there is
 // nothing to link. Warning-shaped by design: a component with genuinely no
 // governing convention stays legal; linking is an authoring judgment.
-func checkContractConventionRails(v *core.Vault) ([]doctorFinding, error) {
+func checkComponentDesignConventionRails(v *core.Vault) ([]doctorFinding, error) {
 	convPaths, err := collectArtifactPaths(v.Root, core.TypeConvention)
 	if err != nil {
 		return nil, fmt.Errorf("reading conventions: %w", err)
@@ -215,12 +215,12 @@ func checkContractConventionRails(v *core.Vault) ([]doctorFinding, error) {
 	if len(convPaths) == 0 {
 		return nil, nil
 	}
-	contractPaths, err := collectArtifactPaths(v.Root, core.TypeContract)
+	componentDesignPaths, err := collectArtifactPaths(v.Root, core.TypeComponentDesign)
 	if err != nil {
-		return nil, fmt.Errorf("reading contracts: %w", err)
+		return nil, fmt.Errorf("reading component designs: %w", err)
 	}
 	var findings []doctorFinding
-	for _, p := range contractPaths {
+	for _, p := range componentDesignPaths {
 		a, err := core.LoadArtifact(p)
 		if err != nil {
 			continue // skip unreadable
@@ -231,12 +231,12 @@ func checkContractConventionRails(v *core.Vault) ([]doctorFinding, error) {
 		if len(core.BodyWikilinkTargetsOfType(a.Body, core.TypeConvention)) > 0 {
 			continue
 		}
-		id := core.CanonicalID(core.TypeContract, strings.TrimSuffix(filepath.Base(p), ".md"))
+		id := core.CanonicalID(core.TypeComponentDesign, strings.TrimSuffix(filepath.Base(p), ".md"))
 		findings = append(findings, doctorFinding{
-			Kind:     "contract-empty-convention-rail",
+			Kind:     "component-design-empty-convention-rail",
 			ID:       id,
-			Evidence: "active contract links no conventions; reviews it governs run with an empty rubric",
-			Fix:      fmt.Sprintf("link governing conventions in %s's ## Code design via writing-contract, or confirm none governs", id),
+			Evidence: "active component design links no conventions; reviews it governs run with an empty rubric",
+			Fix:      fmt.Sprintf("link governing conventions in %s's ## Code design via writing-component-design, or confirm none governs", id),
 		})
 	}
 	return findings, nil
