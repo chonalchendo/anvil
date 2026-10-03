@@ -238,3 +238,37 @@ func TestAppend_PreexistingViolation_IsPrefixed(t *testing.T) {
 		t.Errorf("pre-existing violation must be labelled as such, stderr: %q", stderr)
 	}
 }
+
+// A stored body that already breaks a warning-severity rule must not block
+// the append: the section lands and the warning rides in the JSON envelope.
+func TestAppend_PreexistingWarning_DoesNotBlock(t *testing.T) {
+	vault := setupVault(t)
+	path := filepath.Join(vault, "85-milestones", "milestone.warn.md")
+	a := &core.Artifact{
+		Path: path,
+		FrontMatter: map[string]any{
+			"type": "milestone", "title": "warn", "created": "2026-01-01",
+			"updated": "2026-01-01", "status": "open",
+		},
+		Body: "## Objective\n\n" + strings.Repeat("word ", 40) + "ends here.\n\n## Non-goals\n\n- none\n\n## Links\n\n## Status\n\nopen\n",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	bodyFile := filepath.Join(t.TempDir(), "addendum.md")
+	if err := os.WriteFile(bodyFile, []byte("## Probe\n\nhello\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, _, err := runCmd(t, newRootCmd(), "append", "milestone", "milestone.warn", "--body-file", bodyFile, "--json")
+	if err != nil {
+		t.Fatalf("warning-only findings must not refuse: %v", err)
+	}
+	if !strings.Contains(stdout, `"kind":"validation"`) || !strings.Contains(stdout, "lead_sentence") {
+		t.Errorf("warning missing from envelope: %q", stdout)
+	}
+	got, _ := os.ReadFile(path)
+	if !strings.Contains(string(got), "## Probe") {
+		t.Error("section was not written")
+	}
+}

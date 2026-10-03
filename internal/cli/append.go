@@ -85,8 +85,11 @@ func newAppendCmd() *cobra.Command {
 			}
 
 			newBody := joinBodySection(a.Body, addition)
-			if failures := staticBodyFailures(cmd, v, t, path, a.FrontMatter, newBody); len(failures) > 0 {
-				markPreexisting(failures, staticBodyFailures(cmd, v, t, path, a.FrontMatter, a.Body))
+			failures := staticBodyFailures(cmd, v, t, path, a.FrontMatter, newBody)
+			markPreexisting(failures, staticBodyFailures(cmd, v, t, path, a.FrontMatter, a.Body))
+			// Warning-only findings (pre-existing or new) never block: they
+			// ride out with the success result instead of dropping the section.
+			if hasBlockingFailure(failures) {
 				return emitValidationErrors(cmd, flagJSON, failures)
 			}
 
@@ -112,6 +115,7 @@ func newAppendCmd() *cobra.Command {
 
 			return emitAppendResult(cmd, flagJSON, appendResult{
 				ID: id, Path: path, Updated: a.FrontMatter["updated"].(string), Status: "appended",
+				Warnings: jsonWarnings(nil, failures), findings: failures,
 			})
 		},
 	}
@@ -155,6 +159,9 @@ type appendResult struct {
 	Path    string `json:"path"`
 	Updated string `json:"updated,omitempty"`
 	Status  string `json:"status"`
+	// Warnings mirrors create's envelope; findings feeds the text-mode render.
+	Warnings []map[string]string `json:"warnings,omitempty"`
+	findings []*errfmt.ValidationError
 }
 
 func emitAppendResult(cmd *cobra.Command, asJSON bool, r appendResult) error {
@@ -166,6 +173,9 @@ func emitAppendResult(cmd *cobra.Command, asJSON bool, r appendResult) error {
 	if r.Status == "unchanged" {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s: unchanged (section already present)\n", r.ID)
 		return nil
+	}
+	if len(r.findings) > 0 {
+		printValidationErrors(cmd, r.findings)
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s: appended (updated %s)\n", r.ID, r.Updated)
 	return nil
