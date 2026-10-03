@@ -101,3 +101,12 @@ If the temptation to include any of the above appears, replace it with the one-l
 ## When the session has nothing handoff-worthy
 
 If `git status` is clean, no new artifacts were created, and no decisions were reached: say so in one line — *"Nothing to hand off; new session starts from a clean tree."* — followed by the **Token reflection** bullets (still required). Do not invent next-actions to fill the template.
+
+## Writing
+
+Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
+
+- Short sentences: 20 words at most for an instruction, 25 for a description.
+- Active voice. One instruction per sentence. Conclusion first.
+- One term per concept; reuse it verbatim.
+- No filler, no hedging, no restating what the reader already has.

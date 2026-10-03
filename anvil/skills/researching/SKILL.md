@@ -67,3 +67,12 @@ Sibling skills — name a different one if the user's intent is shaped different
 - `exploration` — poking at the local codebase or installed capabilities, not external sources.
 
 Composes-with (callers that invoke this as a sub-skill): `writing-product-design`, `writing-system-design`, `creating-issue`, `planning`.
+
+## Writing
+
+Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
+
+- Short sentences: 20 words at most for an instruction, 25 for a description.
+- Active voice. One instruction per sentence. Conclusion first.
+- One term per concept; reuse it verbatim.
+- No filler, no hedging, no restating what the reader already has.

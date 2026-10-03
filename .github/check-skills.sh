@@ -8,7 +8,8 @@
 # inline go-file-length gate is one check; description extraction is too much
 # for safe inline quoting in two places). Over the hard cap fails; over the
 # target warns. ::error/::warning render in GitHub Actions and print plainly
-# elsewhere.
+# elsewhere. Also requires the standard Writing block (anvil/writing-block.md)
+# verbatim in every shipped skill and agent.
 set -euo pipefail
 
 max_file=500 warn_file=200 max_desc=1024 warn_desc=250
@@ -40,5 +41,14 @@ while IFS= read -r f; do
     fail=1
   fi
 done < <(git ls-files 'anvil/skills/*/SKILL.md')
+
+# Byte-identical, so the shipped style rule can't drift per skill.
+writing_block=$(cat anvil/writing-block.md)
+while IFS= read -r f; do
+  if [[ "$(cat "$f")" != *"$writing_block"* ]]; then
+    echo "::error file=$f::missing or edited Writing block — append anvil/writing-block.md verbatim"
+    fail=1
+  fi
+done < <(git ls-files 'anvil/skills/*/SKILL.md' 'anvil/agents/*.md')
 
 exit "$fail"

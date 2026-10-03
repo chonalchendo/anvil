@@ -168,3 +168,12 @@ Both bundled agents (`anvil-issue-worker`, `anvil-pr-responder`) echo this check
 - Do not dispatch >8 subagents. Context cost on the orchestrator side outpaces the time savings past 8.
 - Do not re-dispatch a `Blocker:` return. The subagent declared inability; respect it.
 - Do not narrate the dispatch. The final report (Phase 5) is the deliverable.
+
+## Writing
+
+Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
+
+- Short sentences: 20 words at most for an instruction, 25 for a description.
+- Active voice. One instruction per sentence. Conclusion first.
+- One term per concept; reuse it verbatim.
+- No filler, no hedging, no restating what the reader already has.

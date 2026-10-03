@@ -162,3 +162,12 @@ The pattern: match the edited `file_path` by extension (`*.py`, `*.sql`, …) �
 - Project-specific boundaries — that is a contract (`writing-contract`), which *links* this convention.
 - Machine enforcement (`anvil convention check`) — conventions are read by agents, not linted, in v0.1.
 - Auto-generating project `CLAUDE.md` pointer blocks — link by hand.
+
+## Writing
+
+Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
+
+- Short sentences: 20 words at most for an instruction, 25 for a description.
+- Active voice. One instruction per sentence. Conclusion first.
+- One term per concept; reuse it verbatim.
+- No filler, no hedging, no restating what the reader already has.
