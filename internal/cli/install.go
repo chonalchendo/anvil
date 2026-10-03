@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -217,9 +218,6 @@ func newInstallSkillsCmd() *cobra.Command {
 			"the anvil binary and re-run `anvil install skills --force`.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if target == "opencode" {
-				return errors.New("--target opencode is not supported for skills: OpenCode already scans ~/.claude/skills, so run `anvil install skills` (default claude target); installing again would double-load them")
-			}
 			skillsDir, err := resolveAnvilSkillsTarget(target)
 			if err != nil {
 				return err
@@ -341,7 +339,7 @@ func newInstallAgentsCmd() *cobra.Command {
 			}
 			switch target {
 			case "codex":
-				return runInstallCodexAgents(cmd, dir, uninstall, force)
+				return runInstallTranslatedAgents(cmd, dir, uninstall, force, "codex", "Codex TOML", installer.InstallCodexAgents, installer.RemoveCodexAgents)
 			case "pi":
 				return runInstallTranslatedAgents(cmd, dir, uninstall, force, "pi", "pi markdown subagents", installer.InstallPiAgents, installer.RemovePiAgents)
 			case "ante":
@@ -379,11 +377,17 @@ func newInstallAgentsCmd() *cobra.Command {
 	return cmd
 }
 
-func runInstallCodexAgents(cmd *cobra.Command, dir string, uninstall, force bool) error {
+// runInstallTranslatedAgents is the shared install/uninstall wrapper for the
+// markdown-emitting targets (pi, ante, opencode).
+func runInstallTranslatedAgents(
+	cmd *cobra.Command, dir string, uninstall, force bool, target, shape string,
+	install func(fs.FS, string, bool) (bool, error),
+	remove func(fs.FS, string) (bool, error),
+) error {
 	if uninstall {
-		changed, err := installer.RemoveCodexAgents(agents.FS, dir)
+		changed, err := remove(agents.FS, dir)
 		if err != nil {
-			return fmt.Errorf("removing codex agents: %w", err)
+			return fmt.Errorf("removing %s agents: %w", target, err)
 		}
 		if changed {
 			cmd.Println("removed anvil agents from", dir)
@@ -392,23 +396,32 @@ func runInstallCodexAgents(cmd *cobra.Command, dir string, uninstall, force bool
 		}
 		return nil
 	}
-	changed, err := installer.InstallCodexAgents(agents.FS, dir, force)
+	changed, err := install(agents.FS, dir, force)
 	if err != nil {
-		return fmt.Errorf("installing codex agents: %w", err)
+		return fmt.Errorf("installing %s agents: %w", target, err)
 	}
 	if changed {
-		cmd.Println("installed anvil agents (embedded bundle) as Codex TOML into", dir)
+		cmd.Println("installed anvil agents (embedded bundle) as", shape, "into", dir)
 	} else {
 		cmd.Println("anvil agents up to date at", dir)
 	}
 	return nil
 }
 
+var errOpenCodeSkills = errors.New("--target opencode is not supported for skills: OpenCode already scans ~/.claude/skills, so run `anvil install skills` (default claude target); installing again would double-load them")
+
 // resolveAnvilSkillsTarget returns the user-skills parent directory for the
 // given agent CLI target. Anvil installs each shipped skill flat under this
 // path (skills/<skill>/SKILL.md) so the agent CLI's user-skill discovery picks
 // them up.
 func resolveAnvilSkillsTarget(target string) (string, error) {
+	switch target {
+	case "claude", "codex", "pi", "ante":
+	case "opencode":
+		return "", errOpenCodeSkills
+	default:
+		return "", fmt.Errorf("unknown --target %q: want claude, codex, pi, or ante", target)
+	}
 	dir, err := resolveAgentCLIConfigDir(target)
 	if err != nil {
 		return "", err

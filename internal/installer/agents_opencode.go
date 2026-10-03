@@ -7,18 +7,12 @@ import (
 	"strings"
 )
 
-// claudeToolToOpenCodeTool maps Claude Code built-in tool names to OpenCode's
-// lowercase tool keys. Claude-only tools (ToolSearch, TaskOutput, TaskStop)
-// have no entry and are dropped.
-var claudeToolToOpenCodeTool = map[string]string{
-	"bash":      "bash",
-	"read":      "read",
-	"edit":      "edit",
-	"write":     "write",
-	"grep":      "grep",
-	"glob":      "glob",
-	"webfetch":  "webfetch",
-	"websearch": "websearch",
+// openCodeTools is the set of Claude Code built-in tool names (lowercased)
+// that OpenCode also exposes under the same key. Claude-only tools
+// (ToolSearch, TaskOutput, TaskStop) are absent and dropped.
+var openCodeTools = map[string]bool{
+	"bash": true, "read": true, "edit": true, "write": true, "grep": true,
+	"glob": true, "webfetch": true, "websearch": true,
 }
 
 // InstallOpenCodeAgents emits each embedded agent as OpenCode agent markdown
@@ -38,7 +32,8 @@ func RemoveOpenCodeAgents(srcFS fs.FS, target string) (bool, error) {
 // subset (plus skill when skills: is declared). model is omitted so
 // subagents inherit the session model — tier selection is user config.
 // name/effort/skills have no OpenCode frontmatter key and are dropped; the
-// body is the system prompt and copies through.
+// body is the system prompt and copies through. OpenCode folds write into
+// edit, so Edit-only agents gain write.
 func openCodeAgentMarkdown(md []byte) (string, error) {
 	fields, body, err := parseAgentMarkdown(md)
 	if err != nil {
@@ -56,8 +51,8 @@ func openCodeAgentMarkdown(md []byte) (string, error) {
 	b.WriteString("tools:\n")
 	b.WriteString("  \"*\": false\n")
 	for _, t := range strings.Split(fields["tools"], ",") {
-		if oc, ok := claudeToolToOpenCodeTool[strings.ToLower(strings.TrimSpace(t))]; ok {
-			fmt.Fprintf(&b, "  %s: true\n", oc)
+		if name := strings.ToLower(strings.TrimSpace(t)); openCodeTools[name] {
+			fmt.Fprintf(&b, "  %s: true\n", name)
 		}
 	}
 	if fields["skills"] != "" {

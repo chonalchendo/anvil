@@ -574,3 +574,16 @@ func TestInstallSkillsTargetOpenCodeRejected(t *testing.T) {
 		t.Errorf("rejected install must not write skills, got err=%v", statErr)
 	}
 }
+
+// TestInstallSkillsTargetBogusListsSkillsTargets asserts the skills verb's
+// unknown-target error omits opencode, which it rejects.
+func TestInstallSkillsTargetBogusListsSkillsTargets(t *testing.T) {
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"install", "skills", "--target", "bogus"})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	err := cmd.Execute()
+	if err == nil || strings.Contains(err.Error(), "opencode") {
+		t.Fatalf("err = %v, want unknown-target error without opencode", err)
+	}
+}
