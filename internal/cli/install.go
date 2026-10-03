@@ -325,8 +325,8 @@ func newInstallAgentsCmd() *cobra.Command {
 			"canonical catalog id, narrows tools to Ante's built-in subset, and drops\n" +
 			"skills/effort outright — Ante's frontmatter has no equivalent keys. --target\n" +
 			"opencode → ~/.config/opencode/agents/<name>.md (honoring $OPENCODE_CONFIG_DIR);\n" +
-			"the emit adds mode: subagent, translates the model alias to anthropic/<id>, and\n" +
-			"maps tools to OpenCode's enable-map.\n\n" +
+			"the emit adds mode: subagent, omits model (subagents inherit the session model),\n" +
+			"and maps tools to a deny-by-default enable-map.\n\n" +
 			"Agents are embedded into the anvil binary at build time. This command deploys\n" +
 			"that embedded bundle — editing anvil/agents/<name>.md in a checkout has no\n" +
 			"effect until you rebuild the anvil binary and re-run\n" +
@@ -343,11 +343,11 @@ func newInstallAgentsCmd() *cobra.Command {
 			case "codex":
 				return runInstallCodexAgents(cmd, dir, uninstall, force)
 			case "pi":
-				return runInstallPiAgents(cmd, dir, uninstall, force)
+				return runInstallTranslatedAgents(cmd, dir, uninstall, force, "pi", "pi markdown subagents", installer.InstallPiAgents, installer.RemovePiAgents)
 			case "ante":
-				return runInstallAnteAgents(cmd, dir, uninstall, force)
+				return runInstallTranslatedAgents(cmd, dir, uninstall, force, "ante", "Ante subagent markdown", installer.InstallAnteAgents, installer.RemoveAnteAgents)
 			case "opencode":
-				return runInstallOpenCodeAgents(cmd, dir, uninstall, force)
+				return runInstallTranslatedAgents(cmd, dir, uninstall, force, "opencode", "OpenCode subagent markdown", installer.InstallOpenCodeAgents, installer.RemoveOpenCodeAgents)
 			}
 			if uninstall {
 				changed, err := installer.RemoveAgents(agents.FS, dir)
@@ -379,31 +379,6 @@ func newInstallAgentsCmd() *cobra.Command {
 	return cmd
 }
 
-func runInstallPiAgents(cmd *cobra.Command, dir string, uninstall, force bool) error {
-	if uninstall {
-		changed, err := installer.RemovePiAgents(agents.FS, dir)
-		if err != nil {
-			return fmt.Errorf("removing pi agents: %w", err)
-		}
-		if changed {
-			cmd.Println("removed anvil agents from", dir)
-		} else {
-			cmd.Println("no anvil agents found at", dir)
-		}
-		return nil
-	}
-	changed, err := installer.InstallPiAgents(agents.FS, dir, force)
-	if err != nil {
-		return fmt.Errorf("installing pi agents: %w", err)
-	}
-	if changed {
-		cmd.Println("installed anvil agents (embedded bundle) as pi markdown subagents into", dir)
-	} else {
-		cmd.Println("anvil agents up to date at", dir)
-	}
-	return nil
-}
-
 func runInstallCodexAgents(cmd *cobra.Command, dir string, uninstall, force bool) error {
 	if uninstall {
 		changed, err := installer.RemoveCodexAgents(agents.FS, dir)
@@ -423,31 +398,6 @@ func runInstallCodexAgents(cmd *cobra.Command, dir string, uninstall, force bool
 	}
 	if changed {
 		cmd.Println("installed anvil agents (embedded bundle) as Codex TOML into", dir)
-	} else {
-		cmd.Println("anvil agents up to date at", dir)
-	}
-	return nil
-}
-
-func runInstallAnteAgents(cmd *cobra.Command, dir string, uninstall, force bool) error {
-	if uninstall {
-		changed, err := installer.RemoveAnteAgents(agents.FS, dir)
-		if err != nil {
-			return fmt.Errorf("removing ante agents: %w", err)
-		}
-		if changed {
-			cmd.Println("removed anvil agents from", dir)
-		} else {
-			cmd.Println("no anvil agents found at", dir)
-		}
-		return nil
-	}
-	changed, err := installer.InstallAnteAgents(agents.FS, dir, force)
-	if err != nil {
-		return fmt.Errorf("installing ante agents: %w", err)
-	}
-	if changed {
-		cmd.Println("installed anvil agents (embedded bundle) as Ante subagent markdown into", dir)
 	} else {
 		cmd.Println("anvil agents up to date at", dir)
 	}
