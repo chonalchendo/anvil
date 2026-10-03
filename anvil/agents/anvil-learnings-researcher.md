@@ -36,7 +36,7 @@ anvil list learning --tags domain/<X>,activity/<Y> --confidence high --json
 anvil list learning --tags domain/<X>,activity/<Y> --confidence medium --json
 ```
 
-**b. By link graph** — the highest-precision signal. A learning whose edges touch an artifact this work also touches is almost certainly relevant. For each artifact id named in the work-context:
+**b. By link graph** — the highest-precision signal. A learning whose edges touch an artifact this work also touches is almost certainly relevant. For each artifact id named in the work-context (qualify design ids as `<type>.<id>`):
 
 ```bash
 anvil link --to <artifact-id> --json     # edges pointing AT it

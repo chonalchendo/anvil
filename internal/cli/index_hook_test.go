@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
@@ -97,6 +98,47 @@ func TestIndexForReadRebuildsOldSchemaIndex(t *testing.T) {
 	}
 	if _, err := rdb.GetArtifact("foo"); err == nil {
 		t.Error("bare-keyed row survived the rebuild")
+	}
+}
+
+// An older binary writing into a current-stamped index leaves a bare-keyed row
+// the stamp cannot reveal; indexForRead must still rebuild it away.
+func TestIndexForReadRebuildsBareRowInCurrentIndex(t *testing.T) {
+	vault := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(vault, "20-learnings"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(vault, "20-learnings", "foo.md")
+	if err := os.WriteFile(path, []byte("---\ntype: learning\nid: foo\nstatus: draft\n---\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	db, err := index.Open(index.DBPath(vault))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ReindexFull(vault); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertArtifact(index.ArtifactRow{ID: "foo", Type: "learning", Status: "draft", Path: path}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetLastReindex(time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	rdb, err := indexForRead(&core.Vault{Root: vault})
+	if err != nil {
+		t.Fatalf("indexForRead: %v", err)
+	}
+	defer rdb.Close() //nolint:errcheck // test cleanup
+	if _, err := rdb.GetArtifact("foo"); err == nil {
+		t.Error("bare-keyed row survived the rebuild")
+	}
+	if _, err := rdb.GetArtifact("learning.foo"); err != nil {
+		t.Errorf("qualified row missing: %v", err)
 	}
 }
 

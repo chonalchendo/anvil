@@ -204,7 +204,7 @@ func TestCheckFreshnessDetectsDeletedFileDirectly(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close() //nolint:errcheck // close in defer; error not actionable
-	if err := db.UpsertArtifact(ArtifactRow{ID: "demo.gone", Type: "issue", Status: "open", Path: path}); err != nil {
+	if err := db.UpsertArtifact(ArtifactRow{ID: "issue.demo.gone", Type: "issue", Status: "open", Path: path}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.SetLastReindex(time.Now()); err != nil {
@@ -258,7 +258,7 @@ func TestCheckFreshnessSymlinkedVaultRootIsNotStale(t *testing.T) {
 	}
 	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 	// Indexed under the resolved path, as a prior reindex would have stored it.
-	if err := db.UpsertArtifact(ArtifactRow{ID: "demo.live", Type: "issue", Status: "open", Path: path}); err != nil {
+	if err := db.UpsertArtifact(ArtifactRow{ID: "issue.demo.live", Type: "issue", Status: "open", Path: path}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.SetLastReindex(time.Now()); err != nil {

@@ -21,8 +21,9 @@ func newLinkCmd() *cobra.Command {
 			"  anvil link issue demo.foo issue demo.bar --relation depends_on\n" +
 			"  anvil link issue demo.foo --external https://github.com/x/y/pull/13\n" +
 			"  anvil link --from demo.foo --json",
-		Long: `Query output (--json) carries each edge's target as <type>.<id>, the wikilink-form
-key (e.g. learning.foo), for every type; source is the bare id.`,
+		Long: `Append a wikilink, an external URI (--external), or query the link graph (--from/--to/--unresolved).
+
+Query output (--json) carries each edge's target as its <type>.<id> wikilink key (e.g. learning.foo) for every type; source is the id ` + "`anvil list`" + ` prints.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if trimmed := strings.TrimSpace(externalURI); trimmed != externalURI {
 				if trimmed == "" {
