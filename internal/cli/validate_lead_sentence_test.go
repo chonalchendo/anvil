@@ -190,9 +190,11 @@ func TestPromoteIssue_OverLongLeadSentence_JSONCarriesWarning(t *testing.T) {
 
 	isolateRootEnv(t)
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"promote", inbox.ID, "--as", "issue", "--json",
+	cmd.SetArgs([]string{
+		"promote", inbox.ID, "--as", "issue", "--json",
 		"--description", "test", "--goal", "goal", "--body-file", bodyPath,
-		"--tags", "domain/dev-tools", "--allow-new-facet=domain"})
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain",
+	})
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
 	cmd.SetErr(&stderr)

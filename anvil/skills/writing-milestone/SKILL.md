@@ -67,6 +67,8 @@ anvil create milestone --title "<title>" --description "<one-line preview>" --go
 
 `--acceptance` repeats, one per Phase 2 criterion. A bucket passes `--kind bucket` and no `--acceptance`. Capture `id` and `path` from the JSON output.
 
+If the JSON `warnings[]` carries a `kind: validation` entry, the milestone was written but its body needs revising — fix it per the entry's `code`.
+
 Then direct-edit the body sections (shaped in Phase 2) into the file at `path`.
 
 ## Phase 4 — Link to design docs
