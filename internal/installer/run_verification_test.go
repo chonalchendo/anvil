@@ -33,6 +33,9 @@ type verdict struct {
 		Exit    *int   `json:"exit"`
 		Preview string `json:"preview"`
 	} `json:"failed"`
+	Deferred []struct {
+		Check string `json:"check"`
+	} `json:"deferred"`
 	Commit string `json:"commit"`
 	RanAt  string `json:"ran_at"`
 }

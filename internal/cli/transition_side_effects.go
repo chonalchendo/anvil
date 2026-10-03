@@ -259,40 +259,11 @@ func samePath(a, b string) bool {
 	return ea == nil && eb == nil && ra == rb
 }
 
-// doLandPR derives the worktree path from the issue and runs landPR. When
+// doLandPRMerge derives the worktree path from the issue and runs landPR. When
 // worktreeOverride is non-empty it is used directly; otherwise the path is
 // derived from the issue slug. Path derivation is a hard error: the audit line
 // claims "worktree removed" and we refuse to lie if we can't compute the
 // location.
-func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOverride string, localValidated bool) error {
-	if err := doLandPRMerge(errW, a, id, prNum, worktreeOverride, localValidated); err != nil {
-		return err
-	}
-	runPostLandBlocks(errW, a.Body)
-	return nil
-}
-
-// runPostLandBlocks runs post-land-marked Indirect blocks once, after MERGED.
-// Red only warns: the merge is irreversible, so refusing to resolve would
-// strand a landed issue.
-func runPostLandBlocks(errW io.Writer, body string) {
-	blocks, err := core.VerificationBlocks(body, "Indirect")
-	if err != nil {
-		fmt.Fprintf(errW, "warning: post-land: %v\n", err)
-	}
-	for i, block := range blocks {
-		if !core.IsPostLand(block) {
-			continue
-		}
-		r := runFeasibilityBlock(block)
-		if r.runErr != nil || r.timedOut || r.exit != 0 {
-			fmt.Fprintf(errW, "warning: post-land Indirect#%d is RED (exit %d); issue still resolves, re-check by hand\n%s\n", i+1, r.exit, r.output)
-			continue
-		}
-		fmt.Fprintf(errW, "post-land Indirect#%d passed\n", i+1)
-	}
-}
-
 func doLandPRMerge(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOverride string, localValidated bool) error {
 	if worktreeOverride != "" {
 		return landPR(errW, prNum, worktreeOverride, localValidated)

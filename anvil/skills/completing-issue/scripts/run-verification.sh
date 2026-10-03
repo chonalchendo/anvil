@@ -114,19 +114,16 @@ ran_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 # Accumulate one failed-check object. Built by hand rather than via jq so the
 # runner keeps its zero-dependency contract; arrays are avoided because macOS
 # still ships bash 3.2, where `${arr[@]}` on an empty array trips `set -u`.
-add_fail() { # check exit-code-or-null preview
-    local esc
-    esc=$(printf '%s' "$3" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\000-\037')
-    [ -n "$failed_json" ] && failed_json="$failed_json,"
-    failed_json="$failed_json{\"check\":\"$1\",\"exit\":$2,\"preview\":\"$esc\"}"
+add_entry() { # var-name check exit-code-or-null preview
+    local esc json
+    esc=$(printf '%s' "$4" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\000-\037')
+    eval "json=\$$1"
+    [ -n "$json" ] && json="$json,"
+    json="$json{\"check\":\"$2\",\"exit\":$3,\"preview\":\"$esc\"}"
+    eval "$1=\$json"
 }
-
-add_deferred() { # check exit preview
-    local esc
-    esc=$(printf '%s' "$3" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\000-\037')
-    [ -n "$deferred_json" ] && deferred_json="$deferred_json,"
-    deferred_json="$deferred_json{\"check\":\"$1\",\"exit\":$2,\"preview\":\"$esc\"}"
-}
+add_fail() { add_entry failed_json "$@"; }
+add_deferred() { add_entry deferred_json "$@"; }
 
 run_section() {
     local label=$1
@@ -160,8 +157,9 @@ run_section() {
             echo "PASS [$label#$n] $preview" >&2
         else
             rc=$?
-            if [ "$label" = "Indirect" ] && [ "$(printf '%s\n' "$block" | grep -vE '^[[:space:]]*$' | head -1 | tr -d '[:space:]')" = "#anvil:post-land" ]; then
+            if [ "$label" = "Indirect" ] && [ "$(printf '%s\n' "$block" | grep -vE '^[[:space:]]*$' | head -1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')" = "# anvil:post-land" ]; then
                 echo "DEFERRED [$label#$n] $preview (exit $rc; post-land)" >&2
+                printf '%s\n' "$output" | head -10 | sed 's/^/    /' >&2
                 add_deferred "$label#$n" "$rc" "$preview"
                 continue
             fi

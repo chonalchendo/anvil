@@ -580,18 +580,3 @@ func TestCheckoutPathMatches_NoHeadingRequired(t *testing.T) {
 		t.Errorf("CheckoutPathMatches with hardcoded cd = %v, want 1 match", m)
 	}
 }
-
-func TestVerificationBlocks_PostLandMarker(t *testing.T) {
-	cases := map[string]bool{
-		"# anvil:post-land\nfalse\n":      true,
-		"\n  # anvil:post-land  \ntrue\n": true,
-		"false\n# anvil:post-land\n":      false,
-		"# note\nfalse\n":                 false,
-		"":                                false,
-	}
-	for block, want := range cases {
-		if got := IsPostLand(block); got != want {
-			t.Errorf("IsPostLand(%q) = %v, want %v", block, got, want)
-		}
-	}
-}

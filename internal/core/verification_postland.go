@@ -2,8 +2,7 @@ package core
 
 import "strings"
 
-// PostLandMarker, as the first non-blank line of a Verification block, declares
-// that the block's condition only becomes true after the PR merges.
+// PostLandMarker is the first non-blank line that marks a Verification block as post-land: its condition only becomes true after the PR merges.
 const PostLandMarker = "# anvil:post-land"
 
 // IsPostLand reports whether a Verification block carries PostLandMarker as
