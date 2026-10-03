@@ -106,13 +106,16 @@ func (d *DB) GetLastReindex() (time.Time, error) {
 // from SchemaVersion (older rows are keyed the old way; a newer schema is not
 // ours to read), or a bare-keyed row an older binary wrote into a current-
 // stamped index, which the stamp alone cannot reveal. Empty means readable.
-// The key-shape probe is limited to known types so a row with an unparsable
-// type, which a rebuild would skip, cannot force a rebuild on every read.
+// The key-shape probe is limited to known types: a row whose type does not
+// parse keeps its raw id through a rebuild, so probing it would force a
+// rebuild on every read.
 func (d *DB) schemaDrift() (string, error) {
 	sv, err := d.GetSchemaVersion()
 	if err != nil {
 		return "", err
 	}
+	// Because of `!=`, switching between binaries with different schema
+	// versions triggers a full rebuild each time; the stale WARN is not drift.
 	if sv != SchemaVersion {
 		return fmt.Sprintf("index schema v%d != v%d", sv, SchemaVersion), nil
 	}
