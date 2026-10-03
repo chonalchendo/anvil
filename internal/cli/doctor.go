@@ -51,7 +51,7 @@ func newDoctorCmd() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "doctor",
-		Short: "Detect stale lifecycle state (merged-PR issues, dead claims, finished milestones, orphan worktrees, empty contract convention rails, duplicate ordinals, live work on open issues)",
+		Short: "Detect stale lifecycle state (merged-PR issues, dead claims, finished milestones, orphan worktrees, empty contract convention rails, duplicate ordinals, live work on open issues, stale or retired-target installed skills)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
@@ -193,6 +193,9 @@ func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 
 	// Shape 6: two issues minted under one ordinal.
 	findings = append(findings, checkDuplicateOrdinals(issuePaths)...)
+
+	// Shape 8: installed skills bundle stale or symlinked at a retired dir.
+	findings = append(findings, checkInstalledSkillsDefault()...)
 
 	return findings, nil
 }
