@@ -24,7 +24,7 @@ Drive `completing-issue` to an opened PR, then HALT. Do NOT invoke `responding-t
 
 ## Verdict is data, not prose (mandatory)
 
-Your account of verification is not evidence — the runner's verdict is. `run-verification.sh` prints exactly one line of JSON on **stdout** (`{"verdict":"pass|fail","checks":N,"failed":[…]}`) and its human summary on stderr. Capture that line, gate on it mechanically, and carry it verbatim to the orchestrator:
+Your account of verification is not evidence — the runner's verdict is. `run-verification.sh` prints exactly one line of JSON on **stdout** (`{"verdict":"pass|fail","checks":N,"failed":[…],"deferred":[…]}`; `deferred` = red `# anvil:post-land` Indirect blocks, does not fail the verdict) and its human summary on stderr. Capture that line, gate on it mechanically, and carry it verbatim to the orchestrator:
 
 ```bash
 cd <dispatched-worktree-path> && anvil show issue <issue-id> \

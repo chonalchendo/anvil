@@ -284,6 +284,7 @@ func newTransitionCmd() *cobra.Command {
 				if err := doLandPR(cmd.ErrOrStderr(), a, id, landPRNum, worktreeOverride, localValidated); err != nil {
 					return printAndReturn(cmd, err)
 				}
+				a.Body += postLandRedNote(runPostLandBlocks(cmd.ErrOrStderr(), a.Body), a.Body)
 			}
 
 			// Refuse issue → resolved when the issue's anvil/<slug> branch
