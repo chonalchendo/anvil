@@ -44,7 +44,7 @@ func ValidateMilestone(a *Artifact) []error {
 // trail today before a scoped in-progress milestone is flagged.
 const MeasurementStaleDays = 14
 
-var measuredLine = regexp.MustCompile(`(?m)^Measured: (\d{4}-\d{2}-\d{2})`)
+var measuredLine = regexp.MustCompile(`(?m)^Measured: (\d{4}-\d{2}-\d{2})\b`)
 
 // MeasurementStale reports whether a scoped, in-progress milestone's `##
 // Status` block was measured more than MeasurementStaleDays whole days

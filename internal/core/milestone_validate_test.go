@@ -145,6 +145,8 @@ func TestMeasurementStale(t *testing.T) {
 		{"fresh", "scoped", "in-progress", body("Measured: 2026-10-01"), false, true},
 		{"exactly threshold, mid-day now", "scoped", "in-progress", body("Measured: 2026-09-19"), false, true},
 		{"one day past threshold", "scoped", "in-progress", body("Measured: 2026-09-18"), true, true},
+		{"trailing prose", "scoped", "in-progress", body("Measured: 2026-08-01 — placeholder"), true, true},
+		{"date run-on digit absent", "scoped", "in-progress", body("Measured: 2026-08-011"), false, false},
 		{"bucket absent", "bucket", "in-progress", body("Measured: 2026-08-01"), false, false},
 		{"not in-progress absent", "scoped", "planned", body("Measured: 2026-08-01"), false, false},
 		{"no line absent", "scoped", "in-progress", body("prose"), false, false},
