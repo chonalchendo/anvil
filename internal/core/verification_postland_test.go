@@ -1,5 +1,7 @@
 package core
 
+import "testing"
+
 func TestIsPostLand_FirstNonBlankLine_MatchesMarker(t *testing.T) {
 	cases := map[string]bool{
 		"# anvil:post-land\nfalse\n":      true,
