@@ -78,7 +78,7 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 
 	// A component design's `kind` is a registered label, not a free scalar: it must
 	// already exist in the glossary `kind/` vocabulary (register via `anvil
-	// component design kinds add`). Mirrors the tag-facet gate — an unregistered kind
+	// component-design kinds add`). Mirrors the tag-facet gate — an unregistered kind
 	// is rejected, not silently accepted — keeping the kind set typo-safe and
 	// discoverable for the writing-component-design skill.
 	if t == core.TypeComponentDesign {

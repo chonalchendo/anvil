@@ -1,6 +1,6 @@
 ---
 name: writing-component-design
-description: "Use when authoring a component design or appending a precedent. Triggers: 'write the X component design', 'record this boundary violation or code-design rule for X', 'what does/does not X own', 'design the internals of X'. Modes: author (new) and update (append/sharpen)."
+description: "Use when authoring a component design or appending a precedent. Triggers: 'write the X component design', 'design the internals of X', 'what does/does not X own', 'record a boundary violation for X'. Modes: author, update."
 license: MIT
 allowed-tools: [Bash, Read, Edit, Write]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -72,7 +72,8 @@ When in doubt: <brief heuristic for the hardest boundary call>.
 
 > <iso-date> · issue/PR <id>: <one-sentence description of the boundary violation or clarification that produced this precedent>.
 
-## Interfaces      <!-- design half, all optional: fill per the gate in Author mode -->
+<!-- design half, all optional: fill per the gate in Author mode -->
+## Interfaces
 ## Shape
 ## Flow
 ## Invariants
@@ -139,10 +140,11 @@ anvil create component-design \
   --title "<Component> component design" \
   --project <slug> \
   --kind <registered-kind> \
-  --description "<one sentence — the component's primary responsibility>"
+  --description "<one sentence — the component's primary responsibility>" \
+  --body-file <body.md>
 ```
 
-Then open the created file and write the body using the skeleton above.
+Compose `<body.md>` from the skeleton above first (`anvil create component-design --show-template` prints the boundary headings); `create` checks the boundary half only on a supplied body, so a bodiless create writes an unchecked empty skeleton.
 
 **Gate:** validate before promoting to `active`.
 

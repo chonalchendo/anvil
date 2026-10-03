@@ -37,6 +37,7 @@ Structural edges, child → parent, typed scalars unless noted:
 | `milestone` | `product_design` | product-design | 1:1 |
 | `milestone` | `system_design` | system-design | 1:1 |
 | `issue` | `milestone` | milestone | 1:1 |
+| `component-design` | `system_design` | system-design | 0:1 |
 | `plan` | `issue` | issue | 1:1 |
 | `sweep` | `plan` | plan | 1:1 |
 | `inbox` | `promoted_to` | any | 0:1 |
@@ -129,10 +130,13 @@ Status follows child claims, only partway: `transition issue <id> in-progress` m
 type: component-design
 project: <slug>
 status: draft | active | deprecated
+system_design: "[[system-design.<project>]]"   # optional
 kind: <registered label>   # required; register via `anvil component-design kinds add <name>`
 ```
 
 Plural per project (many component designs, one per component-family — e.g. `data`, `analytics`), unlike the singleton design types. `description` is the always-on layer surfaced in `anvil list component-design --json`; the `does / does-not` boundary plus code-design guardrail prose lives in the body, loaded on demand via `anvil show ... --body`.
+
+Create-time body check (create-only; existing designs are not re-validated): the required boundary half is `## Purpose`, `## Does`, `## Does not`, `## Verification` (`### Direct`/`### Indirect`), `## Precedents`; the design half `## Interfaces`, `## Shape`, `## Flow`, `## Invariants`, `## Decisions`, `## Risks` is optional.
 
 `kind` here is a registry-validated label, not the fixed enum that milestone's `kind` is: an unregistered kind is rejected at create time (mirrors the tag-facet gate), keeping the set typo-safe and discoverable. Register with `anvil component-design kinds add <name>` (idempotent; optional `--desc`); list with `anvil component-design kinds list`. Kinds are stored in the glossary `kind/` facet — that is storage only, so `anvil tags add kind/…` is rejected in favour of the dedicated verb.
 

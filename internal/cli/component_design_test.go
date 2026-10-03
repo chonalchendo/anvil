@@ -156,3 +156,35 @@ func TestCreateComponentDesign_BodyRequiresBoundaryHalf(t *testing.T) {
 		t.Errorf("boundary-half-only body must be accepted: %v", err)
 	}
 }
+
+func TestCreateComponentDesign_NoBodyGetsBoundarySkeleton(t *testing.T) {
+	setupVault(t)
+	if _, err := runArgs(t, "component-design", "kinds", "add", "data"); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runArgsJSON(t, "create", "component-design", "--project", "burgh",
+		"--title", "Skeleton", "--kind", "data", "--description", "d", "--json")
+	if err != nil {
+		t.Fatalf("bodiless create: %v\n%s", err, out)
+	}
+	var res map[string]string
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &res); err != nil {
+		t.Fatalf("parse create json: %v\n%s", err, out)
+	}
+	a, err := core.LoadArtifact(res["path"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range core.RequiredComponentDesignSections {
+		if !strings.Contains(a.Body, h) {
+			t.Errorf("scaffold body missing %q:\n%s", h, a.Body)
+		}
+	}
+	tmpl, err := runArgs(t, "create", "component-design", "--show-template")
+	if err != nil {
+		t.Fatalf("--show-template: %v", err)
+	}
+	if !strings.Contains(tmpl, "## Precedents") {
+		t.Errorf("--show-template missing boundary skeleton:\n%s", tmpl)
+	}
+}

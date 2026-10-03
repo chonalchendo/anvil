@@ -137,7 +137,7 @@ func createLongDescription() string {
 }
 
 // sectionsForType returns the required body headings for the types that carry
-// a scaffold (learning, issue, milestone), or nil for the rest. Shared by the
+// a scaffold (learning, issue, milestone, component-design), or nil for the rest. Shared by the
 // no-body scaffold path and --show-template so the two can't drift.
 func sectionsForType(t core.Type) []string {
 	switch t {
@@ -147,6 +147,8 @@ func sectionsForType(t core.Type) []string {
 		return core.RequiredIssueSections
 	case core.TypeMilestone:
 		return core.RequiredMilestoneSections
+	case core.TypeComponentDesign:
+		return core.RequiredComponentDesignSections
 	default:
 		return nil
 	}
@@ -159,7 +161,7 @@ func sectionsForType(t core.Type) []string {
 func runShowTemplate(cmd *cobra.Command, t core.Type) error {
 	sections := sectionsForType(t)
 	if sections == nil {
-		return fmt.Errorf("--show-template: no required body template for %s (learning, issue, milestone)", t)
+		return fmt.Errorf("--show-template: no required body template for %s (learning, issue, milestone, component-design)", t)
 	}
 	w := cmd.OutOrStdout()
 	fmt.Fprintln(w, core.ScaffoldSections(sections))
