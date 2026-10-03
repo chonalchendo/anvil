@@ -127,12 +127,12 @@ func TestFTSReindexPopulatesAndSearches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchLearnings: %v", err)
 	}
-	if len(hits) != 1 || hits[0].ID != "demo.a" {
+	if len(hits) != 1 || hits[0].ID != "learning.demo.a" {
 		t.Fatalf("search 'content': got %+v want [demo.a]", hits)
 	}
 
 	// Multi-term query is implicit-AND: both terms must be present.
-	if hits, _ := db.SearchLearnings("pull review", QueryFilters{}); len(hits) != 1 || hits[0].ID != "demo.b" {
+	if hits, _ := db.SearchLearnings("pull review", QueryFilters{}); len(hits) != 1 || hits[0].ID != "learning.demo.b" {
 		t.Fatalf("search 'pull review': got %+v want [demo.b]", hits)
 	}
 	if hits, _ := db.SearchLearnings("content review", QueryFilters{}); len(hits) != 0 {
@@ -161,7 +161,7 @@ func TestFTSStaleRowPurgedOnDelete(t *testing.T) {
 		t.Fatalf("pre-delete: want 1 hit, got %d", len(hits))
 	}
 
-	if err := db.DeleteArtifact("demo.a"); err != nil {
+	if err := db.DeleteArtifact("learning.demo.a"); err != nil {
 		t.Fatalf("DeleteArtifact: %v", err)
 	}
 	if hits, _ := db.SearchLearnings("retrieval", QueryFilters{}); len(hits) != 0 {

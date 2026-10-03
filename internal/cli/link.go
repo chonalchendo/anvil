@@ -21,6 +21,9 @@ func newLinkCmd() *cobra.Command {
 			"  anvil link issue demo.foo issue demo.bar --relation depends_on\n" +
 			"  anvil link issue demo.foo --external https://github.com/x/y/pull/13\n" +
 			"  anvil link --from demo.foo --json",
+		Long: `Append a wikilink, an external URI (--external), or query the link graph (--from/--to/--unresolved).
+
+Query output (--json) carries each edge's target as its <type>.<id> wikilink key (e.g. learning.foo) for every type; source is the id ` + "`anvil list`" + ` prints.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if trimmed := strings.TrimSpace(externalURI); trimmed != externalURI {
 				if trimmed == "" {
@@ -202,15 +205,19 @@ func runLinkQuery(cmd *cobra.Command, fromID, toID string, unresolved, asJSON bo
 	}
 	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 
-	// Bare design ids (the shape `anvil list` prints) key on the qualified
-	// IndexKey in the links table — resolve before querying so `--to acme`
-	// finds the same edges `--to product-design.acme` does.
+	// Every type keys links on its type-qualified IndexKey; resolve the bare id `anvil list` prints so `--to foo` finds the edges `--to learning.foo` does.
 	var rows []index.LinkRow
 	switch {
 	case fromID != "":
-		rows, err = db.LinksFrom(resolveIndexID(db, fromID))
+		var key string
+		if key, err = resolveIndexID(db, fromID); err == nil {
+			rows, err = db.LinksFrom(key)
+		}
 	case toID != "":
-		rows, err = db.LinksTo(resolveIndexID(db, toID))
+		var key string
+		if key, err = resolveIndexID(db, toID); err == nil {
+			rows, err = db.LinksTo(key)
+		}
 	case unresolved:
 		rows, err = db.LinksUnresolved()
 	}
@@ -220,12 +227,12 @@ func runLinkQuery(cmd *cobra.Command, fromID, toID string, unresolved, asJSON bo
 
 	out := make([]linkRowOut, 0, len(rows))
 	for _, r := range rows {
-		path := ""
+		path, source := "", r.Source
 		if a, err := db.GetArtifact(r.Source); err == nil {
-			path = a.Path
+			path, source = a.Path, displayID(a.Type, r.Source)
 		}
 		out = append(out, linkRowOut{
-			Source: r.Source, Target: r.Target, Relation: r.Relation,
+			Source: source, Target: r.Target, Relation: r.Relation,
 			Anchor: r.Anchor, Path: path,
 		})
 	}

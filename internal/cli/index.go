@@ -27,24 +27,40 @@ type relatedOut struct {
 }
 
 // resolveIndexID maps a user-supplied id to the key the index tables use.
-// Design types key on the type-qualified IndexKey while every list/show
-// surface prints the bare id, so a bare design id that misses in the
-// artifacts table is re-probed under its qualified forms before giving up.
-// Unresolvable ids pass through unchanged so callers keep their own
-// not-found reporting.
-func resolveIndexID(db *index.DB, id string) string {
+// Every type keys on the type-qualified IndexKey while list/show surfaces
+// print the canonical id, so a bare id that misses in the artifacts table is
+// re-probed under each type's qualified form. A cross-type collision is an
+// ambiguity error; unresolvable ids pass through unchanged so callers keep
+// their own not-found reporting.
+func resolveIndexID(db *index.DB, id string) (string, error) {
 	id = core.UnwrapWikilink(id)
 	if _, err := db.GetArtifact(id); err == nil {
-		return id
+		return id, nil
 	}
-	for _, t := range []core.Type{core.TypeProductDesign, core.TypeSystemDesign} {
+	var hits []string
+	for _, t := range core.AllTypes {
 		if q := core.IndexKey(t, id); q != id {
 			if _, err := db.GetArtifact(q); err == nil {
-				return q
+				hits = append(hits, q)
 			}
 		}
 	}
-	return id
+	switch len(hits) {
+	case 0:
+		return id, nil
+	case 1:
+		return hits[0], nil
+	}
+	return "", fmt.Errorf("ambiguous id %q: matches %s — pass a type-qualified id", id, strings.Join(hits, ", "))
+}
+
+// displayID is the id list/show/index surfaces print for an indexed row: the
+// type's canonical id, not the type-qualified index key.
+func displayID(typ, key string) string {
+	if t, err := core.ParseType(typ); err == nil {
+		return core.CanonicalID(t, key)
+	}
+	return key
 }
 
 func newIndexCmd() *cobra.Command {
@@ -86,7 +102,11 @@ seed — each carrying the matched tags/links as evidence. Read-only; no LLM.`,
 			qf := index.QueryFilters{Status: flagStatus, Project: flagProject}
 			var rows []index.RelatedRow
 			if hasID {
-				seed := resolveIndexID(db, args[0])
+				var seed string
+				seed, err = resolveIndexID(db, args[0])
+				if err != nil {
+					return err
+				}
 				if _, err := db.GetArtifact(seed); err != nil {
 					if errors.Is(err, index.ErrArtifactNotInIndex) {
 						return fmt.Errorf("unknown artifact id %q — check `anvil list` or reindex", args[0])
@@ -129,7 +149,7 @@ seed — each carrying the matched tags/links as evidence. Read-only; no LLM.`,
 				payload := make([]relatedOut, len(rows))
 				for i, r := range rows {
 					payload[i] = relatedOut{
-						ID: r.ID, Type: r.Type, Status: r.Status, Project: r.Project,
+						ID: displayID(r.Type, r.ID), Type: r.Type, Status: r.Status, Project: r.Project,
 						Path: r.Path, Score: r.Score,
 						SharedTags: orEmpty(r.SharedTags), Links: orEmpty(r.Links),
 					}
@@ -145,7 +165,7 @@ seed — each carrying the matched tags/links as evidence. Read-only; no LLM.`,
 					for _, l := range r.Links {
 						why = append(why, "link:"+l)
 					}
-					fmt.Fprintf(out, "%d\t%s\t%s\t%s\n", r.Score, r.ID, r.Type, strings.Join(why, " "))
+					fmt.Fprintf(out, "%d\t%s\t%s\t%s\n", r.Score, displayID(r.Type, r.ID), r.Type, strings.Join(why, " "))
 				}
 			}
 

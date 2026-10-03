@@ -59,7 +59,7 @@ func indexRowsToItems(rows []index.ArtifactRow, f listFilters) []listItem {
 	items := make([]listItem, 0, len(rows))
 	for _, r := range rows {
 		item := listItem{
-			ID: r.ID, Type: r.Type, Status: r.Status,
+			ID: displayID(r.Type, r.ID), Type: r.Type, Status: r.Status,
 			Project: r.Project, Path: r.Path, Created: r.Created,
 		}
 		if a, err := core.LoadArtifact(r.Path); err == nil {
