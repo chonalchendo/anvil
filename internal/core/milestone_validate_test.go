@@ -3,6 +3,7 @@ package core
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 const goodMilestoneBody = "\n## Objective\nobj\n\n## Non-goals\nng\n\n## Links\nlinks\n\n## Status\nplanned\n"
@@ -128,5 +129,32 @@ func TestValidateMilestone_BucketEmptyAcceptance_Allowed(t *testing.T) {
 		if strings.Contains(e.Error(), "empty acceptance") {
 			t.Errorf("errs = %v, kind: bucket must tolerate empty acceptance", errs)
 		}
+	}
+}
+
+func TestMeasurementStale(t *testing.T) {
+	now := time.Date(2026, 10, 3, 0, 0, 0, 0, time.UTC)
+	body := func(status string) string {
+		return "## Objective\no\n\n## Status\n" + status + "\n"
+	}
+	cases := []struct {
+		name, kind, status, body string
+		want                     bool
+	}{
+		{"old scoped in-progress", "scoped", "in-progress", body("Measured: 2026-08-01"), true},
+		{"fresh", "scoped", "in-progress", body("Measured: 2026-10-01"), false},
+		{"exactly threshold", "scoped", "in-progress", body("Measured: 2026-09-19"), false},
+		{"bucket never", "bucket", "in-progress", body("Measured: 2026-08-01"), false},
+		{"not in-progress", "scoped", "planned", body("Measured: 2026-08-01"), false},
+		{"no line", "scoped", "in-progress", body("prose"), false},
+		{"fenced line ignored", "scoped", "in-progress", body("```\nMeasured: 2026-08-01\n```"), false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			a := &Artifact{FrontMatter: map[string]any{"kind": c.kind, "status": c.status}, Body: c.body}
+			if got := MeasurementStale(a, now); got != c.want {
+				t.Errorf("got %v, want %v", got, c.want)
+			}
+		})
 	}
 }

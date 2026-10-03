@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"fmt"
 	"github.com/spf13/cobra"
+	"time"
 
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
@@ -40,4 +42,23 @@ func enrichMilestoneItem(db *index.DB, item *listItem, id, status, kind string) 
 	item.Children = &mc
 	item.Stale = &stale
 	return nil
+}
+
+// measurementStaleWarning is the one-line list/show warning for a milestone
+// whose Status block has aged past core.MeasurementStaleDays.
+func measurementStaleWarning(id string) string {
+	return fmt.Sprintf("warning: %s Status block was measured over %d days ago; re-measure and update its Measured: line", id, core.MeasurementStaleDays)
+}
+
+// flagMeasurementStale sets item.MeasurementStale for a milestone row and
+// warns on stderr when true; no-op for other types.
+func flagMeasurementStale(cmd *cobra.Command, item *listItem, a *core.Artifact) {
+	if item.Type != string(core.TypeMilestone) {
+		return
+	}
+	ms := core.MeasurementStale(a, time.Now())
+	item.MeasurementStale = &ms
+	if ms {
+		cmd.PrintErrln(measurementStaleWarning(item.ID))
+	}
 }

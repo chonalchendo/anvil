@@ -2,7 +2,9 @@ package core
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
+	"time"
 )
 
 // RequiredMilestoneSections is the ordered set of H2 headings validate
@@ -36,4 +38,35 @@ func ValidateMilestone(a *Artifact) []error {
 	}
 
 	return errs
+}
+
+// MeasurementStaleDays is how far the Status block's `Measured:` date may
+// trail today before a scoped in-progress milestone is flagged.
+const MeasurementStaleDays = 14
+
+var measuredLine = regexp.MustCompile(`(?m)^Measured: (\d{4}-\d{2}-\d{2})`)
+
+// MeasurementStale reports whether a scoped, in-progress milestone's `##
+// Status` block was measured more than MeasurementStaleDays before now. A
+// missing or unparseable `Measured:` line is not stale: there is no date to
+// age, and flagging every legacy milestone would drown the real signal.
+func MeasurementStale(a *Artifact, now time.Time) bool {
+	status, _ := a.FrontMatter["status"].(string)
+	kind, _ := a.FrontMatter["kind"].(string)
+	if kind != "scoped" || status != "in-progress" {
+		return false
+	}
+	_, section, found := strings.Cut(StripFencedBlocks(a.Body), "## Status")
+	if !found {
+		return false
+	}
+	m := measuredLine.FindStringSubmatch(section)
+	if m == nil {
+		return false
+	}
+	measured, err := time.Parse("2006-01-02", m[1])
+	if err != nil {
+		return false
+	}
+	return now.Sub(measured) > MeasurementStaleDays*24*time.Hour
 }

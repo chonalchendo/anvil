@@ -38,6 +38,9 @@ type listItem struct {
 	// status has drifted behind it (every child resolved but status != done).
 	Children *index.MilestoneChildren `json:"children,omitempty"`
 	Stale    *bool                    `json:"stale,omitempty"`
+	// MeasurementStale: the Status block's `Measured:` date is past
+	// core.MeasurementStaleDays (anvil.0295). Distinct from Stale.
+	MeasurementStale *bool `json:"measurement_stale,omitempty"`
 }
 
 type listFilters struct {
@@ -273,6 +276,7 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 		if err := enrichMilestoneItem(db, &item, id, status, kind); err != nil {
 			return err
 		}
+		flagMeasurementStale(cmd, &item, a)
 		items = append(items, item)
 	}
 
