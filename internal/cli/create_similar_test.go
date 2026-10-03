@@ -184,7 +184,7 @@ func TestCreate_ContentDuplicate_DisjointTitles(t *testing.T) {
 		if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 			t.Fatalf("parse json: %v\nout: %s", err, out.String())
 		}
-		warnings, _ := got["warnings"].([]any)
+		warnings := similarWarnings(got["warnings"])
 		if len(warnings) == 0 {
 			t.Fatalf("content-duplicate milestone: expected warnings but got none\nout: %s\nstderr: %s", out.String(), errBuf.String())
 		}
@@ -250,11 +250,24 @@ func TestCreate_ContentDuplicate_PriorNotBootstrapReindexed(t *testing.T) {
 		if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 			t.Fatalf("parse json: %v\nout: %s", err, out.String())
 		}
-		warnings, _ := got["warnings"].([]any)
+		warnings := similarWarnings(got["warnings"])
 		if len(warnings) == 0 {
 			t.Fatalf("third milestone duplicating the non-reindexed second: expected a warning but got none\nout: %s\nstderr: %s", out.String(), errBuf.String())
 		}
 	}
+}
+
+// similarWarnings keeps only kind==similar entries so assertions don't pass on
+// an unrelated warning kind.
+func similarWarnings(v any) []any {
+	var out []any
+	ws, _ := v.([]any)
+	for _, w := range ws {
+		if m, _ := w.(map[string]any); m["kind"] == "similar" {
+			out = append(out, w)
+		}
+	}
+	return out
 }
 
 func bytesContains(b, sub []byte) bool { return bytes.Contains(b, sub) }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/schema"
 )
@@ -40,7 +41,9 @@ func newPromoteCmd() *cobra.Command {
 			"every `### Direct`/`### Indirect` bash block in the body's `## Verification` section. " +
 			"Those blocks run in the current environment with your privileges, cwd and environment " +
 			"variables — they are not sandboxed, and their side effects survive a refused promote. " +
-			"Pass --skip-verify-predicates to opt out.",
+			"Pass --skip-verify-predicates to opt out.\n\n" +
+			"Under --json, advisory findings that did not block ride the envelope's `warnings` array " +
+			"as {kind:\"validation\", code, got}.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := args[0]
@@ -113,6 +116,11 @@ type promoteOutput struct {
 	TargetType *string `json:"target_type"`
 	Status     string  `json:"status"`
 	Path       *string `json:"path"`
+	// Warnings mirrors create's envelope: advisory findings that did not block.
+	Warnings []map[string]string `json:"warnings,omitempty"`
+	// findings are the same advisories for text mode, printed to stderr
+	// ahead of the status line.
+	findings []*errfmt.ValidationError
 }
 
 func emitPromoteOutput(cmd *cobra.Command, asJSON bool, o promoteOutput, textLine string) error {
@@ -121,6 +129,9 @@ func emitPromoteOutput(cmd *cobra.Command, asJSON bool, o promoteOutput, textLin
 		b, _ := json.Marshal(o)
 		fmt.Fprintln(out, string(b))
 		return nil
+	}
+	if len(o.findings) > 0 {
+		printValidationErrors(cmd, o.findings)
 	}
 	fmt.Fprintln(out, textLine)
 	return nil
@@ -311,7 +322,8 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	// body — required headings AND wikilink resolution. Inline-validating here
 	// (the prior shape) let an unresolved [[wikilink]] through promote that
 	// create rejects.
-	if err := validateBeforeCreate(cmd, v, target, targetPath, fm, body, userAuthoredBody, flagAllowNewFacet, asJSON); err != nil {
+	findings, err := validateBeforeCreate(cmd, v, target, targetPath, fm, body, userAuthoredBody, flagAllowNewFacet, asJSON)
+	if err != nil {
 		return err
 	}
 
@@ -343,8 +355,10 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	return emitPromoteOutput(cmd, asJSON,
 		promoteOutput{
 			ID: targetID, SourceID: &si, TargetID: &ti, TargetType: &tt,
-			Status: "promoted",
-			Path:   &targetPath,
+			Status:   "promoted",
+			Path:     &targetPath,
+			Warnings: jsonWarnings(nil, findings),
+			findings: findings,
 		},
 		fmt.Sprintf("promoted %s -> %s %s", inboxID, target, targetID),
 	)

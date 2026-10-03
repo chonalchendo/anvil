@@ -123,6 +123,8 @@ anvil create issue --title "<title>" --description "<one-line preview>" \
 
 Required H2s (`create` rejects a body missing any): `## Problem`, `## Non-goals` (bulleted), `## Verification` (`### Direct` + `### Indirect`, fenced `bash` blocks — shape/rules in `docs/issue-spec.md`), `## Links` (`[[wikilink]]`, targets must resolve; `anvil hydrate` walks these links only for governing types — a sibling-issue link resolves but stays inert). `## Acceptance criteria` is optional, only when a bulleted checklist beats `goal:` + `## Verification` alone.
 
+If the JSON `warnings[]` carries a `kind: validation` entry (e.g. `lead_sentence`), the issue was written but the body needs revising — fix it per the entry's `code`, don't ignore it.
+
 Capture `id`/`path` from the JSON output (`~/anvil-vault/70-issues/issue.<project>.NNNN.<slug>.md`), then set typed slots — bare positional values on array fields **replace** the array, use `--add`/`--remove VALUE_OR_INDEX`:
 
 ```bash

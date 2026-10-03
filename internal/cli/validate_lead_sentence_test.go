@@ -100,20 +100,17 @@ func TestCreateIssue_OverLongLeadSentence_WarnsButCreates(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("an over-long lead sentence must not fail create, got: %v\nstderr: %s", err, stderr.String())
 	}
-	if !strings.Contains(stderr.String(), errfmt.CodeLeadSentence) {
-		t.Errorf("stderr should mention %q, got: %s", errfmt.CodeLeadSentence, stderr.String())
+	if n := strings.Count(stderr.String(), "["+errfmt.CodeLeadSentence+"]"); n != 1 {
+		t.Errorf("stderr should print %q exactly once, got %d: %s", errfmt.CodeLeadSentence, n, stderr.String())
 	}
 	if _, err := os.Stat(filepath.Join(vault, "70-issues", "issue.foo.0001.long-lead.md")); err != nil {
 		t.Errorf("artifact must still be created despite the warning; stat err = %v", err)
 	}
 }
 
-func TestCreateIssue_OverLongLeadSentence_JSONStaysCleanOnStdout(t *testing.T) {
-	// Under --json, validateBeforeCreate must not print the human-text
-	// finding to stderr: a `--json` caller expects a clean success envelope
-	// and no side-channel noise (full envelope-threading of warning findings
-	// is a separate follow-up; this only guards against the misleading
-	// stderr print observed in review).
+func TestCreateIssue_OverLongLeadSentence_JSONCarriesWarning(t *testing.T) {
+	// Under --json the finding rides the success envelope's warnings array,
+	// not stderr.
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Chdir(repo)
@@ -149,10 +146,118 @@ func TestCreateIssue_OverLongLeadSentence_JSONStaysCleanOnStdout(t *testing.T) {
 	if payload["status"] != "created" {
 		t.Errorf("payload status = %v, want created (a warning-only finding must not surface as an error envelope)", payload["status"])
 	}
+	ws, _ := payload["warnings"].([]any)
+	found := false
+	for _, w := range ws {
+		m, _ := w.(map[string]any)
+		if m["kind"] == "validation" && m["code"] == errfmt.CodeLeadSentence {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("warnings must carry a validation %s entry, got: %v", errfmt.CodeLeadSentence, payload["warnings"])
+	}
 	if strings.Contains(stderr.String(), errfmt.CodeLeadSentence) {
 		t.Errorf("stderr must stay clean under --json, got: %s", stderr.String())
 	}
 	if _, err := os.Stat(filepath.Join(vault, "70-issues", "issue.foo.0001.long-lead.md")); err != nil {
 		t.Errorf("artifact must still be created despite the warning; stat err = %v", err)
+	}
+}
+
+func TestPromoteIssue_OverLongLeadSentence_JSONCarriesWarning(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	var buf bytes.Buffer
+	add := newRootCmd()
+	add.SetArgs([]string{"create", "inbox", "--title", "promote long lead", "--json"})
+	add.SetOut(&buf)
+	if err := add.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var inbox struct{ ID string }
+	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &inbox); err != nil {
+		t.Fatalf("parse inbox json: %v", err)
+	}
+
+	body := "\n## Problem\n" + overLongLeadSentence + "\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\ntest -f /nonexistent-red-until-fixed\n```\n\n## Links\n"
+	bodyPath := filepath.Join(t.TempDir(), "issue-body.md")
+	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+
+	isolateRootEnv(t)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"promote", inbox.ID, "--as", "issue", "--json",
+		"--description", "test", "--goal", "goal", "--body-file", bodyPath,
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain",
+	})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("promote: %v\nstderr: %s", err, stderr.String())
+	}
+	var payload struct {
+		Warnings []map[string]string `json:"warnings"`
+	}
+	if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &payload); err != nil {
+		t.Fatalf("parse: %v\n%s", err, stdout.String())
+	}
+	found := false
+	for _, w := range payload.Warnings {
+		if w["kind"] == "validation" && w["code"] == errfmt.CodeLeadSentence {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("warnings must carry a validation %s entry, got: %v", errfmt.CodeLeadSentence, payload.Warnings)
+	}
+	if strings.Contains(stderr.String(), errfmt.CodeLeadSentence) {
+		t.Errorf("stderr must stay clean under --json, got: %s", stderr.String())
+	}
+}
+
+func TestPromoteIssue_OverLongLeadSentence_TextPrintsOnce(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	var buf bytes.Buffer
+	add := newRootCmd()
+	add.SetArgs([]string{"create", "inbox", "--title", "promote long lead", "--json"})
+	add.SetOut(&buf)
+	if err := add.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var inbox struct{ ID string }
+	if err := json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &inbox); err != nil {
+		t.Fatalf("parse inbox json: %v", err)
+	}
+
+	body := "\n## Problem\n" + overLongLeadSentence + "\n\n## Non-goals\nng\n\n## Verification\n\n### Direct\n```bash\ntrue\n```\n\n### Indirect\n```bash\ntest -f /nonexistent-red-until-fixed\n```\n\n## Links\n"
+	bodyPath := filepath.Join(t.TempDir(), "issue-body.md")
+	if err := os.WriteFile(bodyPath, []byte(body), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
+		t.Fatal(err)
+	}
+
+	isolateRootEnv(t)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"promote", inbox.ID, "--as", "issue",
+		"--description", "test", "--goal", "goal", "--body-file", bodyPath,
+		"--tags", "domain/dev-tools", "--allow-new-facet=domain",
+	})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("promote: %v\nstderr: %s", err, stderr.String())
+	}
+	if n := strings.Count(stderr.String(), "["+errfmt.CodeLeadSentence+"]"); n != 1 {
+		t.Errorf("stderr should print %q exactly once, got %d: %s", errfmt.CodeLeadSentence, n, stderr.String())
 	}
 }
