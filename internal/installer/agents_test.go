@@ -317,6 +317,9 @@ func TestBundledAgents_TranslateForAllTargets(t *testing.T) {
 		if _, err := anteAgentMarkdown(src); err != nil {
 			t.Errorf("anteAgentMarkdown(%s): %v", name, err)
 		}
+		if _, err := openCodeAgentMarkdown(src); err != nil {
+			t.Errorf("openCodeAgentMarkdown(%s): %v", name, err)
+		}
 	}
 }
 
@@ -459,25 +462,35 @@ func TestInstallOpenCodeAgents_EmitsSubagentFrontmatter(t *testing.T) {
 	if doc["description"] != "does the thing: precisely" {
 		t.Errorf("description = %v, want round-tripped verbatim", doc["description"])
 	}
-	if doc["model"] != "anthropic/claude-sonnet-5" {
-		t.Errorf("model = %v, want anthropic/claude-sonnet-5", doc["model"])
-	}
 	tools, _ := doc["tools"].(map[string]any)
-	want := map[string]any{"bash": true, "read": true, "glob": true}
+	want := map[string]any{"*": false, "bash": true, "read": true, "glob": true, "skill": true}
 	if !reflect.DeepEqual(tools, want) {
 		t.Errorf("tools = %v, want %v", tools, want)
 	}
-	for _, k := range []string{"name", "effort", "skills"} {
+	for _, k := range []string{"name", "effort", "skills", "model"} {
 		if _, ok := doc[k]; ok {
 			t.Errorf("key %q should not be emitted", k)
 		}
 	}
 }
 
-func TestInstallOpenCodeAgents_UnmappedModelIsError(t *testing.T) {
-	srcFS := fstest.MapFS{"a.md": {Data: []byte("---\nname: a\ndescription: d\nmodel: gpt\n---\nbody\n")}}
-	if _, err := InstallOpenCodeAgents(srcFS, filepath.Join(t.TempDir(), "agents"), false); err == nil {
-		t.Fatal("expected error for unmapped model alias")
+func TestOpenCodeAgentMarkdown_ReviewerCannotEdit(t *testing.T) {
+	src, err := fs.ReadFile(agents.FS, "anvil-pr-reviewer.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := openCodeAgentMarkdown(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tools, _ := piFrontmatter(t, out)["tools"].(map[string]any)
+	if tools["*"] != false {
+		t.Errorf(`tools["*"] = %v, want false (deny-by-default)`, tools["*"])
+	}
+	for _, k := range []string{"edit", "write"} {
+		if tools[k] == true {
+			t.Errorf("tools[%q] enabled for read-only reviewer", k)
+		}
 	}
 }
 

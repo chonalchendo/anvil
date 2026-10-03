@@ -86,16 +86,6 @@ func removeTranslatedAgents(srcFS fs.FS, target string, translate func([]byte) (
 	return changed, nil
 }
 
-// claudeModelToOpenCodeRef translates anvil's Claude Code model aliases to
-// OpenCode's provider/model-id form under the built-in anthropic provider.
-// An alias with no entry makes the emit fail rather than hand OpenCode a ref
-// it cannot resolve.
-var claudeModelToOpenCodeRef = map[string]string{
-	"sonnet": "anthropic/claude-sonnet-5",
-	"opus":   "anthropic/claude-opus-5",
-	"haiku":  "anthropic/claude-haiku-4-5",
-}
-
 // claudeToolToOpenCodeTool maps Claude Code built-in tool names to OpenCode's
 // lowercase tool keys. Claude-only tools (ToolSearch, TaskOutput, TaskStop)
 // have no entry and are dropped.
@@ -123,9 +113,11 @@ func RemoveOpenCodeAgents(srcFS fs.FS, target string) (bool, error) {
 
 // openCodeAgentMarkdown translates one embedded agent into OpenCode agent
 // markdown: description (double-quoted, since descriptions contain `: `),
-// mode: subagent, the translated model, and a tools enable-map for the
-// mappable subset. name/effort/skills have no OpenCode frontmatter key and are
-// dropped; the body is the system prompt and copies through.
+// mode: subagent, and a deny-by-default tools map enabling the mappable
+// subset (plus skill when skills: is declared). model is omitted so
+// subagents inherit the session model — tier selection is user config.
+// name/effort/skills have no OpenCode frontmatter key and are dropped; the
+// body is the system prompt and copies through.
 func openCodeAgentMarkdown(md []byte) (string, error) {
 	fields, body, err := parseAgentMarkdown(md)
 	if err != nil {
@@ -138,24 +130,17 @@ func openCodeAgentMarkdown(md []byte) (string, error) {
 	b.WriteString("---\n")
 	fmt.Fprintf(&b, "description: %q\n", fields["description"])
 	b.WriteString("mode: subagent\n")
-	if model := fields["model"]; model != "" {
-		ref, ok := claudeModelToOpenCodeRef[model]
-		if !ok {
-			return "", fmt.Errorf("model %q has no opencode ref translation", model)
-		}
-		fmt.Fprintf(&b, "model: %s\n", ref)
-	}
-	var tools []string
+	// Deny-by-default: OpenCode leaves every tool enabled unless "*" is
+	// switched off, so a bare enable-list would not restrict anything.
+	b.WriteString("tools:\n")
+	b.WriteString("  \"*\": false\n")
 	for _, t := range strings.Split(fields["tools"], ",") {
 		if oc, ok := claudeToolToOpenCodeTool[strings.ToLower(strings.TrimSpace(t))]; ok {
-			tools = append(tools, oc)
+			fmt.Fprintf(&b, "  %s: true\n", oc)
 		}
 	}
-	if len(tools) > 0 {
-		b.WriteString("tools:\n")
-		for _, t := range tools {
-			fmt.Fprintf(&b, "  %s: true\n", t)
-		}
+	if fields["skills"] != "" {
+		b.WriteString("  skill: true\n")
 	}
 	b.WriteString("---\n")
 	b.WriteString(body)
