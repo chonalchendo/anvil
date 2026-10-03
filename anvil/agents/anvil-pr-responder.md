@@ -115,7 +115,7 @@ Forbidden-call audit: gh pr merge=not-called, git worktree remove=not-called, an
 
 The PR body and inline replies are where prose belongs — not the orchestrator return.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

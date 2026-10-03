@@ -77,7 +77,7 @@ Write the load-ready handoff capturing what landed, what's still open, and the n
 - Do not loop past a done milestone. The done-signal is the stop; dispatching into a complete milestone is a no-op the operator reads as a bug.
 - Do not narrate every spawn. `anvil build` owns its own telemetry; the deliverable here is the merge-gate presentation and the final report.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

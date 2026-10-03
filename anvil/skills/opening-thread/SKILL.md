@@ -143,7 +143,7 @@ Project work surfaced mid-thread routes to `writing-issue` and is not a closing 
 
 Pausing is a plain `anvil transition thread <id> paused`. No separate closing skill. Reopen a paused thread (`anvil transition thread <id> open`) before ruling a verdict — `closed` and `abandoned` are only legal from `open`.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

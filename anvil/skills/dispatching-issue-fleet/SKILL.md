@@ -169,7 +169,7 @@ Both bundled agents (`anvil-issue-worker`, `anvil-pr-responder`) echo this check
 - Do not re-dispatch a `Blocker:` return. The subagent declared inability; respect it.
 - Do not narrate the dispatch. The final report (Phase 5) is the deliverable.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

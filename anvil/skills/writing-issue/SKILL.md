@@ -149,7 +149,7 @@ Link the governing context a worker loads at issue-start (`completing-issue` Pha
 - Does not run research, only flag the need for it.
 - Does not persist pre-mortem or working-backwards headline — validation tools, not specification content.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

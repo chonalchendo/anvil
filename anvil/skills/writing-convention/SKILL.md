@@ -163,7 +163,7 @@ The pattern: match the edited `file_path` by extension (`*.py`, `*.sql`, …) �
 - Machine enforcement (`anvil convention check`) — conventions are read by agents, not linted, in v0.1.
 - Auto-generating project `CLAUDE.md` pointer blocks — link by hand.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

@@ -72,7 +72,7 @@ The per-phase procedure â€” drafting instructions, voice checks, gate criteria â
 - **Voice drift.** AI-generic prose fails the cold read. Match project voice; audit for hedging and corporate-speak.
 - **Treating gates as one-shot approvals.** Each is an iteration loop. Reframes after a draft = gate working, not failing.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

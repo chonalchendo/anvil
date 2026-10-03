@@ -143,7 +143,7 @@ Forbidden-call audit: gh pr merge=not-called, git worktree remove=not-called, an
 
 The `Verdict:` line is copied from the runner, never composed by you — an absent or hand-written verdict is what the orchestrator re-measures against. No narrative tail, no "waiting" / "let me check".
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

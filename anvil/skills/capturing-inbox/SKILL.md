@@ -51,7 +51,7 @@ If the user is clearly already brainstorming — asking questions, weighing trad
 
 Capture is write-only and append-only. Reading happens later, in another skill, with more context than you have now.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

@@ -94,7 +94,7 @@ Fix any schema errors reported. Re-run until clean. Validate now also enforces b
 
 **REQUIRED SUB-SKILL:** Use `writing-issue` for the first issue under this milestone.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

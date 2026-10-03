@@ -68,7 +68,7 @@ Sibling skills — name a different one if the user's intent is shaped different
 
 Composes-with (callers that invoke this as a sub-skill): `writing-product-design`, `writing-system-design`, `creating-issue`, `planning`.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

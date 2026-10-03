@@ -64,7 +64,7 @@ Do **not** silently drop findings the subagent surfaced. A finding you judge wro
 - Do not merge. `dispatching-issue-fleet`'s Iron Law applies — human owns the merge button.
 - Do not skip findings with "nitpick" when the finding cites a documented repo rule. Same nitpick policy as `responding-to-pr-review`.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

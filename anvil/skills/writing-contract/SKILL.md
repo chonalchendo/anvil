@@ -187,7 +187,7 @@ anvil set contract <id> updated <today-iso>
 - Enforcing the body shape at the CLI level — the schema keeps body prose-flexible; this skill guides the shape.
 - Lifecycle tags and command verification — out of scope for v0.1.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

@@ -41,7 +41,7 @@ Never `anvil transition` anything — this agent researches, it does not own iss
 
 Return the mode reference's Synthesise output (opposing view reflected, gaps marked explicitly, sources cited inline) followed by one line per persisted learning: `Captured: [[learning.<id>]] — <one-line title>` (omit the line entirely if nothing cleared the Capture bar). No narrative tail, no "let me check", no offer to do more.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

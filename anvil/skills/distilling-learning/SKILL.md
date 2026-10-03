@@ -250,7 +250,7 @@ The pipeline ends here for the source. Possible next moves the user may signal:
 - Surface project work the distillation revealed → `writing-issue`.
 - Extract a methodology lesson into a skill → `extracting-skill-from-session` (orthogonal track).
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

@@ -93,7 +93,7 @@ Fold non-stale, high-confidence findings into components (Phase 4), invariants (
 - **AI-generic Why-this-shape prose.** Cite the user's own words; reference the product-design and ADRs; don't generate filler.
 - **Conflating system design with planning.** Components are responsibilities, not work items. If a section reads like a task list, it belongs in `planning`.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

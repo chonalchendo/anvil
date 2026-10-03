@@ -116,7 +116,7 @@ The land-on-approval steps run only on an explicit per-PR approval typed by a hu
 - Do not paraphrase the reviewer's findings in the reply. Cite the SHA; the diff speaks.
 - Do not loop past the poll budget without surfacing to the user. A human reviewer that never lands is a signal to surface to the user, not infinite poll.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

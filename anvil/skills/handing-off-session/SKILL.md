@@ -102,7 +102,7 @@ If the temptation to include any of the above appears, replace it with the one-l
 
 If `git status` is clean, no new artifacts were created, and no decisions were reached: say so in one line — *"Nothing to hand off; new session starts from a clean tree."* — followed by the **Token reflection** bullets (still required). Do not invent next-actions to fill the template.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

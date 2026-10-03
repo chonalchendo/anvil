@@ -253,7 +253,7 @@ Do not silently scope down (cut a quieter version) or up (touch sibling files). 
 - Looping past 5 verify cycles "just one more try."
 - Editing files outside the issue's declared scope to make verification pass.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 

@@ -94,7 +94,7 @@ Never `gh pr merge`, `gh pr close`, `git push`, `git worktree remove`, `anvil tr
 
 End with exactly three lines after the findings: `Context loaded: <what hydrate returned, what the contract/convention sweep added, and anything that resolved empty>`, `Verification: <per-command pass/fail>`, `Findings: <n>`. Naming what resolved empty is the point — a silent omission reads identically to a clean load. No narrative tail.
 
-## Writing
+## Prose style
 
 Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
 
