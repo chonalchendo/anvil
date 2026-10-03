@@ -139,7 +139,7 @@ func ptrIfNonEmpty(s string) *string {
 // either.
 func promotedToID(t core.Type, v any) string {
 	s, _ := v.(string)
-	return core.CanonicalID(t, strings.TrimSuffix(strings.TrimPrefix(s, "[["), "]]"))
+	return core.CanonicalID(t, s)
 }
 
 // formatEnumError builds a principle-4 actionable error: offending value,

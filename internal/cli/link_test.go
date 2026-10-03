@@ -382,6 +382,7 @@ func TestLink_CanonicalPrefixedTargetId(t *testing.T) {
 	}{
 		{"convention canonical", "convention", "convention.sqlmesh", "[[convention.sqlmesh]]"},
 		{"convention bare", "convention", "sqlmesh", "[[convention.sqlmesh]]"},
+		{"convention wikilink", "convention", "[[convention.sqlmesh]]", "[[convention.sqlmesh]]"},
 		{"system-design canonical", "system-design", "system-design.foo", "[[system-design.foo]]"},
 		{"system-design bare", "system-design", "foo", "[[system-design.foo]]"},
 	}

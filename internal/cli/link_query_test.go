@@ -90,3 +90,26 @@ func TestLinkReadModesMutuallyExclusiveWithWriteForm(t *testing.T) {
 		t.Fatalf("expected error, got: %s", out.String())
 	}
 }
+
+// TestLinkTo_AcceptsWikilinkForm pins that a pasted `[[...]]` frontmatter
+// reference returns the same rows as the bare id instead of silently [].
+func TestLinkTo_AcceptsWikilinkForm(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	writeFixtureIssueDated(t, vault, "demo", "a", "a", "2026-01-01")
+	writeFixtureIssueDated(t, vault, "demo", "b", "b", "2026-01-02")
+	execCmd(t, "reindex")
+	execCmd(t, "link", "issue", "demo.a", "issue", "demo.b")
+
+	out := execCmdJSON(t, "link", "--to", "[[issue.demo.b]]", "--json")
+	var rows []struct {
+		Source, Target, Relation string
+	}
+	if err := jsonUnmarshal(t, strings.TrimSpace(out), &rows); err != nil {
+		t.Fatalf("json: %v\nout: %s", err, out)
+	}
+	if len(rows) != 1 || rows[0].Source != "issue.demo.a" {
+		t.Fatalf("rows: %v", rows)
+	}
+}

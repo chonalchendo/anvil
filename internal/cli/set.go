@@ -56,7 +56,7 @@ func newSetCmd() *cobra.Command {
 			a, err := core.LoadArtifact(path)
 			if err != nil {
 				if os.IsNotExist(err) {
-					return fmt.Errorf("%w: %s", ErrArtifactNotFound, id)
+					return notFoundErr(id, args[1])
 				}
 				return fmt.Errorf("loading artifact: %w", err)
 			}
@@ -382,7 +382,7 @@ func singleOrSlice(v []any) any {
 func resolveMilestoneLink(v *core.Vault, a *core.Artifact, raw string) (string, error) {
 	// Normalise to the bare `<project>.<slug>` tail: normalizeMilestone re-adds
 	// the `milestone.` prefix, and the project-injection retry below tests it.
-	slug := core.BareID(core.TypeMilestone, strings.TrimSuffix(strings.TrimPrefix(raw, "[["), "]]"))
+	slug := core.BareID(core.TypeMilestone, raw)
 	if milestoneFileExists(v, slug) {
 		return normalizeMilestone(slug), nil
 	}

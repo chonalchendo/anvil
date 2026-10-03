@@ -33,6 +33,7 @@ type relatedOut struct {
 // Unresolvable ids pass through unchanged so callers keep their own
 // not-found reporting.
 func resolveIndexID(db *index.DB, id string) string {
+	id = core.UnwrapWikilink(id)
 	if _, err := db.GetArtifact(id); err == nil {
 		return id
 	}

@@ -136,6 +136,7 @@ func newLinkCmd() *cobra.Command {
 // while body wikilinks always carry the prefix, so both forms are tried and
 // whichever resolves wins.
 func resolveLinkTarget(v *core.Vault, tgt core.Type, id string) (string, error) {
+	id = core.UnwrapWikilink(id)
 	// An id carrying <, >, or whitespace is an unsubstituted documentation
 	// placeholder (e.g. `anvil link issue <id> system-design <project>` copied
 	// verbatim). No artifact id can contain these, so refuse before consulting
