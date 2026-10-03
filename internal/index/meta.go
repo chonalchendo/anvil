@@ -124,6 +124,13 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 	if err != nil {
 		return err
 	}
+	// A DB stamped by an older schema holds rows keyed the old way; route it
+	// through Reindex (which forces the full rebuild) from every hook path.
+	if sv, verr := d.GetSchemaVersion(); verr != nil {
+		return verr
+	} else if sv < SchemaVersion {
+		return &StaleError{Path: vaultRoot, Reason: fmt.Sprintf("index schema v%d < v%d", sv, SchemaVersion), Stamp: stamp}
+	}
 	skipAbs := ""
 	if skipPath != "" {
 		if abs, aerr := filepath.Abs(skipPath); aerr == nil {

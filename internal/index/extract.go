@@ -48,9 +48,9 @@ var typedSlotRelations = map[string]bool{
 
 // ArtifactRowFromFrontmatter projects parsed frontmatter onto an ArtifactRow.
 // If `id` is absent or empty in frontmatter, the path stem (filename without
-// extension) is used as the ID, canonicalised through core.CanonicalID: the
+// extension) is used as the ID, keyed through core.IndexKey: the
 // stem is a filename and may carry the `<type>.` prefix, while every link row
-// targeting it is canonicalised the same way. Both sides of the
+// targeting it is keyed the same way. Both sides of the
 // artifacts.id ↔ links.target join must agree on one shape or every incoming
 // edge to a prefix-named file dangles. Returns an error only if both sources
 // yield an empty ID; everything else is best-effort (missing fields → empty

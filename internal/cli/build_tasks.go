@@ -118,7 +118,7 @@ func injectLearnings(db *index.DB, tasks []core.Task) {
 			// means a malformed learning — surfaced as a bare title, not a failure.
 			tldr := strings.Join(strings.Fields(index.TLDRSection(a.Body)), " ")
 			fmt.Fprintf(&b, "\n- %s · confidence:%s · updated:%s\n  %s\n  Source: %s\n",
-				title, conf, updated, tldr, r.ID)
+				title, conf, updated, tldr, displayID(r.Type, r.ID))
 			if n++; n >= learningInjectionLimit {
 				break
 			}
