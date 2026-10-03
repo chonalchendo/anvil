@@ -14,7 +14,7 @@ func TestPostLand_ExecutorsAgree(t *testing.T) {
 	cases := []struct {
 		name  string
 		block string
-		// deferred: the red Indirect block is reported under deferred, not failed.
+		// marked: script reports the red Indirect block under deferred, and IsPostLand is true.
 		marked bool
 	}{
 		{"exact marker", "# anvil:post-land\nfalse", true},
@@ -23,6 +23,7 @@ func TestPostLand_ExecutorsAgree(t *testing.T) {
 		{"space after colon", "# anvil: post-land\nfalse", false},
 		{"double space after hash", "#  anvil:post-land\nfalse", false},
 		{"marker not on the first line", "false\n# anvil:post-land", false},
+		{"NBSP is not whitespace to either side", "\u00a0# anvil:post-land\nfalse", false},
 		{"unmarked", "false", false},
 	}
 	for _, c := range cases {

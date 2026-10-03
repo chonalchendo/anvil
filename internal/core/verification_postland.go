@@ -9,7 +9,7 @@ const PostLandMarker = "# anvil:post-land"
 // its first non-blank line.
 func IsPostLand(block string) bool {
 	for _, line := range strings.Split(block, "\n") {
-		if t := strings.TrimSpace(line); t != "" {
+		if t := strings.Trim(line, " \t\r\v\f"); t != "" {
 			return t == PostLandMarker
 		}
 	}

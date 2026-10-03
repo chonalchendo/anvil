@@ -259,12 +259,12 @@ func samePath(a, b string) bool {
 	return ea == nil && eb == nil && ra == rb
 }
 
-// doLandPRMerge derives the worktree path from the issue and runs landPR. When
+// doLandPR derives the worktree path from the issue and runs landPR. When
 // worktreeOverride is non-empty it is used directly; otherwise the path is
 // derived from the issue slug. Path derivation is a hard error: the audit line
 // claims "worktree removed" and we refuse to lie if we can't compute the
 // location.
-func doLandPRMerge(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOverride string, localValidated bool) error {
+func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOverride string, localValidated bool) error {
 	if worktreeOverride != "" {
 		return landPR(errW, prNum, worktreeOverride, localValidated)
 	}

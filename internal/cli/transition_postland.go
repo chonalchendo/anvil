@@ -8,20 +8,6 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-// doLandPR merges via doLandPRMerge, then runs post-land blocks; only a merge failure aborts.
-func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOverride string, localValidated bool) error {
-	if err := doLandPRMerge(errW, a, id, prNum, worktreeOverride, localValidated); err != nil {
-		return err
-	}
-	if red := runPostLandBlocks(errW, a.Body); len(red) > 0 {
-		if !strings.HasSuffix(a.Body, "\n") {
-			a.Body += "\n"
-		}
-		a.Body += "\n> post-land RED (" + strings.Join(red, ", ") + "): issue resolved anyway; re-check by hand\n"
-	}
-	return nil
-}
-
 // runPostLandBlocks runs post-land-marked Indirect blocks once, after MERGED,
 // and returns the ids of the red ones. Red only warns: the merge is
 // irreversible, so refusing to resolve would strand a landed issue. The blocks
@@ -55,4 +41,17 @@ func runPostLandBlocks(errW io.Writer, body string) []string {
 		red = append(red, id)
 	}
 	return red
+}
+
+// postLandRedNote is the issue-body suffix recording red post-land blocks; the
+// body is not yet saved, so the note rides the single Save() after landing.
+func postLandRedNote(red []string, body string) string {
+	if len(red) == 0 {
+		return ""
+	}
+	note := "\n> post-land RED (" + strings.Join(red, ", ") + "): issue resolved anyway; re-check by hand\n"
+	if !strings.HasSuffix(body, "\n") {
+		note = "\n" + note
+	}
+	return note
 }

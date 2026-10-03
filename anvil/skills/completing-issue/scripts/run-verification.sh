@@ -20,7 +20,7 @@
 #           "ran_at" is when the run started (UTC RFC3339). The runner
 #           records provenance; it does not enforce freshness — that's the
 #           consumer's call.
-#   stderr: the human PASS/FAIL summary and up to 10 lines per failure.
+#   stderr: the human PASS/FAIL/DEFERRED summary and up to 10 lines per failed or deferred block.
 #   exit:   0 iff verdict is "pass", 1 otherwise.
 #
 # Each ```bash block runs as ONE script under `set -e`: its lines share state,
@@ -157,7 +157,7 @@ run_section() {
             echo "PASS [$label#$n] $preview" >&2
         else
             rc=$?
-            if [ "$label" = "Indirect" ] && [ "$(printf '%s\n' "$block" | grep -vE '^[[:space:]]*$' | head -1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')" = "# anvil:post-land" ]; then
+            if [ "$label" = "Indirect" ] && [ "$(printf '%s\n' "$block" | LC_ALL=C grep -vE '^[[:space:]]*$' | head -1 | LC_ALL=C sed 's/^[[:space:]]*//;s/[[:space:]]*$//')" = "# anvil:post-land" ]; then
                 echo "DEFERRED [$label#$n] $preview (exit $rc; post-land)" >&2
                 printf '%s\n' "$output" | head -10 | sed 's/^/    /' >&2
                 add_deferred "$label#$n" "$rc" "$preview"
