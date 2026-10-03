@@ -33,6 +33,9 @@ func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status c
 		fmt.Fprintln(cmd.OutOrStdout(), string(out))
 		return nil
 	}
+	if len(findings) > 0 {
+		printValidationErrors(cmd, findings)
+	}
 	switch status {
 	case statusCreated:
 		fmt.Fprintln(cmd.OutOrStdout(), "created: "+path)
@@ -43,9 +46,6 @@ func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status c
 	}
 	for _, w := range warnings {
 		fmt.Fprintln(cmd.ErrOrStderr(), "warning: similar artifact exists: "+w+" (pass --force-new to skip)")
-	}
-	if len(findings) > 0 {
-		printValidationErrors(cmd, findings)
 	}
 	return nil
 }

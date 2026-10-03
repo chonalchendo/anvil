@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/schema"
 )
@@ -117,6 +118,9 @@ type promoteOutput struct {
 	Path       *string `json:"path"`
 	// Warnings mirrors create's envelope: advisory findings that did not block.
 	Warnings []map[string]string `json:"warnings,omitempty"`
+	// findings are the same advisories for text mode, printed to stderr
+	// ahead of the status line.
+	findings []*errfmt.ValidationError
 }
 
 func emitPromoteOutput(cmd *cobra.Command, asJSON bool, o promoteOutput, textLine string) error {
@@ -125,6 +129,9 @@ func emitPromoteOutput(cmd *cobra.Command, asJSON bool, o promoteOutput, textLin
 		b, _ := json.Marshal(o)
 		fmt.Fprintln(out, string(b))
 		return nil
+	}
+	if len(o.findings) > 0 {
+		printValidationErrors(cmd, o.findings)
 	}
 	fmt.Fprintln(out, textLine)
 	return nil
@@ -342,9 +349,6 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		return fmt.Errorf("indexing inbox: %w", err)
 	}
 
-	if !asJSON && len(findings) > 0 {
-		printValidationErrors(cmd, findings)
-	}
 	tt := string(target)
 	ti := targetID
 	si := inboxID
@@ -354,6 +358,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 			Status:   "promoted",
 			Path:     &targetPath,
 			Warnings: jsonWarnings(nil, findings),
+			findings: findings,
 		},
 		fmt.Sprintf("promoted %s -> %s %s", inboxID, target, targetID),
 	)
