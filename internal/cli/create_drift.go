@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
@@ -18,18 +19,14 @@ const (
 	statusUpdated       createStatus = "updated"
 )
 
-func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status createStatus, warnings []string) error {
+func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status createStatus, warnings []string, findings []*errfmt.ValidationError) error {
 	if asJSON {
 		payload := map[string]any{
 			"id":     id,
 			"path":   path,
 			"status": string(status),
 		}
-		if len(warnings) > 0 {
-			ws := make([]map[string]string, 0, len(warnings))
-			for _, w := range warnings {
-				ws = append(ws, map[string]string{"kind": "similar", "id": w})
-			}
+		if ws := jsonWarnings(warnings, findings); len(ws) > 0 {
 			payload["warnings"] = ws
 		}
 		out, _ := json.Marshal(payload)
@@ -48,6 +45,19 @@ func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status c
 		fmt.Fprintln(cmd.ErrOrStderr(), "warning: similar artifact exists: "+w+" (pass --force-new to skip)")
 	}
 	return nil
+}
+
+// jsonWarnings builds the success-envelope warnings array: validation
+// findings first, then near-duplicate hits.
+func jsonWarnings(similar []string, findings []*errfmt.ValidationError) []map[string]string {
+	var ws []map[string]string
+	for _, f := range findings {
+		ws = append(ws, map[string]string{"kind": "validation", "code": f.Code, "got": f.Got})
+	}
+	for _, id := range similar {
+		ws = append(ws, map[string]string{"kind": "similar", "id": id})
+	}
+	return ws
 }
 
 // createDrift returns the name of the first field that differs between

@@ -113,6 +113,8 @@ type promoteOutput struct {
 	TargetType *string `json:"target_type"`
 	Status     string  `json:"status"`
 	Path       *string `json:"path"`
+	// Warnings mirrors create's envelope: advisory findings that did not block.
+	Warnings []map[string]string `json:"warnings,omitempty"`
 }
 
 func emitPromoteOutput(cmd *cobra.Command, asJSON bool, o promoteOutput, textLine string) error {
@@ -311,7 +313,8 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 	// body — required headings AND wikilink resolution. Inline-validating here
 	// (the prior shape) let an unresolved [[wikilink]] through promote that
 	// create rejects.
-	if err := validateBeforeCreate(cmd, v, target, targetPath, fm, body, userAuthoredBody, flagAllowNewFacet, asJSON); err != nil {
+	findings, err := validateBeforeCreate(cmd, v, target, targetPath, fm, body, userAuthoredBody, flagAllowNewFacet, asJSON)
+	if err != nil {
 		return err
 	}
 
@@ -344,7 +347,7 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		promoteOutput{
 			ID: targetID, SourceID: &si, TargetID: &ti, TargetType: &tt,
 			Status: "promoted",
-			Path:   &targetPath,
+			Path:   &targetPath, Warnings: jsonWarnings(nil, findings),
 		},
 		fmt.Sprintf("promoted %s -> %s %s", inboxID, target, targetID),
 	)
