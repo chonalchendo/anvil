@@ -115,12 +115,9 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 		return nil, nil
 	}
 	// A warning-severity finding (e.g. lead_sentence) must never fail create.
-	// Text mode prints it to stderr; JSON mode returns it for the success
-	// envelope, keeping stderr clean for machine consumers.
+	// It is returned, not printed: the caller's emit step renders it to stderr
+	// (text) or the success envelope (JSON) so there is one print site.
 	if !hasBlockingFailure(failures) {
-		if !asJSON {
-			printValidationErrors(cmd, failures)
-		}
 		return failures, nil
 	}
 	return nil, emitValidationErrors(cmd, asJSON, failures)

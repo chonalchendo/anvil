@@ -44,18 +44,22 @@ func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status c
 	for _, w := range warnings {
 		fmt.Fprintln(cmd.ErrOrStderr(), "warning: similar artifact exists: "+w+" (pass --force-new to skip)")
 	}
+	if len(findings) > 0 {
+		printValidationErrors(cmd, findings)
+	}
 	return nil
 }
 
-// jsonWarnings builds the success-envelope warnings array: validation
-// findings first, then near-duplicate hits.
+// jsonWarnings builds the success-envelope warnings array: near-duplicate
+// hits first (their position predates validation findings, so .warnings[0]
+// stays stable), then validation findings.
 func jsonWarnings(similar []string, findings []*errfmt.ValidationError) []map[string]string {
 	var ws []map[string]string
-	for _, f := range findings {
-		ws = append(ws, map[string]string{"kind": "validation", "code": f.Code, "got": f.Got})
-	}
 	for _, id := range similar {
 		ws = append(ws, map[string]string{"kind": "similar", "id": id})
+	}
+	for _, f := range findings {
+		ws = append(ws, map[string]string{"kind": "validation", "code": f.Code, "got": f.Got})
 	}
 	return ws
 }

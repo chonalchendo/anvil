@@ -40,7 +40,9 @@ func newPromoteCmd() *cobra.Command {
 			"every `### Direct`/`### Indirect` bash block in the body's `## Verification` section. " +
 			"Those blocks run in the current environment with your privileges, cwd and environment " +
 			"variables — they are not sandboxed, and their side effects survive a refused promote. " +
-			"Pass --skip-verify-predicates to opt out.",
+			"Pass --skip-verify-predicates to opt out.\n\n" +
+			"Under --json, advisory findings that did not block ride the envelope's `warnings` array " +
+			"as {kind:\"validation\", code, got}.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := args[0]
@@ -340,14 +342,18 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		return fmt.Errorf("indexing inbox: %w", err)
 	}
 
+	if !asJSON && len(findings) > 0 {
+		printValidationErrors(cmd, findings)
+	}
 	tt := string(target)
 	ti := targetID
 	si := inboxID
 	return emitPromoteOutput(cmd, asJSON,
 		promoteOutput{
 			ID: targetID, SourceID: &si, TargetID: &ti, TargetType: &tt,
-			Status: "promoted",
-			Path:   &targetPath, Warnings: jsonWarnings(nil, findings),
+			Status:   "promoted",
+			Path:     &targetPath,
+			Warnings: jsonWarnings(nil, findings),
 		},
 		fmt.Sprintf("promoted %s -> %s %s", inboxID, target, targetID),
 	)
