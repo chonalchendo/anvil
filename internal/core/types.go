@@ -10,23 +10,23 @@ type Type string
 
 // Canonical artifact-type identifiers used across the CLI and schemas.
 const (
-	TypeInbox         Type = "inbox"
-	TypeIssue         Type = "issue"
-	TypePlan          Type = "plan"
-	TypeMilestone     Type = "milestone"
-	TypeDecision      Type = "decision"
-	TypeLearning      Type = "learning"
-	TypeThread        Type = "thread"
-	TypeSweep         Type = "sweep"
-	TypeSession       Type = "session"
-	TypeProductDesign Type = "product-design"
-	TypeSystemDesign  Type = "system-design"
-	TypeContract      Type = "contract"
-	TypeConvention    Type = "convention"
+	TypeInbox           Type = "inbox"
+	TypeIssue           Type = "issue"
+	TypePlan            Type = "plan"
+	TypeMilestone       Type = "milestone"
+	TypeDecision        Type = "decision"
+	TypeLearning        Type = "learning"
+	TypeThread          Type = "thread"
+	TypeSweep           Type = "sweep"
+	TypeSession         Type = "session"
+	TypeProductDesign   Type = "product-design"
+	TypeSystemDesign    Type = "system-design"
+	TypeComponentDesign Type = "component-design"
+	TypeConvention      Type = "convention"
 )
 
 // AllTypes lists every Type accepted by the v0.1 CLI.
-var AllTypes = []Type{TypeInbox, TypeIssue, TypePlan, TypeMilestone, TypeDecision, TypeLearning, TypeThread, TypeSweep, TypeSession, TypeProductDesign, TypeSystemDesign, TypeContract, TypeConvention}
+var AllTypes = []Type{TypeInbox, TypeIssue, TypePlan, TypeMilestone, TypeDecision, TypeLearning, TypeThread, TypeSweep, TypeSession, TypeProductDesign, TypeSystemDesign, TypeComponentDesign, TypeConvention}
 
 // Dir returns the vault subdirectory that holds artifacts of type t.
 // Panics on an unknown Type — callers must validate via ParseType first.
@@ -54,8 +54,8 @@ func (t Type) Dir() string {
 		return "05-product-designs"
 	case TypeSystemDesign:
 		return "06-system-designs"
-	case TypeContract:
-		return "75-contracts"
+	case TypeComponentDesign:
+		return "75-component-designs"
 	case TypeConvention:
 		return "35-conventions"
 	}
@@ -68,7 +68,7 @@ func (t Type) Dir() string {
 // cross repos, and sweep/thread are spans by construction.
 func (t Type) SupportsProject() bool {
 	switch t {
-	case TypeIssue, TypePlan, TypeMilestone, TypeProductDesign, TypeSystemDesign, TypeLearning, TypeDecision, TypeContract:
+	case TypeIssue, TypePlan, TypeMilestone, TypeProductDesign, TypeSystemDesign, TypeLearning, TypeDecision, TypeComponentDesign:
 		return true
 	}
 	return false

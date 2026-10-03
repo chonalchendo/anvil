@@ -14,7 +14,7 @@ import (
 )
 
 // Facets is the closed set of tag facets. Order matches Save's output.
-// `kind` backs the contract-kind vocabulary (registered via `anvil contract
+// `kind` backs the component-design kind vocabulary (registered via `anvil component-design
 // kinds add`); like `type` it is glossary-registered but not gate-validated on
 // arbitrary artifact tags (see internal/cli/facets.validFacets).
 var Facets = []string{"domain", "activity", "pattern", "type", "kind"}

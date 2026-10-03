@@ -27,17 +27,17 @@ func runArgsJSON(t *testing.T, args ...string) (string, error) {
 	return stdout, err
 }
 
-func TestContractKinds_AddListRoundTrip(t *testing.T) {
+func TestComponentDesignKinds_AddListRoundTrip(t *testing.T) {
 	setupVault(t)
 
-	if out, err := runArgs(t, "contract", "kinds", "add", "data", "--desc", "data pipeline boundaries"); err != nil {
+	if out, err := runArgs(t, "component-design", "kinds", "add", "data", "--desc", "data pipeline boundaries"); err != nil {
 		t.Fatalf("kinds add: %v\n%s", err, out)
 	}
-	if out, err := runArgs(t, "contract", "kinds", "add", "analytics"); err != nil {
+	if out, err := runArgs(t, "component-design", "kinds", "add", "analytics"); err != nil {
 		t.Fatalf("kinds add (no desc): %v\n%s", err, out)
 	}
 
-	out, err := runArgsJSON(t, "contract", "kinds", "list", "--json")
+	out, err := runArgsJSON(t, "component-design", "kinds", "list", "--json")
 	if err != nil {
 		t.Fatalf("kinds list: %v\n%s", err, out)
 	}
@@ -50,34 +50,34 @@ func TestContractKinds_AddListRoundTrip(t *testing.T) {
 	}
 }
 
-func TestContractKinds_AddIdempotent(t *testing.T) {
+func TestComponentDesignKinds_AddIdempotent(t *testing.T) {
 	setupVault(t)
 
-	if _, err := runArgs(t, "contract", "kinds", "add", "data", "--desc", "x"); err != nil {
+	if _, err := runArgs(t, "component-design", "kinds", "add", "data", "--desc", "x"); err != nil {
 		t.Fatal(err)
 	}
 	// Same desc → idempotent success.
-	if _, err := runArgs(t, "contract", "kinds", "add", "data", "--desc", "x"); err != nil {
+	if _, err := runArgs(t, "component-design", "kinds", "add", "data", "--desc", "x"); err != nil {
 		t.Fatalf("re-add same desc should be idempotent: %v", err)
 	}
 	// Different desc without --update → conflict error.
-	if _, err := runArgs(t, "contract", "kinds", "add", "data", "--desc", "y"); err == nil {
+	if _, err := runArgs(t, "component-design", "kinds", "add", "data", "--desc", "y"); err == nil {
 		t.Fatal("expected conflict on differing desc without --update")
 	}
 }
 
-func TestCreateContract_RoundTripAndKind(t *testing.T) {
+func TestCreateComponentDesign_RoundTripAndKind(t *testing.T) {
 	setupVault(t)
 
-	if _, err := runArgs(t, "contract", "kinds", "add", "data", "--desc", "data boundaries"); err != nil {
+	if _, err := runArgs(t, "component-design", "kinds", "add", "data", "--desc", "data boundaries"); err != nil {
 		t.Fatal(err)
 	}
 
-	out, err := runArgsJSON(t, "create", "contract", "--project", "burgh",
+	out, err := runArgsJSON(t, "create", "component-design", "--project", "burgh",
 		"--title", "Data boundaries", "--kind", "data",
 		"--description", "what the pipeline does / does not", "--json")
 	if err != nil {
-		t.Fatalf("create contract: %v\n%s", err, out)
+		t.Fatalf("create component design: %v\n%s", err, out)
 	}
 	var res map[string]string
 	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &res); err != nil {
@@ -92,40 +92,40 @@ func TestCreateContract_RoundTripAndKind(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := schema.Validate("contract", a.FrontMatter); err != nil {
-		t.Fatalf("created contract fails schema: %v", err)
+	if err := schema.Validate("component-design", a.FrontMatter); err != nil {
+		t.Fatalf("created component design fails schema: %v", err)
 	}
 	if a.FrontMatter["kind"] != "data" {
 		t.Errorf("kind = %v, want data", a.FrontMatter["kind"])
 	}
 }
 
-func TestCreateContract_UnregisteredKindRejected(t *testing.T) {
+func TestCreateComponentDesign_UnregisteredKindRejected(t *testing.T) {
 	setupVault(t)
 
-	out, err := runArgs(t, "create", "contract", "--project", "burgh",
+	out, err := runArgs(t, "create", "component-design", "--project", "burgh",
 		"--title", "Bad", "--kind", "boguskind", "--description", "y")
 	if err == nil {
 		t.Fatalf("expected rejection for unregistered kind\n%s", out)
 	}
-	if !strings.Contains(out, "anvil contract kinds add") {
+	if !strings.Contains(out, "anvil component-design kinds add") {
 		t.Errorf("error should point at the registration verb, got:\n%s", out)
 	}
 }
 
-func TestCreateContract_RequiresKind(t *testing.T) {
+func TestCreateComponentDesign_RequiresKind(t *testing.T) {
 	setupVault(t)
 
-	_, err := runArgs(t, "create", "contract", "--project", "burgh",
+	_, err := runArgs(t, "create", "component-design", "--project", "burgh",
 		"--title", "No kind", "--description", "y")
 	if err == nil {
-		t.Fatal("expected error: --kind required for contract")
+		t.Fatal("expected error: --kind required for component design")
 	}
 }
 
 // TestTagsAdd_RejectsKindFacet pins the single-registration-path invariant:
-// `kind/` is glossary storage for contract kinds, but the only public way to
-// register one is `anvil contract kinds add`, not the generic `tags add`.
+// `kind/` is glossary storage for component design kinds, but the only public way to
+// register one is `anvil component-design kinds add`, not the generic `tags add`.
 func TestTagsAdd_RejectsKindFacet(t *testing.T) {
 	setupVault(t)
 
@@ -133,7 +133,26 @@ func TestTagsAdd_RejectsKindFacet(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected rejection of tags add kind/...\n%s", out)
 	}
-	if !strings.Contains(err.Error(), "contract kinds add") {
+	if !strings.Contains(err.Error(), "component-design kinds add") {
 		t.Errorf("error should redirect to the dedicated verb, got: %v", err)
+	}
+}
+
+func TestCreateComponentDesign_BodyRequiresBoundaryHalf(t *testing.T) {
+	setupVault(t)
+	if _, err := runArgs(t, "component-design", "kinds", "add", "data"); err != nil {
+		t.Fatal(err)
+	}
+	create := func(body string) error {
+		_, err := runArgs(t, "create", "component-design", "--project", "burgh",
+			"--title", "Probe", "--kind", "data", "--description", "d", "--body", body)
+		return err
+	}
+	if err := create("## Purpose\n\np\n\n## Interfaces\n\n- x\n"); err == nil {
+		t.Error("body missing required boundary sections must be rejected")
+	}
+	full := "## Purpose\n\np\n\n## Does\n\n- a\n\n## Does not\n\n- b\n\n## Verification\n\n### Direct\n\nx\n\n### Indirect\n\ny\n\n## Precedents\n\n"
+	if err := create(full); err != nil {
+		t.Errorf("boundary-half-only body must be accepted: %v", err)
 	}
 }

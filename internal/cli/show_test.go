@@ -477,15 +477,15 @@ func TestShowValidate_Issue_BadSchema_GreppableFailLine(t *testing.T) {
 
 func TestShowValidate_NonIssueMilestoneType(t *testing.T) {
 	vault := setupVault(t)
-	dir := filepath.Join(vault, "75-contracts")
+	dir := filepath.Join(vault, "75-component-designs")
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	p := filepath.Join(dir, "foo.contract.md")
+	p := filepath.Join(dir, "foo.component-design.md")
 	a := &core.Artifact{
 		Path: p,
 		FrontMatter: map[string]any{
-			"type": "contract", "title": "C", "description": "fixture description", "created": "2026-04-29",
+			"type": "component-design", "title": "C", "description": "fixture description", "created": "2026-04-29",
 			"status": "active", "project": "foo", "kind": "platform",
 		},
 	}
@@ -493,7 +493,7 @@ func TestShowValidate_NonIssueMilestoneType(t *testing.T) {
 		t.Fatal(err)
 	}
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"show", "contract", "foo.contract", "--validate"})
+	cmd.SetArgs([]string{"show", "component-design", "foo.component-design", "--validate"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -894,9 +894,9 @@ func TestShowLinks_Text(t *testing.T) {
 func TestShowLinks_EmptyExitsZero(t *testing.T) {
 	vault := setupVault(t)
 	writeIssueWithLinks(t, vault, "foo", "bar", nil)
-	out, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "contract")
+	out, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "component-design")
 	if err != nil {
-		t.Fatalf("show --links contract (no matches) must exit 0, got: %v", err)
+		t.Fatalf("show --links component-design (no matches) must exit 0, got: %v", err)
 	}
 	if out != "" {
 		t.Errorf("expected empty output, got %q", out)
@@ -926,9 +926,9 @@ func TestShowLinks_JSON(t *testing.T) {
 func TestShowLinks_JSONEmpty(t *testing.T) {
 	vault := setupVault(t)
 	writeIssueWithLinks(t, vault, "foo", "bar", nil)
-	out, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "contract", "--json")
+	out, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "component-design", "--json")
 	if err != nil {
-		t.Fatalf("show --links contract --json (no matches) must exit 0, got: %v", err)
+		t.Fatalf("show --links component-design --json (no matches) must exit 0, got: %v", err)
 	}
 	var got []string
 	if err := jsonUnmarshal(t, out, &got); err != nil {
@@ -945,18 +945,18 @@ func TestShowLinks_ArrayField(t *testing.T) {
 	vault := setupVault(t)
 	writeIssueWithLinks(t, vault, "foo", "bar", map[string]any{
 		"related": []any{
-			"[[contract.foo.c1]]",
+			"[[component-design.foo.c1]]",
 			"[[issue.foo.other]]",
-			"[[contract.foo.c2]]",
+			"[[component-design.foo.c2]]",
 		},
 	})
-	out, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "contract")
+	out, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "component-design")
 	if err != nil {
-		t.Fatalf("show --links contract: %v", err)
+		t.Fatalf("show --links component-design: %v", err)
 	}
 	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
-	if len(lines) != 2 || lines[0] != "contract.foo.c1" || lines[1] != "contract.foo.c2" {
-		t.Errorf("got lines %v, want [contract.foo.c1, contract.foo.c2]", lines)
+	if len(lines) != 2 || lines[0] != "component-design.foo.c1" || lines[1] != "component-design.foo.c2" {
+		t.Errorf("got lines %v, want [component-design.foo.c1, component-design.foo.c2]", lines)
 	}
 }
 
@@ -974,19 +974,19 @@ func TestShowLinks_UnknownType(t *testing.T) {
 	}
 }
 
-// writeContract drops a minimal contract artifact on disk so --links --body can
-// resolve and load it. The contract id strips the "contract." prefix in its
-// filename (75-contracts/<project>.<slug>.md).
-func writeContract(t *testing.T, vault, project, slug, status, body string) {
+// writeComponentDesign drops a minimal component design artifact on disk so --links --body can
+// resolve and load it. The component design id strips the "component-design." prefix in its
+// filename (75-component-designs/<project>.<slug>.md).
+func writeComponentDesign(t *testing.T, vault, project, slug, status, body string) {
 	t.Helper()
 	id := project + "." + slug
-	dir := filepath.Join(vault, "75-contracts")
+	dir := filepath.Join(vault, "75-component-designs")
 	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for traversable dirs
 		t.Fatal(err)
 	}
 	path := filepath.Join(dir, id+".md")
 	fm := map[string]any{
-		"type": "contract", "title": "c", "description": "d",
+		"type": "component-design", "title": "c", "description": "d",
 		"created": "2026-01-01", "updated": "2026-01-01",
 		"status": status, "project": project,
 	}
@@ -1001,25 +1001,25 @@ func writeContract(t *testing.T, vault, project, slug, status, body string) {
 func TestShowLinks_BodyText(t *testing.T) {
 	vault := setupVault(t)
 	writeIssueWithLinks(t, vault, "foo", "bar", map[string]any{
-		"related": []any{"[[contract.foo.c1]]", "[[contract.foo.c2]]"},
+		"related": []any{"[[component-design.foo.c1]]", "[[component-design.foo.c2]]"},
 	})
-	writeContract(t, vault, "foo", "c1", "active", "## Does not\n\nc1 boundary.\n")
-	writeContract(t, vault, "foo", "c2", "deprecated", "## Does not\n\nc2 boundary.\n")
+	writeComponentDesign(t, vault, "foo", "c1", "active", "## Does not\n\nc1 boundary.\n")
+	writeComponentDesign(t, vault, "foo", "c2", "deprecated", "## Does not\n\nc2 boundary.\n")
 
-	out, errOut, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "contract", "--body")
+	out, errOut, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "component-design", "--body")
 	if err != nil {
-		t.Fatalf("show --links contract --body: %v", err)
+		t.Fatalf("show --links component-design --body: %v", err)
 	}
 	for _, want := range []string{
-		"=== contract.foo.c1 (status: active) ===",
-		"=== contract.foo.c2 (status: deprecated) ===",
+		"=== component-design.foo.c1 (status: active) ===",
+		"=== component-design.foo.c2 (status: deprecated) ===",
 		"c1 boundary.", "c2 boundary.",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("stdout missing %q\ngot:\n%s", want, out)
 		}
 	}
-	if !strings.Contains(errOut, "2 contracts") {
+	if !strings.Contains(errOut, "2 component-designs") {
 		t.Errorf("expected count hint on stderr, got: %q", errOut)
 	}
 }
@@ -1031,18 +1031,18 @@ func TestShowLinks_BodyText(t *testing.T) {
 func TestShowLinks_BodyDegradesOnBrokenEdge(t *testing.T) {
 	vault := setupVault(t)
 	writeIssueWithLinks(t, vault, "foo", "bar", map[string]any{
-		"related": []any{"[[contract.foo.c1]]", "[[contract.foo.missing]]"},
+		"related": []any{"[[component-design.foo.c1]]", "[[component-design.foo.missing]]"},
 	})
-	writeContract(t, vault, "foo", "c1", "active", "## Does not\n\nc1 boundary.\n")
+	writeComponentDesign(t, vault, "foo", "c1", "active", "## Does not\n\nc1 boundary.\n")
 
-	out, errOut, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "contract", "--body")
+	out, errOut, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "component-design", "--body")
 	if err != nil {
 		t.Fatalf("broken edge must degrade, not abort: %v", err)
 	}
 	if !strings.Contains(out, "c1 boundary.") {
 		t.Errorf("resolvable link should still load, got:\n%s", out)
 	}
-	if !strings.Contains(errOut, "contract.foo.missing") {
+	if !strings.Contains(errOut, "component-design.foo.missing") {
 		t.Errorf("stderr must name the broken edge, got: %q", errOut)
 	}
 }
@@ -1052,13 +1052,13 @@ func TestShowLinks_BodyDegradesOnBrokenEdge(t *testing.T) {
 func TestShowLinks_BodyJSON(t *testing.T) {
 	vault := setupVault(t)
 	writeIssueWithLinks(t, vault, "foo", "bar", map[string]any{
-		"related": []any{"[[contract.foo.c1]]"},
+		"related": []any{"[[component-design.foo.c1]]"},
 	})
-	writeContract(t, vault, "foo", "c1", "active", "## Does not\n\nc1 boundary.\n")
+	writeComponentDesign(t, vault, "foo", "c1", "active", "## Does not\n\nc1 boundary.\n")
 
-	out, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "contract", "--body", "--json")
+	out, _, err := runCmd(t, newRootCmd(), "show", "issue", "foo.bar", "--links", "component-design", "--body", "--json")
 	if err != nil {
-		t.Fatalf("show --links contract --body --json: %v", err)
+		t.Fatalf("show --links component-design --body --json: %v", err)
 	}
 	var got []struct {
 		ID, Status, Body string
@@ -1066,11 +1066,11 @@ func TestShowLinks_BodyJSON(t *testing.T) {
 	if err := jsonUnmarshal(t, out, &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
-	if len(got) != 1 || got[0].ID != "contract.foo.c1" || got[0].Status != "active" {
+	if len(got) != 1 || got[0].ID != "component-design.foo.c1" || got[0].Status != "active" {
 		t.Fatalf("got %+v", got)
 	}
 	if !strings.Contains(got[0].Body, "## Does not") {
-		t.Errorf("body missing contract content: %q", got[0].Body)
+		t.Errorf("body missing component design content: %q", got[0].Body)
 	}
 }
 

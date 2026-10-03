@@ -306,10 +306,10 @@ func newTagsAddCmd() *cobra.Command {
 				return fmt.Errorf("--desc is required")
 			}
 			facet, name, ok := glossary.SplitTag(tag)
-			// `kind/` is a glossary facet for storage only; contract kinds have a
+			// `kind/` is a glossary facet for storage only; component design kinds have a
 			// dedicated registration verb so there is one path, not two.
-			if ok && facet == contractKindFacet {
-				return fmt.Errorf("%q is a contract-kind label, not a tag facet\n  corrected: anvil contract kinds add %s", tag, name)
+			if ok && facet == componentDesignKindFacet {
+				return fmt.Errorf("%q is a component-design kind label, not a tag facet\n  corrected: anvil component-design kinds add %s", tag, name)
 			}
 			if !ok || !slices.Contains(glossary.Facets, facet) {
 				return fmt.Errorf("invalid value %q for <facet>/<name>\n  valid values: %s\n  corrected:    anvil tags add %s/<name> --desc %q",

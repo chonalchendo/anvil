@@ -15,7 +15,7 @@ import (
 
 // newAppendCmd wires the append verb: the only CLI route to grow an
 // artifact's body after creation. Session addenda, design reconciliation
-// notes, and contract precedents all land this way instead of a raw file
+// notes, and component design precedents all land this way instead of a raw file
 // edit — which bypasses the body validation `create` enforces and silently
 // skips the `updated` bump. Appended content runs the same static body
 // checks create runs (wikilink resolution, per-type structural checks) via

@@ -53,7 +53,7 @@ func checkFieldCaps(t core.Type, description, goal string) error {
 // tiers:
 //
 //   - Schema-owned: flags that fill a schema-required scalar
-//     (issue/milestone --goal, sweep --scope, contract --kind) get
+//     (issue/milestone --goal, sweep --scope, component design --kind) get
 //     no CLI-level check. Their empty render is stripped in the create
 //     path so schema.Validate reports them as missing_required in the
 //     same aggregated block as facet and body violations;

@@ -59,7 +59,7 @@ func runShowLinks(cmd *cobra.Command, vault *core.Vault, t core.Type, artifactID
 
 // linkTargetsOfType returns the distinct wikilink targets of linkType declared
 // by artifact a — both frontmatter slots (string or []any fields) and body prose
-// (a contract links its conventions from `## Code design`, not a frontmatter
+// (a component design links its conventions from `## Code design`, not a frontmatter
 // slot) — as full `type.id` targets, sorted. Both surfaces are real graph edges.
 func linkTargetsOfType(a *core.Artifact, linkType core.Type) []string {
 	prefix := "[[" + string(linkType) + "."

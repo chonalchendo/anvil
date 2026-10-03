@@ -113,7 +113,8 @@ func createLongDescription() string {
 		"(reads stdin). The full artifact lands in one call — no follow-up edit.\n\n" +
 		"Required body sections: learning bodies need " + strings.Join(core.RequiredLearningSections, " / ") + "; " +
 		"issue bodies need " + strings.Join(core.RequiredIssueSections, " / ") + "; " +
-		"milestone bodies need " + strings.Join(core.RequiredMilestoneSections, " / ") + " (in order). " +
+		"milestone bodies need " + strings.Join(core.RequiredMilestoneSections, " / ") + "; " +
+		"component-design bodies need " + strings.Join(core.RequiredComponentDesignSections, " / ") + " (in order). " +
 		"Faceted tags (domain/, activity/, pattern/) must reuse existing vault values or pass --allow-new-facet. " +
 		"Run 'anvil create <type> --show-template' to print the skeleton before composing.\n\n" +
 		"Validation: create always validates the frontmatter it just wrote. " +

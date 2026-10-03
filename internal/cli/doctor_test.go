@@ -702,10 +702,10 @@ func TestDoctorFinishedMilestone_BucketNotFlagged(t *testing.T) {
 	}
 }
 
-// runContractRailCheck builds a vault with one contract (given status/body)
+// runComponentDesignRailCheck builds a vault with one component design (given status/body)
 // and, when withConvention is set, one convention artifact, then reports
-// whether doctor emits a contract-empty-convention-rail finding for it.
-func runContractRailCheck(t *testing.T, status, body string, withConvention bool) bool {
+// whether doctor emits a component-design-empty-convention-rail finding for it.
+func runComponentDesignRailCheck(t *testing.T, status, body string, withConvention bool) bool {
 	t.Helper()
 	vault := setupVault(t)
 	v := &core.Vault{Root: vault}
@@ -730,14 +730,14 @@ func runContractRailCheck(t *testing.T, status, body string, withConvention bool
 		}
 	}
 
-	if err := os.MkdirAll(filepath.Join(vault, "75-contracts"), 0o750); err != nil {
+	if err := os.MkdirAll(filepath.Join(vault, "75-component-designs"), 0o750); err != nil {
 		t.Fatal(err)
 	}
 	ct := &core.Artifact{
-		Path: filepath.Join(vault, "75-contracts", "contract.anvil.engine.md"),
+		Path: filepath.Join(vault, "75-component-designs", "component-design.anvil.engine.md"),
 		FrontMatter: map[string]any{
-			"type":    "contract",
-			"title":   "engine contract",
+			"type":    "component-design",
+			"title":   "engine component design",
 			"status":  status,
 			"project": "anvil",
 			"created": "2026-06-01",
@@ -758,33 +758,33 @@ func runContractRailCheck(t *testing.T, status, body string, withConvention bool
 		t.Fatalf("runDoctor: %v", err)
 	}
 	for _, f := range findings {
-		if f.Kind == "contract-empty-convention-rail" && f.ID == "contract.anvil.engine" {
+		if f.Kind == "component-design-empty-convention-rail" && f.ID == "component-design.anvil.engine" {
 			return true
 		}
 	}
 	return false
 }
 
-func TestDoctorContractEmptyConventionRail(t *testing.T) {
-	if !runContractRailCheck(t, "active", "## Does\n\n- Stuff.\n", true) {
-		t.Error("active contract with no convention links should be flagged")
+func TestDoctorComponentDesignEmptyConventionRail(t *testing.T) {
+	if !runComponentDesignRailCheck(t, "active", "## Does\n\n- Stuff.\n", true) {
+		t.Error("active component design with no convention links should be flagged")
 	}
 }
 
-func TestDoctorContractConventionRail_LinkedNotFlagged(t *testing.T) {
-	if runContractRailCheck(t, "active", "## Code design\n\n- Follow [[convention.go]].\n", true) {
-		t.Error("contract linking a convention must not be flagged")
+func TestDoctorComponentDesignConventionRail_LinkedNotFlagged(t *testing.T) {
+	if runComponentDesignRailCheck(t, "active", "## Code design\n\n- Follow [[convention.go]].\n", true) {
+		t.Error("component design linking a convention must not be flagged")
 	}
 }
 
-func TestDoctorContractConventionRail_InactiveNotFlagged(t *testing.T) {
-	if runContractRailCheck(t, "draft", "## Does\n\n- Stuff.\n", true) {
-		t.Error("non-active contract must not be flagged")
+func TestDoctorComponentDesignConventionRail_InactiveNotFlagged(t *testing.T) {
+	if runComponentDesignRailCheck(t, "draft", "## Does\n\n- Stuff.\n", true) {
+		t.Error("non-active component design must not be flagged")
 	}
 }
 
-func TestDoctorContractConventionRail_NoConventionsInVault(t *testing.T) {
-	if runContractRailCheck(t, "active", "## Does\n\n- Stuff.\n", false) {
+func TestDoctorComponentDesignConventionRail_NoConventionsInVault(t *testing.T) {
+	if runComponentDesignRailCheck(t, "active", "## Does\n\n- Stuff.\n", false) {
 		t.Error("vault with no conventions must yield no rail findings")
 	}
 }
