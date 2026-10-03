@@ -317,6 +317,9 @@ func TestBundledAgents_TranslateForAllTargets(t *testing.T) {
 		if _, err := anteAgentMarkdown(src); err != nil {
 			t.Errorf("anteAgentMarkdown(%s): %v", name, err)
 		}
+		if _, err := openCodeAgentMarkdown(src); err != nil {
+			t.Errorf("openCodeAgentMarkdown(%s): %v", name, err)
+		}
 	}
 }
 
@@ -440,5 +443,80 @@ func TestRemoveAnteAgents_LeavesForeignContent(t *testing.T) {
 	}
 	if _, err := os.Stat(foreign); err != nil {
 		t.Errorf("foreign agent file should survive removal: %v", err)
+	}
+}
+
+func TestInstallOpenCodeAgents_EmitsSubagentFrontmatter(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "agents")
+	if _, err := InstallOpenCodeAgents(fakeAnteAgentsFS(), target, false); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(target, "anvil-issue-worker.md")) //nolint:gosec // test-controlled path
+	if err != nil {
+		t.Fatalf("read emitted agent: %v", err)
+	}
+	doc := piFrontmatter(t, string(b))
+	if doc["mode"] != "subagent" {
+		t.Errorf("mode = %v, want subagent", doc["mode"])
+	}
+	if doc["description"] != "does the thing: precisely" {
+		t.Errorf("description = %v, want round-tripped verbatim", doc["description"])
+	}
+	tools, _ := doc["tools"].(map[string]any)
+	want := map[string]any{"*": false, "bash": true, "read": true, "glob": true, "skill": true}
+	if !reflect.DeepEqual(tools, want) {
+		t.Errorf("tools = %v, want %v", tools, want)
+	}
+	for _, k := range []string{"name", "effort", "skills", "model"} {
+		if _, ok := doc[k]; ok {
+			t.Errorf("key %q should not be emitted", k)
+		}
+	}
+}
+
+func TestOpenCodeAgentMarkdown_ReviewerCannotEdit(t *testing.T) {
+	src, err := fs.ReadFile(agents.FS, "anvil-pr-reviewer.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := openCodeAgentMarkdown(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tools, _ := piFrontmatter(t, out)["tools"].(map[string]any)
+	if tools["*"] != false {
+		t.Errorf(`tools["*"] = %v, want false (deny-by-default)`, tools["*"])
+	}
+	for _, k := range []string{"edit", "write"} {
+		if tools[k] == true {
+			t.Errorf("tools[%q] enabled for read-only reviewer", k)
+		}
+	}
+}
+
+func TestInstallOpenCodeAgents_IdempotentRefuseAndRemove(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "agents")
+	src := fakeAnteAgentsFS()
+	if _, err := InstallOpenCodeAgents(src, target, false); err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := InstallOpenCodeAgents(src, target, false); err != nil || changed {
+		t.Fatalf("second install changed=%v err=%v, want no-op", changed, err)
+	}
+	dst := filepath.Join(target, "anvil-issue-worker.md")
+	if err := os.WriteFile(dst, []byte("hand-edited"), 0o644); err != nil { //nolint:gosec // test file
+		t.Fatal(err)
+	}
+	if _, err := InstallOpenCodeAgents(src, target, false); err == nil {
+		t.Fatal("expected refusal on divergent file")
+	}
+	if changed, _ := RemoveOpenCodeAgents(src, target); changed {
+		t.Error("remove must leave divergent file")
+	}
+	if _, err := InstallOpenCodeAgents(src, target, true); err != nil {
+		t.Fatalf("force: %v", err)
+	}
+	if changed, err := RemoveOpenCodeAgents(src, target); err != nil || !changed {
+		t.Fatalf("remove changed=%v err=%v", changed, err)
 	}
 }

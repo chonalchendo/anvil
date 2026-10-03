@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -61,80 +59,16 @@ func anteToolNames(claudeTools string) []string {
 // sub-agent discovery reads the same name/description/model/tools
 // frontmatter shape Claude Code uses (docs.antigma.ai/extend/subagents) —
 // anteAgentMarkdown carries name/description/model through and narrows tools;
-// the body copies through unchanged. Mirrors InstallPiAgents' clobber
-// contract: a byte-identical file is a no-op, a divergent one is refused
-// unless force is true.
+// the body copies through unchanged. Clobber contract: see installTranslatedAgents.
 func InstallAnteAgents(srcFS fs.FS, target string, force bool) (bool, error) {
-	names, err := listAgentFiles(srcFS)
-	if err != nil {
-		return false, err
-	}
-	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
-		return false, fmt.Errorf("mkdir target %s: %w", target, err)
-	}
-	changed := false
-	for _, name := range names {
-		src, err := fs.ReadFile(srcFS, name)
-		if err != nil {
-			return false, fmt.Errorf("read embedded agent %s: %w", name, err)
-		}
-		want, err := anteAgentMarkdown(src)
-		if err != nil {
-			return false, fmt.Errorf("translate agent %s: %w", name, err)
-		}
-		dst := filepath.Join(target, name)
-		got, err := os.ReadFile(dst) //nolint:gosec // path is test-controlled or application-managed; not user input
-		switch {
-		case err == nil && string(got) == want:
-			continue
-		case err == nil && !force:
-			return false, fmt.Errorf("refusing to overwrite non-matching %s; run `anvil install agents --target ante --force` to redeploy", dst)
-		case err != nil && !errors.Is(err, os.ErrNotExist):
-			return false, fmt.Errorf("read %s: %w", dst, err)
-		}
-		if err := os.WriteFile(dst, []byte(want), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
-			return false, fmt.Errorf("write %s: %w", dst, err)
-		}
-		changed = true
-	}
-	return changed, nil
+	return installTranslatedAgents(srcFS, target, "ante", force, anteAgentMarkdown)
 }
 
 // RemoveAnteAgents deletes target/<name>.md for each embedded agent whose
 // on-disk content still matches the translated copy. Divergent or foreign
-// files are left untouched, mirroring RemovePiAgents.
+// files are left untouched.
 func RemoveAnteAgents(srcFS fs.FS, target string) (bool, error) {
-	names, err := listAgentFiles(srcFS)
-	if err != nil {
-		return false, err
-	}
-	changed := false
-	for _, name := range names {
-		src, err := fs.ReadFile(srcFS, name)
-		if err != nil {
-			return false, fmt.Errorf("read embedded agent %s: %w", name, err)
-		}
-		want, err := anteAgentMarkdown(src)
-		if err != nil {
-			return false, fmt.Errorf("translate agent %s: %w", name, err)
-		}
-		dst := filepath.Join(target, name)
-		got, err := os.ReadFile(dst) //nolint:gosec // path is test-controlled or application-managed; not user input
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-			return false, fmt.Errorf("read %s: %w", dst, err)
-		}
-		if string(got) != want {
-			continue
-		}
-		if err := os.Remove(dst); err != nil {
-			return false, fmt.Errorf("remove %s: %w", dst, err)
-		}
-		changed = true
-	}
-	return changed, nil
+	return removeTranslatedAgents(srcFS, target, anteAgentMarkdown)
 }
 
 // anteAgentMarkdown translates one embedded agent markdown file into an

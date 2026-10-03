@@ -62,6 +62,15 @@ anvil install agents --target pi   # emits each subagent as ~/.pi/agent/agents/<
 
 Restart pi to pick them up. `install agents --target pi` keeps the markdown shape but translates the model alias, tools, and skills/effort fields to pi's schema. `install hooks` remains Claude-only for pi too.
 
+**Using OpenCode or Ante?** Agents port the same way:
+
+```bash
+anvil install agents --target opencode   # emits ~/.config/opencode/agents/<name>.md (honoring $OPENCODE_CONFIG_DIR)
+anvil install agents --target ante       # emits ~/.ante/agents/<name>.md (honoring $ANTE_HOME)
+```
+
+`--target opencode` emits `mode: subagent`, omits `model` (subagents inherit your session model; pick tiers in your OpenCode config), and maps tools to a deny-by-default enable-map. OpenCode already scans `~/.claude/skills`, so skills need no separate install (`install skills --target opencode` is rejected). `--target ante` drops the Claude-only model/skills/effort fields; `install skills --target ante` symlinks the bundle into `~/.ante/skills`.
+
 > Once released, `go install github.com/chonalchendo/anvil/cmd/anvil@latest` will be the one-line path. Build from source with `just install` (not `go install ./cmd/anvil`) — the recipe stamps the version and checks for a stale binary shadowing your `$PATH`. After `just install`, run `anvil install skills` — no verb refreshes the installed skills bundle implicitly.
 
 ## Design & conventions
