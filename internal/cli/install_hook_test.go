@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/chonalchendo/anvil/anvil"
 )
 
 func TestInstallFireSessionResume_LoadsOwnHandoffNotRecency(t *testing.T) {
@@ -36,6 +38,9 @@ func TestInstallFireSessionResume_LoadsOwnHandoffNotRecency(t *testing.T) {
 	}
 	if !strings.Contains(got, "Do not run `anvil session resume`") {
 		t.Errorf("output missing the hook-authored preamble instructing against re-running resuming-session's Phase 1:\n%s", got)
+	}
+	if !strings.Contains(got, anvil.SessionGuide) {
+		t.Errorf("output missing the session guide, which compaction may have dropped:\n%s", got)
 	}
 	if !strings.Contains(got, "handing-off-session") {
 		t.Errorf("output missing compact-trigger instruction to write a fresh handoff:\n%s", got)
