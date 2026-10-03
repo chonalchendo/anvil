@@ -1,5 +1,5 @@
-// Package anvil exposes the shipped text that is not a skill or agent: the
-// session guide and the Prose style block every skill and agent also carries.
+// Package anvil embeds the text the session hooks print: the session guide and
+// the shared Prose style block.
 package anvil
 
 import _ "embed"

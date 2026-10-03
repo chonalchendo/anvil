@@ -6,7 +6,7 @@ An anvil vault backs this session. It holds the project's designs, milestones, i
 
 - `anvil where` — the current vault and project.
 - `anvil list <type>`, then `anvil show <type> <id> --body`. Types include product-design, system-design, milestone, issue, contract, convention, decision, learning.
-- `anvil hydrate <issue-id> --tldr` — all context that governs one issue, in one call.
+- `anvil hydrate <issue-id>` — every artifact that governs one issue, in one call. Add `--tldr` for a short map first.
 - `anvil --help` and `anvil <verb> --help` — every verb and flag.
 
 ## Skills before CLI
@@ -17,6 +17,6 @@ When an anvil skill covers the activity, fire the skill, not the raw CLI. Exampl
 
 - Pick from `anvil list issue --ready --json`.
 - Claim it: `anvil transition issue <id> in-progress --owner <name>`.
-- Search before you create: `anvil list <type>` and `anvil link --to <id>`.
-- Resolve only after the human merges the change.
+- Search before you create: `anvil list <type> --limit 100` and `anvil link --to <id>`.
+- Resolve after the human merges: `anvil transition issue <id> resolved`.
 
