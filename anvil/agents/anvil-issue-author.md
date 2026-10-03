@@ -42,3 +42,12 @@ Never `anvil transition` anything past issue creation, never `anvil create miles
 ## Return contract
 
 Return exactly one line per item, in dispatch order: `Created: [[<id>]]` on success — the `id` from `anvil create issue --json` is already fully qualified (`issue.anvil.NNNN.slug`), do not prepend `issue.` again — `Blocker: item-underspecified <n> <what's missing>` or `Blocker: item-milestone-mismatch <n> <one line>` on failure, nothing else. No narrative tail, no "let me check", no offer to do more.
+
+## Prose style
+
+Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
+
+- Short sentences: 20 words at most for an instruction, 25 for a description.
+- Active voice. One instruction per sentence. Conclusion first.
+- One term per concept; reuse it verbatim.
+- No filler, no hedging, no restating what the reader already has.

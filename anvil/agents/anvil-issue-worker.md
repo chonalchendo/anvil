@@ -142,3 +142,12 @@ Forbidden-call audit: gh pr merge=not-called, git worktree remove=not-called, an
 ```
 
 The `Verdict:` line is copied from the runner, never composed by you — an absent or hand-written verdict is what the orchestrator re-measures against. No narrative tail, no "waiting" / "let me check".
+
+## Prose style
+
+Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
+
+- Short sentences: 20 words at most for an instruction, 25 for a description.
+- Active voice. One instruction per sentence. Conclusion first.
+- One term per concept; reuse it verbatim.
+- No filler, no hedging, no restating what the reader already has.

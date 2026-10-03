@@ -63,3 +63,12 @@ Do **not** silently drop findings the subagent surfaced. A finding you judge wro
 - Do not restate the rubric, standards content, or doc paths in the dispatch prompt — the reviewer contract owns all of it and follows `CLAUDE.md` to this project's standards itself. Fill-ins only; a hand-assembled rubric is the divergence this split exists to end.
 - Do not merge. `dispatching-issue-fleet`'s Iron Law applies — human owns the merge button.
 - Do not skip findings with "nitpick" when the finding cites a documented repo rule. Same nitpick policy as `responding-to-pr-review`.
+
+## Prose style
+
+Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
+
+- Short sentences: 20 words at most for an instruction, 25 for a description.
+- Active voice. One instruction per sentence. Conclusion first.
+- One term per concept; reuse it verbatim.
+- No filler, no hedging, no restating what the reader already has.

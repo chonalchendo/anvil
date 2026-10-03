@@ -142,3 +142,12 @@ A thread is a workspace, not an output. Before closing one, rule on where its co
 Project work surfaced mid-thread routes to `writing-issue` and is not a closing verdict: the thread stays open as parallel context.
 
 Pausing is a plain `anvil transition thread <id> paused`. No separate closing skill. Reopen a paused thread (`anvil transition thread <id> open`) before ruling a verdict — `closed` and `abandoned` are only legal from `open`.
+
+## Prose style
+
+Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
+
+- Short sentences: 20 words at most for an instruction, 25 for a description.
+- Active voice. One instruction per sentence. Conclusion first.
+- One term per concept; reuse it verbatim.
+- No filler, no hedging, no restating what the reader already has.
