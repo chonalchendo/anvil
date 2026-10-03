@@ -158,17 +158,11 @@ func DeterministicID(t Type, in IDInputs) (string, error) {
 }
 
 // IndexKey maps an id to the string vault.db's artifacts/links/tags/fts
-// tables key on. Design types (product-design, system-design) mint a bare,
-// folder-scoped CanonicalID (see DeterministicID), so two designs sharing a
-// project would collide on a bare index key — IndexKey type-qualifies exactly
-// those two types (equivalent to WikilinkTarget), while every other type's
-// index key stays identical to its CanonicalID.
+// tables key on: the type-qualified WikilinkTarget for every type, so two
+// artifacts of different types sharing a bare id (a learning and a thread
+// `foo`, a product-design and a system-design for one project) never collide.
 func IndexKey(t Type, id string) string {
-	switch t {
-	case TypeProductDesign, TypeSystemDesign:
-		return WikilinkTarget(t, id)
-	}
-	return CanonicalID(t, id)
+	return WikilinkTarget(t, id)
 }
 
 // NextID returns the next available ID for type t under v.

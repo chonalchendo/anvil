@@ -220,12 +220,12 @@ func runLinkQuery(cmd *cobra.Command, fromID, toID string, unresolved, asJSON bo
 
 	out := make([]linkRowOut, 0, len(rows))
 	for _, r := range rows {
-		path := ""
+		path, source := "", r.Source
 		if a, err := db.GetArtifact(r.Source); err == nil {
-			path = a.Path
+			path, source = a.Path, displayID(a.Type, r.Source)
 		}
 		out = append(out, linkRowOut{
-			Source: r.Source, Target: r.Target, Relation: r.Relation,
+			Source: source, Target: r.Target, Relation: r.Relation,
 			Anchor: r.Anchor, Path: path,
 		})
 	}

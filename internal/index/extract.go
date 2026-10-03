@@ -197,7 +197,7 @@ func parseWikilink(source, relation, s string) (LinkRow, bool) {
 		// bare id can be canonicalised onto the shape artifacts.id carries —
 		// otherwise this half of the join dangles.
 		if t, err := core.ParseType(relation); err == nil {
-			trimmed = core.CanonicalID(t, trimmed)
+			trimmed = core.IndexKey(t, trimmed)
 		}
 		return LinkRow{Source: source, Target: trimmed, Relation: relation, Anchor: ""}, true
 	}

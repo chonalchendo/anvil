@@ -524,9 +524,8 @@ func TestSlugifyIssue_CapsAt40OnHyphenBoundary(t *testing.T) {
 	}
 }
 
-// TestIndexKey pins the one asymmetry in the index key space: design types
-// mint a bare CanonicalID but key the index on the type-qualified form; every
-// other type's index key is its CanonicalID unchanged.
+// TestIndexKey pins that every type keys the index on its type-qualified
+// wikilink target, so a bare id shared across types never collides.
 func TestIndexKey(t *testing.T) {
 	cases := []struct {
 		t    Type
@@ -538,7 +537,8 @@ func TestIndexKey(t *testing.T) {
 		{TypeSystemDesign, "burgh.api", "system-design.burgh.api"},
 		{TypeIssue, "demo.0001.x", "issue.demo.0001.x"},
 		{TypeIssue, "issue.demo.0001.x", "issue.demo.0001.x"},
-		{TypeLearning, "sqlmesh-audits", "sqlmesh-audits"},
+		{TypeLearning, "sqlmesh-audits", "learning.sqlmesh-audits"},
+		{TypeThread, "sqlmesh-audits", "thread.sqlmesh-audits"},
 		{TypeConvention, "python", "convention.python"},
 	}
 	for _, tc := range cases {

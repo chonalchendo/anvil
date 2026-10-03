@@ -539,3 +539,29 @@ func TestReindexFullFlagForcesFull(t *testing.T) {
 		t.Fatalf("artifacts: got %d want 1", stats.Artifacts)
 	}
 }
+
+// A learning and a thread sharing a bare id must both be indexed: the key is
+// type-qualified, so neither shadows the other.
+func TestReindexCrossTypeBareIDCollision(t *testing.T) {
+	vault := t.TempDir()
+	writeArtifact(t, filepath.Join(vault, "20-learnings", "foo.md"), "type: learning\nid: foo\nstatus: draft\n")
+	writeArtifact(t, filepath.Join(vault, "60-threads", "foo.md"), "type: thread\nid: foo\nstatus: open\n")
+
+	db, err := Open(DBPath(vault))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close() //nolint:errcheck // close in defer; error not actionable
+	stats, err := db.Reindex(vault)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.Artifacts != 2 {
+		t.Fatalf("artifacts = %d, want 2", stats.Artifacts)
+	}
+	for _, id := range []string{"learning.foo", "thread.foo"} {
+		if _, err := db.GetArtifact(id); err != nil {
+			t.Errorf("GetArtifact(%s): %v", id, err)
+		}
+	}
+}
