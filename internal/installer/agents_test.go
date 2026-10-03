@@ -442,3 +442,68 @@ func TestRemoveAnteAgents_LeavesForeignContent(t *testing.T) {
 		t.Errorf("foreign agent file should survive removal: %v", err)
 	}
 }
+
+func TestInstallOpenCodeAgents_EmitsSubagentFrontmatter(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "agents")
+	if _, err := InstallOpenCodeAgents(fakeAnteAgentsFS(), target, false); err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(target, "anvil-issue-worker.md")) //nolint:gosec // test-controlled path
+	if err != nil {
+		t.Fatalf("read emitted agent: %v", err)
+	}
+	doc := piFrontmatter(t, string(b))
+	if doc["mode"] != "subagent" {
+		t.Errorf("mode = %v, want subagent", doc["mode"])
+	}
+	if doc["description"] != "does the thing: precisely" {
+		t.Errorf("description = %v, want round-tripped verbatim", doc["description"])
+	}
+	if doc["model"] != "anthropic/claude-sonnet-5" {
+		t.Errorf("model = %v, want anthropic/claude-sonnet-5", doc["model"])
+	}
+	tools, _ := doc["tools"].(map[string]any)
+	want := map[string]any{"bash": true, "read": true, "glob": true}
+	if !reflect.DeepEqual(tools, want) {
+		t.Errorf("tools = %v, want %v", tools, want)
+	}
+	for _, k := range []string{"name", "effort", "skills"} {
+		if _, ok := doc[k]; ok {
+			t.Errorf("key %q should not be emitted", k)
+		}
+	}
+}
+
+func TestInstallOpenCodeAgents_UnmappedModelIsError(t *testing.T) {
+	srcFS := fstest.MapFS{"a.md": {Data: []byte("---\nname: a\ndescription: d\nmodel: gpt\n---\nbody\n")}}
+	if _, err := InstallOpenCodeAgents(srcFS, filepath.Join(t.TempDir(), "agents"), false); err == nil {
+		t.Fatal("expected error for unmapped model alias")
+	}
+}
+
+func TestInstallOpenCodeAgents_IdempotentRefuseAndRemove(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "agents")
+	src := fakeAnteAgentsFS()
+	if _, err := InstallOpenCodeAgents(src, target, false); err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := InstallOpenCodeAgents(src, target, false); err != nil || changed {
+		t.Fatalf("second install changed=%v err=%v, want no-op", changed, err)
+	}
+	dst := filepath.Join(target, "anvil-issue-worker.md")
+	if err := os.WriteFile(dst, []byte("hand-edited"), 0o644); err != nil { //nolint:gosec // test file
+		t.Fatal(err)
+	}
+	if _, err := InstallOpenCodeAgents(src, target, false); err == nil {
+		t.Fatal("expected refusal on divergent file")
+	}
+	if changed, _ := RemoveOpenCodeAgents(src, target); changed {
+		t.Error("remove must leave divergent file")
+	}
+	if _, err := InstallOpenCodeAgents(src, target, true); err != nil {
+		t.Fatalf("force: %v", err)
+	}
+	if changed, err := RemoveOpenCodeAgents(src, target); err != nil || !changed {
+		t.Fatalf("remove changed=%v err=%v", changed, err)
+	}
+}

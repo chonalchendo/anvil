@@ -98,8 +98,22 @@ func resolveAnteConfigDir() (string, error) {
 	return filepath.Join(home, ".ante"), nil
 }
 
+// resolveOpenCodeConfigDir returns OpenCode's config dir:
+// $OPENCODE_CONFIG_DIR if set, else ~/.config/opencode; agents land under
+// its agents/ subdir.
+func resolveOpenCodeConfigDir() (string, error) {
+	if d := os.Getenv("OPENCODE_CONFIG_DIR"); d != "" {
+		return d, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("home dir: %w", err)
+	}
+	return filepath.Join(home, ".config", "opencode"), nil
+}
+
 // resolveAgentCLIConfigDir picks the agent CLI's config dir for skill/agent
-// install. Only "claude", "codex", "pi", and "ante" are valid; an unknown
+// install. Only "claude", "codex", "pi", "ante", and "opencode" are valid; an unknown
 // target is a usage error.
 func resolveAgentCLIConfigDir(target string) (string, error) {
 	switch target {
@@ -111,8 +125,10 @@ func resolveAgentCLIConfigDir(target string) (string, error) {
 		return resolvePiConfigDir()
 	case "ante":
 		return resolveAnteConfigDir()
+	case "opencode":
+		return resolveOpenCodeConfigDir()
 	default:
-		return "", fmt.Errorf("unknown --target %q: want claude, codex, pi, or ante", target)
+		return "", fmt.Errorf("unknown --target %q: want claude, codex, pi, ante, or opencode", target)
 	}
 }
 
@@ -317,13 +333,16 @@ func newInstallAgentsCmd() *cobra.Command {
 			"pi-resolvable subset, and maps skills/effort to pi's skills/thinking keys. The\n" +
 			"ante emit keeps the markdown shape, translates the model alias to Ante's\n" +
 			"canonical catalog id, narrows tools to Ante's built-in subset, and drops\n" +
-			"skills/effort outright — Ante's frontmatter has no equivalent keys.\n\n" +
+			"skills/effort outright — Ante's frontmatter has no equivalent keys. --target\n" +
+			"opencode → ~/.config/opencode/agents/<name>.md (honoring $OPENCODE_CONFIG_DIR);\n" +
+			"the emit adds mode: subagent, translates the model alias to anthropic/<id>, and\n" +
+			"maps tools to OpenCode's enable-map.\n\n" +
 			"Agents are embedded into the anvil binary at build time. This command deploys\n" +
 			"that embedded bundle — editing anvil/agents/<name>.md in a checkout has no\n" +
 			"effect until you rebuild the anvil binary and re-run\n" +
 			"`anvil install agents`. A freshly-deployed Claude agent is dispatchable via the\n" +
 			"Agent tool's subagent_type only after the next Claude Code session restart.",
-		Example: "  anvil install agents\n  anvil install agents --target codex\n  anvil install agents --target pi\n  anvil install agents --target ante\n  anvil install agents --target codex --uninstall",
+		Example: "  anvil install agents\n  anvil install agents --target codex\n  anvil install agents --target pi\n  anvil install agents --target ante\n  anvil install agents --target opencode\n  anvil install agents --target codex --uninstall",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			dir, err := resolveAnvilAgentsTarget(target)
@@ -337,6 +356,8 @@ func newInstallAgentsCmd() *cobra.Command {
 				return runInstallPiAgents(cmd, dir, uninstall, force)
 			case "ante":
 				return runInstallAnteAgents(cmd, dir, uninstall, force)
+			case "opencode":
+				return runInstallOpenCodeAgents(cmd, dir, uninstall, force)
 			}
 			if uninstall {
 				changed, err := installer.RemoveAgents(agents.FS, dir)
@@ -364,7 +385,7 @@ func newInstallAgentsCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove anvil agents instead of installing them")
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite an existing agent file that differs from the embedded copy")
-	cmd.Flags().StringVar(&target, "target", "claude", "agent CLI to install into: claude (~/.claude, markdown), codex (~/.codex, TOML; honoring $CODEX_HOME), pi (~/.pi/agent, markdown; honoring $PI_CODING_AGENT_DIR), or ante (~/.ante, markdown; honoring $ANTE_HOME)")
+	cmd.Flags().StringVar(&target, "target", "claude", "agent CLI to install into: claude (~/.claude, markdown), codex (~/.codex, TOML; honoring $CODEX_HOME), pi (~/.pi/agent, markdown; honoring $PI_CODING_AGENT_DIR), ante (~/.ante, markdown; honoring $ANTE_HOME), or opencode (~/.config/opencode, markdown; honoring $OPENCODE_CONFIG_DIR)")
 	return cmd
 }
 
@@ -437,6 +458,31 @@ func runInstallAnteAgents(cmd *cobra.Command, dir string, uninstall, force bool)
 	}
 	if changed {
 		cmd.Println("installed anvil agents (embedded bundle) as Ante subagent markdown into", dir)
+	} else {
+		cmd.Println("anvil agents up to date at", dir)
+	}
+	return nil
+}
+
+func runInstallOpenCodeAgents(cmd *cobra.Command, dir string, uninstall, force bool) error {
+	if uninstall {
+		changed, err := installer.RemoveOpenCodeAgents(agents.FS, dir)
+		if err != nil {
+			return fmt.Errorf("removing opencode agents: %w", err)
+		}
+		if changed {
+			cmd.Println("removed anvil agents from", dir)
+		} else {
+			cmd.Println("no anvil agents found at", dir)
+		}
+		return nil
+	}
+	changed, err := installer.InstallOpenCodeAgents(agents.FS, dir, force)
+	if err != nil {
+		return fmt.Errorf("installing opencode agents: %w", err)
+	}
+	if changed {
+		cmd.Println("installed anvil agents (embedded bundle) as OpenCode subagent markdown into", dir)
 	} else {
 		cmd.Println("anvil agents up to date at", dir)
 	}

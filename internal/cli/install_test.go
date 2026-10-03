@@ -524,3 +524,35 @@ func TestInstall_Hooks_Uninstall(t *testing.T) {
 		t.Errorf("autoCompactWindow still present after uninstall: %v", got["autoCompactWindow"])
 	}
 }
+
+// TestInstallAgentsTargetOpenCode asserts the emitted file, not the exit code.
+func TestInstallAgentsTargetOpenCode(t *testing.T) {
+	ocDir := t.TempDir()
+	t.Setenv("OPENCODE_CONFIG_DIR", ocDir)
+	t.Setenv("CLAUDE_CONFIG_DIR", t.TempDir())
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"install", "agents", "--target", "opencode"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("install agents --target opencode: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(ocDir, "agents", "anvil-issue-worker.md")) //nolint:gosec // test-controlled path
+	if err != nil {
+		t.Fatalf("read emitted markdown: %v", err)
+	}
+	if !strings.Contains(string(b), "\nmode: subagent\n") {
+		t.Errorf("missing mode: subagent\n%s", b)
+	}
+
+	cmd = newRootCmd()
+	cmd.SetArgs([]string{"install", "agents", "--target", "opencode", "--uninstall"})
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("uninstall: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(ocDir, "agents", "anvil-issue-worker.md")); !os.IsNotExist(err) {
+		t.Errorf("uninstall should remove emitted file, err=%v", err)
+	}
+}
