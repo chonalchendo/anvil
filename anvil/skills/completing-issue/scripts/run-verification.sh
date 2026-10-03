@@ -8,6 +8,9 @@
 #           {"verdict":"pass|fail","checks":N,"failed":[{"check":"Indirect#1",
 #            "exit":4,"preview":"<first command>"}],"commit":"<sha-or-empty>",
 #            "ran_at":"<UTC RFC3339>"}
+#           A red Indirect block whose first non-blank line is `# anvil:post-land`
+#           (condition only true after merge) is listed under "deferred" (same
+#           shape as "failed"), not "failed", and does not fail the verdict.
 #           "checks" counts blocks attempted; a section with no ```bash block
 #           counts as one attempted (and failed) check. "commit" is `git
 #           rev-parse HEAD` of the cwd the runner was invoked from; a check
@@ -99,6 +102,7 @@ non_gating_negation() {
 
 checks=0
 failed_json=""
+deferred_json=""
 
 # Captured before any check runs, so a check that cd's cannot shift it.
 commit=$(git rev-parse HEAD 2>/dev/null)
@@ -115,6 +119,13 @@ add_fail() { # check exit-code-or-null preview
     esc=$(printf '%s' "$3" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\000-\037')
     [ -n "$failed_json" ] && failed_json="$failed_json,"
     failed_json="$failed_json{\"check\":\"$1\",\"exit\":$2,\"preview\":\"$esc\"}"
+}
+
+add_deferred() { # check exit preview
+    local esc
+    esc=$(printf '%s' "$3" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\000-\037')
+    [ -n "$deferred_json" ] && deferred_json="$deferred_json,"
+    deferred_json="$deferred_json{\"check\":\"$1\",\"exit\":$2,\"preview\":\"$esc\"}"
 }
 
 run_section() {
@@ -149,6 +160,11 @@ run_section() {
             echo "PASS [$label#$n] $preview" >&2
         else
             rc=$?
+            if [ "$label" = "Indirect" ] && [ "$(printf '%s\n' "$block" | grep -vE '^[[:space:]]*$' | head -1 | tr -d '[:space:]')" = "#anvil:post-land" ]; then
+                echo "DEFERRED [$label#$n] $preview (exit $rc; post-land)" >&2
+                add_deferred "$label#$n" "$rc" "$preview"
+                continue
+            fi
             echo "FAIL [$label#$n] $preview (exit $rc)" >&2
             printf '%s\n' "$output" | head -10 | sed 's/^/    /' >&2
             add_fail "$label#$n" "$rc" "$preview"
@@ -178,10 +194,10 @@ total=$((direct_fails + indirect_fails))
 echo "" >&2
 if [ "$total" -eq 0 ]; then
     echo "All checks passed." >&2
-    printf '{"verdict":"pass","checks":%d,"failed":[],"commit":"%s","ran_at":"%s"}\n' "$checks" "$commit" "$ran_at"
+    printf '{"verdict":"pass","checks":%d,"failed":[],"deferred":[%s],"commit":"%s","ran_at":"%s"}\n' "$checks" "$deferred_json" "$commit" "$ran_at"
     exit 0
 else
     echo "$total check(s) failed." >&2
-    printf '{"verdict":"fail","checks":%d,"failed":[%s],"commit":"%s","ran_at":"%s"}\n' "$checks" "$failed_json" "$commit" "$ran_at"
+    printf '{"verdict":"fail","checks":%d,"failed":[%s],"deferred":[%s],"commit":"%s","ran_at":"%s"}\n' "$checks" "$failed_json" "$deferred_json" "$commit" "$ran_at"
     exit 1
 fi
