@@ -221,6 +221,9 @@ func newCreateCmd() *cobra.Command {
 			if project == "" && t != core.TypeInbox && t != core.TypeDecision && t != core.TypeThread && t != core.TypeLearning && t != core.TypeSweep && t != core.TypeConvention {
 				p, err := core.ResolveProject()
 				if err != nil {
+					if errors.Is(err, core.ErrVaultCheckout) {
+						return fmt.Errorf("%s requires a project: cwd is the vault checkout, not a project repo — rerun with --project <slug> (anvil project list)", t)
+					}
 					if errors.Is(err, core.ErrNoProject) {
 						return fmt.Errorf("%s requires a project: pass --project or run from a git repo with a remote", t)
 					}

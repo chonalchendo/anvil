@@ -216,6 +216,9 @@ func promoteToTyped(cmd *cobra.Command, v *core.Vault, inbox *core.Artifact, inb
 		if project == "" {
 			p, err := core.ResolveProject()
 			if err != nil {
+				if errors.Is(err, core.ErrVaultCheckout) {
+					return fmt.Errorf("promoting to issue requires a project: cwd is the vault checkout, not a project repo — rerun with --project <slug> (anvil project list)")
+				}
 				if errors.Is(err, core.ErrNoProject) {
 					return fmt.Errorf("set --project, set suggested_project on the inbox entry, or run from a git repo with a remote")
 				}

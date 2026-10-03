@@ -16,13 +16,17 @@ type Project struct {
 	Root string // absolute path to the project's git working tree
 }
 
-// ErrNoProject signals that the working directory is not a git repo and has no
-// adopted binding.
+// ErrNoProject signals that cwd resolves to no project: no adopted binding, no non-vault git remote, no current-project pointer.
 var ErrNoProject = errors.New("no project: not a git repo and no anvil binding")
+
+// ErrVaultCheckout is ErrNoProject for the case where cwd is the resolved vault
+// checkout, whose git remote names the vault, not a project. Callers branch on
+// it to name the remedy (--project); errors.Is(err, ErrNoProject) stays true.
+var ErrVaultCheckout = fmt.Errorf("%w: cwd is the vault checkout", ErrNoProject)
 
 // ResolveProject resolves the current project. Precedence:
 // $ANVIL_PROJECT (if it names an adopted binding) → adopted binding for
-// cwd's git tree → git remote → current-project pointer → error.
+// cwd's git tree → git remote (never for a vault checkout) → current-project pointer → error.
 func ResolveProject() (*Project, error) {
 	if slug := os.Getenv("ANVIL_PROJECT"); slug != "" {
 		if p, err := projectFromSlug(slug); err == nil {
@@ -36,6 +40,10 @@ func ResolveProject() (*Project, error) {
 		if p, err := readAdoptedBinding(root); err == nil {
 			return p, nil
 		}
+		// A vault checkout is itself a git repo; its remote slug names no real project.
+		if inResolvedVault(root) {
+			return nil, ErrVaultCheckout
+		}
 		if remote, err := gitRemoteOrigin(root); err == nil {
 			return &Project{Slug: slugFromRemote(remote), Root: root}, nil
 		}
@@ -47,6 +55,19 @@ func ResolveProject() (*Project, error) {
 		}
 	}
 	return nil, ErrNoProject
+}
+
+// inResolvedVault reports whether root is the vault ResolveVaultPath names.
+// A path comparison, not a marker probe: a project repo may legitimately carry
+// its own schemas/ dir.
+func inResolvedVault(root string) bool {
+	v, err := ResolveVaultPath()
+	if err != nil {
+		return false
+	}
+	a, errA := filepath.EvalSymlinks(v.Root)
+	b, errB := filepath.EvalSymlinks(root)
+	return errA == nil && errB == nil && a == b
 }
 
 // anvilHome returns the root of the anvil global store: $ANVIL_HOME if set,
