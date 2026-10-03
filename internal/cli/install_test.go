@@ -556,3 +556,21 @@ func TestInstallAgentsTargetOpenCode(t *testing.T) {
 		t.Errorf("uninstall should remove emitted file, err=%v", err)
 	}
 }
+
+// TestInstallSkillsTargetOpenCodeRejected asserts opencode is agents-only:
+// OpenCode scans ~/.claude/skills itself, so a second copy would double-load.
+func TestInstallSkillsTargetOpenCodeRejected(t *testing.T) {
+	ocDir := t.TempDir()
+	t.Setenv("OPENCODE_CONFIG_DIR", ocDir)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"install", "skills", "--target", "opencode"})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "~/.claude/skills") {
+		t.Fatalf("err = %v, want rejection pointing at ~/.claude/skills", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(ocDir, "skills")); !os.IsNotExist(statErr) {
+		t.Errorf("rejected install must not write skills, got err=%v", statErr)
+	}
+}

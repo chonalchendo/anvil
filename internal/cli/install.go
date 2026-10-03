@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -216,6 +217,9 @@ func newInstallSkillsCmd() *cobra.Command {
 			"the anvil binary and re-run `anvil install skills --force`.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if target == "opencode" {
+				return errors.New("--target opencode is not supported for skills: OpenCode already scans ~/.claude/skills, so run `anvil install skills` (default claude target); installing again would double-load them")
+			}
 			skillsDir, err := resolveAnvilSkillsTarget(target)
 			if err != nil {
 				return err
