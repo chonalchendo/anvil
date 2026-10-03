@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
@@ -40,11 +42,14 @@ type sideFXStub struct {
 	homeDir                string
 	homeErr                error
 
-	fetchErr      error
-	fetchCalls    int
-	fetchDirs     []string
-	originHEAD    string
-	originHEADErr error
+	fetchErr         error
+	fetchCalls       int
+	fetchDirs        []string
+	originHEAD       string
+	originHEADErr    error
+	originBranches   map[string]bool
+	originBranchDirs []string
+	localBranches    map[string]bool
 
 	repoDir     string
 	repoDirErr  error
@@ -99,6 +104,8 @@ func stubSideFX(t *testing.T) *sideFXStub {
 	prevMain := gitMainRootFn
 	prevFetch := gitFetchOriginFn
 	prevOriginHEAD := gitResolveOriginHEADFn
+	prevOriginBranch := gitOriginBranchExistsFn
+	prevLocalBranch := gitLocalBranchExistsFn
 	prevResolveRepo := resolveProjectRepoFn
 	prevHome := userHomeFn
 	prevView := ghPRViewJSONFn
@@ -134,6 +141,11 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		return s.fetchErr
 	}
 	gitResolveOriginHEADFn = func(_ string) (string, error) { return s.originHEAD, s.originHEADErr }
+	gitOriginBranchExistsFn = func(dir, branch string) bool {
+		s.originBranchDirs = append(s.originBranchDirs, dir)
+		return s.originBranches[branch]
+	}
+	gitLocalBranchExistsFn = func(_, branch string) bool { return s.localBranches[branch] }
 	// Default mirrors the `~/Development/<project>` convention used by
 	// defaultWorktreePath, but from a static homeDir rather than userHomeFn
 	// (so tests exercising homeErr aren't coupled to repo resolution).
@@ -187,6 +199,8 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		gitMainRootFn = prevMain
 		gitFetchOriginFn = prevFetch
 		gitResolveOriginHEADFn = prevOriginHEAD
+		gitOriginBranchExistsFn = prevOriginBranch
+		gitLocalBranchExistsFn = prevLocalBranch
 		resolveProjectRepoFn = prevResolveRepo
 		userHomeFn = prevHome
 		ghPRViewJSONFn = prevView
@@ -2130,5 +2144,142 @@ func TestLandPRChdirsToRootBeforeWorktreeRemoval(t *testing.T) {
 	}
 	if !substepAtRoot {
 		t.Errorf("branch-delete substep did not run from root %s", root)
+	}
+}
+
+func TestTransitionCutWorktreeAdoptsOriginBranch(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	s.originBranches = map[string]bool{"demo/foo": true}
+	out := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree", "--json")
+
+	if len(s.addCalls) != 1 || s.addCalls[0].StartPoint != "origin/demo/foo" {
+		t.Fatalf("add calls = %+v; want one starting at origin/demo/foo", s.addCalls)
+	}
+	var r transitionResult
+	if err := json.Unmarshal([]byte(out), &r); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	if r.WorktreeBranchSource != "origin" {
+		t.Errorf("worktree_branch_source = %q, want origin", r.WorktreeBranchSource)
+	}
+}
+
+func TestTransitionCutWorktreeTakeoverOfInProgressIssue(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "dead")
+	s.originBranches = map[string]bool{"demo/foo": true}
+	out := execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "me", "--cut-worktree", "--force", "--json")
+
+	if len(s.addCalls) != 1 || s.addCalls[0].StartPoint != "origin/demo/foo" {
+		t.Fatalf("add calls = %+v; want one starting at origin/demo/foo", s.addCalls)
+	}
+	var r transitionResult
+	if err := json.Unmarshal([]byte(out), &r); err != nil {
+		t.Fatalf("json: %v\n%s", err, out)
+	}
+	if r.Status != "already_in_state" || r.WorktreeBranchSource != "origin" || r.Worktree == "" {
+		t.Errorf("result = %+v; want already_in_state with adopted worktree", r)
+	}
+}
+
+func TestTransitionCutWorktreeAdoptListsFromResolvedRepo(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	s.repoDir = "/repo/demo"
+	s.originBranches = map[string]bool{"demo/foo": true}
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--cut-worktree")
+
+	for _, d := range append(append(append([]string{}, s.listDirs...), s.fetchDirs...), s.originBranchDirs...) {
+		if d != "/repo/demo" {
+			t.Errorf("git query ran from %q, want resolved repo /repo/demo", d)
+		}
+	}
+	if len(s.listDirs) == 0 || len(s.originBranchDirs) == 0 {
+		t.Errorf("listDirs=%v originBranchDirs=%v; want both queried", s.listDirs, s.originBranchDirs)
+	}
+	if len(s.addCalls) != 1 || s.addCalls[0].Dir != "/repo/demo" {
+		t.Errorf("add calls = %+v", s.addCalls)
+	}
+}
+
+func TestTransitionRefusedTakeoverLeavesClaimUntouched(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	t.Setenv(envSessionID, "session-a")
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+
+	s := stubSideFX(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+	s.addErr = errors.New("boom")
+	t.Setenv(envSessionID, "session-b")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "other", "--cut-worktree", "--force"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("want refused takeover to fail")
+	}
+	a := loadIssueDoc(t, vault, "demo.foo")
+	if got, _ := a.FrontMatter["claim_session"].(string); got != "session-a" {
+		t.Errorf("claim_session = %q, want session-a", got)
+	}
+	if got, _ := a.FrontMatter["owner"].(string); got != "claude" {
+		t.Errorf("owner = %q, want claude", got)
+	}
+}
+
+func TestCutWorktreeStaleLocalBranchRefused(t *testing.T) {
+	s := stubSideFX(t)
+	s.localBranches = map[string]bool{"demo/foo": true}
+	_, _, err := cutWorktreeIfNeeded(&bytes.Buffer{}, "/repo/demo", "/wt/foo", "demo/foo", true)
+	if err == nil || !strings.Contains(err.Error(), "local_branch_exists") {
+		t.Fatalf("err = %v, want local_branch_exists", err)
+	}
+	if len(s.addCalls) != 0 {
+		t.Errorf("add calls = %+v, want none", s.addCalls)
+	}
+	var se *errfmt.Structured
+	if !errors.As(err, &se) {
+		t.Errorf("err %T not structured", err)
+	}
+}
+
+func TestCutWorktreeReclaimThroughSymlinkedPath(t *testing.T) {
+	target := t.TempDir()
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	s := stubSideFX(t)
+	s.listEntries = map[string]worktreeInfo{"demo/foo": {path: target}}
+	created, _, err := cutWorktreeIfNeeded(&bytes.Buffer{}, "/repo/demo", link, "demo/foo", true)
+	if err != nil || created {
+		t.Fatalf("created=%v err=%v; want idempotent reuse", created, err)
+	}
+}
+
+func TestCutWorktreeNoAdoptIgnoresOriginBranch(t *testing.T) {
+	s := stubSideFX(t)
+	s.originBranches = map[string]bool{"demo/foo": true}
+	s.originHEAD = "origin/master"
+	_, src, err := cutWorktreeIfNeeded(&bytes.Buffer{}, "/repo/demo", "/wt/foo", "demo/foo", false)
+	if err != nil || src != "" || len(s.addCalls) != 1 || s.addCalls[0].StartPoint != "origin/master" {
+		t.Fatalf("src=%q err=%v adds=%+v; want fresh cut from origin/master", src, err, s.addCalls)
 	}
 }

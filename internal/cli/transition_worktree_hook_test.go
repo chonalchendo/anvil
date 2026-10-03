@@ -228,7 +228,7 @@ func TestCutWorktreeReusedWorktreeSkipsHook(t *testing.T) {
 }
 
 // A plain `git worktree remove` refuses once the hook has written a
-// non-gitignored file. Drives doCutWorktree against a real repo (real `git
+// non-gitignored file. Drives doCutWorktreeSource against a real repo (real `git
 // worktree add`/`remove --force`/`branch -D`), not the removeCalls stub.
 func TestCutWorktreeHookFailureForceRemovesRealWorktree(t *testing.T) {
 	vault := t.TempDir()

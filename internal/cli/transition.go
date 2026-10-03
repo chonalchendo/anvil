@@ -65,15 +65,23 @@ func newTransitionCmd() *cobra.Command {
 				// session (or no session id on either side) is idempotent; a
 				// different session under the same owner is refused unless
 				// --force, so two parallel sessions can't both adopt the claim.
+				var wtPath, wtSource string
 				if t == core.TypeIssue && to == "in-progress" {
 					if !force {
 						if err := claimConflict(a, id, os.Getenv(envSessionID)); err != nil {
 							return printAndReturn(cmd, err)
 						}
-					} else if sid := os.Getenv(envSessionID); sid != "" {
-						// --force takeover: transfer the claim to the current session
-						// so the "take over the claim" hint is truthful and the new
-						// session can subsequently re-claim idempotently.
+					}
+					// Cut before the claim transfer: a refused cut leaves the claim untouched.
+					if cutWorktree {
+						p, _, src, cerr := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride, true)
+						if cerr != nil {
+							return printAndReturn(cmd, cerr)
+						}
+						wtPath, wtSource = p, src
+					}
+					if sid := os.Getenv(envSessionID); force && sid != "" {
+						// --force takeover: transfer the claim to this session.
 						a.FrontMatter["claim_session"] = sid
 						a.FrontMatter["updated"] = time.Now().UTC().Format("2006-01-02")
 						if err := a.Save(); err != nil {
@@ -95,6 +103,7 @@ func newTransitionCmd() *cobra.Command {
 				}
 				return emitTransitionJSON(cmd, asJSON, transitionResult{
 					ID: id, Path: path, From: from, To: to, Status: "already_in_state",
+					Worktree: wtPath, WorktreeBranchSource: wtSource,
 				})
 			}
 
@@ -262,13 +271,13 @@ func newTransitionCmd() *cobra.Command {
 				}
 			}
 
-			var wtPath string
+			var wtPath, wtSource string
 			if cutWorktree {
-				p, _, err := doCutWorktree(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride)
+				p, _, src, err := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride, true)
 				if err != nil {
 					return printAndReturn(cmd, err)
 				}
-				wtPath = p
+				wtPath, wtSource = p, src
 			}
 
 			if landPRNum != 0 {
@@ -394,7 +403,7 @@ func newTransitionCmd() *cobra.Command {
 
 			return emitTransitionJSON(cmd, asJSON, transitionResult{
 				ID: id, Path: path, From: from, To: to, Owner: owner, Reason: reason, Status: "transitioned",
-				Advisory: advisory, Worktree: wtPath,
+				Advisory: advisory, Worktree: wtPath, WorktreeBranchSource: wtSource,
 			})
 		},
 	}
@@ -421,6 +430,8 @@ type transitionResult struct {
 	Status   string `json:"status"`
 	Advisory string `json:"advisory,omitempty"`
 	Worktree string `json:"worktree,omitempty"`
+	// "origin" when --cut-worktree adopted an existing origin branch.
+	WorktreeBranchSource string `json:"worktree_branch_source,omitempty"`
 }
 
 // milestoneCloseAdvisory returns the milestone-close hint when the
@@ -472,6 +483,9 @@ func emitTransitionJSON(cmd *cobra.Command, asJSON bool, r transitionResult) err
 	}
 	if r.Status == "already_in_state" {
 		fmt.Fprintf(cmd.OutOrStdout(), "%s already in state %s\n", r.ID, r.To)
+		if r.Worktree != "" {
+			fmt.Fprintln(cmd.OutOrStdout(), "worktree: "+r.Worktree)
+		}
 		return nil
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "%s: %s → %s\n", r.ID, r.From, r.To)
