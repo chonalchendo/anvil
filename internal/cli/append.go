@@ -38,7 +38,13 @@ func newAppendCmd() *cobra.Command {
 			"runs against an authored body (wikilink resolution, per-type structural " +
 			"checks) before anything is written, and `updated` is bumped to today. " +
 			"Verification blocks are never executed. Re-running an identical append " +
-			"is a no-op. This is append-only — replacing, deleting, or reordering " +
+			"is a no-op. Only blocking findings the append introduces refuse it; " +
+			"warnings and errors already present in the stored body never block.\n\n" +
+			"Warnings: advisory findings never fail append. Under --json they ride the " +
+			"success envelope's `warnings` array as {kind:\"validation\", code, got}; in " +
+			"text mode they print to stderr. Pre-existing errors surface the same way, " +
+			"prefixed \"pre-existing (not introduced by this append)\".\n\n" +
+			"This is append-only — replacing, deleting, or reordering " +
 			"existing sections is not supported; edit the file directly for that.",
 		Args: namedArgs("anvil append <type> <id> --body-file <f>", []string{"<type>", "<id>"}, 2, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -86,10 +92,14 @@ func newAppendCmd() *cobra.Command {
 
 			newBody := joinBodySection(a.Body, addition)
 			failures := staticBodyFailures(cmd, v, t, path, a.FrontMatter, newBody)
-			markPreexisting(failures, staticBodyFailures(cmd, v, t, path, a.FrontMatter, a.Body))
-			// Warning-only findings (pre-existing or new) never block: they
-			// ride out with the success result instead of dropping the section.
-			if hasBlockingFailure(failures) {
+			var introduced []*errfmt.ValidationError
+			if len(failures) > 0 {
+				introduced = markPreexisting(failures, staticBodyFailures(cmd, v, t, path, a.FrontMatter, a.Body))
+			}
+			// An append never edits existing content, so only blocking findings
+			// it introduced refuse. Warnings and pre-existing errors ride out
+			// with the success result instead of dropping the section.
+			if hasBlockingFailure(introduced) {
 				return emitValidationErrors(cmd, flagJSON, failures)
 			}
 
@@ -115,7 +125,7 @@ func newAppendCmd() *cobra.Command {
 
 			return emitAppendResult(cmd, flagJSON, appendResult{
 				ID: id, Path: path, Updated: a.FrontMatter["updated"].(string), Status: "appended",
-				Warnings: jsonWarnings(nil, failures), findings: failures,
+				findings: failures,
 			})
 		},
 	}
@@ -138,11 +148,10 @@ func joinBodySection(existing, addition string) string {
 }
 
 // markPreexisting prefixes each failure that the stored body already
-// exhibits on its own, so a refusal names honestly which violations the
-// addendum introduced and which it merely re-surfaces — the combined body is
-// what gets validated, but an append never edits existing content, and an
-// error citing content the author never touched otherwise reads as a bug.
-func markPreexisting(failures, old []*errfmt.ValidationError) {
+// exhibits on its own and returns the rest — the ones the addendum
+// introduced. The combined body is what gets validated, but an append never
+// edits existing content, so only introduced failures may refuse it.
+func markPreexisting(failures, old []*errfmt.ValidationError) (introduced []*errfmt.ValidationError) {
 	seen := make(map[string]bool, len(old))
 	for _, e := range old {
 		seen[e.Code+"\x00"+e.Field+"\x00"+e.Got] = true
@@ -150,8 +159,11 @@ func markPreexisting(failures, old []*errfmt.ValidationError) {
 	for _, e := range failures {
 		if seen[e.Code+"\x00"+e.Field+"\x00"+e.Got] {
 			e.Got = "pre-existing (not introduced by this append): " + e.Got
+			continue
 		}
+		introduced = append(introduced, e)
 	}
+	return introduced
 }
 
 type appendResult struct {
@@ -159,13 +171,14 @@ type appendResult struct {
 	Path    string `json:"path"`
 	Updated string `json:"updated,omitempty"`
 	Status  string `json:"status"`
-	// Warnings mirrors create's envelope; findings feeds the text-mode render.
+	// Warnings mirrors create's envelope, built from findings at emit time.
 	Warnings []map[string]string `json:"warnings,omitempty"`
 	findings []*errfmt.ValidationError
 }
 
 func emitAppendResult(cmd *cobra.Command, asJSON bool, r appendResult) error {
 	if asJSON {
+		r.Warnings = jsonWarnings(nil, r.findings)
 		b, _ := json.Marshal(r)
 		fmt.Fprintln(cmd.OutOrStdout(), string(b))
 		return nil

@@ -236,7 +236,7 @@ func TestAppend_PreexistingViolation_IsPrefixed(t *testing.T) {
 	if !strings.Contains(stderr, "pre-existing (not introduced by this append)") {
 		t.Errorf("pre-existing violation must be labelled as such, stderr: %q", stderr)
 	}
-	got, _ := os.ReadFile(path) //nolint:gosec // G304: test-controlled temp path
+	got, _ := os.ReadFile(path)
 	if !strings.Contains(string(got), "## Addendum") {
 		t.Error("section was not written")
 	}
@@ -270,7 +270,7 @@ func TestAppend_PreexistingWarning_DoesNotBlock(t *testing.T) {
 	if !strings.Contains(stdout, `"kind":"validation"`) || !strings.Contains(stdout, "lead_sentence") {
 		t.Errorf("warning missing from envelope: %q", stdout)
 	}
-	got, _ := os.ReadFile(path) //nolint:gosec // G304: test-controlled temp path
+	got, _ := os.ReadFile(path)
 	if !strings.Contains(string(got), "## Probe") {
 		t.Error("section was not written")
 	}
@@ -298,7 +298,7 @@ func writeWarnMilestone(t *testing.T, vault string) string {
 func TestAppend_PreexistingWarning_NewErrorStillRefuses(t *testing.T) {
 	vault := setupVault(t)
 	path := writeWarnMilestone(t, vault)
-	before, _ := os.ReadFile(path) //nolint:gosec // G304: test-controlled temp path
+	before, _ := os.ReadFile(path)
 	bodyFile := filepath.Join(t.TempDir(), "addendum.md")
 	if err := os.WriteFile(bodyFile, []byte("## Bad\n\n[[thread.does-not-exist-zzz]]\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -311,7 +311,7 @@ func TestAppend_PreexistingWarning_NewErrorStillRefuses(t *testing.T) {
 	if !strings.Contains(stdout, `"error":"schema_invalid"`) {
 		t.Errorf("want schema_invalid envelope, got %q", stdout)
 	}
-	after, _ := os.ReadFile(path) //nolint:gosec // G304: test-controlled temp path
+	after, _ := os.ReadFile(path)
 	if string(before) != string(after) {
 		t.Error("file changed despite refusal")
 	}
