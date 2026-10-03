@@ -126,7 +126,8 @@ func createLongDescription() string {
 		"shell: they run in the current environment with your privileges, cwd and " +
 		"environment variables, and are NOT sandboxed. Verdicts: Indirect must exit " +
 		"non-zero (it asserts post-fix behaviour, so a block that already passes " +
-		"cannot tell fixed from broken); Direct may exit anything; either block is " +
+		"cannot tell fixed from broken); Direct may exit anything, but exit 0 draws " +
+		"a stderr warning that it proves nothing about the change; either block is " +
 		"refused on exit 126/127 (unrunnable). Consequences: create is neither " +
 		"read-only nor retry-safe — whatever a block does (rebuild a binary, write a " +
 		"file, hit a network) persists even when the create is refused and rolled " +

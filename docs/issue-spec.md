@@ -28,7 +28,7 @@ The verdict is asymmetric, because the two subsections are in opposite states at
 | | exit 0 | 126 / 127 | other non-zero | timeout |
 |---|---|---|---|---|
 | **Indirect** | refused — already passes, so it cannot discriminate fixed from broken | refused — unrunnable | **accepted** (the healthy shape) | refused — unclassifiable |
-| **Direct** | accepted | refused — unrunnable | accepted | accepted, unjudged |
+| **Direct** | accepted, with a stderr warning (proves nothing about the change; behaviour checks belong under Indirect) | refused — unrunnable | accepted | accepted, unjudged |
 
 An Indirect block asserts POST-fix behaviour, so it is *expected* to be red until the fix lands; exit 0 is the false-green this gate exists to kill. A Direct block is usually the repo's existing suite, green already, so only runnability is checked there.
 

@@ -803,8 +803,9 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 		indirect string
 		refused  bool
 		wantMsg  string
+		wantWarn bool
 	}{
-		{name: "indirect red is the healthy shape", direct: "true", indirect: "exit 3"},
+		{name: "indirect red is the healthy shape", direct: "true", indirect: "exit 3", wantWarn: true},
 		{name: "direct non-zero is not the gate's business", direct: "exit 4", indirect: "exit 3"},
 		{
 			name: "indirect already passes", direct: "true", indirect: "true",
@@ -843,6 +844,9 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 				}
 				if _, statErr := os.Stat(created); statErr != nil {
 					t.Errorf("issue should exist at %s: %v", created, statErr)
+				}
+				if got := strings.Contains(stderr, "Direct block 1 exits 0"); got != tc.wantWarn {
+					t.Errorf("warned = %v, want %v\nstderr: %s", got, tc.wantWarn, stderr)
 				}
 				return
 			}
