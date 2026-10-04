@@ -1,5 +1,9 @@
 <!-- Keep this PR tight. Brevity > completeness — a reviewer should grasp it in 60s.
-     Cut any section that doesn't apply rather than padding it. -->
+     Cut any section that doesn't apply rather than padding it.
+     Write about 80% of the way to ASD-STE100 Simplified Technical English: at most
+     20 words per instruction sentence and 25 per description, active voice, one
+     instruction per sentence, conclusion first. Keep domain terms.
+     Full rules: `anvil show convention convention.prose --body`. -->
 
 Resolves <anvil-id>
 
