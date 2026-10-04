@@ -225,6 +225,44 @@ func TestHydrate(t *testing.T) {
 		}
 	})
 
+	t.Run("closure walks the component design to its system design once, and names a dangling slot", func(t *testing.T) {
+		vault := setupVault(t)
+		writeHydrateIssue(t, vault, "foo.i1", map[string]any{
+			"milestone": "[[milestone.foo.m1]]",
+			"related":   []any{"[[component-design.foo.boundaries]]"},
+		})
+		writeHydrateMilestone(t, vault, "foo.m1", map[string]any{"system_design": "[[system-design.foo]]"}, "body\n")
+		writeHydrateDesign(t, vault, "foo", core.TypeSystemDesign, nil, "SYSTEM_DESIGN_MARKER\n")
+		writeHydrateComponentDesign(t, vault, "foo.boundaries", "convention.go-style")
+		writeHydrateConvention(t, vault, "go-style", "rules\n")
+		cdPath := filepath.Join(vault, "75-component-designs", "foo.boundaries.md")
+		cd, err := core.LoadArtifact(cdPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cd.FrontMatter["system_design"] = "[[system-design.foo]]"
+		if err := cd.Save(); err != nil {
+			t.Fatal(err)
+		}
+
+		out, _, err := runCmd(t, newRootCmd(), "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
+		}
+		if n := strings.Count(out, "=== system-design foo "); n != 1 {
+			t.Errorf("system design appears %d times, want 1\n%s", n, out)
+		}
+
+		cd.FrontMatter["system_design"] = "[[system-design.ghost]]"
+		if err := cd.Save(); err != nil {
+			t.Fatal(err)
+		}
+		_, _, err = runCmd(t, newRootCmd(), "hydrate", "foo.i1")
+		if err == nil || !strings.Contains(err.Error(), "system-design.ghost") {
+			t.Errorf("want broken-edge error naming system-design.ghost, got %v", err)
+		}
+	})
+
 	t.Run("closure resolves a component design link when its related list also names a non-component design target", func(t *testing.T) {
 		// Pins anvil.0232: a real issue's `related:` frontmatter mixed a component design
 		// wikilink with a system-design wikilink in one list; the component design was

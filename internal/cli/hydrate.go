@@ -186,7 +186,7 @@ func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 		}
 	}
 
-	// issue → component design → convention
+	// issue → component design → {convention, system-design → convention}
 	for _, ct := range linkTargetsOfType(iss, core.TypeComponentDesign) {
 		c, err := h.walk(v, issueSrc, core.TypeComponentDesign, ct)
 		if err != nil {
@@ -195,8 +195,24 @@ func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 		if c == nil {
 			continue
 		}
-		if err := h.descendConventions(v, "component design "+ct, c); err != nil {
+		cSrc := "component design " + ct
+		if err := h.descendConventions(v, cSrc, c); err != nil {
 			return nil, err
+		}
+		// Forward system_design slot: back-links to prefix-retaining design
+		// types do not resolve as incoming edges. seen dedups a design the
+		// milestone path already reached.
+		for _, st := range linkTargetsOfType(c, core.TypeSystemDesign) {
+			sd, err := h.walk(v, cSrc, core.TypeSystemDesign, st)
+			if err != nil {
+				return nil, err
+			}
+			if sd == nil {
+				continue
+			}
+			if err := h.descendConventions(v, "system-design "+st, sd); err != nil {
+				return nil, err
+			}
 		}
 	}
 
