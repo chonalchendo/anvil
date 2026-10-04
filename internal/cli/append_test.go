@@ -204,11 +204,10 @@ func TestAppend_IdenticalRerun_IsUnchangedNoop(t *testing.T) {
 	}
 }
 
-// TestAppend_PreexistingViolation_IsPrefixed pins the refusal message when
-// the stored body already carries a violation the addendum didn't introduce:
-// the combined body is what gets validated, so the failure still refuses, but
-// it must be labelled pre-existing — an error citing content the author never
-// touched otherwise reads as a bug in append.
+// TestAppend_PreexistingViolation_IsPrefixed pins that a blocking violation
+// already in the stored body does not refuse an append that did not
+// introduce it: the section lands and the finding is surfaced, labelled
+// pre-existing.
 func TestAppend_PreexistingViolation_IsPrefixed(t *testing.T) {
 	vault := setupVault(t)
 	path := filepath.Join(vault, "00-inbox", "2026-01-01-probe.md")
@@ -231,10 +230,140 @@ func TestAppend_PreexistingViolation_IsPrefixed(t *testing.T) {
 
 	cmd := newRootCmd()
 	_, stderr, err := runCmd(t, cmd, "append", "inbox", "2026-01-01-probe", "--body-file", bodyFile)
-	if err == nil {
-		t.Fatal("expected refusal on pre-existing unresolved wikilink")
+	if err != nil {
+		t.Fatalf("pre-existing violation must not refuse: %v", err)
 	}
 	if !strings.Contains(stderr, "pre-existing (not introduced by this append)") {
 		t.Errorf("pre-existing violation must be labelled as such, stderr: %q", stderr)
+	}
+	got, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got.Body, "## Addendum") {
+		t.Error("section was not written")
+	}
+}
+
+func writeWarnMilestone(t *testing.T, vault string) string {
+	t.Helper()
+	path := filepath.Join(vault, "85-milestones", "milestone.warn.md")
+	a := &core.Artifact{
+		Path: path,
+		FrontMatter: map[string]any{
+			"type": "milestone", "title": "warn", "created": "2026-01-01",
+			"updated": "2026-01-01", "status": "open",
+		},
+		Body: "## Objective\n\n" + strings.Repeat("word ", 40) + "ends here.\n\n## Non-goals\n\n- none\n\n## Links\n\n## Status\n\nopen\n",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// A stored body that already breaks a warning-severity rule must not block
+// the append: the section lands and the warning rides in the JSON envelope.
+func TestAppend_PreexistingWarning_DoesNotBlock(t *testing.T) {
+	vault := setupVault(t)
+	path := writeWarnMilestone(t, vault)
+	bodyFile := filepath.Join(t.TempDir(), "addendum.md")
+	if err := os.WriteFile(bodyFile, []byte("## Probe\n\nhello\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, _, err := runCmd(t, newRootCmd(), "append", "milestone", "milestone.warn", "--body-file", bodyFile, "--json")
+	if err != nil {
+		t.Fatalf("warning-only findings must not refuse: %v", err)
+	}
+	if !strings.Contains(stdout, `"kind":"validation"`) || !strings.Contains(stdout, "lead_sentence") {
+		t.Errorf("warning missing from envelope: %q", stdout)
+	}
+	got, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got.Body, "## Probe") {
+		t.Error("section was not written")
+	}
+}
+
+// A stored warning must not mask an error the addendum introduces: the
+// append still refuses and the file stays byte-identical.
+func TestAppend_PreexistingWarning_NewErrorStillRefuses(t *testing.T) {
+	vault := setupVault(t)
+	path := writeWarnMilestone(t, vault)
+	before, _ := os.ReadFile(path) //nolint:gosec // G304: test-controlled temp path
+	bodyFile := filepath.Join(t.TempDir(), "addendum.md")
+	if err := os.WriteFile(bodyFile, []byte("## Bad\n\n[[thread.does-not-exist-zzz]]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, _, err := runCmd(t, newRootCmd(), "append", "milestone", "milestone.warn", "--body-file", bodyFile, "--json")
+	if err == nil {
+		t.Fatal("expected refusal on introduced unresolved wikilink")
+	}
+	if !strings.Contains(stdout, `"error":"schema_invalid"`) {
+		t.Errorf("want schema_invalid envelope, got %q", stdout)
+	}
+	after, _ := os.ReadFile(path) //nolint:gosec // G304: test-controlled temp path
+	if string(before) != string(after) {
+		t.Error("file changed despite refusal")
+	}
+}
+
+// Text mode prints a warning-only finding to stderr exactly once and succeeds.
+func TestAppend_PreexistingWarning_TextMode(t *testing.T) {
+	vault := setupVault(t)
+	writeWarnMilestone(t, vault)
+	bodyFile := filepath.Join(t.TempDir(), "addendum.md")
+	if err := os.WriteFile(bodyFile, []byte("## Probe\n\nhello\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	_, stderr, err := runCmd(t, newRootCmd(), "append", "milestone", "milestone.warn", "--body-file", bodyFile)
+	if err != nil {
+		t.Fatalf("warning-only findings must not refuse: %v", err)
+	}
+	if n := strings.Count(stderr, "[lead_sentence]"); n != 1 {
+		t.Errorf("want 1 lead_sentence finding on stderr, got %d: %q", n, stderr)
+	}
+}
+
+// A stored unresolved wikilink must stay labelled pre-existing even when the
+// addendum introduces a different one: the append refuses on the new one only.
+func TestAppend_PreexistingAndNewViolation_RefusesLabelsOld(t *testing.T) {
+	vault := setupVault(t)
+	path := filepath.Join(vault, "00-inbox", "2026-01-01-both.md")
+	a := &core.Artifact{
+		Path: path,
+		FrontMatter: map[string]any{
+			"type": "inbox", "title": "both",
+			"created": "2026-01-01", "updated": "2026-01-01", "status": "raw",
+		},
+		Body: "see [[thread.missing-x]].\n",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(path) //nolint:gosec // G304: test-controlled temp path
+	bodyFile := filepath.Join(t.TempDir(), "addendum.md")
+	if err := os.WriteFile(bodyFile, []byte("## Bad\n\n[[thread.missing-y]]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	stdout, _, err := runCmd(t, newRootCmd(), "append", "inbox", "2026-01-01-both", "--body-file", bodyFile, "--json")
+	if err == nil {
+		t.Fatal("expected refusal on introduced unresolved wikilink")
+	}
+	if !strings.Contains(stdout, "pre-existing (not introduced by this append): unresolved wikilink [[thread.missing-x]]") {
+		t.Errorf("missing-x must be labelled pre-existing, got %q", stdout)
+	}
+	if !strings.Contains(stdout, `"got":"unresolved wikilink [[thread.missing-y]]"`) {
+		t.Errorf("missing-y must be reported unlabelled, got %q", stdout)
+	}
+	after, _ := os.ReadFile(path) //nolint:gosec // G304: test-controlled temp path
+	if string(before) != string(after) {
+		t.Error("file changed despite refusal")
 	}
 }
