@@ -24,7 +24,7 @@ A workflow for authoring a project's system-design artifact — the architectura
 
 ## When to use
 
-- A `product-design` exists and the project needs an architectural shape before milestones, plans, or code.
+- A `product-design` exists and the project needs an architectural shape before milestones or code.
 - User says "let's system-design X", "what's the architecture", or anything that signals shape (not vision, not implementation tasks).
 - Bootstrapping the second artifact in the vault hierarchy.
 

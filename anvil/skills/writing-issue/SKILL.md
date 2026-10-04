@@ -20,7 +20,7 @@ metadata:
 
 # Writing Issue
 
-Workflow for taking a problem worth tracking — whether a fuzzy "should we build X" thought or a fully-shaped request — through to a schema-valid issue artifact under `~/anvil-vault/70-issues/`. Issues sit one level below milestones: product-design → milestones → **issues** → plans.
+Workflow for taking a problem worth tracking — whether a fuzzy "should we build X" thought or a fully-shaped request — through to a schema-valid issue artifact under `~/anvil-vault/70-issues/`. Issues sit one level below milestones: product-design → milestones → **issues**.
 
 ## Shape test
 

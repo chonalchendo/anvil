@@ -12,7 +12,6 @@ type Type string
 const (
 	TypeInbox           Type = "inbox"
 	TypeIssue           Type = "issue"
-	TypePlan            Type = "plan"
 	TypeMilestone       Type = "milestone"
 	TypeDecision        Type = "decision"
 	TypeLearning        Type = "learning"
@@ -26,7 +25,7 @@ const (
 )
 
 // AllTypes lists every Type accepted by the v0.1 CLI.
-var AllTypes = []Type{TypeInbox, TypeIssue, TypePlan, TypeMilestone, TypeDecision, TypeLearning, TypeThread, TypeSweep, TypeSession, TypeProductDesign, TypeSystemDesign, TypeComponentDesign, TypeConvention}
+var AllTypes = []Type{TypeInbox, TypeIssue, TypeMilestone, TypeDecision, TypeLearning, TypeThread, TypeSweep, TypeSession, TypeProductDesign, TypeSystemDesign, TypeComponentDesign, TypeConvention}
 
 // Dir returns the vault subdirectory that holds artifacts of type t.
 // Panics on an unknown Type — callers must validate via ParseType first.
@@ -36,8 +35,6 @@ func (t Type) Dir() string {
 		return "00-inbox"
 	case TypeIssue:
 		return "70-issues"
-	case TypePlan:
-		return "80-plans"
 	case TypeMilestone:
 		return "85-milestones"
 	case TypeDecision:
@@ -68,7 +65,7 @@ func (t Type) Dir() string {
 // cross repos, and sweep/thread are spans by construction.
 func (t Type) SupportsProject() bool {
 	switch t {
-	case TypeIssue, TypePlan, TypeMilestone, TypeProductDesign, TypeSystemDesign, TypeLearning, TypeDecision, TypeComponentDesign:
+	case TypeIssue, TypeMilestone, TypeProductDesign, TypeSystemDesign, TypeLearning, TypeDecision, TypeComponentDesign:
 		return true
 	}
 	return false

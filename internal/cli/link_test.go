@@ -37,41 +37,17 @@ func writeFixtureComponentDesign(t *testing.T, vault, project, slug string) stri
 	return path
 }
 
-func writeFixturePlan(t *testing.T, vault, project, slug, title string) string {
-	t.Helper()
-	path := filepath.Join(vault, "80-plans", project+"."+slug+".md")
-	a := &core.Artifact{
-		Path: path,
-		FrontMatter: map[string]any{
-			"type": "plan", "id": project + "-" + slug, "slug": slug, "title": title,
-			"description": "fixture description",
-			"created":     "2026-04-29", "updated": "2026-04-29", "status": "draft",
-			"plan_version": 1, "project": project,
-			"issue": "[[issue." + project + "." + slug + "]]",
-			"tasks": []any{map[string]any{
-				"id": "T1", "title": "x", "kind": "tdd",
-				"files": []any{}, "depends_on": []any{}, "verify": "true",
-			}},
-		},
-		Body: "## Task: T1\n\nfixture task body.\n",
-	}
-	if err := a.Save(); err != nil {
-		t.Fatal(err)
-	}
-	return path
-}
-
-func TestLink_PlanToMilestone(t *testing.T) {
+func TestLink_ComponentDesignToMilestone(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
 	writeFixtureMilestone(t, vault, "foo.m1-bar", "planned")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "plan", "foo.q2", "milestone", "foo.m1-bar"})
+	cmd.SetArgs([]string{"link", "component-design", "foo.q2", "milestone", "foo.m1-bar"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,14 +59,14 @@ func TestLink_PlanToMilestone(t *testing.T) {
 
 func TestLink_ExternalAppendsURI(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "plan", "foo.q2", "--external", "https://github.com/chonalchendo/anvil/pull/13"})
+	cmd.SetArgs([]string{"link", "component-design", "foo.q2", "--external", "https://github.com/chonalchendo/anvil/pull/13"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,15 +78,15 @@ func TestLink_ExternalAppendsURI(t *testing.T) {
 
 func TestLink_ExternalIdempotent(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
 	for i := 0; i < 2; i++ {
 		cmd := newRootCmd()
-		cmd.SetArgs([]string{"link", "plan", "foo.q2", "--external", "abc1234"})
+		cmd.SetArgs([]string{"link", "component-design", "foo.q2", "--external", "abc1234"})
 		if err := cmd.Execute(); err != nil {
 			t.Fatalf("iter %d: %v", i, err)
 		}
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,9 +98,9 @@ func TestLink_ExternalIdempotent(t *testing.T) {
 
 func TestLink_ExternalRejectsTargetArgs(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "plan", "foo.q2", "issue", "foo.x", "--external", "https://x"})
+	cmd.SetArgs([]string{"link", "component-design", "foo.q2", "issue", "foo.x", "--external", "https://x"})
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
@@ -147,9 +123,9 @@ func TestLink_ExternalRejectsReadMode(t *testing.T) {
 
 func TestLink_ExternalRejectsWhitespaceOnly(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "plan", "foo.q2", "--external", "   "})
+	cmd.SetArgs([]string{"link", "component-design", "foo.q2", "--external", "   "})
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
@@ -160,14 +136,14 @@ func TestLink_ExternalRejectsWhitespaceOnly(t *testing.T) {
 
 func TestLink_AnyPair_WritesToRelated(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
 	writeFixtureTyped(t, vault, "30-decisions", "decision", "auth.0001-x")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "plan", "foo.q2", "decision", "auth.0001-x"})
+	cmd.SetArgs([]string{"link", "component-design", "foo.q2", "decision", "auth.0001-x"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,16 +365,16 @@ func TestLink_CanonicalPrefixedTargetId(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			vault := setupVault(t)
-			writeFixturePlan(t, vault, "foo", "q2", "Q2")
+			writeFixtureComponentDesign(t, vault, "foo", "q2")
 			writeFixtureTyped(t, vault, "35-conventions", "convention", "convention.sqlmesh")
 			writeFixtureDesign(t, vault, "foo", core.TypeSystemDesign, "Foo SD")
 
 			cmd := newRootCmd()
-			cmd.SetArgs([]string{"link", "plan", "foo.q2", tc.tgtType, tc.tgtID})
+			cmd.SetArgs([]string{"link", "component-design", "foo.q2", tc.tgtType, tc.tgtID})
 			if err := cmd.Execute(); err != nil {
-				t.Fatalf("link plan→%s %s: %v", tc.tgtType, tc.tgtID, err)
+				t.Fatalf("link component-design→%s %s: %v", tc.tgtType, tc.tgtID, err)
 			}
-			a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+			a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -428,15 +404,15 @@ func TestLink_AlreadyTypedBareSlugTargetId(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			vault := setupVault(t)
-			writeFixturePlan(t, vault, "foo", "q2", "Q2")
+			writeFixtureComponentDesign(t, vault, "foo", "q2")
 			writeFixtureTyped(t, vault, "20-learnings", "learning", "duckdb-arg-min-escalation")
 
 			cmd := newRootCmd()
-			cmd.SetArgs([]string{"link", "plan", "foo.q2", "learning", tc.tgtID})
+			cmd.SetArgs([]string{"link", "component-design", "foo.q2", "learning", tc.tgtID})
 			if err := cmd.Execute(); err != nil {
-				t.Fatalf("link plan→learning %s: %v", tc.tgtID, err)
+				t.Fatalf("link component-design→learning %s: %v", tc.tgtID, err)
 			}
-			a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+			a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -451,25 +427,26 @@ func TestLink_AlreadyTypedBareSlugTargetId(t *testing.T) {
 
 // TestLink_TargetLeadingSegmentEqualsTypeName pins the strip chain's
 // every-rung probe: a legitimate canonical id whose leading segment equals the
-// type name (a plan whose bare slug is `plan.q2`, on disk as plan.plan.q2.md)
+// type name (a convention whose bare slug is `convention.q2`, on disk as
+// convention.convention.q2.md)
 // resolves only through the once-stripped candidate, which a fully-stripped-only
 // probe would skip.
 func TestLink_TargetLeadingSegmentEqualsTypeName(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
-	writeFixtureTyped(t, vault, "80-plans", "plan", "plan.plan.q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
+	writeFixtureTyped(t, vault, "35-conventions", "convention", "convention.convention.q2")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "plan", "foo.q2", "plan", "plan.plan.q2"})
+	cmd.SetArgs([]string{"link", "component-design", "foo.q2", "convention", "convention.convention.q2"})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("link plan→plan plan.plan.q2: %v", err)
+		t.Fatalf("link component-design→convention convention.convention.q2: %v", err)
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	related, _ := a.FrontMatter["related"].([]any)
-	want := "[[plan.plan.q2]]"
+	want := "[[convention.convention.q2]]"
 	if len(related) != 1 || related[0] != want {
 		t.Errorf("related = %v, want [%s]", related, want)
 	}
@@ -480,10 +457,10 @@ func TestLink_TargetLeadingSegmentEqualsTypeName(t *testing.T) {
 // typo from a missing artifact.
 func TestLink_RejectsMissingTarget(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "plan", "foo.q2", "convention", "convention.nope"})
+	cmd.SetArgs([]string{"link", "component-design", "foo.q2", "convention", "convention.nope"})
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})
 	err := cmd.Execute()
@@ -495,7 +472,7 @@ func TestLink_RejectsMissingTarget(t *testing.T) {
 			t.Errorf("error %q does not name %s", err, want)
 		}
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -524,10 +501,10 @@ func TestLink_RejectsPlaceholderTarget(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			vault := setupVault(t)
-			writeFixturePlan(t, vault, "foo", "q2", "Q2")
+			writeFixtureComponentDesign(t, vault, "foo", "q2")
 
 			cmd := newRootCmd()
-			cmd.SetArgs([]string{"link", "plan", "foo.q2", tc.tgtType, tc.tgtID})
+			cmd.SetArgs([]string{"link", "component-design", "foo.q2", tc.tgtType, tc.tgtID})
 			cmd.SetOut(&bytes.Buffer{})
 			cmd.SetErr(&bytes.Buffer{})
 			err := cmd.Execute()
@@ -538,7 +515,7 @@ func TestLink_RejectsPlaceholderTarget(t *testing.T) {
 			if !strings.Contains(err.Error(), fmt.Sprintf("%q", tc.tgtID)) {
 				t.Errorf("error %q does not name the offending target %q", err, tc.tgtID)
 			}
-			a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+			a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 			if err != nil {
 				t.Fatal(err)
 			}

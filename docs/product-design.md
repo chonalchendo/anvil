@@ -13,7 +13,7 @@ problem_statement: "AI dev tools either pile on ceremony or take the wheel. Neit
 success_metrics:
   - "Daily users touch the CLI ≤2 times/day; everything else is conversation"
   - "Users report Anvil makes them stronger engineers (qualitative survey on first 10 v0.1 users)"
-  - "Brand-new project bootstrap (idea → first plan) takes ≤30 minutes of user-active time"
+  - "Brand-new project bootstrap (idea → first issue) takes ≤30 minutes of user-active time"
   - "Skills auto-fire correctly on intent ≥80% of the time without explicit invocation"
   - "Token cost per active session stays bounded as bundled skills grow — no mantle-style compiled-context bloat"
   - "Anvil itself is buildable using Anvil — the methodology bootstraps its own development"
@@ -57,7 +57,7 @@ Not for users who want sprint ceremonies, story points, or stakeholder syncs. BM
 
 Two failure modes dominate AI dev tooling. Sprint frameworks like BMAD and Spec Kit pile on ceremony solo developers don't need. Autopilot tools cede craft entirely: review the diff, ship, repeat. The first wastes time. The second atrophies judgement.
 
-Anvil's bet: be stubborn about the design and vision, flexible about the implementation. A design-driven artifact hierarchy — product-design → milestones → plans → sweeps → issues → inbox — keeps every low-level task traceable to a higher-level intent. Skills handle the flexible part: reusable workflows that auto-fire on conversational triggers, not commands the user has to remember. The shape stays disciplined; the work itself stays adaptive.
+Anvil's bet: be stubborn about the design and vision, flexible about the implementation. A design-driven artifact hierarchy — product-design → milestones → sweeps → issues → inbox — keeps every low-level task traceable to a higher-level intent. Skills handle the flexible part: reusable workflows that auto-fire on conversational triggers, not commands the user has to remember. The shape stays disciplined; the work itself stays adaptive.
 
 Anvil commits to a fixed topology — one adapter contract, one artifact hierarchy, one skill-pack shape — on purpose. Narrowing the agent's variety is what makes a harness tractable; an open-ended target produces a harness that can't be reasoned about as it grows.
 
@@ -69,7 +69,7 @@ Educational gating is the other half. AI should make the user a stronger enginee
 
 **Users report Anvil makes them stronger engineers.** Measured via informal survey of the first ten v0.1 users. Qualitative, hand-wavy — but the commitment to ask is the point. If users feel faster but not stronger, Anvil is failing its educational gate thesis.
 
-**Brand-new project bootstrap takes ≤30 minutes of user-active time.** From `anvil init` to a first plan ready to execute, including the design-driven hierarchy walk: product-design → milestone → plan. Longer than that and the design-side methodology is too heavy for small projects.
+**Brand-new project bootstrap takes ≤30 minutes of user-active time.** From `anvil init` to a first issue ready to execute, including the design-driven hierarchy walk: product-design → milestone → issue. Longer than that and the design-side methodology is too heavy for small projects.
 
 **Skills auto-fire correctly on intent ≥80% of the time.** Measured by counting explicit `Use skill X` overrides in real sessions. Below 80% means descriptions need work; auto-firing is the unit of UX leverage.
 

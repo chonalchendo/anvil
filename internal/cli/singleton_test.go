@@ -158,7 +158,7 @@ func TestCreate_HelpEnumeratesTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, typ := range []string{
-		"inbox", "issue", "plan", "milestone", "decision", "learning",
+		"inbox", "issue", "milestone", "decision", "learning",
 		"thread", "sweep", "session", "product-design", "system-design",
 	} {
 		if !strings.Contains(out, typ) {

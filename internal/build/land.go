@@ -70,12 +70,8 @@ func landTaskDiff(ctx context.Context, t core.Task) (string, error) {
 	if _, err := git(ctx, t.Cwd, "push", "--set-upstream", "origin", t.Branch); err != nil {
 		return "", err
 	}
-	label := t.Title
-	if label == "" {
-		label = t.ID
-	}
 	cmd := exec.CommandContext(ctx, "gh", "pr", "create", //nolint:gosec // branch/id are package-controlled slugs, never user input
-		"--head", t.Branch, "--title", "chore: land "+label, "--body", prBody(t))
+		"--head", t.Branch, "--title", "chore: land "+t.ID, "--body", prBody(t))
 	cmd.Dir = t.Cwd
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -113,10 +109,7 @@ func firstNeverCommit(staged string) string {
 // lines: the template's Test Plan is marked REQUIRED, so the harness states what
 // it actually knows — the gates that ran — instead of dropping the section.
 func prBody(t core.Task) string {
-	why := t.Title
-	if why == "" {
-		why = "See the issue's goal: " + t.ID + "."
-	}
+	why := "See the issue's goal: " + t.ID + "."
 	return fmt.Sprintf(`Resolves %s
 
 ## What changed

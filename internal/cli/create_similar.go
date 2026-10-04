@@ -37,7 +37,7 @@ func findNearDuplicates(v *core.Vault, t core.Type, project, candidateID string)
 	if err == nil {
 		candidateSlug := slugFromID(t, candidateID)
 		prefix := ""
-		if t == core.TypeIssue || t == core.TypePlan || t == core.TypeMilestone {
+		if t == core.TypeIssue || t == core.TypeMilestone {
 			prefix = project + "."
 		}
 		for _, e := range entries {
@@ -127,7 +127,7 @@ func contentDuplicates(v *core.Vault, t core.Type, project, candidateID string) 
 // stripped so similarity is measured on the slug alone.
 func slugFromID(t core.Type, id string) string {
 	switch t {
-	case core.TypeIssue, core.TypePlan, core.TypeMilestone:
+	case core.TypeIssue, core.TypeMilestone:
 		id = core.BareID(t, id)
 		if i := strings.IndexByte(id, '.'); i >= 0 {
 			rest := id[i+1:]

@@ -133,7 +133,7 @@ func TestBuild_RejectsPositionalArgs(t *testing.T) {
 	execCmd(t, "init", vault)
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"build", "some-plan-id", "--dry-run"})
+	cmd.SetArgs([]string{"build", "some-issue-id", "--dry-run"})
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)

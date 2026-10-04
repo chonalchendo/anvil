@@ -16,8 +16,7 @@ type AgentAdapter interface {
 }
 
 // RunRequest is the build-assembled spawn input. Adapters wrap Instruction in
-// their CLI envelope and load Skills via the CLI's skill mechanism; Context
-// files are surfaced as plain context.
+// their CLI envelope and load Skills via the CLI's skill mechanism.
 type RunRequest struct {
 	// TaskID names per-spawn artifacts (the transcript file) after the task, so
 	// a post-mortem can locate them without the --json stream (anvil.0161).
@@ -26,8 +25,6 @@ type RunRequest struct {
 	Effort      string
 	Instruction string
 	Skills      []string
-	Context     []string
-	Files       []string
 	Cwd         string
 	Timeout     time.Duration
 	// DisallowedTools is the per-phase tool wall (Channel A): tools the spawn

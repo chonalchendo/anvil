@@ -6,9 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/chonalchendo/anvil/internal/core"
 )
 
 // stubGhPRList swaps ghPRListFn for the duration of a test. fn receives the
@@ -155,74 +152,11 @@ func TestTransitionResolvedGhMissingDowngradesToWarning(t *testing.T) {
 	}
 }
 
-// TestLinkedPlanSlugs_SurfacesPartialReadAsWarning pins the CodeRabbit
-// finding on PR #67: plan-link discovery failures must not silently shrink
-// the candidate set. Corrupt a linked plan's on-disk content (in place, so
-// the index still thinks the row is fresh — indexForRead now self-heals
-// genuine drift per anvil.0169, so this exercises the surviving failure
-// mode: a row the index believes is current but whose file no longer
-// parses) and the helper must surface a non-empty warning so the caller can
-// render it.
-func TestLinkedPlanSlugs_SurfacesPartialReadAsWarning(t *testing.T) {
-	vault := t.TempDir()
-	t.Setenv("ANVIL_VAULT", vault)
-	execCmd(t, "init", vault)
-	createDemoIssue(t)
-	planPath := filepath.Join(vault, "80-plans", "demo.foo.md")
-	planBody := `---
-type: plan
-id: demo.foo
-slug: short
-title: "P"
-description: "d"
-created: 2026-05-15
-updated: 2026-05-15
-status: draft
-plan_version: 1
-issue: "[[issue.demo.foo]]"
-tags: [domain/dev-tools]
-project: demo
-tasks: []
----
-
-body
-`
-	if err := os.WriteFile(planPath, []byte(planBody), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
-		t.Fatal(err)
-	}
-	execCmd(t, "reindex")
-	stamp := time.Now()
-
-	// Corrupt the file in place (no frontmatter delimiter, so LoadArtifact
-	// fails) and back-date its mtime to at-or-before the reindex stamp so
-	// CheckFreshness sees no drift — an in-place edit doesn't bump the
-	// parent directory's mtime either, so indexForRead never self-heals
-	// this case. The index still believes the row is current.
-	if err := os.WriteFile(planPath, []byte("not a valid artifact\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
-		t.Fatal(err)
-	}
-	backdated := stamp.Add(-1 * time.Hour)
-	if err := os.Chtimes(planPath, backdated, backdated); err != nil {
-		t.Fatal(err)
-	}
-
-	// linkedPlanSlugs is always called with the canonical issue id (its one
-	// caller canonicalizes before calling — see candidateBranchesForIssue);
-	// LinksTo keys plan→issue edges on that canonical form.
-	_, warn := linkedPlanSlugs(&core.Vault{Root: vault}, "issue.demo.foo")
-	if warn == "" {
-		t.Errorf("expected non-empty warning when a linked plan is unreadable")
-	}
-	if !strings.Contains(warn, "plan-link discovery") {
-		t.Errorf("warning should mention plan-link discovery; got: %q", warn)
-	}
-}
-
 // TestCandidateBranchesIncludesCurrentBranch verifies the worktree-branch
 // fallback: when an agent runs `anvil transition resolved` from inside a
 // worktree whose branch is `anvil/<divergent-slug>`, the check still finds
-// the PR — covers the fleet-dispatcher case where neither the issue id nor
-// any plan frontmatter names the branch slug.
+// the PR — covers the fleet-dispatcher case where the issue id does not
+// name the branch slug.
 func TestCandidateBranchesIncludesCurrentBranch(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
@@ -245,10 +179,7 @@ func TestCandidateBranchesIncludesCurrentBranch(t *testing.T) {
 	}
 	t.Chdir(repo)
 
-	branches, warn := candidateBranchesForIssue(&core.Vault{Root: vault}, "demo.foo")
-	if warn != "" {
-		t.Errorf("unexpected discovery warning: %s", warn)
-	}
+	branches := candidateBranchesForIssue("demo.foo")
 	var saw bool
 	for _, b := range branches {
 		if b == "anvil/short-divergent" {
@@ -257,61 +188,5 @@ func TestCandidateBranchesIncludesCurrentBranch(t *testing.T) {
 	}
 	if !saw {
 		t.Errorf("expected anvil/short-divergent in candidates (current-branch fallback); got %v", branches)
-	}
-}
-
-// TestCandidateBranchesIncludesLinkedPlanSlug verifies a non-id-slug branch
-// (the dispatcher-chosen slug case) is still discovered via the incoming
-// plan link.
-func TestCandidateBranchesIncludesLinkedPlanSlug(t *testing.T) {
-	vault := t.TempDir()
-	t.Setenv("ANVIL_VAULT", vault)
-	execCmd(t, "init", vault)
-	createDemoIssue(t)
-
-	// Author a plan whose slug diverges from the issue id slug; link it.
-	planPath := filepath.Join(vault, "80-plans", "demo.foo.md")
-	planBody := `---
-type: plan
-id: demo.foo
-slug: short-branch-name
-title: "P"
-description: "d"
-created: 2026-05-15
-updated: 2026-05-15
-status: draft
-plan_version: 1
-issue: "[[issue.demo.foo]]"
-tags: [domain/dev-tools]
-project: demo
-tasks: []
----
-
-body
-`
-	if err := os.WriteFile(planPath, []byte(planBody), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
-		t.Fatal(err)
-	}
-	execCmd(t, "reindex")
-
-	branches, warn := candidateBranchesForIssue(&core.Vault{Root: vault}, "demo.foo")
-	if warn != "" {
-		t.Errorf("unexpected discovery warning: %s", warn)
-	}
-
-	var sawIDSlug, sawPlanSlug bool
-	for _, b := range branches {
-		if b == "anvil/foo" {
-			sawIDSlug = true
-		}
-		if b == "anvil/short-branch-name" {
-			sawPlanSlug = true
-		}
-	}
-	if !sawIDSlug {
-		t.Errorf("expected anvil/foo (id-slug) in candidates: %v", branches)
-	}
-	if !sawPlanSlug {
-		t.Errorf("expected anvil/short-branch-name (plan-slug) in candidates: %v", branches)
 	}
 }

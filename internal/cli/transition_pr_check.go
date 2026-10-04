@@ -63,44 +63,36 @@ func ghPRListReal(branch string) (string, error) {
 var errGhUnavailable = errors.New("gh: unavailable (missing, unauthenticated, or no remote)")
 
 // openPRForIssueResolve enumerates candidate `anvil/<slug>` branches for an
-// issue and returns (branch, prURL, discoveryWarning, err). On any matching
-// open PR: (branch, url, "", nil). On no match: ("", "", warning, nil)
-// where warning is non-empty when plan-link discovery skipped one or more
-// rows. err is non-nil only when gh itself is unavailable.
+// issue and returns (branch, prURL, err). On any matching open PR: (branch,
+// url, nil). On no match: ("", "", nil). err is non-nil only when gh itself
+// is unavailable.
 //
 // Candidate branches:
 //  1. anvil/<slug-from-issue-id> — covers the common single-issue workflow
 //     where the agent cuts a worktree mirroring the issue slug.
-//  2. anvil/<plan-slug> for any incoming plan link — covers the case where a
-//     fleet-orchestrator or manual planner chose a divergent shorter slug.
-//  3. The current git branch when it bears the `anvil/` prefix.
-func openPRForIssueResolve(v *core.Vault, id string) (branch, prURL, warn string, err error) {
-	branches, warn := candidateBranchesForIssue(v, id)
-	for _, b := range branches {
+//  2. The current git branch when it bears the `anvil/` prefix — covers a
+//     dispatcher that chose a divergent slug.
+func openPRForIssueResolve(id string) (branch, prURL string, err error) {
+	for _, b := range candidateBranchesForIssue(id) {
 		url, qerr := ghPRListFn(b)
 		if qerr != nil {
-			return "", "", warn, qerr
+			return "", "", qerr
 		}
 		if url != "" {
-			return b, url, warn, nil
+			return b, url, nil
 		}
 	}
-	return "", "", warn, nil
+	return "", "", nil
 }
 
 // candidateBranchesForIssue returns the `anvil/<slug>` branches to query for
-// an issue. Order: id-derived first, then linked-plan slugs, then the
-// current git branch when it bears the `anvil/` prefix. Duplicates removed.
-// The string return is a human-readable warning when plan-link discovery
-// was incomplete (index read failure, link query failure, or unreadable
-// plan artifact) — the caller surfaces it so the user sees that the PR
-// check ran against a smaller-than-expected candidate set.
+// an issue: the id-derived slug first, then the current git branch when it
+// bears the `anvil/` prefix. Duplicates removed.
 //
-// The current-branch fallback catches the fleet-orchestrator case: a
-// dispatcher may choose a divergent short slug that is recorded in neither
-// the issue id nor any plan frontmatter. The agent runs `anvil transition`
-// from inside the worktree, so the branch name is right there.
-func candidateBranchesForIssue(v *core.Vault, id string) ([]string, string) {
+// The agent runs `anvil transition` from inside the worktree, so the branch
+// name is right there even when the dispatcher chose a slug the id does not
+// record.
+func candidateBranchesForIssue(id string) []string {
 	seen := map[string]bool{}
 	var out []string
 	addBranch := func(b string) {
@@ -110,35 +102,17 @@ func candidateBranchesForIssue(v *core.Vault, id string) ([]string, string) {
 		seen[b] = true
 		out = append(out, b)
 	}
-	addSlug := func(slug string) {
-		if slug == "" {
-			return
-		}
-		addBranch("anvil/" + slug)
-	}
 
-	// The index keys plan→issue edges on the canonical id; the branch slug
-	// comes from the bare tail.
-	id = core.CanonicalID(core.TypeIssue, id)
-	bare := core.BareID(core.TypeIssue, id)
+	bare := core.BareID(core.TypeIssue, core.CanonicalID(core.TypeIssue, id))
 	if dot := strings.IndexByte(bare, '.'); dot >= 0 && dot+1 < len(bare) {
-		addSlug(bare[dot+1:])
-	}
-
-	// Any incoming plan link contributes its frontmatter slug. Surface a
-	// warning if discovery was incomplete: the index may be stale or a
-	// plan artifact may be unreadable, and an agent silently missing a
-	// branch candidate could allow a resolve through with an open PR.
-	slugs, warn := linkedPlanSlugs(v, id)
-	for _, slug := range slugs {
-		addSlug(slug)
+		addBranch("anvil/" + bare[dot+1:])
 	}
 
 	// Current branch, when it follows the `anvil/<slug>` convention.
 	if b := currentAnvilBranch(); b != "" {
 		addBranch(b)
 	}
-	return out, warn
+	return out
 }
 
 // currentAnvilBranch returns the current git branch only when it begins with
@@ -155,52 +129,4 @@ func currentAnvilBranch() string {
 		return ""
 	}
 	return branch
-}
-
-// linkedPlanSlugs returns the `slug:` frontmatter field of every plan whose
-// outgoing edges target `id`, plus a human-readable warning when discovery
-// was incomplete. Unlike loadIncomingEdges in show.go (additive display),
-// this helper feeds the resolve guard, so failures must be visible —
-// silently treating a broken index as "no plans" can mask a missing
-// candidate branch and let `resolved` through with an open PR.
-//
-// Per-plan read errors (one artifact missing) are still tolerated and
-// surfaced in the warning rather than aborted, because skipping an
-// unreadable plan never widens the bypass — the remaining candidates still
-// run.
-func linkedPlanSlugs(v *core.Vault, id string) ([]string, string) {
-	db, err := indexForRead(v)
-	if err != nil {
-		return nil, fmt.Sprintf("plan-link discovery skipped: index unreadable (%v)", err)
-	}
-	defer db.Close() //nolint:errcheck // close in defer; error not actionable
-
-	rows, err := db.LinksTo(id)
-	if err != nil {
-		return nil, fmt.Sprintf("plan-link discovery skipped: links query failed (%v)", err)
-	}
-	var slugs []string
-	var skipped int
-	for _, r := range rows {
-		row, err := db.GetArtifact(r.Source)
-		if err != nil {
-			skipped++
-			continue
-		}
-		if row.Type != string(core.TypePlan) {
-			continue
-		}
-		a, err := core.LoadArtifact(row.Path)
-		if err != nil {
-			skipped++
-			continue
-		}
-		if s, _ := a.FrontMatter["slug"].(string); s != "" {
-			slugs = append(slugs, s)
-		}
-	}
-	if skipped > 0 {
-		return slugs, fmt.Sprintf("plan-link discovery partial: %d source(s) unreadable", skipped)
-	}
-	return slugs, ""
 }

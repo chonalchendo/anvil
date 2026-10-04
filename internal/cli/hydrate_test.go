@@ -147,7 +147,7 @@ func writeHydrateConvention(t *testing.T, vault, slug, body string) {
 
 // writeHydrateThread seeds a thread — a workspace artifact that must never
 // enter hydrate's box even when named in an issue body's ## Links section
-// (anvil.0240: governingBodyLinkTypes excludes thread/session/plan/issue).
+// (anvil.0240: governingBodyLinkTypes excludes thread/session/issue).
 func writeHydrateThread(t *testing.T, vault, slug, body string) {
 	t.Helper()
 	dir := filepath.Join(vault, core.TypeThread.Dir())

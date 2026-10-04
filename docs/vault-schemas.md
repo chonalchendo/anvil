@@ -12,7 +12,7 @@ related:
 
 Per-type reference for vault frontmatter. Rationale and the three rules that shape every schema below live in [`docs/superpowers/specs/2026-05-01-vault-schemas-redesign-design.md`](superpowers/specs/2026-05-01-vault-schemas-redesign-design.md). This file is reference, not narrative.
 
-JSON Schemas ship at `schemas/*.schema.json` and are validated in CI via the `anvil validate` verb. Frontmatter must be Obsidian Properties-compliant — no nested objects at the top level except where unavoidable (`plan.tasks`, `plan.verification`).
+JSON Schemas ship at `schemas/*.schema.json` and are validated in CI via the `anvil validate` verb. Frontmatter must be Obsidian Properties-compliant — no nested objects at the top level except where unavoidable (`issue.reproduction_anchor`).
 
 ## Universal fields
 
@@ -38,15 +38,12 @@ Structural edges, child → parent, typed scalars unless noted:
 | `milestone` | `system_design` | system-design | 1:1 |
 | `issue` | `milestone` | milestone | 1:1 |
 | `component-design` | `system_design` | system-design | 0:1 |
-| `plan` | `issue` | issue | 1:1 |
-| `sweep` | `plan` | plan | 1:1 |
 | `inbox` | `promoted_to` | any | 0:1 |
 
 Authorization edges (typed arrays on the child):
 
 - `milestone.authorized_by: [decision...]`
 - `system-design.authorized_by: [decision...]`
-- `plan.authorized_by: [decision...]`
 
 Decision-evolution links stay typed:
 
@@ -190,43 +187,6 @@ Tags: required `domain/<x>`; `activity/<x>` and `pattern/<x>` optional.
 
 **Legal transitions:** see `internal/core/transitions.go`.
 
-### `plan`
-
-```yaml
-type: plan
-id: <project>.<slug>
-project: <slug>
-status: draft | locked | in-progress | done | abandoned
-plan_version: <integer>
-issue: "[[issue.<project>.<slug>]]"
-authorized_by: ["[[decision...]]"]
-tasks:
-  - id: T1
-    title: ...
-    kind: tdd | mechanical
-    model: claude-sonnet-4-6 | claude-opus-4-7 | claude-haiku-4-5    # optional
-    effort: low | medium | high | xhigh          # optional, defaults to medium at load time
-    files: [...]
-    depends_on: [T<n>, ...]
-    skills_to_load: [<skill-id>, ...]            # real SKILL.md ids
-    context_to_load: [<path>, ...]               # plain knowledge files (docs/...)
-    verify: <command>
-    success_criteria: [...]
-verification:
-  pre_build:  [<command>, ...]
-  post_build: [<command>, ...]
-```
-
-`task.model` / `task.effort` are present only when the task diverges from orchestrator defaults (claude-sonnet-4-6 / medium). Defaults live in `~/.anvil/config.yaml`, not in plan frontmatter.
-
-`task.skills_to_load` carries real `SKILL.md` ids loaded via the agent CLI's skill mechanism; `task.context_to_load` carries knowledge file paths surfaced as plain context. The build orchestrator materialises both into each spawn, alongside the always-on core.
-
-Plan `milestone` is derived (`plan.issue → issue.milestone`); not stored.
-
-Tags: required `domain/<x>`; `activity/<x>` and `pattern/<x>` optional.
-
-**Legal transitions:** see `internal/core/transitions.go`.
-
 ### `decision`
 
 ```yaml
@@ -336,13 +296,12 @@ User-authored. Anthropic spec at top level + Anvil `metadata:` block. Out of CLI
 
 ## IDs and naming
 
-Slug-based across most artifacts. **Every type but the date/ordinal-keyed ones and design docs keeps the type prefix in the id** — issue, milestone, component design, plan, and conventions — so the id, the on-disk basename, and the `[[wikilink]]` target are one string: Obsidian matches literal basenames (the index type-qualifies every key, so ids need only be unique within a type). Project-scoped shapes: id and filename `<type>.<project>.<slug>[.md]`. **Issues** additionally carry a per-project ordinal: id `issue.<project>.NNNN.<slug>` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Bare back-catalogue filenames (no type prefix) and legacy long-slug issue files (no ordinal) still resolve until the attended rename (anvil.0201) lands. **Design docs** (`product-design`, `system-design`) key on a bare id — `<project>` for the singleton, `<project>.<shard>` for a named shard — with no type prefix (e.g. `05-product-designs/anvil.md`, `06-system-designs/anvil.build.md`). **Conventions** are project-agnostic: id `convention.<slug>`, filename `convention.<slug>.md` (e.g. `35-conventions/convention.python.md`).
+Slug-based across most artifacts. **Every type but the date/ordinal-keyed ones and design docs keeps the type prefix in the id** — issue, milestone, component design, and conventions — so the id, the on-disk basename, and the `[[wikilink]]` target are one string: Obsidian matches literal basenames (the index type-qualifies every key, so ids need only be unique within a type). Project-scoped shapes: id and filename `<type>.<project>.<slug>[.md]`. **Issues** additionally carry a per-project ordinal: id `issue.<project>.NNNN.<slug>` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Bare back-catalogue filenames (no type prefix) and legacy long-slug issue files (no ordinal) still resolve until the attended rename (anvil.0201) lands. **Design docs** (`product-design`, `system-design`) key on a bare id — `<project>` for the singleton, `<project>.<shard>` for a named shard — with no type prefix (e.g. `05-product-designs/anvil.md`, `06-system-designs/anvil.build.md`). **Conventions** are project-agnostic: id `convention.<slug>`, filename `convention.<slug>.md` (e.g. `35-conventions/convention.python.md`).
 
 Examples:
 
 - `[[milestone.anvil.cli-substrate]]` → `85-milestones/milestone.anvil.cli-substrate.md`
 - `[[issue.anvil.0042.fix-inbox-suggested-type]]` → `70-issues/issue.anvil.0042.fix-inbox-suggested-type.md`
-- `[[plan.anvil.streaming-token-counter]]` → `80-plans/plan.anvil.streaming-token-counter.md`
 - `[[decision.anvil.0001-go-rewrite]]` → `30-decisions/anvil.0001-go-rewrite.md`
 - `[[thread.ducklake.0001-which-catalog-backend]]` → `60-threads/ducklake.0001-which-catalog-backend.md`
 - `[[convention.python]]` → `35-conventions/convention.python.md`
@@ -352,9 +311,9 @@ Two rules:
 1. Slugs are allocated at create and change only through `anvil rename` (title-derived, or explicit via `--slug`), which also rewrites inbound wikilinks. Issue ordinals change only through `anvil renumber issue <id> [--to N]`, which sweeps inbound wikilinks the same way. It repairs a synced clone that landed a second file on an ordinal. `anvil doctor` and `anvil reindex` report the collision, and ordinal shorthand refuses while it is ambiguous.
 2. `anvil create` allocates the slug from the title at creation time, normalized (lowercase, hyphenated, ASCII).
 
-The plan `id` collapses with the slug: `plan.id == plan.<project>.<slug>`. **Decisions and threads** are the topic-ordinal types: prefix-less id and filename `<topic>.<NNNN>-<slug>`, ordinal allocated per topic within the type's own folder, `--topic` required at create. Bare-slug back-catalogue threads still resolve.
+**Decisions and threads** are the topic-ordinal types: prefix-less id and filename `<topic>.<NNNN>-<slug>`, ordinal allocated per topic within the type's own folder, `--topic` required at create. Bare-slug back-catalogue threads still resolve.
 
-Wikilinks are vault-global, not project-scoped. Because the project name is part of every issue/plan/milestone ID, `[[issue.<other-project>.<slug>]]` resolves the same way as a same-project link — useful when work spans repos (e.g. a `dbt-warehouse` issue declaring `depends_on: ["[[issue.airflow-pipelines.<slug>]]"]`). `anvil validate` flags broken cross-project links as `unresolved_link` with no special-casing.
+Wikilinks are vault-global, not project-scoped. Because the project name is part of every issue/milestone ID, `[[issue.<other-project>.<slug>]]` resolves the same way as a same-project link — useful when work spans repos (e.g. a `dbt-warehouse` issue declaring `depends_on: ["[[issue.airflow-pipelines.<slug>]]"]`). `anvil validate` flags broken cross-project links as `unresolved_link` with no special-casing.
 
 ## Folder structure
 
@@ -371,7 +330,6 @@ Wikilinks are vault-global, not project-scoped. Because the project name is part
 ├── 50-sweeps/
 ├── 60-threads/
 ├── 70-issues/                    # work items (single source of truth)
-├── 80-plans/
 ├── 85-milestones/
 ├── 90-bases/
 ├── 99-archive/

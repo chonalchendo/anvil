@@ -48,7 +48,7 @@ type claimMismatch struct {
 // "issue." prefix, a project slug, a numbered ordinal, and an optional slug
 // tail — e.g. "burgh.0317" or "issue.anvil.0175.foo-bar". Group 2 is the
 // token. The leading (^|[^.a-z0-9-]) delimiter — rather than \b — refuses a
-// dot-preceded start, so a sibling-type wikilink like [[plan.smoke.0317]] is
+// dot-preceded start, so a sibling-type wikilink like [[milestone.smoke.0317]] is
 // not re-read as issue "smoke.0317". Remaining false positives (e.g. a
 // version string) are harmless: resolution against the vault below simply
 // finds nothing and is skipped.

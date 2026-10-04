@@ -42,7 +42,7 @@ func (e *Structured) Set(key string, value any) *Structured {
 }
 
 // Wrap stores a sentinel error so errors.Is keeps working. Typical use: wrap a
-// package-level "category" sentinel (e.g. ErrPlanDAG) so callers can dispatch
+// package-level "category" sentinel (e.g. ErrBuildTaskFailed) so callers can dispatch
 // without depending on the concrete constructor.
 func (e *Structured) Wrap(err error) *Structured {
 	e.wrap = err

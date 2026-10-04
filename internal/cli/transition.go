@@ -230,16 +230,6 @@ func newTransitionCmd() *cobra.Command {
 				}
 			}
 
-			if t == core.TypePlan && to == "locked" {
-				p, lerr := core.LoadPlan(path)
-				if lerr != nil {
-					return fmt.Errorf("plan validator: %w", lerr)
-				}
-				if verr := core.ValidatePlan(p); verr != nil {
-					return fmt.Errorf("plan validator: %w", verr)
-				}
-			}
-
 			// Backfill-on-claim: refuse issue → in-progress unless goal: is set.
 			// The back-catalogue predates the field; this lazily forces a
 			// one-sentence terminal predicate at claim time rather than via a
@@ -292,10 +282,7 @@ func newTransitionCmd() *cobra.Command {
 			// every codepath that calls `anvil transition`. See
 			// transition_pr_check.go for branch-candidate resolution.
 			if t == core.TypeIssue && to == "resolved" && !force {
-				branch, prURL, warn, qerr := openPRForIssueResolve(v, id)
-				if warn != "" {
-					cmd.PrintErrln("warning: " + warn)
-				}
+				branch, prURL, qerr := openPRForIssueResolve(id)
 				switch {
 				case errors.Is(qerr, errGhUnavailable):
 					cmd.PrintErrln("warning: gh unavailable; skipping open-PR refusal check")

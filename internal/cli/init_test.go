@@ -81,7 +81,7 @@ func TestInit_WritesBasesAndEnablesPlugin(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	for _, n := range []string{"vault-overview", "issues", "learnings", "decisions", "plans", "milestones", "designs"} {
+	for _, n := range []string{"vault-overview", "issues", "learnings", "decisions", "milestones", "designs"} {
 		if _, err := os.Stat(filepath.Join(dir, "90-bases", n+".base")); err != nil {
 			t.Errorf("missing base %s: %v", n, err)
 		}
@@ -124,7 +124,7 @@ func TestInit_WritesSchemasIntoVault(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	for _, n := range []string{"inbox", "issue", "plan", "milestone", "decision", "product-design", "system-design"} {
+	for _, n := range []string{"inbox", "issue", "milestone", "decision", "product-design", "system-design"} {
 		p := filepath.Join(dir, "schemas", n+".schema.json")
 		if _, err := os.Stat(p); err != nil {
 			t.Errorf("missing %s", p)

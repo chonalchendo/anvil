@@ -126,7 +126,6 @@ Where:
 - **`writing-system-design`**: context (boundaries), component (internal pieces), data flow (critical paths). Core deliverables, not afterthoughts.
 - **`writing-product-design`**: gantt for milestone roadmap when timing matters.
 - **`defining-milestone`**: graph for non-trivial predecessor/successor webs.
-- **`planning`**: wave structure (task dependencies) as graph. More readable than YAML.
 
 Where not: conversational execution skills (`human-review`, `capturing-learnings`, `re-entry`). Dialogue, not diagrams.
 

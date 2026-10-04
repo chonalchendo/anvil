@@ -22,14 +22,6 @@ var transitions = map[Type][]Transition{
 		{From: "resolved", To: "open", Reverse: true},
 		{From: "abandoned", To: "open", Reverse: true},
 	},
-	TypePlan: {
-		{From: "draft", To: "locked"},
-		{From: "locked", To: "in-progress"},
-		{From: "in-progress", To: "done"},
-		{From: "in-progress", To: "abandoned"},
-		{From: "locked", To: "abandoned"},
-		{From: "done", To: "in-progress", Reverse: true},
-	},
 	TypeMilestone: {
 		{From: "planned", To: "in-progress"},
 		{From: "planned", To: "done"},

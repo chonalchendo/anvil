@@ -125,7 +125,7 @@ func TestShow_JSON_ShapeParityWithList(t *testing.T) {
 
 // TestShow_JSON_EnvelopeKeysShadowFrontmatter pins collision behaviour: if an
 // artifact's frontmatter has a key that collides with an envelope-reserved
-// name (e.g. plan frontmatter carries its own `id`), the envelope value wins
+// name (e.g. milestone frontmatter carries its own `id`), the envelope value wins
 // so callers can always rely on the top-level `id`/`path`/`body` semantics.
 func TestShow_JSON_EnvelopeKeysShadowFrontmatter(t *testing.T) {
 	vault := setupVault(t)
@@ -199,33 +199,6 @@ func TestShow_IssueNoBodyOptsOut(t *testing.T) {
 	}
 	if got["body"] != nil {
 		t.Errorf("body=%v, want nil with --no-body", got["body"])
-	}
-}
-
-// TestShow_PlanDefaultIsFrontmatterOnly: plan bodies can be large (tasks +
-// waves), so plan keeps the frontmatter-only default. --body opts in.
-func TestShow_PlanDefaultIsFrontmatterOnly(t *testing.T) {
-	vault := setupVault(t)
-	p := filepath.Join(vault, "80-plans", "anv-1.md")
-	a := &core.Artifact{
-		Path: p,
-		FrontMatter: map[string]any{
-			"type": "plan", "title": "P", "description": "fixture description", "created": "2026-04-29",
-			"status": "draft", "issue": "[[issue.foo.bar]]",
-		},
-		Body: "## Task: T1\nplan body content\n",
-	}
-	if err := a.Save(); err != nil {
-		t.Fatal(err)
-	}
-	cmd := newRootCmd()
-	out, _, _ := runCmd(t, cmd, "show", "plan", "anv-1", "--json")
-	var got map[string]any
-	if err := jsonUnmarshal(t, out, &got); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
-	}
-	if got["body"] != nil {
-		t.Errorf("plan body=%v, want nil (plan default is frontmatter-only)", got["body"])
 	}
 }
 

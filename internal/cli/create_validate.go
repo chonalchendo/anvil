@@ -13,7 +13,7 @@ import (
 )
 
 // maxDescriptionChars mirrors the `maxLength: 120` cap in every spine-type
-// schema (issue, plan, milestone, decision, sweep, product-design,
+// schema (issue, milestone, decision, sweep, product-design,
 // system-design). Pre-flighted here so the CLI rejects oversize descriptions
 // before any template rendering or facet walk, with a single focused error.
 const maxDescriptionChars = 120
@@ -49,7 +49,7 @@ func checkFieldCaps(t core.Type, description, goal string) error {
 	return errors.Join(capErrs...)
 }
 
-// collectPreValidationErrors applies the per-type required-flag checks, three
+// collectPreValidationErrors applies the per-type required-flag checks, two
 // tiers:
 //
 //   - Schema-owned: flags that fill a schema-required scalar
@@ -63,17 +63,9 @@ func checkFieldCaps(t core.Type, description, goal string) error {
 //     sweep's explicit --breaking (false is schema-valid) — are
 //     collected here and prepended to that same block by
 //     validateBeforeCreate.
-//   - Short-circuit: plan --issue is the named remaining
-//     exception — the plan's default slug, and so its id and path,
-//     derive from the issue link, so nothing downstream is
-//     meaningful without it.
-func collectPreValidationErrors(cmd *cobra.Command, t core.Type, issue, topic string) ([]*errfmt.ValidationError, error) {
+func collectPreValidationErrors(cmd *cobra.Command, t core.Type, topic string) []*errfmt.ValidationError {
 	var preValidationErrors []*errfmt.ValidationError
 	switch t {
-	case core.TypePlan:
-		if issue == "" {
-			return nil, fmt.Errorf("--issue is required for plan")
-		}
 	case core.TypeSweep:
 		if !cmd.Flags().Changed("breaking") {
 			preValidationErrors = append(preValidationErrors,
@@ -87,5 +79,5 @@ func collectPreValidationErrors(cmd *cobra.Command, t core.Type, issue, topic st
 					WithExpected(fmt.Sprintf("--topic is required for %s", t)))
 		}
 	}
-	return preValidationErrors, nil
+	return preValidationErrors
 }

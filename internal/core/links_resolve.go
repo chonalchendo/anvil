@@ -164,7 +164,7 @@ func Section(body, heading string) string {
 // directly as a component design, and ADR bodies are cheap (median 45 lines, max 135
 // across 85 artifacts). Workspace and history types are excluded on purpose:
 // `thread` is the workspace by definition (distilling-learning: "Threads are
-// the workspace; learnings are the durable output"), and `session`/`plan`/
+// the workspace; learnings are the durable output"), and `session` and
 // sibling `issue` bodies are history, not grounding — pulling either in
 // dragged 891-line thread bodies into the implementer's context box
 // (anvil.0240, measured on issue.mentat.0419).
@@ -284,7 +284,7 @@ func UnwrapWikilink(s string) string {
 
 // CanonicalID maps a raw id or wikilink target — with or without its `<type>.`
 // prefix — to the id shape type t registers under. Convention, issue,
-// milestone, component design and plan keep the prefix, so their id, their on-disk
+// milestone and component design keep the prefix, so their id, their on-disk
 // basename and their `[[wikilink]]` target are one string; the rest (design
 // types, inbox, thread, learning, sweep, decision, session) key on a bare
 // slug — the index (IndexKey) still disambiguates a bare id shared across
@@ -293,7 +293,7 @@ func UnwrapWikilink(s string) string {
 func CanonicalID(t Type, raw string) string {
 	bare := strings.TrimPrefix(UnwrapWikilink(raw), string(t)+".")
 	switch t {
-	case TypeConvention, TypeIssue, TypeMilestone, TypeComponentDesign, TypePlan:
+	case TypeConvention, TypeIssue, TypeMilestone, TypeComponentDesign:
 		return string(t) + "." + bare
 	}
 	return bare
@@ -319,8 +319,8 @@ func WikilinkTarget(t Type, id string) string {
 //
 // Convention files have only ever been written prefixed, so their canonical
 // id is their only shape — probing the stripped form would resolve a doubled
-// `convention.convention.x` onto the plain file. Issue, milestone, component design
-// and plan mint prefixed but still have a bare back-catalogue on disk until
+// `convention.convention.x` onto the plain file. Issue, milestone and component
+// design mint prefixed but still have a bare back-catalogue on disk until
 // the attended rename lands, so both shapes must resolve. Types whose
 // canonical id is bare (design types included) mint bare filenames going
 // forward but may still have a type-qualified back-catalogue file on disk, so

@@ -16,7 +16,7 @@ Cold-start frequency is the load-bearing constraint — skills call the CLI doze
 ```
 anvil where
 anvil promote    <id> [flags]                # promote an inbox entry to a typed artifact
-anvil create     <type> [flags]              # type ∈ {inbox, issue, plan, milestone, decision, learning, sweep, thread, session}
+anvil create     <type> [flags]              # type ∈ {inbox, issue, milestone, decision, learning, sweep, thread, session}
 anvil show       <type> <id>
 anvil list       <type> [--filters]
 anvil link       <type> <id> <type> <id> [--relation depends_on|blocks]   # write edge (default related[]); --from/--to/--unresolved query
@@ -27,7 +27,7 @@ anvil index      <id> | --tags <facet/value,...>   # related artifacts by shared
 anvil project    list | switch | adopt | current
 ```
 
-`anvil session log` was cut as redundant — session transcripts are written by the agent CLIs themselves; the active plan file is the canonical handoff.
+`anvil session log` was cut as redundant — session transcripts are written by the agent CLIs themselves; the issue file in `70-issues/` is the canonical handoff.
 
 **Reads split by shape.** Known-path content uses `Read`/`grep` directly — nothing to validate, and a wrapper just adds latency and a failure surface. Structured queries across typed frontmatter use `list <type> --filters`, where the SQLite index does joins `grep` can't. No `anvil read`.
 

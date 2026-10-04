@@ -38,7 +38,7 @@ func TestIllegalTransitionJSON(t *testing.T) {
 }
 
 func TestIllegalTransitionJSON_NoSequenceHintForOtherEdges(t *testing.T) {
-	e := errfmt.NewIllegalTransition("plan", "demo.foo", "draft", "done", []string{"locked", "abandoned"})
+	e := errfmt.NewIllegalTransition("milestone", "demo.foo", "planned", "abandoned", []string{"in-progress"})
 	b, _ := json.Marshal(e)
 	var got map[string]any
 	if err := json.Unmarshal(b, &got); err != nil {
