@@ -79,17 +79,6 @@ func TestNextID_IssueIncrementsByProject(t *testing.T) {
 	}
 }
 
-func TestNextID_PlanSameAsIssue(t *testing.T) {
-	v := newScaffolded(t)
-	id, err := NextID(v, TypePlan, IDInputs{Title: "Q2 cleanup", Project: "foo"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if id != "plan.foo.q2-cleanup" {
-		t.Errorf("got %q", id)
-	}
-}
-
 func TestNextID_Milestone_SlugOnly(t *testing.T) {
 	v := newScaffolded(t)
 	got, err := NextID(v, TypeMilestone, IDInputs{Title: "CLI substrate", Project: "anvil"})
@@ -162,7 +151,6 @@ func TestDeterministicID(t *testing.T) {
 		want string
 	}{
 		{"issue", TypeIssue, IDInputs{Title: "Fix Login Bug", Project: "foo"}, "issue.foo.fix-login-bug"},
-		{"plan", TypePlan, IDInputs{Title: "Add OAuth", Project: "foo"}, "plan.foo.add-oauth"},
 		{"milestone", TypeMilestone, IDInputs{Title: "v0.1 GA", Project: "foo"}, "milestone.foo.v0-1-ga"},
 		{"learning", TypeLearning, IDInputs{Title: "Slogger gotcha"}, "slogger-gotcha"},
 		{"sweep", TypeSweep, IDInputs{Title: "Drop python2"}, "drop-python2"},

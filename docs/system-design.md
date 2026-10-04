@@ -166,7 +166,7 @@ graph LR
 
 **Per-task attribution** via worktree/cwd is how subscription-billed observability tools (`ccusage`, etc.) group sessions.
 
-**Fresh-session discipline + plan files on disk** is the dominant pattern for managing context rot — Anvil's wave executor commits to it (one fresh subprocess per task) and the vault's `80-plans/` keeps the canonical handoff durable.
+**Fresh-session discipline + issue files on disk** is the dominant pattern for managing context rot — Anvil's wave executor commits to it (one fresh subprocess per task) and the vault's `70-issues/` keeps the canonical handoff durable.
 
 **Always-on layer (`AGENTS.md`, ≤5k tokens):**
 

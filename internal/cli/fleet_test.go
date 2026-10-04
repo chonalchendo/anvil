@@ -295,7 +295,7 @@ func TestGenericSlugWorktree(t *testing.T) {
 	}
 
 	// Candidates are tried in order: a miss on the first falls through to the
-	// linked-plan slug rather than aborting.
+	// next candidate slug rather than aborting.
 	b, _, ok = genericSlugWorktree(wts, []string{"no-such-slug", "other-issue"})
 	if !ok || b != "burgh/other-issue" {
 		t.Errorf("got (%q, %v); want fallthrough to burgh/other-issue", b, ok)
@@ -364,44 +364,6 @@ func TestBuildFleetRows_MatchesNonAnvilPrefixedBranch(t *testing.T) {
 	}
 	if got.Branch != "mentat/matched-issue" || got.Worktree != "/tmp/wt/mentat-matched" {
 		t.Errorf("got branch=%q worktree=%q, want mentat/matched-issue / /tmp/wt/mentat-matched", got.Branch, got.Worktree)
-	}
-}
-
-// TestBuildFleetRows_MatchesLinkedPlanSlugUnderNonAnvilPrefix pins the second
-// hardcode: candidate slugs come from the linked plan as well as the id, and
-// both must match under any project prefix. Reproduces burgh, whose plan
-// carries a `slug:` that diverges from its issue id.
-func TestBuildFleetRows_MatchesLinkedPlanSlugUnderNonAnvilPrefix(t *testing.T) {
-	vault := setupVault(t)
-	const (
-		issueID  = "burgh.espc-sold-history-connector"
-		planSlug = "espc-sold-history-connector-int-espc-sales-edinburgh"
-	)
-	writeIssueForProject(t, vault, issueID, "in-progress", "claude-beta", "burgh")
-	writeFixturePlan(t, vault, "burgh", planSlug, "ESPC sold-history connector")
-	execCmd(t, "reindex")
-	execCmd(t, "link", "plan", "burgh."+planSlug, "issue", issueID)
-
-	t.Cleanup(swapFleetStubs(nil, nil, nil, nil))
-	resolveProjectRepoFn = func(string) (string, error) { return "/repos/burgh", nil }
-	origWT := gitWorktreeListFn
-	gitWorktreeListFn = func(string) (map[string]worktreeInfo, error) {
-		return map[string]worktreeInfo{
-			"burgh/" + planSlug: {path: "/tmp/wt/burgh-plan", headSHA: "beefcafe"},
-		}, nil
-	}
-	t.Cleanup(func() { gitWorktreeListFn = origWT })
-
-	rows, err := buildFleetRows(&core.Vault{Root: vault})
-	if err != nil {
-		t.Fatalf("buildFleetRows: %v", err)
-	}
-	if len(rows) != 1 {
-		t.Fatalf("want 1 row, got %d: %+v", len(rows), rows)
-	}
-	if rows[0].Branch != "burgh/"+planSlug || rows[0].Worktree != "/tmp/wt/burgh-plan" {
-		t.Errorf("got branch=%q worktree=%q note=%q; want the plan-slug branch matched",
-			rows[0].Branch, rows[0].Worktree, rows[0].Note)
 	}
 }
 

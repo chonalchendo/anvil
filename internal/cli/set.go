@@ -76,7 +76,7 @@ func newSetCmd() *cobra.Command {
 				return fmt.Errorf("schema lookup: %w", err)
 			}
 
-			prev, hadPrev := a.FrontMatter[field]
+			prev := a.FrontMatter[field]
 
 			result := setResult{ID: id, Path: path, Field: field, Status: "set"}
 			// fieldUnset is set to true when the caller passes an empty string for
@@ -224,12 +224,9 @@ func newSetCmd() *cobra.Command {
 				}
 
 			case schema.KindObject:
-				// reproduction_anchor is the only object field with a CLI authoring path.
+				// reproduction_anchor is the only object field.
 				// --command is required; --expected defaults to empty string (records
 				// the command without asserting output, useful during initial triage).
-				if field != "reproduction_anchor" {
-					return fmt.Errorf("%q is an object; edit the file directly", field)
-				}
 				if !cmd.Flags().Changed("command") {
 					return fmt.Errorf("reproduction_anchor requires --command (and optionally --expected)")
 				}
@@ -289,21 +286,6 @@ func newSetCmd() *cobra.Command {
 				return fmt.Errorf("saving artifact: %w", err)
 			}
 
-			if t == core.TypePlan && field == "status" && len(values) == 1 && values[0] == "locked" {
-				p, lerr := core.LoadPlan(a.Path)
-				if lerr != nil {
-					return fmt.Errorf("plan validator: %w", lerr)
-				}
-				if verr := core.ValidatePlan(p); verr != nil {
-					if hadPrev {
-						a.FrontMatter[field] = prev
-					} else {
-						delete(a.FrontMatter, field)
-					}
-					_ = a.Save()
-					return verr
-				}
-			}
 			if err := indexAfterSave(v, a); err != nil {
 				return fmt.Errorf("indexing %s: %w", id, err)
 			}

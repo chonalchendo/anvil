@@ -16,7 +16,7 @@ Cold-start frequency is the load-bearing constraint — skills call the CLI doze
 ```
 anvil where
 anvil promote    <id> [flags]                # promote an inbox entry to a typed artifact
-anvil create     <type> [flags]              # type ∈ {inbox, issue, plan, milestone, decision, learning, sweep, thread, session}
+anvil create     <type> [flags]              # type ∈ {inbox, issue, milestone, decision, learning, sweep, thread, session}
 anvil show       <type> <id>
 anvil list       <type> [--filters]
 anvil link       <type> <id> <type> <id> [--relation depends_on|blocks]   # write edge (default related[]); --from/--to/--unresolved query

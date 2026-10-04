@@ -25,7 +25,6 @@ tags: [domain/dev-tools, type/system-design-shard]
 ├── 50-sweeps/
 ├── 60-threads/
 ├── 70-issues/              # work items (single source of truth)
-├── 80-plans/               # canonical; worktrees read from here
 ├── 85-milestones/          # bridges design and execution
 ├── 90-bases/               # Obsidian Bases dashboards, seeded by anvil init
 ├── 99-archive/
@@ -38,7 +37,7 @@ tags: [domain/dev-tools, type/system-design-shard]
 - Typed frontmatter schemas validated by JSON Schema in CI. Schemas + tag taxonomy live in [`vault-schemas.md`](../vault-schemas.md). Validation is non-negotiable from v0.1 — frontmatter drift is the dominant vault failure mode at scale and CI is the only effective prevention.
 - Dashboards are Bases, never Dataview: Dataview's index freezes the UI at ~3–5k notes, Bases reads Obsidian's native metadata cache.
 - 50-note backpressure rule on `00-inbox/` and `10-sessions/raw/` to prevent write-only-vault syndrome.
-- Wikilink-based provenance: product-design → milestone → plan → sweep → issue → commit.
+- Wikilink-based provenance: product-design → milestone → sweep → issue → commit.
 
 **Workflow stage → vault mapping:**
 
@@ -46,12 +45,11 @@ tags: [domain/dev-tools, type/system-design-shard]
 |---|---|---|---|
 | Inbox | `00-inbox/` | 14d demote, 30d archive. Backpressure at 50. | Promoted file deleted (low-signal capture isn't worth provenance). |
 | Design | `05-product-designs/<project>.md`, `06-system-designs/<project>[.<shard>].md` (bare filenames; the index keys on the type-qualified id) | Long-lived; updated as understanding evolves. | Authorises milestones via wikilink. |
-| Milestone | `85-milestones/milestone.<project>.<slug>.md` | Lives until shipped, then `status: done`. | Authorises plans via wikilink. |
-| Issue | `70-issues/issue.<project>.NNNN.<slug>.md` | Single source of truth: criteria, severity, status. | Authorises plan; receives learning links on review. |
-| Plan | `80-plans/plan.<project>.<slug>.md` | **Canonical.** Worktrees read from this path. | References issue; `status: done` on review approval. |
+| Milestone | `85-milestones/milestone.<project>.<slug>.md` | Lives until shipped, then `status: done`. | Authorises issues via wikilink. |
+| Issue | `70-issues/issue.<project>.NNNN.<slug>.md` | Single source of truth: criteria, severity, status. | Receives learning links on review. |
 | Session | `10-sessions/raw/<date>.<worktree>.md` | Auto-written. 50-note backpressure. | Insights → learnings; transcript → `distilled/`. |
-| Learning | `20-learnings/<topic>.<slug>.md` | `status: verified \| stale \| retracted`. | Backlinks from issues, plans, decisions. |
-| Decision | `30-decisions/<topic>.<NNNN>-<slug>.md` | MADR. `proposed \| accepted \| deprecated \| superseded`. | Authorises plans and system designs. |
-| Sweep | `50-sweeps/<slug>.md` | Cross-cutting work. | Closes the decision → plan → sweep → commit chain. |
+| Learning | `20-learnings/<topic>.<slug>.md` | `status: verified \| stale \| retracted`. | Backlinks from issues, decisions. |
+| Decision | `30-decisions/<topic>.<NNNN>-<slug>.md` | MADR. `proposed \| accepted \| deprecated \| superseded`. | Authorises system designs. |
+| Sweep | `50-sweeps/<slug>.md` | Cross-cutting work. | Closes the decision → sweep → commit chain. |
 
-Milestone/issue/plan filenames carry the type prefix (new mints); the bare back-catalogue (`<project>.<slug>.md`) still resolves until the attended rename (anvil.0201) lands.
+Milestone/issue filenames carry the type prefix (new mints); the bare back-catalogue (`<project>.<slug>.md`) still resolves until the attended rename (anvil.0201) lands.

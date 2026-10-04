@@ -11,14 +11,13 @@ import (
 // split out of fleet.go to keep it under the repo's 500-line file cap.
 
 // fleetCandidateSlugs returns the branch slugs plausibly hosting an issue's
-// worktree, most-specific first: the id-derived slug, then any linked plan's
-// `slug:`. Slugs, not branches — the prefix is whatever project brands the
-// worktree (`anvil/`, `burgh/`, `mentat/`), so matching happens on the
+// worktree: the id-derived slug. Slugs, not branches — the prefix is whatever
+// project brands the worktree (`anvil/`, `burgh/`, `mentat/`), so matching happens on the
 // segment after the last "/". Unlike candidateBranchesForIssue (used by
 // `transition resolved`), we deliberately exclude the current-branch
 // fallback — fleet enumerates many issues at once, so reusing the caller's
 // branch as a wildcard would cross-pollute every row with the same match.
-func fleetCandidateSlugs(v *core.Vault, id string) []string {
+func fleetCandidateSlugs(id string) []string {
 	seen := map[string]bool{}
 	var out []string
 	add := func(slug string) {
@@ -32,17 +31,12 @@ func fleetCandidateSlugs(v *core.Vault, id string) []string {
 	if dot := strings.IndexByte(bare, '.'); dot >= 0 && dot+1 < len(bare) {
 		add(bare[dot+1:])
 	}
-	slugs, _ := linkedPlanSlugs(v, id)
-	for _, s := range slugs {
-		add(s)
-	}
 	return out
 }
 
 // genericSlugWorktree returns the lone worktree whose branch slug (the
 // segment after its last "/") equals a candidate slug exactly, regardless of
-// prefix. Candidates are tried in order, so the id-derived slug wins over a
-// linked plan's slug. >1 worktree on the same slug = ambiguous, leave
+// prefix. Candidates are tried in order, so earlier slugs win. >1 worktree on the same slug = ambiguous, leave
 // unmatched rather than guess which project owns it.
 func genericSlugWorktree(worktrees map[string]worktreeInfo, slugs []string) (string, worktreeInfo, bool) {
 	for _, slug := range slugs {

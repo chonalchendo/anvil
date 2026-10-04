@@ -446,52 +446,6 @@ func TestSet_MilestoneSystemDesign_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestSetPlan_StatusLocked_ValidatesFirst(t *testing.T) {
-	vault := setupVault(t)
-	t.Setenv("ANVIL_VAULT", vault)
-	src, err := os.ReadFile(filepath.Join("testdata", "plan_dangling.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	dst := filepath.Join(vault, "80-plans", "ANV-142-streaming-token-counter.md")
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(dst, src, 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
-		t.Fatal(err)
-	}
-
-	// Seed the index at the on-disk state so the post-rollback assertion
-	// can detect a leak from the transient `locked` write.
-	reindex := newRootCmd()
-	reindex.SetArgs([]string{"reindex"})
-	reindex.SetOut(&bytes.Buffer{})
-	reindex.SetErr(&bytes.Buffer{})
-	if err := reindex.Execute(); err != nil {
-		t.Fatalf("seed reindex: %v", err)
-	}
-
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "plan", "ANV-142-streaming-token-counter", "status", "locked"})
-	var stderr bytes.Buffer
-	cmd.SetErr(&stderr)
-	cmd.SetOut(&stderr)
-	err = cmd.Execute()
-	if !errors.Is(err, core.ErrPlanDAG) {
-		t.Errorf("err = %v, want ErrPlanDAG", err)
-	}
-
-	// Index must reflect the rolled-back state, not the transient `locked`
-	// the file briefly held before the dangling-DAG validator rejected it.
-	row, ierr := openIndex(t, vault).GetArtifact("plan.ANV-142")
-	if ierr != nil {
-		t.Fatalf("expected plan in index after rollback: %v", ierr)
-	}
-	if row.Status != "draft" {
-		t.Errorf("index status after rollback = %q, want draft", row.Status)
-	}
-}
-
 func TestSet_ArrayAdd_Appends(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
@@ -853,27 +807,6 @@ func TestSet_ReproductionAnchor_PositionalValue_Errors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "positional") {
 		t.Errorf("error should mention positional, got: %v", err)
-	}
-}
-
-func TestSet_OtherObjectField_StillErrors(t *testing.T) {
-	// plan.verification is a KindObject field with no CLI authoring path.
-	// The guard at set.go:173-174 must reject it with the "edit the file
-	// directly" message, not route it through the reproduction_anchor handler.
-	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "p1", "P1")
-
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "plan", "foo.p1", "verification", "somevalue"})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatal("expected error: object field without CLI authoring path")
-	}
-	if !strings.Contains(err.Error(), "edit the file directly") {
-		t.Errorf("expected 'edit the file directly' error, got: %v", err)
 	}
 }
 

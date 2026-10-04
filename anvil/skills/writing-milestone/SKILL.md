@@ -20,7 +20,7 @@ metadata:
 
 # Writing Milestone
 
-Workflow for creating a milestone artifact via the `anvil` CLI. Milestones sit one level below the design docs in Anvil's hierarchy: product-design → **milestones** → plans → issues.
+Workflow for creating a milestone artifact via the `anvil` CLI. Milestones sit one level below the design docs in Anvil's hierarchy: product-design → **milestones** → issues.
 
 ## When this skill runs
 

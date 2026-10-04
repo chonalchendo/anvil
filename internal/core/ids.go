@@ -84,7 +84,7 @@ func slugifyIssue(s string) string {
 // IDInputs carries optional fields used by some artifact types.
 type IDInputs struct {
 	Title   string // required — slug source when Slug is empty
-	Project string // required for issue/plan/milestone
+	Project string // required for issue/milestone
 	Topic   string // required for decision and thread
 	Slug    string // optional — when set, overrides title-derived slug
 }
@@ -94,7 +94,7 @@ type IDInputs struct {
 // topic-ordinal types (decision, thread), which require a vault scan to
 // allocate an ordinal.
 //
-// Issue, milestone, component design, plan and convention ids keep their `<type>.`
+// Issue, milestone, component design and convention ids keep their `<type>.`
 // prefix, so the id, the on-disk basename and the `[[type.id]]` wikilink are
 // one string. Design types (product-design, system-design) key on a bare
 // project slug instead — the index (core.IndexKey) disambiguates a bare id
@@ -137,7 +137,7 @@ func DeterministicID(t Type, in IDInputs) (string, error) {
 	case TypeInbox:
 		date := time.Now().UTC().Format("2006-01-02")
 		return fmt.Sprintf("%s-%s", date, slug), nil
-	case TypeIssue, TypePlan, TypeMilestone, TypeComponentDesign:
+	case TypeIssue, TypeMilestone, TypeComponentDesign:
 		if in.Project == "" {
 			return "", fmt.Errorf("project required for %s", t)
 		}

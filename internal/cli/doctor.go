@@ -301,7 +301,7 @@ func checkDeadClaim(v *core.Vault, id string, a *core.Artifact, worktrees map[st
 		return nil
 	}
 	// Alive if a matching worktree exists.
-	slugs := fleetCandidateSlugs(v, id)
+	slugs := fleetCandidateSlugs(id)
 	if _, _, ok := genericSlugWorktree(worktrees, slugs); ok {
 		return nil
 	}

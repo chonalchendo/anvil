@@ -13,7 +13,7 @@ import (
 func TestExternalLinksAcceptedOnAllTypes(t *testing.T) {
 	types := []string{
 		"component-design", "decision", "inbox", "issue", "learning", "milestone",
-		"plan", "product-design", "session", "sweep",
+		"product-design", "session", "sweep",
 		"system-design", "thread",
 	}
 	for _, typ := range types {

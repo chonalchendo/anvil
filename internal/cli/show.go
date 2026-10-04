@@ -26,8 +26,6 @@ func newShowCmd() *cobra.Command {
 		flagBody       bool
 		flagNoBody     bool
 		flagValidate   bool
-		flagWaves      bool
-		flagTask       string
 		flagNoIncoming bool
 		flagLinks      string
 	)
@@ -70,18 +68,6 @@ func newShowCmd() *cobra.Command {
 			if flagNoBody {
 				includeBody = false
 			}
-			if flagTask != "" {
-				if t != core.TypePlan {
-					return fmt.Errorf("--task is only valid for plan artifacts")
-				}
-				if flagValidate || flagWaves {
-					return fmt.Errorf("--task cannot be combined with --validate or --waves")
-				}
-				return runShowPlanTask(cmd, v, args[1], flagTask, flagJSON, includeBody)
-			}
-			if t == core.TypePlan && (flagValidate || flagWaves) {
-				return runShowPlan(cmd, v, args[1], flagValidate, flagWaves)
-			}
 			if flagValidate {
 				return runShowValidate(cmd, v, t, args[1], flagJSON)
 			}
@@ -97,11 +83,9 @@ func newShowCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
-	cmd.Flags().BoolVar(&flagBody, "body", false, "include body (capped at 500 lines); opt-in for plan, default for bounded types")
+	cmd.Flags().BoolVar(&flagBody, "body", false, "include body (capped at 500 lines); default for bounded types")
 	cmd.Flags().BoolVar(&flagNoBody, "no-body", false, "exclude body (frontmatter only); overrides per-type default")
-	cmd.Flags().BoolVar(&flagValidate, "validate", false, "validate artifact (plan: full DAG; other types: schema + wikilinks)")
-	cmd.Flags().BoolVar(&flagWaves, "waves", false, "render plan waves as mermaid (plan only)")
-	cmd.Flags().StringVar(&flagTask, "task", "", "scope output to a single task (plan only; compose with --body for the section text)")
+	cmd.Flags().BoolVar(&flagValidate, "validate", false, "validate artifact (schema + wikilinks)")
 	cmd.Flags().BoolVar(&flagNoIncoming, "no-incoming", false, "suppress the Incoming links section (artifacts whose related[]/etc. point at this one)")
 	cmd.Flags().StringVar(&flagLinks, "links", "", "print wikilink targets of the given type (one per line; --json emits a JSON array; add --body to expand each target's body)")
 	return cmd

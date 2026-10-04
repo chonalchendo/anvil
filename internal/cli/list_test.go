@@ -714,7 +714,7 @@ func TestList_MilestoneFilterAndProjection(t *testing.T) {
 }
 
 // TestList_ProjectFlag_AcceptedForSupportedTypes guards against over-eager
-// rejection: the supported set (issue, plan, milestone, designs, learning,
+// rejection: the supported set (issue, milestone, designs, learning,
 // decision) must keep accepting --project without error.
 func TestList_ProjectFlag_AcceptedForSupportedTypes(t *testing.T) {
 	vault := setupVault(t)
