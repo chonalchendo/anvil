@@ -18,3 +18,13 @@ func TestValidateComponentDesign_MissingDoesNamedExactly(t *testing.T) {
 		t.Fatalf("want one error naming \"## Does\", got %v", errs)
 	}
 }
+
+func TestValidateIssue_AnnotatedVerificationHeadingsSatisfy(t *testing.T) {
+	a := &Artifact{
+		FrontMatter: map[string]any{"type": "issue"},
+		Body:        "## Problem\n## Non-goals\n## Verification\n### Direct (unit/integration)\n### Indirect (live smoke)\n## Links\n",
+	}
+	if errs := ValidateIssue(a); len(errs) != 0 {
+		t.Errorf("annotated headings must satisfy: %v", errs)
+	}
+}

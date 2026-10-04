@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -248,13 +249,16 @@ func ScaffoldSections(headings []string) string {
 	return sb.String()
 }
 
-// findHeadingLine returns the offset just past the first line of body equal to
-// heading (trailing spaces allowed), or -1. Whole-line matching keeps "## Does"
-// from matching "## Does not".
-func findHeadingLine(body, heading string) int {
+// findHeadingLine returns the offset just past the first line of body that
+// satisfies heading, or -1. A line satisfies heading when it equals it, or
+// starts with heading (real bodies write "### Direct (unit)" or "## Objectives")
+// and is not itself exactly another required heading — so "## Does not" no
+// longer satisfies "## Does".
+func findHeadingLine(body, heading string, all []string) int {
 	off := 0
 	for _, line := range strings.SplitAfter(body, "\n") {
-		if strings.TrimRight(line, " \t\r\n") == heading {
+		l := strings.TrimRight(line, " \t\r\n")
+		if l == heading || (strings.HasPrefix(l, heading) && !slices.Contains(all, l)) {
 			return off + len(line)
 		}
 		off += len(line)
@@ -274,7 +278,7 @@ func scanOrderedHeadings(body, noun string, headings []string) []error {
 	var errs []error
 	pos := 0
 	for _, h := range headings {
-		end := findHeadingLine(body[pos:], h)
+		end := findHeadingLine(body[pos:], h, headings)
 		if end < 0 {
 			errs = append(errs, fmt.Errorf("%s body missing required heading %q", noun, h))
 			continue
