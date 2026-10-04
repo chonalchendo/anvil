@@ -88,6 +88,13 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 		}
 	}
 
+	if t == core.TypeComponentDesign && authoredBody {
+		a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
+		for _, vErr := range core.ValidateComponentDesign(a) {
+			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
+		}
+	}
+
 	// Milestone runs staticBodyFailures even on the CLI-generated scaffold
 	// body (authoredBody false): the check that actually bites an
 	// un-authored milestone is frontmatter-shaped (kind: scoped + empty
@@ -160,10 +167,6 @@ func staticBodyFailures(cmd *cobra.Command, v *core.Vault, t core.Type, path str
 		}
 	case core.TypeMilestone:
 		for _, vErr := range core.ValidateMilestone(a) {
-			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
-		}
-	case core.TypeComponentDesign:
-		for _, vErr := range core.ValidateComponentDesign(a) {
 			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
 		}
 	}
