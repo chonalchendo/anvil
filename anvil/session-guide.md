@@ -5,7 +5,7 @@ An anvil vault backs this session. It holds the project's designs, milestones, i
 ## Find context
 
 - `anvil where` — the current vault and project.
-- `anvil list <type>`, then `anvil show <type> <id> --body`. Types include product-design, system-design, milestone, issue, contract, convention, decision, learning.
+- `anvil list <type>`, then `anvil show <type> <id> --body`. Types include product-design, system-design, milestone, issue, component-design, convention, decision, learning.
 - `anvil hydrate <issue-id>` — every artifact that governs one issue, in one call. Add `--tldr` for a short map first.
 - `anvil --help` and `anvil <verb> --help` — every verb and flag.
 
