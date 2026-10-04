@@ -284,21 +284,14 @@ func TestGenericSlugWorktree(t *testing.T) {
 		"burgh/other-issue":    {path: "/wt/burgh", headSHA: "bbb"},
 		"master":               {path: "/main", headSHA: "ccc"},
 	}
-	b, wt, ok := genericSlugWorktree(wts, []string{"matched-issue"})
+	b, wt, ok := genericSlugWorktree(wts, "matched-issue")
 	if !ok || b != "mentat/matched-issue" || wt.path != "/wt/mentat" {
 		t.Errorf("got (%q, %+v, %v); want mentat/matched-issue match", b, wt, ok)
 	}
 
 	// No slash in branch name — not a candidate.
-	if _, _, ok := genericSlugWorktree(wts, []string{"master"}); ok {
+	if _, _, ok := genericSlugWorktree(wts, "master"); ok {
 		t.Error("expected bare branch (no prefix) not to match")
-	}
-
-	// Candidates are tried in order: a miss on the first falls through to the
-	// next candidate slug rather than aborting.
-	b, _, ok = genericSlugWorktree(wts, []string{"no-such-slug", "other-issue"})
-	if !ok || b != "burgh/other-issue" {
-		t.Errorf("got (%q, %v); want fallthrough to burgh/other-issue", b, ok)
 	}
 
 	// Ambiguous: two branches with the same trailing slug, different prefixes.
@@ -306,12 +299,12 @@ func TestGenericSlugWorktree(t *testing.T) {
 		"mentat/dup-slug": {path: "/wt/a"},
 		"burgh/dup-slug":  {path: "/wt/b"},
 	}
-	if _, _, ok := genericSlugWorktree(wts2, []string{"dup-slug"}); ok {
+	if _, _, ok := genericSlugWorktree(wts2, "dup-slug"); ok {
 		t.Error("expected ambiguous (>1 prefix match) to return ok=false")
 	}
 
 	// No worktrees → no match.
-	if _, _, ok := genericSlugWorktree(map[string]worktreeInfo{}, []string{"x"}); ok {
+	if _, _, ok := genericSlugWorktree(map[string]worktreeInfo{}, "x"); ok {
 		t.Error("expected empty map to return ok=false")
 	}
 }

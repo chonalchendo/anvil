@@ -68,16 +68,16 @@ func (f *fakeAdapter) Run(ctx context.Context, req RunRequest) (RunResult, error
 
 // twoTaskWaves is the canonical two-wave fixture: T1 in wave 0, T2 in wave 1.
 // The driver now owns wave computation, so the engine receives the ordering
-// pre-built rather than deriving it from a plan's depends_on edges.
+// pre-built rather than deriving it from issue depends_on edges.
 func twoTaskWaves() [][]core.Task {
 	return [][]core.Task{
 		{{
-			ID: "T1", Title: "Wave-0 task", Model: "claude-sonnet-4-6", Effort: "medium",
-			Body: "do T1", Verify: "true",
+			ID:   "T1",
+			Body: "do T1",
 		}},
 		{{
-			ID: "T2", Title: "Wave-1 task", Model: "claude-sonnet-4-6", Effort: "medium",
-			Body: "do T2", Verify: "true",
+			ID:   "T2",
+			Body: "do T2",
 		}},
 	}
 }
@@ -109,9 +109,9 @@ func TestBuild_WaveOrder_T1BeforeT2(t *testing.T) {
 func TestBuild_ConcurrencyLimit_HoldsAtCap(t *testing.T) {
 	// 3 independent tasks in one wave; concurrency=2; assert max in-flight ≤ 2.
 	waves := [][]core.Task{{
-		{ID: "T1", Title: "a", Model: "claude-sonnet-4-6", Body: "a", Verify: "true"},
-		{ID: "T2", Title: "b", Model: "claude-sonnet-4-6", Body: "b", Verify: "true"},
-		{ID: "T3", Title: "c", Model: "claude-sonnet-4-6", Body: "c", Verify: "true"},
+		{ID: "T1", Body: "a"},
+		{ID: "T2", Body: "b"},
+		{ID: "T3", Body: "c"},
 	}}
 	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
 		"a": {hold: 50 * time.Millisecond},
@@ -150,8 +150,8 @@ func TestBuild_TaskFailure_ReturnsErrBuildTaskFailed(t *testing.T) {
 // clean exit-0 success — so any "failed" outcome comes from the advance-gate.
 func oneTaskWave() [][]core.Task {
 	return [][]core.Task{{{
-		ID: "T1", Title: "Wave-0 task", Model: "claude-sonnet-4-6", Effort: "medium",
-		Body: "do T1", Verify: "true", Branch: "proj/t1-slug",
+		ID:   "T1",
+		Body: "do T1", Branch: "proj/t1-slug",
 	}}}
 }
 
@@ -728,10 +728,10 @@ func (c *concurrencyDetectingWriter) Write(p []byte) (int, error) {
 
 func TestBuild_JSONRecord_WritesAreSerialized(t *testing.T) {
 	waves := [][]core.Task{{
-		{ID: "T1", Title: "a", Model: "claude-sonnet-4-6", Body: "a", Verify: "true"},
-		{ID: "T2", Title: "b", Model: "claude-sonnet-4-6", Body: "b", Verify: "true"},
-		{ID: "T3", Title: "c", Model: "claude-sonnet-4-6", Body: "c", Verify: "true"},
-		{ID: "T4", Title: "d", Model: "claude-sonnet-4-6", Body: "d", Verify: "true"},
+		{ID: "T1", Body: "a"},
+		{ID: "T2", Body: "b"},
+		{ID: "T3", Body: "c"},
+		{ID: "T4", Body: "d"},
 	}}
 	fa := &fakeAdapter{name: "fake", resp: map[string]fakeResp{
 		"a": {hold: 5 * time.Millisecond},

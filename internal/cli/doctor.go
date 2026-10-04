@@ -301,8 +301,8 @@ func checkDeadClaim(v *core.Vault, id string, a *core.Artifact, worktrees map[st
 		return nil
 	}
 	// Alive if a matching worktree exists.
-	slugs := fleetCandidateSlugs(id)
-	if _, _, ok := genericSlugWorktree(worktrees, slugs); ok {
+	slug := fleetSlug(id)
+	if _, _, ok := genericSlugWorktree(worktrees, slug); ok {
 		return nil
 	}
 	if _, _, ok := uniqueSubstringWorktree(worktrees, id); ok {
@@ -329,15 +329,13 @@ func checkDeadClaim(v *core.Vault, id string, a *core.Artifact, worktrees map[st
 	// Try the conventional branch names for this issue; if any has a merged PR the
 	// fix already landed — recommend resolved, not open.
 	prefix := projectFromArtifact(a, id) + "/"
-	for _, s := range slugs {
-		b := prefix + s
-		if _, merged, err := ghMergedPRForBranchFn(b); err == nil && merged {
-			return &doctorFinding{
-				Kind:     "dead-claim",
-				ID:       id,
-				Evidence: fmt.Sprintf("in-progress with claim_session %s but no live worktree or open PR; branch %s has a merged PR", claimSession, b),
-				Fix:      fmt.Sprintf("anvil transition issue %s resolved", id),
-			}
+	b := prefix + slug
+	if _, merged, err := ghMergedPRForBranchFn(b); err == nil && merged {
+		return &doctorFinding{
+			Kind:     "dead-claim",
+			ID:       id,
+			Evidence: fmt.Sprintf("in-progress with claim_session %s but no live worktree or open PR; branch %s has a merged PR", claimSession, b),
+			Fix:      fmt.Sprintf("anvil transition issue %s resolved", id),
 		}
 	}
 	return &doctorFinding{

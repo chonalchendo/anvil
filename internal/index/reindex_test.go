@@ -1,9 +1,12 @@
 package index
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -473,8 +476,8 @@ func snapshotLinks(t *testing.T, db *DB) []string {
 }
 
 // TestIncrementalDuplicateIdEqualsFull reconstructs the live-vault condition from
-// anvil.0016: two files derive the SAME id (one via frontmatter `id:`, one via
-// path stem) in different directories with different links. The artifacts table
+// anvil.0016: two files derive the SAME id (both via frontmatter `id:`) in
+// different directories with different links. The artifacts table
 // is keyed by id, so the incremental walk perpetually re-extracts whichever
 // colliding path is not currently stored — diverging from full's deterministic
 // last-writer-wins and toggling the links table every pass. The fix detects the
@@ -483,13 +486,17 @@ func snapshotLinks(t *testing.T, db *DB) []string {
 // two consecutive incremental passes (the toggle).
 func TestIncrementalDuplicateIdEqualsFull(t *testing.T) {
 	vault := t.TempDir()
-	// Issue derives id "dup" from its stem and links out to a milestone.
+	// Two issues declare the same id "dup" in different folders, each linking
+	// elsewhere, so which one the full rebuild keeps is observable in links.
 	writeArtifactBody(t, filepath.Join(vault, "70-issues", "dup.md"),
-		"type: issue\nstatus: open\nmilestone: \"[[milestone.m1]]\"\n", "see [[issue.other]]")
-	// Plan declares id "dup" in frontmatter and self-references, so a full rebuild
-	// (which visits 80-plans after 70-issues) lands the plan's self-links.
-	writeArtifactBody(t, filepath.Join(vault, "80-plans", "dup.md"),
-		"type: plan\nid: dup\nstatus: open\nissue: dup\n", "self ref [[plan.dup]]")
+		"type: issue\nid: dup\nstatus: open\nmilestone: \"[[milestone.m1]]\"\n", "see [[issue.other]]")
+	writeArtifactBody(t, filepath.Join(vault, "70-issues", "archive", "dup.md"),
+		"type: issue\nid: dup\nstatus: open\n", "self ref [[issue.dup]]")
+
+	var logs bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	defer slog.SetDefault(prev)
 
 	db, err := Open(DBPath(vault))
 	if err != nil {
@@ -511,6 +518,9 @@ func TestIncrementalDuplicateIdEqualsFull(t *testing.T) {
 		if got := snapshotLinks(t, db); !slices.Equal(got, wantLinks) {
 			t.Errorf("incremental pass %d links diverge from full:\n got=%v\nwant=%v", pass, got, wantLinks)
 		}
+	}
+	if !strings.Contains(logs.String(), "duplicate artifact id") {
+		t.Errorf("expected duplicate-id warning, got logs: %q", logs.String())
 	}
 }
 

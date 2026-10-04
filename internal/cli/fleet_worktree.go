@@ -10,52 +10,42 @@ import (
 // Worktree discovery + issue-to-branch matching for `anvil fleet status`,
 // split out of fleet.go to keep it under the repo's 500-line file cap.
 
-// fleetCandidateSlugs returns the branch slugs plausibly hosting an issue's
-// worktree: the id-derived slug. Slugs, not branches — the prefix is whatever
-// project brands the worktree (`anvil/`, `burgh/`, `mentat/`), so matching happens on the
-// segment after the last "/". Unlike candidateBranchesForIssue (used by
-// `transition resolved`), we deliberately exclude the current-branch
-// fallback — fleet enumerates many issues at once, so reusing the caller's
-// branch as a wildcard would cross-pollute every row with the same match.
-func fleetCandidateSlugs(id string) []string {
-	seen := map[string]bool{}
-	var out []string
-	add := func(slug string) {
-		if slug == "" || seen[slug] {
-			return
-		}
-		seen[slug] = true
-		out = append(out, slug)
-	}
+// fleetSlug returns the branch slug an issue's worktree carries: the id-derived
+// slug. Slug, not branch — the prefix is whatever project brands the worktree
+// (`anvil/`, `burgh/`, `mentat/`), so matching happens on the segment after the
+// last "/". Unlike candidateBranchesForIssue (used by `transition resolved`),
+// we deliberately exclude the current-branch fallback — fleet enumerates many
+// issues at once, so reusing the caller's branch as a wildcard would
+// cross-pollute every row with the same match. Returns "" when the id has no
+// slug part.
+func fleetSlug(id string) string {
 	bare := core.BareID(core.TypeIssue, id)
 	if dot := strings.IndexByte(bare, '.'); dot >= 0 && dot+1 < len(bare) {
-		add(bare[dot+1:])
+		return bare[dot+1:]
 	}
-	return out
+	return ""
 }
 
 // genericSlugWorktree returns the lone worktree whose branch slug (the
-// segment after its last "/") equals a candidate slug exactly, regardless of
-// prefix. Candidates are tried in order, so earlier slugs win. >1 worktree on the same slug = ambiguous, leave
-// unmatched rather than guess which project owns it.
-func genericSlugWorktree(worktrees map[string]worktreeInfo, slugs []string) (string, worktreeInfo, bool) {
-	for _, slug := range slugs {
-		var hitBranch string
-		var hitInfo worktreeInfo
-		count := 0
-		for b, wt := range worktrees {
-			i := strings.LastIndexByte(b, '/')
-			if i < 0 {
-				continue
-			}
-			if b[i+1:] == slug {
-				hitBranch, hitInfo = b, wt
-				count++
-			}
+// segment after its last "/") equals slug exactly, regardless of prefix.
+// >1 worktree on the same slug = ambiguous, leave unmatched rather than guess
+// which project owns it.
+func genericSlugWorktree(worktrees map[string]worktreeInfo, slug string) (string, worktreeInfo, bool) {
+	var hitBranch string
+	var hitInfo worktreeInfo
+	count := 0
+	for b, wt := range worktrees {
+		i := strings.LastIndexByte(b, '/')
+		if i < 0 {
+			continue
 		}
-		if count == 1 {
-			return hitBranch, hitInfo, true
+		if b[i+1:] == slug {
+			hitBranch, hitInfo = b, wt
+			count++
 		}
+	}
+	if count == 1 {
+		return hitBranch, hitInfo, true
 	}
 	return "", worktreeInfo{}, false
 }

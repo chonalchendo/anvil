@@ -38,8 +38,8 @@ func TestBuild_PerTaskCwd_PinsWorktreeOverGlobalCwd(t *testing.T) {
 		Router: Router{"claude-": rec},
 	}
 	waves := [][]core.Task{{
-		{ID: "pinned", Model: "claude-sonnet-4-6", Body: "x", Cwd: "/worktrees/demo/pinned"},
-		{ID: "fallback", Model: "claude-sonnet-4-6", Body: "y"},
+		{ID: "pinned", Body: "x", Cwd: "/worktrees/demo/pinned"},
+		{ID: "fallback", Body: "y"},
 	}}
 
 	if _, err := Build(context.Background(), waves, opts); err != nil {

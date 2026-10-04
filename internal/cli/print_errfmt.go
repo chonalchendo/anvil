@@ -163,7 +163,7 @@ func renderSchemaErr(cmd *cobra.Command, v *core.Vault, path string, err error, 
 // to swallow the error into a nil return for --json, so a failing transition
 // exited 0 for exactly the callers most likely to branch on $?).
 // GetBool returns false for callers that never registered --json, so the
-// human-only path is preserved for list/plan/tags callers.
+// human-only path is preserved for callers without --json.
 func printAndReturn(cmd *cobra.Command, err error) error {
 	if asJSON, _ := cmd.Flags().GetBool("json"); asJSON {
 		b, _ := json.Marshal(err)

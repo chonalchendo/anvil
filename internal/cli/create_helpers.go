@@ -87,7 +87,7 @@ func createLongDescription() string {
 		"Faceted tags (domain/, activity/, pattern/) must reuse existing vault values or pass --allow-new-facet. " +
 		"Run 'anvil create <type> --show-template' to print the skeleton before composing.\n\n" +
 		"Validation: create always validates the frontmatter it just wrote. " +
-		"When --body / --body-file / --body - / --from supplies a body, body " +
+		"When --body / --body-file / --body - supplies a body, body " +
 		"sections and wikilink targets are validated too; a failure rolls back " +
 		"the write. Running 'anvil validate <path>' afterward is unnecessary.\n\n" +
 		"Warnings: advisory findings never fail create. Under --json they ride the " +

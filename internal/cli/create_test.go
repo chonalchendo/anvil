@@ -96,7 +96,7 @@ func TestCreate_AllCappedFieldViolations_ReportedTogether(t *testing.T) {
 // an over-cap --description run outside any project must surface the cap error,
 // not the "requires a project" error — otherwise the author cannot see the cap
 // overage until they first satisfy an unrelated resolution step. Regression
-// guard for the ordering that masked the cap for milestone/decision/plan/sweep.
+// guard for the ordering that masked the cap for milestone/decision/sweep.
 func TestCreate_NonIssueCappedField_ChecksBeforeProjectResolution(t *testing.T) {
 	setupVault(t)
 	// No --project and a non-git cwd: ResolveProject would fail with ErrNoProject.

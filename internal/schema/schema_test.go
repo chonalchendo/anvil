@@ -144,7 +144,7 @@ func TestValidate_Milestone_RequiresKind(t *testing.T) {
 func TestValidate_Milestone_KindScopedAcceptsEmptyAcceptance(t *testing.T) {
 	// Schema-level kind+acceptance gate is intentionally absent: the issue's
 	// acceptance criteria called for a warn, not a hard reject, and the
-	// transition-time gate is tracked separately. See plan locked decision D3.
+	// transition-time gate is tracked separately.
 	fm := map[string]any{
 		"type": "milestone", "title": "M", "description": "x",
 		"created": "2026-04-29", "status": "planned", "project": "anvil",

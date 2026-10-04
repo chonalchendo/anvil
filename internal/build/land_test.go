@@ -112,7 +112,7 @@ func TestBuild_DriverLandsUncommittedVerifiedDiff(t *testing.T) {
 		Router:         Router{"claude-": &editorAdapter{file: "landed.txt", content: "worker edit\n"}},
 		VerifyArtifact: EnsurePRForTask,
 	}
-	task := core.Task{ID: "anvil.0162.demo", Model: "claude-sonnet-4-6", Body: "edit", Cwd: clone, Branch: branch}
+	task := core.Task{ID: "anvil.0162.demo", Body: "edit", Cwd: clone, Branch: branch}
 
 	sum, err := Build(context.Background(), [][]core.Task{{task}}, opts)
 	if err != nil {
@@ -153,7 +153,7 @@ func TestBuild_NoDiffStaysFailed(t *testing.T) {
 		Router:         Router{"claude-": &fakeAdapter{}},
 		VerifyArtifact: EnsurePRForTask,
 	}
-	task := core.Task{ID: "anvil.0162.empty", Model: "claude-sonnet-4-6", Body: "nothing", Cwd: clone, Branch: branch}
+	task := core.Task{ID: "anvil.0162.empty", Body: "nothing", Cwd: clone, Branch: branch}
 
 	sum, _ := Build(context.Background(), [][]core.Task{{task}}, opts)
 	if got := sum.Outcomes[task.ID].Outcome; got != "failed" {

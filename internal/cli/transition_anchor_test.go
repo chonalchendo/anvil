@@ -90,11 +90,11 @@ func TestTransition_InProgress_AnchorMatchSHA(t *testing.T) {
 	}
 }
 
-// TestTransition_InProgress_AnchorExecFailureRefuses is the must-fail guard
-// from the plan: without a real anchor check, `false` exits non-zero, stdout
+// TestTransition_InProgress_AnchorExecFailureRefuses is the must-fail guard:
+// without a real anchor check, `false` exits non-zero, stdout
 // is empty, expected is non-empty, so a check that runs the command at all
 // must refuse. If the anchor were not wired up, this test would pass-by-
-// transitioning, defeating the gate. See plan T2 step 2.
+// transitioning, defeating the gate.
 func TestTransition_InProgress_AnchorExecFailureRefuses(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)

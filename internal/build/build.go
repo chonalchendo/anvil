@@ -209,14 +209,7 @@ func Build(ctx context.Context, waves [][]core.Task, opts Options) (*Summary, er
 // TaskOutcome record. Never panics; never blocks indefinitely (the adapter
 // honours its own Timeout).
 func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) TaskOutcome {
-	model := t.Model
-	if model == "" {
-		model = defaultModel
-	}
-	effort := t.Effort
-	if effort == "" {
-		effort = defaultEffort
-	}
+	model, effort := defaultModel, defaultEffort
 	oc := TaskOutcome{
 		TaskID: t.ID, Wave: wave, Model: model, Effort: effort,
 	}
@@ -257,8 +250,6 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 		Model:           model,
 		Effort:          effort,
 		Skills:          t.SkillsToLoad,
-		Context:         t.ContextToLoad,
-		Files:           t.Files,
 		Cwd:             cwd,
 		Timeout:         defaultRunTimeout,
 		DisallowedTools: t.DisallowedTools,

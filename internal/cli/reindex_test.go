@@ -94,7 +94,7 @@ func TestReindexPruneStubs(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Non-zero stub: name matches but file has content. Must NOT be deleted.
-	contentStub := filepath.Join(vault, "plan.anvil.content.md")
+	contentStub := filepath.Join(vault, "milestone.anvil.content.md")
 	if err := os.WriteFile(contentStub, []byte("user typed something here"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}

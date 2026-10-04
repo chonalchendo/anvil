@@ -6,13 +6,13 @@ A craft-first methodology for AI-assisted development, packaged as auto-loading 
 
 ## What it is
 
-Anvil treats a project's design as the load-bearing artifact and works backwards from it: **product-design → milestones → plans → sweeps → issues → inbox**. Every task traces up to a milestone; every milestone traces up to the product's purpose.
+Anvil treats a project's design as the load-bearing artifact and works backwards from it: **product-design → milestones → sweeps → issues → inbox**. Every task traces up to a milestone; every milestone traces up to the product's purpose.
 
 The methodology lives in **skills** — auto-firing markdown files (following Anthropic's open standard) the agent loads from conversational triggers, not commands you type. The **orchestrator** is a small Go CLI for the parts that genuinely need a process: vault state, scaffolding, and dispatching work to agent CLIs (Claude Code first, Codex next).
 
 Two stores:
 
-- **Knowledge vault** at `~/anvil-vault/` — issues, plans, milestones, learnings, decisions, skills, Bases dashboards. Git-versioned, browsable in Obsidian, indexed by a local SQLite database.
+- **Knowledge vault** at `~/anvil-vault/` — issues, milestones, learnings, decisions, skills, Bases dashboards. Git-versioned, browsable in Obsidian, indexed by a local SQLite database.
 - **Machine-local state** at `~/.anvil/` — project bindings, the bundled skills, and run state.
 
 Your project repos stay clean: no Anvil-specific files by default.

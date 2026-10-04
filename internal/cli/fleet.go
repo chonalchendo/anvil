@@ -184,7 +184,7 @@ func buildFleetRows(v *core.Vault) ([]fleetRow, error) {
 		// `burgh/`, `mentat/` — so match on the branch slug (the segment
 		// after the last "/") against the id-derived slug,
 		// whatever the prefix. >1 worktree on a slug = ambiguous, skip.
-		if b, wt, ok := genericSlugWorktree(worktrees, fleetCandidateSlugs(id)); ok {
+		if b, wt, ok := genericSlugWorktree(worktrees, fleetSlug(id)); ok {
 			apply(b, wt)
 		}
 		// Fallback: orchestrators frequently choose a divergent short slug

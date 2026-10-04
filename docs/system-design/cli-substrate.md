@@ -27,7 +27,7 @@ anvil index      <id> | --tags <facet/value,...>   # related artifacts by shared
 anvil project    list | switch | adopt | current
 ```
 
-`anvil session log` was cut as redundant — session transcripts are written by the agent CLIs themselves; the active plan file is the canonical handoff.
+`anvil session log` was cut as redundant — session transcripts are written by the agent CLIs themselves; the issue file in `70-issues/` is the canonical handoff.
 
 **Reads split by shape.** Known-path content uses `Read`/`grep` directly — nothing to validate, and a wrapper just adds latency and a failure surface. Structured queries across typed frontmatter use `list <type> --filters`, where the SQLite index does joins `grep` can't. No `anvil read`.
 

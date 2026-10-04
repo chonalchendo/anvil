@@ -651,8 +651,8 @@ func TestSessionResume_ClaimMismatch_SiblingTypeToken_NoWarning(t *testing.T) {
 	writeIssueFixture(t, vault, "issue.burgh.0317.rebase-pr", "in-progress", "ad768f26-7545-4a82-9107-344103a00b52")
 	// The only token is a sibling-type wikilink; its dot-preceded tail
 	// (burgh.0317) must not be re-read as an issue reference.
-	body := "## Handoff\n\n**Objective.** smoke run\n\nNext action: rerun [[plan.burgh.0317]] end-to-end.\n"
-	writeSessionFixture(t, vault, "resume-plan-token", "resume-plan-token", "Resume Session", body)
+	body := "## Handoff\n\n**Objective.** smoke run\n\nNext action: rerun [[milestone.burgh.0317]] end-to-end.\n"
+	writeSessionFixture(t, vault, "resume-milestone-token", "resume-milestone-token", "Resume Session", body)
 	t.Setenv(envSessionID, "this-session-uuid")
 
 	if got := resumeMismatches(t); len(got) != 0 {

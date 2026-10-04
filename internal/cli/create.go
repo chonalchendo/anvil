@@ -28,7 +28,6 @@ type templateData struct {
 	SuggestedProject string
 	ID               string
 	Slug             string
-	Issue            string
 	ShortID          string
 	Source           string
 	SessionID        string

@@ -28,7 +28,7 @@ Three sequenced sub-projects:
 
 1. **`internal/adapters`** — define `AgentAdapter` contract for spawning Claude Code and Codex subprocesses with isolated `CLAUDE_CONFIG_DIR` / `CODEX_HOME` per spawn (per `docs/go-conventions.md`). Natural emit point for telemetry.
 2. **Per-task telemetry (build-only slice)** — SQLite-backed (modernc-sqlite per `dependencies.md`). For each task: model, input/output/cache-read/cache-write tokens, USD cost, wall time, agent time, success/failure, verify exit code. Build-summary table at end of run; queryable via `telemetry/`. **Out of scope:** session-wide events, ad-hoc CLI telemetry, skill-execution telemetry, dashboards.
-3. **`anvil build` command** — walk a validated plan's wave graph, dispatch via the adapter, persist telemetry, fail loudly. Wave graph already computed for `--waves` rendering in `internal/cli/plan.go`.
+3. **`anvil build` command** — walk the ready issue graph, dispatch via the adapter, persist telemetry, fail loudly.
 
 **Phase B exit criterion** — dogfood `anvil build` end-to-end against a small example project; capture telemetry (tokens read/written per skill, time per task, verify outcomes); refine context loading until tasks complete without errors under a defined token budget. The telemetry stats are the feedback loop, not a separate workstream.
 
@@ -101,7 +101,7 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 
 - `list` / `inbox list` — `--limit` (default 10), recency-desc sort, `--since`/`--until`, JSON envelope `{items, total, returned, truncated}`, stderr truncation hint.
 - `list` — per-item `id`/`type`/`title`/`description`/`status`/`created`/`project`/`tags`/`path`.
-- `show` — body included by default for bounded types (inbox, decision, issue, sweep) up to 500 lines with stderr clip hint; plan defaults to frontmatter-only (opt in via `--body`/`--waves`/`--task`); `--no-body` forces frontmatter-only on any type; `--json` nests under `"frontmatter"`.
+- `show` — body included by default for bounded types (inbox, decision, issue, sweep) up to 500 lines with stderr clip hint; `--no-body` forces frontmatter-only on any type; `--json` nests under `"frontmatter"`.
 - `project list` — `--json` envelope `{items, total, returned, truncated}`, matching the other `list` verbs.
 - `validate` — structured `{code, path, field, got, expected?, fix?}` via `internal/cli/errfmt`; codes `enum_violation`/`missing_required`/`type_mismatch`/`constraint_violation`/`unresolved_link`.
 - Root `--vault` / `--project` flags — precedence flag > env (`ANVIL_VAULT`/`ANVIL_PROJECT`) > cwd.
@@ -135,10 +135,10 @@ Defer until `using-anvil` and `anvil build` substrate is stable (i.e. after Phas
 
 ## Deferred to v0.2+
 
-- `inline-fix` skill, `inbox → plan` shortcut — discovered organically via `extract-skill-from-session`.
-- `verify-implementation` skill — verification already lives per-task in plan frontmatter.
+- `inline-fix` skill, `inbox → issue` shortcut — discovered organically via `extract-skill-from-session`.
+- `verify-implementation` skill — verification already lives per-issue in the `## Verification` block.
 - Read-side CLI gaps beyond Bundle E — AI reads files directly.
 - Codex adapter installer — only Claude Code hooks installer ships in v0.1.
 - Session-wide telemetry, dashboards, skill-execution events — only the build slice ships.
-- **`anvil index` aggregate co-occurrence** — a facet co-occurrence matrix across issue/plan/decision/learning/thread to feed `extract-skill-from-session`. Read-only, no LLM. The seed-based `anvil index` verb shipped (2026-06-16, `anvil.0088`); this is the remaining aggregate slice, surfaced when `extract-skill-from-session` demands it.
+- **`anvil index` aggregate co-occurrence** — a facet co-occurrence matrix across issue/decision/learning/thread to feed `extract-skill-from-session`. Read-only, no LLM. The seed-based `anvil index` verb shipped (2026-06-16, `anvil.0088`); this is the remaining aggregate slice, surfaced when `extract-skill-from-session` demands it.
 - Optimization-tagged agent-CLI items above (cobra `Example` blocks, `--paths` filters on `validate`).

@@ -125,7 +125,7 @@ func TestShow_JSON_ShapeParityWithList(t *testing.T) {
 
 // TestShow_JSON_EnvelopeKeysShadowFrontmatter pins collision behaviour: if an
 // artifact's frontmatter has a key that collides with an envelope-reserved
-// name (e.g. plan frontmatter carries its own `id`), the envelope value wins
+// name (e.g. milestone frontmatter carries its own `id`), the envelope value wins
 // so callers can always rely on the top-level `id`/`path`/`body` semantics.
 func TestShow_JSON_EnvelopeKeysShadowFrontmatter(t *testing.T) {
 	vault := setupVault(t)

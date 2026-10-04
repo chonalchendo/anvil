@@ -2,18 +2,9 @@ package core
 
 // Task is one unit of work the build engine schedules.
 type Task struct {
-	ID              string
-	Title           string
-	Kind            string
-	Model           string
-	Effort          string
-	Files           []string
-	DependsOn       []string
-	SkillsToLoad    []string
-	ContextToLoad   []string
-	Verify          string
-	SuccessCriteria []string
-	Body            string
+	ID           string
+	SkillsToLoad []string
+	Body         string
 	// Cwd is the per-task working directory the adapter spawns into. `anvil
 	// build` sets it to the issue's cut worktree so the spawned worker lands its
 	// PR on the deterministic branch the driver already holds; empty falls back
