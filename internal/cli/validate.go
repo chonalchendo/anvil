@@ -320,8 +320,12 @@ func unresolvedLinkError(v *core.Vault, path string, link core.UnresolvedLink) *
 		// ignores them as non-vault references.
 		return e.WithFix("use a known `<type>.<id>` target form or remove the wikilink")
 	}
-	if near := core.NearestArtifactTargets(v, link.Target); len(near) > 0 {
-		return e.WithFix("use the full id: [[" + strings.Join(near, "]] or [[") + "]]")
+	if near, more := core.NearestArtifactTargets(v, link.Target); len(near) > 0 {
+		fix := "use the full id: [[" + strings.Join(near, "]] or [[") + "]]"
+		if more > 0 {
+			fix += fmt.Sprintf(" (+%d more — anvil list %s)", more, prefix)
+		}
+		return e.WithFix(fix)
 	}
 	return e.WithFix(fmt.Sprintf("fix the target id or remove the wikilink — `anvil list %s` shows valid ids", prefix))
 }
