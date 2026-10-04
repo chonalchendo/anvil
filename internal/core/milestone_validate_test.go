@@ -132,6 +132,29 @@ func TestValidateMilestone_BucketEmptyAcceptance_Allowed(t *testing.T) {
 	}
 }
 
+func TestValidateMilestone_ClosedSkipsBodyChecks(t *testing.T) {
+	broken := "\n## Objective\nobj\n\n## Success criteria\nold\n"
+	cases := []struct {
+		status  string
+		wantErr bool
+	}{
+		{"done", false},
+		{"abandoned", false},
+		{"planned", true},
+		{"in-progress", true},
+	}
+	for _, c := range cases {
+		t.Run(c.status, func(t *testing.T) {
+			fm := milestoneFM("scoped", nil)
+			fm["status"] = c.status
+			errs := ValidateMilestone(&Artifact{FrontMatter: fm, Body: broken})
+			if (len(errs) > 0) != c.wantErr {
+				t.Errorf("errs = %v, wantErr %v", errs, c.wantErr)
+			}
+		})
+	}
+}
+
 func TestMeasurementStale(t *testing.T) {
 	now := time.Date(2026, 10, 3, 10, 0, 0, 0, time.UTC)
 	body := func(status string) string {
