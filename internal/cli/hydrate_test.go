@@ -99,20 +99,24 @@ func writeHydrateDesign(t *testing.T, vault, project string, typ core.Type, link
 
 // writeHydrateComponentDesign seeds a component design whose `## Code design` body links a
 // convention (component designs link conventions from prose, not a frontmatter slot).
-func writeHydrateComponentDesign(t *testing.T, vault, id, conventionTarget string) {
+func writeHydrateComponentDesign(t *testing.T, vault, id, conventionTarget string, extra map[string]any) {
 	t.Helper()
 	dir := filepath.Join(vault, "75-component-designs")
 	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for traversable dirs
 		t.Fatal(err)
 	}
+	fm := map[string]any{
+		"type": "component-design", "title": id, "description": "fixture",
+		"created": "2026-07-01", "updated": "2026-07-01",
+		"status": "active", "project": "foo", "kind": "data", "tags": []any{},
+	}
+	for k, v := range extra {
+		fm[k] = v
+	}
 	a := &core.Artifact{
-		Path: filepath.Join(dir, id+".md"),
-		FrontMatter: map[string]any{
-			"type": "component-design", "title": id, "description": "fixture",
-			"created": "2026-07-01", "updated": "2026-07-01",
-			"status": "active", "project": "foo", "kind": "data", "tags": []any{},
-		},
-		Body: "## Code design\n\nGoverned by [[" + conventionTarget + "]].\n",
+		Path:        filepath.Join(dir, id+".md"),
+		FrontMatter: fm,
+		Body:        "## Code design\n\nGoverned by [[" + conventionTarget + "]].\n",
 	}
 	if err := a.Save(); err != nil {
 		t.Fatal(err)
@@ -212,7 +216,7 @@ func TestHydrate(t *testing.T) {
 	t.Run("closure walks the component design to its body-linked convention", func(t *testing.T) {
 		vault := setupVault(t)
 		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"related": []any{"[[component-design.foo.boundaries]]"}})
-		writeHydrateComponentDesign(t, vault, "foo.boundaries", "convention.go-style")
+		writeHydrateComponentDesign(t, vault, "foo.boundaries", "convention.go-style", nil)
 		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nCONVENTION_MARKER for the component design hop.\n")
 
 		cmd := newRootCmd()
@@ -227,36 +231,35 @@ func TestHydrate(t *testing.T) {
 
 	t.Run("closure walks the component design to its system design once, and names a dangling slot", func(t *testing.T) {
 		vault := setupVault(t)
-		writeHydrateIssue(t, vault, "foo.i1", map[string]any{
-			"milestone": "[[milestone.foo.m1]]",
-			"related":   []any{"[[component-design.foo.boundaries]]"},
-		})
-		writeHydrateMilestone(t, vault, "foo.m1", map[string]any{"system_design": "[[system-design.foo]]"}, "body\n")
+		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"related": []any{"[[component-design.foo.boundaries]]"}})
 		writeHydrateDesign(t, vault, "foo", core.TypeSystemDesign, nil, "SYSTEM_DESIGN_MARKER\n")
-		writeHydrateComponentDesign(t, vault, "foo.boundaries", "convention.go-style")
 		writeHydrateConvention(t, vault, "go-style", "rules\n")
-		cdPath := filepath.Join(vault, "75-component-designs", "foo.boundaries.md")
-		cd, err := core.LoadArtifact(cdPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		cd.FrontMatter["system_design"] = "[[system-design.foo]]"
-		if err := cd.Save(); err != nil {
-			t.Fatal(err)
-		}
+		writeHydrateComponentDesign(t, vault, "foo.boundaries", "convention.go-style", map[string]any{"system_design": "[[system-design.foo]]"})
 
+		// Reached only through the component design.
 		out, _, err := runCmd(t, newRootCmd(), "hydrate", "foo.i1")
 		if err != nil {
 			t.Fatalf("hydrate: %v", err)
 		}
 		if n := strings.Count(out, "=== system-design foo "); n != 1 {
-			t.Errorf("system design appears %d times, want 1\n%s", n, out)
+			t.Errorf("component-design-only: system design appears %d times, want 1\n%s", n, out)
 		}
 
-		cd.FrontMatter["system_design"] = "[[system-design.ghost]]"
-		if err := cd.Save(); err != nil {
-			t.Fatal(err)
+		// Milestone path reaches it too; seen dedups.
+		writeHydrateIssue(t, vault, "foo.i1", map[string]any{
+			"milestone": "[[milestone.foo.m1]]",
+			"related":   []any{"[[component-design.foo.boundaries]]"},
+		})
+		writeHydrateMilestone(t, vault, "foo.m1", map[string]any{"system_design": "[[system-design.foo]]"}, "body\n")
+		out, _, err = runCmd(t, newRootCmd(), "hydrate", "foo.i1")
+		if err != nil {
+			t.Fatalf("hydrate: %v", err)
 		}
+		if n := strings.Count(out, "=== system-design foo "); n != 1 {
+			t.Errorf("both paths: system design appears %d times, want 1\n%s", n, out)
+		}
+
+		writeHydrateComponentDesign(t, vault, "foo.boundaries", "convention.go-style", map[string]any{"system_design": "[[system-design.ghost]]"})
 		_, _, err = runCmd(t, newRootCmd(), "hydrate", "foo.i1")
 		if err == nil || !strings.Contains(err.Error(), "system-design.ghost") {
 			t.Errorf("want broken-edge error naming system-design.ghost, got %v", err)
@@ -274,7 +277,7 @@ func TestHydrate(t *testing.T) {
 		writeHydrateIssue(t, vault, "foo.i1", map[string]any{
 			"related": []any{"[[system-design.foo]]", "[[component-design.foo.boundaries]]"},
 		})
-		writeHydrateComponentDesign(t, vault, "foo.boundaries", "convention.go-style")
+		writeHydrateComponentDesign(t, vault, "foo.boundaries", "convention.go-style", nil)
 		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nCOMPONENT_DESIGN_ALONGSIDE_DESIGN_MARKER.\n")
 		writeHydrateDesign(t, vault, "foo", core.TypeSystemDesign, nil, "## System\n\nsystem design body.\n")
 
@@ -299,7 +302,7 @@ func TestHydrate(t *testing.T) {
 		// "1 broken spine edge(s)" and this goes red.
 		vault := setupVault(t)
 		writeHydrateIssue(t, vault, "foo.i1", map[string]any{"related": []any{"[[component-design.foo.boundaries]]"}})
-		writeHydrateComponentDesign(t, vault, "component-design.foo.boundaries", "convention.go-style")
+		writeHydrateComponentDesign(t, vault, "component-design.foo.boundaries", "convention.go-style", nil)
 		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nconvention body.\n")
 
 		cmd := newRootCmd()
@@ -345,7 +348,7 @@ func TestHydrate(t *testing.T) {
 		writeHydrateDesign(t, vault, "foo", core.TypeProductDesign,
 			map[string]any{"related": []any{"[[convention.go-style]]"}},
 			"## Vision\n\ndesign body.\n")
-		writeHydrateComponentDesign(t, vault, "foo.boundaries", "convention.go-style")
+		writeHydrateComponentDesign(t, vault, "foo.boundaries", "convention.go-style", nil)
 		writeHydrateConvention(t, vault, "go-style", "## Rules\n\nshared by both rails.\n")
 
 		cmd := newRootCmd()
@@ -560,7 +563,7 @@ func TestHydrate(t *testing.T) {
 			"## Verification\n\n### Direct\n\njust test\n\n### Indirect\n\nsmoke\n\n" +
 			"## Links\n\n- [[component-design.foo.boundaries]]\n"
 		writeHydrateIssueWithBody(t, vault, "foo.i1", map[string]any{"related": []any{"[[component-design.foo.boundaries]]"}}, body)
-		writeHydrateComponentDesign(t, vault, "foo.boundaries", "convention.go-style")
+		writeHydrateComponentDesign(t, vault, "foo.boundaries", "convention.go-style", nil)
 		writeHydrateConvention(t, vault, "go-style", "## Rules\n\ndeduped across rails.\n")
 
 		cmd := newRootCmd()
