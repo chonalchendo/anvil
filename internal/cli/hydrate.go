@@ -172,21 +172,14 @@ func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 		msSrc := "milestone " + mt
 		for _, dtype := range []core.Type{core.TypeProductDesign, core.TypeSystemDesign} {
 			for _, dt := range linkTargetsOfType(ms, dtype) {
-				d, err := h.walk(v, msSrc, dtype, dt)
-				if err != nil {
-					return nil, err
-				}
-				if d == nil {
-					continue
-				}
-				if err := h.descendConventions(v, string(dtype)+" "+dt, d); err != nil {
+				if err := h.walkDesign(v, msSrc, dtype, dt); err != nil {
 					return nil, err
 				}
 			}
 		}
 	}
 
-	// issue → component design → convention
+	// issue → component design → {convention, system-design → convention}
 	for _, ct := range linkTargetsOfType(iss, core.TypeComponentDesign) {
 		c, err := h.walk(v, issueSrc, core.TypeComponentDesign, ct)
 		if err != nil {
@@ -195,8 +188,17 @@ func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 		if c == nil {
 			continue
 		}
-		if err := h.descendConventions(v, "component design "+ct, c); err != nil {
+		cSrc := "component design " + ct
+		if err := h.descendConventions(v, cSrc, c); err != nil {
 			return nil, err
+		}
+		// Walk the component design's forward system-design links; back-links
+		// to prefix-retaining types do not resolve as incoming edges. seen
+		// dedups a design the milestone path already reached.
+		for _, st := range linkTargetsOfType(c, core.TypeSystemDesign) {
+			if err := h.walkDesign(v, cSrc, core.TypeSystemDesign, st); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -219,6 +221,15 @@ func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
 	}
 
 	return h, nil
+}
+
+// walkDesign walks one design target, then its convention links.
+func (h *hydration) walkDesign(v *core.Vault, src string, t core.Type, target string) error {
+	d, err := h.walk(v, src, t, target)
+	if err != nil || d == nil {
+		return err
+	}
+	return h.descendConventions(v, string(t)+" "+target, d)
 }
 
 // descendConventions walks an artifact's convention links — the shared last hop of
