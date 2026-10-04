@@ -498,3 +498,31 @@ func TestCanonicalID_UnwrapsWikilink(t *testing.T) {
 		}
 	}
 }
+
+func TestNearestArtifactTargets(t *testing.T) {
+	v := newScaffolded(t)
+	dir := filepath.Join(v.Root, TypeDecision.Dir())
+	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+		t.Fatal(err)
+	}
+	for _, id := range []string{"serving.0001-local-api", "serving.0002-other"} {
+		if err := os.WriteFile(filepath.Join(dir, id+".md"), []byte("---\ntype: decision\n---\n"), 0o644); err != nil { //nolint:gosec // 0644 is correct for data files
+			t.Fatal(err)
+		}
+	}
+	cases := []struct {
+		target string
+		want   []string
+	}{
+		{"decision.serving.0001", []string{"decision.serving.0001-local-api"}},
+		{"decision.serving", []string{"decision.serving.0001-local-api", "decision.serving.0002-other"}},
+		{"decision.serving.0001-local-api", nil},
+		{"decision.ghost", nil},
+		{"nope.serving", nil},
+	}
+	for _, tc := range cases {
+		if got := NearestArtifactTargets(v, tc.target); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: got %v, want %v", tc.target, got, tc.want)
+		}
+	}
+}

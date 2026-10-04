@@ -230,7 +230,7 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 	// back catalogue carries ~80 files with dangling body edges, so folding
 	// them into validate is an explicit non-goal until that repair lands.
 	for _, link := range core.ResolveLinks(v, a.FrontMatter) {
-		out = append(out, unresolvedLinkError(path, link))
+		out = append(out, unresolvedLinkError(v, path, link))
 	}
 
 	if t == core.TypeLearning {
@@ -311,7 +311,7 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 // walk and `anvil create`'s authored-body scan — so the same defect class
 // reports the same code and fix across verbs (convention.cli-tooling). Every
 // UnresolvedLink target contains a dot: both producers skip dot-less tokens.
-func unresolvedLinkError(path string, link core.UnresolvedLink) *errfmt.ValidationError {
+func unresolvedLinkError(v *core.Vault, path string, link core.UnresolvedLink) *errfmt.ValidationError {
 	e := errfmt.NewValidationError(errfmt.CodeUnresolvedLink, path, link.Field,
 		fmt.Sprintf("unresolved wikilink [[%s]]", link.Target))
 	prefix := link.Target[:strings.IndexByte(link.Target, '.')]
@@ -319,6 +319,9 @@ func unresolvedLinkError(path string, link core.UnresolvedLink) *errfmt.Validati
 		// Only the body scan emits unknown-prefix targets; the frontmatter walk
 		// ignores them as non-vault references.
 		return e.WithFix("use a known `<type>.<id>` target form or remove the wikilink")
+	}
+	if near := core.NearestArtifactTargets(v, link.Target); len(near) > 0 {
+		return e.WithFix("use the full id: [[" + strings.Join(near, "]] or [[") + "]]")
 	}
 	return e.WithFix(fmt.Sprintf("fix the target id or remove the wikilink — `anvil list %s` shows valid ids", prefix))
 }

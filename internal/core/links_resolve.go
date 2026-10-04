@@ -396,6 +396,40 @@ func WikilinkTargetExists(v *Vault, target string) bool {
 	return err == nil
 }
 
+// maxNearestIDs caps how many suggestions a rejection lists.
+const maxNearestIDs = 3
+
+// NearestArtifactTargets returns up to maxNearestIDs existing artifacts of the
+// target's type whose id extends the target's id as a prefix (a short-form
+// link), as `<type>.<id>` wikilink targets in sorted order. Nil when the target
+// names no known type or nothing extends it.
+func NearestArtifactTargets(v *Vault, target string) []string {
+	dot := strings.IndexByte(target, '.')
+	if dot < 0 {
+		return nil
+	}
+	t, err := ParseType(target[:dot])
+	if err != nil {
+		return nil
+	}
+	bare := BareID(t, target)
+	entries, err := os.ReadDir(filepath.Join(v.Root, t.Dir()))
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		id := BareID(t, strings.TrimSuffix(e.Name(), ".md"))
+		if id != bare && strings.HasPrefix(id, bare) {
+			out = append(out, WikilinkTarget(t, id))
+			if len(out) == maxNearestIDs {
+				break
+			}
+		}
+	}
+	return out
+}
+
 func checkWikilinkTarget(v *Vault, field, target string) (UnresolvedLink, bool) {
 	path, ok := wikilinkTargetPath(v, target)
 	if !ok {
