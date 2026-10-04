@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/anvil"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/state"
 )
@@ -41,10 +42,21 @@ func newInstallFireSessionStartCmd() *cobra.Command {
 				return fmt.Errorf("resolving vault: %w", err)
 			}
 			startedAt := time.Now().UTC().Format(time.RFC3339)
-			return runCreateSession(cmd, v, payload.SessionID, "claude-code", startedAt, active, false, false)
+			if err := runCreateSession(cmd, v, payload.SessionID, "claude-code", startedAt, active, false, false); err != nil {
+				return err
+			}
+			printSessionGuide(cmd.OutOrStdout())
+			return nil
 		},
 	}
 	return cmd
+}
+
+// printSessionGuide teaches anvil and the Prose style rule from the binary, so a
+// repo whose shared AGENTS.md says nothing about anvil still gets both. Resume
+// and compact print it too: compaction can drop the copy from session start.
+func printSessionGuide(w io.Writer) {
+	fmt.Fprintf(w, "\n%s\n%s\n", anvil.SessionGuide, anvil.WritingBlock)
 }
 
 // Re-running resuming-session's Phase 1 here would resolve the handoff by
@@ -85,6 +97,7 @@ func newInstallFireSessionResumeCmd() *cobra.Command {
 				return err
 			}
 			w := cmd.OutOrStdout()
+			printSessionGuide(w)
 			fmt.Fprint(w, fireSessionResumePreamble)
 
 			var own *sessionItem

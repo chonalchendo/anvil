@@ -13,6 +13,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/anvil"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/schema"
 )
@@ -1588,9 +1589,13 @@ func TestInstallFireSessionStart_WritesSession(t *testing.T) {
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"install", "fire-session-start"})
 	cmd.SetIn(strings.NewReader(`{"session_id":"` + fakeSessionUUID + `","source":"startup","cwd":"/tmp","hook_event_name":"SessionStart"}`))
-	cmd.SetOut(&bytes.Buffer{})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("hook: %v", err)
+	}
+	if got := out.String(); !strings.Contains(got, anvil.SessionGuide) || !strings.Contains(got, anvil.WritingBlock) {
+		t.Errorf("output missing the session guide or Prose style block:\n%s", got)
 	}
 	a, err := core.LoadArtifact(filepath.Join(vault, "10-sessions", fakeSessionUUID+".md"))
 	if err != nil {
