@@ -229,5 +229,4 @@ func TestComponentDesign_ValidateEnforcesBoundaryHalf(t *testing.T) {
 	if err == nil || !strings.Contains(out+err.Error(), "Does not") {
 		t.Errorf("validate must name the missing heading: err=%v\n%s", err, out)
 	}
-
 }
