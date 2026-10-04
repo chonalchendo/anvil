@@ -14,8 +14,6 @@ var RequiredComponentDesignSections = []string{
 }
 
 // ValidateComponentDesign checks the boundary-half headings appear in order.
-// Run at create time only: the vault's pre-rename contracts carry no
-// `## Purpose`, so a vault-wide or append-time check would reject them.
 func ValidateComponentDesign(a *Artifact) []error {
 	return scanOrderedHeadings(a.Body, "component-design", RequiredComponentDesignSections)
 }

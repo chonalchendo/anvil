@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -186,5 +187,46 @@ func TestCreateComponentDesign_NoBodyGetsBoundarySkeleton(t *testing.T) {
 	}
 	if !strings.Contains(tmpl, "## Precedents") {
 		t.Errorf("--show-template missing boundary skeleton:\n%s", tmpl)
+	}
+}
+
+// TestComponentDesign_ValidateEnforcesBoundaryHalf pins that a design which
+// lost a boundary heading after create is refused by validate, and that a
+// plain append onto a valid design still lands.
+func TestComponentDesign_ValidateEnforcesBoundaryHalf(t *testing.T) {
+	setupVault(t)
+	if _, err := runArgs(t, "component-design", "kinds", "add", "data"); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runArgsJSON(t, "create", "component-design", "--project", "burgh",
+		"--title", "Probe", "--kind", "data", "--description", "d", "--json")
+	if err != nil {
+		t.Fatalf("create: %v\n%s", err, out)
+	}
+	var res map[string]string
+	if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &res); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := runArgs(t, "validate", res["path"]); err != nil {
+		t.Fatalf("scaffold must validate: %v\n%s", err, out)
+	}
+
+	out, err = runArgs(t, "append", "component-design", strings.TrimSuffix(filepath.Base(res["path"]), ".md"), "--body", "- PR #1: precedent", "--json")
+	if err != nil || !strings.Contains(out, `"status":"appended"`) {
+		t.Fatalf("append onto a valid design must succeed: err=%v\n%s", err, out)
+	}
+
+	a, err := core.LoadArtifact(res["path"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Body = strings.Replace(a.Body, "## Does not", "## Dropped", 1)
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err = runArgs(t, "validate", res["path"])
+	if err == nil || !strings.Contains(out+err.Error(), "Does not") {
+		t.Errorf("validate must name the missing heading: err=%v\n%s", err, out)
 	}
 }

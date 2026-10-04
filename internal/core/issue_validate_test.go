@@ -84,12 +84,10 @@ func TestValidateIssue_OutOfOrder(t *testing.T) {
 }
 
 func TestValidateIssue_NoLeadingNewline_AllSectionsPresent(t *testing.T) {
-	// body with no leading newline triggers the HasPrefix branch on the first
-	// heading; subsequent headings also butt up against each other, exercising
-	// the pos-advance path.
+	// the first heading sits on line one with no blank line before it.
 	a := &Artifact{
 		FrontMatter: map[string]any{"type": "issue"},
-		Body:        "## Problem## Non-goals## Verification### Direct### Indirect## Links\n",
+		Body:        "## Problem\n## Non-goals\n## Verification\n### Direct\n### Indirect\n## Links\n",
 	}
 	if errs := ValidateIssue(a); len(errs) != 0 {
 		t.Errorf("all headings present — expected no errors, got: %v", errs)
