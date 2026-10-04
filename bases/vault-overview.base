@@ -51,21 +51,6 @@ views:
       - property: status
         direction: ASC
   - type: table
-    name: Plans
-    filters:
-      and:
-        - type == "plan"
-    order:
-      - title
-      - file.name
-      - project
-      - status
-      - issue
-      - file.mtime
-    sort:
-      - property: file.mtime
-        direction: DESC
-  - type: table
     name: Decisions
     filters:
       and:

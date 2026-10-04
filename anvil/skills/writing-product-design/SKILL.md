@@ -26,7 +26,7 @@ A workflow for authoring a project's product-design artifact — the top of Anvi
 
 ## When to use
 
-- Starting a new project; need the vision artifact before milestones, plans, or code.
+- Starting a new project; need the vision artifact before milestones or code.
 - User signals defining the product (not how to build it).
 
 ## When not to use

@@ -21,7 +21,7 @@ func TestFindStubs(t *testing.T) {
 
 	// Two stubs at vault root — the Obsidian-wikilink shape.
 	mustWrite("issue.burgh.foo.md", "")
-	mustWrite("plan.anvil.bar.md", "")
+	mustWrite("milestone.anvil.bar.md", "")
 	// Real artifact in canonical dir — must NOT be flagged.
 	mustWrite("70-issues/anvil.real.md", "---\ntype: issue\n---\nbody\n")
 	// Non-type-prefixed root file — out of scope.
@@ -39,7 +39,7 @@ func TestFindStubs(t *testing.T) {
 	}
 	names := []string{filepath.Base(got[0].Path), filepath.Base(got[1].Path)}
 	sort.Strings(names)
-	want := []string{"issue.burgh.foo.md", "plan.anvil.bar.md"}
+	want := []string{"issue.burgh.foo.md", "milestone.anvil.bar.md"}
 	for i := range want {
 		if names[i] != want[i] {
 			t.Errorf("stub[%d]: got %s want %s", i, names[i], want[i])

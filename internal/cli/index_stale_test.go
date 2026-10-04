@@ -54,30 +54,28 @@ func TestCreateAbsorbsExternalDriftWithoutManualReindex(t *testing.T) {
 	}
 }
 
-// TestCreateUpdateAbsorbsExternalDriftWithoutManualReindex: plans use
+// TestCreateUpdateAbsorbsExternalDriftWithoutManualReindex: milestones use
 // deterministic slugs and support --update; verify the auto-reindex path
 // when the vault has external drift.
 func TestCreateUpdateAbsorbsExternalDriftWithoutManualReindex(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
-	// Seed a plan to rewrite via --update.
-	issueFixturePath := writeFixtureIssueDated(t, vault, "demo", "foo", "foo", "2026-01-01")
-	issueID := strings.TrimSuffix(filepath.Base(issueFixturePath), ".md")
-	execCmd(t, "create", "plan",
-		"--issue", "[[issue."+issueID+"]]",
+	// Seed a milestone to rewrite via --update.
+	execCmd(t, "create", "milestone",
 		"--project", "demo", "--title", "foo",
 		"--description", "original desc",
+		"--goal", "foo ships", "--kind", "bucket",
 		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
 	markVaultExternallyStale(t, vault, "demo.external.md")
 
-	execCmd(t, "create", "plan",
-		"--issue", "[[issue."+issueID+"]]",
+	execCmd(t, "create", "milestone",
 		"--project", "demo", "--title", "foo",
 		"--description", "rewritten desc",
+		"--goal", "foo ships", "--kind", "bucket",
 		"--tags", "domain/dev-tools", "--update")
 
-	got, err := os.ReadFile(filepath.Join(vault, "80-plans", "plan.demo.foo.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
+	got, err := os.ReadFile(filepath.Join(vault, "85-milestones", "milestone.demo.foo.md")) //nolint:gosec // path is test-controlled or application-managed; not user input
 	if err != nil {
 		t.Fatal(err)
 	}

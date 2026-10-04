@@ -56,7 +56,7 @@ For standalone runs, persist zero-or-more `learning` artifacts. Count is agent j
    anvil set learning <id> related --add <wikilink> [--add <wikilink> ...]
    ```
 
-   `related` points back to whatever the research informed (caller artifact, issue, plan); leave empty for pure curiosity.
+   `related` points back to whatever the research informed (caller artifact, issue); leave empty for pure curiosity.
 
 ## Boundaries
 

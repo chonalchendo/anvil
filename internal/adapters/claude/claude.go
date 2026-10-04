@@ -93,8 +93,8 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 	// why: anvil-builds are autonomous-by-design; the user opts in by invoking
 	// `anvil build`. Without bypassPermissions, claude --print auto-denies
 	// any tool that requires user approval (Write, Edit, Bash), silently
-	// no-oping most real engineering work. A plan-task-level override is
-	// reasonable but out of v0.1 scope.
+	// no-oping most real engineering work. A per-task override is out
+	// of v0.1 scope.
 	args := []string{
 		"--settings", settingsArg,
 		"--print",
@@ -154,7 +154,7 @@ func (a *Adapter) Run(ctx context.Context, req build.RunRequest) (build.RunResul
 	// Claude Code reads the prompt from stdin and expects EOF to begin processing.
 	go func() {
 		defer stdin.Close() //nolint:errcheck // close in goroutine; error not actionable after write
-		_, _ = io.WriteString(stdin, buildPrompt(req))
+		_, _ = io.WriteString(stdin, req.Instruction)
 	}()
 
 	// Drain stderr to a buffer for diagnostics; quota detection doesn't
@@ -377,24 +377,6 @@ func settingsJSON(req build.RunRequest) (string, error) {
 		return "", err
 	}
 	return string(b), nil
-}
-
-// buildPrompt prepends a "## Context files" block (if any) to req.Instruction.
-// Skills go through settings.json, not the prompt body.
-func buildPrompt(req build.RunRequest) string {
-	if len(req.Context) == 0 {
-		return req.Instruction
-	}
-	var b strings.Builder
-	b.WriteString("## Context files\n")
-	for _, c := range req.Context {
-		b.WriteString("- ")
-		b.WriteString(c)
-		b.WriteByte('\n')
-	}
-	b.WriteByte('\n')
-	b.WriteString(req.Instruction)
-	return b.String()
 }
 
 // scanStdout reads NDJSON from r with the 8 MiB scanner buffer required by

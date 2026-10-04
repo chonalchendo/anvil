@@ -36,16 +36,6 @@ var wikilinkRe = regexp.MustCompile(`^\[\[([^\]]+)\]\]$`)
 // bodyWikilinkRe matches wikilinks anywhere in body text (unanchored).
 var bodyWikilinkRe = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
 
-// typedSlotRelations are frontmatter field names whose value is a single typed
-// link to one specific artifact type. `anvil create plan` writes the `issue`
-// slot as a bare id (e.g. `issue: anvil.foo`) rather than wikilink form, so
-// the indexer accepts both shapes for these fields. The allowlist is scoped
-// to the slot where the bug was observed; extend deliberately if other typed
-// slots show the same writer/indexer mismatch.
-var typedSlotRelations = map[string]bool{
-	"issue": true,
-}
-
 // ArtifactRowFromFrontmatter projects parsed frontmatter onto an ArtifactRow.
 // If `id` is absent or empty in frontmatter, the path stem (filename without
 // extension) is used as the ID, keyed through core.IndexKey: the
@@ -189,17 +179,6 @@ func parseWikilink(source, relation, s string) (LinkRow, bool) {
 			id = core.IndexKey(t, target)
 		}
 		return LinkRow{Source: source, Target: id, Relation: relation, Anchor: ""}, true
-	}
-	// Typed-slot fallback: a bare `<project>.<slug>` id stands in for the
-	// wikilink form when the field name names a single artifact type.
-	if typedSlotRelations[relation] && strings.IndexByte(trimmed, '.') > 0 {
-		// Every allowlisted slot is named after the type it points at, so the
-		// bare id can be canonicalised onto the shape artifacts.id carries —
-		// otherwise this half of the join dangles.
-		if t, err := core.ParseType(relation); err == nil {
-			trimmed = core.IndexKey(t, trimmed)
-		}
-		return LinkRow{Source: source, Target: trimmed, Relation: relation, Anchor: ""}, true
 	}
 	return LinkRow{}, false
 }

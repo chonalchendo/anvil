@@ -27,7 +27,7 @@ The terminal contract is retrieval: every learning must be reachable later via `
 ## When this skill runs
 
 - The user explicitly commits to distilling: "let's distill", "wrap this up into a learning", "extract what we learned from <source>".
-- A source artifact exists and is named: a thread, a completed plan, a transcript, or a free reflection.
+- A source artifact exists and is named: a thread, a transcript, or a free reflection.
 - A single concrete claim crystallised mid-session and the user wants it persisted now: a verified diagnosis, an observed contract, a "this works / this doesn't" result. Triggers: "record this learning", "save this finding". The source is the live session itself.
 
 ## When not to use
@@ -65,12 +65,11 @@ Gate substitutes (do not confirm any of these with the operator):
 
 ## Phase 1 — Identify the source
 
-A named external artifact is **optional**. When the claim crystallised in-session, the source is the live conversation (the **Reflection** row) — no thread, plan, or transcript is required. Otherwise confirm one of the following with the user, then read the relevant files:
+A named external artifact is **optional**. When the claim crystallised in-session, the source is the live conversation (the **Reflection** row) — no thread or transcript is required. Otherwise confirm one of the following with the user, then read the relevant files:
 
 | Source kind | What to read |
 |---|---|
 | Thread + sessions | The thread file plus every session linked via `related: [[thread.<id>]]` |
-| Completed plan | The plan file plus build artifacts it produced |
 | Transcript | The transcript file |
 | Reflection | The conversation context only |
 
@@ -161,8 +160,8 @@ One paragraph. The claim, why it matters.
 
 ## Evidence
 
-Sources, session quotes, plan outcomes, transcript references that ground the claim.
-Use wikilinks: `[[session.<id>]]`, `[[plan.<id>]]`, etc.
+Sources, session quotes, transcript references that ground the claim.
+Use wikilinks: `[[session.<id>]]`, `[[issue.<id>]]`, etc.
 
 ## Caveats
 
@@ -205,7 +204,6 @@ Same commit as the learning files.
 | Source kind | Aftermath |
 |---|---|
 | Thread | Ask user: `closed | paused | stay open`. If `closed` and active, run `anvil thread deactivate`. Apply via `anvil set thread <id> status <state>`. |
-| Plan | None. |
 | Transcript | None. |
 | Reflection | None. |
 

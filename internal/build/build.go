@@ -125,7 +125,7 @@ type tokensJSON struct {
 // finish before the loop aborts. Cancellation flows from the parent ctx, never
 // from sibling failures. The engine owns dispatch only — the caller (driver)
 // owns work-selection and hands it dependency-ordered waves; see
-// contract.anvil.build-orchestration-contract.
+// component-design.anvil.build-orchestration-contract.
 func Build(ctx context.Context, waves [][]core.Task, opts Options) (*Summary, error) {
 	if opts.Concurrency <= 0 {
 		opts.Concurrency = 4
@@ -209,14 +209,7 @@ func Build(ctx context.Context, waves [][]core.Task, opts Options) (*Summary, er
 // TaskOutcome record. Never panics; never blocks indefinitely (the adapter
 // honours its own Timeout).
 func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) TaskOutcome {
-	model := t.Model
-	if model == "" {
-		model = defaultModel
-	}
-	effort := t.Effort
-	if effort == "" {
-		effort = defaultEffort
-	}
+	model, effort := defaultModel, defaultEffort
 	oc := TaskOutcome{
 		TaskID: t.ID, Wave: wave, Model: model, Effort: effort,
 	}
@@ -247,7 +240,7 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 	// Per-task Cwd wins over the global Options.Cwd: the driver pins each task's
 	// cut worktree here so the worker lands on the deterministic branch. The
 	// engine only routes the value — it never computes worktrees (it reads no
-	// vault); see contract.anvil.build-orchestration-contract.
+	// vault); see component-design.anvil.build-orchestration-contract.
 	cwd := t.Cwd
 	if cwd == "" {
 		cwd = opts.Cwd
@@ -257,8 +250,6 @@ func dispatchTask(ctx context.Context, t core.Task, wave int, opts Options) Task
 		Model:           model,
 		Effort:          effort,
 		Skills:          t.SkillsToLoad,
-		Context:         t.ContextToLoad,
-		Files:           t.Files,
 		Cwd:             cwd,
 		Timeout:         defaultRunTimeout,
 		DisallowedTools: t.DisallowedTools,

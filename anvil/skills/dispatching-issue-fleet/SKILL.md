@@ -29,7 +29,7 @@ In both modes, `--max` (default `5`, range 1–8) and `--allow-overlap` are pars
 
 ## Phase 2 — Pre-dispatch overlap check (declare-then-check)
 
-Each candidate issue declares the files it anticipates touching (read the issue body's `files:` hint or the linked plan's task `files[]`). Compare each candidate's set against every other candidate's. On collision, default-serialize: drop the loser to the next wave. Opt in to parallel collision with `--allow-overlap` (rare — only when the user has eyeballed the overlap and accepts the merge-conflict cost).
+Each candidate issue declares the files it anticipates touching (read the issue body's `files:` hint). Compare each candidate's set against every other candidate's. On collision, default-serialize: drop the loser to the next wave. Opt in to parallel collision with `--allow-overlap` (rare — only when the user has eyeballed the overlap and accepts the merge-conflict cost).
 
 The overlap check is one-line declarations plus eyeball compare — pre-dispatch only. Per-worker post-edit enforcement is handled by `anvil fleet scope-audit` inside each worker before its PR opens (see Scope-change pause protocol).
 

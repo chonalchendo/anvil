@@ -71,8 +71,6 @@ func jsonWarnings(similar []string, findings []*errfmt.ValidationError) []map[st
 func createDrift(t core.Type, fm, existing map[string]any, body, existingBody string) string {
 	scalarFields := []string{"title", "description", "project"}
 	switch t {
-	case core.TypePlan:
-		scalarFields = append(scalarFields, "issue")
 	case core.TypeSweep:
 		scalarFields = append(scalarFields, "scope", "breaking")
 	case core.TypeInbox:

@@ -45,7 +45,7 @@ If the user is clearly already brainstorming — asking questions, weighing trad
 
 - No tagging, linking, folder choice, or project inference.
 - No reading of other inbox items, no dedup, no merge, no cross-reference.
-- No promotion to brainstorm / issue / plan / build.
+- No promotion to brainstorm / issue / build.
 - No editing or deletion of prior captures.
 - No frontmatter authoring beyond what the CLI generates.
 

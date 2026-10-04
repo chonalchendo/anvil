@@ -30,7 +30,7 @@ var compiler = func() *jsonschema.Compiler {
 	return c
 }()
 
-// Validate runs frontmatter against the schema for typeName (e.g. "issue", "plan").
+// Validate runs frontmatter against the schema for typeName (e.g. "issue", "milestone").
 func Validate(typeName string, fm map[string]any) error {
 	sch, err := compiler.Compile("https://anvil.dev/schemas/" + typeName + ".schema.json")
 	if err != nil {

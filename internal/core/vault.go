@@ -25,7 +25,6 @@ var VaultDirs = []string{
 	"50-sweeps",
 	"60-threads",
 	"70-issues",
-	"80-plans",
 	"85-milestones",
 	"90-bases",
 	"99-archive",

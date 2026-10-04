@@ -20,7 +20,7 @@ metadata:
 
 # Opening Thread
 
-Workflow for opening a research thread — the live workspace for cross-session inquiry. Threads sit in the **knowledge pipeline**, parallel to the build pipeline (inbox → issue → plan). They are the workspace; learnings are the durable output.
+Workflow for opening a research thread — the live workspace for cross-session inquiry. Threads sit in the **knowledge pipeline**, parallel to the build pipeline (inbox → issue). They are the workspace; learnings are the durable output.
 
 ## When this skill runs
 
@@ -31,7 +31,7 @@ Workflow for opening a research thread — the live workspace for cross-session 
 ## When not to use
 
 - The user is dumping a thought without committing → `capturing-inbox`.
-- Project-tied research with an existing issue → research happens in plan-execution context.
+- Project-tied research with an existing issue → research happens in issue-execution context.
 - The thread already exists and the user is resuming → no skill needed; sessions auto-bind to active thread.
 
 ---

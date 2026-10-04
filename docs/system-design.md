@@ -50,20 +50,20 @@ Anvil's knowledge structure follows a layered `seed → milestone → issue` mod
 ```
 system-design (seed)  →  milestone  →  issue
                               ↕
-                          contract (cross-cutting)
+                          component design (cross-cutting)
 ```
 
 **Layer 1 — system-design (seed).** System-design is deliberately thin — a rough high-level orientation to the codebase shape, key invariants, and risks. You cannot fully plan structure up front; attempting to do so produces a document that conflicts with reality before the first sprint closes. The system-design doc is a seed, not a blueprint.
 
 **Layer 2 — milestone → issue.** Work is shaped into milestones with closed acceptance criteria and decomposed into issues. Issues carry the `goal:` terminal predicate and a `## Verification` block; milestones carry the scope boundary. The hierarchy is `system-design (seed) → milestone → issue`.
 
-**Layer 3 — contract (cross-cutting, emergent).** A contract is a `does / does-not` boundary plus code-design guardrails for a component family (e.g. `data`, `analytics`). Unlike system-design, which is authored up front as a seed, a contract **accretes as building reveals structure** — it is grown from observations made during implementation, not distilled from a fuller design that exists elsewhere. Contracts load as binding context at issue-write, work, and review time; they carry architectural coherence across parallel workers and across time.
+**Layer 3 — component design (cross-cutting, emergent).** A component design is a `does / does-not` boundary plus code-design guardrails for a component family (e.g. `data`, `analytics`). Unlike system-design, which is authored up front as a seed, a component design **accretes as building reveals structure** — it is grown from observations made during implementation, not distilled from a fuller design that exists elsewhere. Component designs load as binding context at issue-write, work, and review time; they carry architectural coherence across parallel workers and across time. An optional design half (interfaces, shape, flow, invariants, decisions, risks) is written just in time when the milestone building the component starts, gated in `writing-component-design`.
 
-**Complement, not replacement.** Contracts complement system-design; they do not replace it. System-design captures the deliberate top-level shape and the "why this shape" rationale once. Contracts capture the emergent boundaries that only become visible as slices are built. Detail flows `build → contract` (loaded as context), not `design → implementation`. A contract that contradicts the system-design indicates the design needs a targeted update, not that one supersedes the other.
+**Complement, not replacement.** Component designs complement system-design; they do not replace it. System-design captures the deliberate top-level shape and the "why this shape" rationale once. Component designs capture the emergent boundaries that only become visible as slices are built. Detail flows `build → component design` (loaded as context), not `design → implementation`. A component design that contradicts the system-design indicates the design needs a targeted update, not that one supersedes the other.
 
-**When to author vs load.** Author a new contract when a component family has enough boundary structure to name (typically at the start of a milestone that owns it). Load an existing contract whenever writing, working, or reviewing an issue that touches the boundary — the governing contract is discoverable via `anvil show issue --json` once linked.
+**When to author vs load.** Author a new component design when a component family has enough boundary structure to name (typically at the start of a milestone that owns it). Load an existing component design whenever writing, working, or reviewing an issue that touches the boundary — the governing component design is discoverable via `anvil show issue --json` once linked.
 
-See [`vault-schemas.md`](vault-schemas.md#contract) for the contract frontmatter schema and kind registry.
+See [`vault-schemas.md`](vault-schemas.md#component-design) for the component design frontmatter schema and kind registry.
 
 ## Architectural overview
 
@@ -88,7 +88,7 @@ The orchestrator is deliberately small. Coding work happens inside agent CLI sub
 
 **CLI** (`internal/cli/`). Cobra root with fang for styling. Sub-commands: `build`, `init`, `status`, `cost`, `skill`. Parses flags, loads the project manifest, hands a parsed graph to the orchestrator core. No business logic; pure dispatch.
 
-**Orchestrator core** (`internal/core/`). Wave executor walks the topological order of tasks; in v0.1, sequentially. Manifest loader parses the project's plan into a wave graph. Skill registry scans `skills/` at startup and produces the list compiled into each spawn's state dir. No registry file — discovery is by file presence (invariant).
+**Orchestrator core** (`internal/core/`). Wave executor walks the topological order of tasks; in v0.1, sequentially. The build driver turns the ready issue graph into task waves. Skill registry scans `skills/` at startup and produces the list compiled into each spawn's state dir. No registry file — discovery is by file presence (invariant).
 
 **Agent adapters** (`internal/adapters/`). One package per agent. Each implements the `AgentAdapter` interface defined in [AgentAdapter contract](system-design/adapters.md). v0.1 ships `claude-code`; `codex` arrives in v0.2. Adapters spawn the CLI subprocess with a per-spawn state-dir env var, parse NDJSON output line-by-line, and surface a `NormalizedEvent` channel.
 
@@ -166,7 +166,7 @@ graph LR
 
 **Per-task attribution** via worktree/cwd is how subscription-billed observability tools (`ccusage`, etc.) group sessions.
 
-**Fresh-session discipline + plan files on disk** is the dominant pattern for managing context rot — Anvil's wave executor commits to it (one fresh subprocess per task) and the vault's `80-plans/` keeps the canonical handoff durable.
+**Fresh-session discipline + issue files on disk** is the dominant pattern for managing context rot — Anvil's wave executor commits to it (one fresh subprocess per task) and the vault's `70-issues/` keeps the canonical handoff durable.
 
 **Always-on layer (`AGENTS.md`, ≤5k tokens):**
 
@@ -202,6 +202,6 @@ See `product-design.md` for product-side beliefs. Direct rationale only here.
 
 **Why sequential v0.1.** Per-spawn isolation works trivially without git worktree management, failure modes are simpler with one process to monitor, and the wave-graph machinery still earns its place by determining task order. Concurrent waves arrive in v0.2 with worktrees, a default cap of 4, and backoff — added with eyes open after the sequential path proves out.
 
-**Why a fixed topology.** An LLM-based agent can produce almost anything; a harness designed against that full range is intractable. Anvil narrows the variety on purpose — one adapter contract, one artifact hierarchy (product-design → milestone → plan → issue), one skill-pack shape, one vault layout. Each commitment shrinks the surface the harness has to cover and makes guides and sensors composable. Skill packs are templates over this topology; companion packs slot into the same shape rather than introducing new ones. Product-side rationale lives in `product-design.md` § Why it matters; the operational consequence is that adding a new artifact type, adapter, or top-level vault tier is a topology change, not a feature.
+**Why a fixed topology.** An LLM-based agent can produce almost anything; a harness designed against that full range is intractable. Anvil narrows the variety on purpose — one adapter contract, one artifact hierarchy (product-design → milestone → issue), one skill-pack shape, one vault layout. Each commitment shrinks the surface the harness has to cover and makes guides and sensors composable. Skill packs are templates over this topology; companion packs slot into the same shape rather than introducing new ones. Product-side rationale lives in `product-design.md` § Why it matters; the operational consequence is that adding a new artifact type, adapter, or top-level vault tier is a topology change, not a feature.
 
 **Why local-only telemetry.** The data is sensitive (prompts, tool calls, costs) and the user's machine is the only place it needs to live for `anvil cost` and `anvil status` to work. Network egress would add a privacy surface for no product benefit. If a user opts into export later, that's an explicit decision, not a default.

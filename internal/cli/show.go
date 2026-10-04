@@ -27,17 +27,15 @@ func newShowCmd() *cobra.Command {
 		flagBody       bool
 		flagNoBody     bool
 		flagValidate   bool
-		flagWaves      bool
-		flagTask       string
 		flagNoIncoming bool
 		flagLinks      string
 	)
 
 	cmd := &cobra.Command{
 		Use:     "show <type> <id>",
-		Short:   "Display a vault artifact (body included by default for bounded types: inbox, decision, issue, sweep; pass --no-body to suppress, or --body to opt in for plan). Also accepts type=skill to print a bundled SKILL.md body.",
+		Short:   "Display a vault artifact (body included by default for bounded types: inbox, decision, issue, sweep; pass --no-body to suppress or --body to opt in). Also accepts type=skill to print a bundled SKILL.md body.",
 		Args:    namedArgs("anvil show <type> <id>", []string{"<type>", "<id>"}, 2, 2),
-		Example: "  anvil show issue issue-42\n  anvil show issue issue-42 --no-body\n  anvil show issue issue-42 --json\n  anvil show issue issue-42 --links contract --body\n  anvil show plan ANV-142\n  anvil show plan ANV-142 --task T3\n  anvil show plan ANV-142 --task T3 --body\n  anvil show skill capturing-inbox",
+		Example: "  anvil show issue issue-42\n  anvil show issue issue-42 --no-body\n  anvil show issue issue-42 --json\n  anvil show issue issue-42 --links component-design --body\n  anvil show skill capturing-inbox",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Skills are bundled, not vault artifacts — short-circuit before
 			// ParseType so `anvil show skill <name>` reads from the embedded
@@ -71,18 +69,6 @@ func newShowCmd() *cobra.Command {
 			if flagNoBody {
 				includeBody = false
 			}
-			if flagTask != "" {
-				if t != core.TypePlan {
-					return fmt.Errorf("--task is only valid for plan artifacts")
-				}
-				if flagValidate || flagWaves {
-					return fmt.Errorf("--task cannot be combined with --validate or --waves")
-				}
-				return runShowPlanTask(cmd, v, args[1], flagTask, flagJSON, includeBody)
-			}
-			if t == core.TypePlan && (flagValidate || flagWaves) {
-				return runShowPlan(cmd, v, args[1], flagValidate, flagWaves)
-			}
 			if flagValidate {
 				return runShowValidate(cmd, v, t, args[1], flagJSON)
 			}
@@ -98,11 +84,9 @@ func newShowCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
-	cmd.Flags().BoolVar(&flagBody, "body", false, "include body (capped at 500 lines); opt-in for plan, default for bounded types")
+	cmd.Flags().BoolVar(&flagBody, "body", false, "include body (capped at 500 lines); default for bounded types")
 	cmd.Flags().BoolVar(&flagNoBody, "no-body", false, "exclude body (frontmatter only); overrides per-type default")
-	cmd.Flags().BoolVar(&flagValidate, "validate", false, "validate artifact (plan: full DAG; other types: schema + wikilinks)")
-	cmd.Flags().BoolVar(&flagWaves, "waves", false, "render plan waves as mermaid (plan only)")
-	cmd.Flags().StringVar(&flagTask, "task", "", "scope output to a single task (plan only; compose with --body for the section text)")
+	cmd.Flags().BoolVar(&flagValidate, "validate", false, "validate artifact (schema + wikilinks)")
 	cmd.Flags().BoolVar(&flagNoIncoming, "no-incoming", false, "suppress the Incoming links section (artifacts whose related[]/etc. point at this one)")
 	cmd.Flags().StringVar(&flagLinks, "links", "", "print wikilink targets of the given type (one per line; --json emits a JSON array; add --body to expand each target's body)")
 	return cmd

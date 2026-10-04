@@ -34,26 +34,6 @@ func TestValidate_RejectsMissingTitle(t *testing.T) {
 	}
 }
 
-func TestValidate_PlanExecutable_RequiresVerify(t *testing.T) {
-	fm := map[string]any{
-		"type": "plan", "id": "ANV-1", "slug": "x", "title": "x",
-		"description": "x",
-		"created":     "2026-04-30", "updated": "2026-04-30",
-		"status": "draft", "plan_version": 1,
-		"issue": "[[i]]",
-		"tasks": []any{
-			map[string]any{
-				"id": "T1", "title": "x", "kind": "tdd",
-				"files": []any{"a.go"}, "depends_on": []any{},
-				// verify intentionally omitted
-			},
-		},
-	}
-	if err := Validate("plan", fm); err == nil {
-		t.Fatal("expected validation error for missing verify")
-	}
-}
-
 func TestValidate_Decision_NewShape(t *testing.T) {
 	fm := map[string]any{
 		"type": "decision", "title": "Use Go", "description": "x", "created": "2026-04-29",
@@ -164,7 +144,7 @@ func TestValidate_Milestone_RequiresKind(t *testing.T) {
 func TestValidate_Milestone_KindScopedAcceptsEmptyAcceptance(t *testing.T) {
 	// Schema-level kind+acceptance gate is intentionally absent: the issue's
 	// acceptance criteria called for a warn, not a hard reject, and the
-	// transition-time gate is tracked separately. See plan locked decision D3.
+	// transition-time gate is tracked separately.
 	fm := map[string]any{
 		"type": "milestone", "title": "M", "description": "x",
 		"created": "2026-04-29", "status": "planned", "project": "anvil",
@@ -247,34 +227,34 @@ func TestValidate_Milestone_RejectsSchedulingFields(t *testing.T) {
 	}
 }
 
-func TestValidate_Contract_NewShape(t *testing.T) {
+func TestValidate_ComponentDesign_NewShape(t *testing.T) {
 	fm := map[string]any{
-		"type": "contract", "title": "Data boundaries", "description": "what the pipeline does / does not",
+		"type": "component-design", "title": "Data boundaries", "description": "what the pipeline does / does not",
 		"created": "2026-06-02", "updated": "2026-06-02",
 		"status": "draft", "project": "burgh", "kind": "data",
 		"tags": []any{"domain/property"},
 	}
-	if err := Validate("contract", fm); err != nil {
-		t.Fatalf("expected valid contract: %v", err)
+	if err := Validate("component-design", fm); err != nil {
+		t.Fatalf("expected valid component design: %v", err)
 	}
 }
 
-func TestValidate_Contract_RequiresKind(t *testing.T) {
+func TestValidate_ComponentDesign_RequiresKind(t *testing.T) {
 	fm := map[string]any{
-		"type": "contract", "title": "X", "description": "x",
+		"type": "component-design", "title": "X", "description": "x",
 		"created": "2026-06-02", "status": "draft", "project": "burgh",
 	}
-	if err := Validate("contract", fm); err == nil {
+	if err := Validate("component-design", fm); err == nil {
 		t.Error("expected rejection: kind is required")
 	}
 }
 
-func TestValidate_Contract_RejectsBadStatus(t *testing.T) {
+func TestValidate_ComponentDesign_RejectsBadStatus(t *testing.T) {
 	fm := map[string]any{
-		"type": "contract", "title": "X", "description": "x",
+		"type": "component-design", "title": "X", "description": "x",
 		"created": "2026-06-02", "status": "ratified", "project": "burgh", "kind": "data",
 	}
-	if err := Validate("contract", fm); err == nil {
+	if err := Validate("component-design", fm); err == nil {
 		t.Error("expected rejection: status enum")
 	}
 }
@@ -360,68 +340,6 @@ func TestValidate_Issue_RejectsCutFields(t *testing.T) {
 	}
 }
 
-func TestValidate_Plan_NewShape_AcceptsModelEffort(t *testing.T) {
-	fm := map[string]any{
-		"type": "plan", "id": "anvil.streaming-token-counter",
-		"slug": "streaming-token-counter", "title": "x", "description": "x",
-		"created": "2026-04-30", "updated": "2026-04-30",
-		"status": "draft", "plan_version": 1,
-		"issue": "[[issue.anvil.streaming-token-counter]]",
-		"tags":  []any{"domain/dev-tools"},
-		"tasks": []any{
-			map[string]any{
-				"id": "T1", "title": "x", "kind": "tdd",
-				"files": []any{"a.go"}, "depends_on": []any{},
-				"verify": "go test ./...",
-				"model":  "claude-opus-4-7",
-				"effort": "high",
-			},
-		},
-	}
-	if err := Validate("plan", fm); err != nil {
-		t.Fatalf("expected valid: %v", err)
-	}
-}
-
-func TestValidate_Plan_RejectsMilestoneField(t *testing.T) {
-	fm := map[string]any{
-		"type": "plan", "id": "anvil.x", "slug": "x", "title": "x", "description": "x",
-		"created": "2026-04-30", "updated": "2026-04-30",
-		"status": "draft", "plan_version": 1,
-		"issue":     "[[issue.anvil.x]]",
-		"milestone": "[[milestone.anvil.m1]]",
-		"tasks": []any{
-			map[string]any{
-				"id": "T1", "title": "x", "kind": "tdd",
-				"files": []any{"a.go"}, "depends_on": []any{},
-				"verify": "go test ./...",
-			},
-		},
-	}
-	if err := Validate("plan", fm); err == nil {
-		t.Error("expected rejection: plan.milestone removed")
-	}
-}
-
-func TestValidate_Plan_RejectsBadModel(t *testing.T) {
-	fm := map[string]any{
-		"type": "plan", "id": "anvil.x", "slug": "x", "title": "x", "description": "x",
-		"created": "2026-04-30", "updated": "2026-04-30",
-		"status": "draft", "plan_version": 1, "issue": "[[i]]",
-		"tasks": []any{
-			map[string]any{
-				"id": "T1", "title": "x", "kind": "tdd",
-				"files": []any{"a.go"}, "depends_on": []any{},
-				"verify": "go test ./...",
-				"model":  "gpt-5",
-			},
-		},
-	}
-	if err := Validate("plan", fm); err == nil {
-		t.Error("expected rejection: model must be Anvil-supported enum")
-	}
-}
-
 func TestValidate_Decision_RequiresDomainAndActivityTag(t *testing.T) {
 	base := map[string]any{
 		"type": "decision", "title": "x", "description": "x",
@@ -445,36 +363,6 @@ func TestValidate_Decision_RequiresDomainAndActivityTag(t *testing.T) {
 		fm := maps.Clone(base)
 		fm["tags"] = []any{"domain/dbt", "activity/research"}
 		if err := Validate("decision", fm); err != nil {
-			t.Errorf("expected accept: %v", err)
-		}
-	})
-}
-
-func TestValidate_Plan_RequiresDomainTag(t *testing.T) {
-	base := map[string]any{
-		"type": "plan", "id": "anvil.x", "slug": "x",
-		"title": "x", "description": "x",
-		"created": "2026-05-06", "updated": "2026-05-06",
-		"status": "draft", "plan_version": 1,
-		"issue": "[[issue.anvil.x]]",
-		"tasks": []any{
-			map[string]any{
-				"id": "T1", "title": "x", "kind": "tdd",
-				"files": []any{"a.go"}, "depends_on": []any{}, "verify": "true",
-			},
-		},
-	}
-	t.Run("rejects no domain", func(t *testing.T) {
-		fm := maps.Clone(base)
-		fm["tags"] = []any{}
-		if err := Validate("plan", fm); err == nil {
-			t.Error("expected rejection")
-		}
-	})
-	t.Run("accepts domain", func(t *testing.T) {
-		fm := maps.Clone(base)
-		fm["tags"] = []any{"domain/dev-tools"}
-		if err := Validate("plan", fm); err != nil {
 			t.Errorf("expected accept: %v", err)
 		}
 	})
@@ -669,18 +557,6 @@ func TestValidate_Description_Required(t *testing.T) {
 			"type": "issue", "title": "x", "created": "2026-05-05",
 			"status": "open", "project": "p", "severity": "low",
 		}},
-		{"plan", map[string]any{
-			"type": "plan", "id": "anvil.x", "slug": "x", "title": "x",
-			"created": "2026-05-05", "updated": "2026-05-05",
-			"status": "draft", "plan_version": 1, "issue": "[[i]]",
-			"tasks": []any{
-				map[string]any{
-					"id": "T1", "title": "x", "kind": "tdd",
-					"files": []any{"a.go"}, "depends_on": []any{},
-					"verify": "go test ./...",
-				},
-			},
-		}},
 		{"decision", map[string]any{
 			"type": "decision", "title": "x", "created": "2026-05-05",
 			"status": "accepted", "date": "2026-05-05",
@@ -781,52 +657,6 @@ func TestValidate_Issue_RequiresDomainTag(t *testing.T) {
 			t.Error("expected rejection for missing tags field")
 		}
 	})
-}
-
-func TestValidate_Plan_AcceptsContextToLoadAndXhigh(t *testing.T) {
-	fm := map[string]any{
-		"type": "plan", "id": "anvil.x", "slug": "x",
-		"title": "x", "description": "x",
-		"created": "2026-05-07", "updated": "2026-05-07",
-		"status": "draft", "plan_version": 1,
-		"issue": "[[issue.anvil.x]]",
-		"tags":  []any{"domain/dev-tools"},
-		"tasks": []any{
-			map[string]any{
-				"id": "T1", "title": "x", "kind": "tdd",
-				"files": []any{"a.go"}, "depends_on": []any{},
-				"verify":          "go test ./...",
-				"effort":          "xhigh",
-				"skills_to_load":  []any{"tdd"},
-				"context_to_load": []any{"docs/code-design.md", "docs/go-conventions.md"},
-			},
-		},
-	}
-	if err := Validate("plan", fm); err != nil {
-		t.Fatalf("expected valid: %v", err)
-	}
-}
-
-func TestValidate_Plan_RejectsBadEffort(t *testing.T) {
-	fm := map[string]any{
-		"type": "plan", "id": "anvil.x", "slug": "x",
-		"title": "x", "description": "x",
-		"created": "2026-05-07", "updated": "2026-05-07",
-		"status": "draft", "plan_version": 1,
-		"issue": "[[issue.anvil.x]]",
-		"tags":  []any{"domain/dev-tools"},
-		"tasks": []any{
-			map[string]any{
-				"id": "T1", "title": "x", "kind": "tdd",
-				"files": []any{"a.go"}, "depends_on": []any{},
-				"verify": "go test ./...",
-				"effort": "extreme",
-			},
-		},
-	}
-	if err := Validate("plan", fm); err == nil {
-		t.Error("expected rejection: effort must be in low|medium|high|xhigh")
-	}
 }
 
 func TestIssue_ReproductionAnchorValid(t *testing.T) {

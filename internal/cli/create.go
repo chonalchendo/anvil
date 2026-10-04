@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -29,7 +28,6 @@ type templateData struct {
 	SuggestedProject string
 	ID               string
 	Slug             string
-	Issue            string
 	ShortID          string
 	Source           string
 	SessionID        string
@@ -53,10 +51,8 @@ func newCreateCmd() *cobra.Command {
 		flagSuggestedProject string
 		flagSlug             string
 		flagJSON             bool
-		flagIssue            string
 		flagBody             string
 		flagBodyFile         string
-		flagFrom             string
 		flagBreaking         bool
 		flagScope            string
 		flagSessionID        string
@@ -113,81 +109,6 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			// --from ingests a complete authored artifact (frontmatter + body) so
-			// callers can avoid the create-stub-then-edit round-trip when the
-			// frontmatter carries rich content (e.g. plan tasks). CLI flags still
-			// own identity (id, created, slug) and override matching file fields
-			// when explicitly set; gaps fall through to the file's values.
-			var inputFM map[string]any
-			var inputBody string
-			if flagFrom != "" {
-				if t != core.TypePlan {
-					return fmt.Errorf("--from is supported for plan only")
-				}
-				if flagBody != "" {
-					return errors.New("--from and --body are mutually exclusive")
-				}
-				if flagBodyFile != "" {
-					return errors.New("--from and --body-file are mutually exclusive")
-				}
-				var content []byte
-				if flagFrom == "-" {
-					b, err := io.ReadAll(cmd.InOrStdin())
-					if err != nil {
-						return fmt.Errorf("read stdin: %w", err)
-					}
-					content = b
-				} else {
-					b, err := os.ReadFile(flagFrom) //nolint:gosec // G304: flagFrom is the --from flag; reading a path the invoking user supplied is the command's purpose
-					if err != nil {
-						return fmt.Errorf("read %s: %w", flagFrom, err)
-					}
-					content = b
-				}
-				a, err := core.ParseArtifact(content)
-				if err != nil {
-					return fmt.Errorf("parse --from content: %w", err)
-				}
-				// Reject non-plan inputs early so fields like `severity` from an
-				// issue can't leak through the later merge into a plan artifact.
-				if ty, ok := a.FrontMatter["type"].(string); ok && ty != "" && ty != "plan" {
-					return fmt.Errorf("--from input has type %q; expected plan", ty)
-				}
-				inputFM, inputBody = a.FrontMatter, a.Body
-
-				// CLI-set values win; file fills gaps for identity fields the
-				// existing per-type required-flag checks already cover.
-				if !cmd.Flags().Changed("title") {
-					if s, ok := inputFM["title"].(string); ok {
-						flagTitle = s
-					}
-				}
-				if !cmd.Flags().Changed("description") {
-					if s, ok := inputFM["description"].(string); ok {
-						flagDescription = s
-					}
-				}
-				if !cmd.Flags().Changed("project") {
-					if s, ok := inputFM["project"].(string); ok {
-						flagProject = s
-					}
-				}
-				if !cmd.Flags().Changed("issue") {
-					if s, ok := inputFM["issue"].(string); ok {
-						flagIssue = s
-					}
-				}
-				if !cmd.Flags().Changed("tags") {
-					if vs, ok := inputFM["tags"].([]any); ok {
-						for _, x := range vs {
-							if s, ok := x.(string); ok {
-								flagTags = append(flagTags, s)
-							}
-						}
-					}
-				}
-			}
-
 			// Title-presence and field-cap checks form the pre-resolution tier:
 			// both are computable without a vault, so they fast-fail ahead of
 			// vault/project resolution (a missing project must not mask a cap
@@ -232,12 +153,9 @@ func newCreateCmd() *cobra.Command {
 				project = p.Slug
 			}
 
-			// Per-type required-flag checks, three tiers — see
+			// Per-type required-flag checks, two tiers — see
 			// collectPreValidationErrors.
-			preValidationErrors, err := collectPreValidationErrors(cmd, t, flagIssue, flagTopic)
-			if err != nil {
-				return err
-			}
+			preValidationErrors := collectPreValidationErrors(cmd, t, flagTopic)
 
 			// Derive description from title when omitted for spine types that
 			// require it, mirroring promote's single-step stub behaviour (see
@@ -246,17 +164,7 @@ func newCreateCmd() *cobra.Command {
 				flagDescription = flagTitle
 			}
 
-			// Plan default slug derives from the linked issue's slug, not the
-			// plan's own title. Same-slug pairing makes drift between linked
-			// artifacts a typo, not the default. --slug still wins; pass it to
-			// override (e.g. issue→plans fan-out where each plan needs its own
-			// slug).
 			slugDefault := flagSlug
-			if slugDefault == "" && t == core.TypePlan && flagIssue != "" {
-				if s, ok := slugFromIssueLink(flagIssue, project); ok {
-					slugDefault = s
-				}
-			}
 
 			// A missing --topic blocks ID allocation entirely on the
 			// topic-ordinal types (decision, thread), so resolution is skipped
@@ -294,23 +202,18 @@ func newCreateCmd() *cobra.Command {
 
 			var body string
 			// userAuthoredBody flags whether the agent supplied body content
-			// (via --body, --body-file, --body -, piped stdin, or --from). When
+			// (via --body, --body-file, --body -, or piped stdin). When
 			// true, validation runs body checks (section shape + wikilink
 			// resolution). When false, the body is a CLI-generated stub and only
 			// the frontmatter is validated.
 			var userAuthoredBody bool
-			if inputFM != nil {
-				body = inputBody
-				userAuthoredBody = true
-			} else {
-				body, err = readBody(cmd, flagBody, flagBodyFile)
-				if err != nil {
-					return err
-				}
-				userAuthoredBody = cmd.Flags().Changed("body") || cmd.Flags().Changed("body-file") || body != ""
-				if body == "" && !cmd.Flags().Changed("body") && !cmd.Flags().Changed("body-file") {
-					body = core.ScaffoldSections(sectionsForType(t))
-				}
+			body, err = readBody(cmd, flagBody, flagBodyFile)
+			if err != nil {
+				return err
+			}
+			userAuthoredBody = cmd.Flags().Changed("body") || cmd.Flags().Changed("body-file") || body != ""
+			if body == "" && !cmd.Flags().Changed("body") && !cmd.Flags().Changed("body-file") {
+				body = core.ScaffoldSections(sectionsForType(t))
 			}
 
 			created := time.Now().UTC().Format("2006-01-02")
@@ -324,7 +227,6 @@ func newCreateCmd() *cobra.Command {
 				SuggestedProject: flagSuggestedProject,
 				ID:               id,
 				Slug:             core.Slugify(flagTitle),
-				Issue:            flagIssue,
 				Breaking:         flagBreaking,
 				Scope:            flagScope,
 				Kind:             flagKind,
@@ -354,20 +256,6 @@ func newCreateCmd() *cobra.Command {
 					anyAcc[i] = s
 				}
 				fm["acceptance"] = anyAcc
-			}
-
-			// Overlay --from frontmatter onto the template-rendered fm. Identity
-			// fields stay CLI/template-owned; CLI-controllable fields were already
-			// folded in above; everything else (tasks, verification, plan-specific
-			// authoring) comes from the file.
-			for k, v := range inputFM {
-				switch k {
-				case "type", "id", "slug", "created", "updated", "status", "plan_version",
-					"title", "description", "project", "issue", "tags",
-					"severity", "milestone", "acceptance":
-					continue
-				}
-				fm[k] = v
 			}
 
 			// Templates render flag-backed schema-required scalars
@@ -431,13 +319,6 @@ func newCreateCmd() *cobra.Command {
 				return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
 			}
 
-			// The T1 placeholder is a bootstrap convenience for the empty-handed
-			// path. With --from the user is explicitly authoring the artifact,
-			// so respect their (possibly empty) body rather than overwriting it.
-			if t == core.TypePlan && body == "" && flagFrom == "" {
-				body = "\n## Task: T1\n\n" + strings.Repeat(
-					"Replace this with the RED test, expected failure, GREEN sketch, verify+commit. ", 4) + "\n"
-			}
 			a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("saving artifact: %w", err)
@@ -466,10 +347,8 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagSuggestedType, "suggested-type", "", "suggested type (inbox only)")
 	cmd.Flags().StringVar(&flagSuggestedProject, "suggested-project", "", "suggested project (inbox only)")
 	cmd.Flags().StringVar(&flagSlug, "slug", "", "override the title-derived slug (must match ^[a-z0-9][a-z0-9-]*$)")
-	cmd.Flags().StringVar(&flagIssue, "issue", "", "issue wikilink (required for plan)")
 	cmd.Flags().StringVar(&flagBody, "body", "", "artifact body content (literal, or '-' to read stdin)")
 	cmd.Flags().StringVar(&flagBodyFile, "body-file", "", "read artifact body from <path>; mutually exclusive with --body and piped stdin")
-	cmd.Flags().StringVar(&flagFrom, "from", "", "read a complete artifact (frontmatter + body) from <path> or - for stdin; plan only")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON output")
 	cmd.Flags().BoolVar(&flagBreaking, "breaking", false, "sweep is breaking (required for sweep, must be explicit)")
 	cmd.Flags().StringVar(&flagScope, "scope", "", "sweep scope (required for sweep)")
@@ -484,7 +363,7 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagSeverity, "severity", "", "issue severity (low|medium|high|critical; issue only)")
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "milestone slug or wikilink to assign (issue only)")
 	cmd.Flags().StringArrayVar(&flagAcceptance, "acceptance", nil, "acceptance criterion to add (repeatable; issue, milestone)")
-	cmd.Flags().StringVar(&flagKind, "kind", "", "contract kind (registered label, required — register via `anvil contract kinds add`) or milestone kind (scoped|bucket, defaults to scoped)")
+	cmd.Flags().StringVar(&flagKind, "kind", "", "component design kind (registered label, required — register via `anvil component-design kinds add`) or milestone kind (scoped|bucket, defaults to scoped)")
 	cmd.Flags().BoolVar(&flagShowTemplate, "show-template", false, "print the required body skeleton + tag rules for <type> and exit (learning, issue)")
 	cmd.Flags().BoolVar(&flagSkipVerifyPredicates, "skip-verify-predicates", false, skipVerifyPredicatesFlagUsage)
 

@@ -16,7 +16,7 @@ Cold-start frequency is the load-bearing constraint — skills call the CLI doze
 ```
 anvil where
 anvil promote    <id> [flags]                # promote an inbox entry to a typed artifact
-anvil create     <type> [flags]              # type ∈ {inbox, issue, plan, milestone, decision, learning, sweep, thread, session}
+anvil create     <type> [flags]              # type ∈ {inbox, issue, milestone, decision, learning, sweep, thread, session}
 anvil show       <type> <id>
 anvil list       <type> [--filters]
 anvil link       <type> <id> <type> <id> [--relation depends_on|blocks]   # write edge (default related[]); --from/--to/--unresolved query
@@ -27,7 +27,7 @@ anvil index      <id> | --tags <facet/value,...>   # related artifacts by shared
 anvil project    list | switch | adopt | current
 ```
 
-`anvil session log` was cut as redundant — session transcripts are written by the agent CLIs themselves; the active plan file is the canonical handoff.
+`anvil session log` was cut as redundant — session transcripts are written by the agent CLIs themselves; the issue file in `70-issues/` is the canonical handoff.
 
 **Reads split by shape.** Known-path content uses `Read`/`grep` directly — nothing to validate, and a wrapper just adds latency and a failure surface. Structured queries across typed frontmatter use `list <type> --filters`, where the SQLite index does joins `grep` can't. No `anvil read`.
 
@@ -43,6 +43,6 @@ anvil project    list | switch | adopt | current
 
 The v0.0.0-dev scaffold has none of this wired (cobra+fang lands when the first verb is implemented); this section documents the planned surface, not what runs today.
 
-The session-emission path is the orchestrator-side of the thread→session→learning loop: a Claude Code `SessionStart` hook (installed via `anvil install hooks`) invokes the hidden `anvil install fire-session-start` wrapper, which writes a session artifact under `10-sessions/`, stamping `related: [[thread.<active>]]` if a thread is active. `distilling-learning` then walks that link to attach learnings back to the thread. See `docs/superpowers/specs/2026-05-02-session-emitter-design.md` for the full design.
+The session-emission path is the orchestrator-side of the thread→session→learning loop: a Claude Code `SessionStart` hook (installed via `anvil install hooks`) invokes the hidden `anvil install fire-session-start` wrapper, which writes a session artifact under `10-sessions/`, stamping `related: [[thread.<active>]]` if a thread is active, then prints the embedded anvil guide (`anvil/session-guide.md`) and Prose style block to stdout; `fire-session-resume` reprints both after resume or compact. `distilling-learning` then walks that link to attach learnings back to the thread. See `docs/superpowers/specs/2026-05-02-session-emitter-design.md` for the full design.
 
 **Skills install.** `anvil install skills` materialises the binary's embedded skill bundle to `<config-dir>/.anvil-skills-src/` (the resolved `--target` config dir — `~/.claude`, `~/.codex`, or `~/.pi/agent`, honoring `CLAUDE_CONFIG_DIR`/`CODEX_HOME`/`PI_CODING_AGENT_DIR`; `ANVIL_SKILLS_DIR` overrides outright) and writes a content hash to `.anvil-skills-hash` alongside it. Install, uninstall, and `anvil init --install-claude` all resolve that dir through the same helper, so exactly one materialise dir exists per target. The bundle changes only under this explicit verb — no other verb reads or rewrites it, so two differently-embedded binaries (e.g. a worktree build and the shared install) can never ping-pong the installed bundle between their contents. `anvil install skills` compares the on-disk hash against the invoking binary's embedded FS and re-materialises on mismatch (typically after `go install ./cmd/anvil` rebuilt the binary with edited SKILL.md content); re-running `--target codex` or `--target pi` refreshes a stale bundle the same way.

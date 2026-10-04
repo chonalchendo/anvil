@@ -12,7 +12,7 @@ import (
 //	a  learning tags: domain/cli, activity/issue   -> shares 2
 //	b  issue    tags: domain/cli                    -> shares 1
 //	c  issue    tags: domain/vault                  -> shares 0 (excluded)
-//	d  plan     tags: domain/cli + link s->d        -> shares 1 + link bonus
+//	d  milestone tags: domain/cli + link s->d        -> shares 1 + link bonus
 func seedRelated(t *testing.T, db *DB) {
 	t.Helper()
 	rows := []struct {
@@ -23,7 +23,7 @@ func seedRelated(t *testing.T, db *DB) {
 		{"a", "learning", []string{"domain/cli", "activity/issue"}},
 		{"b", "issue", []string{"domain/cli"}},
 		{"c", "issue", []string{"domain/vault"}},
-		{"d", "plan", []string{"domain/cli"}},
+		{"d", "milestone", []string{"domain/cli"}},
 	}
 	for _, r := range rows {
 		if err := db.UpsertArtifact(ArtifactRow{ID: r.id, Type: r.typ, Status: "open", Project: "demo", Path: "/p/" + r.id + ".md"}); err != nil {
@@ -47,7 +47,7 @@ func TestRelatedByIDRanksAndExcludesSeed(t *testing.T) {
 		t.Fatalf("RelatedByID: %v", err)
 	}
 	want := []RelatedRow{
-		{ArtifactRow: ArtifactRow{ID: "d", Type: "plan", Status: "open", Project: "demo", Path: "/p/d.md"}, Score: 3, SharedTags: []string{"domain/cli"}, Links: []string{"related"}},
+		{ArtifactRow: ArtifactRow{ID: "d", Type: "milestone", Status: "open", Project: "demo", Path: "/p/d.md"}, Score: 3, SharedTags: []string{"domain/cli"}, Links: []string{"related"}},
 		{ArtifactRow: ArtifactRow{ID: "a", Type: "learning", Status: "open", Project: "demo", Path: "/p/a.md"}, Score: 2, SharedTags: []string{"activity/issue", "domain/cli"}},
 		{ArtifactRow: ArtifactRow{ID: "b", Type: "issue", Status: "open", Project: "demo", Path: "/p/b.md"}, Score: 1, SharedTags: []string{"domain/cli"}},
 	}

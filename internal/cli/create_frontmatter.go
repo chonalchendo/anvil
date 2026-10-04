@@ -77,13 +77,13 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 		failures = append(failures, e)
 	}
 
-	// A contract's `kind` is a registered label, not a free scalar: it must
+	// A component design's `kind` is a registered label, not a free scalar: it must
 	// already exist in the glossary `kind/` vocabulary (register via `anvil
-	// contract kinds add`). Mirrors the tag-facet gate — an unregistered kind
+	// component-design kinds add`). Mirrors the tag-facet gate — an unregistered kind
 	// is rejected, not silently accepted — keeping the kind set typo-safe and
-	// discoverable for the writing-contract skill.
-	if t == core.TypeContract {
-		if e := checkContractKind(v.Root, path, fm); e != nil {
+	// discoverable for the writing-component-design skill.
+	if t == core.TypeComponentDesign {
+		if e := checkComponentDesignKind(v.Root, path, fm); e != nil {
 			failures = append(failures, e)
 		}
 	}
@@ -162,6 +162,10 @@ func staticBodyFailures(cmd *cobra.Command, v *core.Vault, t core.Type, path str
 		for _, vErr := range core.ValidateMilestone(a) {
 			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
 		}
+	case core.TypeComponentDesign:
+		for _, vErr := range core.ValidateComponentDesign(a) {
+			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(templateFix))
+		}
 	}
 	failures = append(failures, leadSentenceFailures(t, body, path)...)
 	return failures
@@ -178,8 +182,8 @@ func requiredFlagFix(t core.Type, field string) string {
 		return "pass --goal: a one-sentence terminal predicate (what 'done' means)"
 	case field == "scope" && t == core.TypeSweep:
 		return "pass --scope"
-	case field == "kind" && t == core.TypeContract:
-		return "pass --kind: a registered contract kind (see `anvil contract kinds list`)"
+	case field == "kind" && t == core.TypeComponentDesign:
+		return "pass --kind: a registered component design kind (see `anvil component-design kinds list`)"
 	}
 	return ""
 }

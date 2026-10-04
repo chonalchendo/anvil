@@ -32,7 +32,7 @@ You enter holding:
 
 If `## Verification` is missing either subsection or its entries are non-predicate-shaped ("feature works" rather than "command X exits 0 / output contains Y"), halt and hand back to `writing-issue`. Do not improvise checks — the issue spec is the contract.
 
-**The Iron Law binds to the governing contract's verification strategy.** The contract's `## Verification` — **Direct** (in-tree suites) + **Indirect (live)** (the change exercised through the real artifact) — is the strategy the issue's predicates instantiate, so the gate enforces a *reviewed* strategy, not an author-time predicate that can contradict the runtime. Load the contract (Phase 1) and hold its Indirect strategy as the bar the issue's Indirect predicate is measured against. No contract governs → the universal bars (`writing-issue`) apply, and a predicate that plainly drives a proxy path is grounds to halt and hand back to `writing-issue`, not chase an impossible check.
+**The Iron Law binds to the governing component design's verification strategy.** The component design's `## Verification` — **Direct** (in-tree suites) + **Indirect (live)** (the change exercised through the real artifact) — is the strategy the issue's predicates instantiate, so the gate enforces a *reviewed* strategy, not an author-time predicate that can contradict the runtime. Load the component design (Phase 1) and hold its Indirect strategy as the bar the issue's Indirect predicate is measured against. No component design governs → the universal bars (`writing-issue`) apply, and a predicate that plainly drives a proxy path is grounds to halt and hand back to `writing-issue`, not chase an impossible check.
 
 ## Running delegated on a cheaper model
 
@@ -60,7 +60,7 @@ Aim for code that's easy to reason about — **atomic** (one concern in one plac
 
 **Frame the fork, then recommend.** When a *genuine* fork arises — a choice that shapes structure the human will later have to steer — make it legible in a few lines *before* recommending: name the options plainly, state the tension, surface the rejected alternative *and why it fails*, and give the one fact that discriminates. Then recommend a single direction — don't hand back a menu. A default, not a template: stay silent on trivial choices, never manufacture tension to fill slots, and keep it brief — legible means clearer, not longer.
 
-**Open the issue's context box first.** One call assembles the full spine closure — the issue, its milestone (objectives/non-goals), the milestone's design bodies, the conventions those designs and the issue's contracts govern by, prior learnings, and any governing-type target (contract, convention, design, learning, milestone, decision) named in the issue body's `## Links` section — walking the reliable milestone spine rather than best-effort one-hop links. Scan the compact digest first — each node's frontmatter + `## TL;DR`, the cheap boundary map — then drill into the one or two load-bearing bodies, rather than paying the full-body dump up front (tokens are the budget; most bodies go unread):
+**Open the issue's context box first.** One call assembles the full spine closure — the issue, its milestone (objectives/non-goals), the milestone's design bodies, the conventions those designs and the issue's component designs govern by, prior learnings, and any governing-type target (component design, convention, design, learning, milestone, decision) named in the issue body's `## Links` section — walking the reliable milestone spine rather than best-effort one-hop links. Scan the compact digest first — each node's frontmatter + `## TL;DR`, the cheap boundary map — then drill into the one or two load-bearing bodies, rather than paying the full-body dump up front (tokens are the budget; most bodies go unread):
 
 ```bash
 anvil hydrate <id> --tldr   # scan: each node's frontmatter + ## TL;DR, headed `=== <type> <id> (status: <s>) ===`
@@ -72,7 +72,7 @@ A dangling spine edge makes `hydrate` exit non-zero and name the broken edge (in
 
 Note which of the hydrated nodes you actually consult while implementing (read the body, applied its constraints) versus which stayed unopened after the initial scan — Phase 5 emits this as the **context box** section, the diagnostic for a wrong completion: available-but-unread names a reading-discipline gap, an empty/broken box for a required object names a box-authoring gap.
 
-From the opened box: treat each contract's `## Does not` as a hard boundary (crossing one → **Scope-change protocol**) and apply its `## Code design` as you write. A contract's `## Code design` binds the house conventions surfaced alongside it — a `*.py`/`*.sql`/etc. edit follows `convention.<lang>`. A design node with `status` other than `active` is advisory — flag it before implementation, do not treat its constraints as authoritative. No contract in the box → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
+From the opened box: treat each component design's `## Does not` as a hard boundary (crossing one → **Scope-change protocol**) and apply its `## Code design` as you write. A component design's `## Code design` binds the house conventions surfaced alongside it — a `*.py`/`*.sql`/etc. edit follows `convention.<lang>`. A design node with `status` other than `active` is advisory — flag it before implementation, do not treat its constraints as authoritative. No component design in the box → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
 
 Make the minimal change that achieves the issue's `goal:` and passes every `## Verification` check (`## Acceptance criteria`, when present, is a prose aid — not the gate). Stay within the issue's declared file set (or `<declared-files>` when dispatched by `dispatching-issue-fleet`). See **Scope-change protocol** below if the work outgrows declared scope.
 
@@ -104,7 +104,7 @@ A Direct pass with an Indirect fail is the precise gap this skill exists to catc
 
 Re-read the change once. Two checklists:
 
-**Project-specific** — pull violations from `CLAUDE.md`, `AGENTS.md`, contributor docs, the project's style guide, and the governing contract(s) loaded in Phase 1 (re-check the diff against each `## Does not`). Fix what you find.
+**Project-specific** — pull violations from `CLAUDE.md`, `AGENTS.md`, contributor docs, the project's style guide, and the governing component design(s) loaded in Phase 1 (re-check the diff against each `## Does not`). Fix what you find.
 
 **Generic anti-patterns** — these apply regardless of project:
 
@@ -121,11 +121,11 @@ Diff hunks cannot show a unit's shape — read every unit the change grew, creat
 
 ## Phase 3b — Governs-sweep
 
-Sweep for governing artifacts nobody linked, before the PR opens. `anvil hydrate` walks **linked** edges only, so an unlinked contract or convention never reached your box.
+Sweep for governing artifacts nobody linked, before the PR opens. `anvil hydrate` walks **linked** edges only, so an unlinked component design or convention never reached your box.
 
-1. List both sets whole: `anvil list contract --limit 100` and `anvil list convention --limit 100`. The default cut is 10 most recent, reported on stderr — stay above the total it names.
+1. List both sets whole: `anvil list component-design --limit 100` and `anvil list convention --limit 100`. The default cut is 10 most recent, reported on stderr — stay above the total it names.
 2. Match each description against the files the diff touched (`git diff --name-only $(git merge-base HEAD origin/HEAD)`).
-3. Load any that plainly govern: `anvil show contract <id> --body`, `anvil show contract <id> --links convention --body`, `anvil show convention <id> --body`.
+3. Load any that plainly govern: `anvil show component-design <id> --body`, `anvil show component-design <id> --links convention --body`, `anvil show convention <id> --body`.
 4. Apply each unlinked rule to the diff now — it binds exactly as a linked one. Re-enter Phase 2 if the fix changes behaviour.
 5. Report each hit as a `swept` row in Phase 5's `## Context box`, naming the artifact id and the **missing rail edge** — the node that should have linked it. **Never wire that edge yourself.** The spine is `writing-issue`'s and the human's call; mutating it mid-completion edits the ground this change is measured against. A sweep that finds nothing says so in the same section — silence does not prove it ran.
 
@@ -166,12 +166,12 @@ tmpl=$(ls {.github/,docs/,}{PULL_REQUEST_TEMPLATE,pull_request_template}.md 2>/d
 Assembled by `anvil hydrate <id>` (<N> spine nodes).
 - [x] issue <id> — available, used
 - [x] milestone <mid> — available, used
-- [ ] contract <cid> — available, unread
+- [ ] component design <cid> — available, unread
 - [—] product-design <did> — empty, nothing to read
-- [~] convention <cid> — swept in (Phase 3b), unlinked; missing rail edge: <type>.<id> should link it (a contract's `## Code design` or a design node's `related:`)
+- [~] convention <cid> — swept in (Phase 3b), unlinked; missing rail edge: <type>.<id> should link it (a component design's `## Code design` or a design node's `related:`)
 ```
 
-Add one `swept` row per artifact Phase 3b pulled in from outside the box. An empty sweep gets one line instead: `no unlinked contract or convention governs these files`.
+Add one `swept` row per artifact Phase 3b pulled in from outside the box. An empty sweep gets one line instead: `no unlinked component design or convention governs these files`.
 
 ```bash
 gh pr create --title "<conventional-commit summary>" --body "<filled template | one-paragraph, + for issue <full-issue-id>> + the Context box section above"

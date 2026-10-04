@@ -14,15 +14,15 @@ import (
 	"github.com/chonalchendo/anvil/internal/glossary"
 )
 
-// contractKindFacet is the glossary facet that holds the contract-kind
+// componentDesignKindFacet is the glossary facet that holds the component-design kind
 // vocabulary. Kinds round-trip through the same registry as tags so the
 // existing parse/save/dedup machinery is reused (see internal/glossary).
-const contractKindFacet = "kind"
+const componentDesignKindFacet = "kind"
 
-func newContractCmd() *cobra.Command {
+func newComponentDesignCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:          "contract",
-		Short:        "Manage contracts and their registered kinds",
+		Use:          "component-design",
+		Short:        "Manage component designs and their registered kinds",
 		Args:         cobra.ArbitraryArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -32,14 +32,14 @@ func newContractCmd() *cobra.Command {
 			return fmt.Errorf("unknown command %q for %q", args[0], cmd.CommandPath())
 		},
 	}
-	cmd.AddCommand(newContractKindsCmd())
+	cmd.AddCommand(newComponentDesignKindsCmd())
 	return cmd
 }
 
-func newContractKindsCmd() *cobra.Command {
+func newComponentDesignKindsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "kinds",
-		Short:        "Register and list contract kinds",
+		Short:        "Register and list component design kinds",
 		Args:         cobra.ArbitraryArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -49,25 +49,25 @@ func newContractKindsCmd() *cobra.Command {
 			return fmt.Errorf("unknown command %q for %q", args[0], cmd.CommandPath())
 		},
 	}
-	cmd.AddCommand(newContractKindsAddCmd(), newContractKindsListCmd())
+	cmd.AddCommand(newComponentDesignKindsAddCmd(), newComponentDesignKindsListCmd())
 	return cmd
 }
 
-func newContractKindsAddCmd() *cobra.Command {
+func newComponentDesignKindsAddCmd() *cobra.Command {
 	var (
 		flagDesc   string
 		flagUpdate bool
 	)
 	cmd := &cobra.Command{
 		Use:   "add <name> [--desc \"...\"]",
-		Short: "Register a contract kind in the vault glossary (idempotent)",
+		Short: "Register a component design kind in the vault glossary (idempotent)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			if strings.ContainsRune(name, '/') {
 				return fmt.Errorf("kind %q must be a bare name, not a facet path", name)
 			}
-			tag := contractKindFacet + "/" + name
+			tag := componentDesignKindFacet + "/" + name
 			v, err := core.ResolveVault()
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
@@ -83,7 +83,7 @@ func newContractKindsAddCmd() *cobra.Command {
 				return nil
 			}
 			if hadIt && !flagUpdate {
-				return fmt.Errorf("kind %q already registered with a different description\n  existing: %s\n  new:      %s\n  corrected: anvil contract kinds add %s --desc %q --update",
+				return fmt.Errorf("kind %q already registered with a different description\n  existing: %s\n  new:      %s\n  corrected: anvil component-design kinds add %s --desc %q --update",
 					name, existing, flagDesc, name, flagDesc)
 			}
 			if hadIt && flagUpdate {
@@ -103,11 +103,11 @@ func newContractKindsAddCmd() *cobra.Command {
 	return cmd
 }
 
-func newContractKindsListCmd() *cobra.Command {
+func newComponentDesignKindsListCmd() *cobra.Command {
 	var flagJSON bool
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List registered contract kinds",
+		Short: "List registered component design kinds",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
@@ -142,7 +142,7 @@ func newContractKindsListCmd() *cobra.Command {
 // `kind/` facet.
 func registeredKinds(g *glossary.Glossary) []string {
 	var out []string
-	prefix := contractKindFacet + "/"
+	prefix := componentDesignKindFacet + "/"
 	for _, tag := range g.Tags() {
 		if name, ok := strings.CutPrefix(tag, prefix); ok {
 			out = append(out, name)
@@ -152,16 +152,16 @@ func registeredKinds(g *glossary.Glossary) []string {
 	return out
 }
 
-// checkContractKind validates that fm["kind"] is a registered contract kind.
+// checkComponentDesignKind validates that fm["kind"] is a registered component design kind.
 // Returns nil when the kind is registered (or absent — the schema's required
 // check owns the empty case), else a ValidationError naming the registered set.
-func checkContractKind(vaultRoot, path string, fm map[string]any) *errfmt.ValidationError {
+func checkComponentDesignKind(vaultRoot, path string, fm map[string]any) *errfmt.ValidationError {
 	kind, _ := fm["kind"].(string)
 	if kind == "" {
 		return nil
 	}
 	g, err := glossary.Load(glossary.Path(vaultRoot))
-	if err == nil && g.HasTag(contractKindFacet+"/"+kind) {
+	if err == nil && g.HasTag(componentDesignKindFacet+"/"+kind) {
 		return nil
 	}
 	registered := []string{}
@@ -172,10 +172,10 @@ func checkContractKind(vaultRoot, path string, fm map[string]any) *errfmt.Valida
 		WithExpected(registered)
 	if sug, ok := facets.Suggest(kind, registered); ok {
 		e.WithSuggest(sug).WithFix(fmt.Sprintf(
-			"use --kind %s, or register %q first: anvil contract kinds add %s", sug, kind, kind))
+			"use --kind %s, or register %q first: anvil component-design kinds add %s", sug, kind, kind))
 	} else {
 		e.WithFix(fmt.Sprintf(
-			"register it first: anvil contract kinds add %s (then `anvil contract kinds list` shows all kinds)", kind))
+			"register it first: anvil component-design kinds add %s (then `anvil component-design kinds list` shows all kinds)", kind))
 	}
 	return e
 }

@@ -24,7 +24,7 @@ A workflow for authoring a project's system-design artifact — the architectura
 
 ## When to use
 
-- A `product-design` exists and the project needs an architectural shape before milestones, plans, or code.
+- A `product-design` exists and the project needs an architectural shape before milestones or code.
 - User says "let's system-design X", "what's the architecture", or anything that signals shape (not vision, not implementation tasks).
 - Bootstrapping the second artifact in the vault hierarchy.
 
@@ -75,7 +75,7 @@ Fold non-stale, high-confidence findings into components (Phase 4), invariants (
 | 1 Frame | Slug, product-design dependency, path | **Load-bearing** |
 | 2 Architectural overview | One-sentence shape + body | User confirms |
 | 3 Tech stack | `tech_stack` frontmatter | User confirms |
-| 4 Components & responsibilities | 3–8 components, milestone mapping | **Load-bearing** |
+| 4 Components & responsibilities | 3–8 components, milestone mapping, component design yes/no per component | **Load-bearing** |
 | 5 Data flow | Mermaid sequence diagram + body | User confirms |
 | 6 Boundaries | Mermaid context diagram + body | User confirms |
 | 7 Key invariants | 3–7 declarative absolutes | **Load-bearing** |

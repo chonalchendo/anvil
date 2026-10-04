@@ -203,7 +203,7 @@ func sweepWikilinks(cmd *cobra.Command, v *core.Vault, t core.Type, oldID, newID
 }
 
 // replaceSlug rebuilds an artifact id around newSlug, preserving everything
-// before the slug segment: issue/plan/milestone/contract/convention keep the
+// before the slug segment: issue/milestone/component-design/convention keep the
 // canonical type prefix, the project, and (for numbered issues) the ordinal;
 // inbox keeps its date prefix; decision keeps topic + MADR ordinal. Slugs
 // never contain dots, so the slug is always the last dot-segment of the bare
@@ -213,7 +213,7 @@ func sweepWikilinks(cmd *cobra.Command, v *core.Vault, t core.Type, oldID, newID
 // component) but an explicit --slug does.
 func replaceSlug(t core.Type, oldID, newSlug string, explicitSlug bool) (string, error) {
 	switch t {
-	case core.TypeIssue, core.TypePlan, core.TypeMilestone, core.TypeContract:
+	case core.TypeIssue, core.TypeMilestone, core.TypeComponentDesign:
 		bare := core.BareID(t, oldID)
 		if dot := strings.LastIndexByte(bare, '.'); dot >= 0 {
 			return core.CanonicalID(t, bare[:dot+1]+newSlug), nil

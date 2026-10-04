@@ -12,10 +12,10 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-func writeFixtureContract(t *testing.T, vault, project, slug string) string {
+func writeFixtureComponentDesign(t *testing.T, vault, project, slug string) string {
 	t.Helper()
 	id := project + "." + slug
-	dir := filepath.Join(vault, "75-contracts")
+	dir := filepath.Join(vault, "75-component-designs")
 	if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // test fixture; 0755 matches vault convention
 		t.Fatal(err)
 	}
@@ -23,7 +23,7 @@ func writeFixtureContract(t *testing.T, vault, project, slug string) string {
 	a := &core.Artifact{
 		Path: path,
 		FrontMatter: map[string]any{
-			"type": "contract", "title": "Data boundaries",
+			"type": "component-design", "title": "Data boundaries",
 			"description": "what the pipeline does / does not",
 			"created":     "2026-06-01", "updated": "2026-06-01",
 			"status": "draft", "project": project, "kind": "data",
@@ -37,41 +37,17 @@ func writeFixtureContract(t *testing.T, vault, project, slug string) string {
 	return path
 }
 
-func writeFixturePlan(t *testing.T, vault, project, slug, title string) string {
-	t.Helper()
-	path := filepath.Join(vault, "80-plans", project+"."+slug+".md")
-	a := &core.Artifact{
-		Path: path,
-		FrontMatter: map[string]any{
-			"type": "plan", "id": project + "-" + slug, "slug": slug, "title": title,
-			"description": "fixture description",
-			"created":     "2026-04-29", "updated": "2026-04-29", "status": "draft",
-			"plan_version": 1, "project": project,
-			"issue": "[[issue." + project + "." + slug + "]]",
-			"tasks": []any{map[string]any{
-				"id": "T1", "title": "x", "kind": "tdd",
-				"files": []any{}, "depends_on": []any{}, "verify": "true",
-			}},
-		},
-		Body: "## Task: T1\n\nfixture task body.\n",
-	}
-	if err := a.Save(); err != nil {
-		t.Fatal(err)
-	}
-	return path
-}
-
-func TestLink_PlanToMilestone(t *testing.T) {
+func TestLink_ComponentDesignToMilestone(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
 	writeFixtureMilestone(t, vault, "foo.m1-bar", "planned")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "plan", "foo.q2", "milestone", "foo.m1-bar"})
+	cmd.SetArgs([]string{"link", "component-design", "foo.q2", "milestone", "foo.m1-bar"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,14 +59,14 @@ func TestLink_PlanToMilestone(t *testing.T) {
 
 func TestLink_ExternalAppendsURI(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "plan", "foo.q2", "--external", "https://github.com/chonalchendo/anvil/pull/13"})
+	cmd.SetArgs([]string{"link", "component-design", "foo.q2", "--external", "https://github.com/chonalchendo/anvil/pull/13"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,15 +78,15 @@ func TestLink_ExternalAppendsURI(t *testing.T) {
 
 func TestLink_ExternalIdempotent(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
 	for i := 0; i < 2; i++ {
 		cmd := newRootCmd()
-		cmd.SetArgs([]string{"link", "plan", "foo.q2", "--external", "abc1234"})
+		cmd.SetArgs([]string{"link", "component-design", "foo.q2", "--external", "abc1234"})
 		if err := cmd.Execute(); err != nil {
 			t.Fatalf("iter %d: %v", i, err)
 		}
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,9 +98,9 @@ func TestLink_ExternalIdempotent(t *testing.T) {
 
 func TestLink_ExternalRejectsTargetArgs(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "plan", "foo.q2", "issue", "foo.x", "--external", "https://x"})
+	cmd.SetArgs([]string{"link", "component-design", "foo.q2", "issue", "foo.x", "--external", "https://x"})
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
@@ -147,9 +123,9 @@ func TestLink_ExternalRejectsReadMode(t *testing.T) {
 
 func TestLink_ExternalRejectsWhitespaceOnly(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "plan", "foo.q2", "--external", "   "})
+	cmd.SetArgs([]string{"link", "component-design", "foo.q2", "--external", "   "})
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
@@ -160,14 +136,14 @@ func TestLink_ExternalRejectsWhitespaceOnly(t *testing.T) {
 
 func TestLink_AnyPair_WritesToRelated(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
 	writeFixtureTyped(t, vault, "30-decisions", "decision", "auth.0001-x")
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "plan", "foo.q2", "decision", "auth.0001-x"})
+	cmd.SetArgs([]string{"link", "component-design", "foo.q2", "decision", "auth.0001-x"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,37 +193,37 @@ func TestLink_RelationDependsOn_RejectsUnknownRelation(t *testing.T) {
 	}
 }
 
-// TestLink_IssueToContract confirms Option-A contract routing: an issue can
-// link to its governing contract and the wikilink lands in related[].
-func TestLink_IssueToContract(t *testing.T) {
+// TestLink_IssueToComponentDesign confirms Option-A component design routing: an issue can
+// link to its governing component design and the wikilink lands in related[].
+func TestLink_IssueToComponentDesign(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "i001", "Add dedup")
-	writeFixtureContract(t, vault, "foo", "data-bounds")
+	writeFixtureComponentDesign(t, vault, "foo", "data-bounds")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "issue", "foo.i001", "contract", "foo.data-bounds"})
+	cmd.SetArgs([]string{"link", "issue", "foo.i001", "component-design", "foo.data-bounds"})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("link issue→contract: %v", err)
+		t.Fatalf("link issue→component design: %v", err)
 	}
 	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.i001.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	related, _ := a.FrontMatter["related"].([]any)
-	if len(related) != 1 || related[0] != "[[contract.foo.data-bounds]]" {
-		t.Errorf("related = %v, want [[contract.foo.data-bounds]]", related)
+	if len(related) != 1 || related[0] != "[[component-design.foo.data-bounds]]" {
+		t.Errorf("related = %v, want [[component-design.foo.data-bounds]]", related)
 	}
 }
 
-// TestShow_IssueJSON_ExposesContractLink confirms that show issue --json
-// surfaces the contract wikilink so a worker can discover and follow it.
-func TestShow_IssueJSON_ExposesContractLink(t *testing.T) {
+// TestShow_IssueJSON_ExposesComponentDesignLink confirms that show issue --json
+// surfaces the component design wikilink so a worker can discover and follow it.
+func TestShow_IssueJSON_ExposesComponentDesignLink(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "i001", "Add dedup")
-	writeFixtureContract(t, vault, "foo", "data-bounds")
+	writeFixtureComponentDesign(t, vault, "foo", "data-bounds")
 
 	// Link then show.
-	if _, err := runArgs(t, "link", "issue", "foo.i001", "contract", "foo.data-bounds"); err != nil {
+	if _, err := runArgs(t, "link", "issue", "foo.i001", "component-design", "foo.data-bounds"); err != nil {
 		t.Fatalf("link: %v", err)
 	}
 	out, err := runArgsJSON(t, "show", "issue", "foo.i001", "--json")
@@ -258,11 +234,11 @@ func TestShow_IssueJSON_ExposesContractLink(t *testing.T) {
 	if err := jsonUnmarshal(t, strings.TrimSpace(out), &got); err != nil {
 		t.Fatalf("invalid JSON: %v\n%s", err, out)
 	}
-	// The contract wikilink must appear somewhere in the JSON output so a
-	// worker can discover and load the governing contract.
+	// The component design wikilink must appear somewhere in the JSON output so a
+	// worker can discover and load the governing component design.
 	raw, _ := json.Marshal(got)
-	if !strings.Contains(string(raw), "contract.foo.data-bounds") {
-		t.Errorf("contract link not found in show issue --json output:\n%s", string(raw))
+	if !strings.Contains(string(raw), "component-design.foo.data-bounds") {
+		t.Errorf("component design link not found in show issue --json output:\n%s", string(raw))
 	}
 }
 
@@ -288,16 +264,16 @@ func writeNumberedFixtureIssue(t *testing.T, vault, project string, ordinal int,
 	return id, path
 }
 
-// TestLink_ShortIdResolution_IssueToContract confirms that a project-qualified
+// TestLink_ShortIdResolution_IssueToComponentDesign confirms that a project-qualified
 // short numeric id (e.g. "foo.0042") resolves to the full slug id and lands
 // the wikilink in related[] — matching the behaviour of show/set/transition.
-func TestLink_ShortIdResolution_IssueToContract(t *testing.T) {
+func TestLink_ShortIdResolution_IssueToComponentDesign(t *testing.T) {
 	vault := setupVault(t)
 	id, issuePath := writeNumberedFixtureIssue(t, vault, "foo", 42, "add-dedup", "Add dedup")
-	writeFixtureContract(t, vault, "foo", "data-bounds")
+	writeFixtureComponentDesign(t, vault, "foo", "data-bounds")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "issue", "foo.0042", "contract", "foo.data-bounds"})
+	cmd.SetArgs([]string{"link", "issue", "foo.0042", "component-design", "foo.data-bounds"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("link with short id foo.0042: %v", err)
 	}
@@ -306,8 +282,8 @@ func TestLink_ShortIdResolution_IssueToContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	related, _ := a.FrontMatter["related"].([]any)
-	if len(related) != 1 || related[0] != "[[contract.foo.data-bounds]]" {
-		t.Errorf("related = %v, want [[contract.foo.data-bounds]] (full id = %s)", related, id)
+	if len(related) != 1 || related[0] != "[[component-design.foo.data-bounds]]" {
+		t.Errorf("related = %v, want [[component-design.foo.data-bounds]] (full id = %s)", related, id)
 	}
 }
 
@@ -336,13 +312,13 @@ func TestLink_ShortIdResolution_ExternalLink(t *testing.T) {
 // matches no file produces a non-zero exit — never a silent no-op.
 func TestLink_ShortIdResolution_NonZeroOnMiss(t *testing.T) {
 	vault := setupVault(t)
-	writeFixtureContract(t, vault, "foo", "data-bounds")
+	writeFixtureComponentDesign(t, vault, "foo", "data-bounds")
 	// No issue with ordinal 9999 exists.
 	cmd := newRootCmd()
 	var errBuf bytes.Buffer
 	cmd.SetErr(&errBuf)
 	cmd.SetOut(&bytes.Buffer{})
-	cmd.SetArgs([]string{"link", "issue", "foo.9999", "contract", "foo.data-bounds"})
+	cmd.SetArgs([]string{"link", "issue", "foo.9999", "component-design", "foo.data-bounds"})
 	if err := cmd.Execute(); err == nil {
 		t.Fatalf("expected non-zero exit for missing short id foo.9999 in vault %s", vault)
 	}
@@ -389,16 +365,16 @@ func TestLink_CanonicalPrefixedTargetId(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			vault := setupVault(t)
-			writeFixturePlan(t, vault, "foo", "q2", "Q2")
+			writeFixtureComponentDesign(t, vault, "foo", "q2")
 			writeFixtureTyped(t, vault, "35-conventions", "convention", "convention.sqlmesh")
 			writeFixtureDesign(t, vault, "foo", core.TypeSystemDesign, "Foo SD")
 
 			cmd := newRootCmd()
-			cmd.SetArgs([]string{"link", "plan", "foo.q2", tc.tgtType, tc.tgtID})
+			cmd.SetArgs([]string{"link", "component-design", "foo.q2", tc.tgtType, tc.tgtID})
 			if err := cmd.Execute(); err != nil {
-				t.Fatalf("link plan→%s %s: %v", tc.tgtType, tc.tgtID, err)
+				t.Fatalf("link component-design→%s %s: %v", tc.tgtType, tc.tgtID, err)
 			}
-			a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+			a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -428,15 +404,15 @@ func TestLink_AlreadyTypedBareSlugTargetId(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			vault := setupVault(t)
-			writeFixturePlan(t, vault, "foo", "q2", "Q2")
+			writeFixtureComponentDesign(t, vault, "foo", "q2")
 			writeFixtureTyped(t, vault, "20-learnings", "learning", "duckdb-arg-min-escalation")
 
 			cmd := newRootCmd()
-			cmd.SetArgs([]string{"link", "plan", "foo.q2", "learning", tc.tgtID})
+			cmd.SetArgs([]string{"link", "component-design", "foo.q2", "learning", tc.tgtID})
 			if err := cmd.Execute(); err != nil {
-				t.Fatalf("link plan→learning %s: %v", tc.tgtID, err)
+				t.Fatalf("link component-design→learning %s: %v", tc.tgtID, err)
 			}
-			a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+			a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -451,25 +427,26 @@ func TestLink_AlreadyTypedBareSlugTargetId(t *testing.T) {
 
 // TestLink_TargetLeadingSegmentEqualsTypeName pins the strip chain's
 // every-rung probe: a legitimate canonical id whose leading segment equals the
-// type name (a plan whose bare slug is `plan.q2`, on disk as plan.plan.q2.md)
+// type name (a convention whose bare slug is `convention.q2`, on disk as
+// convention.convention.q2.md)
 // resolves only through the once-stripped candidate, which a fully-stripped-only
 // probe would skip.
 func TestLink_TargetLeadingSegmentEqualsTypeName(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
-	writeFixtureTyped(t, vault, "80-plans", "plan", "plan.plan.q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
+	writeFixtureTyped(t, vault, "35-conventions", "convention", "convention.convention.q2")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "plan", "foo.q2", "plan", "plan.plan.q2"})
+	cmd.SetArgs([]string{"link", "component-design", "foo.q2", "convention", "convention.convention.q2"})
 	if err := cmd.Execute(); err != nil {
-		t.Fatalf("link plan→plan plan.plan.q2: %v", err)
+		t.Fatalf("link component-design→convention convention.convention.q2: %v", err)
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	related, _ := a.FrontMatter["related"].([]any)
-	want := "[[plan.plan.q2]]"
+	want := "[[convention.convention.q2]]"
 	if len(related) != 1 || related[0] != want {
 		t.Errorf("related = %v, want [%s]", related, want)
 	}
@@ -480,10 +457,10 @@ func TestLink_TargetLeadingSegmentEqualsTypeName(t *testing.T) {
 // typo from a missing artifact.
 func TestLink_RejectsMissingTarget(t *testing.T) {
 	vault := setupVault(t)
-	writeFixturePlan(t, vault, "foo", "q2", "Q2")
+	writeFixtureComponentDesign(t, vault, "foo", "q2")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"link", "plan", "foo.q2", "convention", "convention.nope"})
+	cmd.SetArgs([]string{"link", "component-design", "foo.q2", "convention", "convention.nope"})
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})
 	err := cmd.Execute()
@@ -495,7 +472,7 @@ func TestLink_RejectsMissingTarget(t *testing.T) {
 			t.Errorf("error %q does not name %s", err, want)
 		}
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+	a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -524,10 +501,10 @@ func TestLink_RejectsPlaceholderTarget(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			vault := setupVault(t)
-			writeFixturePlan(t, vault, "foo", "q2", "Q2")
+			writeFixtureComponentDesign(t, vault, "foo", "q2")
 
 			cmd := newRootCmd()
-			cmd.SetArgs([]string{"link", "plan", "foo.q2", tc.tgtType, tc.tgtID})
+			cmd.SetArgs([]string{"link", "component-design", "foo.q2", tc.tgtType, tc.tgtID})
 			cmd.SetOut(&bytes.Buffer{})
 			cmd.SetErr(&bytes.Buffer{})
 			err := cmd.Execute()
@@ -538,7 +515,7 @@ func TestLink_RejectsPlaceholderTarget(t *testing.T) {
 			if !strings.Contains(err.Error(), fmt.Sprintf("%q", tc.tgtID)) {
 				t.Errorf("error %q does not name the offending target %q", err, tc.tgtID)
 			}
-			a, err := core.LoadArtifact(filepath.Join(vault, "80-plans", "foo.q2.md"))
+			a, err := core.LoadArtifact(filepath.Join(vault, "75-component-designs", "foo.q2.md"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -549,19 +526,19 @@ func TestLink_RejectsPlaceholderTarget(t *testing.T) {
 	}
 }
 
-// TestShow_Contract_Body pins the load leg of the discover-then-load path: once
-// a worker follows the wikilink, `show contract <id> --body` must surface the
-// contract's boundary prose.
-func TestShow_Contract_Body(t *testing.T) {
+// TestShow_ComponentDesign_Body pins the load leg of the discover-then-load path: once
+// a worker follows the wikilink, `show component-design <id> --body` must surface the
+// component design's boundary prose.
+func TestShow_ComponentDesign_Body(t *testing.T) {
 	vault := setupVault(t)
-	writeFixtureContract(t, vault, "foo", "data-bounds")
+	writeFixtureComponentDesign(t, vault, "foo", "data-bounds")
 
-	out, err := runArgs(t, "show", "contract", "foo.data-bounds", "--body")
+	out, err := runArgs(t, "show", "component-design", "foo.data-bounds", "--body")
 	if err != nil {
-		t.Fatalf("show contract --body: %v\n%s", err, out)
+		t.Fatalf("show component-design --body: %v\n%s", err, out)
 	}
 	if !strings.Contains(out, "does: x") {
-		t.Errorf("contract body not surfaced in show contract --body output:\n%s", out)
+		t.Errorf("component design body not surfaced in show component-design --body output:\n%s", out)
 	}
 }
 

@@ -12,8 +12,8 @@ import (
 // without per-kind schema expansion (issue acceptance #4).
 func TestExternalLinksAcceptedOnAllTypes(t *testing.T) {
 	types := []string{
-		"contract", "decision", "inbox", "issue", "learning", "milestone",
-		"plan", "product-design", "session", "sweep",
+		"component-design", "decision", "inbox", "issue", "learning", "milestone",
+		"product-design", "session", "sweep",
 		"system-design", "thread",
 	}
 	for _, typ := range types {

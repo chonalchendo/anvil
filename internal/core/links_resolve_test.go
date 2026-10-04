@@ -126,7 +126,7 @@ func TestResolveLinks_Stable(t *testing.T) {
 	}
 }
 
-// TestBodyWikilinkTargetsOfType covers the contract→convention body rail:
+// TestBodyWikilinkTargetsOfType covers the component design→convention body rail:
 // body `[[convention.X]]` links are surfaced (full target, deduped, first-seen
 // order), other types and fenced/aliased links are filtered as the indexer does.
 func TestBodyWikilinkTargetsOfType(t *testing.T) {
@@ -151,7 +151,7 @@ func TestBodyWikilinkTargetsOfType(t *testing.T) {
 // silent (a dropped target must be stated, anvil.0240).
 func TestBodyLinksSectionTargets(t *testing.T) {
 	body := "## Problem\n\nSee [[convention.prose-mention]] in passing.\n\n" +
-		"## Links\n\n- [[convention.go-style]]\n- [[contract.foo.boundaries|Boundaries]]\n" +
+		"## Links\n\n- [[convention.go-style]]\n- [[component-design.foo.boundaries|Boundaries]]\n" +
 		"- [[convention.go-style]]\n- [[project.not-a-real-type]]\n" +
 		"- [[thread.foo-thread.0001-scratch]]\n- [[issue.anvil.0001.sibling]]\n" +
 		"- [[thread.foo-thread.0001-scratch]]\n" +
@@ -160,7 +160,7 @@ func TestBodyLinksSectionTargets(t *testing.T) {
 	got, skipped := BodyLinksSectionTargets(body)
 	want := []BodyLinkTarget{
 		{Type: TypeConvention, ID: "convention.go-style"},
-		{Type: TypeContract, ID: "contract.foo.boundaries"},
+		{Type: TypeComponentDesign, ID: "component-design.foo.boundaries"},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v, want %v", got, want)
@@ -172,7 +172,7 @@ func TestBodyLinksSectionTargets(t *testing.T) {
 }
 
 // TestBodyLinksSectionTargets_DecisionIsGoverning pins anvil.0240's ruling
-// that a decision (ADR) is a governing type, on par with contract.
+// that a decision (ADR) is a governing type, on par with component design.
 func TestBodyLinksSectionTargets_DecisionIsGoverning(t *testing.T) {
 	body := "## Links\n\n- [[decision.anvil.0001.example]]\n"
 	got, skipped := BodyLinksSectionTargets(body)

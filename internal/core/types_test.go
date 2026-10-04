@@ -23,13 +23,12 @@ func TestParseType_Unknown(t *testing.T) {
 
 func TestType_Dir(t *testing.T) {
 	cases := map[Type]string{
-		TypeInbox:      "00-inbox",
-		TypeIssue:      "70-issues",
-		TypePlan:       "80-plans",
-		TypeMilestone:  "85-milestones",
-		TypeDecision:   "30-decisions",
-		TypeContract:   "75-contracts",
-		TypeConvention: "35-conventions",
+		TypeInbox:           "00-inbox",
+		TypeIssue:           "70-issues",
+		TypeMilestone:       "85-milestones",
+		TypeDecision:        "30-decisions",
+		TypeComponentDesign: "75-component-designs",
+		TypeConvention:      "35-conventions",
 	}
 	for tp, want := range cases {
 		if got := tp.Dir(); got != want {
@@ -106,7 +105,6 @@ func TestType_Dir_DesignTypes(t *testing.T) {
 func TestType_SupportsProject(t *testing.T) {
 	cases := map[Type]bool{
 		TypeIssue:         true,
-		TypePlan:          true,
 		TypeMilestone:     true,
 		TypeProductDesign: true,
 		TypeSystemDesign:  true,
@@ -131,7 +129,7 @@ func TestTypesSupportingProject_IncludesLearningAndDecision(t *testing.T) {
 	for _, s := range got {
 		have[s] = true
 	}
-	for _, want := range []string{"learning", "decision", "issue", "plan", "milestone", "product-design", "system-design"} {
+	for _, want := range []string{"learning", "decision", "issue", "milestone", "product-design", "system-design"} {
 		if !have[want] {
 			t.Errorf("TypesSupportingProject() missing %q; got %v", want, got)
 		}
