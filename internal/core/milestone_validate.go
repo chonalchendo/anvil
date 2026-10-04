@@ -18,7 +18,12 @@ var RequiredMilestoneSections = []string{"## Objective", "## Non-goals", "## Lin
 //   - body does not carry a `## Success criteria` section — `acceptance:`
 //     frontmatter is the single source of truth, refined via `anvil set`
 //   - a `kind: scoped` milestone does not carry an empty `acceptance` list
+//
+// A `done` or `abandoned` milestone is a historical record: all checks skip.
 func ValidateMilestone(a *Artifact) []error {
+	if status, _ := a.FrontMatter["status"].(string); status == "done" || status == "abandoned" {
+		return nil
+	}
 	body := a.Body
 	errs := scanOrderedHeadings(body, "milestone", RequiredMilestoneSections)
 

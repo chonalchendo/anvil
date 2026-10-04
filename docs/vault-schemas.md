@@ -111,6 +111,7 @@ Body rules (`anvil validate`, `core.ValidateMilestone`; `create milestone` scaff
 - `## Objective`, `## Non-goals`, `## Links`, `## Status` must appear, in order.
 - A `## Success criteria` section is refused — `acceptance:` is the single source, refined via `anvil set milestone <id> acceptance --add/--remove`.
 - `kind: scoped` with empty `acceptance` is refused; flip to `bucket` if the work is genuinely open-ended.
+- Milestones with `status: done` or `abandoned` skip every check above; open statuses keep them all.
 - Legacy vault milestones predating this rule go red on the vault-wide sweep (warning severity there) and on single-file `anvil validate`; `anvil list`/`reindex` run no body validator at all, so they still serve pre-existing milestones untouched.
 
 Cut entirely: `target_date`, `horizon`, `ordinal`, `predecessors`, `successors`, `plans`, `issues`, `objectives`, `risks`. Milestones are structural, not scheduled. Done = all child issues `resolved`.
