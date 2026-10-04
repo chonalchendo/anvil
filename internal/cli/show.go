@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -110,6 +111,8 @@ type showOutput struct {
 	// status has drifted behind it.
 	Children *index.MilestoneChildren
 	Stale    *bool
+	// MeasurementStale: see listItem.MeasurementStale (anvil.0295).
+	MeasurementStale *bool
 }
 
 type incomingEdge struct {
@@ -123,7 +126,7 @@ type incomingEdge struct {
 var envelopeKeys = map[string]struct{}{
 	"id": {}, "path": {}, "body": {},
 	"body_truncated": {}, "body_lines_total": {}, "incoming": {},
-	"children": {}, "stale": {},
+	"children": {}, "stale": {}, "measurement_stale": {},
 }
 
 // MarshalJSON produces the flat envelope: frontmatter merged onto the top
@@ -153,6 +156,9 @@ func (o showOutput) MarshalJSON() ([]byte, error) {
 	}
 	if o.Stale != nil {
 		out["stale"] = *o.Stale
+	}
+	if o.MeasurementStale != nil {
+		out["measurement_stale"] = *o.MeasurementStale
 	}
 	return json.Marshal(out)
 }
@@ -188,6 +194,12 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename, rawID str
 	}
 
 	if t == core.TypeMilestone {
+		if ms, ok := core.MeasurementStale(a, time.Now()); ok {
+			out.MeasurementStale = &ms
+			if ms {
+				cmd.PrintErrln(measurementStaleWarning(id))
+			}
+		}
 		if db, dberr := indexForRead(v); dberr != nil {
 			cmd.PrintErrln("warning: milestone children: " + dberr.Error())
 		} else {

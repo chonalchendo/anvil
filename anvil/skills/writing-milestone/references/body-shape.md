@@ -12,7 +12,7 @@ The reader is a human deciding what to work next in Obsidian's reading view, or 
     - Wave order becomes typed edges on the issues (`writing-issue` Phase 4b), never prose alone.
 - `## Non-goals` — bulleted scope fence.
 - `## Links` — sibling milestones and reader-facing references, each with a few words after the link saying why it is here. The governing design travels in the typed slots (Phase 4); component designs reach a worker via `writing-issue` Phase 4b, not from here.
-- `## Status` — one dated block, rewritten in place. For `kind: scoped` it opens with the acceptance ledger as a table, one row per `acceptance:` entry (AC, met / not met, measured value), then dated prose for what moved and what blocks. The issue map is `anvil list issue --milestone <id>`; do not copy it here.
+- `## Status` — one dated block, rewritten in place. For `kind: scoped` it opens with a line starting `Measured: YYYY-MM-DD` (line-start, no bold; prose may follow the date). Anvil flags the milestone `measurement_stale` once that date is over 14 days old while `in-progress`; re-measure and bump it. Then the acceptance ledger as a table, one row per `acceptance:` entry (AC, met / not met, measured value), then dated prose for what moved and what blocks. The issue map is `anvil list issue --milestone <id>`; do not copy it here.
 
 No `## Success criteria` section. `acceptance:` is the single source; refine it with `anvil set milestone <id> acceptance --add/--remove`, never by appending an "AC refinement" section.
 
