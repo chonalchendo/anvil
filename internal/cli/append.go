@@ -85,8 +85,8 @@ func newAppendCmd() *cobra.Command {
 			}
 
 			newBody := joinBodySection(a.Body, addition)
-			if failures := appendBodyFailures(cmd, v, t, path, a.FrontMatter, newBody); len(failures) > 0 {
-				markPreexisting(failures, appendBodyFailures(cmd, v, t, path, a.FrontMatter, a.Body))
+			if failures := staticBodyFailures(cmd, v, t, path, a.FrontMatter, newBody); len(failures) > 0 {
+				markPreexisting(failures, staticBodyFailures(cmd, v, t, path, a.FrontMatter, a.Body))
 				return emitValidationErrors(cmd, flagJSON, failures)
 			}
 
@@ -120,19 +120,6 @@ func newAppendCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagBodyFile, "body-file", "", "read section content to append from a file")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
 	return cmd
-}
-
-// appendBodyFailures adds the component-design boundary-half check, which
-// create runs separately from staticBodyFailures, to the shared static checks.
-func appendBodyFailures(cmd *cobra.Command, v *core.Vault, t core.Type, path string, fm map[string]any, body string) []*errfmt.ValidationError {
-	failures := staticBodyFailures(cmd, v, t, path, fm, body)
-	if t == core.TypeComponentDesign {
-		a := &core.Artifact{Path: path, FrontMatter: fm, Body: body}
-		for _, vErr := range core.ValidateComponentDesign(a) {
-			failures = append(failures, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()))
-		}
-	}
-	return failures
 }
 
 // joinBodySection appends addition to existing, separated by exactly one

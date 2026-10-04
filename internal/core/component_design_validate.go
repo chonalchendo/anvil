@@ -14,7 +14,6 @@ var RequiredComponentDesignSections = []string{
 }
 
 // ValidateComponentDesign checks the boundary-half headings appear in order.
-// Run on create, validate and append.
 func ValidateComponentDesign(a *Artifact) []error {
 	return scanOrderedHeadings(a.Body, "component-design", RequiredComponentDesignSections)
 }

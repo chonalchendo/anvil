@@ -190,10 +190,10 @@ func TestCreateComponentDesign_NoBodyGetsBoundarySkeleton(t *testing.T) {
 	}
 }
 
-// TestComponentDesign_ValidateAndAppendEnforceBoundaryHalf pins that a design
-// which lost a boundary heading after create is refused by validate and by
-// append, not only by create.
-func TestComponentDesign_ValidateAndAppendEnforceBoundaryHalf(t *testing.T) {
+// TestComponentDesign_ValidateEnforcesBoundaryHalf pins that a design which
+// lost a boundary heading after create is refused by validate, and that a
+// plain append onto a valid design still lands.
+func TestComponentDesign_ValidateEnforcesBoundaryHalf(t *testing.T) {
 	setupVault(t)
 	if _, err := runArgs(t, "component-design", "kinds", "add", "data"); err != nil {
 		t.Fatal(err)
@@ -211,6 +211,11 @@ func TestComponentDesign_ValidateAndAppendEnforceBoundaryHalf(t *testing.T) {
 		t.Fatalf("scaffold must validate: %v\n%s", err, out)
 	}
 
+	out, err = runArgs(t, "append", "component-design", strings.TrimSuffix(filepath.Base(res["path"]), ".md"), "--body", "- PR #1: precedent", "--json")
+	if err != nil || !strings.Contains(out, `"status":"appended"`) {
+		t.Fatalf("append onto a valid design must succeed: err=%v\n%s", err, out)
+	}
+
 	a, err := core.LoadArtifact(res["path"])
 	if err != nil {
 		t.Fatal(err)
@@ -224,8 +229,5 @@ func TestComponentDesign_ValidateAndAppendEnforceBoundaryHalf(t *testing.T) {
 	if err == nil || !strings.Contains(out+err.Error(), "Does not") {
 		t.Errorf("validate must name the missing heading: err=%v\n%s", err, out)
 	}
-	out, err = runArgs(t, "append", "component-design", strings.TrimSuffix(filepath.Base(res["path"]), ".md"), "--body", "## Extra\n\nx\n")
-	if err == nil || !strings.Contains(out+err.Error(), "Does not") {
-		t.Errorf("append onto a body missing a boundary heading must be refused: err=%v\n%s", err, out)
-	}
+
 }

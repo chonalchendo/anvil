@@ -248,6 +248,20 @@ func ScaffoldSections(headings []string) string {
 	return sb.String()
 }
 
+// findHeadingLine returns the offset just past the first line of body equal to
+// heading (trailing spaces allowed), or -1. Whole-line matching keeps "## Does"
+// from matching "## Does not".
+func findHeadingLine(body, heading string) int {
+	off := 0
+	for _, line := range strings.SplitAfter(body, "\n") {
+		if strings.TrimRight(line, " \t\r\n") == heading {
+			return off + len(line)
+		}
+		off += len(line)
+	}
+	return -1
+}
+
 // scanOrderedHeadings reports one error per heading in headings that is
 // missing from body, or appears out of order relative to the headings before
 // it. noun names the artifact kind in the error message (e.g. "issue"). Same
@@ -260,16 +274,12 @@ func scanOrderedHeadings(body, noun string, headings []string) []error {
 	var errs []error
 	pos := 0
 	for _, h := range headings {
-		idx := strings.Index(body[pos:], "\n"+h)
-		if idx < 0 && !strings.HasPrefix(body[pos:], h) {
+		end := findHeadingLine(body[pos:], h)
+		if end < 0 {
 			errs = append(errs, fmt.Errorf("%s body missing required heading %q", noun, h))
 			continue
 		}
-		if idx >= 0 {
-			pos = pos + idx + len(h) + 1
-		} else {
-			pos += len(h)
-		}
+		pos += end
 	}
 	return errs
 }

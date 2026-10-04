@@ -32,7 +32,7 @@ Decide before Phase 1. If uncertain, run `anvil list component-design` to check 
 
 ## Component design skeleton (both modes)
 
-Every component design body carries the **boundary half** (required — `create` rejects a body missing `## Purpose`, `## Does`, `## Does not`, `## Verification` with `### Direct` / `### Indirect`, or `## Precedents`). The **design half** (optional) follows it.
+Every component design body carries the **boundary half** (required — `create` and `validate` reject a body missing `## Purpose`, `## Does`, `## Does not`, `## Verification` with `### Direct` / `### Indirect`, or `## Precedents`). The **design half** (optional) follows it.
 
 ```
 ## Purpose
