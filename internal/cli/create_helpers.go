@@ -113,7 +113,8 @@ func createLongDescription() string {
 		"(reads stdin). The full artifact lands in one call — no follow-up edit.\n\n" +
 		"Required body sections: learning bodies need " + strings.Join(core.RequiredLearningSections, " / ") + "; " +
 		"issue bodies need " + strings.Join(core.RequiredIssueSections, " / ") + "; " +
-		"milestone bodies need " + strings.Join(core.RequiredMilestoneSections, " / ") + " (in order). " +
+		"milestone bodies need " + strings.Join(core.RequiredMilestoneSections, " / ") + "; " +
+		"component-design bodies need " + strings.Join(core.RequiredComponentDesignSections, " / ") + " (in order). " +
 		"Faceted tags (domain/, activity/, pattern/) must reuse existing vault values or pass --allow-new-facet. " +
 		"Run 'anvil create <type> --show-template' to print the skeleton before composing.\n\n" +
 		"Validation: create always validates the frontmatter it just wrote. " +
@@ -140,7 +141,7 @@ func createLongDescription() string {
 }
 
 // sectionsForType returns the required body headings for the types that carry
-// a scaffold (learning, issue, milestone), or nil for the rest. Shared by the
+// a scaffold (learning, issue, milestone, component-design), or nil for the rest. Shared by the
 // no-body scaffold path and --show-template so the two can't drift.
 func sectionsForType(t core.Type) []string {
 	switch t {
@@ -150,6 +151,8 @@ func sectionsForType(t core.Type) []string {
 		return core.RequiredIssueSections
 	case core.TypeMilestone:
 		return core.RequiredMilestoneSections
+	case core.TypeComponentDesign:
+		return core.RequiredComponentDesignSections
 	default:
 		return nil
 	}
@@ -162,7 +165,7 @@ func sectionsForType(t core.Type) []string {
 func runShowTemplate(cmd *cobra.Command, t core.Type) error {
 	sections := sectionsForType(t)
 	if sections == nil {
-		return fmt.Errorf("--show-template: no required body template for %s (learning, issue, milestone)", t)
+		return fmt.Errorf("--show-template: no required body template for %s (learning, issue, milestone, component-design)", t)
 	}
 	w := cmd.OutOrStdout()
 	fmt.Fprintln(w, core.ScaffoldSections(sections))

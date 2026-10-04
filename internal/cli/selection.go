@@ -11,17 +11,17 @@ import (
 // readyUnit is a ready issue enriched with the start-context an agent needs to
 // begin it. It is the deterministic selection unit shared by `anvil next`
 // (which returns the head) and `anvil build` (which dispatches the full ordered
-// frontier) — per contract.anvil.build-orchestration-contract, work-selection
+// frontier) — per component-design.anvil.build-orchestration-contract, work-selection
 // lives in the driver, not the engine. `created` is lower-case because it feeds
 // the sort only; it is not part of the start-context an agent consumes.
 type readyUnit struct {
-	ID        string   `json:"id"`
-	Goal      string   `json:"goal"`
-	Severity  string   `json:"severity"`
-	Milestone string   `json:"milestone"`
-	Contracts []string `json:"contracts"`
-	Path      string   `json:"path"`
-	created   string
+	ID               string   `json:"id"`
+	Goal             string   `json:"goal"`
+	Severity         string   `json:"severity"`
+	Milestone        string   `json:"milestone"`
+	ComponentDesigns []string `json:"component_designs"`
+	Path             string   `json:"path"`
+	created          string
 }
 
 // severityRank orders the issue severity enum (low|medium|high|critical) for the
@@ -56,13 +56,13 @@ func selectReadyUnits(rows []index.ArtifactRow, milestone string) []readyUnit {
 		goal, _ := a.FrontMatter["goal"].(string)
 		sev, _ := a.FrontMatter["severity"].(string)
 		units = append(units, readyUnit{
-			ID:        r.ID,
-			Goal:      goal,
-			Severity:  sev,
-			Milestone: ms,
-			Contracts: contractIDs(a.FrontMatter["related"]),
-			Path:      r.Path,
-			created:   r.Created,
+			ID:               r.ID,
+			Goal:             goal,
+			Severity:         sev,
+			Milestone:        ms,
+			ComponentDesigns: componentDesignIDs(a.FrontMatter["related"]),
+			Path:             r.Path,
+			created:          r.Created,
 		})
 	}
 	sort.SliceStable(units, func(i, j int) bool {
@@ -77,15 +77,15 @@ func selectReadyUnits(rows []index.ArtifactRow, milestone string) []readyUnit {
 	return units
 }
 
-// contractIDs extracts contract ids from an issue's `related` wikilink array:
-// `[[contract.<id>]]` → `<id>`. Non-contract relations (milestone spine, sibling
-// issues) are ignored — only governing contracts belong in start-context.
-func contractIDs(raw any) []string {
+// componentDesignIDs extracts component design ids from an issue's `related` wikilink array:
+// `[[component-design.<id>]]` → `<id>`. Non-component design relations (milestone spine, sibling
+// issues) are ignored — only governing component designs belong in start-context.
+func componentDesignIDs(raw any) []string {
 	list, ok := raw.([]any)
 	if !ok {
 		return nil
 	}
-	const prefix = "[[contract."
+	const prefix = "[[component-design."
 	const suffix = "]]"
 	out := make([]string, 0, len(list))
 	for _, v := range list {

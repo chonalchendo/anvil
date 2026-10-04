@@ -247,34 +247,34 @@ func TestValidate_Milestone_RejectsSchedulingFields(t *testing.T) {
 	}
 }
 
-func TestValidate_Contract_NewShape(t *testing.T) {
+func TestValidate_ComponentDesign_NewShape(t *testing.T) {
 	fm := map[string]any{
-		"type": "contract", "title": "Data boundaries", "description": "what the pipeline does / does not",
+		"type": "component-design", "title": "Data boundaries", "description": "what the pipeline does / does not",
 		"created": "2026-06-02", "updated": "2026-06-02",
 		"status": "draft", "project": "burgh", "kind": "data",
 		"tags": []any{"domain/property"},
 	}
-	if err := Validate("contract", fm); err != nil {
-		t.Fatalf("expected valid contract: %v", err)
+	if err := Validate("component-design", fm); err != nil {
+		t.Fatalf("expected valid component design: %v", err)
 	}
 }
 
-func TestValidate_Contract_RequiresKind(t *testing.T) {
+func TestValidate_ComponentDesign_RequiresKind(t *testing.T) {
 	fm := map[string]any{
-		"type": "contract", "title": "X", "description": "x",
+		"type": "component-design", "title": "X", "description": "x",
 		"created": "2026-06-02", "status": "draft", "project": "burgh",
 	}
-	if err := Validate("contract", fm); err == nil {
+	if err := Validate("component-design", fm); err == nil {
 		t.Error("expected rejection: kind is required")
 	}
 }
 
-func TestValidate_Contract_RejectsBadStatus(t *testing.T) {
+func TestValidate_ComponentDesign_RejectsBadStatus(t *testing.T) {
 	fm := map[string]any{
-		"type": "contract", "title": "X", "description": "x",
+		"type": "component-design", "title": "X", "description": "x",
 		"created": "2026-06-02", "status": "ratified", "project": "burgh", "kind": "data",
 	}
-	if err := Validate("contract", fm); err == nil {
+	if err := Validate("component-design", fm); err == nil {
 		t.Error("expected rejection: status enum")
 	}
 }

@@ -80,9 +80,9 @@ anvil set milestone <id> system_design "[[system-design.<project>]]"
 
 `system_design` is the governing spine edge — issues scoped under it inherit that design as box grounding. Make an absent link an **explicit decision**, not a silent omission. Either attach the governing design, or affirm to the user that none governs this slice, before leaving the slot empty.
 
-## Phase 4b — Contract coverage
+## Phase 4b — Component-design coverage
 
-**REQUIRED REFERENCE:** Use skills/writing-milestone/references/contract-coverage.md
+**REQUIRED REFERENCE:** Use skills/writing-milestone/references/component-design-coverage.md
 
 ## Phase 5 — Validate
 

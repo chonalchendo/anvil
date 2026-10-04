@@ -109,7 +109,7 @@ Classify the issue into exactly one kind before composing the body — bug (conc
   - If an AC or `## Verification` block prescribes a tool/command/behaviour as the mechanism, run that command in this environment before the issue lands; on failure, rewrite as an outcome or split a feasibility spike.
   - `create`/`promote --as issue` enforce this mechanically: every `### Direct`/`### Indirect` block actually runs, judged by exit status. An Indirect block that already passes is the failure — it can't discriminate fixed from broken.
   - Full verdict table, `set -e`/SIGPIPE rules: `docs/issue-spec.md`.
-- **Draw verification from the governing contract, don't invent predicates** — identify it before authoring (`anvil list contract` → `anvil show contract <id> --body`; link recorded in Phase 4b) and write `### Direct`/`### Indirect` as its concrete instance. Every predicate, contract-drawn or not, satisfies the universal bars: same code path, exercise not presence (behaviour, never a source grep — except doc/skill-only changes, which grep the *built/installed* artifact), create the unmet condition first, anchor structurally, and the goal's own measure. Definitions and full predicate-writing rules: `docs/issue-spec.md`.
+- **Draw verification from the governing component design, don't invent predicates** — identify it before authoring (`anvil list component-design` → `anvil show component-design <id> --body`; link recorded in Phase 4b) and write `### Direct`/`### Indirect` as its concrete instance. Every predicate, component design-drawn or not, satisfies the universal bars: same code path, exercise not presence (behaviour, never a source grep — except doc/skill-only changes, which grep the *built/installed* artifact), create the unmet condition first, anchor structurally, and the goal's own measure. Definitions and full predicate-writing rules: `docs/issue-spec.md`.
 - **`## Problem` for a cold reader** — lead sentence, then bold-labelled parts (evidence, cause, direction, sequencing); enumerations are lists or tables, never paragraphs. **REQUIRED REFERENCE:** Use skills/writing-issue/references/problem-shape.md for the per-part shape and the cold-reader and glance tests.
 
 Print the required skeleton, fill it, and pass via `--body-file` (`create` validates frontmatter + body and rolls back on failure — no separate `validate` step):
@@ -133,11 +133,11 @@ anvil set issue <id> severity <low|medium|high|critical>
 anvil set issue <id> acceptance --add "<criterion>"   # optional, one --add per criterion
 ```
 
-## Phase 4b — Typed slots: contracts, system-design, dependencies, anchor
+## Phase 4b — Typed slots: component designs, system-design, dependencies, anchor
 
 Link the governing context a worker loads at issue-start (`completing-issue` Phase 1) and a reviewer uses as a rubric (`reviewing-pr`), then set the slots the queue and claim gate read. Substitute real ids — `anvil link` refuses a target still carrying `<`, `>`, or whitespace.
 
-- **Contract(s)** — `anvil list contract --json`; for each whose scope matches: `anvil link issue <issue-id> contract <contract-id>`.
+- **Component design(s)** — `anvil list component-design --json`; for each whose scope matches: `anvil link issue <issue-id> component-design <component-design-id>`.
 - **System-design** — `anvil list system-design --json`; match on `project` equality: `anvil link issue <issue-id> system-design <project>`. This is the issue's governing spine edge that `completing-issue` walks to hydrate its box; make a missing link an explicit decision (attach it, or state "no design governs this slice") — never a silent skip. Don't invent a link to satisfy the check.
 - **Dependencies** — one edge per issue the Sequencing line names: `anvil link issue <issue-id> issue <prereq-id> --relation depends_on` / `--relation blocks`. `anvil list issue --ready` reads only these typed edges — prose ordering is invisible to it.
 - **Reproduction anchor** — bug kind only; shape lives in `references/bug.md`. Author one whenever a command can capture the failure; skipping it is a stated decision, never a silent default.

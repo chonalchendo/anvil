@@ -1,6 +1,6 @@
 ---
 name: writing-convention
-description: "Use when authoring or sharpening a cross-project code/style convention — how you write Python, SQL, Terraform, or model data across every project. Triggers: 'write the X convention', 'capture the house style for X', 'these rules should be shared across projects'. Not for a project-specific boundary (writing-contract) or a point-in-time choice (a decision)."
+description: "Use when authoring or sharpening a cross-project code/style convention — how you write Python, SQL, Terraform, or model data across every project. Triggers: 'write the X convention', 'capture the house style for X', 'these rules should be shared across projects'. Not for a project-specific boundary (writing-component-design) or a point-in-time choice (a decision)."
 license: MIT
 allowed-tools: [Bash, Read, Edit, Write]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -20,7 +20,7 @@ metadata:
 
 # Writing Convention
 
-Workflow for authoring or sharpening a **convention** — a project-agnostic, tool/language-keyed code/style spec (`convention.python`, `convention.sql`, `convention.terraform`, `convention.data-modelling`). A convention is the single canonical source a contract or project doc *links*, never restates.
+Workflow for authoring or sharpening a **convention** — a project-agnostic, tool/language-keyed code/style spec (`convention.python`, `convention.sql`, `convention.terraform`, `convention.data-modelling`). A convention is the single canonical source a component design or project doc *links*, never restates.
 
 ## The boundary: convention = content, skill = loader
 
@@ -28,10 +28,10 @@ A convention holds the **standing spec** — the rules themselves. It is not a b
 
 - **decision** — *why/when* a rule changed (the changelog, with reversal triggers). Not the standing rule.
 - **convention** — the standing cross-project spec. Authored once; the source of truth.
-- **contract `## Code design`** — *links* the governing convention(s) plus this component's project-specific deltas.
+- **component design `## Code design`** — *links* the governing convention(s) plus this component's project-specific deltas.
 - **skill** — a thin behavioural loader. A skill (including this one) points at a convention; it never forks the convention's content into its own body.
 
-When you find yourself copying a convention's rules into a contract, a skill, or a project `CLAUDE.md`, stop — link `[[convention.<slug>]]` instead. Duplication is the drift this type exists to kill.
+When you find yourself copying a convention's rules into a component design, a skill, or a project `CLAUDE.md`, stop — link `[[convention.<slug>]]` instead. Duplication is the drift this type exists to kill.
 
 ## Mode selection
 
@@ -79,7 +79,7 @@ anvil list convention            # confirm none exists for this tool/language
 
 Ground the convention in real, observed rules, not invented ideals. Pull from existing per-repo `CLAUDE.md` / `docs/*-conventions.md` across projects and consolidate the overlap — the point is to author once what was drifting in N places. Strip project-specific examples so the spec stays project-agnostic.
 
-**Test-code *style* is research-grounded, not guessed.** When the convention covers how tests are written (framework idiom, given-when-then, test-first) — the style a contract's `## Verification` inherits — don't author it from priors. Dispatch an `anvil-researcher` subagent (`subagent_type: anvil-researcher` — topic and deliverable shape as fill-ins) to corroborate the proposed style against your training data **and** current sources, taking only recognised industry experts (not arbitrary blogs). Confirm the proposal with the human before it lands. This leg grounds *style* only; the verification *strategy* (Direct/Indirect keyed to what the component is) is research-grounded separately in `writing-contract` — the two skills don't overlap.
+**Test-code *style* is research-grounded, not guessed.** When the convention covers how tests are written (framework idiom, given-when-then, test-first) — the style a component design's `## Verification` inherits — don't author it from priors. Dispatch an `anvil-researcher` subagent (`subagent_type: anvil-researcher` — topic and deliverable shape as fill-ins) to corroborate the proposed style against your training data **and** current sources, taking only recognised industry experts (not arbitrary blogs). Confirm the proposal with the human before it lands. This leg grounds *style* only; the verification *strategy* (Direct/Indirect keyed to what the component is) is research-grounded separately in `writing-component-design` — the two skills don't overlap.
 
 ### Phase 3 — Create
 
@@ -98,36 +98,36 @@ anvil set convention convention.<slug> status active
 
 If `anvil validate` reports `type/convention` as an unknown glossary tag (first convention in a fresh vault), register it once: `anvil tags add type/convention --desc "..."`.
 
-### Phase 4 — Wire the contract rail
+### Phase 4 — Wire the component design rail
 
-An active convention reaches a completion-time worker only through the contract→convention rail (`anvil show contract <id> --links convention`, read by `completing-issue` and `reviewing-pr`). A convention no contract links is invisible, so wiring the rail is part of birth — not follow-up.
+An active convention reaches a completion-time worker only through the component design→convention rail (`anvil show component-design <id> --links convention`, read by `completing-issue` and `reviewing-pr`). A convention no component design links is invisible, so wiring the rail is part of birth — not follow-up.
 
-1. **Sweep the contracts.** Take the whole set; a truncated sweep silently drops candidates.
+1. **Sweep the component designs.** Take the whole set; a truncated sweep silently drops candidates.
 
    ```bash
-   anvil list contract --limit 100 --json | jq -e '.truncated == false' >/dev/null \
-     || echo "raise --limit — more contracts exist than were fetched"
-   anvil list contract --limit 100 --json | jq -r '.items[].id'   # the sweep set
-   anvil show contract <id> --links convention                    # what it already links
+   anvil list component-design --limit 100 --json | jq -e '.truncated == false' >/dev/null \
+     || echo "raise --limit — more component designs exist than were fetched"
+   anvil list component-design --limit 100 --json | jq -r '.items[].id'   # the sweep set
+   anvil show component-design <id> --links convention                    # what it already links
    ```
 
-2. **Apply the governs test.** A contract governs the new convention iff its component **writes the artefact the convention specs** — a Python package by `convention.python`, a component whose output is agent-read prose by `convention.prose`. Judge from the contract's `description` plus its `## Does` and `## Code design`. Three exclusions:
+2. **Apply the governs test.** A component design governs the new convention iff its component **writes the artefact the convention specs** — a Python package by `convention.python`, a component whose output is agent-read prose by `convention.prose`. Judge from the component design's `description` plus its `## Does` and `## Code design`. Three exclusions:
    - A tool the component merely calls does not govern it — a TypeScript client fetching from a Python service.
    - The artefact must be the component's **output**, not a by-product of writing it. Every component carries comments and commit messages; that does not put `convention.prose` on all of them.
    - A narrower convention already governing that surface wins. Do not double-link.
 
-3. **Wire each governed contract.** The rail is the frontmatter edge; the prose line is what a reader sees.
+3. **Wire each governed component design.** The rail is the frontmatter edge; the prose line is what a reader sees.
 
    ```bash
-   anvil link contract <id> convention convention.<slug>
-   # then, in the contract's `## Code design`:
+   anvil link component-design <id> convention convention.<slug>
+   # then, in the component design's `## Code design`:
    #   - House-wide <tool> style: `[[convention.<slug>]]` — link, never restate.
-   anvil set contract <id> updated <today-iso>
+   anvil set component-design <id> updated <today-iso>
    ```
 
-   Run `anvil validate` once after the last contract, per `writing-contract` Phase 4.
+   Run `anvil validate` once after the last component design, per `writing-component-design` Phase 4.
 
-4. **Rule on every contract; never skip silently.** When no contract governs the new convention, say so in the run's closing summary — `cross-cutting, no contract home: <slug> governs <artefact> that no current contract's component writes`. Name the trigger that would give it a home: the next contract over that artefact links it at authoring time, per `writing-contract`. A convention parked with no ruling is the failure this phase exists to prevent — it reads as done and reaches nobody.
+4. **Rule on every component design; never skip silently.** When no component design governs the new convention, say so in the run's closing summary — `cross-cutting, no component design home: <slug> governs <artefact> that no current component design's component writes`. Name the trigger that would give it a home: the next component design over that artefact links it at authoring time, per `writing-component-design`. A convention parked with no ruling is the failure this phase exists to prevent — it reads as done and reaches nobody.
 
 ---
 
@@ -151,7 +151,7 @@ A convention is a **mutable current-state doc**, not an append-only thread — e
 
 ## Surfacing at write-time (optional, per-repo)
 
-A convention only enforces if it reaches the agent *as it writes* the matching code. The contract rail (`anvil show contract <id> --links convention --body`, read by `completing-issue` and `reviewing-pr`) covers issue work; for editor-driven edits a project can add a `PreToolUse` hook that injects the convention directly.
+A convention only enforces if it reaches the agent *as it writes* the matching code. The component design rail (`anvil show component-design <id> --links convention --body`, read by `completing-issue` and `reviewing-pr`) covers issue work; for editor-driven edits a project can add a `PreToolUse` hook that injects the convention directly.
 
 The pattern: match the edited `file_path` by extension (`*.py`, `*.sql`, …) → inject `anvil show convention convention.<lang> --body` as `additionalContext` → dedup once per session via a sentinel file → `permissionDecision: defer` (never approve/deny). The hook is per-repo build infra — it may hardcode the repo's paths and extension map, so it lives in the project, not in this skill.
 
@@ -159,7 +159,7 @@ The pattern: match the edited `file_path` by extension (`*.py`, `*.sql`, …) �
 
 ## Non-goals
 
-- Project-specific boundaries — that is a contract (`writing-contract`), which *links* this convention.
+- Project-specific boundaries — that is a component design (`writing-component-design`), which *links* this convention.
 - Machine enforcement (`anvil convention check`) — conventions are read by agents, not linted, in v0.1.
 - Auto-generating project `CLAUDE.md` pointer blocks — link by hand.
 

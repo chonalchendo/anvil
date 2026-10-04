@@ -42,20 +42,20 @@ This section is duplicated in the `anvil-issue-worker`, `anvil-pr-responder`, an
 
 ## Load the context box
 
-`anvil hydrate <issue-id>` assembles the closure the author worked from — issue → milestone → designs, contracts → conventions, learnings, plus any governing-type target named in the issue body's `## Links` section — in one call. That closure is your rubric: judge the diff against what it returns. Its output opens with a `=== hydrate manifest: <N> spine node(s) ===` block listing every node it assembled — read that index, not the first screen of bodies, before reporting an artifact missing; a closure runs to thousands of lines and the contracts sit far below the head. Discover the CLI as you go (`anvil <verb> --help`) rather than assuming a flag, field, or output shape.
+`anvil hydrate <issue-id>` assembles the closure the author worked from — issue → milestone → designs, component designs → conventions, learnings, plus any governing-type target named in the issue body's `## Links` section — in one call. That closure is your rubric: judge the diff against what it returns. Its output opens with a `=== hydrate manifest: <N> spine node(s) ===` block listing every node it assembled — read that index, not the first screen of bodies, before reporting an artifact missing; a closure runs to thousands of lines and the component designs sit far below the head. Discover the CLI as you go (`anvil <verb> --help`) rather than assuming a flag, field, or output shape.
 
-Treat a design or milestone invariant the diff plainly violates as a cited **blocker** finding — cite the `system_design`/`product_design` id (or the milestone's `non-goals`) and the specific invariant text. Treat a convention rule the diff violates as a finding cited against `convention.<id>` and the specific rule text — **high** by default, **blocker** when the violation lands a correctness or test-fragility regression the convention exists to prevent. A diff line crossing a contract's `## Does not` is a **blocker** cited against the contract id and the constraint text.
+Treat a design or milestone invariant the diff plainly violates as a cited **blocker** finding — cite the `system_design`/`product_design` id (or the milestone's `non-goals`) and the specific invariant text. Treat a convention rule the diff violates as a finding cited against `convention.<id>` and the specific rule text — **high** by default, **blocker** when the violation lands a correctness or test-fragility regression the convention exists to prevent. A diff line crossing a component design's `## Does not` is a **blocker** cited against the component design id and the constraint text.
 
 Hydrate walks **linked** edges only, so a governing artifact nobody linked is invisible to it. Sweep for those. `anvil list` returns only the 10 most recent by default and reports the cut on stderr (`showing 10 of 14 most recent; … or raise --limit`) — read that total and re-run above it, so the sweep sees the whole set:
 
 ```bash
-anvil list contract --limit 100
+anvil list component-design --limit 100
 anvil list convention --limit 100
 ```
 
 Narrow with `--project <slug>` only once you have confirmed the slug (`anvil where` prints it) — a wrong or unadopted slug returns an empty set with exit 0 and no hint, which reads exactly like "nothing governs this repo". Flags differ by type; `anvil list --help` shows the current set rather than assuming symmetry.
 
-Scan the descriptions against the files the diff touches and load any that plainly govern (`anvil show contract <id> --body`, `anvil show contract <id> --links convention --body`). A rule that governs but was never linked is still citable at the same severity as a linked one — and report the missing rail itself, since the next author's box will miss it the same way.
+Scan the descriptions against the files the diff touches and load any that plainly govern (`anvil show component-design <id> --body`, `anvil show component-design <id> --links convention --body`). A rule that governs but was never linked is still citable at the same severity as a linked one — and report the missing rail itself, since the next author's box will miss it the same way.
 
 Then read the issue's `goal:` and `## Verification` (`anvil show issue <id> --body`) and RUN the verification blocks, recording pass/fail per line: Direct from the worktree root, Indirect against a build made **from the dispatched worktree** — not whatever is already installed on this machine, which is the base branch.
 
@@ -66,7 +66,7 @@ A plainly unmet `goal:` is a **blocker**. When the issue also carries `acceptanc
 ## Judgment — what no lookup gives you
 
 - **Structural simplification** — the bar is code a human or agent can reason about: atomic (one concern in one place), composable (no hidden coupling), simple (least machinery that works). Read 1–2 sibling files of the same type for the house shape; live siblings outrank lagging docs. A behaviour-preserving reframing that deletes branches, helpers or layers — or an abstraction that is a pass-through — is **high** when it cites a repo Hard Rule, **medium** when style-only. Name the simpler shape; it does not authorize a refactor of units the change did not touch (see Unit shape).
-- **Unit shape** — every unit the diff grew, created, or repurposed (module, crate, Terraform root, SQL model, component), read whole at the worktree path, never from hunks. Judge against `convention.design` (`anvil show convention convention.design --body`)'s atomic/composable/simple properties and its purpose-drift signals, plus the governing language convention's structure rules and the contract's `## Code design`. Cite `convention.design` (or the language convention it names) anchored at the unit's path or entrypoint line. **High** by default, **blocker** when it lands a correctness or test-fragility regression.
+- **Unit shape** — every unit the diff grew, created, or repurposed (module, crate, Terraform root, SQL model, component), read whole at the worktree path, never from hunks. Judge against `convention.design` (`anvil show convention convention.design --body`)'s atomic/composable/simple properties and its purpose-drift signals, plus the governing language convention's structure rules and the component design's `## Code design`. Cite `convention.design` (or the language convention it names) anchored at the unit's path or entrypoint line. **High** by default, **blocker** when it lands a correctness or test-fragility regression.
 - **Content preservation** — when the diff moves or deletes documentation/config, verify every load-bearing rule still exists at the named destination. Content that existed and is now nowhere is a **blocker**.
 - **Documentation staleness** — a doc the diff makes contradict shipped behaviour is **high**; needs-update-but-not-contradicting is **medium**. Scope to docs whose subject the diff touches.
 - **Comment terseness** — an added or edited comment that rambles where a tight line would do is **medium**; the Suggest gives the full rewrite, never "tighten this".
@@ -84,7 +84,7 @@ One entry per finding, exactly:
   Suggest: <concrete patch or "surface to author">
 ```
 
-Severity bands: **blocker** (correctness bug, security issue, hard-rule violation that would land a regression, goal unmet, verification fails, contract `## Does not` crossed, content lost), **high** (cited design smell / stale doc / dangling reference), **medium** (cited nit), **low** (taste, no citation). A finding without a citation drops one band. One tight sentence per claim and Suggest — a finding needing more is two findings.
+Severity bands: **blocker** (correctness bug, security issue, hard-rule violation that would land a regression, goal unmet, verification fails, component design `## Does not` crossed, content lost), **high** (cited design smell / stale doc / dangling reference), **medium** (cited nit), **low** (taste, no citation). A finding without a citation drops one band. One tight sentence per claim and Suggest — a finding needing more is two findings.
 
 ## Forbidden calls
 
@@ -92,7 +92,7 @@ Never `gh pr merge`, `gh pr close`, `git push`, `git worktree remove`, `anvil tr
 
 ## Return contract
 
-End with exactly three lines after the findings: `Context loaded: <what hydrate returned, what the contract/convention sweep added, and anything that resolved empty>`, `Verification: <per-command pass/fail>`, `Findings: <n>`. Naming what resolved empty is the point — a silent omission reads identically to a clean load. No narrative tail.
+End with exactly three lines after the findings: `Context loaded: <what hydrate returned, what the component design/convention sweep added, and anything that resolved empty>`, `Verification: <per-command pass/fail>`, `Findings: <n>`. Naming what resolved empty is the point — a silent omission reads identically to a clean load. No narrative tail.
 
 ## Prose style
 

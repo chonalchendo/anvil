@@ -94,7 +94,7 @@ type IDInputs struct {
 // topic-ordinal types (decision, thread), which require a vault scan to
 // allocate an ordinal.
 //
-// Issue, milestone, contract, plan and convention ids keep their `<type>.`
+// Issue, milestone, component design, plan and convention ids keep their `<type>.`
 // prefix, so the id, the on-disk basename and the `[[type.id]]` wikilink are
 // one string. Design types (product-design, system-design) key on a bare
 // project slug instead — the index (core.IndexKey) disambiguates a bare id
@@ -137,7 +137,7 @@ func DeterministicID(t Type, in IDInputs) (string, error) {
 	case TypeInbox:
 		date := time.Now().UTC().Format("2006-01-02")
 		return fmt.Sprintf("%s-%s", date, slug), nil
-	case TypeIssue, TypePlan, TypeMilestone, TypeContract:
+	case TypeIssue, TypePlan, TypeMilestone, TypeComponentDesign:
 		if in.Project == "" {
 			return "", fmt.Errorf("project required for %s", t)
 		}

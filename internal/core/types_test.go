@@ -23,13 +23,13 @@ func TestParseType_Unknown(t *testing.T) {
 
 func TestType_Dir(t *testing.T) {
 	cases := map[Type]string{
-		TypeInbox:      "00-inbox",
-		TypeIssue:      "70-issues",
-		TypePlan:       "80-plans",
-		TypeMilestone:  "85-milestones",
-		TypeDecision:   "30-decisions",
-		TypeContract:   "75-contracts",
-		TypeConvention: "35-conventions",
+		TypeInbox:           "00-inbox",
+		TypeIssue:           "70-issues",
+		TypePlan:            "80-plans",
+		TypeMilestone:       "85-milestones",
+		TypeDecision:        "30-decisions",
+		TypeComponentDesign: "75-component-designs",
+		TypeConvention:      "35-conventions",
 	}
 	for tp, want := range cases {
 		if got := tp.Dir(); got != want {
