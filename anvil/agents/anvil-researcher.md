@@ -40,3 +40,12 @@ Never `anvil transition` anything — this agent researches, it does not own iss
 ## Return contract
 
 Return the mode reference's Synthesise output (opposing view reflected, gaps marked explicitly, sources cited inline) followed by one line per persisted learning: `Captured: [[learning.<id>]] — <one-line title>` (omit the line entirely if nothing cleared the Capture bar). No narrative tail, no "let me check", no offer to do more.
+
+## Prose style
+
+Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
+
+- Short sentences: 20 words at most for an instruction, 25 for a description.
+- Active voice. One instruction per sentence. Conclusion first.
+- One term per concept; reuse it verbatim.
+- No filler, no hedging, no restating what the reader already has.

@@ -43,6 +43,9 @@ func TestCheckFreshnessReturnsErrIndexStaleWhenVaultNewer(t *testing.T) {
 	if err := db.SetLastReindex(time.Now().Add(-1 * time.Hour)); err != nil {
 		t.Fatal(err)
 	}
+	if err := db.SetSchemaVersion(SchemaVersion); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(vault, "touch.md"), []byte("x"), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
 		t.Fatal(err)
 	}
@@ -70,6 +73,9 @@ func TestCheckFreshnessOKWhenDBNewer(t *testing.T) {
 	}
 	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 	if err := db.SetLastReindex(time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSchemaVersion(SchemaVersion); err != nil {
 		t.Fatal(err)
 	}
 
@@ -100,6 +106,9 @@ func TestCheckFreshnessReturnsErrIndexStaleWhenExistingFileEdited(t *testing.T) 
 	}
 	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 	if err := db.SetLastReindex(time.Now().Add(-30 * time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSchemaVersion(SchemaVersion); err != nil {
 		t.Fatal(err)
 	}
 
@@ -143,6 +152,9 @@ func TestCheckFreshnessIgnoresFutureMtimeFile(t *testing.T) {
 	if err := db.SetLastReindex(time.Now()); err != nil {
 		t.Fatal(err)
 	}
+	if err := db.SetSchemaVersion(SchemaVersion); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := db.CheckFreshness(vault); err != nil {
 		t.Fatalf("future mtime must not be drift, got %v", err)
@@ -161,6 +173,9 @@ func TestCheckFreshnessFutureVaultDirMtimeIsStale(t *testing.T) {
 	}
 	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 	if err := db.SetLastReindex(time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSchemaVersion(SchemaVersion); err != nil {
 		t.Fatal(err)
 	}
 	future := time.Now().Add(1 * time.Second)
@@ -189,10 +204,13 @@ func TestCheckFreshnessDetectsDeletedFileDirectly(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close() //nolint:errcheck // close in defer; error not actionable
-	if err := db.UpsertArtifact(ArtifactRow{ID: "demo.gone", Type: "issue", Status: "open", Path: path}); err != nil {
+	if err := db.UpsertArtifact(ArtifactRow{ID: "issue.demo.gone", Type: "issue", Status: "open", Path: path}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.SetLastReindex(time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSchemaVersion(SchemaVersion); err != nil {
 		t.Fatal(err)
 	}
 
@@ -240,10 +258,13 @@ func TestCheckFreshnessSymlinkedVaultRootIsNotStale(t *testing.T) {
 	}
 	defer db.Close() //nolint:errcheck // close in defer; error not actionable
 	// Indexed under the resolved path, as a prior reindex would have stored it.
-	if err := db.UpsertArtifact(ArtifactRow{ID: "demo.live", Type: "issue", Status: "open", Path: path}); err != nil {
+	if err := db.UpsertArtifact(ArtifactRow{ID: "issue.demo.live", Type: "issue", Status: "open", Path: path}); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.SetLastReindex(time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSchemaVersion(SchemaVersion); err != nil {
 		t.Fatal(err)
 	}
 
@@ -275,6 +296,9 @@ func TestCheckFreshnessNamesStaleFile(t *testing.T) {
 	// Stamp BEFORE the triggering write, so the write is unambiguously the
 	// only thing the check can be reacting to.
 	if err := db.SetLastReindex(time.Now().Add(-30 * time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSchemaVersion(SchemaVersion); err != nil {
 		t.Fatal(err)
 	}
 

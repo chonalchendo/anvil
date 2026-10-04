@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -99,7 +101,7 @@ func resolveAnteConfigDir() (string, error) {
 }
 
 // resolveAgentCLIConfigDir picks the agent CLI's config dir for skill/agent
-// install. Only "claude", "codex", "pi", and "ante" are valid; an unknown
+// install. Only "claude", "codex", "pi", "ante", and "opencode" are valid; an unknown
 // target is a usage error.
 func resolveAgentCLIConfigDir(target string) (string, error) {
 	switch target {
@@ -111,8 +113,10 @@ func resolveAgentCLIConfigDir(target string) (string, error) {
 		return resolvePiConfigDir()
 	case "ante":
 		return resolveAnteConfigDir()
+	case "opencode":
+		return resolveOpenCodeConfigDir()
 	default:
-		return "", fmt.Errorf("unknown --target %q: want claude, codex, pi, or ante", target)
+		return "", fmt.Errorf("unknown --target %q: want claude, codex, pi, ante, or opencode", target)
 	}
 }
 
@@ -317,13 +321,16 @@ func newInstallAgentsCmd() *cobra.Command {
 			"pi-resolvable subset, and maps skills/effort to pi's skills/thinking keys. The\n" +
 			"ante emit keeps the markdown shape, translates the model alias to Ante's\n" +
 			"canonical catalog id, narrows tools to Ante's built-in subset, and drops\n" +
-			"skills/effort outright — Ante's frontmatter has no equivalent keys.\n\n" +
+			"skills/effort outright — Ante's frontmatter has no equivalent keys. --target\n" +
+			"opencode → ~/.config/opencode/agents/<name>.md (honoring $OPENCODE_CONFIG_DIR);\n" +
+			"the emit adds mode: subagent, omits model (subagents inherit the session model),\n" +
+			"and maps tools to a deny-by-default enable-map.\n\n" +
 			"Agents are embedded into the anvil binary at build time. This command deploys\n" +
 			"that embedded bundle — editing anvil/agents/<name>.md in a checkout has no\n" +
 			"effect until you rebuild the anvil binary and re-run\n" +
 			"`anvil install agents`. A freshly-deployed Claude agent is dispatchable via the\n" +
 			"Agent tool's subagent_type only after the next Claude Code session restart.",
-		Example: "  anvil install agents\n  anvil install agents --target codex\n  anvil install agents --target pi\n  anvil install agents --target ante\n  anvil install agents --target codex --uninstall",
+		Example: "  anvil install agents\n  anvil install agents --target codex\n  anvil install agents --target pi\n  anvil install agents --target ante\n  anvil install agents --target opencode\n  anvil install agents --target codex --uninstall",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			dir, err := resolveAnvilAgentsTarget(target)
@@ -332,11 +339,13 @@ func newInstallAgentsCmd() *cobra.Command {
 			}
 			switch target {
 			case "codex":
-				return runInstallCodexAgents(cmd, dir, uninstall, force)
+				return runInstallTranslatedAgents(cmd, dir, uninstall, force, "codex", "Codex TOML", installer.InstallCodexAgents, installer.RemoveCodexAgents)
 			case "pi":
-				return runInstallPiAgents(cmd, dir, uninstall, force)
+				return runInstallTranslatedAgents(cmd, dir, uninstall, force, "pi", "pi markdown subagents", installer.InstallPiAgents, installer.RemovePiAgents)
 			case "ante":
-				return runInstallAnteAgents(cmd, dir, uninstall, force)
+				return runInstallTranslatedAgents(cmd, dir, uninstall, force, "ante", "Ante subagent markdown", installer.InstallAnteAgents, installer.RemoveAnteAgents)
+			case "opencode":
+				return runInstallTranslatedAgents(cmd, dir, uninstall, force, "opencode", "OpenCode subagent markdown", installer.InstallOpenCodeAgents, installer.RemoveOpenCodeAgents)
 			}
 			if uninstall {
 				changed, err := installer.RemoveAgents(agents.FS, dir)
@@ -364,15 +373,21 @@ func newInstallAgentsCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&uninstall, "uninstall", false, "remove anvil agents instead of installing them")
 	cmd.Flags().BoolVar(&force, "force", false, "overwrite an existing agent file that differs from the embedded copy")
-	cmd.Flags().StringVar(&target, "target", "claude", "agent CLI to install into: claude (~/.claude, markdown), codex (~/.codex, TOML; honoring $CODEX_HOME), pi (~/.pi/agent, markdown; honoring $PI_CODING_AGENT_DIR), or ante (~/.ante, markdown; honoring $ANTE_HOME)")
+	cmd.Flags().StringVar(&target, "target", "claude", "agent CLI to install into: claude (~/.claude, markdown), codex (~/.codex, TOML; honoring $CODEX_HOME), pi (~/.pi/agent, markdown; honoring $PI_CODING_AGENT_DIR), ante (~/.ante, markdown; honoring $ANTE_HOME), or opencode (~/.config/opencode, markdown; honoring $OPENCODE_CONFIG_DIR)")
 	return cmd
 }
 
-func runInstallPiAgents(cmd *cobra.Command, dir string, uninstall, force bool) error {
+// runInstallTranslatedAgents is the shared install/uninstall wrapper for the
+// markdown-emitting targets (pi, ante, opencode).
+func runInstallTranslatedAgents(
+	cmd *cobra.Command, dir string, uninstall, force bool, target, shape string,
+	install func(fs.FS, string, bool) (bool, error),
+	remove func(fs.FS, string) (bool, error),
+) error {
 	if uninstall {
-		changed, err := installer.RemovePiAgents(agents.FS, dir)
+		changed, err := remove(agents.FS, dir)
 		if err != nil {
-			return fmt.Errorf("removing pi agents: %w", err)
+			return fmt.Errorf("removing %s agents: %w", target, err)
 		}
 		if changed {
 			cmd.Println("removed anvil agents from", dir)
@@ -381,73 +396,32 @@ func runInstallPiAgents(cmd *cobra.Command, dir string, uninstall, force bool) e
 		}
 		return nil
 	}
-	changed, err := installer.InstallPiAgents(agents.FS, dir, force)
+	changed, err := install(agents.FS, dir, force)
 	if err != nil {
-		return fmt.Errorf("installing pi agents: %w", err)
+		return fmt.Errorf("installing %s agents: %w", target, err)
 	}
 	if changed {
-		cmd.Println("installed anvil agents (embedded bundle) as pi markdown subagents into", dir)
+		cmd.Println("installed anvil agents (embedded bundle) as", shape, "into", dir)
 	} else {
 		cmd.Println("anvil agents up to date at", dir)
 	}
 	return nil
 }
 
-func runInstallCodexAgents(cmd *cobra.Command, dir string, uninstall, force bool) error {
-	if uninstall {
-		changed, err := installer.RemoveCodexAgents(agents.FS, dir)
-		if err != nil {
-			return fmt.Errorf("removing codex agents: %w", err)
-		}
-		if changed {
-			cmd.Println("removed anvil agents from", dir)
-		} else {
-			cmd.Println("no anvil agents found at", dir)
-		}
-		return nil
-	}
-	changed, err := installer.InstallCodexAgents(agents.FS, dir, force)
-	if err != nil {
-		return fmt.Errorf("installing codex agents: %w", err)
-	}
-	if changed {
-		cmd.Println("installed anvil agents (embedded bundle) as Codex TOML into", dir)
-	} else {
-		cmd.Println("anvil agents up to date at", dir)
-	}
-	return nil
-}
-
-func runInstallAnteAgents(cmd *cobra.Command, dir string, uninstall, force bool) error {
-	if uninstall {
-		changed, err := installer.RemoveAnteAgents(agents.FS, dir)
-		if err != nil {
-			return fmt.Errorf("removing ante agents: %w", err)
-		}
-		if changed {
-			cmd.Println("removed anvil agents from", dir)
-		} else {
-			cmd.Println("no anvil agents found at", dir)
-		}
-		return nil
-	}
-	changed, err := installer.InstallAnteAgents(agents.FS, dir, force)
-	if err != nil {
-		return fmt.Errorf("installing ante agents: %w", err)
-	}
-	if changed {
-		cmd.Println("installed anvil agents (embedded bundle) as Ante subagent markdown into", dir)
-	} else {
-		cmd.Println("anvil agents up to date at", dir)
-	}
-	return nil
-}
+var errOpenCodeSkills = errors.New("--target opencode is not supported for skills: OpenCode already scans ~/.claude/skills, so run `anvil install skills` (default claude target); installing again would double-load them")
 
 // resolveAnvilSkillsTarget returns the user-skills parent directory for the
 // given agent CLI target. Anvil installs each shipped skill flat under this
 // path (skills/<skill>/SKILL.md) so the agent CLI's user-skill discovery picks
 // them up.
 func resolveAnvilSkillsTarget(target string) (string, error) {
+	switch target {
+	case "claude", "codex", "pi", "ante":
+	case "opencode":
+		return "", errOpenCodeSkills
+	default:
+		return "", fmt.Errorf("unknown --target %q: want claude, codex, pi, or ante", target)
+	}
 	dir, err := resolveAgentCLIConfigDir(target)
 	if err != nil {
 		return "", err

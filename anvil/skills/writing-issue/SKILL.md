@@ -123,6 +123,8 @@ anvil create issue --title "<title>" --description "<one-line preview>" \
 
 Required H2s (`create` rejects a body missing any): `## Problem`, `## Non-goals` (bulleted), `## Verification` (`### Direct` + `### Indirect`, fenced `bash` blocks — shape/rules in `docs/issue-spec.md`), `## Links` (`[[wikilink]]`, targets must resolve; `anvil hydrate` walks these links only for governing types — a sibling-issue link resolves but stays inert). `## Acceptance criteria` is optional, only when a bulleted checklist beats `goal:` + `## Verification` alone.
 
+If the JSON `warnings[]` carries a `kind: validation` entry (e.g. `lead_sentence`), the issue was written but the body needs revising — fix it per the entry's `code`, don't ignore it.
+
 Capture `id`/`path` from the JSON output (`~/anvil-vault/70-issues/issue.<project>.NNNN.<slug>.md`), then set typed slots — bare positional values on array fields **replace** the array, use `--add`/`--remove VALUE_OR_INDEX`:
 
 ```bash
@@ -148,3 +150,12 @@ Link the governing context a worker loads at issue-start (`completing-issue` Pha
 - Does not create milestones inline — hands off to `writing-milestone`, resumes after.
 - Does not run research, only flag the need for it.
 - Does not persist pre-mortem or working-backwards headline — validation tools, not specification content.
+
+## Prose style
+
+Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
+
+- Short sentences: 20 words at most for an instruction, 25 for a description.
+- Active voice. One instruction per sentence. Conclusion first.
+- One term per concept; reuse it verbatim.
+- No filler, no hedging, no restating what the reader already has.

@@ -34,6 +34,8 @@ An Indirect block asserts POST-fix behaviour, so it is *expected* to be red unti
 
 **The gate is neither read-only nor retry-safe.** These are author-supplied shell commands running unsandboxed with your privileges, cwd and environment. Whatever a block does — rebuild `bin/anvil`, write a marker file, hit the network — persists even when the create is refused and rolled back, so a retry re-runs it. Keep blocks to the one command that proves the predicate. `--skip-verify-predicates` is the escape hatch; using it ships an unproven predicate.
 
+**Post-land predicates.** An Indirect block whose condition only becomes true after the PR merges (e.g. a scheduled job's first run) starts with the line `# anvil:post-land`. The create-time gate treats it like any Indirect block (it must still be red now). `run-verification.sh` reports a red marked block under `deferred` instead of `failed`, so it does not fail the verdict and the PR opens. `transition issue <id> resolved --land-pr <n>` runs marked blocks once after MERGED; a red one only warns (the merge is irreversible, so refusing to resolve would strand a landed issue). The red block ids are recorded in the issue body. These blocks run in the main checkout, which `--land-pr` never pulls, so they must probe live state (a scheduled run, a deployed service), not the working tree.
+
 ### Direct (unit/integration)
 
 Tests run against the dev tree / working copy: unit tests, integration tests, lint, type-check, schema-validate. Cheap to run, cheap to iterate.

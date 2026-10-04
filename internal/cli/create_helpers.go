@@ -121,6 +121,10 @@ func createLongDescription() string {
 		"When --body / --body-file / --body - / --from supplies a body, body " +
 		"sections and wikilink targets are validated too; a failure rolls back " +
 		"the write. Running 'anvil validate <path>' afterward is unnecessary.\n\n" +
+		"Warnings: advisory findings never fail create. Under --json they ride the " +
+		"success envelope's `warnings` array (similar-artifact entries first: " +
+		"{kind:\"similar\", id}; then {kind:\"validation\", code, got}); in text mode " +
+		"they print to stderr.\n\n" +
 		"EXECUTES CODE (issues only): for an issue body, create runs every " +
 		"`### Direct` / `### Indirect` bash block in the `## Verification` section " +
 		"and judges the issue by their exit status. Those blocks are author-supplied " +

@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/chonalchendo/anvil/internal/core"
 )
 
 // ErrLastReindexUnset means SetLastReindex has not been called yet.
@@ -50,7 +52,8 @@ const metaKeySchemaVersion = "schema_version"
 //	2: artifact_fts (FTS5 over issue/milestone description+goal for content-aware dedup)
 //	3: tags (facet rows for `anvil index` relatedness)
 //	4: design-type per-type flat folders (product-design → 05-product-designs/product-design.<project>.md, system-design → 06-system-designs/system-design.<project>[.<shard>].md; ids keep the type prefix for global artifacts.id uniqueness)
-const SchemaVersion = 4
+//	5: every type keys the index on the type-qualified IndexKey (bare ids may repeat across types)
+const SchemaVersion = 5
 
 // GetSchemaVersion returns the stored schema version, or 0 when unset (a DB
 // built before versioning, or a fresh one).
@@ -99,6 +102,40 @@ func (d *DB) GetLastReindex() (time.Time, error) {
 	return time.Parse(time.RFC3339Nano, s)
 }
 
+// schemaDrift reports why the index cannot be read as-is: a stamp differing
+// from SchemaVersion (older rows are keyed the old way; a newer schema is not
+// ours to read), or a bare-keyed row an older binary wrote into a current-
+// stamped index, which the stamp alone cannot reveal. Empty means readable.
+// The key-shape probe is limited to known types: a row whose type does not
+// parse keeps its raw id through a rebuild, so probing it would force a
+// rebuild on every read.
+func (d *DB) schemaDrift() (string, error) {
+	sv, err := d.GetSchemaVersion()
+	if err != nil {
+		return "", err
+	}
+	// Because of `!=`, switching between binaries with different schema
+	// versions triggers a full rebuild each time; the stale WARN is not drift.
+	if sv != SchemaVersion {
+		return fmt.Sprintf("index schema v%d != v%d", sv, SchemaVersion), nil
+	}
+	types := make([]string, len(core.AllTypes))
+	args := make([]any, len(core.AllTypes))
+	for i, t := range core.AllTypes {
+		types[i], args[i] = "?", string(t)
+	}
+	q := `SELECT 1 FROM artifacts WHERE type IN (` + strings.Join(types, ",") +
+		`) AND substr(id,1,length(type)+1) <> type||'.' LIMIT 1`
+	var one int
+	switch err := d.sql.QueryRow(q, args...).Scan(&one); {
+	case errors.Is(err, sql.ErrNoRows):
+		return "", nil
+	case err != nil:
+		return "", fmt.Errorf("probe key shape: %w", err)
+	}
+	return "bare-keyed row in current-schema index", nil
+}
+
 // CheckFreshness returns ErrIndexStale if any .md file under vaultRoot is
 // newer than the stored last-reindex stamp, or an indexed artifact's file is
 // no longer on disk. ErrLastReindexUnset on first run.
@@ -122,6 +159,11 @@ func (d *DB) CheckFreshnessExcept(vaultRoot, skipPath string) error {
 	stamp, err := d.GetLastReindex()
 	if err != nil {
 		return err
+	}
+	if reason, serr := d.schemaDrift(); serr != nil {
+		return serr
+	} else if reason != "" {
+		return &StaleError{Path: vaultRoot, Reason: reason, Stamp: stamp}
 	}
 	skipAbs := ""
 	if skipPath != "" {

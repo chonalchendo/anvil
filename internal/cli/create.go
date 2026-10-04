@@ -388,7 +388,7 @@ func newCreateCmd() *cobra.Command {
 				if existing, err := core.LoadArtifact(path); err == nil {
 					drift := createDrift(t, fm, existing.FrontMatter, body, existing.Body)
 					if drift == "" {
-						return emitCreateResult(cmd, flagJSON, id, path, statusAlreadyExists, nil)
+						return emitCreateResult(cmd, flagJSON, id, path, statusAlreadyExists, nil, nil)
 					}
 					if !flagUpdate {
 						return formatDriftError(cmd, id, drift, fm, existing.FrontMatter, body, existing.Body)
@@ -398,7 +398,8 @@ func newCreateCmd() *cobra.Command {
 					if c, ok := existing.FrontMatter["created"]; ok {
 						fm["created"] = c
 					}
-					if err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON, preValidationErrors...); err != nil {
+					findings, err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON, preValidationErrors...)
+					if err != nil {
 						return err
 					}
 					originalBytes, rerr := os.ReadFile(path) //nolint:gosec // path is test-controlled or application-managed; not user input
@@ -416,13 +417,14 @@ func newCreateCmd() *cobra.Command {
 						}
 						return indexErr
 					}
-					return emitCreateResult(cmd, flagJSON, id, path, statusUpdated, nil)
+					return emitCreateResult(cmd, flagJSON, id, path, statusUpdated, nil, findings)
 				} else if !errors.Is(err, fs.ErrNotExist) {
 					return fmt.Errorf("checking %s: %w", path, err)
 				}
 			}
 
-			if err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON, preValidationErrors...); err != nil {
+			findings, err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON, preValidationErrors...)
+			if err != nil {
 				return err
 			}
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
@@ -452,7 +454,7 @@ func newCreateCmd() *cobra.Command {
 			if !flagForceNew {
 				warnings = findNearDuplicates(v, t, project, id)
 			}
-			return emitCreateResult(cmd, flagJSON, id, path, statusCreated, warnings)
+			return emitCreateResult(cmd, flagJSON, id, path, statusCreated, warnings, findings)
 		},
 	}
 

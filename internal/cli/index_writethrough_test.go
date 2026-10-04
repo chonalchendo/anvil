@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
 )
 
@@ -162,7 +163,7 @@ func TestCreateWritesThroughLearningFTSToIndex(t *testing.T) {
 	}
 	found := false
 	for _, r := range hits {
-		if r.ID == id {
+		if r.ID == core.IndexKey(core.TypeLearning, id) {
 			found = true
 		}
 	}

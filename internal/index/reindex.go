@@ -33,11 +33,11 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 
 	// A schema bump (e.g. a newly added derived table) needs one full rebuild to
 	// backfill rows the incremental walk can't reconstruct from unchanged files.
-	sv, err := d.GetSchemaVersion()
+	reason, err := d.schemaDrift()
 	if err != nil {
 		return ReindexStats{}, err
 	}
-	if sv < SchemaVersion {
+	if reason != "" {
 		return d.ReindexFull(vaultRoot)
 	}
 

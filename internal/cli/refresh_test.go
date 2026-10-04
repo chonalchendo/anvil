@@ -38,23 +38,23 @@ func openTestIndex(t *testing.T, arts []index.ArtifactRow, links []index.LinkRow
 
 func TestFreshnessStalesMissingRelated(t *testing.T) {
 	arts := []index.ArtifactRow{
-		{ID: "l.drifted", Type: "learning", Status: "verified", Path: "/v/l.drifted.md"},
-		{ID: "l.fresh", Type: "learning", Status: "verified", Path: "/v/l.fresh.md"},
-		{ID: "l.draft-drift", Type: "learning", Status: "draft", Path: "/v/l.draft-drift.md"},
-		{ID: "l.already-stale", Type: "learning", Status: "stale", Path: "/v/l.already-stale.md"},
-		{ID: "anvil.alive", Type: "issue", Status: "open", Path: "/v/anvil.alive.md"},
+		{ID: "learning.l.drifted", Type: "learning", Status: "verified", Path: "/v/l.drifted.md"},
+		{ID: "learning.l.fresh", Type: "learning", Status: "verified", Path: "/v/l.fresh.md"},
+		{ID: "learning.l.draft-drift", Type: "learning", Status: "draft", Path: "/v/l.draft-drift.md"},
+		{ID: "learning.l.already-stale", Type: "learning", Status: "stale", Path: "/v/l.already-stale.md"},
+		{ID: "issue.anvil.alive", Type: "issue", Status: "open", Path: "/v/anvil.alive.md"},
 	}
 	links := []index.LinkRow{
 		// drifted: one related target gone, one present, plus a body link gone (ignored).
-		{Source: "l.drifted", Target: "anvil.gone", Relation: "related"},
-		{Source: "l.drifted", Target: "anvil.alive", Relation: "related"},
-		{Source: "l.drifted", Target: "anvil.body-gone", Relation: "body"},
+		{Source: "learning.l.drifted", Target: "anvil.gone", Relation: "related"},
+		{Source: "learning.l.drifted", Target: "issue.anvil.alive", Relation: "related"},
+		{Source: "learning.l.drifted", Target: "anvil.body-gone", Relation: "body"},
 		// fresh: only resolvable related targets.
-		{Source: "l.fresh", Target: "anvil.alive", Relation: "related"},
+		{Source: "learning.l.fresh", Target: "issue.anvil.alive", Relation: "related"},
 		// draft-drift: a missing related target on a draft learning.
-		{Source: "l.draft-drift", Target: "anvil.gone", Relation: "related"},
+		{Source: "learning.l.draft-drift", Target: "anvil.gone", Relation: "related"},
 		// already-stale: missing related, but excluded (not draft/verified).
-		{Source: "l.already-stale", Target: "anvil.gone", Relation: "related"},
+		{Source: "learning.l.already-stale", Target: "anvil.gone", Relation: "related"},
 	}
 	db := openTestIndex(t, arts, links)
 

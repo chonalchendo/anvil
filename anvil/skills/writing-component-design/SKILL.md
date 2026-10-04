@@ -201,3 +201,12 @@ anvil set component-design <id> updated <today-iso>
 - Routing (linking an issue to its component design) — use `anvil link` directly.
 - Enforcing the design half — `create` checks only the boundary-half headings; this skill gates the design half.
 - Lifecycle tags and command verification — out of scope for v0.1.
+
+## Prose style
+
+Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
+
+- Short sentences: 20 words at most for an instruction, 25 for a description.
+- Active voice. One instruction per sentence. Conclusion first.
+- One term per concept; reuse it verbatim.
+- No filler, no hedging, no restating what the reader already has.

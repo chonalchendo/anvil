@@ -79,8 +79,8 @@ func TestLinkRowsFromFrontmatter_Array(t *testing.T) {
 	got := LinkRowsFromFrontmatter("d1", fm)
 	want := []LinkRow{
 		// "d-1" < "d0" lexicographically ('-' < '0')
-		{Source: "d1", Target: "d-1", Relation: "supersedes", Anchor: ""},
-		{Source: "d1", Target: "d0", Relation: "supersedes", Anchor: ""},
+		{Source: "d1", Target: "decision.d-1", Relation: "supersedes", Anchor: ""},
+		{Source: "d1", Target: "decision.d0", Relation: "supersedes", Anchor: ""},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)
@@ -152,8 +152,8 @@ func TestLinkRowsFromBody_DistinctTargets(t *testing.T) {
 	body := "See [[issue.anvil.foo]] and [[learning.anvil.bar]] for context."
 	got := LinkRowsFromBody("anvil.src", body)
 	want := []LinkRow{
-		{Source: "anvil.src", Target: "anvil.bar", Relation: "body", Anchor: ""},
 		{Source: "anvil.src", Target: "issue.anvil.foo", Relation: "body", Anchor: ""},
+		{Source: "anvil.src", Target: "learning.anvil.bar", Relation: "body", Anchor: ""},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("link rows mismatch (-want +got):\n%s", diff)

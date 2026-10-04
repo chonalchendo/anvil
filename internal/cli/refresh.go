@@ -161,7 +161,7 @@ func staleLearnings(db *index.DB) ([]staleCandidate, int, error) {
 			}
 		}
 		if len(missing) > 0 {
-			out = append(out, staleCandidate{ID: l.ID, Path: l.Path, Missing: missing})
+			out = append(out, staleCandidate{ID: displayID(l.Type, l.ID), Path: l.Path, Missing: missing})
 		}
 	}
 	return out, checked, nil

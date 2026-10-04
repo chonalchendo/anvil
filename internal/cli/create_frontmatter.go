@@ -31,17 +31,18 @@ import (
 // zero-value path/id alongside it knowing nothing will be written.
 //
 // Returns ErrSchemaInvalid (after emitting the violations block) when any layer
-// fails, a usage error for an unknown --allow-new-facet name, or nil when the
-// artifact is clean and safe to write.
-func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path string, fm map[string]any, body string, authoredBody bool, allowNewFacet []string, asJSON bool, preErrors ...*errfmt.ValidationError) error {
+// fails, a usage error for an unknown --allow-new-facet name, or a nil error
+// when the artifact is safe to write. The first value carries any
+// warning-severity findings so JSON callers can put them in the success envelope.
+func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path string, fm map[string]any, body string, authoredBody bool, allowNewFacet []string, asJSON bool, preErrors ...*errfmt.ValidationError) ([]*errfmt.ValidationError, error) {
 	for _, f := range allowNewFacet {
 		if !facets.Has(f) {
-			return formatEnumError("--allow-new-facet", f, facets.Names(), "")
+			return nil, formatEnumError("--allow-new-facet", f, facets.Names(), "")
 		}
 	}
 	values, skipped, gErr := facets.CollectValues(v.Root)
 	if gErr != nil {
-		return fmt.Errorf("walking vault for facet values: %w", gErr)
+		return nil, fmt.Errorf("walking vault for facet values: %w", gErr)
 	}
 	for _, p := range skipped {
 		cmd.PrintErrln("warn: skipped corrupt artifact during facet walk: " + p)
@@ -118,22 +119,15 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 	}
 
 	if len(failures) == 0 {
-		return nil
+		return nil, nil
 	}
-	// A warning-severity finding (e.g. lead_sentence) must never fail create:
-	// surface it so the author sees it, but proceed to write the artifact.
-	// Text mode prints to stderr; JSON mode stays quiet here — a `--json`
-	// caller expects a clean success envelope on stdout, and printing human
-	// text to stderr alongside it is confusing noise for a machine consumer
-	// (full envelope-threading of warning findings is tracked separately;
-	// scoped out of this PR's file set — anvil.0274 review).
+	// A warning-severity finding (e.g. lead_sentence) must never fail create.
+	// It is returned, not printed: the caller's emit step renders it to stderr
+	// (text) or the success envelope (JSON) so there is one print site.
 	if !hasBlockingFailure(failures) {
-		if !asJSON {
-			printValidationErrors(cmd, failures)
-		}
-		return nil
+		return failures, nil
 	}
-	return emitValidationErrors(cmd, asJSON, failures)
+	return nil, emitValidationErrors(cmd, asJSON, failures)
 }
 
 // staticBodyFailures runs the pure, in-memory body validation layers —

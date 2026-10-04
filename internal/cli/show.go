@@ -308,7 +308,7 @@ func loadIncomingEdges(v *core.Vault, id string) (map[string][]incomingEdge, err
 		if a, lerr := core.LoadArtifact(row.Path); lerr == nil {
 			title, _ = a.FrontMatter["title"].(string)
 		}
-		grouped[row.Type] = append(grouped[row.Type], incomingEdge{ID: r.Source, Title: title})
+		grouped[row.Type] = append(grouped[row.Type], incomingEdge{ID: displayID(row.Type, r.Source), Title: title})
 	}
 	if len(grouped) == 0 {
 		return nil, nil

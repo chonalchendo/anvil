@@ -24,7 +24,7 @@ Drive `completing-issue` to an opened PR, then HALT. Do NOT invoke `responding-t
 
 ## Verdict is data, not prose (mandatory)
 
-Your account of verification is not evidence — the runner's verdict is. `run-verification.sh` prints exactly one line of JSON on **stdout** (`{"verdict":"pass|fail","checks":N,"failed":[…]}`) and its human summary on stderr. Capture that line, gate on it mechanically, and carry it verbatim to the orchestrator:
+Your account of verification is not evidence — the runner's verdict is. `run-verification.sh` prints exactly one line of JSON on **stdout** (`{"verdict":"pass|fail","checks":N,"failed":[…],"deferred":[…]}`; `deferred` = red `# anvil:post-land` Indirect blocks, does not fail the verdict) and its human summary on stderr. Capture that line, gate on it mechanically, and carry it verbatim to the orchestrator:
 
 ```bash
 cd <dispatched-worktree-path> && anvil show issue <issue-id> \
@@ -142,3 +142,12 @@ Forbidden-call audit: gh pr merge=not-called, git worktree remove=not-called, an
 ```
 
 The `Verdict:` line is copied from the runner, never composed by you — an absent or hand-written verdict is what the orchestrator re-measures against. No narrative tail, no "waiting" / "let me check".
+
+## Prose style
+
+Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
+
+- Short sentences: 20 words at most for an instruction, 25 for a description.
+- Active voice. One instruction per sentence. Conclusion first.
+- One term per concept; reuse it verbatim.
+- No filler, no hedging, no restating what the reader already has.

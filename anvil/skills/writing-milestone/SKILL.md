@@ -67,6 +67,8 @@ anvil create milestone --title "<title>" --description "<one-line preview>" --go
 
 `--acceptance` repeats, one per Phase 2 criterion. A bucket passes `--kind bucket` and no `--acceptance`. Capture `id` and `path` from the JSON output.
 
+If the JSON `warnings[]` carries a `kind: validation` entry, the milestone was written but its body needs revising — fix it per the entry's `code`.
+
 Then direct-edit the body sections (shaped in Phase 2) into the file at `path`.
 
 ## Phase 4 — Link to design docs
@@ -93,3 +95,12 @@ Fix any schema errors reported. Re-run until clean. Validate now also enforces b
 ## Hand-off
 
 **REQUIRED SUB-SKILL:** Use `writing-issue` for the first issue under this milestone.
+
+## Prose style
+
+Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
+
+- Short sentences: 20 words at most for an instruction, 25 for a description.
+- Active voice. One instruction per sentence. Conclusion first.
+- One term per concept; reuse it verbatim.
+- No filler, no hedging, no restating what the reader already has.

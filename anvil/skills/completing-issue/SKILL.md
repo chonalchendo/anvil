@@ -88,7 +88,7 @@ Run the bundled verification runner against the issue. It parses `## Verificatio
 anvil show issue <id> | bash ~/.claude/skills/completing-issue/scripts/run-verification.sh
 ```
 
-Exit 0 = every check passed. Non-zero = at least one failed; the summary names which. stdout carries exactly one JSON line (`{"verdict":"pass|fail","checks":N,"failed":[…],"commit":"<sha-or-empty>","ran_at":"<UTC RFC3339>"}`) — the machine-checkable verdict; the summary and failure output go to stderr.
+Exit 0 = no check failed (a red `# anvil:post-land` Indirect block is listed under `deferred` and does not count). Non-zero = at least one failed; the summary names which. stdout carries exactly one JSON line (`{"verdict":"pass|fail","checks":N,"failed":[…],"deferred":[…],"commit":"<sha-or-empty>","ran_at":"<UTC RFC3339>"}`) — the machine-checkable verdict (`deferred`: red `# anvil:post-land` Indirect blocks; does not fail the verdict); the summary and failure output go to stderr.
 
 Outcomes:
 
@@ -252,3 +252,12 @@ Do not silently scope down (cut a quieter version) or up (touch sibling files). 
 - Improvising verification commands the issue does not declare.
 - Looping past 5 verify cycles "just one more try."
 - Editing files outside the issue's declared scope to make verification pass.
+
+## Prose style
+
+Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
+
+- Short sentences: 20 words at most for an instruction, 25 for a description.
+- Active voice. One instruction per sentence. Conclusion first.
+- One term per concept; reuse it verbatim.
+- No filler, no hedging, no restating what the reader already has.

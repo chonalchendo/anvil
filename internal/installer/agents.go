@@ -296,84 +296,17 @@ func piToolNames(claudeTools string) string {
 }
 
 // InstallPiAgents translates each embedded *.md agent into a pi-compatible
-// subagent markdown file at target/<name>.md. Pi's subagent extension
-// discovers the same name/description/tools/model frontmatter shape Claude
-// Code uses, plus skills (a preload list) and thinking (an effort level) —
-// piAgentMarkdown carries the model alias, tools list, skills, and effort
-// through their respective translations; the body copies through unchanged.
-// Mirrors InstallCodexAgents' clobber contract: a byte-identical file is a
-// no-op, a divergent one is refused unless force is true.
+// subagent markdown file at target/<name>.md via piAgentMarkdown. Clobber
+// contract: see installTranslatedAgents.
 func InstallPiAgents(srcFS fs.FS, target string, force bool) (bool, error) {
-	names, err := listAgentFiles(srcFS)
-	if err != nil {
-		return false, err
-	}
-	if err := os.MkdirAll(target, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
-		return false, fmt.Errorf("mkdir target %s: %w", target, err)
-	}
-	changed := false
-	for _, name := range names {
-		src, err := fs.ReadFile(srcFS, name)
-		if err != nil {
-			return false, fmt.Errorf("read embedded agent %s: %w", name, err)
-		}
-		want, err := piAgentMarkdown(src)
-		if err != nil {
-			return false, fmt.Errorf("translate agent %s: %w", name, err)
-		}
-		dst := filepath.Join(target, name)
-		got, err := os.ReadFile(dst) //nolint:gosec // path is test-controlled or application-managed; not user input
-		switch {
-		case err == nil && string(got) == want:
-			continue
-		case err == nil && !force:
-			return false, fmt.Errorf("refusing to overwrite non-matching %s; run `anvil install agents --target pi --force` to redeploy", dst)
-		case err != nil && !errors.Is(err, os.ErrNotExist):
-			return false, fmt.Errorf("read %s: %w", dst, err)
-		}
-		if err := os.WriteFile(dst, []byte(want), 0o644); err != nil { //nolint:gosec // 0644 is correct for config/data files readable by owner and group
-			return false, fmt.Errorf("write %s: %w", dst, err)
-		}
-		changed = true
-	}
-	return changed, nil
+	return installTranslatedAgents(srcFS, target, "pi", force, piAgentMarkdown)
 }
 
 // RemovePiAgents deletes target/<name>.md for each embedded agent whose
 // on-disk content still matches the translated copy. Divergent or foreign
-// files are left untouched, mirroring RemoveCodexAgents.
+// files are left untouched.
 func RemovePiAgents(srcFS fs.FS, target string) (bool, error) {
-	names, err := listAgentFiles(srcFS)
-	if err != nil {
-		return false, err
-	}
-	changed := false
-	for _, name := range names {
-		src, err := fs.ReadFile(srcFS, name)
-		if err != nil {
-			return false, fmt.Errorf("read embedded agent %s: %w", name, err)
-		}
-		want, err := piAgentMarkdown(src)
-		if err != nil {
-			return false, fmt.Errorf("translate agent %s: %w", name, err)
-		}
-		dst := filepath.Join(target, name)
-		got, err := os.ReadFile(dst) //nolint:gosec // path is test-controlled or application-managed; not user input
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				continue
-			}
-			return false, fmt.Errorf("read %s: %w", dst, err)
-		}
-		if string(got) != want {
-			continue
-		}
-		if err := os.Remove(dst); err != nil {
-			return false, fmt.Errorf("remove %s: %w", dst, err)
-		}
-		changed = true
-	}
-	return changed, nil
+	return removeTranslatedAgents(srcFS, target, piAgentMarkdown)
 }
 
 // piAgentMarkdown translates one embedded agent markdown file into a

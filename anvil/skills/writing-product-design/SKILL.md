@@ -71,3 +71,12 @@ The per-phase procedure â€” drafting instructions, voice checks, gate criteria â
 - **Skipping the past-pain prompt in Phase 4.** Old-tool failure modes are the most concrete metrics.
 - **Voice drift.** AI-generic prose fails the cold read. Match project voice; audit for hedging and corporate-speak.
 - **Treating gates as one-shot approvals.** Each is an iteration loop. Reframes after a draft = gate working, not failing.
+
+## Prose style
+
+Write all prose (artifacts, reports, replies) about 80% of the way to ASD-STE100 Simplified Technical English. Keep domain terms; skip the approved-word dictionary.
+
+- Short sentences: 20 words at most for an instruction, 25 for a description.
+- Active voice. One instruction per sentence. Conclusion first.
+- One term per concept; reuse it verbatim.
+- No filler, no hedging, no restating what the reader already has.
