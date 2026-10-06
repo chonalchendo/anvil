@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
