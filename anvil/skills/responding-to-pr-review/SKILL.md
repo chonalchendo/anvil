@@ -92,7 +92,7 @@ After every finding has an outcome AND CI is green on the latest SHA AND no new 
 **Wait for the response.** This is the one preserved human gate — the merge *decision*. "Merge on green" said earlier does not pre-authorize it; each PR gets its own explicit go, and silence is never approval.
 
 - **`skip` / `hold`** → leave the PR open, surface the url, return. The human drives it later.
-- **`yes`** → run these steps in order, then stop. Never raw `gh pr merge`. (Mirrors `driving-build-loop` Phases 4–6.)
+- **`yes`** → run these steps in order, then stop. Never raw `gh pr merge`.
 
 1. **Land** — the gated verb that merges and resolves in one call:
 
