@@ -8,7 +8,7 @@ import (
 
 // MilestoneStatus is a milestone's derived done-signal: how many of the issues
 // linked to it (via the `milestone` frontmatter slot) are resolved out of the
-// total, and whether every one is. Done is the build loop's exit predicate; a
+// total, and whether every one is. Done is the signal that every linked issue is resolved; a
 // milestone with no linked issues is never done.
 type MilestoneStatus struct {
 	Milestone string `json:"milestone"`
