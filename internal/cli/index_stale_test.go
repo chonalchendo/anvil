@@ -200,6 +200,26 @@ func TestListReadyIndexStaleNamesTheDeletedIssueFile(t *testing.T) {
 	}
 }
 
+// backdateIndex moves the reindex stamp 10s and every existing .md mtime 1h
+// into the past. An edit made now then lands after the stamp even on a
+// filesystem that rounds file times down (FAT: 2s, Linux CI: coarse ticks).
+func backdateIndex(t *testing.T, vault string) {
+	t.Helper()
+	old := time.Now().Add(-time.Hour)
+	err := filepath.WalkDir(vault, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
+			return err
+		}
+		return os.Chtimes(path, old, old)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := openIndex(t, vault).SetLastReindex(time.Now().Add(-10 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestListReadySelfHealsAndReturnsResultsWhenVaultEditedExternally pins the
 // fix for anvil.0169: a read verb on a drifted vault auto-reindexes (WARN
 // naming the drifted path) and returns results instead of hard-erroring.
@@ -209,6 +229,8 @@ func TestListReadySelfHealsAndReturnsResultsWhenVaultEditedExternally(t *testing
 	execCmd(t, "init", vault)
 	createDemoIssue(t)
 	warnBuf := captureSlogWarn(t)
+
+	backdateIndex(t, vault)
 
 	// External edit + bump dir mtime so CheckFreshness sees drift.
 	if err := os.WriteFile(filepath.Join(vault, "70-issues", "demo.bar.md"), //nolint:gosec // 0644 is correct for config/data files readable by owner and group
