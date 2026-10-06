@@ -50,8 +50,6 @@ Read the issue's `goal:` — its one-sentence terminal predicate — and hold it
 
 `--cut-worktree` fetches origin and branches from `origin/HEAD` so the new branch starts from the remote's current tip, not a potentially stale local HEAD. Offline or no-remote falls back to local HEAD with a warning — work continues. The repo comes from the issue's `project`, not your cwd, so claiming a project-A issue from a project-B checkout cuts correctly or refuses (`cut_worktree_repo_unresolved`) rather than cutting from B. Handed a pre-cut worktree (e.g. fleet dispatch)? Pass `--worktree <path> --branch <branch>` matching it, or claim without `--cut-worktree` — a bare `--cut-worktree` derives the default path and would cut a duplicate. If `origin/<branch>` already exists it adopts that branch (tracking it, `worktree_branch_source: origin`); on an already in-progress issue, `--force --cut-worktree` takes over and cuts/adopts.
 
-**Under `anvil build`, skip Phase 0 entirely.** The engine already claimed the issue (`in-progress`, owner `anvil-build`) and cut its `<project>/<slug>` worktree, spawning you inside it — so the deterministic branch is the one the driver holds. Re-claiming would fail the non-idempotent transition; re-cutting would duplicate. Detect it: `anvil show issue <id>` reports `in-progress` and your cwd is already the cut worktree. Just read `goal:` and go to Phase 1.
-
 The `in-progress` transition re-runs `reproduction_anchor` for bug issues, and refuses the claim unless `goal:` is set (backfill-on-claim for the pre-`goal` back-catalogue). A mismatch means the bug is stale or already fixed — surface and stop; do not paper over with `--force`.
 
 ## Phase 1 — Implement
@@ -193,7 +191,7 @@ anvil transition issue <id> resolved --land-pr <pr-number>
 
 One call gates on mergeable + CI-green, removes the worktree, squash-merges, verifies MERGED, and resolves with an audit line — so a session boundary cannot split merge from resolve. The human fires it; the agent never does. On a branch-only setup the verb refuses (`land_pr_worktree_missing`) before merging — merge manually, then `anvil transition issue <id> resolved`.
 
-**REQUIRED SUB-SKILL:** Use reviewing-pr to run the default independent review pass, then responding-to-pr-review to drive its findings to resolution — unless you were dispatched to stop at PR-opened (e.g. by `dispatching-issue-fleet`, as an `anvil-issue-worker` via `dispatch-single.md`, or by `anvil build`), where the orchestrator owns review and runs that chain itself.
+**REQUIRED SUB-SKILL:** Use reviewing-pr to run the default independent review pass, then responding-to-pr-review to drive its findings to resolution — unless you were dispatched to stop at PR-opened (e.g. by `dispatching-issue-fleet`, or as an `anvil-issue-worker` via `dispatch-single.md`), where the orchestrator owns review and runs that chain itself.
 
 When a responding-to-pr-review loop needs to wait for CI or a reviewer pass, invoke the out-of-band poller **once** instead of polling in-agent:
 
