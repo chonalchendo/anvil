@@ -13,9 +13,8 @@ import (
 // newNextCmd is the deterministic front-door for "what should I work on next":
 // it returns the single highest-priority ready issue plus the start-context an
 // agent needs to begin it (goal, severity, milestone, governing component designs,
-// path). The selection and ordering are shared with `anvil build` (via
-// selectReadyUnits) so an interactive agent and the build loop agree on the
-// same next unit.
+// path), ordered by selectReadyUnits so parallel agents agree on the same next
+// unit.
 func newNextCmd() *cobra.Command {
 	var (
 		flagJSON      bool

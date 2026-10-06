@@ -9,11 +9,9 @@ import (
 )
 
 // readyUnit is a ready issue enriched with the start-context an agent needs to
-// begin it. It is the deterministic selection unit shared by `anvil next`
-// (which returns the head) and `anvil build` (which dispatches the full ordered
-// frontier) — per component-design.anvil.build-orchestration-contract, work-selection
-// lives in the driver, not the engine. `created` is lower-case because it feeds
-// the sort only; it is not part of the start-context an agent consumes.
+// begin it. It is the deterministic selection unit behind `anvil next`.
+// `created` is lower-case because it feeds the sort only; it is not part of the
+// start-context an agent consumes.
 type readyUnit struct {
 	ID               string   `json:"id"`
 	Goal             string   `json:"goal"`
