@@ -8,7 +8,7 @@ A craft-first methodology for AI-assisted development, packaged as auto-loading 
 
 Anvil treats a project's design as the load-bearing artifact and works backwards from it: **product-design → milestones → sweeps → issues → inbox**. Every task traces up to a milestone; every milestone traces up to the product's purpose.
 
-The methodology lives in **skills** — auto-firing markdown files (following Anthropic's open standard) the agent loads from conversational triggers, not commands you type. The **orchestrator** is a small Go CLI for the parts that genuinely need a process: vault state, scaffolding, and dispatching work to agent CLIs (Claude Code first, Codex next).
+The methodology lives in **skills** — auto-firing markdown files (following Anthropic's open standard) the agent loads from conversational triggers, not commands you type. The **orchestrator** is a small Go CLI for the parts that genuinely need a process: vault state, scaffolding, and the gates on the issue loop. The agent harness (Claude Code first, Codex next) runs the agents.
 
 Two stores:
 
@@ -51,7 +51,7 @@ anvil install skills --target codex   # copies the bundle into ~/.codex/skills (
 anvil install agents --target codex   # emits each subagent as ~/.codex/agents/<name>.toml
 ```
 
-Restart Codex to pick them up; the lifecycle skills auto-fire by description just as in Claude Code. The default target stays `claude`. `install agents --target codex` translates each bundled subagent into Codex's TOML format (dropping the Claude-specific model/tools/skills fields). `install hooks` remains Claude-only — Codex has no `SessionStart`/`SessionEnd` hook events; that arrives with the rest of the Codex adapter in v0.2.
+Restart Codex to pick them up; the lifecycle skills auto-fire by description just as in Claude Code. The default target stays `claude`. `install agents --target codex` translates each bundled subagent into Codex's TOML format (dropping the Claude-specific model/tools/skills fields). `install hooks` remains Claude-only — Codex has no `SessionStart`/`SessionEnd` hook events; that arrives with the Codex install target in v0.2.
 
 **Using pi?** Skills and agents port the same way:
 
@@ -81,8 +81,8 @@ anvil install agents --target ante       # emits ~/.ante/agents/<name>.md (honor
 
 ## Roadmap
 
-- **v0.1** — minimal usable Anvil: vault scaffolding, core lifecycle skills, and the Claude Code adapter. JSON Schema validation in CI.
-- **v0.2** — Codex adapter; concurrent wave execution via git worktrees; brownfield onboarding.
+- **v0.1** — minimal usable Anvil: vault scaffolding, core lifecycle skills, and skill and agent install for Claude Code. JSON Schema validation in CI.
+- **v0.2** — Codex install target; brownfield onboarding.
 - **v0.3** — educational gating workflow; workspaces for cross-repo coordination.
 - **v0.4+** — iterate from real signal.
 

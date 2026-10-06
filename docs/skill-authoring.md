@@ -8,7 +8,7 @@ related: "[[system-design.anvil]]"
 
 # Anvil: Skill Authoring Conventions
 
-Authoring rules for Anvil's methodology skills and user-authored vault skills. Supports [`system-design.md`](system-design.md): architectural shape lives there, conventions here. CI enforces the mechanical rules; the rationale below is the design guidance behind them.
+Authoring rules for Anvil's methodology skills and user-authored vault skills. Supports the vault system design (`anvil show system-design anvil --body`): architectural shape lives there, conventions here. CI enforces the mechanical rules; the rationale below is the design guidance behind them.
 
 A SKILL.md is a **trigger contract** (description) + **deferred reference** (body). Different design constraints, failure modes, tests. Description's job: discrimination — fire on the right contexts, not adjacent ones. Body's job: workflow execution that survives one read.
 

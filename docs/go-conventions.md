@@ -50,5 +50,4 @@ Idioms and rules for Go code in the Anvil orchestrator.
 
 ## Subprocess gotchas (load-bearing)
 
-- `bufio.Scanner`'s default `MaxScanTokenSize` is 64 KiB. Agent CLI tool-result lines exceed this. **Always** set `scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)` for an 8 MiB max line, or switch to `bufio.Reader.ReadBytes('\n')`. This is a documented invariant in `system-design.md`.
-- Per-spawn `CLAUDE_CONFIG_DIR` and `CODEX_HOME` isolation is mandatory. Adapters set these; never rely on inherited env.
+- `bufio.Scanner`'s default `MaxScanTokenSize` is 64 KiB. Agent CLI tool-result lines exceed this. **Always** set `scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)` for an 8 MiB max line, or switch to `bufio.Reader.ReadBytes('\n')`.
