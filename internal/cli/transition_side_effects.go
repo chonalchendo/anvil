@@ -134,8 +134,7 @@ func defaultWorktreePath(project, slug string) (string, error) {
 // to local HEAD.
 //
 // An existing origin/<branch> is adopted (source "origin") rather than re-cut from origin/HEAD.
-// adopt=false (anvil build) always cuts fresh.
-func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string, adopt bool) (created bool, source string, err error) {
+func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string) (created bool, source string, err error) {
 	worktrees, err := gitWorktreeListFn(repoDir)
 	if err != nil {
 		return false, "", err
@@ -155,7 +154,7 @@ func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string, adopt boo
 	startPoint := ""
 	if ferr := gitFetchOriginFn(repoDir); ferr != nil {
 		fmt.Fprintf(errW, "warning: git fetch origin failed (%v); branching from local HEAD\n", ferr)
-	} else if adopt && gitOriginBranchExistsFn(repoDir, branch) {
+	} else if gitOriginBranchExistsFn(repoDir, branch) {
 		startPoint, source = "origin/"+branch, "origin"
 	} else if ref, rerr := gitResolveOriginHEADFn(repoDir); rerr != nil {
 		fmt.Fprintf(errW, "warning: resolving origin/HEAD failed (%v); branching from local HEAD\n", rerr)
@@ -178,7 +177,7 @@ func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string, adopt boo
 // can emit it — the skill contract is "the claim tells you where to work" —
 // or a Structured error on failure so callers can uniformly refuse the
 // transition without writing to disk.
-func doCutWorktreeSource(errW io.Writer, a *core.Artifact, id, pathOverride, branchOverride string, adopt bool) (path, branch, source string, err error) {
+func doCutWorktreeSource(errW io.Writer, a *core.Artifact, id, pathOverride, branchOverride string) (path, branch, source string, err error) {
 	project := projectFromArtifact(a, id)
 	slug := slugFromIssueID(id)
 	if project == "" || slug == "" {
@@ -219,7 +218,7 @@ func doCutWorktreeSource(errW io.Writer, a *core.Artifact, id, pathOverride, bra
 	if err != nil {
 		return "", "", "", err
 	}
-	created, source, cerr := cutWorktreeIfNeeded(errW, repoDir, wtPath, branch, adopt)
+	created, source, cerr := cutWorktreeIfNeeded(errW, repoDir, wtPath, branch)
 	if cerr != nil {
 		var se *errfmt.Structured
 		if errors.As(cerr, &se) {

@@ -17,7 +17,7 @@ import (
 
 // landClaimOwner is stamped on an issue that --land-pr auto-claims without an
 // explicit --owner, so the record of who landed survives the one-call form the
-// fleet uses (mirrors buildClaimOwner for `anvil build`).
+// fleet uses.
 const landClaimOwner = "anvil-land"
 
 func newTransitionCmd() *cobra.Command {
@@ -74,7 +74,7 @@ func newTransitionCmd() *cobra.Command {
 					}
 					// Cut before the claim transfer: a refused cut leaves the claim untouched.
 					if cutWorktree {
-						p, _, src, cerr := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride, true)
+						p, _, src, cerr := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride)
 						if cerr != nil {
 							return printAndReturn(cmd, cerr)
 						}
@@ -263,7 +263,7 @@ func newTransitionCmd() *cobra.Command {
 
 			var wtPath, wtSource string
 			if cutWorktree {
-				p, _, src, err := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride, true)
+				p, _, src, err := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride)
 				if err != nil {
 					return printAndReturn(cmd, err)
 				}

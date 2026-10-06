@@ -6,19 +6,12 @@ import (
 	"errors"
 	"os"
 
-	"github.com/chonalchendo/anvil/internal/build"
 	"github.com/chonalchendo/anvil/internal/cli"
 )
 
 func main() {
 	if err := cli.Execute(context.Background()); err != nil {
 		switch {
-		case errors.Is(err, build.ErrBuildQuotaExhausted):
-			os.Exit(2)
-		case errors.Is(err, build.ErrBuildCancelled):
-			os.Exit(130)
-		case errors.Is(err, build.ErrBuildTaskFailed):
-			os.Exit(1)
 		case errors.Is(err, cli.ErrArtifactNotFound):
 			os.Exit(2)
 		case errors.Is(err, cli.ErrSchemaInvalid):

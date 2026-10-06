@@ -2247,7 +2247,7 @@ func TestTransitionRefusedTakeoverLeavesClaimUntouched(t *testing.T) {
 func TestCutWorktreeStaleLocalBranchRefused(t *testing.T) {
 	s := stubSideFX(t)
 	s.localBranches = map[string]bool{"demo/foo": true}
-	_, _, err := cutWorktreeIfNeeded(&bytes.Buffer{}, "/repo/demo", "/wt/foo", "demo/foo", true)
+	_, _, err := cutWorktreeIfNeeded(&bytes.Buffer{}, "/repo/demo", "/wt/foo", "demo/foo")
 	if err == nil || !strings.Contains(err.Error(), "local_branch_exists") {
 		t.Fatalf("err = %v, want local_branch_exists", err)
 	}
@@ -2268,18 +2268,8 @@ func TestCutWorktreeReclaimThroughSymlinkedPath(t *testing.T) {
 	}
 	s := stubSideFX(t)
 	s.listEntries = map[string]worktreeInfo{"demo/foo": {path: target}}
-	created, _, err := cutWorktreeIfNeeded(&bytes.Buffer{}, "/repo/demo", link, "demo/foo", true)
+	created, _, err := cutWorktreeIfNeeded(&bytes.Buffer{}, "/repo/demo", link, "demo/foo")
 	if err != nil || created {
 		t.Fatalf("created=%v err=%v; want idempotent reuse", created, err)
-	}
-}
-
-func TestCutWorktreeNoAdoptIgnoresOriginBranch(t *testing.T) {
-	s := stubSideFX(t)
-	s.originBranches = map[string]bool{"demo/foo": true}
-	s.originHEAD = "origin/master"
-	_, src, err := cutWorktreeIfNeeded(&bytes.Buffer{}, "/repo/demo", "/wt/foo", "demo/foo", false)
-	if err != nil || src != "" || len(s.addCalls) != 1 || s.addCalls[0].StartPoint != "origin/master" {
-		t.Fatalf("src=%q err=%v adds=%+v; want fresh cut from origin/master", src, err, s.addCalls)
 	}
 }
