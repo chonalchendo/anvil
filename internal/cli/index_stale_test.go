@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -200,6 +201,32 @@ func TestListReadyIndexStaleNamesTheDeletedIssueFile(t *testing.T) {
 	}
 }
 
+// backdateIndex puts the stamp 10s back so an edit made now lands after it even
+// on a filesystem that rounds file times down (FAT: 2s, Linux CI: coarse
+// ticks). Existing files go 1h back so the edit is the only file newer than
+// the stamp, and the WARN must name it rather than the vault root.
+func backdateIndex(t *testing.T, vault string) {
+	t.Helper()
+	old := time.Now().Add(-time.Hour)
+	root, err := os.OpenRoot(vault)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close() //nolint:errcheck // close in defer; error not actionable
+	err = fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
+			return err
+		}
+		return root.Chtimes(path, old, old)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := openIndex(t, vault).SetLastReindex(time.Now().Add(-10 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestListReadySelfHealsAndReturnsResultsWhenVaultEditedExternally pins the
 // fix for anvil.0169: a read verb on a drifted vault auto-reindexes (WARN
 // naming the drifted path) and returns results instead of hard-erroring.
@@ -209,6 +236,8 @@ func TestListReadySelfHealsAndReturnsResultsWhenVaultEditedExternally(t *testing
 	execCmd(t, "init", vault)
 	createDemoIssue(t)
 	warnBuf := captureSlogWarn(t)
+
+	backdateIndex(t, vault)
 
 	// External edit + bump dir mtime so CheckFreshness sees drift.
 	if err := os.WriteFile(filepath.Join(vault, "70-issues", "demo.bar.md"), //nolint:gosec // 0644 is correct for config/data files readable by owner and group
