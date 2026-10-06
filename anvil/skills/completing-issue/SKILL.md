@@ -141,7 +141,7 @@ For a change with runtime behaviour, an Indirect block whose predicates only ass
 
 ## Phase 5 — Open PR or report failure
 
-**A verified tree is the deliverable; the PR is how you hand it over.** If your prompt says a driver lands the work, run every gate above (`## Verification` Direct + Indirect, the build-and-install gate) and stop there — the harness stages, commits and pushes whatever sits on the branch and opens the PR itself, precisely because a headless worker that judges "implement X" done after editing routinely never reaches its own commit. Committing yourself is harmless (the driver lands only what is unlanded), and leaving a verified tree uncommitted is not a dropped task. No diff at all still fails the gate — an empty PR is never manufactured. Otherwise, open the PR yourself as below.
+**A verified tree is the deliverable; the PR is how you hand it over.** Run every gate above (`## Verification` Direct + Indirect, the build-and-install gate), then open the PR yourself as below. No diff at all fails the gate — an empty PR is never manufactured.
 
 **On verify + build-gate success:**
 
