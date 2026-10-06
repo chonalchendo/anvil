@@ -1,6 +1,6 @@
 # Agent-Friendly CLI Principles
 
-Agents are first-class CLI consumers — they call `anvil` dozens of times per session with no human in the loop. The eight rules below extend the design-rules line in `docs/system-design/cli-substrate.md` ("boring, no interactive prompts, JSON output behind `--json`, stdout for content, stderr for diagnostics, meaningful exit codes") with concrete guidance for agent-facing verbs. Source: compound-engineering, *Building Agent-Friendly CLIs: Practical Principles*.
+Agents are first-class CLI consumers — they call `anvil` dozens of times per session with no human in the loop. The eight rules below give concrete guidance for agent-facing verbs. Source: compound-engineering, *Building Agent-Friendly CLIs: Practical Principles*.
 
 ## 1. Non-interactive automation paths
 
@@ -60,4 +60,4 @@ showing 10 of 312 most recent; narrow with --since/--until, --status, --tag, --p
 
 ---
 
-Outstanding gaps tracked under `## Agent-CLI readiness` in `docs/system-design/roadmap.md`.
+Open gaps live in the vault's milestones.

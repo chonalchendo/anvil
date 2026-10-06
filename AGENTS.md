@@ -63,7 +63,7 @@ See `@docs/guardrails.md` for vault hygiene (Obsidian stub cleanup) and end-of-s
 `docs/go-conventions.md`, `docs/code-design.md`, and `docs/agent-cli-principles.md` are auto-injected on the first `Edit`/`Write` of a `*.go` file per session via `.claude/hooks/inject-go-conventions.sh` (Claude Code only). Read proactively otherwise.
 
 - `@docs/guardrails.md` — **MUST READ before any code or design change.** Think Before Coding, Surgical Changes, Vault Hygiene.
-- `@docs/product-design.md`, `@docs/system-design.md`, `@docs/system-design/roadmap.md` — product/system context, v0.1 scope.
+- Product and system context live in the vault: run `anvil show product-design anvil --body` and `anvil show system-design anvil --body`.
 - `@docs/test-conventions.md` — tests. Stdlib `testing` + `go-cmp`, `t.TempDir()`, integration build tag.
 - `@docs/git-conventions.md` — commits. Conventional-commits prefixes and never-commit list.
 - `@docs/dependencies.md` — new libraries. Baked-in Go ecosystem decisions; don't re-litigate without an ADR.
