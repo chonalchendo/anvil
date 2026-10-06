@@ -42,7 +42,7 @@ Draft "Components and responsibilities" body section.
 
 ### Phase 5 — Data flow
 
-Draft "Data flow" body section with a **mermaid sequence diagram** for the critical path (e.g., `anvil build` end-to-end, or the request lifecycle). Diagrams are deliverable content, not decoration.
+Draft "Data flow" body section with a **mermaid sequence diagram** for the critical path (e.g., the issue loop from ready to resolved, or the request lifecycle). Diagrams are deliverable content, not decoration.
 
 ```mermaid
 sequenceDiagram
