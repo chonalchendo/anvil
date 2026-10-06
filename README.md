@@ -75,13 +75,13 @@ anvil install agents --target ante       # emits ~/.ante/agents/<name>.md (honor
 
 ## Design & conventions
 
-- [`docs/product-design.md`](docs/product-design.md) — vision, users, scope, milestones.
-- [`docs/system-design.md`](docs/system-design.md) — architecture, vault structure, schemas (shards in [`docs/system-design/`](docs/system-design/)).
+- Product design: `anvil show product-design anvil --body` — vision, users, scope.
+- System design: `anvil show system-design anvil --body` — architecture, vault structure, schemas.
 - [`AGENTS.md`](AGENTS.md) — how to write code for Anvil (`CLAUDE.md` is a symlink for Claude Code).
 
 ## Roadmap
 
-- **v0.1** — minimal usable Anvil: vault scaffolding, core lifecycle skills, and `anvil build` with the Claude Code adapter (sequential execution). JSON Schema validation in CI.
+- **v0.1** — minimal usable Anvil: vault scaffolding, core lifecycle skills, and the Claude Code adapter. JSON Schema validation in CI.
 - **v0.2** — Codex adapter; concurrent wave execution via git worktrees; brownfield onboarding.
 - **v0.3** — educational gating workflow; workspaces for cross-repo coordination.
 - **v0.4+** — iterate from real signal.
