@@ -1,5 +1,8 @@
 <!-- Keep this PR short. A reviewer must understand it in 60 seconds.
-     Remove a section that does not apply. Do not pad it. -->
+     Remove a section that does not apply. Do not pad it.
+     Write in Simplified Technical English (ASD-STE100, about 80%): at most 20 words
+     per instruction and 25 per description, active voice, one instruction per sentence,
+     conclusion first. Keep domain terms. Rules: `anvil show convention convention.prose --body`. -->
 
 Resolves <anvil-id>
 
