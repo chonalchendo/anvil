@@ -1,26 +1,26 @@
-<!-- Keep this PR tight. Brevity > completeness — a reviewer should grasp it in 60s.
-     Cut any section that doesn't apply rather than padding it.
-     Write about 80% of the way to ASD-STE100 Simplified Technical English: at most
-     20 words per instruction sentence and 25 per description, active voice, one
-     instruction per sentence, conclusion first. Keep domain terms.
-     Full rules: `anvil show convention convention.prose --body`. -->
+<!-- Keep this PR short. A reviewer must understand it in 60 seconds.
+     Remove a section that does not apply. Do not pad it.
+     Write in Simplified Technical English (ASD-STE100), about 80% of the way.
+     Use at most 20 words per instruction and 25 per description. Use active voice.
+     Give one instruction per sentence. Put the conclusion first. Keep domain terms.
+     Rules: `anvil show convention convention.prose --body`. -->
 
 Resolves <anvil-id>
 
 ## What changed
-<!-- The change surface, in 1-3 bullets. Not the how. -->
+<!-- The change surface, in 1 to 3 bullets. Not the how. -->
 
 ## Why
-<!-- The problem / AC this serves. Link the issue's goal. -->
+<!-- The problem or acceptance criterion this change serves. Link the issue's goal. -->
 
 ## How
-<!-- Key implementation decisions a reviewer needs to follow the diff. Skip the obvious. -->
+<!-- The decisions a reviewer needs to follow the diff. Skip the obvious. -->
 
 ## Test Plan
-<!-- REQUIRED: live smoke captured verbatim — the real `anvil <verb>` driven through the
-     installed binary against a real vault, plus the output it produced. Green `go test`
-     does NOT count (smoke-test gate, docs/worktree-workflow.md). If genuinely N/A
-     (docs-only / skill-body-only), say so and how you verified instead. -->
+<!-- REQUIRED: the live smoke test, quoted verbatim. Run the real `anvil <verb>` through
+     the installed binary against a real vault. Paste the command and its output.
+     A green `go test` does not count (smoke-test gate, docs/worktree-workflow.md).
+     Only for a genuinely docs-only or skill-body-only change, say so. Then state how you verified it. -->
 
 ## Risk
-<!-- One line: anything irreversible? (vault write, schema break, installer/hook change) Else "none". -->
+<!-- One line. Name anything irreversible: a vault write, a schema break, an installer or hook change. Else "none". -->
