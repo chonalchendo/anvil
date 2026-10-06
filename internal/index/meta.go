@@ -147,6 +147,12 @@ func (d *DB) schemaDrift() (string, error) {
 // drift this check exists to surface.
 //
 // File modification times ahead of the clock are ignored — see skipFutureMtime.
+//
+// Known blind spot: an in-place edit that lands in the same file-time tick as
+// the stamp (FAT: 2s; ext4: one jiffy) is not newer than the stamp and is
+// missed, here and in the incremental reindex filter. Comparing with >= would
+// instead reindex a fresh vault on every read inside that tick; closing the gap
+// needs a per-file size or hash, which is an index schema change.
 func (d *DB) CheckFreshness(vaultRoot string) error {
 	return d.CheckFreshnessExcept(vaultRoot, "")
 }

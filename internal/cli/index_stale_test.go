@@ -201,9 +201,10 @@ func TestListReadyIndexStaleNamesTheDeletedIssueFile(t *testing.T) {
 	}
 }
 
-// backdateIndex moves the reindex stamp 10s and every existing .md mtime 1h
-// into the past. An edit made now then lands after the stamp even on a
-// filesystem that rounds file times down (FAT: 2s, Linux CI: coarse ticks).
+// backdateIndex puts the stamp 10s back so an edit made now lands after it even
+// on a filesystem that rounds file times down (FAT: 2s, Linux CI: coarse
+// ticks). Existing files go 1h back so the edit is the only file newer than
+// the stamp, and the WARN must name it rather than the vault root.
 func backdateIndex(t *testing.T, vault string) {
 	t.Helper()
 	old := time.Now().Add(-time.Hour)
