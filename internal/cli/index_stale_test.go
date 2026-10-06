@@ -207,11 +207,16 @@ func TestListReadyIndexStaleNamesTheDeletedIssueFile(t *testing.T) {
 func backdateIndex(t *testing.T, vault string) {
 	t.Helper()
 	old := time.Now().Add(-time.Hour)
-	err := filepath.WalkDir(vault, func(path string, d fs.DirEntry, err error) error {
+	root, err := os.OpenRoot(vault)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close() //nolint:errcheck // close in defer; error not actionable
+	err = fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".md") {
 			return err
 		}
-		return os.Chtimes(path, old, old)
+		return root.Chtimes(path, old, old)
 	})
 	if err != nil {
 		t.Fatal(err)
