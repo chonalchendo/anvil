@@ -1,8 +1,9 @@
 <!-- Keep this PR short. A reviewer must understand it in 60 seconds.
      Remove a section that does not apply. Do not pad it.
-     Write in Simplified Technical English (ASD-STE100, about 80%): at most 20 words
-     per instruction and 25 per description, active voice, one instruction per sentence,
-     conclusion first. Keep domain terms. Rules: `anvil show convention convention.prose --body`. -->
+     Write in Simplified Technical English (ASD-STE100), about 80% of the way.
+     Use at most 20 words per instruction and 25 per description. Use active voice.
+     Give one instruction per sentence. Put the conclusion first. Keep domain terms.
+     Rules: `anvil show convention convention.prose --body`. -->
 
 Resolves <anvil-id>
 
@@ -19,7 +20,7 @@ Resolves <anvil-id>
 <!-- REQUIRED: the live smoke test, quoted verbatim. Run the real `anvil <verb>` through
      the installed binary against a real vault. Paste the command and its output.
      A green `go test` does not count (smoke-test gate, docs/worktree-workflow.md).
-     For a docs-only or skill-body-only change, say so and state how you verified it. -->
+     Only for a genuinely docs-only or skill-body-only change, say so. Then state how you verified it. -->
 
 ## Risk
 <!-- One line. Name anything irreversible: a vault write, a schema break, an installer or hook change. Else "none". -->
