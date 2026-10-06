@@ -78,7 +78,6 @@ func newRootCmd() *cobra.Command {
 		newWhereCmd(),
 		newInitCmd(),
 		newCreateCmd(),
-		newBuildCmd(),
 		newNextCmd(),
 		newMilestoneCmd(),
 		newShowCmd(),
