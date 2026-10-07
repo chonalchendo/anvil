@@ -436,6 +436,16 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool, e
 					Set("error", mergeErr.Error()).
 					Set("fix_hint", "transient base-modified race; re-run the same --land-pr to retry")
 			}
+			// GitHub refuses --match-head-commit when the PR head moved after the
+			// clean run; the pass stays stamped at the old oid, so a re-run
+			// verifies the new head.
+			if strings.Contains(mergeErr.Error(), "Head branch was modified") {
+				return errfmt.NewStructured("land_pr_head_moved").
+					Set("pr", num).
+					Set("verified", head.oid).
+					Set("error", mergeErr.Error()).
+					Set("fix_hint", "the PR head moved after the clean run; re-run the same --land-pr to verify the new head")
+			}
 			return errfmt.NewStructured("land_pr_merge_failed").Set("pr", num).Set("error", mergeErr.Error())
 		}
 		return errfmt.NewStructured("land_pr_state_not_merged").Set("pr", num).Set("state", finalState)

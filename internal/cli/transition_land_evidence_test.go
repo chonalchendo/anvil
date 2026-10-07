@@ -286,3 +286,49 @@ func TestLandPRCleanCheckoutHasCarryFiles(t *testing.T) {
 		t.Fatalf("err=%v merges=%v out=%s", err, s.mergeCalls, out)
 	}
 }
+
+func TestLandPRCleanHeadMovedIsRetryable(t *testing.T) {
+	s, repo, sha, wt := landCleanFixture(t, "true")
+	s.viewByField["state"] = []byte(`{"state":"OPEN"}`)
+	s.mergeErr = errors.New("gh pr merge: exit status 1: GraphQL: Head branch was modified. Review and try the merge again")
+	n0 := worktreeCount(t, repo)
+	out, _, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...)
+	if err == nil || !strings.Contains(out, "land_pr_head_moved") || !strings.Contains(out, sha) {
+		t.Fatalf("err=%v out=%s", err, out)
+	}
+	if len(s.mergeCalls) != 1 {
+		t.Errorf("merge calls = %v, want one", s.mergeCalls)
+	}
+	if len(s.removeCalls) != 0 {
+		t.Errorf("worktree removed: %v", s.removeCalls)
+	}
+	if v, c := landCleanRecord(t); v != "pass" || c != sha {
+		t.Errorf("record = %s at %s, want pass at %s", v, c, sha)
+	}
+	if n := worktreeCount(t, repo); n != n0 {
+		t.Errorf("worktree count %d, want %d", n, n0)
+	}
+}
+
+func TestLandPRCleanHookFailureRefusesAndCleansUp(t *testing.T) {
+	s, repo, _, wt := landCleanFixture(t, "true")
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	prev := runWorktreeHookFn
+	runWorktreeHookFn = func(_, _ string) error { return errors.New("hook boom") }
+	t.Cleanup(func() { runWorktreeHookFn = prev })
+	n0 := worktreeCount(t, repo)
+	out, _, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...)
+	if err == nil || !strings.Contains(out, "verify_at_checkout_failed") || !strings.Contains(out, "hook boom") {
+		t.Fatalf("err=%v out=%s", err, out)
+	}
+	if len(s.mergeCalls) != 0 {
+		t.Errorf("merge calls = %v, want none", s.mergeCalls)
+	}
+	if n := worktreeCount(t, repo); n != n0 {
+		t.Errorf("worktree count %d, want %d", n, n0)
+	}
+	if left, _ := filepath.Glob(filepath.Join(tmp, "anvil-verify-at-*")); len(left) != 0 {
+		t.Errorf("checkout dirs left: %v", left)
+	}
+}
