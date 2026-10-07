@@ -24,10 +24,9 @@ type verifyFailure struct {
 	Preview string `json:"preview"`
 }
 
-// verifyRecord mirrors run-verification.sh's verdict line so the skill bundle
-// can swap the script for this verb. One known difference for wave 5: a block
-// that leaves a background process holding stdout (`sleep 8 &`) fails here once
-// the 2 s WaitDelay passes (exit null), where the script waits and passes it.
+// verifyRecord is the verdict line the skill bundle gates on. A block that
+// leaves a background process holding stdout (`sleep 8 &`) fails once the 2 s
+// WaitDelay passes (exit null).
 type verifyRecord struct {
 	Verdict  string          `json:"verdict"`
 	Checks   int             `json:"checks"`
@@ -211,7 +210,7 @@ func cwdCommit() string {
 	return sha
 }
 
-// firstLines is the first n lines of out, indented, as run-verification.sh prints them.
+// firstLines is the first n lines of out, indented, as the summary prints them.
 func firstLines(out string, n int) string {
 	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
 	if len(lines) > n {

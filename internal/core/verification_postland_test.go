@@ -9,6 +9,9 @@ func TestIsPostLand_FirstNonBlankLine_MatchesMarker(t *testing.T) {
 		"false\n# anvil:post-land\n":      false,
 		"# note\nfalse\n":                 false,
 		"":                                false,
+		"#anvil:post-land\nfalse":         false,
+		"# anvil: post-land\nfalse":       false,
+		"\u00a0# anvil:post-land\nfalse":  false,
 	}
 	for block, want := range cases {
 		if got := IsPostLand(block); got != want {
