@@ -88,6 +88,9 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		viewByFieldE: map[string]error{},
 		viewSeq:      map[string][][]byte{},
 	}
+	// Land tests start from a fixture that passes every evidence check; the
+	// evidence tests override one field at a time.
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
 
 	// landPR os.Chdir's to mainRoot; restore cwd so it doesn't leak to later
 	// tests that resolve paths (e.g. go.mod) relative to the working dir.
@@ -577,13 +580,14 @@ func TestLandPRHappyPath(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	// Provide a worktree for the PR's head branch so removal proceeds.
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
 
@@ -595,10 +599,10 @@ func TestLandPRHappyPath(t *testing.T) {
 	}
 	// Parity with the old `--delete-branch`: a successful land deletes the local
 	// branch (from the main root) and the remote branch.
-	if len(s.localBranchDeleteCalls) != 1 || s.localBranchDeleteCalls[0].Branch != "anvil/foo" || s.localBranchDeleteCalls[0].Dir != s.mainRoot {
+	if len(s.localBranchDeleteCalls) != 1 || s.localBranchDeleteCalls[0].Branch != "demo/foo" || s.localBranchDeleteCalls[0].Dir != s.mainRoot {
 		t.Errorf("local branch delete calls = %v, want one {%s anvil/foo}", s.localBranchDeleteCalls, s.mainRoot)
 	}
-	if len(s.deleteBranchCalls) != 1 || s.deleteBranchCalls[0] != "anvil/foo" {
+	if len(s.deleteBranchCalls) != 1 || s.deleteBranchCalls[0] != "demo/foo" {
 		t.Errorf("remote branch delete calls = %v, want [anvil/foo]", s.deleteBranchCalls)
 	}
 	// Audit line written.
@@ -632,6 +636,7 @@ func TestLandPRAlreadyResolvedNotMergedFailsExitNonZero(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "resolved")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["state"] = []byte(`{"state":"OPEN"}`)
 
 	cmd := newRootCmd()
@@ -675,6 +680,7 @@ func TestLandPRAlreadyResolvedViewFailsRefusedJSON(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "resolved")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByFieldE["state"] = errors.New("exit status 1")
 
 	cmd := newRootCmd()
@@ -711,6 +717,7 @@ func TestLandPRAlreadyResolvedGhUnavailableNamesEscape(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "resolved")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByFieldE["state"] = errGhUnavailable
 
 	cmd := newRootCmd()
@@ -739,6 +746,7 @@ func TestLandPRAlreadyResolvedMergedSucceeds(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "resolved")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 
 	out := execCmdJSON(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json")
@@ -765,12 +773,13 @@ func TestLandPRAutoClaimsOpenIssueWithOwner(t *testing.T) {
 	// Issue is left open — no prior `in-progress --owner` claim.
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--owner", "claude")
 
@@ -797,12 +806,13 @@ func TestLandPRAutoClaimsOpenIssueWithoutOwner(t *testing.T) {
 	createDemoIssue(t)
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
 
@@ -829,12 +839,13 @@ func TestLandPRRefusesAbandonedIssue(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "abandoned")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
@@ -869,12 +880,13 @@ func TestLandPRLeavesInProgressOwnerUntouched(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "alice")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
 
@@ -899,12 +911,13 @@ func TestLandPRDoesNotReassignOwnerOnClaimedIssue(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "alice")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--owner", "bob")
 
@@ -927,6 +940,7 @@ func TestLandPRAutoClaimFailedMergeLeavesIssueOpen(t *testing.T) {
 	createDemoIssue(t)
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["state"] = []byte(`{"state":"OPEN"}`) // pre-check passes; the mergeability gate refuses
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"CONFLICTING","mergeStateStatus":"DIRTY"}`)
 
@@ -962,6 +976,7 @@ func TestLandPRRefusesWhenNotMergeable(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["state"] = []byte(`{"state":"OPEN"}`) // pre-check passes; the mergeability gate refuses
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"CONFLICTING","mergeStateStatus":"DIRTY"}`)
 
@@ -996,6 +1011,7 @@ func TestLandPRPollsUnknownMergeability(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	// First poll returns UNKNOWN; the second returns MERGEABLE — land-pr must
 	// poll past the transient rather than hard-abort on the first read.
 	s.viewSeq["mergeable,mergeStateStatus"] = [][]byte{[]byte(`{"mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"}`)}
@@ -1003,8 +1019,8 @@ func TestLandPRPollsUnknownMergeability(t *testing.T) {
 	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
 
@@ -1033,12 +1049,13 @@ func TestLandPRRetryOfAlreadyMergedPRSucceedsWithoutPolling(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	// mergeable stays UNKNOWN forever, matching a real already-MERGED PR;
 	// the pre-check must short-circuit before this ever gets polled.
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"}`)
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
 
@@ -1078,9 +1095,10 @@ func TestLandPRRetryAlreadyMergedWorktreeGoneStillResolves(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.homeDir = t.TempDir() // default worktree path does not exist
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
 	// No listEntries entry either: the interrupted run already removed it.
 
 	cmd := newRootCmd()
@@ -1119,6 +1137,7 @@ func TestLandPRRefusesClosedPRWithoutPolling(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["state"] = []byte(`{"state":"CLOSED"}`)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"UNKNOWN","mergeStateStatus":"UNKNOWN"}`)
 
@@ -1159,6 +1178,7 @@ func TestLandPRRefusesWhenMergeabilityNeverResolves(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	// The PR stays OPEN and every poll returns UNKNOWN — mergeability never
 	// resolves.
 	s.viewByField["state"] = []byte(`{"state":"OPEN"}`)
@@ -1196,6 +1216,7 @@ func TestLandPRRefusesWhenCINotGreen(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["state"] = []byte(`{"state":"OPEN"}`) // pre-check passes; the CI gate refuses
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE"}`)
 	s.checksErr = errors.New("check `tests` failed")
@@ -1225,11 +1246,12 @@ func TestLandPRRefusesWhenFinalStateNotMerged(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE"}`)
 	s.viewByField["state"] = []byte(`{"state":"OPEN"}`)
 	// Provide a worktree so removal proceeds before the state check.
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
@@ -1265,10 +1287,11 @@ func TestLandPRTransientMergeRaceIsRetryable(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"BEHIND"}`)
 	s.viewByField["state"] = []byte(`{"state":"OPEN"}`)
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 	// master moved under the PR between the mergeability check and the merge.
 	s.mergeErr = errors.New("gh pr merge: exit status 1: GraphQL: Base branch was modified. Review and try the merge again")
 
@@ -1349,6 +1372,7 @@ func TestLandPRRefusesWhenWorktreeRemoveFails(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.homeDir = t.TempDir()
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	// Merge succeeds and the PR state confirms MERGED; only the worktree removal
@@ -1685,12 +1709,13 @@ func TestLandPRSaveFailureSurfacesRecovery(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE"}`)
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)} // pre-check
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	// Provide a worktree so removal proceeds before the save-failure path.
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	// Make the issue file read-only after load succeeds: LoadArtifact reads,
 	// then a.Save() WriteFile fails on the unwritable inode. Restore perms in
@@ -1750,13 +1775,14 @@ func TestLandPRHonorsTrailingJSONFlag(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	// Provide a worktree so removal proceeds.
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
@@ -1786,6 +1812,7 @@ func TestLandPRDetectsWorktreeViaHeadBranch(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	// homeDir has no Development/demo-worktrees/foo directory, so os.Stat will
 	// fail and the code must fall back to the worktree list.
 	s.homeDir = t.TempDir()
@@ -1794,10 +1821,10 @@ func TestLandPRDetectsWorktreeViaHeadBranch(t *testing.T) {
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
 	// PR branch points to a worktree at a custom slug (fleet scenario).
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/fleet-custom-slug"}`)
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "anvil/fleet-custom-slug")
 	s.listEntries["anvil/fleet-custom-slug"] = worktreeInfo{path: "/worktrees/fleet-custom-slug"}
 
-	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
+	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--worktree", "/worktrees/fleet-custom-slug")
 
 	if len(s.mergeCalls) != 1 || s.mergeCalls[0] != 42 {
 		t.Errorf("merge calls = %v, want [42]", s.mergeCalls)
@@ -1819,12 +1846,13 @@ func TestLandPRLocalValidatedBypassesCICheck(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 	// CI would fail without the override.
 	s.checksErr = errors.New("check `tests` failed: timed out waiting for status")
 
@@ -1851,12 +1879,13 @@ func TestLandPRLocalValidatedAuditsOverride(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 	s.checksErr = errors.New("check `tests` failed")
 
 	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--local-validated")
@@ -1906,11 +1935,12 @@ func TestLandPRErrorsWhenNoWorktreeFound(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.homeDir = t.TempDir()                             // no worktree directory on disk
 	s.viewByField["state"] = []byte(`{"state":"OPEN"}`) // an OPEN PR keeps worktree-missing fatal
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	// headRefName returns a branch with no matching worktree entry.
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/no-worktree-branch"}`)
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
 
 	cmd := newRootCmd()
 	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"})
@@ -1939,6 +1969,7 @@ func TestLandPRWorktreeOverride(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	// Create the override path on disk so os.Stat succeeds.
 	wtPath := filepath.Join(t.TempDir(), "my-custom-worktree")
 	if err := os.MkdirAll(wtPath, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
@@ -1971,12 +2002,13 @@ func TestLandPRMergesBeforeRemovingWorktree(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	var callOrder []string
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"demo/foo"}`)
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
 	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 
 	prevMerge := ghPRMergeFn
@@ -2014,11 +2046,12 @@ func TestLandPRMergeExitNonZeroButStateMerged(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"demo/foo"}`)
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
 	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 	// Simulate gh pr merge exiting non-zero (post-merge checkout failure).
 	s.mergeErr = errors.New("exit status 1: failed to run git: fatal: Unable to read current working directory")
@@ -2053,12 +2086,13 @@ func TestLandPRResolvesDespiteBranchDeleteFailure(t *testing.T) {
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
 	s := stubSideFX(t)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
 	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: "/worktrees/foo"}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: "/worktrees/foo"}
 	// Simulate the remote branch-delete failing post-merge (ref already gone).
 	s.deleteBranchErr = errors.New("gh api delete branch: exit status 1")
 
@@ -2110,8 +2144,8 @@ func TestLandPRChdirsToRootBeforeWorktreeRemoval(t *testing.T) {
 	// The pre-check reads OPEN; the post-merge verify falls through to MERGED.
 	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
 	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
-	s.viewByField["headRefName"] = []byte(`{"headRefName":"anvil/foo"}`)
-	s.listEntries["anvil/foo"] = worktreeInfo{path: deadCwd}
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	s.listEntries["demo/foo"] = worktreeInfo{path: deadCwd}
 
 	// Simulate the real worktree removal destroying the process's original cwd.
 	gitWorktreeRemoveFn = func(_, _ string) error { return os.RemoveAll(deadCwd) }
@@ -2136,7 +2170,7 @@ func TestLandPRChdirsToRootBeforeWorktreeRemoval(t *testing.T) {
 		return nil
 	}
 
-	if err := landPR(&bytes.Buffer{}, 42, deadCwd, false); err != nil {
+	if err := landPR(&bytes.Buffer{}, 42, deadCwd, false, passingEvidence()); err != nil {
 		t.Fatalf("landPR returned error: %v", err)
 	}
 	if substepErr != nil {

@@ -264,9 +264,6 @@ func samePath(a, b string) bool {
 // claims "worktree removed" and we refuse to lie if we can't compute the
 // location.
 func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOverride string, localValidated bool) error {
-	if worktreeOverride != "" {
-		return landPR(errW, prNum, worktreeOverride, localValidated)
-	}
 	project := projectFromArtifact(a, id)
 	slug := slugFromIssueID(id)
 	if project == "" || slug == "" {
@@ -274,14 +271,21 @@ func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOv
 			Set("error", "issue id lacks `<project>.<slug>` shape").
 			Set("id", id)
 	}
+	ev, eerr := readLandEvidence(a, id, project, slug)
+	if eerr != nil {
+		return eerr
+	}
+	if worktreeOverride != "" {
+		return landPR(errW, prNum, worktreeOverride, localValidated, ev)
+	}
 	wtPath, derr := defaultWorktreePath(project, slug)
 	if derr != nil {
 		return errfmt.NewStructured("land_pr_path_failed").Set("error", derr.Error())
 	}
-	return landPR(errW, prNum, wtPath, localValidated)
+	return landPR(errW, prNum, wtPath, localValidated, ev)
 }
 
-// landPR runs gate→merge→verify→remove-worktree→delete-local-branch→delete-remote-branch.
+// landPR runs gate→evidence→merge→verify→remove-worktree→delete-local-branch→delete-remote-branch.
 // Returns nil on success or a Structured error keyed on the failing gate.
 // The ordering, merge-exit-code, and worktree-resolution rationale live as
 // comments at each step.
@@ -289,7 +293,11 @@ func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOv
 // Worktree resolution: if worktreePath exists on disk it is used directly. If
 // not, landPR falls back to the live worktree list keyed by the PR's head
 // branch — covering the common fleet case where the worktree was cut at a
-// non-default slug. If neither path resolves to a real worktree, landPR
+// non-default slug. The evidence check accepts such a renamed branch only when
+// it is checked out at the issue's own worktree path (the --worktree override
+// or the default path); any other head branch refuses as land_pr_not_issue_pr.
+// An already-MERGED PR skips the evidence check, since refusing after the
+// merge would strand the issue. If neither path resolves to a real worktree, landPR
 // returns land_pr_worktree_missing before merging rather than silently
 // skipping removal — unless the PR is already MERGED (a retry of an
 // interrupted land), where a missing worktree is treated as already cleaned.
@@ -297,7 +305,7 @@ func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOv
 // localValidated skips the ghPRChecks gate when the operator has already
 // validated the work locally (e.g. with `just check`) and required CI is
 // genuinely unavailable. The caller is responsible for recording an audit line.
-func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) error {
+func landPR(errW io.Writer, num int, worktreePath string, localValidated bool, ev landEvidence) error {
 	// An already-MERGED PR also reads mergeable:UNKNOWN (GitHub never
 	// recomputes it for a closed PR), so a retry of an interrupted batch line
 	// must recognise "already landed" before burning the mergeability poll.
@@ -356,17 +364,12 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) e
 			}
 		}
 	}
-	// Resolve the PR's head branch once: it both keys the worktree-list fallback
-	// below and names the local branch to delete after the worktree is removed.
-	headBranch := ""
-	type headRef struct {
-		HeadRefName string `json:"headRefName"`
+	// One read answers both the evidence check and the worktree-list key
+	// below; it also names the local branch to delete after removal.
+	headBranch, err := ev.check(num, worktreePath, alreadyMerged)
+	if err != nil {
+		return err
 	}
-	var ref headRef
-	if raw, rerr := ghPRViewJSONFn(num, "headRefName"); rerr == nil {
-		_ = json.Unmarshal(raw, &ref)
-	}
-	headBranch = ref.HeadRefName
 	// Resolve the actual worktree path: try the explicit/default path first,
 	// then fall back to the live worktree list keyed by the PR's head branch.
 	resolved := ""
