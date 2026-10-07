@@ -55,7 +55,7 @@ func TestList_StatusFilterRejectsUnknownValue(t *testing.T) {
 	if !strings.Contains(stdout, `"flag":"status"`) {
 		t.Errorf("stdout missing flag field: %q", stdout)
 	}
-	if !strings.Contains(stdout, `"allowed":["open","in-progress","resolved","abandoned"]`) {
+	if !strings.Contains(stdout, `"allowed":["open","in-progress","escalated","resolved","abandoned"]`) {
 		t.Errorf("stdout missing allowed enum: %q", stdout)
 	}
 }
