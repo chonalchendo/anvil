@@ -20,7 +20,7 @@ metadata:
 
 # Writing System Design
 
-A workflow for authoring a project's system-design artifact — the architectural counterpart to `product-design`. The product design says *what* we're building and *why*; the system design says *what shape* it has, *what's load-bearing*, and *what must always be true*. It records the **target state only**: no "today" statements, no tech-stack inventory, no decision-making. Current state lives in code and in component designs' `## Interfaces` rows. Both are vault-only.
+A workflow for authoring a project's system-design artifact — the architectural counterpart to `product-design`. The product design says *what* we're building and *why*; the system design says *what shape* it has, *what's load-bearing*, and *what must always be true*. It records the **target state only**: no "today" statements, no tech-stack inventory, no decision deliberation. Current state lives in code and in component designs' `## Interfaces` rows. Both are vault-only.
 
 ## When to use
 
