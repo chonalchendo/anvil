@@ -271,21 +271,35 @@ func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOv
 			Set("error", "issue id lacks `<project>.<slug>` shape").
 			Set("id", id)
 	}
-	ev, eerr := readLandEvidence(a, id, project, slug)
-	if eerr != nil {
-		return eerr
+	// Resolved before landPR moves the cwd, which can decide which vault is meant.
+	v, verr := core.ResolveVault()
+	if verr != nil {
+		return fmt.Errorf("resolving vault: %w", verr)
 	}
-	if worktreeOverride != "" {
-		return landPR(errW, prNum, worktreeOverride, localValidated, ev)
+	ev := newLandEvidence(a, v, id, project, slug)
+	wtPath := worktreeOverride
+	if wtPath == "" {
+		var derr error
+		if wtPath, derr = defaultWorktreePath(project, slug); derr != nil {
+			return errfmt.NewStructured("land_pr_path_failed").Set("error", derr.Error())
+		}
 	}
-	wtPath, derr := defaultWorktreePath(project, slug)
-	if derr != nil {
-		return errfmt.NewStructured("land_pr_path_failed").Set("error", derr.Error())
+	if err := landPR(errW, prNum, wtPath, localValidated, ev); err != nil {
+		return err
 	}
-	return landPR(errW, prNum, wtPath, localValidated, ev)
+	// The command's single Save() writes this copy: carry the stamp the clean run
+	// made on disk, or that save would erase it.
+	if fresh, err := core.LoadArtifact(ev.path); err == nil {
+		for _, k := range []string{"verified_verdict", "verified_commit", "verified_at"} {
+			if val, ok := fresh.FrontMatter[k]; ok {
+				a.FrontMatter[k] = val
+			}
+		}
+	}
+	return nil
 }
 
-// landPR runs gate→evidence→merge→verify→remove-worktree→delete-local-branch→delete-remote-branch.
+// landPR runs gate→evidence→clean run→merge→verify→remove-worktree→delete-local-branch→delete-remote-branch.
 // Returns nil on success or a Structured error keyed on the failing gate.
 // The ordering, merge-exit-code, and worktree-resolution rationale live as
 // comments at each step.
@@ -296,8 +310,8 @@ func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOv
 // non-default slug. The evidence check accepts such a renamed branch only when
 // it is checked out at the issue's own worktree path (the --worktree override
 // or the default path); any other head branch refuses as land_pr_not_issue_pr.
-// An already-MERGED PR skips the evidence check, since refusing after the
-// merge would strand the issue. If neither path resolves to a real worktree, landPR
+// An already-MERGED PR skips the evidence check and the clean run, since
+// refusing after the merge would strand the issue. If neither path resolves to a real worktree, landPR
 // returns land_pr_worktree_missing before merging rather than silently
 // skipping removal — unless the PR is already MERGED (a retry of an
 // interrupted land), where a missing worktree is treated as already cleaned.
@@ -366,10 +380,11 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool, e
 	}
 	// One read answers both the evidence check and the worktree-list key
 	// below; it also names the local branch to delete after removal.
-	headBranch, err := ev.check(num, worktreePath, alreadyMerged)
+	head, err := ev.check(num, worktreePath, alreadyMerged)
 	if err != nil {
 		return err
 	}
+	headBranch := head.branch
 	// Resolve the actual worktree path: try the explicit/default path first,
 	// then fall back to the live worktree list keyed by the PR's head branch.
 	resolved := ""
@@ -404,6 +419,11 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool, e
 	// shell out from the just-deleted directory and fail with a getwd error.
 	if cherr := os.Chdir(root); cherr != nil {
 		return errfmt.NewStructured("land_pr_chdir_root_failed").Set("root", root).Set("error", cherr.Error())
+	}
+	if !alreadyMerged {
+		if err := landCleanRunFn(errW, ev, root, head.oid); err != nil {
+			return err
+		}
 	}
 	// Merge before removing the worktree so the process's cwd remains valid
 	// throughout. gh pr merge may exit non-zero even when the merge lands

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -66,40 +67,31 @@ func newVerifyCmd() *cobra.Command {
 			if err := checkVerificationLock(a, id, flagAccept); err != nil {
 				return printAndReturn(cmd, err)
 			}
-			dir, atCommit := "", ""
+			var rec verifyRecord
 			if flagAt != "" {
-				var cleanup func()
-				if dir, atCommit, cleanup, err = checkoutAt(cmd, id, flagAt); err != nil {
+				root, terr := gitToplevelFn()
+				if terr != nil {
+					return printAndReturn(cmd, errfmt.NewStructured("verify_at_no_repo").
+						Set("message", "--at needs a git repo; the current directory is not in one").
+						Set("fix_hint", "cd into the repo that holds "+flagAt+", then run anvil verify "+id+" --at "+flagAt))
+				}
+				rec, err = verifyAt(cmd, id, root, flagAt, a.Body)
+			} else {
+				rec, err = runVerification(cmd, a.Body, "")
+			}
+			if err != nil {
+				var se *errfmt.Structured
+				if errors.As(err, &se) {
 					return printAndReturn(cmd, err)
 				}
-				defer cleanup()
-			}
-			ranBody := a.Body
-			rec, err := runVerification(cmd, ranBody, dir)
-			if err != nil {
 				return err
 			}
-			if atCommit != "" {
-				// The checkout is the resolved commit by construction; git status
-				// can still report changes on it (case-folding filesystems).
-				rec.Commit = atCommit
-			}
-			// Reload: the run can take minutes, and a write to the issue in that
-			// window must not be overwritten by the pre-run copy.
-			if a, err = loadIssueForVerify(path, id, args[0]); err != nil {
-				return err
-			}
+			lock := ""
 			if flagAccept {
-				a.FrontMatter["verification_lock"] = core.VerificationLock(ranBody)
+				lock = core.VerificationLock(a.Body)
 			}
-			a.FrontMatter["verified_verdict"] = rec.Verdict
-			a.FrontMatter["verified_commit"] = rec.Commit
-			a.FrontMatter["verified_at"] = rec.RanAt
-			if err := a.Save(); err != nil {
-				return fmt.Errorf("saving artifact: %w", err)
-			}
-			if err := indexAfterSave(v, a); err != nil {
-				return fmt.Errorf("indexing %s: %w", id, err)
+			if err := stampVerification(v, path, id, args[0], rec, lock); err != nil {
+				return err
 			}
 			if flagJSON {
 				b, _ := json.Marshal(rec)
@@ -141,16 +133,51 @@ func loadIssueForVerify(path, id, arg string) (*core.Artifact, error) {
 	return a, nil
 }
 
+// stampVerification reloads the issue, stamps the record on it and saves. The
+// run can take minutes, and a write to the issue in that window must not be
+// overwritten by a pre-run copy. A non-empty lock also re-locks the section.
+func stampVerification(v *core.Vault, path, id, arg string, rec verifyRecord, lock string) error {
+	a, err := loadIssueForVerify(path, id, arg)
+	if err != nil {
+		return err
+	}
+	if lock != "" {
+		a.FrontMatter["verification_lock"] = lock
+	}
+	a.FrontMatter["verified_verdict"] = rec.Verdict
+	a.FrontMatter["verified_commit"] = rec.Commit
+	a.FrontMatter["verified_at"] = rec.RanAt
+	if err := a.Save(); err != nil {
+		return fmt.Errorf("saving artifact: %w", err)
+	}
+	if err := indexAfterSave(v, a); err != nil {
+		return fmt.Errorf("indexing %s: %w", id, err)
+	}
+	return nil
+}
+
+// verifyAt runs body on a fresh detached checkout of sha in root's repo and
+// returns the record stamped at the resolved commit.
+func verifyAt(cmd *cobra.Command, id, root, sha, body string) (verifyRecord, error) {
+	dir, commit, cleanup, err := checkoutAt(cmd, id, root, sha)
+	if err != nil {
+		return verifyRecord{}, err
+	}
+	defer cleanup()
+	rec, err := runVerification(cmd, body, dir)
+	if err != nil {
+		return rec, err
+	}
+	// The checkout is the resolved commit by construction; git status can still
+	// report changes on it (case-folding filesystems).
+	rec.Commit = commit
+	return rec, nil
+}
+
 // checkoutAt adds a detached worktree of sha under a temp dir and returns it
 // with the resolved commit and its cleanup. A removal failure is a notice: it
 // must not change the verdict.
-func checkoutAt(cmd *cobra.Command, id, sha string) (string, string, func(), error) {
-	root, err := gitToplevelFn()
-	if err != nil {
-		return "", "", nil, errfmt.NewStructured("verify_at_no_repo").
-			Set("message", "--at needs a git repo; the current directory is not in one").
-			Set("fix_hint", "cd into the repo that holds "+sha+", then run anvil verify "+id+" --at "+sha)
-	}
+func checkoutAt(cmd *cobra.Command, id, root, sha string) (string, string, func(), error) {
 	full, err := exec.Command("git", "-C", root, "rev-parse", "--verify", "--end-of-options", sha+"^{commit}").Output() //nolint:gosec // sha is a single argv element after --end-of-options
 	if err != nil {
 		return "", "", nil, errfmt.NewStructured("verify_at_unresolved").
@@ -158,19 +185,19 @@ func checkoutAt(cmd *cobra.Command, id, sha string) (string, string, func(), err
 			Set("fix_hint", "fetch it with git fetch, or check it with git rev-parse "+sha+"^{commit}")
 	}
 	commit := strings.TrimSpace(string(full))
-	failed := func(msg string) error {
+	failed := func(msg, hint string) error {
 		return errfmt.NewStructured("verify_at_checkout_failed").
 			Set("message", msg).
-			Set("fix_hint", "check free disk space and that TMPDIR is writable, then re-run anvil verify "+id+" --at "+sha)
+			Set("fix_hint", hint+", then re-run anvil verify "+id+" --at "+sha)
 	}
 	tmp, err := os.MkdirTemp("", "anvil-verify-at-*")
 	if err != nil {
-		return "", "", nil, failed("creating checkout dir: " + err.Error())
+		return "", "", nil, failed("creating checkout dir: "+err.Error(), "check free disk space and that TMPDIR is writable")
 	}
 	dir := filepath.Join(tmp, "wt")
 	if out, err := exec.Command("git", "-C", root, "worktree", "add", "--detach", dir, commit).CombinedOutput(); err != nil { //nolint:gosec // commit is a resolved sha
 		_ = os.RemoveAll(tmp)
-		return "", "", nil, failed("git worktree add: " + err.Error() + ": " + strings.TrimSpace(string(out)))
+		return "", "", nil, failed("git worktree add: "+err.Error()+": "+strings.TrimSpace(string(out)), "fix the git error in message")
 	}
 	return dir, commit, func() {
 		if err := gitWorktreeRemoveForceFn(root, dir); err != nil {
