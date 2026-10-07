@@ -88,7 +88,7 @@ authorized_by: ["[[decision...]]"]
 
 Addressable as `<project>` (per-project) or `<project>.<shard>` (per subsystem); files sit flat in `06-system-designs/` under the bare id (e.g. `burgh.md`) and resolve in show/list/wikilinks. The index DB still keys on the type-qualified form (`system-design.burgh`), which is also the wikilink target shape.
 
-Body absorbs: tech stack, key invariants, risks, boundary diagrams, revisions. Mermaid diagrams stay first-class body content.
+Body absorbs: constraints and quality goals, system invariants, boundary diagrams, open questions. No Tech stack section. Mermaid diagrams stay first-class body content.
 
 ### `milestone`
 
