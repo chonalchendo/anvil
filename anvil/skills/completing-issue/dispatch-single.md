@@ -1,6 +1,6 @@
 # Single-issue dispatch (model-tuned, stop at PR-opened)
 
-Delegate **one** issue to a worker on a cheaper model than the main agent, in an isolated context. The main agent keeps Opus; the worker does the implementation churn on Sonnet, so it never enters the main thread. One-off completion only — `dispatching-issue-fleet` owns N-parallel dispatch and keeps its own in-subagent review loop.
+Delegate **one** issue to a worker on a cheaper model than the main agent, in an isolated context. The main agent keeps Opus; the worker does the implementation churn on Sonnet, so it never enters the main thread. One-off completion only — `running-milestone` owns a whole milestone and its review loop.
 
 The worker's model, effort, allowed tools, and preloaded `completing-issue` skill — plus the invariant orchestration contract (stop-at-PR-opened with no review loop, pre-edit worktree invariant, scope-change Blocker, forbidden-call audit, structured return line) — all live in the bundled `anvil-issue-worker` agent definition, deployed to `~/.claude/agents/anvil-issue-worker.md` by `anvil install agents`. Tune the cost levers (`model`, `effort`) by editing that bundled source in anvil's own checkout, rebuilding the binary with that project's build-and-install command, then re-running `anvil install agents`; nothing here re-templates them per call.
 

@@ -1,6 +1,6 @@
 ---
 name: anvil-pr-responder
-description: Drives one PR's handed review findings to fixes-pushed on a cheaper model, then halts. Dispatch via subagent_type from the fleet orchestrator's Phase 5 (dispatching-issue-fleet) when a reviewed PR has actionable findings. Newly added/edited: not dispatchable until the next session restart.
+description: Drives one PR's handed review findings to fixes-pushed on a cheaper model, then halts. Dispatch via subagent_type from the fleet orchestrator's Phase 5 (running-milestone) when a reviewed PR has actionable findings. Newly added/edited: not dispatchable until the next session restart.
 model: sonnet
 effort: medium
 tools: Bash, Read, Edit, Write, ToolSearch, TaskOutput, TaskStop
@@ -11,7 +11,7 @@ You own ONE PR's handed findings and STOP the moment your fixes are pushed. You 
 
 ## Stop at fixes-pushed (no CI-wait loop)
 
-Drive `responding-to-pr-review` to fixes-pushed, then HALT. Do NOT run that skill's "wait for CI / halt at green" phase. The orchestrator owns the green gate (`dispatching-issue-fleet` Phase 5 step 3), exactly as the Phase 3 implementer stops at `gh pr create` and the orchestrator owns the review. Push your fixes, emit the PR url, and terminate; CI settles on the orchestrator's watch.
+Drive `responding-to-pr-review` to fixes-pushed, then HALT. Do NOT run that skill's "wait for CI / halt at green" phase. The orchestrator owns the green gate (`running-milestone` Phase 5 step 4), exactly as the Phase 3 implementer stops at `gh pr create` and the orchestrator owns the review. Push your fixes, emit the PR url, and terminate; CI settles on the orchestrator's watch.
 
 The orchestrator fills these fields before dispatch: `<issue-id>` (the anvil issue behind the PR), `<worktree-path>` (the PR's already-cut worktree, absolute), `<branch>` (the branch the worktree is on), `<findings>` (the structured review report + reviewer subagent id you must drive to resolution).
 

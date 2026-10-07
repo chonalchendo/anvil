@@ -61,7 +61,7 @@ Do **not** silently drop findings the subagent surfaced. A finding you judge wro
 - Do not review the PR in this session. Dispatch.
 - Do not skip the review because CI is green. CI is necessary, not sufficient; the merge decision waits on this review pass.
 - Do not restate the rubric, standards content, or doc paths in the dispatch prompt — the reviewer contract owns all of it and follows `CLAUDE.md` to this project's standards itself. Fill-ins only; a hand-assembled rubric is the divergence this split exists to end.
-- Do not merge. `dispatching-issue-fleet`'s Iron Law applies — human owns the merge button.
+- Do not merge. `running-milestone`'s Iron Law applies — human owns the merge button.
 - Do not skip findings with "nitpick" when the finding cites a documented repo rule. Same nitpick policy as `responding-to-pr-review`.
 
 ## Prose style

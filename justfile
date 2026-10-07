@@ -61,7 +61,7 @@ install:
 # global $(go env GOPATH)/bin. The smoke-test gate invokes ./bin/anvil by path,
 # so parallel worktrees install to distinct files and never clobber each other —
 # unlike `install`, which targets one global path and races when
-# `dispatching-issue-fleet` runs workers concurrently. No PATH-shadow check is
+# `running-milestone` runs workers concurrently. No PATH-shadow check is
 # needed because the gate calls ./bin/anvil explicitly. `-a` and `-ldflags`
 # carry the same rationale as `install` above.
 install-local:

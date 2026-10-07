@@ -1,6 +1,6 @@
 ---
 name: completing-issue
-description: "Use when implementing an open issue end-to-end to PR-opened. Triggers: 'complete issue X', 'work issue <id>'. Not for authoring (writing-issue) or fleet dispatch (dispatching-issue-fleet)."
+description: "Use when implementing an open issue end-to-end to PR-opened. Triggers: 'complete issue X', 'work issue <id>'. Not for authoring (writing-issue) or a whole milestone (running-milestone)."
 license: MIT
 allowed-tools: [Bash, Read, Edit, Write]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -36,7 +36,7 @@ If `## Verification` is missing either subsection or its entries are non-predica
 
 ## Running delegated on a cheaper model
 
-For a one-off completion, the main agent can dispatch this skill to an isolated subagent on a cheaper model (e.g. Opus main → Sonnet worker) — fill and fire `dispatch-single.md`. It stops at PR-opened with no review-respond loop. The N-parallel case is `dispatching-issue-fleet`.
+For a one-off completion, the main agent can dispatch this skill to an isolated subagent on a cheaper model (e.g. Opus main → Sonnet worker) — fill and fire `dispatch-single.md`. It stops at PR-opened with no review-respond loop. A whole milestone is `running-milestone`.
 
 ## Phase 0 — Claim
 
@@ -72,7 +72,7 @@ Note which of the hydrated nodes you actually consult while implementing (read t
 
 From the opened box: treat each component design's `## Does not` as a hard boundary (crossing one → **Scope-change protocol**) and apply its `## Code design` as you write. A component design's `## Code design` binds the house conventions surfaced alongside it — a `*.py`/`*.sql`/etc. edit follows `convention.<lang>`. A design node with `status` other than `active` is advisory — flag it before implementation, do not treat its constraints as authoritative. No component design in the box → none governs this slice; rely on the repo's core conventions indexed from `CLAUDE.md`/`AGENTS.md`.
 
-Make the minimal change that achieves the issue's `goal:` and passes every `## Verification` check (`## Acceptance criteria`, when present, is a prose aid — not the gate). Stay within the issue's declared file set (or `<declared-files>` when dispatched by `dispatching-issue-fleet`). See **Scope-change protocol** below if the work outgrows declared scope.
+Make the minimal change that achieves the issue's `goal:` and passes every `## Verification` check (`## Acceptance criteria`, when present, is a prose aid — not the gate). Stay within the issue's declared file set (or `<declared-files>` when dispatched by `running-milestone`). See **Scope-change protocol** below if the work outgrows declared scope.
 
 No refactoring "while in the area." No helpers without a second use. No defensive code for unreachable states. Defer to the project's conventions (`CLAUDE.md`, `AGENTS.md`, style guides) for project-specific hard rules.
 
@@ -191,7 +191,7 @@ anvil transition issue <id> resolved --land-pr <pr-number>
 
 One call gates on mergeable + CI-green, removes the worktree, squash-merges, verifies MERGED, and resolves with an audit line — so a session boundary cannot split merge from resolve. The human fires it; the agent never does. On a branch-only setup the verb refuses (`land_pr_worktree_missing`) before merging — merge manually, then `anvil transition issue <id> resolved`.
 
-**REQUIRED SUB-SKILL:** Use reviewing-pr to run the default independent review pass, then responding-to-pr-review to drive its findings to resolution — unless you were dispatched to stop at PR-opened (e.g. by `dispatching-issue-fleet`, or as an `anvil-issue-worker` via `dispatch-single.md`), where the orchestrator owns review and runs that chain itself.
+**REQUIRED SUB-SKILL:** Use reviewing-pr to run the default independent review pass, then responding-to-pr-review to drive its findings to resolution — unless you were dispatched to stop at PR-opened (e.g. by `running-milestone`, or as an `anvil-issue-worker` via `dispatch-single.md`), where the orchestrator owns review and runs that chain itself.
 
 When a responding-to-pr-review loop needs to wait for CI or a reviewer pass, invoke the out-of-band poller **once** instead of polling in-agent:
 
