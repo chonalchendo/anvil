@@ -9,7 +9,7 @@ Your job is to run one in-progress milestone to its finish line. You derive a fe
 
 ## Iron Law
 
-**The human owns the merge button and the milestone gates. You and your subagents never call `gh pr merge`, `git worktree remove`, `anvil transition issue <id> resolved` without the human's per-PR approval, or `anvil transition issue <id> abandoned`.** A subagent that does is a halt. Surface it.
+**The human owns the merge button and the milestone gates. Never call `gh pr merge` or `git worktree remove`. Never call `anvil transition issue <id> abandoned`. Run `resolved` only after the human approves that PR.** This binds your subagents too. A subagent that breaks it is a halt. Surface it.
 
 ## Phase 0 — Read the state
 
@@ -19,8 +19,10 @@ Read the repo's `CLAUDE.md` or `AGENTS.md` for build, install and verification c
 anvil show milestone <milestone-id> --body
 anvil milestone status <milestone-id> --json
 anvil fleet status --json
-anvil list issue --ready --json
+anvil list issue --ready --milestone <project>.<slug> --json
 ```
+
+`milestone status` runs the acceptance predicates in the project's main checkout with your privileges. Run it only on the base branch tip.
 
 The milestone must be `in-progress`. If it is `planned`, halt: the human approves the milestone gate first.
 
@@ -30,19 +32,19 @@ Read the end goal, the finish line, the design change and the issue limit in the
 
 Derive a few issues, never the whole milestone. Each issue traces to one acceptance criterion that has no resolved issue.
 
-1. Read the current code under the milestone's components. Prior issues have landed, so the code differs from the design.
-2. Fire `writing-issue` for each next issue. It writes the verification and the ready gate checks it.
-3. Count the milestone's issues. At the issue limit, take Exit 3.
+1. Count the milestone's issues. If the next wave would pass the limit, take Exit 3.
+2. Read the current code under the milestone's components. Prior issues have landed, so the code differs from the design.
+3. Fire `writing-issue` for each next issue. It writes the verification and the ready gate checks it.
 
 Skip this phase when ready issues already cover the open criteria.
 
 ## Phase 2 — Pick the work set
 
-Take the ready issues from `anvil list issue --ready --json` for this milestone. Respect `depends_on`: dispatch an issue only after its blockers resolve.
+Take the ready issues from `anvil list issue --ready --milestone <project>.<slug> --json`. Respect `depends_on`: dispatch an issue only after its blockers resolve.
 
 **Overlap check.** Read each candidate's declared files. On a collision, serialize: the loser waits for the next wave. Dispatch in parallel only when the file sets are disjoint.
 
-**Never stack.** Never base a dependent issue on its predecessor's branch. `--land-pr` deletes that branch and closes the dependent PR for good. Land the predecessor, then cut the dependent from `origin/master`.
+**Never stack.** Never base a dependent issue on its predecessor's branch. `--land-pr` deletes that branch and closes the dependent PR for good. Land the predecessor, then cut the dependent from the base branch tip.
 
 ## Phase 2b — Retrieve learnings once
 
@@ -60,7 +62,7 @@ Dispatch each issue with `subagent_type: anvil-issue-worker`. The agent file hol
 
 > Complete anvil issue `<issue-id>`. Worktree: `<worktree-path>` on branch `<branch>`. Declared files (estimate, grep to confirm): `<declared-files>`. Prior learnings (gist): `<one line or "none">`.
 
-Dispatch parallel issues in one tool-use block. A new or edited agent file is not dispatchable until the session restarts.
+Dispatch at most eight workers in one wave. Dispatch parallel issues in one tool-use block. A new or edited agent file is not dispatchable until the session restarts.
 
 After dispatch, end the turn. The completion notification resumes you. Do not use `Monitor`. Send one `SendMessage` nudge only when a sibling worker finished and this worker has no PR url and no verdict file.
 
@@ -72,19 +74,19 @@ The last line of a worker's return is one of three shapes.
 - `Blocker: <reason>`. Take Exit 1. Do not re-dispatch.
 - Anything else. The worker died or returned prose. Read `git log --stat <branch>` for its `wip:` commits. Re-dispatch once with an action-only prompt that builds on them. After a second failure, take Exit 1.
 
-**Verdict gate.** The worker writes the runner's output to `/tmp/verdict.<issue-id>.json`, where `<issue-id>` is the full id. Run `jq -r .verdict` on it. A value of `pass` goes to review. Any other value, a missing file, or a prose excuse means re-measure:
+**Verdict gate.** The worker writes the runner's output to `/tmp/verdict.<issue-id>.json`, where `<issue-id>` is the full id (for example `issue.acme.0042.fix-login`). Run `jq -r .verdict` on it. A value of `pass` goes to review. Any other value, a missing file, or a prose excuse means re-measure:
 
 ```bash
-cd <worktree-path> && anvil show issue <issue-id> | bash ~/.claude/skills/completing-issue/scripts/run-verification.sh | jq -r .verdict
+cd <worktree-path> && anvil show issue <issue-id> | bash <run-verification.sh> | jq -r .verdict
 ```
 
-Red on re-measure is a blocker: take Exit 1. Never accept a prose account of a red check in place of the verdict.
+`<run-verification.sh>` is the `completing-issue` skill's `scripts/run-verification.sh`. Rebuild with the project's build command from CLAUDE.md. Put any worktree-local binary first on PATH. Green on re-measure: proceed and note it in the report. Red on re-measure is a blocker: take Exit 1. Never accept a prose account of a red check in place of the verdict.
 
 ## Phase 5 — Review each PR
 
 1. Fire `reviewing-pr` on the PR. Do not let it fire `responding-to-pr-review` in your session. The fixes live in a worktree you are not in.
-2. Route the findings. Findings at low or below with CI green: the PR is ready. Any blocker, high or actionable medium finding: dispatch `anvil-pr-responder` into the PR's worktree with the issue id, worktree path, branch and findings. End the turn.
-3. Count review rounds per PR. A third round with findings left is the round limit: take Exit 1.
+2. Route the findings. Findings at low or below with CI green: the PR is ready. Any blocker, high or actionable medium finding: dispatch `anvil-pr-responder` into the PR's worktree with the issue id, worktree path, branch and findings. End the turn. On the responder's return: a `Blocker:` line takes Exit 1. A PR url re-runs the Phase 4 re-measure at the new head, then returns to step 1 of this phase.
+3. Count the responder's resolution summaries on the PR (`gh pr view <n> --comments`). A third round with findings left is the round limit: take Exit 1.
 4. Confirm CI green. Wire any rail edge that the PR's `## Context box` names in a `swept` row. Do not merge.
 
 ## Phase 6 — Land on approval
@@ -99,7 +101,7 @@ The verb checks the gates, merges, confirms the merge, removes the worktree and 
 
 ## Phase 7 — Continue
 
-After each landing, re-read `fleet status --json` and `milestone status --json` from the vault. Never use session memory.
+After each landing, fast-forward the parent checkout to the base branch tip (`git pull --ff-only`). `milestone status` measures that checkout. Then re-read `fleet status --json` and `milestone status --json` from the vault. Never use session memory.
 
 - Open criteria remain: return to Phase 1.
 - The finish line is green: harvest learnings (Phase 8), then stop at the acceptance gate.
@@ -112,11 +114,11 @@ Each exit is a halt that returns to the human with a reason. There is one escala
 
 1. **Issue escalated.** A worker blocker or the round limit. Run `anvil transition issue <id> escalated --reason "<reason>"` if the issue is still `in-progress`. Offer: amend, cut scope or abandon.
 2. **Milestone wrong.** The issues show the end goal, finish line or design change is wrong. Propose `anvil transition milestone <id> planned` and the amendment. Do not edit the milestone yourself.
-3. **Issue limit reached.** The milestone body names the limit. Past it, report and stop.
+3. **Issue limit reached.** The milestone body names the limit. If the next wave would pass it, propose `anvil transition milestone <id> planned` with a re-scope, then stop.
 
 ## Phase 8 — Harvest learnings
 
-Run this after the human's landings. Collect gotchas, confirmed approaches and dead ends from the landed PRs only. Flag any cross-PR breakage on `master`. Fire `distilling-learning` in attended autonomous mode. Distil only when you can name the future failure the learning prevents. Most milestones yield one or none.
+Run this after the human's landings. Collect gotchas, confirmed approaches and dead ends from the landed PRs only. Flag any cross-PR breakage on the base branch. Fire `distilling-learning` in attended autonomous mode. Distil only when you can name the future failure the learning prevents. Most milestones yield one or none.
 
 An unattended orchestrator does not distil. It lists `Harvest candidates:` in the report and stops.
 
@@ -133,7 +135,7 @@ To land each ready PR:
 
 ## What NOT to do
 
-- Do not merge, even on green and even when the human said "merge on green". The review pass runs first.
+- Do not land a PR without the human's approval of that PR. A blanket "merge on green" is not approval.
 - Do not derive the whole milestone at once.
 - Do not re-dispatch a `Blocker:` return.
 - Do not write code or edit the milestone body.
