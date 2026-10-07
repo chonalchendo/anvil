@@ -1,6 +1,6 @@
 # Body shape (cold reader)
 
-The reader is `running-milestone` at Phase 0, plus the human deciding what to work next in Obsidian's reading view, plus the worker reading one hop up the spine. Both scan before they read: bold labels, list heads and table cells carry the section; prose carries only the lead sentence and rationale. Four sections, in this order:
+The readers are `running-milestone` at Phase 0, the human choosing the next work in Obsidian's reading view, and the worker one hop up the spine. All scan before they read: bold labels, list heads and table cells carry the section; prose carries only the lead sentence and rationale. Four sections, in this order:
 
 - `## Objective`
   - Lead sentence, its own paragraph: what ships and what it changes for whom. ≤25 words, no history or mechanism.
