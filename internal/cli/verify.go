@@ -42,7 +42,7 @@ func newVerifyCmd() *cobra.Command {
 	var flagAt string
 	cmd := &cobra.Command{
 		Use:   "verify <issue-id>",
-		Short: "Run an issue's Verification blocks here and record the verdict on the issue",
+		Short: "Run an issue's Verification blocks (here, or at a commit with --at) and record the verdict",
 		Long: "Run every Direct and Indirect block of the issue's `## Verification` in the current directory " +
 			"and stamp verified_verdict, verified_commit and verified_at on the issue, pass or fail. " +
 			"--at <sha> runs the blocks on a fresh detached checkout of that commit instead and stamps the record at it, so untracked files and local builds cannot turn a red block green. " +
@@ -66,10 +66,10 @@ func newVerifyCmd() *cobra.Command {
 			if err := checkVerificationLock(a, id, flagAccept); err != nil {
 				return printAndReturn(cmd, err)
 			}
-			dir := ""
+			dir, atCommit := "", ""
 			if flagAt != "" {
 				var cleanup func()
-				if dir, cleanup, err = checkoutAt(flagAt); err != nil {
+				if dir, atCommit, cleanup, err = checkoutAt(cmd, id, flagAt); err != nil {
 					return printAndReturn(cmd, err)
 				}
 				defer cleanup()
@@ -78,6 +78,11 @@ func newVerifyCmd() *cobra.Command {
 			rec, err := runVerification(cmd, ranBody, dir)
 			if err != nil {
 				return err
+			}
+			if atCommit != "" {
+				// The checkout is the resolved commit by construction; git status
+				// can still report changes on it (case-folding filesystems).
+				rec.Commit = atCommit
 			}
 			// Reload: the run can take minutes, and a write to the issue in that
 			// window must not be overwritten by the pre-run copy.
@@ -137,34 +142,39 @@ func loadIssueForVerify(path, id, arg string) (*core.Artifact, error) {
 }
 
 // checkoutAt adds a detached worktree of sha under a temp dir and returns it
-// with its cleanup. A removal failure is a notice: it must not change the verdict.
-func checkoutAt(sha string) (string, func(), error) {
-	top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output() //nolint:gosec // fixed argv
+// with the resolved commit and its cleanup. A removal failure is a notice: it
+// must not change the verdict.
+func checkoutAt(cmd *cobra.Command, id, sha string) (string, string, func(), error) {
+	root, err := gitToplevelFn()
 	if err != nil {
-		return "", nil, errfmt.NewStructured("verify_at_no_repo").
+		return "", "", nil, errfmt.NewStructured("verify_at_no_repo").
 			Set("message", "--at needs a git repo; the current directory is not in one").
-			Set("fix_hint", "cd into the repo that holds the commit, then re-run anvil verify <issue> --at "+sha)
+			Set("fix_hint", "cd into the repo that holds "+sha+", then run anvil verify "+id+" --at "+sha)
 	}
-	root := strings.TrimSpace(string(top))
 	full, err := exec.Command("git", "-C", root, "rev-parse", "--verify", "--end-of-options", sha+"^{commit}").Output() //nolint:gosec // sha is a single argv element after --end-of-options
 	if err != nil {
-		return "", nil, errfmt.NewStructured("verify_at_unresolved").
+		return "", "", nil, errfmt.NewStructured("verify_at_unresolved").
 			Set("message", sha+" does not resolve to a commit in "+root).
 			Set("fix_hint", "fetch it with git fetch, or check it with git rev-parse "+sha+"^{commit}")
 	}
 	commit := strings.TrimSpace(string(full))
+	failed := func(msg string) error {
+		return errfmt.NewStructured("verify_at_checkout_failed").
+			Set("message", msg).
+			Set("fix_hint", "check free disk space and that TMPDIR is writable, then re-run anvil verify "+id+" --at "+sha)
+	}
 	tmp, err := os.MkdirTemp("", "anvil-verify-at-*")
 	if err != nil {
-		return "", nil, fmt.Errorf("creating checkout dir: %w", err)
+		return "", "", nil, failed("creating checkout dir: " + err.Error())
 	}
 	dir := filepath.Join(tmp, "wt")
 	if out, err := exec.Command("git", "-C", root, "worktree", "add", "--detach", dir, commit).CombinedOutput(); err != nil { //nolint:gosec // commit is a resolved sha
 		_ = os.RemoveAll(tmp)
-		return "", nil, fmt.Errorf("git worktree add: %w: %s", err, strings.TrimSpace(string(out)))
+		return "", "", nil, failed("git worktree add: " + err.Error() + ": " + strings.TrimSpace(string(out)))
 	}
-	return dir, func() {
-		if out, err := exec.Command("git", "-C", root, "worktree", "remove", "--force", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is ours
-			fmt.Fprintf(os.Stderr, "anvil: could not remove verify checkout %s: %v: %s\n", dir, err, strings.TrimSpace(string(out)))
+	return dir, commit, func() {
+		if err := gitWorktreeRemoveForceFn(root, dir); err != nil {
+			cmd.PrintErrln("anvil: could not remove verify checkout " + dir + ": " + err.Error())
 		}
 		_ = os.RemoveAll(tmp)
 	}, nil
@@ -255,7 +265,7 @@ func commitOf(dir string) string {
 	sha := strings.TrimSpace(string(out))
 	stc := exec.Command("git", "status", "--porcelain") //nolint:gosec // fixed argv
 	stc.Dir = dir
-	if st, err := stc.Output(); err == nil && len(strings.TrimSpace(string(st))) > 0 { //nolint:gosec // fixed argv
+	if st, err := stc.Output(); err == nil && len(strings.TrimSpace(string(st))) > 0 {
 		sha += "-dirty"
 	}
 	return sha

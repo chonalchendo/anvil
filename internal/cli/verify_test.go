@@ -338,6 +338,76 @@ func TestVerifyAtRefusals(t *testing.T) {
 			if !errors.As(err, &se) || se.Code != tc.code {
 				t.Fatalf("want %s, got %v", tc.code, err)
 			}
+			a, lerr := core.LoadArtifact(filepath.Join(vault, "70-issues", id+".md"))
+			if lerr != nil {
+				t.Fatal(lerr)
+			}
+			if _, stamped := a.FrontMatter["verified_verdict"]; stamped {
+				t.Error("a refusal must not stamp verified_verdict")
+			}
 		})
+	}
+}
+
+func TestVerifyAtStampsTheResolvedCommitNotDirty(t *testing.T) {
+	vault := setupVault(t)
+	repo := t.TempDir()
+	gitIn(t, repo, "init", "-q")
+	// Two paths differing only in case: a case-insensitive fs checks them out
+	// as one file, so git reports the fresh checkout as changed.
+	for _, name := range []string{"A.txt", "a.txt"} {
+		f := filepath.Join(t.TempDir(), "blob")
+		if err := os.WriteFile(f, []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		blob := gitIn(t, repo, "hash-object", "-w", f)
+		gitIn(t, repo, "update-index", "--add", "--cacheinfo", "100644,"+blob+","+name)
+	}
+	gitIn(t, repo, "commit", "-q", "-m", "case")
+	sha := gitIn(t, repo, "rev-parse", "HEAD")
+	const id = "issue.anvil.0007.atdirty"
+	writeVerifyIssue(t, vault, id, "true", "true")
+	t.Setenv("ANVIL_VAULT", vault)
+	t.Chdir(repo)
+
+	out, _, err := runCmd(t, newVerifyCmd(), id, "--at", sha, "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rec verifyRecord
+	if jerr := json.Unmarshal([]byte(strings.SplitN(out, "\n", 2)[0]), &rec); jerr != nil {
+		t.Fatalf("no JSON record: %v\n%q", jerr, out)
+	}
+	if rec.Commit != sha {
+		t.Errorf("commit = %q, want %q with no -dirty", rec.Commit, sha)
+	}
+}
+
+func TestVerifyAtRemovalFailureIsANotice(t *testing.T) {
+	vault := setupVault(t)
+	repo := t.TempDir()
+	gitIn(t, repo, "init", "-q")
+	gitIn(t, repo, "commit", "-q", "--allow-empty", "-m", "init")
+	const id = "issue.anvil.0008.atremove"
+	writeVerifyIssue(t, vault, id, "true", "true")
+	t.Setenv("ANVIL_VAULT", vault)
+	t.Chdir(repo)
+	orig := gitWorktreeRemoveForceFn
+	t.Cleanup(func() { gitWorktreeRemoveForceFn = orig })
+	gitWorktreeRemoveForceFn = func(_, _ string) error { return errors.New("boom") }
+
+	_, stderr, err := runCmd(t, newVerifyCmd(), id, "--at", "HEAD", "--json")
+	if err != nil {
+		t.Fatalf("a removal failure must not change the verdict: %v", err)
+	}
+	if !strings.Contains(stderr, "could not remove verify checkout") {
+		t.Errorf("stderr lacks the removal notice:\n%s", stderr)
+	}
+	// The stub left the checkout behind; remove it for real.
+	for _, l := range strings.Split(gitIn(t, repo, "worktree", "list", "--porcelain"), "\n") {
+		if p, ok := strings.CutPrefix(l, "worktree "); ok && strings.Contains(p, "anvil-verify-at-") {
+			_ = orig(repo, p)
+			_ = os.RemoveAll(filepath.Dir(p))
+		}
 	}
 }
