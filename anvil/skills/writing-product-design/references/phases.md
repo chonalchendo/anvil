@@ -84,33 +84,33 @@ Prompt: What could derail this? What rabbit hole are you afraid of? What's still
 
 Draft the **Milestones** body section. It lists open candidates only. A candidate leaves the list when its milestone is done.
 
-Each candidate is one top-level bullet with its wikilink `[[milestone.<project>.<slug>]]` and one-line summary, then two nested lines:
+Each candidate is one top-level plain bullet (`<slug> — one-line summary`) with no `[[…]]` link, then two nested lines. A link to a milestone that does not exist yet makes the save fail with `unresolved_link`:
 
 ```markdown
-- [[milestone.<project>.<slug>]] — one-line summary
+- <slug> — one-line summary
   - Why now: what makes this the next thing to build
   - Components: the system-design components it touches (write `TBD` until the system design names them)
 ```
 
-Structural links: add each wikilink to the artifact's `related` frontmatter array (the universal link slot). The milestone's child→parent link is `product_design` on the milestone side.
+Linking: after `writing-milestone` creates a milestone, run `anvil set product-design <slug> related --add "[[milestone.<project>.<slug>]]"` and turn that bullet into a `[[milestone.<project>.<slug>]]` wikilink. The milestone's child→parent link is `product_design` on the milestone side.
 
 **REQUIRED SUB-SKILL:** `writing-milestone` (a.k.a. `defining-milestone`).
 
-If unavailable in v0.1, collect titles + summaries inline; wikilinks stay unresolved until the sub-skill exists.
+If unavailable, collect titles + summaries inline as plain bullets.
 
 **Gate:** breakdown confirmed.
 
 ### Phase 6 — Serialize & save
 
-1. Write `## TL;DR` (5 lines or fewer) as the first body section. Flip frontmatter `status: draft` → `active`. Bump `updated` to today.
+1. Write `## TL;DR` (5 lines or fewer) as the first body section. Bump `updated` to today.
 2. Hand-check the frontmatter and body:
    - Required frontmatter: `type, title, description, created, status, project`.
    - Optional frontmatter: `updated, tags, aliases, related, external_links`.
    - **No other frontmatter fields** — schema is `additionalProperties: false`. If you wrote `goals:`, `risks:`, `milestones:`, `target_users:`, `revisions:` as frontmatter arrays, move them to body sections.
    - Body has these sections in order: `## TL;DR` / What we're building / Who it's for / Why it matters / Approach / `## Goals and how we measure them` / Constraints & appetite / What's deliberately out of scope / Risks, rabbit holes, open questions / Milestones.
    - No worker instructions or pointers to repo docs anywhere in the body.
-   - Wikilinks under Milestones (and mirrored in `related`) are well-formed `[[milestone.<project>.<slug>]]`.
-3. Write the body (no frontmatter) to a temp file. Save with `anvil create product-design --project <slug> --title "…" --description "…" --body-file <file>`. Create validates frontmatter, sections and wikilinks, and rolls back on failure.
+   - Each top-level `- ` bullet under Milestones carries `Why now:` and `Components:`. Bullets are plain text until their milestone exists.
+3. Write the body (no frontmatter) to a temp file. Save with `anvil create product-design --project <slug> --title "…" --description "…" --body-file <file>`. Create validates frontmatter, sections and wikilinks, and rolls back on failure. It writes `status: draft`, so then run `anvil set product-design <slug> status active`.
 4. Read it back with `anvil show product-design <slug> --body` for the cold read.
 
 **Gate:** user reads the artifact cold. Capture the project's vision? Fix and re-show if not.
