@@ -99,8 +99,8 @@ const redLineEnv = "ANVIL_RED_LINE_FILE"
 // means the predicate never ran, so its status says nothing about the code
 // (anvil.0193's `./anvil install agents` when the binary is `bin/anvil`).
 //
-// Each block runs as one script under `set -e`, matching completing-issue's
-// run-verification.sh semantics — except a block carrying a non-last-line
+// Each block runs as one script under `set -e`, matching `anvil verify`
+// semantics — except a block carrying a non-last-line
 // `!` assertion, which is refused unrun (core.NonGatingNegation) because
 // `set -e` would exempt it. A subsection with no fenced block is skipped —
 // presence enforcement is ValidateIssue's job, not this gate's.

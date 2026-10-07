@@ -80,13 +80,13 @@ Keep any comment you write or edit terse — a line or two stating *why*, never 
 
 ## Phase 2 — Verify (max 5 cycles)
 
-Run the bundled verification runner against the issue. It parses `## Verification → ### Direct` then `### Indirect` (fenced bash blocks), runs each block as one script (lines share state), and emits a compact `PASS [Direct#N] <preview>` / `FAIL [Direct#N] <preview>` summary with up to 10 lines of failure output per fail.
+Run `anvil verify` against the issue. It parses `## Verification → ### Direct` then `### Indirect` (fenced bash blocks), runs each block as one script (lines share state), and emits a compact `PASS [Direct#N] <preview>` / `FAIL [Direct#N] <preview>` summary with up to 10 lines of failure output per fail.
 
 ```bash
-anvil show issue <id> | bash ~/.claude/skills/completing-issue/scripts/run-verification.sh
+anvil verify <id> --json
 ```
 
-Exit 0 = no check failed (a red `# anvil:post-land` Indirect block is listed under `deferred` and does not count). Non-zero = at least one failed; the summary names which. stdout carries exactly one JSON line (`{"verdict":"pass|fail","checks":N,"failed":[…],"deferred":[…],"commit":"<sha-or-empty>","ran_at":"<UTC RFC3339>"}`) — the machine-checkable verdict (`deferred`: red `# anvil:post-land` Indirect blocks; does not fail the verdict); the summary and failure output go to stderr.
+Exit 0 = no check failed (a red `# anvil:post-land` Indirect block is listed under `deferred` and does not count). Non-zero = at least one failed; the summary names which. With `--json`, stdout carries exactly one JSON line (`{"verdict":"pass|fail","checks":N,"failed":[…],"deferred":[…],"commit":"<sha-or-empty>","ran_at":"<UTC RFC3339>"}`) — the machine-checkable verdict (it also stamps `verified_verdict`/`verified_commit`/`verified_at` on the issue; `deferred`: red `# anvil:post-land` Indirect blocks; does not fail the verdict); the summary and failure output go to stderr.
 
 Outcomes:
 

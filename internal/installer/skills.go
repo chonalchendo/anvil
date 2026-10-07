@@ -409,7 +409,7 @@ func writeFSTree(srcFS fs.FS, dst string) error {
 		}
 		mode := os.FileMode(0o644)
 		if strings.HasSuffix(path, ".sh") {
-			// Shipped scripts are invoked by path (e.g. run-verification.sh),
+			// Shipped scripts are invoked by path (e.g. wait-for-pr.sh),
 			// so they need the exec bit or every caller must know to prefix `bash`.
 			mode = 0o755
 		}

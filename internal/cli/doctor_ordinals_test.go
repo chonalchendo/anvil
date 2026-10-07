@@ -11,7 +11,7 @@ import (
 func TestDoctorDuplicateOrdinal(t *testing.T) {
 	paths := []string{
 		"/v/70-issues/mentat.0291.enterprise-value-strikes.md",
-		"/v/70-issues/mentat.0291.run-verification-false-passes.md",
+		"/v/70-issues/mentat.0291.verify-false-passes.md",
 		"/v/70-issues/mentat.0292.only-one.md",
 		"/v/70-issues/anvil.0291.different-project.md",
 		"/v/70-issues/mentat.legacy-unnumbered.md",
@@ -26,7 +26,7 @@ func TestDoctorDuplicateOrdinal(t *testing.T) {
 	}
 	for _, want := range []string{
 		"issue.mentat.0291.enterprise-value-strikes",
-		"issue.mentat.0291.run-verification-false-passes",
+		"issue.mentat.0291.verify-false-passes",
 	} {
 		if !strings.Contains(f.Evidence, want) {
 			t.Errorf("evidence %q missing %q", f.Evidence, want)
