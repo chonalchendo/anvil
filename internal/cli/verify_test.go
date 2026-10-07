@@ -270,7 +270,7 @@ func TestVerifyLock(t *testing.T) {
 
 func gitIn(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	c := exec.Command("git", append([]string{"-C", dir, "-c", "user.email=t@t", "-c", "user.name=t"}, args...)...)
+	c := exec.Command("git", append([]string{"-C", dir, "-c", "user.email=t@t", "-c", "user.name=t"}, args...)...) //nolint:gosec // test helper, fixed git argv
 	out, err := c.CombinedOutput()
 	if err != nil {
 		t.Fatalf("git %v: %v\n%s", args, err, out)
