@@ -73,7 +73,7 @@ func newVerifyCmd() *cobra.Command {
 			}
 			if flagJSON {
 				b, _ := json.Marshal(rec)
-				cmd.Println(string(b))
+				fmt.Fprintln(cmd.OutOrStdout(), string(b))
 			}
 			if rec.Verdict != "pass" {
 				return fmt.Errorf("verification %s: %d of %d check(s) failed", rec.Verdict, len(rec.Failed), rec.Checks)
