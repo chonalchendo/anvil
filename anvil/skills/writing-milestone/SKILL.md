@@ -55,7 +55,7 @@ Draft before calling the CLI:
 - **acceptance** — runnable predicates (substance: `references/finish-line.md`); required for `kind: scoped`.
 
 **REQUIRED REFERENCE:** Use skills/writing-milestone/references/finish-line.md — refuse a state-phrased goal or silent empty acceptance before proceeding.
-**REQUIRED REFERENCE:** Use skills/writing-milestone/references/body-shape.md — the four-section body a cold reader scans: labelled parts, one nested bullet per issue under each wave, the Status acceptance table.
+**REQUIRED REFERENCE:** Use skills/writing-milestone/references/body-shape.md — the four-section body a cold reader scans: labelled parts including the **Limit:** line, the Status acceptance table.
 
 Read the routed inbox before the gate. List the raw inbox items. Read each one, and keep those whose `## Route` names this milestone:
 
