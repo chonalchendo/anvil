@@ -333,6 +333,9 @@ func newTransitionCmd() *cobra.Command {
 					a.FrontMatter["claim_session"] = sid
 				}
 			}
+			if t == core.TypeIssue {
+				stampIssueGate(a, to, reason, time.Now().UTC())
+			}
 			a.FrontMatter["updated"] = time.Now().UTC().Format("2006-01-02")
 
 			if tr.Reverse {

@@ -29,7 +29,7 @@ The worker's last line decides what happens next:
 
 - **A PR url** — run the two steps below.
 - **A PR url whose `Verdict:` line is missing, `fail`, or narrated** — re-measure yourself (rebuild the worktree's artifact first with the project's build-and-install command from CLAUDE.md/AGENTS.md, putting any worktree-local binary's dir first on PATH; then `cd <worktree-path> && anvil show issue <issue-id> | bash ~/.claude/skills/completing-issue/scripts/run-verification.sh | jq -r .verdict`) before step 1; red on re-measure is a `Blocker:` return — record it and stop, do not review.
-- **`Blocker: <one line>`** — record it and stop. The issue stays `in-progress` for a human.
+- **`Blocker: <one line>`** — record it and stop. The worker already moved the issue to `escalated` with the blocker as the reason. If the issue still reads `in-progress`, escalate it: `anvil transition issue <issue-id> escalated --reason "<blocker>"`.
 - **Anything else** (malformed return, dead worker) — read `git log --stat <branch>` for the `wip:` checkpoint commits it left, then re-dispatch or take over in your main thread.
 
 A **missing rail edge** the worker's governs-sweep reports in the PR body's `## Context box` is **yours to wire**. The worker is barred from mutating the spine mid-completion, so it only names the unlinked contract or convention it had to apply. Wire the edge before merge, or the next author's box misses the same rule.
