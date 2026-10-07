@@ -68,3 +68,13 @@ func TestMilestoneDoneToPlannedIsReverse(t *testing.T) {
 		t.Fatalf("expected reverse=true for done→planned reopen")
 	}
 }
+
+func TestMilestoneInProgressToPlannedIsLegal(t *testing.T) {
+	tr, err := LookupTransition(TypeMilestone, "in-progress", "planned")
+	if err != nil {
+		t.Fatalf("amend edge must be legal: %v", err)
+	}
+	if tr.Reverse {
+		t.Error("amend is not a reverse edge")
+	}
+}

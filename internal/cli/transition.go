@@ -233,6 +233,12 @@ func newTransitionCmd() *cobra.Command {
 				}
 			}
 
+			if t == core.TypeMilestone && to == "in-progress" && from == "planned" {
+				if gerr := gateMilestoneApproval(v, a, id); gerr != nil {
+					return printAndReturn(cmd, gerr)
+				}
+			}
+
 			// Backfill-on-claim: refuse issue → in-progress unless goal: is set.
 			// The back-catalogue predates the field; this lazily forces a
 			// one-sentence terminal predicate at claim time rather than via a
