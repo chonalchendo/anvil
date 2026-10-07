@@ -244,7 +244,8 @@ func runFeasibilityBlock(block, dir string) blockRun {
 	c.Stderr = out
 	runErr := c.Run()
 
-	// The script path is a deleted temp file: bash prints it in diagnostics.
+	// Bash names the temp script in diagnostics; the path means nothing to the
+	// author, so show a stable name.
 	tail := strings.ReplaceAll(out.buf.String(), script.Name(), "verification block")
 	if out.truncated {
 		tail += "\n(output truncated)"
@@ -270,9 +271,11 @@ func runFeasibilityBlock(block, dir string) blockRun {
 // (trailing blanks and comments dropped, backslash continuations folded in),
 // the trimmed text of line red, and whether the abort at red is early. It is
 // early only when both lines[:red-1] and lines[:red] parse cleanly (the red
-// line is a whole command) and a later command exists. Bash 3.2 reports the
-// closing line of a compound command or heredoc, bash 5 the opening line;
-// requiring both prefixes makes the two versions fail open alike.
+// line is a whole command), lines[:red-1] ends on a command boundary, and a
+// later command exists. Bash 3.2 reports the closing line of a compound
+// command or heredoc, bash 5 the opening line; bash 3.2 -n also accepts an
+// open heredoc. The boundary check (a stray ")" must fail to parse; an open
+// heredoc swallows it) makes the two versions fail open alike.
 func blockLines(block string, red int) (last int, redText string, early bool) {
 	lines := strings.Split(strings.TrimRight(block, " \t\r\n"), "\n")
 	last = len(lines)
@@ -289,7 +292,8 @@ func blockLines(block string, red int) (last int, redText string, early bool) {
 	if red >= last {
 		return last, redText, false
 	}
-	return last, redText, parsesCleanly(strings.Join(lines[:red-1], "\n")) &&
+	before := strings.Join(lines[:red-1], "\n")
+	return last, redText, parsesCleanly(before) && !parsesCleanly(before+"\n)") &&
 		parsesCleanly(strings.Join(lines[:red], "\n"))
 }
 

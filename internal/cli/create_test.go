@@ -795,6 +795,8 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 			refused: true, wantMsg: "verification Indirect block 1 aborts at line 1 (`false`) before its last line (2)",
 		},
 		{name: "indirect red inside a non-final compound command is not early", direct: "true", indirect: "for f in a; do\n  false\ndone\ntrue", wantWarn: true},
+		{name: "indirect red inside a non-final if is not early", direct: "true", indirect: "if true; then\n  false\nfi\ntrue", wantWarn: true},
+		{name: "indirect red inside a non-final heredoc command is not early", direct: "true", indirect: "cat /nonexist <<EOF\nx\nEOF\ntrue", wantWarn: true},
 		{
 			name: "indirect early red after output past the cap", direct: "true", indirect: "yes x | head -c 70000\nfalse\ntrue",
 			refused: true, wantMsg: "aborts at line 2",
@@ -879,7 +881,15 @@ func TestCreate_Issue_FeasibilityGateNoDirectNoticeOnUnrunnable(t *testing.T) {
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Chdir(repo)
 
-	stderr, _ := runCreateIssueBody(t, "probe", feasibilityBody("definitely-not-a-command", "exit 3"))
+	stderr, err := runCreateIssueBody(t, "probe", feasibilityBody("definitely-not-a-command", "exit 3"))
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid\nstderr: %s", err, stderr)
+	}
+	for _, want := range []string{"unrunnable here (exit 127", "verification block: line 1"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr should contain %q, got: %s", want, stderr)
+		}
+	}
 	if strings.Contains(stderr, "exits non-zero at line") {
 		t.Errorf("stderr should not carry the red-line notice, got: %s", stderr)
 	}
