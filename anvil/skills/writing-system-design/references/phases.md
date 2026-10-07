@@ -1,130 +1,111 @@
 # Writing System Design — Phase procedure
 
-Loaded on demand from `writing-system-design/SKILL.md`. Each phase has an explicit user gate — don't skip them. Phases 1, 4, and 7 are load-bearing.
+Loaded on demand from `writing-system-design/SKILL.md`. Each phase has an explicit user gate — don't skip them. Phases 1, 4, and 7 are load-bearing. State the target only: no "today" statements.
 
 ### Phase 1 — Frame (LOAD-BEARING)
 
-Confirm scope and dependency:
-- What's the project? Confirm slug from existing product-design.
-- Read the product-design at `~/anvil-vault/05-projects/{slug}/product-design.md`. **If it doesn't exist, stop.** Hand off to `writing-product-design`.
-- Confirm destination path: `~/anvil-vault/05-projects/{slug}/system-design.md`.
+- Confirm the slug from the existing product-design.
+- Read it with `anvil show product-design {slug} --body`. **If it doesn't exist, stop.** Hand off to `writing-product-design`.
+- Confirm the save command: `anvil create system-design --project {slug} --title … --description "<one line>" --body-file <f>`.
 
-**Gate (load-bearing):** product-design exists and is read. Without it, Phase 4 has nothing to derive components from.
+**Gate (load-bearing):** product-design exists and is read.
 
-### Phase 2 — Architectural overview
+### Phase 2 — Context and scope
 
-One sentence: the *shape* in the broadest terms ("X is a three-layer system: skills, orchestrator, vault.").
+Draft `## TL;DR` (the shape in one or two sentences: "X is a three-layer system: skills, orchestrator, vault."), `## Context and scope` (what the system is, who and what it talks to), and `## Non-goals` (what this design deliberately excludes).
 
-Draft body for "Architectural overview" — 1–3 paragraphs, leading with the shape, then naming each layer or major component without describing it.
+**Gate:** user confirms the shape and the non-goals.
 
-**Gate:** user confirms the shape is right at this altitude.
+### Phase 3 — Constraints and quality goals
 
-### Phase 3 — Tech stack
+Draft `## Constraints and quality goals`: language, framework, storage, deployment, plus quality bars (latency, privacy, cost). Tech choices are constraints; there is no Tech stack section. Link a decision for each non-trivial choice.
 
-Draft the **Tech stack** body section: a definition list (language, framework/CLI framework, database/storage, deployment, tests) capturing the locked-in choices. Body prose, not frontmatter — schema is `additionalProperties: false`.
+Record an unmade choice as a decision (see Phase 8), or mark it `TODO: record via anvil create decision`.
 
-**REQUIRED SUB-SKILL:** Use `decision-making` for any tech-stack choice that isn't already authorized by an ADR. Each choice should reference its ADR wikilink inline (the structural link goes in `authorized_by` per Phase 8).
+**Gate:** user confirms each constraint.
 
-**Gate:** user confirms each value, or marks it `TODO: decide via ADR`.
+### Phase 4 — Components (LOAD-BEARING)
 
-### Phase 4 — Components & responsibilities (LOAD-BEARING)
+Draft `## Components` as a table: component, responsibility, component-design link.
 
-For each milestone in the product-design, identify which component delivers it. The mapping doesn't need to be 1:1 — one component may serve multiple milestones; one milestone may span multiple components.
+- 3-8 components (more is a smell; fold related responsibilities).
+- Every product-design goal maps to at least one component. The candidate-to-component map lives in the product design's Milestones list, not here.
+- Link a component design (`writing-component-design`) only if the component has an interface others build against, state or invariants beyond this design's, or spans more than one milestone. Write it when the milestone building it starts.
 
-Output:
-- 3–8 components (more is a smell; fold related responsibilities).
-- Per component: name, one-line responsibility, which milestones it serves.
-- Per component: one line saying whether it gets a component design (`writing-component-design`) and why — yes only if it has an interface others build against, state or invariants beyond this design's, or spans more than one milestone. The component design itself is written later, when the milestone building the component starts.
+**Gate (load-bearing):** no product-design goal is orphaned.
 
-Draft "Components and responsibilities" body section.
+### Phase 5 — Runtime flow
 
-**Gate (load-bearing):** every milestone in the product-design maps to at least one component. Orphan milestones are a red flag — either the milestone is mis-shaped, or the component list is incomplete.
-
-### Phase 5 — Data flow
-
-Draft "Data flow" body section with a **mermaid sequence diagram** for the critical path (e.g., the issue loop from ready to resolved, or the request lifecycle). Diagrams are deliverable content, not decoration.
+Draft `## Runtime flow` with a **mermaid sequence diagram** of the critical path. Show the target flow only. Mark each step `shipped` or `target`.
 
 ```mermaid
 sequenceDiagram
     participant User
     participant CLI
     participant Orchestrator
-    participant Adapter
-    User->>CLI: command
-    CLI->>Orchestrator: parsed spec
-    Orchestrator->>Adapter: subprocess
-    Adapter-->>Orchestrator: events
-    Orchestrator-->>User: result
+    User->>CLI: command (shipped)
+    CLI->>Orchestrator: parsed spec (shipped)
+    Orchestrator-->>User: result (target)
 ```
 
 (Replace with the project's actual flow — do not ship the placeholder.)
 
 **Gate:** user confirms the diagram captures the critical path.
 
-### Phase 6 — Boundaries & integration points
+### Phase 6 — Boundaries
 
-Draft "Boundaries and integration points" body section with a **mermaid context diagram** (boxes + arrows for external systems). Capture every system the project talks to: external CLIs, databases, message buses, file system locations, hooks, etc.
+Add a **mermaid context diagram** to `## Context and scope`: every external system the project talks to (CLIs, databases, file locations, hooks).
 
 ```mermaid
 graph LR
     Anvil[anvil] --> ClaudeCLI[claude-code]
-    Anvil --> CodexCLI[codex]
     Anvil --> Vault[Obsidian vault]
-    Anvil --> Hooks[shell hooks]
 ```
 
 (Replace with the project's actual boundaries.)
 
-**Gate:** user confirms no boundary is missing. Missing a boundary here means the system surprises someone in operation.
+**Gate:** user confirms no boundary is missing.
 
-### Phase 7 — Key invariants (LOAD-BEARING)
+### Phase 7 — System invariants (LOAD-BEARING)
 
-Draft the **Key invariants** body section: 3–7 statements that must always be true about the system. These are the most-cited downstream content: planning checks against them; review verifies them. Body prose, not frontmatter.
+Draft `## System invariants`: 3-7 statements that must always be true. Planning checks against them; review verifies them.
+
+- One level only. A system invariant is cross-component. Link a component rule; never copy it.
+- Declarative and absolute. "We try to..." is not an invariant.
 
 Examples (from anvil itself):
 - "Each agent CLI subprocess gets an isolated `CLAUDE_CONFIG_DIR` / `CODEX_HOME`."
-- "Skills auto-load by file presence; no registry, no manifest."
-- "Telemetry is local-only; nothing leaves the user's machine without explicit opt-in."
+- "Telemetry is local-only without explicit opt-in."
 
-**Voice check.** Invariants are declarative and absolute. "We try to..." is not an invariant. "X is always true" is.
+**Gate (load-bearing):** user signs off on each. If the user shrugs, strip it.
 
-**Gate (load-bearing):** user signs off explicitly. Each invariant should make the user feel "yes, if that broke, the system would break." If the user shrugs, the invariant isn't load-bearing — strip it.
+### Phase 8 — Decisions
 
-### Phase 8 — Authorized decisions
-
-Populate the frontmatter `authorized_by` array — wikilinks to ADRs that authorized the choices captured above. Each tech-stack decision and each load-bearing invariant should ideally trace to a `[[decision.{project}.NNNN-{slug}]]`.
-
-For v0.1 it's acceptable to have unresolved wikilinks — flag them as `TODO: capture as ADR via decision-making`.
+Draft `## Decisions`: wikilinks to decisions that authorized the choices above (Phase 11 copies them into frontmatter `authorized_by`). Create a missing one with `anvil create decision --title "<the choice>" --topic <topic> --description "<one line>" --tags domain/<d>,activity/system-design --body-file <f> --json`. `<f>` holds `## Context`, `## Decision`, `## Rationale`, `## Consequences`, `## Links`. Add `--allow-new-facet <facet>` for a new tag value. Unresolved links are acceptable: flag them `TODO: record via anvil create decision`.
 
 **Gate:** list confirmed, or TODO list accepted.
 
-### Phase 9 — Why this shape
+### Phase 9 — Solution strategy and open questions
 
-Draft the **Why this shape** body section. ≤80 lines of rationale. Reference `product-design.md` for product-side beliefs and the ADRs in `authorized_by` for the architectural reasoning. Don't restate; cross-reference.
+Draft `## Open questions`: unresolved items, each with an owner or the decision that would close it.
 
-**Voice check (critical).** This section is where AI-generic prose creeps in. Audit for hedging, abstract framing, and corporate-speak. Direct, declarative, specific. Cite the user's own words from the product-design where possible.
+Optionally draft `## Solution strategy`: 10 lines or fewer, plus decision links. Cross-reference the product-design and decisions; don't restate.
 
-**Gate:** user reads cold; voice matches the project's voice.
+**Voice check.** Audit for hedging, abstract framing, corporate-speak. Cite the user's own words where possible.
 
-### Phase 10 — Risks
+**Gate:** user reads cold; voice matches the project.
 
-Draft the **Risks** body section. Architectural altitude: load-bearing assumptions that could fail, integration boundaries that could break, performance cliffs, security exposures.
+### Phase 10 — Risks (optional)
 
-3–7 bullets. Each names *what could go wrong* and (if possible) *what would signal it*.
+Draft `## Risks` only if load-bearing assumptions could fail. 3-7 bullets, each naming what could go wrong and what would signal it.
 
-**Gate:** list confirmed.
+**Gate:** list confirmed, or section skipped.
 
 ### Phase 11 — Serialize & save
 
-1. Flip frontmatter `status: draft` → `active`. Bump `updated` to today.
-2. Hand-check against `schemas/system-design.schema.json`:
-   - Required frontmatter: `type, title, description, created, status, project`.
-   - Optional frontmatter: `updated, tags, aliases, product_design, authorized_by, related`.
-   - **No other frontmatter fields** — schema is `additionalProperties: false`. Tech-stack, invariants, risks, revisions are body sections.
-   - Body has these sections in order: Architectural overview / Tech stack / Components and responsibilities / Data flow / Boundaries and integration points / Key invariants / Why this shape / Risks.
-   - Mermaid diagrams in Data flow and Boundaries render (paste-test in Obsidian).
-   - Wikilinks under `authorized_by` are well-formed `[[decision.{project}.NNNN-{slug}]]` (unresolved is OK; malformed is a bug).
-3. Run `anvil validate <path>` — must pass clean.
-4. Write to `~/anvil-vault/05-projects/{project}/system-design.md`.
+1. Check the body against SKILL.md §Required sections, in order. No Tech stack section; no "today" statements. Mermaid diagrams render.
+2. Save with `anvil create system-design --project {project} --title "<title>" --description "<one line>" --body-file <file>`. It writes `status: draft`, validates on write, and must pass clean.
+3. Activate: `anvil set system-design {project} status active`.
+4. For each Phase 8 decision: `anvil set system-design {project} authorized_by --add "[[decision.{topic}.NNNN-{slug}]]"`.
 
-**Gate:** user reads the artifact cold. Does it capture the system's shape? If anything's off, fix and re-show.
+**Gate:** user reads the artifact cold. If anything's off, fix and re-show.
