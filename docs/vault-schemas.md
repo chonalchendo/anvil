@@ -135,7 +135,7 @@ system_design: "[[system-design.<project>]]"   # optional
 kind: <registered label>   # required; register via `anvil component-design kinds add <name>`
 ```
 
-Plural per project (many component designs, one per component-family — e.g. `data`, `analytics`), unlike the singleton design types. `description` is the always-on layer surfaced in `anvil list component-design --json`; the `does / does-not` boundary plus code-design guardrail prose lives in the body, loaded on demand via `anvil show ... --body`.
+Plural per project (many component designs, one per component-family — e.g. `data`, `analytics`), unlike the singleton design types. `description` is the always-on layer surfaced in `anvil list component-design --json`; the interface-and-ownership core plus optional internal design lives in the body, loaded on demand via `anvil show ... --body`.
 
 Body check (create, validate): the required core is `## Does`, `## Does not`, `## Interfaces`, `## Invariants`, `## Verification` (`### Direct`/`### Indirect`), in order; `## Code design`, `## Decisions`, `## Open questions` are optional.
 

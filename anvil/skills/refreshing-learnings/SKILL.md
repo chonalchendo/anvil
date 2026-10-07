@@ -89,7 +89,7 @@ anvil link learning <id> component-design <component-design-id>   # learning →
 anvil link component-design <component-design-id> learning <id>   # component design → learning — `anvil link` writes only the source's related[]; run both for a materialized back-link
 ```
 
-Then, via `writing-component-design` update mode, append a `## Does not` entry (the rule itself — `reviewing-pr` enforces only `## Does not`) and record the **issue/PR** id that proved it in a decision, a learning, or the issue, not the learning id (a learning can later be retracted, leaving the component design stale-but-authoritative). The learning stays `verified` — the bidirectional link is the graduation marker, not a new status. Gate on the user: enforced-blocker status is a judgement call.
+Then, via `writing-component-design` update mode, append a `## Does not` entry; `reviewing-pr` enforces only `## Does not`. Record the issue or PR that proved it in a decision or the issue, not in the component design. The learning stays `verified` — the bidirectional link is the graduation marker, not a new status. Gate on the user: enforced-blocker status is a judgement call.
 
 ## Phase 4 — Validate
 
