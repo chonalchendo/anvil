@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -263,5 +265,149 @@ func TestVerifyLock(t *testing.T) {
 	}
 	if _, _, err := runCmd(t, newVerifyCmd(), id, "--json"); err != nil {
 		t.Fatalf("after re-lock: %v", err)
+	}
+}
+
+func gitIn(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	c := exec.Command("git", append([]string{"-C", dir, "-c", "user.email=t@t", "-c", "user.name=t"}, args...)...) //nolint:gosec // test helper, fixed git argv
+	out, err := c.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func TestVerifyAtRunsOnAFreshCheckout(t *testing.T) {
+	vault := setupVault(t)
+	repo := t.TempDir()
+	gitIn(t, repo, "init", "-q")
+	gitIn(t, repo, "commit", "-q", "--allow-empty", "-m", "init")
+	sha := gitIn(t, repo, "rev-parse", "HEAD")
+	if err := os.WriteFile(filepath.Join(repo, "untracked.txt"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	const id = "issue.anvil.0005.at"
+	writeVerifyIssue(t, vault, id, "true", "test -f ./untracked.txt")
+	t.Chdir(repo)
+
+	if rec, _, err := runVerify(t, vault, id); err != nil || rec.Verdict != "pass" {
+		t.Fatalf("plain verify: verdict=%q err=%v", rec.Verdict, err)
+	}
+	count := func() int { return strings.Count(gitIn(t, repo, "worktree", "list"), "\n") }
+	n0 := count()
+
+	out, _, err := runCmd(t, newVerifyCmd(), id, "--at", "HEAD", "--json")
+	if err == nil {
+		t.Fatal("--at HEAD must fail: the untracked file is absent from the checkout")
+	}
+	var rec verifyRecord
+	if jerr := json.Unmarshal([]byte(strings.SplitN(out, "\n", 2)[0]), &rec); jerr != nil {
+		t.Fatalf("no JSON record: %v\n%q", jerr, out)
+	}
+	if rec.Verdict != "fail" || rec.Commit != sha {
+		t.Errorf("record = %+v, want fail at %s", rec, sha)
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", id+".md"))
+	if a.FrontMatter["verified_commit"] != sha {
+		t.Errorf("verified_commit = %v, want %s", a.FrontMatter["verified_commit"], sha)
+	}
+	if n := count(); n != n0 {
+		t.Errorf("worktree count %d after run, want %d", n, n0)
+	}
+}
+
+func TestVerifyAtRefusals(t *testing.T) {
+	vault := setupVault(t)
+	const id = "issue.anvil.0006.atrefuse"
+	writeVerifyIssue(t, vault, id, "true", "true")
+	t.Setenv("ANVIL_VAULT", vault)
+
+	repo := t.TempDir()
+	gitIn(t, repo, "init", "-q")
+	gitIn(t, repo, "commit", "-q", "--allow-empty", "-m", "init")
+	for _, tc := range []struct{ name, dir, code string }{
+		{"unresolved", repo, "verify_at_unresolved"},
+		{"no repo", t.TempDir(), "verify_at_no_repo"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("GIT_CEILING_DIRECTORIES", filepath.Dir(tc.dir))
+			t.Chdir(tc.dir)
+			_, _, err := runCmd(t, newVerifyCmd(), id, "--at", "deadbeef00", "--json")
+			var se *errfmt.Structured
+			if !errors.As(err, &se) || se.Code != tc.code {
+				t.Fatalf("want %s, got %v", tc.code, err)
+			}
+			a, lerr := core.LoadArtifact(filepath.Join(vault, "70-issues", id+".md"))
+			if lerr != nil {
+				t.Fatal(lerr)
+			}
+			if _, stamped := a.FrontMatter["verified_verdict"]; stamped {
+				t.Error("a refusal must not stamp verified_verdict")
+			}
+		})
+	}
+}
+
+func TestVerifyAtStampsTheResolvedCommitNotDirty(t *testing.T) {
+	vault := setupVault(t)
+	repo := t.TempDir()
+	gitIn(t, repo, "init", "-q")
+	// Two paths differing only in case: a case-insensitive fs checks them out
+	// as one file, so git reports the fresh checkout as changed.
+	for _, name := range []string{"A.txt", "a.txt"} {
+		f := filepath.Join(t.TempDir(), "blob")
+		if err := os.WriteFile(f, []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		blob := gitIn(t, repo, "hash-object", "-w", f)
+		gitIn(t, repo, "update-index", "--add", "--cacheinfo", "100644,"+blob+","+name)
+	}
+	gitIn(t, repo, "commit", "-q", "-m", "case")
+	sha := gitIn(t, repo, "rev-parse", "HEAD")
+	const id = "issue.anvil.0007.atdirty"
+	writeVerifyIssue(t, vault, id, "true", "true")
+	t.Setenv("ANVIL_VAULT", vault)
+	t.Chdir(repo)
+
+	out, _, err := runCmd(t, newVerifyCmd(), id, "--at", sha, "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rec verifyRecord
+	if jerr := json.Unmarshal([]byte(strings.SplitN(out, "\n", 2)[0]), &rec); jerr != nil {
+		t.Fatalf("no JSON record: %v\n%q", jerr, out)
+	}
+	if rec.Commit != sha {
+		t.Errorf("commit = %q, want %q with no -dirty", rec.Commit, sha)
+	}
+}
+
+func TestVerifyAtRemovalFailureIsANotice(t *testing.T) {
+	vault := setupVault(t)
+	repo := t.TempDir()
+	gitIn(t, repo, "init", "-q")
+	gitIn(t, repo, "commit", "-q", "--allow-empty", "-m", "init")
+	const id = "issue.anvil.0008.atremove"
+	writeVerifyIssue(t, vault, id, "true", "true")
+	t.Setenv("ANVIL_VAULT", vault)
+	t.Chdir(repo)
+	orig := gitWorktreeRemoveForceFn
+	t.Cleanup(func() { gitWorktreeRemoveForceFn = orig })
+	gitWorktreeRemoveForceFn = func(_, _ string) error { return errors.New("boom") }
+
+	_, stderr, err := runCmd(t, newVerifyCmd(), id, "--at", "HEAD", "--json")
+	if err != nil {
+		t.Fatalf("a removal failure must not change the verdict: %v", err)
+	}
+	if !strings.Contains(stderr, "could not remove verify checkout") {
+		t.Errorf("stderr lacks the removal notice:\n%s", stderr)
+	}
+	// The stub left the checkout behind; remove it for real.
+	for _, l := range strings.Split(gitIn(t, repo, "worktree", "list", "--porcelain"), "\n") {
+		if p, ok := strings.CutPrefix(l, "worktree "); ok && strings.Contains(p, "anvil-verify-at-") {
+			_ = orig(repo, p)
+			_ = os.RemoveAll(filepath.Dir(p))
+		}
 	}
 }
