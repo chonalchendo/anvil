@@ -121,7 +121,7 @@ Run this after Phase 3's checklists, not instead of them. It adds judgment axes 
 
 After the verdict reads `pass` and before `gh pr create`, read `~/.claude/agents/anvil-pr-reviewer.md`. Read only its `## Judgment — what no lookup gives you` and `## Findings contract` sections. Phase 3 and Phase 3b already cover that file's `## Load the context box` rules. This read adds its judgment axes on top. That file's `## Forbidden calls` and `## Return contract` bind the reviewer, not you.
 
-Walk your diff against the rubric. Fix blocker and high findings in place, inside your declared file set only. A fix that lands outside that set is out of scope: record it in the PR body for the reviewer instead. The reviewer still runs on every PR; self-review only lowers the finding count. Any self-review edit voids the verdict: re-run the runner and paste the new line into the PR body.
+Walk your diff against the rubric. Fix blocker and high findings in place, inside your declared file set only. A fix that lands outside that set is out of scope: record it in the PR body for the reviewer instead. The reviewer still runs on every PR; self-review only lowers the finding count. Any self-review edit voids the verdict: re-run `anvil verify <issue-id> --json` and paste the new line into the PR body.
 
 Diff hunks cannot show a unit's shape — read every unit the change grew, created, or repurposed whole against `convention.design` (`anvil show convention convention.design --body`) and the governing language convention's structure rules.
 
@@ -152,7 +152,7 @@ Verdict: <anvil verify --json's stdout line, pasted verbatim>
 Forbidden-call audit: gh pr merge=not-called, git worktree remove=not-called, anvil transition resolved=not-called, anvil transition abandoned=not-called.
 ```
 
-The `Verdict:` line is copied from the verb, never composed by you — an absent or hand-written verdict is what the orchestrator re-measures against. No narrative tail, no "waiting" / "let me check".
+The `Verdict:` line is copied from the verb, never composed by you. The orchestrator re-runs the verb on every return and records its own run. No narrative tail, no "waiting" / "let me check".
 
 ## Prose style
 

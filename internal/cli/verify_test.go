@@ -102,6 +102,10 @@ func TestVerifyScriptContractCases(t *testing.T) {
 			failed: []verifyFailure{{Check: "Direct#1", Preview: "non-gating negation: ! false"}},
 		},
 		{
+			name: "post-land marker in Direct still fails", body: fmt.Sprintf(wrap, "# anvil:post-land\nfalse", "true"), verdict: "fail", checks: 2,
+			failed: []verifyFailure{{Check: "Direct#1", Exit: intp(1), Line: "false", Preview: "false"}},
+		},
+		{
 			name: "post-land red defers", body: fmt.Sprintf(wrap, "true", "# anvil:post-land\nfalse"), verdict: "pass", checks: 2,
 			deferred: []verifyFailure{{Check: "Indirect#1", Exit: intp(1), Line: "false", Preview: "false"}},
 		},

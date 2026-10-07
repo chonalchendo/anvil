@@ -64,7 +64,7 @@ Dispatch each issue with `subagent_type: anvil-issue-worker`. The agent file hol
 
 Dispatch at most eight workers in one wave. Dispatch parallel issues in one tool-use block. A new or edited agent file is not dispatchable until the session restarts.
 
-After dispatch, end the turn. The completion notification resumes you. Do not use `Monitor`. Nudge a worker once with `SendMessage` only when a sibling finished and it has no PR url or verdict file.
+After dispatch, end the turn. The completion notification resumes you. Do not use `Monitor`. Nudge a worker once with `SendMessage` only when a sibling finished and it has no PR url.
 
 ## Phase 4 — Read each return
 

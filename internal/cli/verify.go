@@ -24,9 +24,9 @@ type verifyFailure struct {
 	Preview string `json:"preview"`
 }
 
-// verifyRecord is the verdict line the skill bundle gates on. One known difference for wave 5: a block
-// that leaves a background process holding stdout (`sleep 8 &`) fails here once
-// the 2 s WaitDelay passes (exit null), where a plain shell run waits and passes it.
+// verifyRecord is the verdict line the skill bundle gates on. A block that
+// leaves a background process holding stdout (`sleep 8 &`) fails once the 2 s
+// WaitDelay passes (exit null).
 type verifyRecord struct {
 	Verdict  string          `json:"verdict"`
 	Checks   int             `json:"checks"`
