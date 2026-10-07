@@ -74,7 +74,7 @@ The last line of a worker's return is one of three shapes.
 - `Blocker: <reason>`. Take Exit 1. Do not re-dispatch.
 - Anything else. The worker died or returned prose. Read `git log --stat <branch>` for its `wip:` commits. Re-dispatch once with an action-only prompt that builds on them. After a second failure, take Exit 1.
 
-**Verdict gate.** On every PR-url return, run the verb yourself from the worktree. Your run is the record the land verb reads. Never read the worker's verdict.
+**Verdict gate.** On every PR-url return, run the verb yourself from the worktree. Your run is the human's evidence at the prompt; the land re-runs the verification itself on the PR head, and a pass here does not skip that. Never read the worker's verdict.
 
 ```bash
 cd <worktree-path> && anvil verify <issue-id> --json | jq -r .verdict
@@ -97,7 +97,7 @@ Present each ready PR to the human with its verdict, review result and CI state.
 anvil transition issue <id> resolved --land-pr <n>
 ```
 
-The verb checks the gates, merges, confirms the merge, removes the worktree and resolves the issue. Never run `gh pr merge` yourself.
+The verb runs the issue's verification on a fresh checkout of the PR head and merges only on its pass, on an intact lock, for the issue's own branch, mergeable and CI-green; a red run refuses `land_pr_verification_failed` and the PR is untouched; it then merges, confirms the merge, removes the worktree and resolves the issue. Never run `gh pr merge` yourself.
 
 ## Phase 7 — Continue
 

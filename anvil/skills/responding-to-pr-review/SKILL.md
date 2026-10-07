@@ -85,7 +85,7 @@ The default 900 s / 15 min timeout is a poll budget, not a merge deadline.
 
 ## Phase 5 — Merge gate (per-PR decision)
 
-After every finding has an outcome AND CI is green on the latest SHA AND no new reviewer activity within the poll budget, verify before you ask. At the pushed head, rebuild with the project's build command from CLAUDE.md. Put any worktree-local binary first on PATH. Run the verb from the worktree. Your run is the record the land verb reads.
+After every finding has an outcome AND CI is green on the latest SHA AND no new reviewer activity within the poll budget, verify before you ask. At the pushed head, rebuild with the project's build command from CLAUDE.md. Put any worktree-local binary first on PATH. Run the verb from the worktree. Your run is the human's evidence at the prompt; the land re-runs the verification itself on the PR head, and a pass here does not skip that.
 
 ```bash
 cd <worktree-path> && anvil verify <issue-id> --json | jq -r .verdict
@@ -108,7 +108,7 @@ Then present the PR and ask — its own paragraph, do not bundle:
    anvil transition issue <issue-id> resolved --land-pr <n>
    ```
 
-   It gates on a pass verdict at the PR head on an intact lock for the issue's own branch, mergeable and CI-green, removes the worktree, squash-merges, confirms MERGED, and resolves the issue. `<issue-id>` is the issue whose completion opened this PR — branch `<project>/<issue-slug>`, url stamped via `anvil link issue <issue-id> --external`. On a branch-only setup the verb refuses (`land_pr_worktree_missing`); the human merges instead.
+   It runs the issue's verification on a fresh checkout of the PR head and merges only on its pass, on an intact lock, for the issue's own branch, mergeable and CI-green; a red run refuses `land_pr_verification_failed` and the PR is untouched; it then removes the worktree, squash-merges, confirms MERGED, and resolves the issue. `<issue-id>` is the issue whose completion opened this PR — branch `<project>/<issue-slug>`, url stamped via `anvil link issue <issue-id> --external`. On a branch-only setup the verb refuses (`land_pr_worktree_missing`); the human merges instead.
 2. **Distil** — fire `distilling-learning` (REQUIRED SUB-SKILL) in its attended autonomous mode: **auto-distil compounding learnings**, no offer or prompt. Hold its **high-value bar**: distil only when you can name the specific future failure it prevents; most runs clear it for nothing, and a marginal learning pollutes retrieval, so default to silence.
 3. **Hand off** — fire `handing-off-session` (REQUIRED SUB-SKILL): write the load-ready handoff of what landed and what's still open.
 4. Surface the merged PR url.
