@@ -263,7 +263,7 @@ func samePath(a, b string) bool {
 // derived from the issue slug. Path derivation is a hard error: the audit line
 // claims "worktree removed" and we refuse to lie if we can't compute the
 // location.
-func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOverride string, localValidated bool) error {
+func doLandPR(errW io.Writer, v *core.Vault, a *core.Artifact, id string, prNum int, worktreeOverride string, localValidated bool) error {
 	project := projectFromArtifact(a, id)
 	slug := slugFromIssueID(id)
 	if project == "" || slug == "" {
@@ -271,21 +271,18 @@ func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOv
 			Set("error", "issue id lacks `<project>.<slug>` shape").
 			Set("id", id)
 	}
-	ev, eerr := readLandEvidence(a, id, project, slug)
-	if eerr != nil {
-		return eerr
+	ev := newLandEvidence(a, id, project, slug)
+	wtPath := worktreeOverride
+	if wtPath == "" {
+		var derr error
+		if wtPath, derr = defaultWorktreePath(project, slug); derr != nil {
+			return errfmt.NewStructured("land_pr_path_failed").Set("error", derr.Error())
+		}
 	}
-	if worktreeOverride != "" {
-		return landPR(errW, prNum, worktreeOverride, localValidated, ev)
-	}
-	wtPath, derr := defaultWorktreePath(project, slug)
-	if derr != nil {
-		return errfmt.NewStructured("land_pr_path_failed").Set("error", derr.Error())
-	}
-	return landPR(errW, prNum, wtPath, localValidated, ev)
+	return landPR(errW, prNum, wtPath, localValidated, ev, landClean{a: a, v: v, id: id})
 }
 
-// landPR runs gate→evidence→merge→verify→remove-worktree→delete-local-branch→delete-remote-branch.
+// landPR runs gate→evidence→clean run→merge→verify→remove-worktree→delete-local-branch→delete-remote-branch.
 // Returns nil on success or a Structured error keyed on the failing gate.
 // The ordering, merge-exit-code, and worktree-resolution rationale live as
 // comments at each step.
@@ -296,16 +293,17 @@ func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOv
 // non-default slug. The evidence check accepts such a renamed branch only when
 // it is checked out at the issue's own worktree path (the --worktree override
 // or the default path); any other head branch refuses as land_pr_not_issue_pr.
-// An already-MERGED PR skips the evidence check, since refusing after the
-// merge would strand the issue. If neither path resolves to a real worktree, landPR
-// returns land_pr_worktree_missing before merging rather than silently
-// skipping removal — unless the PR is already MERGED (a retry of an
-// interrupted land), where a missing worktree is treated as already cleaned.
+// An already-MERGED PR skips the evidence check and the clean run, since
+// refusing after the merge would strand the issue. If neither path resolves to
+// a real worktree, landPR returns land_pr_worktree_missing before merging
+// rather than silently skipping removal — unless the PR is already MERGED (a
+// retry of an interrupted land), where a missing worktree is treated as
+// already cleaned.
 //
 // localValidated skips the ghPRChecks gate when the operator has already
 // validated the work locally (e.g. with `just check`) and required CI is
 // genuinely unavailable. The caller is responsible for recording an audit line.
-func landPR(errW io.Writer, num int, worktreePath string, localValidated bool, ev landEvidence) error {
+func landPR(errW io.Writer, num int, worktreePath string, localValidated bool, ev landEvidence, clean landClean) error {
 	// An already-MERGED PR also reads mergeable:UNKNOWN (GitHub never
 	// recomputes it for a closed PR), so a retry of an interrupted batch line
 	// must recognise "already landed" before burning the mergeability poll.
@@ -366,10 +364,11 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool, e
 	}
 	// One read answers both the evidence check and the worktree-list key
 	// below; it also names the local branch to delete after removal.
-	headBranch, err := ev.check(num, worktreePath, alreadyMerged)
+	head, err := ev.check(num, worktreePath, alreadyMerged)
 	if err != nil {
 		return err
 	}
+	headBranch := head.branch
 	// Resolve the actual worktree path: try the explicit/default path first,
 	// then fall back to the live worktree list keyed by the PR's head branch.
 	resolved := ""
@@ -405,6 +404,11 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool, e
 	if cherr := os.Chdir(root); cherr != nil {
 		return errfmt.NewStructured("land_pr_chdir_root_failed").Set("root", root).Set("error", cherr.Error())
 	}
+	if !alreadyMerged {
+		if err := landCleanRunFn(errW, clean, root, head.oid); err != nil {
+			return err
+		}
+	}
 	// Merge before removing the worktree so the process's cwd remains valid
 	// throughout. gh pr merge may exit non-zero even when the merge lands
 	// (post-merge checkout fails when master is checked out in the main
@@ -413,7 +417,7 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool, e
 	// call — gh pr merge on an already-merged PR is itself an error.
 	var mergeErr error
 	if !alreadyMerged {
-		mergeErr = ghPRMergeFn(num)
+		mergeErr = ghPRMergeFn(num, head.oid)
 	}
 	finalState, err := prState(num)
 	if err != nil {
@@ -431,6 +435,16 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool, e
 					Set("pr", num).
 					Set("error", mergeErr.Error()).
 					Set("fix_hint", "transient base-modified race; re-run the same --land-pr to retry")
+			}
+			// GitHub refuses --match-head-commit when the PR head moved after the
+			// clean run; the pass stays stamped at the old oid, so a re-run
+			// verifies the new head.
+			if strings.Contains(mergeErr.Error(), "Head branch was modified") {
+				return errfmt.NewStructured("land_pr_head_moved").
+					Set("pr", num).
+					Set("verified", head.oid).
+					Set("error", mergeErr.Error()).
+					Set("fix_hint", "the PR head moved after the clean run; re-run the same --land-pr to verify the new head")
 			}
 			return errfmt.NewStructured("land_pr_merge_failed").Set("pr", num).Set("error", mergeErr.Error())
 		}
