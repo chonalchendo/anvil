@@ -795,6 +795,17 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 			refused: true, wantMsg: "verification Indirect block 1 aborts at line 1 (`false`) before its last line (2)",
 		},
 		{name: "direct non-zero abort is accepted with a notice", direct: "false\ntrue", indirect: "exit 3"},
+		{name: "indirect heredoc last command", direct: "true", indirect: "grep b <<EOF\na\nEOF", wantWarn: true},
+		{name: "indirect multi-line quote last command", direct: "true", indirect: "jq -e '\n.a\n'", wantWarn: true},
+		{name: "indirect final for loop", direct: "true", indirect: "for f in a b; do\n  false\ndone", wantWarn: true},
+		{name: "indirect trailing comment", direct: "true", indirect: "false\n# note", wantWarn: true},
+		{
+			name: "indirect set +e failures are not aborts", direct: "true", indirect: "set +e\nfalse\nexit 1", wantWarn: true,
+		},
+		{
+			name: "indirect set +e then true already passes", direct: "true", indirect: "set +e\nfalse\ntrue",
+			refused: true, wantMsg: "already passes",
+		},
 		{
 			// A directory is on disk and readable but not executable: exit 126.
 			name: "indirect not executable", direct: "true", indirect: "\"$probeDir\"",

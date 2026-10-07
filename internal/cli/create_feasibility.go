@@ -61,15 +61,20 @@ type blockRun struct {
 	redLine int
 	// lastLine is the 1-based line of the block's final command.
 	lastLine int
+	// earlyRed is true when the set -e abort hit a complete command before
+	// lastLine, i.e. setup failed rather than the assertion.
+	earlyRed bool
 	// redText is the trimmed text of redLine.
 	redText string
 }
 
-// redLineMarker prefixes the ERR-trap report in the block's stderr. An explicit
-// `exit`, a `|| true` guard and an `if <cmd>` condition do not fire the trap;
-// only a set -e abort does, which is what separates a broken setup line from a
-// deliberate red.
-const redLineMarker = "@@anvil-red-line:"
+// redLineEnv names the side file the ERR trap writes $LINENO to. A file, not
+// the block's stderr: a sentinel in the shared output stream can leak into the
+// text shown to the author and is lost when capWriter truncates the tail.
+// An explicit `exit`, a `|| true` guard and an `if <cmd>` condition do not
+// fire the trap; only a set -e abort does, which is what separates a broken
+// setup line from a deliberate red.
+const redLineEnv = "ANVIL_RED_LINE_FILE"
 
 // runFeasibilityGate executes every ```bash block under the issue body's
 // Verification → Direct and Indirect subsections in the authoring environment
@@ -99,6 +104,9 @@ const redLineMarker = "@@anvil-red-line:"
 // `!` assertion, which is refused unrun (core.NonGatingNegation) because
 // `set -e` would exempt it. A subsection with no fenced block is skipped —
 // presence enforcement is ValidateIssue's job, not this gate's.
+//
+// Indirect also refuses a set -e abort before the block's last line: the red
+// comes from setup, not the assertion.
 func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.ValidationError {
 	var errs []*errfmt.ValidationError
 	for _, label := range []string{"Direct", "Indirect"} {
@@ -124,7 +132,7 @@ func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.Validat
 			if label == "Direct" && r.runErr == nil && !r.timedOut && r.exit == 0 {
 				cmd.PrintErrln("anvil: " + name + " exits 0 — " + directGreenNote)
 			}
-			if label == "Direct" && r.redLine > 0 {
+			if label == "Direct" && r.redLine > 0 && !r.timedOut && r.exit != 126 && r.exit != 127 {
 				cmd.PrintErrln(fmt.Sprintf("anvil: %s exits non-zero at line %d (`%s`); accepted, but check it is not a missing path or an empty suite", name, r.redLine, r.redText))
 			}
 			msg, fix := classifyFeasibility(label, name, r)
@@ -180,7 +188,7 @@ func classifyFeasibility(label, name string, r blockRun) (msg, fix string) {
 			"point the block at an executable path — the predicate never ran, so its exit status says nothing about the code"
 	case label != "Indirect":
 		return "", ""
-	case r.redLine > 0 && r.redLine < r.lastLine:
+	case r.earlyRed:
 		return fmt.Sprintf("%s aborts at line %d (`%s`) before its last line (%d), so it is red for a setup reason, not the assertion", name, r.redLine, r.redText, r.lastLine),
 			earlyRedFix
 	case r.exit == 0:
@@ -198,9 +206,6 @@ func runFeasibilityBlock(block, dir string) blockRun {
 	ctx, cancel := context.WithTimeout(context.Background(), feasibilityTimeout)
 	defer cancel()
 
-	// /bin/bash, not a $PATH lookup: the same pinned-shell precedent
-	// runAnchorCheck sets, so the gate's verdict does not depend on which bash
-	// happens to come first on the author's PATH.
 	// A script file, not -c: bash 3.2 numbers -c lines from 0, so $LINENO would
 	// disagree across the bash versions the gate may meet.
 	script, err := os.CreateTemp("", "anvil-verify-*.sh")
@@ -208,16 +213,28 @@ func runFeasibilityBlock(block, dir string) blockRun {
 		return blockRun{runErr: err}
 	}
 	defer func() { _ = os.Remove(script.Name()) }()
-	_, werr := script.WriteString("trap 'printf \"\\n" + redLineMarker + "%s\\n\" \"$LINENO\" >&2' ERR; " + block)
+	redFile, err := os.CreateTemp("", "anvil-redline-*")
+	if err != nil {
+		_ = script.Close()
+		return blockRun{runErr: err}
+	}
+	_ = redFile.Close()
+	defer func() { _ = os.Remove(redFile.Name()) }()
+	// The $- guard keeps a block's own `set +e` from reporting every failing command.
+	_, werr := script.WriteString("trap 'case $- in *e*) printf %s \"$LINENO\" > \"$" + redLineEnv + "\";; esac' ERR; " + block)
 	if cerr := script.Close(); werr != nil || cerr != nil {
 		return blockRun{runErr: errors.Join(werr, cerr)}
 	}
+	// /bin/bash, not a $PATH lookup: the same pinned-shell precedent
+	// runAnchorCheck sets, so the gate's verdict does not depend on which bash
+	// happens to come first on the author's PATH.
 	c := exec.CommandContext(ctx, "/bin/bash", "-e", script.Name()) //nolint:gosec // G204: runs the issue's own Verification block verbatim by design — proving it is what the feasibility gate (anvil.0196) exists to do; author-trusted vault content, bounded by feasibilityTimeout
 	// Run the block in its own process group so the timeout kill reaches the
 	// whole tree. A block that backgrounds work (`nohup … &`) leaves
 	// grandchildren that survive a signal aimed at bash alone and keep running
 	// (and holding the output pipe) long after create returns.
 	c.Dir = dir // "" keeps the process cwd
+	c.Env = append(os.Environ(), redLineEnv+"="+redFile.Name())
 	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	c.Cancel = func() error { return syscall.Kill(-c.Process.Pid, syscall.SIGKILL) }
 	c.WaitDelay = feasibilityWaitDelay
@@ -231,8 +248,10 @@ func runFeasibilityBlock(block, dir string) blockRun {
 		tail += "\n(output truncated)"
 	}
 	r := blockRun{output: tail}
-	r.output, r.redLine = splitRedLine(tail)
-	r.lastLine, r.redText = blockLines(block, r.redLine)
+	if b, rerr := os.ReadFile(redFile.Name()); rerr == nil {
+		r.redLine, _ = strconv.Atoi(strings.TrimSpace(string(b)))
+	}
+	r.lastLine, r.redText, r.earlyRed = blockLines(block, r.redLine)
 	var exitErr *exec.ExitError
 	switch {
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
@@ -246,30 +265,42 @@ func runFeasibilityBlock(block, dir string) blockRun {
 	return r
 }
 
-// splitRedLine strips the ERR-trap report from the captured output and returns
-// the reported line (0 when absent).
-func splitRedLine(out string) (string, int) {
-	i := strings.LastIndex(out, "\n"+redLineMarker)
-	if i < 0 {
-		return out, 0
-	}
-	n, err := strconv.Atoi(strings.TrimSpace(out[i+1+len(redLineMarker):]))
-	if err != nil {
-		return out, 0
-	}
-	return out[:i], n
-}
-
 // blockLines returns the 1-based line where the block's final command starts
-// (backslash continuations folded in) and the trimmed text of line red.
-func blockLines(block string, red int) (last int, redText string) {
+// (trailing blanks and comments dropped, backslash continuations folded in),
+// the trimmed text of line red, and whether the abort at red is early. It is
+// early only when lines[:red] parse cleanly as a script and a later command
+// exists: bash 5 reports LINENO 1 inside a heredoc or multi-line quote, and a
+// compound command reports its opening line, so those prefixes do not parse.
+func blockLines(block string, red int) (last int, redText string, early bool) {
 	lines := strings.Split(strings.TrimRight(block, " \t\r\n"), "\n")
 	last = len(lines)
+	for last > 1 && isBlankOrComment(lines[last-1]) {
+		last--
+	}
 	for last > 1 && strings.HasSuffix(strings.TrimRight(lines[last-2], " \t"), "\\") {
 		last--
 	}
-	if red >= 1 && red <= len(lines) {
-		redText = strings.TrimSpace(lines[red-1])
+	if red < 1 || red > len(lines) {
+		return last, "", false
 	}
-	return last, redText
+	redText = strings.TrimSpace(lines[red-1])
+	if red >= last {
+		return last, redText, false
+	}
+	return last, redText, parsesCleanly(strings.Join(lines[:red], "\n"))
+}
+
+func isBlankOrComment(line string) bool {
+	t := strings.TrimSpace(line)
+	return t == "" || strings.HasPrefix(t, "#")
+}
+
+// parsesCleanly reports whether /bin/bash -n accepts src with no diagnostics.
+func parsesCleanly(src string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), feasibilityWaitDelay)
+	defer cancel()
+	c := exec.CommandContext(ctx, "/bin/bash", "-n") //nolint:gosec // G204: fixed argv, the script arrives on stdin and is only parsed
+	c.Stdin = strings.NewReader(src)
+	out, err := c.CombinedOutput()
+	return err == nil && len(out) == 0
 }
