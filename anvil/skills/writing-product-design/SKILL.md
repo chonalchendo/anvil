@@ -43,7 +43,7 @@ Canonical destination: `~/anvil-vault/05-projects/<project>/product-design.md`. 
 
 ## The phases
 
-Six phases plus two half-phases, each with an explicit user gate — gates are the load-bearing part, not optional checkpoints. Each is an iteration loop; expect 1–2 reframes per phase. Phases 3 and 4 are load-bearing: Phase 5 derives milestones from them.
+Six phases plus two half-phases, each with an explicit user gate — gates are the load-bearing part, not optional checkpoints. Each is an iteration loop; expect 1–2 reframes per phase. Phases 3 and 4 are load-bearing: Phase 5 derives milestones from them. The reader is the human. Workers do not load this doc.
 
 The per-phase procedure — drafting instructions, voice checks, gate criteria — lives in the reference below. The quick-reference table is the phase index; load the reference before drafting Phase 1.
 
@@ -57,10 +57,10 @@ The per-phase procedure — drafting instructions, voice checks, gate criteria �
 | 2 Problem & users | Why it matters / Who it's for | Body | User confirms |
 | 3 What we're building | One-line shape + convictions | Body | **Load-bearing** |
 | 3.5 Approach | Fat-marker sketch (3–7) | Body | Altitude check |
-| 4 Goals / success / constraints / out-of-scope | Four sections | Body | **Load-bearing** |
+| 4 Goals and measures / constraints / out-of-scope | Three sections | Body | **Load-bearing** |
 | 4.5 Risks & rabbit holes | 3–7 bullets | Body | User confirms |
-| 5 Milestones | Wikilinks + summaries | Body + `related` | User confirms |
-| 6 Serialize & save | Universal frontmatter + validate | Frontmatter | Cold read |
+| 5 Milestones | Open candidates: why now + components | Body + `related` | User confirms |
+| 6 Serialize & save | `## TL;DR` first, frontmatter, validate | Body + frontmatter | Cold read |
 
 ## Common mistakes
 
@@ -69,6 +69,9 @@ The per-phase procedure — drafting instructions, voice checks, gate criteria �
 - **Conflating *what* with *how*.** Implementation strategy, packaging, subprocess choices belong in `system-design.md`.
 - **Generic success metrics.** "Users are happy" isn't a metric. Blend quantitative and qualitative; tie qualitative to a measurement plan.
 - **Skipping the past-pain prompt in Phase 4.** Old-tool failure modes are the most concrete metrics.
+- **Writing for workers.** No worker instructions in the doc: no pointers like `docs/issue-spec.md`, no "agents must" rules. Those belong in conventions.
+- **Bare milestone one-liners.** Each open candidate needs a `Why now:` line and a `Components:` line.
+- **Goals without measures.** Every goal in `## Goals and how we measure them` pairs with a measure.
 - **Voice drift.** AI-generic prose fails the cold read. Match project voice; audit for hedging and corporate-speak.
 - **Treating gates as one-shot approvals.** Each is an iteration loop. Reframes after a draft = gate working, not failing.
 
