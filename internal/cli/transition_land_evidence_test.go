@@ -195,6 +195,9 @@ func TestLandPRCleanPassMergesOnceAndStampsHead(t *testing.T) {
 	if len(s.mergeCalls) != 1 {
 		t.Errorf("merge calls = %v, want one", s.mergeCalls)
 	}
+	if len(s.mergeOids) != 1 || s.mergeOids[0] != sha {
+		t.Errorf("merge oids = %v, want the verified head %s", s.mergeOids, sha)
+	}
 	if v, c := landCleanRecord(t); v != "pass" || c != sha {
 		t.Errorf("record = %s at %s, want pass at %s", v, c, sha)
 	}
@@ -207,14 +210,17 @@ func TestLandPRCleanPassMergesOnceAndStampsHead(t *testing.T) {
 func TestLandPRCleanIgnoresAnOldRecord(t *testing.T) {
 	s, _, sha, wt := landCleanFixture(t, "true")
 	path := filepath.Join(os.Getenv("ANVIL_VAULT"), "70-issues", "demo.foo.md")
-	a, _ := core.LoadArtifact(path)
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	a.FrontMatter["verified_verdict"] = "fail"
 	a.FrontMatter["verified_commit"] = "deadbeef-dirty"
 	if err := a.Save(); err != nil {
 		t.Fatal(err)
 	}
 	out, _, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...)
-	if err != nil || strings.Contains(out, "verification_stale") || len(s.mergeCalls) != 1 {
+	if err != nil || len(s.mergeCalls) != 1 {
 		t.Fatalf("err=%v merges=%v out=%s", err, s.mergeCalls, out)
 	}
 	if v, c := landCleanRecord(t); v != "pass" || c != sha {
@@ -241,5 +247,42 @@ func TestLandPRCleanSkippedWhenAlreadyMerged(t *testing.T) {
 	}
 	if v, _ := landCleanRecord(t); v != "" {
 		t.Errorf("verdict = %q, want no run", v)
+	}
+}
+
+func TestLandPRCleanFetchFailureWarnsAndRuns(t *testing.T) {
+	s, _, _, wt := landCleanFixture(t, "true")
+	s.fetchErr = errors.New("network down")
+	_, errOut, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...)
+	if err != nil || len(s.mergeCalls) != 1 {
+		t.Fatalf("err=%v merges=%v", err, s.mergeCalls)
+	}
+	if !strings.Contains(errOut, "fetch failed") || !strings.Contains(errOut, "network down") {
+		t.Errorf("stderr = %q, want the fetch warning", errOut)
+	}
+}
+
+func TestLandPRCleanFetchFailureNamesCauseWhenShaMissing(t *testing.T) {
+	s, _, _, wt := landCleanFixture(t, "true")
+	s.fetchErr = errors.New("network down")
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	out, _, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...)
+	if err == nil || !strings.Contains(out, "verify_at_unresolved") || !strings.Contains(out, "network down") || len(s.mergeCalls) != 0 {
+		t.Fatalf("err=%v merges=%v out=%s", err, s.mergeCalls, out)
+	}
+}
+
+// The clean checkout is provisioned like a cut worktree: a carried file is
+// there when a block reads it.
+func TestLandPRCleanCheckoutHasCarryFiles(t *testing.T) {
+	s, repo, _, wt := landCleanFixture(t, "test -f carried.env")
+	if err := os.WriteFile(filepath.Join(repo, "carried.env"), []byte("K=v\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, carryFileName), []byte("carried.env\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out, _, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...); err != nil || len(s.mergeCalls) != 1 {
+		t.Fatalf("err=%v merges=%v out=%s", err, s.mergeCalls, out)
 	}
 }

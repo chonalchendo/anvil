@@ -2,10 +2,9 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-
-	"github.com/spf13/cobra"
 
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
@@ -16,16 +15,23 @@ import (
 // another lock or branch is void. The verdict is not read from the issue: the
 // land earns its own on a clean checkout of the PR head.
 type landEvidence struct {
-	id, lock, currentLock, branch, body, path string
-	vault                                     *core.Vault
+	id, lock, currentLock, branch string
 }
 
-func newLandEvidence(a *core.Artifact, v *core.Vault, id, project, slug string) landEvidence {
+func newLandEvidence(a *core.Artifact, id, project, slug string) landEvidence {
 	lock, _ := a.FrontMatter["verification_lock"].(string)
 	return landEvidence{
 		id: id, lock: lock, currentLock: core.VerificationLock(a.Body),
-		branch: project + "/" + slug, body: a.Body, path: a.Path, vault: v,
+		branch: project + "/" + slug,
 	}
+}
+
+// landClean is what the clean run needs: the in-memory issue (whose body is
+// verified and which takes the stamp back), its id, and the vault to index in.
+type landClean struct {
+	a  *core.Artifact
+	v  *core.Vault
+	id string
 }
 
 // landHead is the PR head the evidence check read.
@@ -70,19 +76,27 @@ var landCleanRunFn = landCleanRun
 // landCleanRun verifies the PR head on a fresh detached checkout and stamps the
 // record at that sha, pass or fail. A red run refuses before the merge. A failed
 // fetch is a notice: the sha may already be local, and checkoutAt refuses if not.
-func landCleanRun(errW io.Writer, ev landEvidence, root, sha string) error {
-	if err := gitFetchOriginFn(root); err != nil {
-		fmt.Fprintf(errW, "warning: land-pr: fetch failed, using local refs: %v\n", err)
+func landCleanRun(errW io.Writer, c landClean, root, sha string) error {
+	fetchErr := gitFetchOriginFn(root)
+	if fetchErr != nil {
+		fmt.Fprintf(errW, "warning: land-pr: fetch failed, using local refs: %v\n", fetchErr)
 	}
-	cmd := &cobra.Command{}
-	cmd.SetErr(errW)
-	rec, err := verifyAt(cmd, ev.id, root, sha, ev.body)
+	rec, err := verifyAt(errW, c.id, root, sha, c.a.Body)
 	if err != nil {
+		var se *errfmt.Structured
+		if fetchErr != nil && errors.As(err, &se) && se.Code == "verify_at_unresolved" {
+			return se.Set("fetch_error", fetchErr.Error())
+		}
 		return err
 	}
-	if err := stampVerification(ev.vault, ev.path, ev.id, ev.id, rec, ""); err != nil {
+	if err := stampVerification(c.v, c.a.Path, c.id, c.id, rec, ""); err != nil {
 		return err
 	}
+	// The command's single Save() writes c.a: carry the stamp onto it, or that
+	// save would erase what the clean run just wrote.
+	c.a.FrontMatter["verified_verdict"] = rec.Verdict
+	c.a.FrontMatter["verified_commit"] = rec.Commit
+	c.a.FrontMatter["verified_at"] = rec.RanAt
 	if rec.Verdict == "pass" {
 		return nil
 	}
@@ -91,7 +105,7 @@ func landCleanRun(errW io.Writer, ev landEvidence, root, sha string) error {
 		checks[i] = f.Check
 	}
 	return errfmt.NewStructured("land_pr_verification_failed").
-		Set("issue", ev.id).Set("commit", rec.Commit).Set("failed", checks).
+		Set("issue", c.id).Set("commit", rec.Commit).Set("failed", checks).
 		Set("fix_hint", "fix the change and push, then re-run --land-pr; the clean run is at "+rec.Commit)
 }
 

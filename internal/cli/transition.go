@@ -197,7 +197,8 @@ func newTransitionCmd() *cobra.Command {
 			// resolved` edge below; only the unclaimed-open case needs the
 			// synthesized edge. The claim is stamped into frontmatter but only
 			// persisted by the single Save() after doLandPR succeeds, so a failed
-			// land leaves the issue on disk exactly as it was: open.
+			// land never persists the claim. A red clean run still writes
+			// verified_* on disk: the stamp is the run's record, not the claim's.
 			autoClaimLandPR := landPRNum != 0 && from == "open"
 			var tr core.Transition
 			if autoClaimLandPR {
@@ -281,7 +282,7 @@ func newTransitionCmd() *cobra.Command {
 			}
 
 			if landPRNum != 0 {
-				if err := doLandPR(cmd.ErrOrStderr(), a, id, landPRNum, worktreeOverride, localValidated); err != nil {
+				if err := doLandPR(cmd.ErrOrStderr(), v, a, id, landPRNum, worktreeOverride, localValidated); err != nil {
 					return printAndReturn(cmd, err)
 				}
 				a.Body += postLandRedNote(runPostLandBlocks(cmd.ErrOrStderr(), a.Body), a.Body)

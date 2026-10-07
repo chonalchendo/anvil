@@ -67,6 +67,7 @@ type sideFXStub struct {
 	checksCalls       []int
 	mergeErr          error
 	mergeCalls        []int
+	mergeOids         []string
 	deleteBranchErr   error
 	deleteBranchCalls []string
 }
@@ -120,7 +121,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 	prevCleanRun := landCleanRunFn
 
 	// The clean run has its own tests (TestLandPRClean*); the rest stop short of it.
-	landCleanRunFn = func(io.Writer, landEvidence, string, string) error { return nil }
+	landCleanRunFn = func(io.Writer, landClean, string, string) error { return nil }
 	gitWorktreeListFn = func(dir string) (map[string]worktreeInfo, error) {
 		s.listDirs = append(s.listDirs, dir)
 		return s.listEntries, s.listErr
@@ -185,8 +186,9 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		s.checksCalls = append(s.checksCalls, num)
 		return s.checksErr
 	}
-	ghPRMergeFn = func(num int) error {
+	ghPRMergeFn = func(num int, oid string) error {
 		s.mergeCalls = append(s.mergeCalls, num)
+		s.mergeOids = append(s.mergeOids, oid)
 		return s.mergeErr
 	}
 	ghDeleteBranchFn = func(branch string) error {
@@ -1993,7 +1995,7 @@ func TestLandPRMergesBeforeRemovingWorktree(t *testing.T) {
 		ghPRMergeFn = prevMerge
 		gitWorktreeRemoveFn = prevRemove
 	})
-	ghPRMergeFn = func(num int) error {
+	ghPRMergeFn = func(num int, _ string) error {
 		callOrder = append(callOrder, "merge")
 		s.mergeCalls = append(s.mergeCalls, num)
 		return nil
@@ -2144,7 +2146,7 @@ func TestLandPRChdirsToRootBeforeWorktreeRemoval(t *testing.T) {
 		return nil
 	}
 
-	if err := landPR(&bytes.Buffer{}, 42, deadCwd, false, passingEvidence()); err != nil {
+	if err := landPR(&bytes.Buffer{}, 42, deadCwd, false, passingEvidence(), landClean{}); err != nil {
 		t.Fatalf("landPR returned error: %v", err)
 	}
 	if substepErr != nil {

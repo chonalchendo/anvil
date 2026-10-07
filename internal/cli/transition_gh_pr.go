@@ -49,14 +49,16 @@ func classifyPRChecks(out string, err error) error {
 	return fmt.Errorf("gh pr checks: %w: %s", err, strings.TrimSpace(out))
 }
 
-func ghPRMergeReal(num int) error {
+func ghPRMergeReal(num int, headOid string) error {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return errGhUnavailable
 	}
 	// --delete-branch is intentionally omitted: the branch is deleted after the
 	// worktree is removed (ghDeleteBranchFn), so git never sees --delete-branch
 	// while a worktree still references the branch.
-	cmd := exec.Command("gh", "pr", "merge", strconv.Itoa(num), "--squash") //nolint:gosec // binary path resolved from trusted sources; not user input
+	// --match-head-commit pins the merge to the head the clean run verified: a
+	// push during that run makes gh refuse rather than merge unverified code.
+	cmd := exec.Command("gh", "pr", "merge", strconv.Itoa(num), "--squash", "--match-head-commit", headOid) //nolint:gosec // binary path resolved from trusted sources; not user input
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("gh pr merge: %w: %s", err, strings.TrimSpace(string(out)))
 	}
