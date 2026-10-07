@@ -30,11 +30,11 @@ type gateCI struct {
 	Conclusion string `json:"conclusion"`
 }
 
-func gateFromRow(a *core.Artifact, r fleetRow) fleetGate {
+func gateFromRow(a *core.Artifact, r fleetRow, prState string) fleetGate {
 	claimedAt, _ := a.FrontMatter["claimed_at"].(string)
 	return fleetGate{
 		Claim:  gateClaim{Owner: r.Owner, ClaimedAt: claimedAt},
-		PR:     gatePR{Number: r.PRNumber, State: r.prState},
+		PR:     gatePR{Number: r.PRNumber, State: prState},
 		Review: gateReview{State: r.ReviewerState, OpenComments: r.OpenInlineComments},
 		CI:     gateCI{Conclusion: r.CIConclusion},
 	}

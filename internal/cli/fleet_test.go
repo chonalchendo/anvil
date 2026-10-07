@@ -266,7 +266,6 @@ func TestBuildFleetRows_MatchesIssuesToWorktrees(t *testing.T) {
 		PRNumber: 42, PRURL: "https://github.com/x/y/pull/42",
 		PRMergeable: "MERGEABLE", CIConclusion: "success",
 		ReviewerState: "APPROVED", OpenInlineComments: 3,
-		prState: "OPEN",
 		Gate: fleetGate{
 			Claim:  gateClaim{Owner: "claude-alpha"},
 			PR:     gatePR{Number: 42, State: "OPEN"},
@@ -274,7 +273,7 @@ func TestBuildFleetRows_MatchesIssuesToWorktrees(t *testing.T) {
 			CI:     gateCI{Conclusion: "success"},
 		},
 	}
-	if diff := cmp.Diff(want, got, cmp.AllowUnexported(fleetRow{})); diff != "" {
+	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("matched row (-want +got):\n%s", diff)
 	}
 	if note := byID["issue.anvil.orphan-issue"].Note; note != "no matching worktree" {

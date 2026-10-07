@@ -83,6 +83,7 @@ func newTransitionCmd() *cobra.Command {
 					if sid := os.Getenv(envSessionID); force && sid != "" {
 						// --force takeover: transfer the claim to this session.
 						a.FrontMatter["claim_session"] = sid
+						a.FrontMatter["claimed_at"] = time.Now().UTC().Format(time.RFC3339)
 						a.FrontMatter["updated"] = time.Now().UTC().Format("2006-01-02")
 						if err := a.Save(); err != nil {
 							return fmt.Errorf("saving claim takeover: %w", err)
@@ -418,7 +419,7 @@ func newTransitionCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&owner, "owner", "", "owner (required for claim transitions)")
-	cmd.Flags().StringVar(&reason, "reason", "", "audit reason (required for reverse transitions)")
+	cmd.Flags().StringVar(&reason, "reason", "", "audit reason (required for reverse transitions and → escalated)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON envelope")
 	cmd.Flags().BoolVar(&force, "force", false, "override the open-PR refusal on issue → resolved (audit-logged)")
 	cmd.Flags().BoolVar(&noLongerReproduces, "no-longer-reproduces", false, "on a mismatching reproduction_anchor, close the issue as resolved with the diff captured (mutually exclusive with --force)")

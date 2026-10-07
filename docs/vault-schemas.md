@@ -119,7 +119,7 @@ Body rules (`anvil validate`, `core.ValidateMilestone`; `create milestone` scaff
 
 Cut entirely: `target_date`, `horizon`, `ordinal`, `predecessors`, `successors`, `plans`, `issues`, `objectives`, `risks`. Milestones are structural, not scheduled. Done = all child issues `resolved`.
 
-Status follows child claims, only partway: `transition issue <id> in-progress` moves a `planned` parent milestone to `in-progress` on the first child claim (anvil.0275), but only when the approval gate passes; on refusal the milestone stays `planned` and a stderr warning names the code. `done` stays a human transition — acceptance is measured, not inferred from issue count. `transition milestone done` refuses with `milestone_open_issues` or `acceptance_unmet` and rewrites `## Status` with the measured ledger. `list milestone --json`/`show milestone` (JSON and text) carry a derived `children` summary (`open`/`in_progress`/`resolved`/`abandoned`/`total` counts from linked issues) and a `stale` flag, true when every child is resolved-or-abandoned but status hasn't caught up to `done`; `list milestone`'s plain-text rows omit the summary. Bucket milestones (`kind: bucket`) are never stale — they have no terminal done state. `list --json`/`show --json` also carry `measurement_stale` (absent when unmeasured or not applicable): true for a `kind: scoped`, `in-progress` milestone whose `## Status` block carries a line starting `Measured: YYYY-MM-DD` (line-start, no bold; trailing prose after the date is fine; no such line reads as unmeasured) over 14 days old (`core.MeasurementStale`). Both text and `--json` modes print a one-line stderr warning; it is never a validation failure.
+Status follows child claims, only partway: `transition issue <id> in-progress` moves a `planned` parent milestone to `in-progress` on the first child claim (anvil.0275), but only when the approval gate passes; on refusal the milestone stays `planned` and a stderr warning names the code. `done` stays a human transition — acceptance is measured, not inferred from issue count. `transition milestone done` refuses with `milestone_open_issues` or `acceptance_unmet` and rewrites `## Status` with the measured ledger. `list milestone --json`/`show milestone` (JSON and text) carry a derived `children` summary (`open`/`in_progress`/`escalated`/`resolved`/`abandoned`/`total` counts from linked issues) and a `stale` flag, true when every child is resolved-or-abandoned but status hasn't caught up to `done`; `list milestone`'s plain-text rows omit the summary. Bucket milestones (`kind: bucket`) are never stale — they have no terminal done state. `list --json`/`show --json` also carry `measurement_stale` (absent when unmeasured or not applicable): true for a `kind: scoped`, `in-progress` milestone whose `## Status` block carries a line starting `Measured: YYYY-MM-DD` (line-start, no bold; trailing prose after the date is fine; no such line reads as unmeasured) over 14 days old (`core.MeasurementStale`). Both text and `--json` modes print a one-line stderr warning; it is never a validation failure.
 
 `anvil validate`/`create` flag the lead sentence of `## Objective`, when it runs over 25 words or contains a backtick, as a `lead_sentence` warning — always non-blocking (`create` still writes the artifact).
 
@@ -166,11 +166,13 @@ The rule of thumb: when a component design, skill, or project `CLAUDE.md` would 
 type: issue
 goal: <one sentence>       # required, ≤120 chars: the terminal predicate (what "done" means)
 project: <slug>
-status: open | in-progress | resolved | abandoned
+status: open | in-progress | escalated | resolved | abandoned
 severity: low | medium | high | critical
 milestone: "[[milestone.<project>.<slug>]]"
 owner: <string>            # set by `anvil transition ... --owner <name>`; persists across the issue lifecycle
 claim_session: <string>    # set by `anvil transition ... in-progress`; session-keyed claim lock; --force transfers it
+claimed_at: <RFC3339>        # stamped on every → in-progress and on --force takeover; fleet status reads it
+escalation_reason: <string>  # set by `anvil transition ... escalated --reason`; cleared on leaving escalated
 acceptance: ["criterion", ...]   # optional prose checklist; the binary gate is ## Verification
 ```
 

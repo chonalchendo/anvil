@@ -82,7 +82,7 @@ Write the checkpoint handoff below before ending the turn.
 Each subagent's last line is structurally one of:
 
 - `^https://github\.com/.+/pull/[0-9]+$` — PR url. Proceed to Phase 5 for this PR.
-- `^Blocker: .+$` — explicit blocker. Record, surface to user, do not re-dispatch.
+- `^Blocker: .+$` — explicit blocker. Record, surface to user, do not re-dispatch. The worker already moved the issue to `escalated`; if it still reads `in-progress`, run `anvil transition issue <issue-id> escalated --reason "<blocker>"`.
 - Anything else — **malformed return** (narrative-as-final-output) or a worker that died mid-task (API 5xx, OOM, killed). This is the recurring 100-200 LOC stall pattern (sessions 2026-05-13, 2026-05-14, 2026-05-15 all hit it). Re-dispatch action-only: a step-by-step plain-text prompt with **no skill wrapper**, naming the exact next commit + push + PR commands. If the second dispatch also malforms, fall back to main-session takeover for that issue.
 
 **A PR url is only as good as its verdict.** The worker's contract writes the runner's stdout to `/tmp/verdict.<issue-id>.json` and echoes it as `Verdict: {…}` above the url (see `anvil-issue-worker.md` — Verdict is data, not prose). The echo is a pointer, not the evidence — a worker retypes it into prose. `<issue-id>` is the full id, never the short number: for `issue.acme.0042.fix-login` the path is `/tmp/verdict.issue.acme.0042.fix-login.json`. Duplicated in `anvil-issue-worker.md` — edit both together. Gate on the artifact mechanically before Phase 5, per PR:

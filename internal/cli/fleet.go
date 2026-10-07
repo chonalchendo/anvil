@@ -32,7 +32,6 @@ type fleetRow struct {
 	Note               string    `json:"note,omitempty"`
 	Reason             string    `json:"reason,omitempty"`
 	Gate               fleetGate `json:"gate"`
-	prState            string
 }
 
 // fleetEnvelope wraps the rows so consumers can pin on `count` without
@@ -126,7 +125,7 @@ func newFleetStatusCmd() *cobra.Command {
 	return cmd
 }
 
-// buildFleetRows discovers every in-progress issue, matches it to a worktree
+// buildFleetRows discovers every in-progress or escalated issue, matches it to a worktree
 // by branch candidate, and gathers per-worktree git + PR + CI state. Each
 // shell-out is best-effort: a missing gh, detached HEAD, or no upstream
 // downgrades to a blank field with a `note`, never an aborting error. The
@@ -202,15 +201,16 @@ func buildFleetRows(v *core.Vault) ([]fleetRow, error) {
 				apply(b, wt)
 			}
 		}
+		prState := ""
 		switch {
 		case matched:
-			fillRowFromWorktree(&row)
+			prState = fillRowFromWorktree(&row)
 		case !repoResolved:
 			row.Note = fmt.Sprintf("project repo not found (expected ~/Development/%s); matched against ambient repo", project)
 		default:
 			row.Note = "no matching worktree"
 		}
-		row.Gate = gateFromRow(a, row)
+		row.Gate = gateFromRow(a, row, prState)
 		if status == "escalated" {
 			row.Reason, _ = a.FrontMatter["escalation_reason"].(string)
 		}
@@ -219,16 +219,16 @@ func buildFleetRows(v *core.Vault) ([]fleetRow, error) {
 	return rows, nil
 }
 
-func fillRowFromWorktree(row *fleetRow) {
+// fillRowFromWorktree returns the PR state, which only the gate reads.
+func fillRowFromWorktree(row *fleetRow) string {
 	if state, err := gitPushStateFn(row.Worktree); err == nil {
 		row.PushState = state
 	}
 	pr, err := ghPRViewFn(row.Worktree, row.Branch)
 	if err != nil || pr == nil {
-		return
+		return ""
 	}
 	row.PRNumber = pr.Number
-	row.prState = pr.State
 	row.PRURL = pr.URL
 	row.PRMergeable = pr.Mergeable
 	row.CIConclusion = pr.CIConclusion
@@ -238,6 +238,7 @@ func fillRowFromWorktree(row *fleetRow) {
 			row.OpenInlineComments = n
 		}
 	}
+	return pr.State
 }
 
 func emitFleetTable(cmd *cobra.Command, rows []fleetRow) error {

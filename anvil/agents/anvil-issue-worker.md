@@ -134,13 +134,13 @@ Never a GitHub closing keyword (`close/closes/closed/fix/fixes/fixed/resolve/res
 
 ## Escalate a blocker (mandatory)
 
-Before you emit any `Blocker:` line, escalate the issue so the vault records the reason:
+Before your final `Blocker:` return line, escalate the issue so the vault records the reason:
 
 ```bash
 cd <dispatched-worktree-path> && anvil transition issue <issue-id> escalated --reason "<the blocker, one line>"
 ```
 
-The issue leaves the ready queue and returns to the human. Do not escalate a PR-opened return. The final report still names the reason.
+If the issue is not `in-progress` or the escalate call fails, skip it and emit the `Blocker:` line alone. Otherwise the issue leaves the ready queue and returns to the human. Do not escalate a PR-opened return. The final report still names the reason.
 
 ## Return contract
 

@@ -62,7 +62,7 @@ func TestMilestoneDoneToPlannedIsReverse(t *testing.T) {
 	}
 }
 
-func TestIssueEscalationEdges(t *testing.T) {
+func TestIssueTransitions_FromEscalated_OnlyOpenAndAbandonedLegal(t *testing.T) {
 	tr, err := LookupTransition(TypeIssue, "in-progress", "escalated")
 	if err != nil || len(tr.Requires) != 1 || tr.Requires[0] != "reason" {
 		t.Fatalf("in-progress→escalated must require reason: %+v, %v", tr, err)

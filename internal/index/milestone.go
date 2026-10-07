@@ -59,6 +59,7 @@ WHERE l.relation = 'milestone' AND l.target = ?`
 type MilestoneChildren struct {
 	Open       int `json:"open"`
 	InProgress int `json:"in_progress"`
+	Escalated  int `json:"escalated"`
 	Resolved   int `json:"resolved"`
 	Abandoned  int `json:"abandoned"`
 	Total      int `json:"total"`
@@ -74,6 +75,7 @@ func (d *DB) MilestoneChildren(milestoneID string) (MilestoneChildren, error) {
 SELECT
     COUNT(CASE WHEN a.status = 'open' THEN 1 END),
     COUNT(CASE WHEN a.status = 'in-progress' THEN 1 END),
+    COUNT(CASE WHEN a.status = 'escalated' THEN 1 END),
     COUNT(CASE WHEN a.status = 'resolved' THEN 1 END),
     COUNT(CASE WHEN a.status = 'abandoned' THEN 1 END),
     COUNT(*)
@@ -81,7 +83,7 @@ FROM links l
 JOIN artifacts a ON a.id = l.source AND a.type = 'issue'
 WHERE l.relation = 'milestone' AND l.target = ?`
 	var mc MilestoneChildren
-	if err := d.sql.QueryRow(q, milestoneID).Scan(&mc.Open, &mc.InProgress, &mc.Resolved, &mc.Abandoned, &mc.Total); err != nil {
+	if err := d.sql.QueryRow(q, milestoneID).Scan(&mc.Open, &mc.InProgress, &mc.Escalated, &mc.Resolved, &mc.Abandoned, &mc.Total); err != nil {
 		return MilestoneChildren{}, fmt.Errorf("milestone children %s: %w", milestoneID, err)
 	}
 	return mc, nil
