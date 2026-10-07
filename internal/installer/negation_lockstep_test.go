@@ -1,25 +1,17 @@
 package installer
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-// Two executors judge a verification block: the shipped run-verification.sh
-// (awk) and anvil's create-time gate (core.NonGatingNegation). If they drift, a
-// block `anvil create issue` accepts can still false-pass in the fleet runner —
-// the exact hole mentat.0291 closed. So the rule gets ONE case corpus, driven
-// through both here rather than two hand-matched regexes maintained in parallel.
-//
-// Each case is the Direct block of a synthetic issue; `want` is the offending
-// line both executors must name (trimmed), or "" for a block they must accept.
+// One case corpus pins core.NonGatingNegation, shared by the create gate and
+// `anvil verify` — the hole mentat.0291 closed. `want` is the offending line
+// the rule must name (trimmed), or "" for a block it must accept.
 // The exempt-position set is bash-verified: `;`, `&&`, `||`, `do`, `then` and
 // `{` all let a failing `! cmd` survive, while `( ! cmd )` aborts — so the
 // subshell case must NOT be refused.
-
-const negationPrefix = "non-gating negation: "
 
 var negationCorpus = []struct {
 	name  string
@@ -46,22 +38,11 @@ var negationCorpus = []struct {
 	{"find's ! primary is not a command negation", "find . -maxdepth 0 ! -name zzz >/dev/null\necho ok", ""},
 }
 
-func TestNonGatingNegation_ExecutorsAgree(t *testing.T) {
+func TestNonGatingNegation_Corpus(t *testing.T) {
 	for _, c := range negationCorpus {
 		t.Run(c.name, func(t *testing.T) {
 			if got := core.NonGatingNegation(c.block); got != c.want {
 				t.Errorf("core.NonGatingNegation(%q) = %q, want %q", c.block, got, c.want)
-			}
-
-			v, stderr, _ := runVerification(t, issueDoc(c.block, "true"))
-			got := ""
-			for _, f := range v.Failed {
-				if f.Check == "Direct#1" && strings.HasPrefix(f.Preview, negationPrefix) {
-					got = strings.TrimPrefix(f.Preview, negationPrefix)
-				}
-			}
-			if got != c.want {
-				t.Errorf("run-verification.sh refused %q, want %q\nstderr:\n%s", got, c.want, stderr)
 			}
 		})
 	}

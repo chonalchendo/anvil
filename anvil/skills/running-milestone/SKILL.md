@@ -74,13 +74,13 @@ The last line of a worker's return is one of three shapes.
 - `Blocker: <reason>`. Take Exit 1. Do not re-dispatch.
 - Anything else. The worker died or returned prose. Read `git log --stat <branch>` for its `wip:` commits. Re-dispatch once with an action-only prompt that builds on them. After a second failure, take Exit 1.
 
-**Verdict gate.** The worker writes the runner's output to `/tmp/verdict.<issue-id>.json`, where `<issue-id>` is the full id (for example `issue.acme.0042.fix-login`). Run `jq -r .verdict` on it. A value of `pass` goes to review. Any other value, a missing file, or a prose excuse means re-measure:
+**Verdict gate.** On every PR-url return, run the verb yourself from the worktree. Your run is the record the land verb reads. Never read the worker's verdict.
 
 ```bash
-cd <worktree-path> && anvil show issue <issue-id> | bash <run-verification.sh> | jq -r .verdict
+cd <worktree-path> && anvil verify <issue-id> --json | jq -r .verdict
 ```
 
-`<run-verification.sh>` is the `completing-issue` skill's `scripts/run-verification.sh`. Rebuild with the project's build command from CLAUDE.md. Put any worktree-local binary first on PATH. Green on re-measure: proceed and note it in the report. Red on re-measure is a blocker: take Exit 1. Never accept a prose account of a red check in place of the verdict.
+Rebuild with the project's build command from CLAUDE.md first. Put any worktree-local binary first on PATH. `pass` goes to review. Red is a blocker: take Exit 1. Never accept a prose account of a red check in place of the verdict.
 
 ## Phase 5 — Review each PR
 

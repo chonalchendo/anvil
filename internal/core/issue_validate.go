@@ -188,9 +188,8 @@ var nonGatingNegationRE = regexp.MustCompile(`(^|[;&|{]|(^|[[:space:]])(do|then|
 // quoted or heredoc `; ! ` trips it too — refusing loudly beats shipping an
 // assertion that silently never gates (mentat.0291).
 //
-// completing-issue's run-verification.sh carries the same rule in awk so both
-// executors judge a block identically; internal/installer's lockstep test
-// drives one case corpus through this function and the shipped script.
+// `anvil verify` calls this same function, so the create gate and the runner
+// judge a block identically.
 func NonGatingNegation(block string) string {
 	var lines []string
 	for _, l := range strings.Split(block, "\n") {
@@ -348,7 +347,7 @@ func verbIntroduced(bad, text string) bool {
 }
 
 // bashFenceOpenRE matches an exact ```bash fence opener (optional trailing
-// whitespace only) — the same shape run-verification.sh requires.
+// whitespace only) — the same shape `anvil verify` requires.
 var bashFenceOpenRE = regexp.MustCompile(`^` + "```" + `bash[ \t]*$`)
 
 // VerificationBlocks returns the ```bash fenced blocks under the "### <label>"

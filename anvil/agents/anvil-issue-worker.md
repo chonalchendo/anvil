@@ -24,19 +24,18 @@ Drive `completing-issue` to an opened PR, then HALT. Do NOT invoke `responding-t
 
 ## Verdict is data, not prose (mandatory)
 
-Your account of verification is not evidence — the runner's verdict is. `run-verification.sh` prints exactly one line of JSON on **stdout** (`{"verdict":"pass|fail","checks":N,"failed":[…],"deferred":[…]}`; `deferred` = red `# anvil:post-land` Indirect blocks, does not fail the verdict) and its human summary on stderr. Capture that line, gate on it mechanically, and carry it verbatim to the orchestrator:
+Your account of verification is not evidence — the verb's verdict is. `anvil verify <issue-id> --json` prints exactly one line of JSON on **stdout** (`{"verdict":"pass|fail","checks":N,"failed":[…],"deferred":[…],"commit":…,"ran_at":…}`; `deferred` = red `# anvil:post-land` Indirect blocks, does not fail the verdict) and its human summary on stderr. It also stamps the result on the issue. Gate on that line mechanically:
 
 ```bash
-cd <dispatched-worktree-path> && anvil show issue <issue-id> \
-  | bash ~/.claude/skills/completing-issue/scripts/run-verification.sh > /tmp/verdict.<issue-id>.json
+cd <dispatched-worktree-path> && anvil verify <issue-id> --json
 ```
 
-`<issue-id>` is the full id, never the short number: for `issue.acme.0042.fix-login` the path is `/tmp/verdict.issue.acme.0042.fix-login.json` — the orchestrator gates on exactly that path. Duplicated in `running-milestone SKILL.md` — edit both together.
+`<issue-id>` is the full id, never the short number. Your run is a working aid only: the orchestrator runs the verb itself on your return and that run is the record. Duplicated in `running-milestone SKILL.md` — edit both together.
 
-- `jq -r .verdict` is `pass` → proceed to `gh pr create`, and paste the verdict line verbatim into the PR body under a `## Verification verdict` heading.
+- `.verdict` is `pass` → proceed to `gh pr create`, and paste the verdict line verbatim into the PR body under a `## Verification verdict` heading.
 - Anything else → back to `completing-issue` Phase 2 (fix, re-run, max 5 cycles); a `fail` that survives the cycle budget halts with `Blocker: verification-failed <the verdict line, or "no verdict emitted">`. Do not open the PR.
 
-This is not self-correctable by explanation. A red predicate arrives with a plausible adjacent cause (a concurrent sibling edit, pre-existing debt, an environment quirk) and authoring that cause is cheaper than halting — workers did it three times in two days, past the Iron Law, each caught only by a reviewer re-running the predicate. Diagnosing *why* a check went red is fine; **the diagnosis never converts a `fail` verdict into a PR**. Fix the cause and re-run the runner until the verdict line itself reads `pass`, or halt.
+This is not self-correctable by explanation. A red predicate arrives with a plausible adjacent cause (a concurrent sibling edit, pre-existing debt, an environment quirk) and authoring that cause is cheaper than halting — workers did it three times in two days, past the Iron Law, each caught only by a reviewer re-running the predicate. Diagnosing *why* a check went red is fine; **the diagnosis never converts a `fail` verdict into a PR**. Fix the cause and re-run the verb until the verdict line itself reads `pass`, or halt.
 
 ## No-wait execution (mandatory)
 
@@ -130,6 +129,8 @@ Diff hunks cannot show a unit's shape — read every unit the change grew, creat
 
 Never `gh pr merge`, `git worktree remove`, `anvil transition resolved`, or `anvil transition abandoned` — the human owns those.
 
+Never `anvil verify --accept-change` or `anvil set issue <id> verification_lock|verified_*` — the lock and the verdict stamp are not yours to edit.
+
 Never a GitHub closing keyword (`close/closes/closed/fix/fixes/fixed/resolve/resolves/resolved` + `#<number>`) in a PR body — a repo's PR and issue number spaces can share one counter, so it can silently auto-close an unrelated PR at merge time. Cite the full issue id instead.
 
 ## Escalate a blocker (mandatory)
@@ -147,11 +148,11 @@ If the issue is not `in-progress` or the escalate call fails, skip it and emit t
 Your LAST LINE, alone, is exactly one of: the PR url (`https://github.com/.../pull/<n>`) or `Blocker: <one line>`. Immediately before it, print two lines:
 
 ```text
-Verdict: <run-verification.sh's stdout line, pasted verbatim>
+Verdict: <anvil verify --json's stdout line, pasted verbatim>
 Forbidden-call audit: gh pr merge=not-called, git worktree remove=not-called, anvil transition resolved=not-called, anvil transition abandoned=not-called.
 ```
 
-The `Verdict:` line is copied from the runner, never composed by you — an absent or hand-written verdict is what the orchestrator re-measures against. No narrative tail, no "waiting" / "let me check".
+The `Verdict:` line is copied from the verb, never composed by you — an absent or hand-written verdict is what the orchestrator re-measures against. No narrative tail, no "waiting" / "let me check".
 
 ## Prose style
 
