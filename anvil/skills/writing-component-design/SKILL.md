@@ -32,7 +32,7 @@ Decide before Phase 1. If uncertain, run `anvil list component-design`.
 
 ## Component design skeleton (both modes)
 
-`create` and `validate` reject a body missing any core heading, in order: Does, Does not, Interfaces, Invariants, Verification.
+`create` and `validate` reject a body missing any core heading, in order: `## Does`, `## Does not`, `## Interfaces`, `## Invariants`, `## Verification`.
 
 **REQUIRED REFERENCE:** Use skills/writing-component-design/references/body-shape.md for the heading skeleton and per-heading content.
 
@@ -42,7 +42,7 @@ Decide before Phase 1. If uncertain, run `anvil list component-design`.
 - `## Decisions` - links to decisions, not their prose.
 - `## Open questions` - unresolved items.
 
-**Forbidden:** `## Purpose`, Risks, Flow, Decision tree, and system invariants restated from the system design. Record history in a decision, a learning, or the issue; an append-only `## Precedents` log is allowed but no reader loads it.
+**Forbidden:** a Purpose section, Risks, Flow, Decision tree, and system invariants restated from the system design. Record history in a decision, a learning, or the issue; an append-only `## Precedents` log is allowed but no reader loads it.
 
 **Discriminating test for `## Code design`:** a rule belongs in a `[[convention.X]]` iff it would be copied verbatim into another project's component design. A rule specific to this component's architecture stays here.
 
