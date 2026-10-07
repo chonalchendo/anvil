@@ -125,7 +125,7 @@ An active convention reaches a completion-time worker only through the component
    anvil set component-design <id> updated <today-iso>
    ```
 
-   Run `anvil validate` once after the last component design, per `writing-component-design` Phase 4.
+   Run `anvil validate` once after the last component design, per `writing-component-design` update-mode Phase 3.
 
 4. **Rule on every component design; never skip silently.** When no component design governs the new convention, say so in the run's closing summary — `cross-cutting, no component design home: <slug> governs <artefact> that no current component design's component writes`. Name the trigger that would give it a home: the next component design over that artefact links it at authoring time, per `writing-component-design`. A convention parked with no ruling is the failure this phase exists to prevent — it reads as done and reaches nobody.
 

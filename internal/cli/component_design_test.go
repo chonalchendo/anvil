@@ -139,7 +139,7 @@ func TestTagsAdd_RejectsKindFacet(t *testing.T) {
 	}
 }
 
-func TestCreateComponentDesign_BodyRequiresBoundaryHalf(t *testing.T) {
+func TestCreateComponentDesign_BodyRequiresCore(t *testing.T) {
 	setupVault(t)
 	if _, err := runArgs(t, "component-design", "kinds", "add", "data"); err != nil {
 		t.Fatal(err)
@@ -149,16 +149,16 @@ func TestCreateComponentDesign_BodyRequiresBoundaryHalf(t *testing.T) {
 			"--title", "Probe", "--kind", "data", "--description", "d", "--body", body)
 		return err
 	}
-	if err := create("## Purpose\n\np\n\n## Interfaces\n\n- x\n"); err == nil {
-		t.Error("body missing required boundary sections must be rejected")
+	if err := create("## Does\n\n- a\n\n## Interfaces\n\n- x\n"); err == nil {
+		t.Error("body missing required sections must be rejected")
 	}
-	full := "## Purpose\n\np\n\n## Does\n\n- a\n\n## Does not\n\n- b\n\n## Verification\n\n### Direct\n\nx\n\n### Indirect\n\ny\n\n## Precedents\n\n"
+	full := "## Does\n\n- a\n\n## Does not\n\n- b\n\n## Interfaces\n\ni\n\n## Invariants\n\n- v\n\n## Verification\n\n### Direct\n\nx\n\n### Indirect\n\ny\n"
 	if err := create(full); err != nil {
-		t.Errorf("boundary-half-only body must be accepted: %v", err)
+		t.Errorf("core-only body must be accepted: %v", err)
 	}
 }
 
-func TestCreateComponentDesign_NoBodyGetsBoundarySkeleton(t *testing.T) {
+func TestCreateComponentDesign_NoBodyGetsCoreSkeleton(t *testing.T) {
 	setupVault(t)
 	if _, err := runArgs(t, "component-design", "kinds", "add", "data"); err != nil {
 		t.Fatal(err)
@@ -185,15 +185,15 @@ func TestCreateComponentDesign_NoBodyGetsBoundarySkeleton(t *testing.T) {
 	if err != nil {
 		t.Fatalf("--show-template: %v", err)
 	}
-	if !strings.Contains(tmpl, "## Precedents") {
-		t.Errorf("--show-template missing boundary skeleton:\n%s", tmpl)
+	if !strings.Contains(tmpl, "## Interfaces") {
+		t.Errorf("--show-template missing core skeleton:\n%s", tmpl)
 	}
 }
 
-// TestComponentDesign_ValidateEnforcesBoundaryHalf pins that a design which
-// lost a boundary heading after create is refused by validate, and that a
+// TestComponentDesign_ValidateEnforcesCore pins that a design which
+// lost a core heading after create is refused by validate, and that a
 // plain append onto a valid design still lands.
-func TestComponentDesign_ValidateEnforcesBoundaryHalf(t *testing.T) {
+func TestComponentDesign_ValidateEnforcesCore(t *testing.T) {
 	setupVault(t)
 	if _, err := runArgs(t, "component-design", "kinds", "add", "data"); err != nil {
 		t.Fatal(err)
