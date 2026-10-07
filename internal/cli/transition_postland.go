@@ -24,7 +24,7 @@ func runPostLandBlocks(errW io.Writer, body string) []string {
 			continue
 		}
 		id := fmt.Sprintf("Indirect#%d", i+1)
-		r := runFeasibilityBlock(block)
+		r := runFeasibilityBlock(block, "")
 		var reason string
 		switch {
 		case r.timedOut:

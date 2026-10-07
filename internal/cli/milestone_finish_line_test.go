@@ -2,7 +2,9 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -121,21 +123,31 @@ func TestMilestoneCloseAdvisoryNeedsGreenLine(t *testing.T) {
 	}
 }
 
-func stubBranches(t *testing.T, current string) {
+// stubBranches stands in for a project repo whose HEAD is at headSHA while the
+// default branch tip is at "base".
+func stubBranches(t *testing.T, headSHA string) {
 	t.Helper()
-	prevRepo, prevHead, prevBranch := resolveProjectRepoFn, gitResolveOriginHEADFn, gitCurrentBranchFn
+	prevRepo, prevHead, prevRev := resolveProjectRepoFn, gitResolveOriginHEADFn, gitRevParseFn
 	t.Cleanup(func() {
-		resolveProjectRepoFn, gitResolveOriginHEADFn, gitCurrentBranchFn = prevRepo, prevHead, prevBranch
+		resolveProjectRepoFn, gitResolveOriginHEADFn, gitRevParseFn = prevRepo, prevHead, prevRev
 	})
 	resolveProjectRepoFn = func(string) (string, error) { return t.TempDir(), nil }
 	gitResolveOriginHEADFn = func(string) (string, error) { return "origin/master", nil }
-	gitCurrentBranchFn = func(string) (string, error) { return current, nil }
+	gitRevParseFn = func(_ string, args ...string) (string, error) {
+		if args[len(args)-1] != "HEAD" {
+			return "base", nil
+		}
+		if args[0] == "--short" {
+			return "abc1234", nil
+		}
+		return headSHA, nil
+	}
 }
 
 func TestMilestoneDoneRefusesOffDefaultBranch(t *testing.T) {
 	t.Run("done refuses", func(t *testing.T) {
 		finishLineVault(t, "true")
-		stubBranches(t, "anvil/feature")
+		stubBranches(t, "feat")
 		stdout, _, err := runCmd(t, newRootCmd(), "transition", "milestone", "demo.line", "done", "--json")
 		if err == nil || !strings.Contains(stdout, "finish_line_not_on_base") {
 			t.Fatalf("err = %v, stdout = %q", err, stdout)
@@ -143,17 +155,17 @@ func TestMilestoneDoneRefusesOffDefaultBranch(t *testing.T) {
 	})
 	t.Run("done passes on the default branch", func(t *testing.T) {
 		finishLineVault(t, "true")
-		stubBranches(t, "master")
+		stubBranches(t, "base")
 		execCmd(t, "transition", "milestone", "demo.line", "done")
 	})
 	t.Run("status only warns", func(t *testing.T) {
 		finishLineVault(t, "true")
-		stubBranches(t, "anvil/feature")
+		stubBranches(t, "feat")
 		stdout, stderr, err := runCmd(t, newRootCmd(), "milestone", "status", "demo.line")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(stderr, "warning: on branch anvil/feature, not master") || !strings.Contains(stdout, "AC 1\tmet") {
+		if !strings.Contains(stderr, "warning: HEAD feat is not the default branch tip base") || !strings.Contains(stdout, "AC 1\tmet") {
 			t.Fatalf("stdout = %q stderr = %q", stdout, stderr)
 		}
 	})
@@ -217,4 +229,75 @@ func TestTableCellTruncatesByRunes(t *testing.T) {
 	if r := []rune(got); len(r) != 60 || !strings.HasSuffix(got, "...") {
 		t.Fatalf("got %q", got)
 	}
+}
+
+func TestMilestoneDoneStampsCommit(t *testing.T) {
+	vault := finishLineVault(t, "true")
+	stubBranches(t, "base")
+	execCmd(t, "transition", "milestone", "demo.line", "done")
+	raw, err := os.ReadFile(filepath.Join(vault, "85-milestones", "demo.line.md")) //nolint:gosec // test-controlled path
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "\nMeasured: ") || !strings.Contains(string(raw), ", at `abc1234`. Every") {
+		t.Fatalf("body:\n%s", raw)
+	}
+}
+
+func TestMilestoneStatusWarnsBaseUnchecked(t *testing.T) {
+	finishLineVault(t, "true")
+	prev := resolveProjectRepoFn
+	t.Cleanup(func() { resolveProjectRepoFn = prev })
+	resolveProjectRepoFn = func(string) (string, error) { return "", errors.New("no repo") }
+	_, stderr, err := runCmd(t, newRootCmd(), "milestone", "status", "demo.line")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stderr, "warning: base branch not checked (no repo)") {
+		t.Fatalf("stderr = %q", stderr)
+	}
+}
+
+func TestMilestoneScanFailure(t *testing.T) {
+	vault := finishLineVault(t, "true")
+	issues := filepath.Join(vault, "70-issues")
+	if err := os.MkdirAll(issues, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(issues, "demo.broken.md"), []byte("---\n: [unterminated\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := runCmd(t, newRootCmd(), "transition", "milestone", "demo.line", "done", "--json")
+	if err == nil || !strings.Contains(stdout, "milestone_scan_failed") {
+		t.Fatalf("err = %v, stdout = %q", err, stdout)
+	}
+	_, stderr, err := runCmd(t, newRootCmd(), "milestone", "status", "demo.line")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stderr, "warning: issue scan failed:") {
+		t.Fatalf("stderr = %q", stderr)
+	}
+}
+
+func TestAcceptanceRunsInProjectRepo(t *testing.T) {
+	repo := t.TempDir()
+	for _, args := range [][]string{
+		{"init", "-q", "-b", "master"},
+		{"-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "x"},
+	} {
+		c := exec.Command("git", args...) //nolint:gosec // test-controlled args
+		c.Dir = repo
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	finishLineVault(t, `test "$(git rev-parse --abbrev-ref HEAD)" = master`)
+	prevRepo, prevHead := resolveProjectRepoFn, gitResolveOriginHEADFn
+	t.Cleanup(func() { resolveProjectRepoFn, gitResolveOriginHEADFn = prevRepo, prevHead })
+	resolveProjectRepoFn = func(string) (string, error) { return repo, nil }
+	gitResolveOriginHEADFn = func(string) (string, error) { return "master", nil }
+
+	// The test process cwd is this package, not repo, and is on another branch.
+	execCmd(t, "transition", "milestone", "demo.line", "done")
 }

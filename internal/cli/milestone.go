@@ -62,12 +62,17 @@ func newMilestoneStatusCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			acceptance := runAcceptance(cmd, m)
-			open, scanErr := unfinishedIssues(v, strings.TrimPrefix(args[0], "milestone."))
-			done := scanErr == nil && len(open) == 0 && len(unmetCriteria(acceptance)) == 0
-			if cur, base := offBaseBranch(projectFromArtifact(m, args[0])); cur != "" {
-				cmd.PrintErrln("warning: on branch " + cur + ", not " + base + "; `transition milestone done` refuses off the default branch")
+			fl := checkFinishLine(projectFromArtifact(m, args[0]))
+			warnBaseUnchecked(cmd, fl)
+			if fl.off() {
+				cmd.PrintErrln("warning: HEAD " + fl.Head + " is not the default branch tip " + fl.Base + "; `transition milestone done` refuses here")
 			}
+			acceptance := runAcceptance(cmd, m, fl.Dir)
+			open, scanErr := unfinishedIssues(v, strings.TrimPrefix(args[0], "milestone."))
+			if scanErr != nil {
+				cmd.PrintErrln("warning: issue scan failed: " + scanErr.Error())
+			}
+			done := scanErr == nil && len(open) == 0 && len(unmetCriteria(acceptance)) == 0
 
 			if flagJSON {
 				enc := json.NewEncoder(cmd.OutOrStdout())

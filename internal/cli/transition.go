@@ -451,7 +451,7 @@ func milestoneCloseAdvisory(cmd *cobra.Command, v *core.Vault, resolved *core.Ar
 		return ""
 	}
 	// A red finish line means done would be refused, so do not advise it.
-	if len(unmetCriteria(runAcceptance(cmd, m))) > 0 {
+	if len(unmetCriteria(runAcceptance(cmd, m, checkFinishLine(projectFromArtifact(m, ms)).Dir))) > 0 {
 		return ""
 	}
 	return fmt.Sprintf("last open issue in %s; consider: anvil transition milestone %s done", ms, ms)

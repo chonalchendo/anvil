@@ -30,14 +30,14 @@ func (r acceptanceResult) detail() string {
 }
 
 // runAcceptance runs each acceptance predicate through the issue create gate's
-// block runner (create_feasibility.go), so both gates share one execution shape.
-func runAcceptance(cmd *cobra.Command, m *core.Artifact) []acceptanceResult {
+// block runner (create_feasibility.go), in dir,, so both gates share one execution shape.
+func runAcceptance(cmd *cobra.Command, m *core.Artifact, dir string) []acceptanceResult {
 	preds, _ := m.FrontMatter["acceptance"].([]any)
 	results := make([]acceptanceResult, 0, len(preds))
 	for i, p := range preds {
 		s, _ := p.(string)
 		cmd.PrintErrln(fmt.Sprintf("anvil: running acceptance predicate %d in this environment (your privileges, cwd and environment; not sandboxed)", i+1))
-		r := runFeasibilityBlock(s)
+		r := runFeasibilityBlock(s, dir)
 		res := acceptanceResult{
 			Criterion: s,
 			Met:       r.runErr == nil && !r.timedOut && r.exit == 0,

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -37,43 +38,59 @@ func unfinishedIssues(v *core.Vault, ms string) ([]string, error) {
 	return ids, nil
 }
 
-// gitCurrentBranchFn is a seam so tests can stand in for a checkout.
-var gitCurrentBranchFn = gitCurrentBranchReal
+// gitRevParseFn is a seam so tests can stand in for a checkout.
+var gitRevParseFn = gitRevParseReal
 
-func gitCurrentBranchReal(repoDir string) (string, error) {
-	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD") //nolint:gosec // fixed args
+func gitRevParseReal(repoDir string, args ...string) (string, error) {
+	cmd := exec.Command("git", append([]string{"rev-parse"}, args...)...) //nolint:gosec // fixed verb; refs come from git itself
 	cmd.Dir = repoDir
 	out, err := cmd.Output()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("git rev-parse %s: %w", strings.Join(args, " "), err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
 
-// offBaseBranch returns the project repo's current branch and its default
-// branch when they differ. Both are "" when they match or cannot be resolved:
-// the check is best-effort, and a branch-only setup has no origin/HEAD.
-func offBaseBranch(project string) (current, base string) {
+// finishLine is where a milestone's acceptance predicates are measured: the
+// project repo, and whether its HEAD is the default branch's tip.
+type finishLine struct {
+	Dir  string // project repo; "" when unresolved
+	Head string
+	Base string
+	Err  error // set when the base check could not run
+}
+
+func (f finishLine) off() bool { return f.Err == nil && f.Head != f.Base }
+
+// checkFinishLine compares the project repo's HEAD with origin/HEAD by sha, so
+// a branch name that merely matches cannot pass. The check is best-effort: a
+// branch-only setup has no origin/HEAD, and callers warn on Err.
+func checkFinishLine(project string) finishLine {
 	if project == "" {
-		return "", ""
+		return finishLine{Err: errors.New("milestone has no project")}
 	}
-	repoDir, err := resolveProjectRepoFn(project)
+	dir, err := resolveProjectRepoFn(project)
 	if err != nil {
-		return "", ""
+		return finishLine{Err: err}
 	}
-	ref, err := gitResolveOriginHEADFn(repoDir)
+	fl := finishLine{Dir: dir}
+	ref, err := gitResolveOriginHEADFn(dir)
 	if err != nil {
-		return "", ""
+		fl.Err = err
+		return fl
 	}
-	cur, err := gitCurrentBranchFn(repoDir)
-	if err != nil {
-		return "", ""
+	if fl.Base, fl.Err = gitRevParseFn(dir, ref); fl.Err != nil {
+		return fl
 	}
-	base = strings.TrimPrefix(ref, "origin/")
-	if cur == base {
-		return "", ""
+	fl.Head, fl.Err = gitRevParseFn(dir, "HEAD")
+	return fl
+}
+
+// warnBaseUnchecked reports a finish line whose base could not be checked.
+func warnBaseUnchecked(cmd *cobra.Command, fl finishLine) {
+	if fl.Err != nil {
+		cmd.PrintErrln("warning: base branch not checked (" + fl.Err.Error() + "); predicates measure the current checkout")
 	}
-	return cur, base
 }
 
 // gateMilestoneDone refuses `transition milestone done` while a linked issue is
@@ -94,27 +111,34 @@ func gateMilestoneDone(cmd *cobra.Command, v *core.Vault, m *core.Artifact, id s
 			Set("issues", open).
 			Set("fix_hint", "resolve or abandon each linked issue, then retry")
 	}
-	if cur, base := offBaseBranch(projectFromArtifact(m, id)); cur != "" {
+	fl := checkFinishLine(projectFromArtifact(m, id))
+	warnBaseUnchecked(cmd, fl)
+	if fl.off() {
 		return errfmt.NewStructured("finish_line_not_on_base").
 			Set("milestone", id).
-			Set("branch", cur).
-			Set("base", base).
-			Set("fix_hint", "check out "+base+" with the merged work, then retry")
+			Set("head", fl.Head).
+			Set("base", fl.Base).
+			Set("fix_hint", "check out the default branch with the merged work, then retry")
 	}
-	results := runAcceptance(cmd, m)
+	results := runAcceptance(cmd, m, fl.Dir)
 	if unmet := unmetCriteria(results); len(unmet) > 0 {
 		return errfmt.NewStructured("acceptance_unmet").
 			Set("milestone", id).
 			Set("unmet", unmet).
 			Set("fix_hint", "run: anvil milestone status "+id+"; fix the red criteria, then retry")
 	}
-	m.Body = replaceStatusBlock(m.Body, statusBlock(results, time.Now().UTC().Format("2006-01-02")))
+	commit, _ := gitRevParseFn(fl.Dir, "--short", "HEAD")
+	m.Body = replaceStatusBlock(m.Body, statusBlock(results, time.Now().UTC().Format("2006-01-02"), commit))
 	return nil
 }
 
-func statusBlock(results []acceptanceResult, date string) string {
+func statusBlock(results []acceptanceResult, date, commit string) string {
 	var b strings.Builder
-	b.WriteString("## Status\n\nMeasured: " + date + ". Every acceptance predicate passes.\n\n| # | AC | Met | Measured |\n|---|---|---|---|\n")
+	b.WriteString("## Status\n\nMeasured: " + date)
+	if commit != "" {
+		b.WriteString(", at `" + commit + "`")
+	}
+	b.WriteString(". Every acceptance predicate passes.\n\n| # | AC | Met | Measured |\n|---|---|---|---|\n")
 	for i, r := range results {
 		fmt.Fprintf(&b, "| %d | `%s` | met | exit %d |\n", i+1, tableCell(r.Criterion), r.Exit)
 	}
