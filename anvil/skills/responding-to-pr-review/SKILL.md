@@ -76,7 +76,7 @@ bash ~/.claude/skills/completing-issue/scripts/wait-for-pr.sh --pr <n> [--repo o
 Branch on `state`:
 - `merged` or `closed` — done; surface the PR url and return.
 - `conflicting` — rebase or merge the base branch, force-push, then re-invoke the poller.
-- `ci_passed` — CI green, no blockers, PR unmerged; proceed to Phase 5 (merge gate).
+- `ci_passed` — CI green, no blockers, PR unmerged; proceed to Phase 5 (merge gate). CI green is not the verdict: Phase 5 runs `anvil verify` before it lands.
 - `review_blocked` — re-fetch inline comments and loop Phase 2-3.
 - `ci_failed` — investigate the failed check, fix, push, then re-invoke the poller.
 - `timeout` — surface to the user; a human reviewer that never lands is their call, not an infinite poll.
@@ -94,16 +94,23 @@ After every finding has an outcome AND CI is green on the latest SHA AND no new 
 - **`skip` / `hold`** → leave the PR open, surface the url, return. The human drives it later.
 - **`yes`** → run these steps in order, then stop. Never raw `gh pr merge`.
 
-1. **Land** — the gated verb that merges and resolves in one call:
+1. **Verify** — at the pushed head, rebuild with the project's build command from CLAUDE.md. Put any worktree-local binary first on PATH. Run the verb from the worktree. Your run is the record the land verb reads.
+
+   ```bash
+   cd <worktree-path> && anvil verify <id> --json | jq -r .verdict
+   ```
+
+   `pass` goes to step 2. Any other verdict returns to Phase 2. Never land on red.
+2. **Land** — the gated verb that merges and resolves in one call:
 
    ```bash
    anvil transition issue <id> resolved --land-pr <n>
    ```
 
-   It gates on mergeable + CI-green, removes the worktree, squash-merges, verifies MERGED, and resolves the issue. `<id>` is the issue whose completion opened this PR — branch `<project>/<issue-slug>`, url stamped via `anvil link issue <id> --external`. On a branch-only setup the verb refuses (`land_pr_worktree_missing`); the human merges instead.
-2. **Distil** — fire `distilling-learning` (REQUIRED SUB-SKILL) in its attended autonomous mode: **auto-distil compounding learnings**, no offer or prompt. Hold its **high-value bar**: distil only when you can name the specific future failure it prevents; most runs clear it for nothing, and a marginal learning pollutes retrieval, so default to silence.
-3. **Hand off** — fire `handing-off-session` (REQUIRED SUB-SKILL): write the load-ready handoff of what landed and what's still open.
-4. Surface the merged PR url.
+   It gates on a pass verdict at the PR head on an intact lock for the issue's own branch, mergeable and CI-green, removes the worktree, squash-merges, verifies MERGED, and resolves the issue. `<id>` is the issue whose completion opened this PR — branch `<project>/<issue-slug>`, url stamped via `anvil link issue <id> --external`. On a branch-only setup the verb refuses (`land_pr_worktree_missing`); the human merges instead.
+3. **Distil** — fire `distilling-learning` (REQUIRED SUB-SKILL) in its attended autonomous mode: **auto-distil compounding learnings**, no offer or prompt. Hold its **high-value bar**: distil only when you can name the specific future failure it prevents; most runs clear it for nothing, and a marginal learning pollutes retrieval, so default to silence.
+4. **Hand off** — fire `handing-off-session` (REQUIRED SUB-SKILL): write the load-ready handoff of what landed and what's still open.
+5. Surface the merged PR url.
 
 ## Autonomous / dispatched mode never reaches the gate
 
