@@ -2,7 +2,7 @@
 name: writing-system-design
 description: "Use when authoring system design — architecture, components, runtime flow, invariants. Requires existing product-design. Not for product vision (writing-product-design) or issues (writing-issue)."
 license: MIT
-allowed-tools: [Read, Edit, Write]
+allowed-tools: [Bash, Read, Edit, Write]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
 metadata:
   vault_id: writing-system-design
@@ -20,7 +20,7 @@ metadata:
 
 # Writing System Design
 
-A workflow for authoring a project's system-design artifact — the architectural counterpart to `product-design`. The product design says *what* we're building and *why*; the system design says *what shape* it has, *what's load-bearing*, and *what must always be true*. It records the **target state only**: no "today" statements, no tech-stack inventory, no decision deliberation. Current state lives in code and in component designs' `## Interfaces` rows. Both are vault-only.
+A workflow for authoring a project's system-design artifact — the architectural counterpart to `product-design`. The product design says *what* we're building and *why*; the system design says *what shape* it has, *what's load-bearing*, and *what must always be true*. It records the **target state only**: no "today" statements, no tech-stack inventory, no decision deliberation. Current state lives in code and in component designs' `## Interfaces` rows. Product design and system design are vault-only.
 
 The system design is explanation plus reference (Diátaxis): Solution strategy explains; Constraints, Components and System invariants are reference.
 
@@ -36,17 +36,17 @@ The system design is explanation plus reference (Diátaxis): Solution strategy e
 - Vision, users, scope → `writing-product-design`.
 - One milestone in detail → `writing-milestone`.
 - Implementation tasks → `writing-issue`.
-- Documenting a *single* architectural choice (e.g., "JWT vs sessions") → that's a decision, record it with `anvil create decision --title "<the choice>" --topic <topic> --json` (body: `## Context`, `## Decision`, `## Rationale`, `## Consequences`, `## Links`).
+- Documenting a *single* architectural choice (e.g., "JWT vs sessions") → that's a decision, record it with `anvil create decision --title "<the choice>" --topic <topic> --description "<one line>" --tags domain/<d>,activity/system-design --body-file <f> --json` (`<f>` holds `## Context`, `## Decision`, `## Rationale`, `## Consequences`, `## Links`; add `--allow-new-facet <facet>` for a new tag value).
 
 ## Output path
 
-Read the product design with `anvil show product-design <project> --body`. Save with `anvil create system-design --project <project> --title "<title>" --body-file <file>`. Vault-only — never committed to the project's source repo. The `system-design` frontmatter schema is spelled out inline in the Phase 11 hand-check (`references/phases.md`); `anvil create` validates on write.
+Read the product design with `anvil show product-design <project> --body`. Save with `anvil create system-design --project <project> --title "<title>" --description "<one line>" --body-file <file>`. Vault-only — never committed to the project's source repo. `anvil create` validates the frontmatter and body on write.
 
 Surface the save command at Phase 1 so the user can flag any constraint up front.
 
 ## The phases
 
-Eleven phases, each with an explicit user gate — don't skip the gates. Phases 1, 4, and 7 are load-bearing: Phase 1 enforces the product-design dependency, Phase 4 derives components from product-design needs (the candidate-to-component map lives in the product design's Milestones list, not here), Phase 7 produces the invariants that downstream planning and review check against.
+Eleven phases, each with an explicit user gate — don't skip the gates. Phases 1, 4, and 7 are load-bearing: Phase 1 enforces the product-design dependency, Phase 4 derives components from product-design goals (the candidate-to-component map lives in the product design's Milestones list, not here), Phase 7 produces the invariants that downstream planning and review check against.
 
 The per-phase procedure — drafting instructions, mermaid templates, gate criteria, voice checks — lives in the reference below. The quick-reference table is the phase index; load the reference before drafting Phase 1.
 
@@ -88,7 +88,7 @@ The body has these sections, in order: `## TL;DR`, `## Context and scope`, `## N
 | 8 Decisions | Decision wikilinks (or TODOs) | User confirms |
 | 9 Solution strategy, open questions | Strategy (10 lines max), open questions | User reads cold |
 | 10 Risks (optional) | 3-7 bullets | User confirms |
-| 11 Serialize & save | Frontmatter, hand-check, write | User reads cold |
+| 11 Serialize & save | Save, activate, link decisions | User reads cold |
 
 ## Common mistakes
 

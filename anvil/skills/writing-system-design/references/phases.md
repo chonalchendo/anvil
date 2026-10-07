@@ -6,7 +6,7 @@ Loaded on demand from `writing-system-design/SKILL.md`. Each phase has an explic
 
 - Confirm the slug from the existing product-design.
 - Read it with `anvil show product-design {slug} --body`. **If it doesn't exist, stop.** Hand off to `writing-product-design`.
-- Confirm the save command: `anvil create system-design --project {slug} --title … --body-file <f>`.
+- Confirm the save command: `anvil create system-design --project {slug} --title … --description "<one line>" --body-file <f>`.
 
 **Gate (load-bearing):** product-design exists and is read.
 
@@ -43,7 +43,7 @@ sequenceDiagram
     participant User
     participant CLI
     participant Orchestrator
-    User->>CLI: command
+    User->>CLI: command (shipped)
     CLI->>Orchestrator: parsed spec (shipped)
     Orchestrator-->>User: result (target)
 ```
@@ -81,7 +81,7 @@ Examples (from anvil itself):
 
 ### Phase 8 — Decisions
 
-Draft `## Decisions`: wikilinks to decisions that authorized the choices above, and fill frontmatter `authorized_by` with the same links. Create a missing one with `anvil create decision --title "<the choice>" --topic <topic> --json` (body: `## Context`, `## Decision`, `## Rationale`, `## Consequences`, `## Links`). Unresolved links are acceptable: flag them `TODO: record via anvil create decision`.
+Draft `## Decisions`: wikilinks to decisions that authorized the choices above (Phase 11 copies them into frontmatter `authorized_by`). Create a missing one with `anvil create decision --title "<the choice>" --topic <topic> --description "<one line>" --tags domain/<d>,activity/system-design --body-file <f> --json`. `<f>` holds `## Context`, `## Decision`, `## Rationale`, `## Consequences`, `## Links`. Add `--allow-new-facet <facet>` for a new tag value. Unresolved links are acceptable: flag them `TODO: record via anvil create decision`.
 
 **Gate:** list confirmed, or TODO list accepted.
 
@@ -103,15 +103,9 @@ Draft `## Risks` only if load-bearing assumptions could fail. 3-7 bullets, each 
 
 ### Phase 11 — Serialize & save
 
-1. Flip frontmatter `status: draft` → `active`. Bump `updated` to today.
-2. Hand-check against the system-design schema:
-   - Required frontmatter: `type, title, description, created, status, project`.
-   - Optional frontmatter: `updated, tags, aliases, product_design, authorized_by, related`.
-   - **No other frontmatter fields** — schema is `additionalProperties: false`.
-   - Body matches SKILL.md §Required sections, in order.
-   - No Tech stack section; no "today" statements.
-   - Mermaid diagrams render (paste-test in Obsidian).
-   - Wikilinks under `authorized_by` are well-formed `[[decision.{topic}.NNNN-{slug}]]`.
-3. Save with `anvil create system-design --project {project} --title "<title>" --body-file <file>`; it validates on write and must pass clean.
+1. Check the body against SKILL.md §Required sections, in order. No Tech stack section; no "today" statements. Mermaid diagrams render.
+2. Save with `anvil create system-design --project {project} --title "<title>" --description "<one line>" --body-file <file>`. It writes `status: draft`, validates on write, and must pass clean.
+3. Activate: `anvil set system-design {project} status active`.
+4. For each Phase 8 decision: `anvil set system-design {project} authorized_by --add "[[decision.{topic}.NNNN-{slug}]]"`.
 
 **Gate:** user reads the artifact cold. If anything's off, fix and re-show.
