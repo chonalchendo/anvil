@@ -61,7 +61,7 @@ func newVerifyCmd() *cobra.Command {
 				return err
 			}
 			if err := checkVerificationLock(a, id, flagAccept); err != nil {
-				return err
+				return printAndReturn(cmd, err)
 			}
 			ranBody := a.Body
 			rec, err := runVerification(cmd, ranBody)

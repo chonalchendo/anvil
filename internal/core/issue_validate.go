@@ -472,7 +472,8 @@ func verificationSpan(body string) string {
 
 // VerificationLock is the hex SHA-256 of the body's `## Verification` section,
 // the value the claim stamps and `anvil verify` compares. Text outside the
-// section does not move it.
+// section does not move it. The hash is byte-exact: whitespace and line
+// endings count, and nothing is normalised before hashing.
 func VerificationLock(body string) string {
 	sum := sha256.Sum256([]byte(verificationSpan(body)))
 	return hex.EncodeToString(sum[:])

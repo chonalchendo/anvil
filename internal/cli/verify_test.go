@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
@@ -234,9 +236,13 @@ func TestVerifyLock(t *testing.T) {
 		delete(a.FrontMatter, "verified_verdict")
 		a.Body = strings.Replace(a.Body, "```bash\ntrue\n```\n\n### Indirect", "```bash\ntrue; true\n```\n\n### Indirect", 1)
 	})
-	_, _, err := runCmd(t, newVerifyCmd(), id, "--json")
-	if err == nil || !strings.Contains(err.Error(), "verification_changed") && !strings.Contains(fmt.Sprintf("%+v", err), "verification_changed") {
+	stdout, _, err := runCmd(t, newVerifyCmd(), id, "--json")
+	var se *errfmt.Structured
+	if !errors.As(err, &se) || se.Code != "verification_changed" {
 		t.Fatalf("want verification_changed, got %v", err)
+	}
+	if !strings.Contains(stdout, "verification_changed") {
+		t.Errorf("--json refusal must emit the envelope on stdout, got %q", stdout)
 	}
 	a, _ := core.LoadArtifact(path)
 	if _, ok := a.FrontMatter["verified_verdict"]; ok {
