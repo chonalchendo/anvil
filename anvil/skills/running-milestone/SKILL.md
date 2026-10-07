@@ -64,7 +64,7 @@ Dispatch each issue with `subagent_type: anvil-issue-worker`. The agent file hol
 
 Dispatch at most eight workers in one wave. Dispatch parallel issues in one tool-use block. A new or edited agent file is not dispatchable until the session restarts.
 
-After dispatch, end the turn. The completion notification resumes you. Do not use `Monitor`. Send one `SendMessage` nudge only when a sibling worker finished and this worker has no PR url and no verdict file.
+After dispatch, end the turn. The completion notification resumes you. Do not use `Monitor`. Nudge a worker once with `SendMessage` only when a sibling finished and it has no PR url or verdict file.
 
 ## Phase 4 — Read each return
 
@@ -85,7 +85,7 @@ cd <worktree-path> && anvil show issue <issue-id> | bash <run-verification.sh> |
 ## Phase 5 — Review each PR
 
 1. Fire `reviewing-pr` on the PR. Do not let it fire `responding-to-pr-review` in your session. The fixes live in a worktree you are not in.
-2. Route the findings. Findings at low or below with CI green: the PR is ready. Any blocker, high or actionable medium finding: dispatch `anvil-pr-responder` into the PR's worktree with the issue id, worktree path, branch and findings. End the turn. On the responder's return: a `Blocker:` line takes Exit 1. A PR url re-runs the Phase 4 re-measure at the new head, then returns to step 1 of this phase.
+2. Route the findings. Findings at low or below with CI green: the PR is ready. Any blocker, high or actionable medium finding: dispatch `anvil-pr-responder` into the PR's worktree. Hand it the issue id, worktree path, branch and findings. End the turn. On the responder's return: a `Blocker:` line takes Exit 1. A PR url re-runs the Phase 4 re-measure at the new head, then returns to step 1 of this phase.
 3. Count the responder's resolution summaries on the PR (`gh pr view <n> --comments`). A third round with findings left is the round limit: take Exit 1.
 4. Confirm CI green. Wire any rail edge that the PR's `## Context box` names in a `swept` row. Do not merge.
 
