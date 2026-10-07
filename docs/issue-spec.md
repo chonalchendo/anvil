@@ -27,8 +27,10 @@ The verdict is asymmetric, because the two subsections are in opposite states at
 
 | | exit 0 | 126 / 127 | other non-zero | timeout |
 |---|---|---|---|---|
-| **Indirect** | refused — already passes, so it cannot discriminate fixed from broken | refused — unrunnable | **accepted** (the healthy shape) | refused — unclassifiable |
+| **Indirect** | refused — already passes, so it cannot discriminate fixed from broken | refused — unrunnable | **accepted** when the red is on the last line; refused when a `set -e` abort stops an earlier line | refused — unclassifiable |
 | **Direct** | accepted, with a stderr warning (proves nothing about the change; behaviour checks belong under Indirect) | refused — unrunnable | accepted | accepted, unjudged |
+
+A `set -e` abort records the 1-based line that failed (via an `ERR` trap); an explicit `exit 1`, a `|| true` guard and an `if <cmd>` condition do not. An Indirect block that aborts on any line but its last is **refused**, naming the line: move the setup fix so the block reaches its assertion, or make the assertion the last line; split independent assertions into separate blocks. Use `if <cmd>; then exit 1; fi` for a deliberate early red. A red inside a multi-line command (heredoc, multi-line quote, `if`/`for`/`{ }`) is not judged early; keep setup commands on one line. A Direct block that aborts stays accepted, and the stderr notice names the line.
 
 An Indirect block asserts POST-fix behaviour, so it is *expected* to be red until the fix lands; exit 0 is the false-green this gate exists to kill. A Direct block is usually the repo's existing suite, green already, so only runnability is checked there.
 

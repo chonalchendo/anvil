@@ -787,6 +787,32 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 			name: "direct command not found", direct: "definitely-not-a-command", indirect: "exit 3",
 			refused: true, wantMsg: "verification Direct block 1 is unrunnable here (exit 127",
 		},
+		{name: "indirect healthy true-then-false shape", direct: "true", indirect: "true\nfalse", wantWarn: true},
+		{name: "indirect explicit exit before last line is accepted", direct: "true", indirect: "exit 1\ntrue", wantWarn: true},
+		{name: "indirect if-guarded exit is accepted", direct: "true", indirect: "if false; then exit 1; fi\nexit 3", wantWarn: true},
+		{
+			name: "indirect set -e abort before last line", direct: "true", indirect: "false\ntrue",
+			refused: true, wantMsg: "verification Indirect block 1 aborts at line 1 (`false`) before its last line (2)",
+		},
+		{name: "indirect red inside a non-final compound command is not early", direct: "true", indirect: "for f in a; do\n  false\ndone\ntrue", wantWarn: true},
+		{name: "indirect red inside a non-final if is not early", direct: "true", indirect: "if true; then\n  false\nfi\ntrue", wantWarn: true},
+		{name: "indirect red inside a non-final heredoc command is not early", direct: "true", indirect: "cat /nonexist <<EOF\nx\nEOF\ntrue", wantWarn: true},
+		{
+			name: "indirect early red after output past the cap", direct: "true", indirect: "yes x | head -c 70000\nfalse\ntrue",
+			refused: true, wantMsg: "aborts at line 2",
+		},
+		{name: "direct non-zero abort is accepted with a notice", direct: "false\ntrue", indirect: "exit 3"},
+		{name: "indirect heredoc last command", direct: "true", indirect: "grep b <<EOF\na\nEOF", wantWarn: true},
+		{name: "indirect multi-line quote last command", direct: "true", indirect: "jq -e '\n.a\n'", wantWarn: true},
+		{name: "indirect final for loop", direct: "true", indirect: "for f in a b; do\n  false\ndone", wantWarn: true},
+		{name: "indirect trailing comment", direct: "true", indirect: "false\n# note", wantWarn: true},
+		{
+			name: "indirect set +e failures are not aborts", direct: "true", indirect: "set +e\nfalse\nexit 1", wantWarn: true,
+		},
+		{
+			name: "indirect set +e then true already passes", direct: "true", indirect: "set +e\nfalse\ntrue",
+			refused: true, wantMsg: "already passes",
+		},
 		{
 			// A directory is on disk and readable but not executable: exit 126.
 			name: "indirect not executable", direct: "true", indirect: "\"$probeDir\"",
@@ -828,6 +854,47 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 				t.Errorf("file should not be created; stat err = %v", statErr)
 			}
 		})
+	}
+}
+
+// TestCreate_Issue_FeasibilityGateNamesDirectRedLine: a Direct set -e abort is
+// accepted, but the notice names the line so a missing path is visible.
+func TestCreate_Issue_FeasibilityGateNamesDirectRedLine(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	stderr, err := runCreateIssueBody(t, "probe", feasibilityBody("true\nfalse\ntrue", "exit 3"))
+	if err != nil {
+		t.Fatalf("err = %v, want nil\nstderr: %s", err, stderr)
+	}
+	if !strings.Contains(stderr, "Direct block 1 exits non-zero at line 2 (`false`)") {
+		t.Errorf("stderr should name the red line, got: %s", stderr)
+	}
+}
+
+// TestCreate_Issue_FeasibilityGateNoDirectNoticeOnUnrunnable: an exit-127
+// Direct block is refused as unrunnable and must not also print the red-line
+// notice.
+func TestCreate_Issue_FeasibilityGateNoDirectNoticeOnUnrunnable(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	stderr, err := runCreateIssueBody(t, "probe", feasibilityBody("definitely-not-a-command", "exit 3"))
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid\nstderr: %s", err, stderr)
+	}
+	for _, want := range []string{"unrunnable here (exit 127", "verification block: line 1"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("stderr should contain %q, got: %s", want, stderr)
+		}
+	}
+	if strings.Contains(stderr, "exits non-zero at line") {
+		t.Errorf("stderr should not carry the red-line notice, got: %s", stderr)
+	}
+	if strings.Contains(stderr, "anvil-verify-") {
+		t.Errorf("stderr should not leak the temp script path, got: %s", stderr)
 	}
 }
 
