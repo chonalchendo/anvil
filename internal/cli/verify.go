@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
@@ -37,13 +38,13 @@ type verifyRecord struct {
 }
 
 func newVerifyCmd() *cobra.Command {
-	var flagJSON bool
+	var flagJSON, flagAccept bool
 	cmd := &cobra.Command{
 		Use:   "verify <issue-id>",
 		Short: "Run an issue's Verification blocks here and record the verdict on the issue",
 		Long: "Run every Direct and Indirect block of the issue's `## Verification` in the current directory " +
 			"and stamp verified_verdict, verified_commit and verified_at on the issue, pass or fail. " +
-			"A red Indirect block marked `# anvil:post-land` is deferred, not failed. Exits non-zero unless the verdict is pass.",
+			"Refuses with verification_changed when the section differs from the claim's verification_lock, unless --accept-change. A red Indirect block marked `# anvil:post-land` is deferred, not failed. Exits non-zero unless the verdict is pass.",
 		Example: "  anvil verify issue.anvil.0314.anvil-verify-records-the-verdict --json | jq -r .verdict",
 		Args:    namedArgs("anvil verify <issue-id>", []string{"<issue-id>"}, 1, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -59,7 +60,11 @@ func newVerifyCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rec, err := runVerification(cmd, a.Body)
+			if err := checkVerificationLock(a, id, flagAccept); err != nil {
+				return printAndReturn(cmd, err)
+			}
+			ranBody := a.Body
+			rec, err := runVerification(cmd, ranBody)
 			if err != nil {
 				return err
 			}
@@ -67,6 +72,9 @@ func newVerifyCmd() *cobra.Command {
 			// window must not be overwritten by the pre-run copy.
 			if a, err = loadIssueForVerify(path, id, args[0]); err != nil {
 				return err
+			}
+			if flagAccept {
+				a.FrontMatter["verification_lock"] = core.VerificationLock(ranBody)
 			}
 			a.FrontMatter["verified_verdict"] = rec.Verdict
 			a.FrontMatter["verified_commit"] = rec.Commit
@@ -87,8 +95,22 @@ func newVerifyCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&flagAccept, "accept-change", false, "re-lock a Verification section edited after the claim, then run (the human's flag)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "print the verdict record as one JSON line on stdout")
 	return cmd
+}
+
+// checkVerificationLock refuses before any block runs when the section differs
+// from the claim's lock. No lock means the issue predates the rule.
+func checkVerificationLock(a *core.Artifact, id string, accept bool) error {
+	lock, _ := a.FrontMatter["verification_lock"].(string)
+	if accept || lock == "" || lock == core.VerificationLock(a.Body) {
+		return nil
+	}
+	return errfmt.NewStructured("verification_changed").
+		Set("issue", id).
+		Set("message", id+": the ## Verification section changed after the claim").
+		Set("fix_hint", "review the change, then run anvil verify "+id+" --accept-change")
 }
 
 func loadIssueForVerify(path, id, arg string) (*core.Artifact, error) {

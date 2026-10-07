@@ -26,6 +26,7 @@
     "owner":        { "type": "string", "minLength": 1 },
     "claim_session": { "type": "string", "minLength": 1 },
     "claimed_at":   { "type": "string", "format": "date-time" },
+    "verification_lock": { "type": "string", "minLength": 1 },
     "verified_verdict": { "enum": ["pass", "fail"] },
     "verified_commit": { "type": "string" },
     "verified_at":  { "type": "string", "format": "date-time" },

@@ -173,6 +173,7 @@ owner: <string>            # set by `anvil transition ... --owner <name>`; persi
 claim_session: <string>    # set by `anvil transition ... in-progress`; session-keyed claim lock; --force transfers it
 claimed_at: <RFC3339>        # stamped on every → in-progress and on --force takeover; fleet status reads it
 escalation_reason: <string>  # set by `anvil transition ... escalated --reason`; cleared on leaving escalated
+verification_lock: <hex sha256>  # set on every → in-progress over the `## Verification` section (not on `--force` takeover); byte-exact, so whitespace and line endings count; `anvil verify` refuses a changed one until `--accept-change`
 verified_verdict: pass | fail  # set by `anvil verify` on every run
 verified_commit: <sha>       # HEAD the run saw, `-dirty` suffix on an unclean tree; empty outside git
 verified_at: <RFC3339>       # when that run started
