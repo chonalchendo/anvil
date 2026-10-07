@@ -186,3 +186,23 @@ func TestMeasurementStale(t *testing.T) {
 		})
 	}
 }
+
+func TestMissingMilestoneFormPartIsLineAnchored(t *testing.T) {
+	cases := map[string]struct {
+		body    string
+		missing bool
+	}{
+		"whole":         {"## Objective\n\n**Design change**\n\n**Components changed:** x\n", false},
+		"inline":        {"## Objective\n\nThere is no **Design change** here.\n\n**Components changed:** x\n", true},
+		"fenced":        {"## Objective\n\n```\n**Design change**\n```\n\n**Components changed:** x\n", true},
+		"missing parts": {"## Objective\n\nGoal.\n", true},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, _, missing := MissingMilestoneFormPart(&Artifact{Body: tc.body})
+			if missing != tc.missing {
+				t.Fatalf("missing = %v, want %v", missing, tc.missing)
+			}
+		})
+	}
+}

@@ -57,6 +57,14 @@ Draft before calling the CLI:
 **REQUIRED REFERENCE:** Use skills/writing-milestone/references/finish-line.md — refuse a state-phrased goal or silent empty acceptance before proceeding.
 **REQUIRED REFERENCE:** Use skills/writing-milestone/references/body-shape.md — the four-section body a cold reader scans: labelled parts, one nested bullet per issue under each wave, the Status acceptance table.
 
+Read the routed inbox before the gate. List the raw inbox items. Read each one, and keep those whose `## Route` names this milestone:
+
+```bash
+anvil list inbox --status raw --limit 1000 --json --fields id,title
+```
+
+The human promotes or drops each routed item. The `## Links` section of the milestone names each item it absorbed. `anvil transition milestone <id> in-progress` refuses with `inbox_unread` while a raw inbox item links the milestone. After Phase 3, run `anvil link --to milestone.<id>` to list the exact set the gate refuses on.
+
 **Gate:** user confirms title, goal, kind, and acceptance — and, for scoped, that the goal is event-phrased and acceptance carries a runnable predicate; for bucket, that the open-ended kind was explicitly affirmed.
 
 ## Phase 3 — Create
@@ -91,6 +99,10 @@ anvil show milestone <id> --validate
 ```
 
 Fix any schema errors reported. Re-run until clean. Validate now also enforces body shape: the four required headings in order, no `## Success criteria` section, and (for `kind: scoped`) non-empty `acceptance`.
+
+## Approval
+
+Approval is `anvil transition milestone <id> in-progress`. For a scoped milestone, the body must carry the **Design change** and **Components changed** parts. The verb refuses with a `milestone_gate_` code when a part is absent. On success it stamps `approved:` in the frontmatter. To amend an approved milestone, run `anvil transition milestone <id> planned`, edit it, and approve again.
 
 ## Hand-off
 

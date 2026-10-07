@@ -72,3 +72,26 @@ func MeasurementStale(a *Artifact, now time.Time) (stale, ok bool) {
 	}
 	return now.UTC().Truncate(24*time.Hour).Sub(measured) > MeasurementStaleDays*24*time.Hour, true
 }
+
+// MilestoneFormParts are the bold labels a scoped milestone's body carries
+// before approval, paired with the `milestone_gate_` code that names
+// each missing one. Create-time validation does not check them: the form is
+// filled after scaffolding, and the approval gate is where it must be whole.
+var MilestoneFormParts = []struct{ Label, Code string }{
+	{"**Design change", "milestone_gate_design_change"},
+	{"**Components changed", "milestone_gate_components_changed"},
+}
+
+// MissingMilestoneFormPart returns the first form part absent from the
+// milestone body, or missing=false when the form is whole. It is a heuristic
+// over the fence-stripped body, not an Objective parse: a label counts only
+// when a line starts with it, so an inline or negated mention does not pass.
+func MissingMilestoneFormPart(a *Artifact) (label, code string, missing bool) {
+	body := StripFencedBlocks(a.Body)
+	for _, p := range MilestoneFormParts {
+		if !regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(p.Label)).MatchString(body) {
+			return p.Label, p.Code, true
+		}
+	}
+	return "", "", false
+}
