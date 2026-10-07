@@ -22,7 +22,7 @@ metadata:
 
 A workflow for authoring a project's product-design artifact — the top of Anvil's design-driven hierarchy. Greenfield only.
 
-**Frontmatter is the universal spine** (`type, title, description, created, updated, status, project, tags, aliases, related`). Every output of this skill is body prose under named sections; the schema rejects anything else (`additionalProperties: false`). Schema: `schemas/product-design.schema.json`.
+**Frontmatter is the universal spine** (`type, title, description, created, updated, status, project, tags, aliases, related, external_links`). Every output of this skill is body prose under named sections; the schema rejects anything else (`additionalProperties: false`).
 
 ## When to use
 
@@ -37,13 +37,13 @@ A workflow for authoring a project's product-design artifact — the top of Anvi
 - Light revisions to an existing PD → direct edit, not a re-author.
 - Brownfield carving — different activity; this skill does not handle it.
 
-## Output path
+## Saving
 
-Canonical destination: `~/anvil-vault/05-projects/<project>/product-design.md`. Vault-only — never committed to the project's source repo. Surface this at Phase 1 so the user can flag any can't-commit-anywhere constraint up front.
+Save with `anvil create product-design --project <slug> --title … --body-file <file>`; read it back with `anvil show product-design <slug> --body`. The design lives in the vault, never in the project's source repo. Surface this at Phase 1 so the user can flag any can't-commit-anywhere constraint up front.
 
 ## The phases
 
-Six phases plus two half-phases, each with an explicit user gate — gates are the load-bearing part, not optional checkpoints. Each is an iteration loop; expect 1–2 reframes per phase. Phases 3 and 4 are load-bearing: Phase 5 derives milestones from them.
+Six phases plus two half-phases, each with an explicit user gate — gates are the load-bearing part, not optional checkpoints. Each is an iteration loop; expect 1–2 reframes per phase. Phases 3 and 4 are load-bearing: Phase 5 derives milestones from them. The reader is the human. Workers do not load this doc.
 
 The per-phase procedure — drafting instructions, voice checks, gate criteria — lives in the reference below. The quick-reference table is the phase index; load the reference before drafting Phase 1.
 
@@ -53,22 +53,24 @@ The per-phase procedure — drafting instructions, voice checks, gate criteria �
 
 | Phase | What | Output | Gate |
 |---|---|---|---|
-| 1 Frame | Project scope, slug, path | — | Trivial |
+| 1 Frame | Project scope, slug, save route | — | Trivial |
 | 2 Problem & users | Why it matters / Who it's for | Body | User confirms |
 | 3 What we're building | One-line shape + convictions | Body | **Load-bearing** |
 | 3.5 Approach | Fat-marker sketch (3–7) | Body | Altitude check |
-| 4 Goals / success / constraints / out-of-scope | Four sections | Body | **Load-bearing** |
+| 4 Goals and measures / constraints / out-of-scope | Three sections | Body | **Load-bearing** |
 | 4.5 Risks & rabbit holes | 3–7 bullets | Body | User confirms |
-| 5 Milestones | Wikilinks + summaries | Body + `related` | User confirms |
-| 6 Serialize & save | Universal frontmatter + validate | Frontmatter | Cold read |
+| 5 Milestones | Open candidates: why now + components | Body + `related` | User confirms |
+| 6 Serialize & save | `## TL;DR` first, frontmatter, validate | Body + frontmatter | Cold read |
 
 ## Common mistakes
 
-- **Stuffing prose into frontmatter.** Schema is `additionalProperties: false`; only universals + `related` are accepted. Goals, metrics, constraints, risks, milestones, target users — all body sections.
+- **Stuffing prose into frontmatter.** Schema is `additionalProperties: false`; only universals + `related` are accepted. Goals, measures, constraints, risks, milestones, target users — all body sections.
 - **Drafting from a source doc.** Greenfield: there is no source. If you find yourself reading "lines X–Y of file Y", stop — that's brownfield carving.
 - **Conflating *what* with *how*.** Implementation strategy, packaging, subprocess choices belong in `system-design.md`.
-- **Generic success metrics.** "Users are happy" isn't a metric. Blend quantitative and qualitative; tie qualitative to a measurement plan.
-- **Skipping the past-pain prompt in Phase 4.** Old-tool failure modes are the most concrete metrics.
+- **Goals without measures.** "Users are happy" is not a measure. Blend quantitative and qualitative; tie each qualitative measure to how you check it.
+- **Skipping the past-pain prompt in Phase 4.** Old-tool failure modes are the most concrete measures.
+- **Writing for workers.** No worker instructions in the doc: no pointers to repo docs or convention files, no "agents must" rules. Those belong in conventions.
+- **Bare milestone one-liners.** Each open candidate needs a `Why now:` line and a `Components:` line.
 - **Voice drift.** AI-generic prose fails the cold read. Match project voice; audit for hedging and corporate-speak.
 - **Treating gates as one-shot approvals.** Each is an iteration loop. Reframes after a draft = gate working, not failing.
 

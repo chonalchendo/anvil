@@ -4,9 +4,11 @@ Loaded on demand from `writing-product-design/SKILL.md`. Each phase has an expli
 
 ### Phase 1 — Frame
 
-Confirm scope: project slug, what counts as the product (one or several), destination path.
+Confirm scope: project slug, what counts as the product (one or several), and that it saves through `anvil create product-design`.
 
-**Gate:** scope, slug, path confirmed.
+Say up front: workers do not load this doc. Write it for the human. Do not put worker instructions in it. The doc is explanation: why and what, never how-to steps.
+
+**Gate:** scope, slug, save route confirmed.
 
 ### Phase 2 — Problem & users
 
@@ -47,27 +49,23 @@ Wrong altitude (push to system-design): "Use SQLite via modernc.org driver", "Co
 
 **Gate:** altitude is right — too detailed → strip; too vague → expand.
 
-### Phase 4 — Goals, success, constraints, out-of-scope (LOAD-BEARING)
+### Phase 4 — Goals and measures, constraints, out-of-scope (LOAD-BEARING)
 
-All four are body sections (prose under headings); no frontmatter arrays.
+All three are body sections (prose under headings); no frontmatter arrays.
 
-**Past-pain → metrics prompt (critical).** Ask explicitly: *what should success measurably not be? What failure modes from past tools do you want a metric guarding against?* Old-tool failure modes are the strongest source of concrete measurable success criteria.
+**Past-pain → measures prompt (critical).** Ask explicitly: *what should success measurably not be? What failure modes from past tools do you want a measure guarding against?* Old-tool failure modes are the strongest source of concrete measures.
 
 Draft body sections:
 
-- **Goals** — outcome-shaped (≥1). Distinct from metrics. Examples:
-  - "Users feel the tool is on their side" — goal (qualitative)
-  - "≥80% of plans auto-fire on first try" — metric (measurable)
-
-  If a candidate has a number in it, it's probably a metric. If it describes a felt experience, it's a goal. Both required.
+- **Goals and how we measure them** — 3–5 goals, each paired with a measure. A goal is outcome-shaped. A measure is checkable, quantitative or qualitative. For a qualitative measure, name how you will check it (informal survey, telemetry signal). Examples:
+  - Goal "Users feel the tool is on their side"; measure "weekly informal check-in, 4 of 5 say yes".
+  - Goal "Plans work first try"; measure "≥80% of plans auto-fire on first try".
 
 - **Constraints & appetite** (Shape Up). Constraints are usually fixed-time; scope is the variable. Appetite is the explicit time box (`small-batch` 1–2 weeks / `big-batch` 4–6 weeks / explicit duration). 2–5 constraint bullets mixing capacity, deadline, dependency. "v0.1 ships in 6 weeks" is a constraint; "no UI" is out-of-scope.
 
-- **What success looks like** — 3–5 success metrics blending quantitative ("≤30 min to first plan") and qualitative ("users report stronger engineers"). For qualitative, name how it'll be measured (informal survey, telemetry signal). Commitment to measurement is the point.
-
 - **What's deliberately out of scope** — 5–7 items shaped as `<topic> — <why this is out, not just "we won't do it">`. Negative space prevents scope creep; "why" turns a no into a no with reasons.
 
-**Gate (load-bearing):** explicit sign-off on goals, metrics, constraints, appetite, out-of-scope. **Time-box:** if any list doesn't land in two iterations, write `TODO: validate after two weeks of real use` placeholders.
+**Gate (load-bearing):** explicit sign-off on goals and measures, constraints, appetite, out-of-scope. **Time-box:** if any list doesn't land in two iterations, write `TODO: validate after two weeks of real use` placeholders.
 
 ### Phase 4.5 — Risks, rabbit holes, open questions
 
@@ -84,26 +82,35 @@ Prompt: What could derail this? What rabbit hole are you afraid of? What's still
 
 ### Phase 5 — Initial milestones
 
-Draft the **Milestones** body section: titles as wikilinks `[[milestone.<project>.<slug>]]` plus one-line summaries.
+Draft the **Milestones** body section. It lists open candidates only. A candidate leaves the list when its milestone is done.
 
-Structural links: add each wikilink to the artifact's `related` frontmatter array (the universal link slot). The milestone's child→parent link is `product_design` on the milestone side.
+Each candidate is one top-level plain bullet (`<slug> — one-line summary`) with no `[[…]]` link, then two nested lines. A link to a milestone that does not exist yet makes the save fail with `unresolved_link`:
+
+```markdown
+- <slug> — one-line summary
+  - Why now: what makes this the next thing to build
+  - Components: the system-design components it touches (write `TBD` until the system design names them)
+```
+
+Linking: after `writing-milestone` creates a milestone, run `anvil set product-design <slug> related --add "[[milestone.<project>.<slug>]]"` and turn that bullet into a `[[milestone.<project>.<slug>]]` wikilink. The milestone's child→parent link is `product_design` on the milestone side.
 
 **REQUIRED SUB-SKILL:** `writing-milestone` (a.k.a. `defining-milestone`).
 
-If unavailable in v0.1, collect titles + summaries inline; wikilinks stay unresolved until the sub-skill exists.
+If unavailable, collect titles + summaries inline as plain bullets.
 
 **Gate:** breakdown confirmed.
 
 ### Phase 6 — Serialize & save
 
-1. Flip frontmatter `status: draft` → `active`. Bump `updated` to today.
-2. Hand-check against `schemas/product-design.schema.json`:
+1. Write `## TL;DR` (5 lines or fewer) as the first body section. Bump `updated` to today.
+2. Hand-check the frontmatter and body:
    - Required frontmatter: `type, title, description, created, status, project`.
-   - Optional frontmatter: `updated, tags, aliases, related`.
+   - Optional frontmatter: `updated, tags, aliases, related, external_links`.
    - **No other frontmatter fields** — schema is `additionalProperties: false`. If you wrote `goals:`, `risks:`, `milestones:`, `target_users:`, `revisions:` as frontmatter arrays, move them to body sections.
-   - Body has these sections in order: What we're building / Who it's for / Why it matters / Approach / Goals / Constraints & appetite / What success looks like / What's deliberately out of scope / Risks, rabbit holes, open questions / Milestones.
-   - Wikilinks under Milestones (and mirrored in `related`) are well-formed `[[milestone.<project>.<slug>]]`.
-3. Run `anvil validate <path>` — must pass clean.
-4. Write to `~/anvil-vault/05-projects/<project>/product-design.md`.
+   - Body has these sections in order: `## TL;DR` / What we're building / Who it's for / Why it matters / Approach / `## Goals and how we measure them` / Constraints & appetite / What's deliberately out of scope / Risks, rabbit holes, open questions / Milestones.
+   - No worker instructions or pointers to repo docs anywhere in the body.
+   - Each top-level `- ` bullet under Milestones carries `Why now:` and `Components:`. Bullets are plain text until their milestone exists.
+3. Write the body (no frontmatter) to a temp file. Save with `anvil create product-design --project <slug> --title "…" --description "…" --body-file <file>`. Create validates frontmatter, sections and wikilinks, and rolls back on failure. It writes `status: draft`, so then run `anvil set product-design <slug> status active`.
+4. Read it back with `anvil show product-design <slug> --body` for the cold read.
 
 **Gate:** user reads the artifact cold. Capture the project's vision? Fix and re-show if not.
