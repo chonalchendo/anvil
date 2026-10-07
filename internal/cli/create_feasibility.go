@@ -59,13 +59,13 @@ type blockRun struct {
 	// redLine is the 1-based block line a set -e abort stopped on, or 0 when
 	// the block ended another way (explicit exit, success, kill).
 	redLine int
-	// lastLine is the 1-based line of the block's final command.
+	// lastLine, earlyRed and redText are filled by runFeasibilityGate from
+	// redLine, not by the run: lastLine is the 1-based line of the block's
+	// final command; earlyRed is true when the abort hit a complete command
+	// before it (setup failed, not the assertion); redText is redLine's text.
 	lastLine int
-	// earlyRed is true when the set -e abort hit a complete command before
-	// lastLine, i.e. setup failed rather than the assertion.
 	earlyRed bool
-	// redText is the trimmed text of redLine.
-	redText string
+	redText  string
 }
 
 // redLineEnv names the side file the ERR trap writes $LINENO to. A file, not
@@ -126,6 +126,7 @@ func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.Validat
 			}
 			cmd.PrintErrln("anvil: running " + name + " in this environment (your privileges, cwd and environment; not sandboxed)")
 			r := runFeasibilityBlock(block, "")
+			r.lastLine, r.redText, r.earlyRed = blockLines(block, r.redLine)
 			if r.timedOut && label == "Direct" {
 				cmd.PrintErrln("anvil: " + name + " did not finish within " + feasibilityTimeout.String() + "; accepted unjudged (Direct is only checked for runnability)")
 			}
@@ -200,8 +201,8 @@ func classifyFeasibility(label, name string, r blockRun) (msg, fix string) {
 }
 
 // runFeasibilityBlock runs a single Verification block's lines as one bash
-// script in dir ("" = the process cwd) and reports what it observed. It never decides pass/fail — that is
-// classifyFeasibility's job.
+// script in dir ("" = the process cwd) and reports what it observed. It never
+// decides pass/fail — that is classifyFeasibility's job.
 func runFeasibilityBlock(block, dir string) blockRun {
 	ctx, cancel := context.WithTimeout(context.Background(), feasibilityTimeout)
 	defer cancel()
@@ -229,12 +230,12 @@ func runFeasibilityBlock(block, dir string) blockRun {
 	// runAnchorCheck sets, so the gate's verdict does not depend on which bash
 	// happens to come first on the author's PATH.
 	c := exec.CommandContext(ctx, "/bin/bash", "-e", script.Name()) //nolint:gosec // G204: runs the issue's own Verification block verbatim by design — proving it is what the feasibility gate (anvil.0196) exists to do; author-trusted vault content, bounded by feasibilityTimeout
+	c.Dir = dir                                                     // "" keeps the process cwd
+	c.Env = append(os.Environ(), redLineEnv+"="+redFile.Name())
 	// Run the block in its own process group so the timeout kill reaches the
 	// whole tree. A block that backgrounds work (`nohup … &`) leaves
 	// grandchildren that survive a signal aimed at bash alone and keep running
 	// (and holding the output pipe) long after create returns.
-	c.Dir = dir // "" keeps the process cwd
-	c.Env = append(os.Environ(), redLineEnv+"="+redFile.Name())
 	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	c.Cancel = func() error { return syscall.Kill(-c.Process.Pid, syscall.SIGKILL) }
 	c.WaitDelay = feasibilityWaitDelay
@@ -243,7 +244,8 @@ func runFeasibilityBlock(block, dir string) blockRun {
 	c.Stderr = out
 	runErr := c.Run()
 
-	tail := out.buf.String()
+	// The script path is a deleted temp file: bash prints it in diagnostics.
+	tail := strings.ReplaceAll(out.buf.String(), script.Name(), "verification block")
 	if out.truncated {
 		tail += "\n(output truncated)"
 	}
@@ -251,7 +253,6 @@ func runFeasibilityBlock(block, dir string) blockRun {
 	if b, rerr := os.ReadFile(redFile.Name()); rerr == nil {
 		r.redLine, _ = strconv.Atoi(strings.TrimSpace(string(b)))
 	}
-	r.lastLine, r.redText, r.earlyRed = blockLines(block, r.redLine)
 	var exitErr *exec.ExitError
 	switch {
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
@@ -268,9 +269,10 @@ func runFeasibilityBlock(block, dir string) blockRun {
 // blockLines returns the 1-based line where the block's final command starts
 // (trailing blanks and comments dropped, backslash continuations folded in),
 // the trimmed text of line red, and whether the abort at red is early. It is
-// early only when lines[:red] parse cleanly as a script and a later command
-// exists: bash 5 reports LINENO 1 inside a heredoc or multi-line quote, and a
-// compound command reports its opening line, so those prefixes do not parse.
+// early only when both lines[:red-1] and lines[:red] parse cleanly (the red
+// line is a whole command) and a later command exists. Bash 3.2 reports the
+// closing line of a compound command or heredoc, bash 5 the opening line;
+// requiring both prefixes makes the two versions fail open alike.
 func blockLines(block string, red int) (last int, redText string, early bool) {
 	lines := strings.Split(strings.TrimRight(block, " \t\r\n"), "\n")
 	last = len(lines)
@@ -287,7 +289,8 @@ func blockLines(block string, red int) (last int, redText string, early bool) {
 	if red >= last {
 		return last, redText, false
 	}
-	return last, redText, parsesCleanly(strings.Join(lines[:red], "\n"))
+	return last, redText, parsesCleanly(strings.Join(lines[:red-1], "\n")) &&
+		parsesCleanly(strings.Join(lines[:red], "\n"))
 }
 
 func isBlankOrComment(line string) bool {

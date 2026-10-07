@@ -794,6 +794,11 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 			name: "indirect set -e abort before last line", direct: "true", indirect: "false\ntrue",
 			refused: true, wantMsg: "verification Indirect block 1 aborts at line 1 (`false`) before its last line (2)",
 		},
+		{name: "indirect red inside a non-final compound command is not early", direct: "true", indirect: "for f in a; do\n  false\ndone\ntrue", wantWarn: true},
+		{
+			name: "indirect early red after output past the cap", direct: "true", indirect: "yes x | head -c 70000\nfalse\ntrue",
+			refused: true, wantMsg: "aborts at line 2",
+		},
 		{name: "direct non-zero abort is accepted with a notice", direct: "false\ntrue", indirect: "exit 3"},
 		{name: "indirect heredoc last command", direct: "true", indirect: "grep b <<EOF\na\nEOF", wantWarn: true},
 		{name: "indirect multi-line quote last command", direct: "true", indirect: "jq -e '\n.a\n'", wantWarn: true},
@@ -863,6 +868,23 @@ func TestCreate_Issue_FeasibilityGateNamesDirectRedLine(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "Direct block 1 exits non-zero at line 2 (`false`)") {
 		t.Errorf("stderr should name the red line, got: %s", stderr)
+	}
+}
+
+// TestCreate_Issue_FeasibilityGateNoDirectNoticeOnUnrunnable: an exit-127
+// Direct block is refused as unrunnable and must not also print the red-line
+// notice.
+func TestCreate_Issue_FeasibilityGateNoDirectNoticeOnUnrunnable(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	stderr, _ := runCreateIssueBody(t, "probe", feasibilityBody("definitely-not-a-command", "exit 3"))
+	if strings.Contains(stderr, "exits non-zero at line") {
+		t.Errorf("stderr should not carry the red-line notice, got: %s", stderr)
+	}
+	if strings.Contains(stderr, "anvil-verify-") {
+		t.Errorf("stderr should not leak the temp script path, got: %s", stderr)
 	}
 }
 
