@@ -228,6 +228,9 @@ func newTransitionCmd() *cobra.Command {
 						Set("kind", "bucket").
 						Set("hint", "bucket milestones are rolling trackers with no terminal state; use abandoned to close one"))
 				}
+				if gerr := gateMilestoneDone(v, a, id); gerr != nil {
+					return printAndReturn(cmd, gerr)
+				}
 			}
 
 			// Backfill-on-claim: refuse issue → in-progress unless goal: is set.
@@ -443,22 +446,12 @@ func milestoneCloseAdvisory(v *core.Vault, resolved *core.Artifact) string {
 	if status, _ := m.FrontMatter["status"].(string); status != "in-progress" {
 		return ""
 	}
-	paths, err := collectArtifactPaths(v.Root, core.TypeIssue)
-	if err != nil {
+	if len(unfinishedIssues(v, ms)) > 0 {
 		return ""
 	}
-	for _, p := range paths {
-		other, err := core.LoadArtifact(p)
-		if err != nil {
-			continue
-		}
-		if milestoneSlug(other.FrontMatter["milestone"]) != ms {
-			continue
-		}
-		status, _ := other.FrontMatter["status"].(string)
-		if status == "open" || status == "in-progress" {
-			return ""
-		}
+	// A red finish line means done would be refused, so do not advise it.
+	if len(unmetCriteria(runAcceptance(m))) > 0 {
+		return ""
 	}
 	return fmt.Sprintf("last open issue in %s; consider: anvil transition milestone %s done", ms, ms)
 }
