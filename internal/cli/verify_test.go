@@ -2,9 +2,12 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 
 	"github.com/chonalchendo/anvil/internal/core"
 )
@@ -59,23 +62,109 @@ func TestVerifyRecordsPass(t *testing.T) {
 	}
 }
 
-func TestVerifyRecordsFailAndDeferral(t *testing.T) {
-	vault := setupVault(t)
-	writeVerifyIssue(t, vault, "issue.anvil.0002.bad", "true", "echo setup\nfalse")
-	rec, a, err := runVerify(t, vault, "issue.anvil.0002.bad")
-	if err == nil {
-		t.Fatal("fail verdict must exit non-zero")
-	}
-	if rec.Verdict != "fail" || len(rec.Failed) != 1 || rec.Failed[0].Check != "Indirect#1" || rec.Failed[0].Exit != 1 || rec.Failed[0].Line != "false" {
-		t.Errorf("record = %+v", rec)
-	}
-	if a.FrontMatter["verified_verdict"] != "fail" {
-		t.Errorf("fail verdict not recorded: %v", a.FrontMatter)
-	}
+func intp(n int) *int { return &n }
 
-	writeVerifyIssue(t, vault, "issue.anvil.0003.late", "true", "# anvil:post-land\nfalse")
-	rec, _, err = runVerify(t, vault, "issue.anvil.0003.late")
-	if err != nil || rec.Verdict != "pass" || len(rec.Deferred) != 1 {
-		t.Errorf("post-land red must defer, not fail: err=%v rec=%+v", err, rec)
+func TestVerifyScriptContractCases(t *testing.T) {
+	const wrap = "## Verification\n\n### Direct\n\n```bash\n%s\n```\n\n### Indirect\n\n```bash\n%s\n```\n"
+	cases := []struct {
+		name     string
+		body     string
+		verdict  string
+		checks   int
+		failed   []verifyFailure
+		deferred []verifyFailure
+	}{
+		{
+			name: "set -e red mid-block", body: fmt.Sprintf(wrap, "true", "echo setup\nfalse"), verdict: "fail", checks: 2,
+			failed: []verifyFailure{{Check: "Indirect#1", Exit: intp(1), Line: "false", Preview: "echo setup"}},
+		},
+		{
+			name: "explicit exit", body: fmt.Sprintf(wrap, "exit 4", "true"), verdict: "fail", checks: 2,
+			failed: []verifyFailure{{Check: "Direct#1", Exit: intp(4), Preview: "exit 4"}},
+		},
+		{
+			name: "all-comment block", body: fmt.Sprintf(wrap, "# nothing", "true"), verdict: "fail", checks: 2,
+			failed: []verifyFailure{{Check: "Direct#1", Preview: "block has no executable command"}},
+		},
+		{
+			name: "missing Direct section", body: "## Verification\n\n### Indirect\n\n```bash\ntrue\n```\n", verdict: "fail", checks: 2,
+			failed: []verifyFailure{{Check: "Direct", Preview: "no executable bash block"}},
+		},
+		{
+			name: "no Verification at all", body: "## Notes\n", verdict: "fail", checks: 2,
+			failed: []verifyFailure{{Check: "Direct", Preview: "no executable bash block"}, {Check: "Indirect", Preview: "no executable bash block"}},
+		},
+		{
+			name: "non-gating negation", body: fmt.Sprintf(wrap, "! false\ntrue", "true"), verdict: "fail", checks: 2,
+			failed: []verifyFailure{{Check: "Direct#1", Preview: "non-gating negation: ! false"}},
+		},
+		{
+			name: "post-land red defers", body: fmt.Sprintf(wrap, "true", "# anvil:post-land\nfalse"), verdict: "pass", checks: 2,
+			deferred: []verifyFailure{{Check: "Indirect#1", Exit: intp(1), Line: "false", Preview: "false"}},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vault := setupVault(t)
+			writeVerifyIssue(t, vault, "issue.anvil.0002.case", "true", "true")
+			path := filepath.Join(vault, "70-issues", "issue.anvil.0002.case.md")
+			a, err := core.LoadArtifact(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			a.Body = tc.body
+			if err := a.Save(); err != nil {
+				t.Fatal(err)
+			}
+			rec, got, err := runVerify(t, vault, "issue.anvil.0002.case")
+			if (err != nil) != (tc.verdict == "fail") {
+				t.Errorf("err = %v for verdict %s", err, tc.verdict)
+			}
+			want := verifyRecord{Verdict: tc.verdict, Checks: tc.checks, Failed: tc.failed, Deferred: tc.deferred}
+			if want.Failed == nil {
+				want.Failed = []verifyFailure{}
+			}
+			if want.Deferred == nil {
+				want.Deferred = []verifyFailure{}
+			}
+			rec.Commit, rec.RanAt = "", ""
+			if diff := cmp.Diff(want, rec); diff != "" {
+				t.Errorf("record mismatch (-want +got):\n%s", diff)
+			}
+			if got.FrontMatter["verified_verdict"] != tc.verdict {
+				t.Errorf("verdict not stamped: %v", got.FrontMatter)
+			}
+		})
+	}
+}
+
+func TestVerifyMarshalsNeverRanExitAsNull(t *testing.T) {
+	b, _ := json.Marshal(verifyFailure{Check: "Direct"})
+	if !strings.Contains(string(b), `"exit":null`) {
+		t.Errorf("got %s", b)
+	}
+}
+
+func TestVerifyKeepsWritesMadeDuringTheRun(t *testing.T) {
+	vault := setupVault(t)
+	id := "issue.anvil.0004.race"
+	path := filepath.Join(vault, "70-issues", id+".md")
+	writeVerifyIssue(t, vault, id, "true", "true")
+	// The Direct block edits the issue file while verify runs.
+	script := "sed -i.bak 's/^severity: medium/severity: high/' " + path + " && rm -f " + path + ".bak"
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Body = strings.Replace(a.Body, "```bash\ntrue\n```", "```bash\n"+script+"\n```", 1)
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	_, got, err := runVerify(t, vault, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.FrontMatter["severity"] != "high" {
+		t.Errorf("mid-run write lost: severity = %v", got.FrontMatter["severity"])
 	}
 }

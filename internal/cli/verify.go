@@ -14,10 +14,11 @@ import (
 )
 
 // verifyFailure is one red block. Line is the block line a set -e abort
-// stopped on, empty when the block ended another way.
+// stopped on, empty when the block ended another way. Exit is nil (JSON null)
+// when the block never produced an exit status.
 type verifyFailure struct {
 	Check   string `json:"check"`
-	Exit    int    `json:"exit"`
+	Exit    *int   `json:"exit"`
 	Line    string `json:"line"`
 	Preview string `json:"preview"`
 }
@@ -41,7 +42,8 @@ func newVerifyCmd() *cobra.Command {
 		Long: "Run every Direct and Indirect block of the issue's `## Verification` in the current directory " +
 			"and stamp verified_verdict, verified_commit and verified_at on the issue, pass or fail. " +
 			"A red Indirect block marked `# anvil:post-land` is deferred, not failed. Exits non-zero unless the verdict is pass.",
-		Args: namedArgs("anvil verify <issue-id>", []string{"<issue-id>"}, 1, 1),
+		Example: "  anvil verify issue.anvil.0314.anvil-verify-records-the-verdict --json | jq -r .verdict",
+		Args:    namedArgs("anvil verify <issue-id>", []string{"<issue-id>"}, 1, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			v, err := core.ResolveVault()
 			if err != nil {
@@ -51,15 +53,17 @@ func newVerifyCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			a, err := core.LoadArtifact(path)
+			a, err := loadIssueForVerify(path, id, args[0])
 			if err != nil {
-				if os.IsNotExist(err) {
-					return notFoundErr(id, args[0])
-				}
-				return fmt.Errorf("loading artifact: %w", err)
+				return err
 			}
 			rec, err := runVerification(cmd, a.Body)
 			if err != nil {
+				return err
+			}
+			// Reload: the run can take minutes, and a write to the issue in that
+			// window must not be overwritten by the pre-run copy.
+			if a, err = loadIssueForVerify(path, id, args[0]); err != nil {
 				return err
 			}
 			a.FrontMatter["verified_verdict"] = rec.Verdict
@@ -85,6 +89,17 @@ func newVerifyCmd() *cobra.Command {
 	return cmd
 }
 
+func loadIssueForVerify(path, id, arg string) (*core.Artifact, error) {
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, notFoundErr(id, arg)
+		}
+		return nil, fmt.Errorf("loading artifact: %w", err)
+	}
+	return a, nil
+}
+
 // runVerification runs every Direct then Indirect block in the cwd. Unlike the
 // create gate, green and red mean pass and fail for both subsections.
 func runVerification(cmd *cobra.Command, body string) (verifyRecord, error) {
@@ -95,38 +110,49 @@ func runVerification(cmd *cobra.Command, body string) (verifyRecord, error) {
 		if err != nil {
 			return rec, fmt.Errorf("verification %s: %w", label, err)
 		}
+		if len(blocks) == 0 {
+			// Invariant 6: a section with nothing to run is a failed check, not a pass.
+			rec.Checks++
+			cmd.PrintErrln(fmt.Sprintf("FAIL ### %s has no executable ```bash block", label))
+			rec.Failed = append(rec.Failed, verifyFailure{Check: label, Preview: "no executable bash block"})
+			continue
+		}
 		for i, block := range blocks {
 			rec.Checks++
 			check := fmt.Sprintf("%s#%d", label, i+1)
 			f := verifyFailure{Check: check, Preview: blockPreview(block)}
+			if f.Preview == "" {
+				f.Preview = "block has no executable command"
+				cmd.PrintErrln(fmt.Sprintf("FAIL [%s] %s (empty or all comments)", check, f.Preview))
+				rec.Failed = append(rec.Failed, f)
+				continue
+			}
 			if vacuous := core.NonGatingNegation(block); vacuous != "" {
-				f.Exit = 1
-				f.Line = vacuous
 				cmd.PrintErrln(fmt.Sprintf("FAIL [%s] %s: carries `%s`; %s", check, f.Preview, vacuous, nonGatingNegationWhy))
+				f.Preview = "non-gating negation: " + vacuous
 				rec.Failed = append(rec.Failed, f)
 				continue
 			}
 			cmd.PrintErrln("anvil: running verification " + check + " in this environment (your privileges, cwd and environment; not sandboxed)")
-			r := runFeasibilityBlock(block, "")
-			var why string
-			switch {
-			case r.runErr != nil:
-				f.Exit, why = -1, r.runErr.Error()
-			case r.timedOut:
-				f.Exit, why = -1, "timed out after "+feasibilityTimeout.String()
-			case r.exit != 0:
-				f.Exit, why = r.exit, fmt.Sprintf("exit %d", r.exit)
-			default:
+			// No timeout: Direct is typically the repo's whole suite, which the
+			// create gate's cap would fail as red.
+			r := runFeasibilityBlock(block, "", 0)
+			why, failed := r.failure()
+			if !failed {
 				cmd.PrintErrln(fmt.Sprintf("PASS [%s] %s", check, f.Preview))
 				continue
 			}
+			if r.runErr == nil && !r.timedOut {
+				exit := r.exit
+				f.Exit = &exit
+			}
 			_, f.Line, _ = blockLines(block, r.redLine)
 			if label == "Indirect" && core.IsPostLand(block) {
-				cmd.PrintErrln(fmt.Sprintf("DEFERRED [%s] %s (%s; post-land)", check, f.Preview, why))
+				cmd.PrintErrln(fmt.Sprintf("DEFERRED [%s] %s (%s; post-land)\n%s", check, f.Preview, why, firstLines(r.output, 10)))
 				rec.Deferred = append(rec.Deferred, f)
 				continue
 			}
-			cmd.PrintErrln(fmt.Sprintf("FAIL [%s] %s (%s)\n%s", check, f.Preview, why, r.output))
+			cmd.PrintErrln(fmt.Sprintf("FAIL [%s] %s (%s)\n%s", check, f.Preview, why, firstLines(r.output, 10)))
 			rec.Failed = append(rec.Failed, f)
 		}
 	}
@@ -159,4 +185,13 @@ func cwdCommit() string {
 		sha += "-dirty"
 	}
 	return sha
+}
+
+// firstLines is the first n lines of out, indented, as run-verification.sh prints them.
+func firstLines(out string, n int) string {
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(lines) > n {
+		lines = lines[:n]
+	}
+	return "    " + strings.Join(lines, "\n    ")
 }

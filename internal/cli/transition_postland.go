@@ -24,16 +24,9 @@ func runPostLandBlocks(errW io.Writer, body string) []string {
 			continue
 		}
 		id := fmt.Sprintf("Indirect#%d", i+1)
-		r := runFeasibilityBlock(block, "")
-		var reason string
-		switch {
-		case r.timedOut:
-			reason = "timed out"
-		case r.runErr != nil:
-			reason = r.runErr.Error()
-		case r.exit != 0:
-			reason = fmt.Sprintf("exit %d", r.exit)
-		default:
+		r := runFeasibilityBlock(block, "", feasibilityTimeout)
+		reason, failed := r.failure()
+		if !failed {
 			fmt.Fprintf(errW, "post-land %s passed\n", id)
 			continue
 		}
