@@ -185,7 +185,7 @@ func newTransitionCmd() *cobra.Command {
 				}
 				return emitTransitionJSON(cmd, asJSON, transitionResult{
 					ID: id, Path: path, From: from, To: "resolved", Status: "transitioned",
-					Advisory: milestoneCloseAdvisory(v, a),
+					Advisory: milestoneCloseAdvisory(cmd, v, a),
 				})
 			}
 
@@ -228,7 +228,7 @@ func newTransitionCmd() *cobra.Command {
 						Set("kind", "bucket").
 						Set("hint", "bucket milestones are rolling trackers with no terminal state; use abandoned to close one"))
 				}
-				if gerr := gateMilestoneDone(v, a, id); gerr != nil {
+				if gerr := gateMilestoneDone(cmd, v, a, id); gerr != nil {
 					return printAndReturn(cmd, gerr)
 				}
 			}
@@ -389,7 +389,7 @@ func newTransitionCmd() *cobra.Command {
 
 			var advisory string
 			if t == core.TypeIssue && to == "resolved" {
-				advisory = milestoneCloseAdvisory(v, a)
+				advisory = milestoneCloseAdvisory(cmd, v, a)
 			}
 
 			return emitTransitionJSON(cmd, asJSON, transitionResult{
@@ -433,7 +433,7 @@ type transitionResult struct {
 // to disk as resolved, so a full scan (no self-exclusion) is correct. Scan
 // failures return "" — the advisory is best-effort and must never fail a
 // transition that already landed.
-func milestoneCloseAdvisory(v *core.Vault, resolved *core.Artifact) string {
+func milestoneCloseAdvisory(cmd *cobra.Command, v *core.Vault, resolved *core.Artifact) string {
 	ms := milestoneSlug(resolved.FrontMatter["milestone"])
 	if ms == "" {
 		return ""
@@ -446,11 +446,12 @@ func milestoneCloseAdvisory(v *core.Vault, resolved *core.Artifact) string {
 	if status, _ := m.FrontMatter["status"].(string); status != "in-progress" {
 		return ""
 	}
-	if len(unfinishedIssues(v, ms)) > 0 {
+	// A scan error reads as no advisory: the advisory is best-effort.
+	if open, err := unfinishedIssues(v, ms); err != nil || len(open) > 0 {
 		return ""
 	}
 	// A red finish line means done would be refused, so do not advise it.
-	if len(unmetCriteria(runAcceptance(m))) > 0 {
+	if len(unmetCriteria(runAcceptance(cmd, m))) > 0 {
 		return ""
 	}
 	return fmt.Sprintf("last open issue in %s; consider: anvil transition milestone %s done", ms, ms)

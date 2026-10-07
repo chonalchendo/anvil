@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -61,23 +62,29 @@ func newMilestoneStatusCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			acceptance := runAcceptance(m)
+			acceptance := runAcceptance(cmd, m)
+			open, scanErr := unfinishedIssues(v, strings.TrimPrefix(args[0], "milestone."))
+			done := scanErr == nil && len(open) == 0 && len(unmetCriteria(acceptance)) == 0
+			if cur, base := offBaseBranch(projectFromArtifact(m, args[0])); cur != "" {
+				cmd.PrintErrln("warning: on branch " + cur + ", not " + base + "; `transition milestone done` refuses off the default branch")
+			}
 
 			if flagJSON {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(struct {
 					index.MilestoneStatus
+					Done       bool               `json:"done"`
 					Acceptance []acceptanceResult `json:"acceptance"`
-				}{st, acceptance})
+				}{st, done, acceptance})
 			}
-			cmd.Printf("%s\t%d/%d resolved\tdone=%t\n", st.Milestone, st.Resolved, st.Total, st.Done)
-			for _, r := range acceptance {
+			cmd.Printf("%s\t%d/%d resolved\tdone=%t\n", st.Milestone, st.Resolved, st.Total, done)
+			for i, r := range acceptance {
 				verdict := "met"
 				if !r.Met {
 					verdict = "not met"
 				}
-				cmd.Printf("%s\texit %d\t%s\n", verdict, r.Exit, tableCell(r.Criterion))
+				cmd.Printf("AC %d\t%s\t%s\t%s\n", i+1, verdict, r.detail(), tableCell(r.Criterion))
 			}
 			return nil
 		},
