@@ -326,14 +326,6 @@ func newTransitionCmd() *cobra.Command {
 			case owner != "":
 				a.FrontMatter["owner"] = owner
 			}
-			// Stamp the claiming session so a later same-owner claim from a
-			// different session can be refused. Omitted outside a Claude session
-			// (env unset) — there is no identity to record.
-			if t == core.TypeIssue && to == "in-progress" {
-				if sid := os.Getenv(envSessionID); sid != "" {
-					a.FrontMatter["claim_session"] = sid
-				}
-			}
 			if t == core.TypeIssue {
 				stampIssueGate(a, to, reason, time.Now().UTC())
 			}
