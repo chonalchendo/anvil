@@ -125,7 +125,7 @@ func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.Validat
 				continue
 			}
 			cmd.PrintErrln("anvil: running " + name + " in this environment (your privileges, cwd and environment; not sandboxed)")
-			r := runFeasibilityBlock(block, "")
+			r := runFeasibilityBlock(block, "", feasibilityTimeout)
 			r.lastLine, r.redText, r.earlyRed = blockLines(block, r.redLine)
 			if r.timedOut && label == "Direct" {
 				cmd.PrintErrln("anvil: " + name + " did not finish within " + feasibilityTimeout.String() + "; accepted unjudged (Direct is only checked for runnability)")
@@ -200,11 +200,28 @@ func classifyFeasibility(label, name string, r blockRun) (msg, fix string) {
 	return "", ""
 }
 
+// failure names why the block is red, or reports failed=false when it ran and
+// exited 0. The one place the run-error / timeout / exit-code order lives.
+func (r blockRun) failure() (why string, failed bool) {
+	switch {
+	case r.runErr != nil:
+		return r.runErr.Error(), true
+	case r.timedOut:
+		return "timed out", true
+	case r.exit != 0:
+		return fmt.Sprintf("exit %d", r.exit), true
+	}
+	return "", false
+}
+
 // runFeasibilityBlock runs a single Verification block's lines as one bash
-// script in dir ("" = the process cwd) and reports what it observed. It never
-// decides pass/fail — that is classifyFeasibility's job.
-func runFeasibilityBlock(block, dir string) blockRun {
-	ctx, cancel := context.WithTimeout(context.Background(), feasibilityTimeout)
+// script in dir ("" = the process cwd) and reports what it observed. timeout 0
+// means no cap. It never decides pass/fail — that is classifyFeasibility's job.
+func runFeasibilityBlock(block, dir string, timeout time.Duration) blockRun {
+	ctx, cancel := context.Background(), context.CancelFunc(func() {})
+	if timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+	}
 	defer cancel()
 
 	// A script file, not -c: bash 3.2 numbers -c lines from 0, so $LINENO would

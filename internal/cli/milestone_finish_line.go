@@ -37,10 +37,11 @@ func runAcceptance(cmd *cobra.Command, m *core.Artifact, dir string) []acceptanc
 	for i, p := range preds {
 		s, _ := p.(string)
 		cmd.PrintErrln(fmt.Sprintf("anvil: running acceptance predicate %d in this environment (your privileges, cwd and environment; not sandboxed)", i+1))
-		r := runFeasibilityBlock(s, dir)
+		r := runFeasibilityBlock(s, dir, feasibilityTimeout)
+		_, failed := r.failure()
 		res := acceptanceResult{
 			Criterion: s,
-			Met:       r.runErr == nil && !r.timedOut && r.exit == 0,
+			Met:       !failed,
 			Exit:      r.exit,
 			TimedOut:  r.timedOut,
 		}
