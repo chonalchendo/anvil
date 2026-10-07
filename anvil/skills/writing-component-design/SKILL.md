@@ -32,44 +32,9 @@ Decide before Phase 1. If uncertain, run `anvil list component-design`.
 
 ## Component design skeleton (both modes)
 
-`create` and `validate` reject a body missing any of these headings, in this order:
+`create` and `validate` reject a body missing any core heading, in order: Does, Does not, Interfaces, Invariants, Verification.
 
-```
-## Does
-
-- <component> owns <responsibility>.
-- <component> is the single source of truth for <X>.
-
-## Does not
-
-- <component> does not <boundary that surprised someone or needs emphasis>.
-- <component> does not own <Y> - that belongs to <other component>.
-
-## Interfaces
-
-### <operation>
-- Input: <args, types>.
-- Output: <result shape>.
-- Errors: <named failure modes>.
-- Pre/postconditions: <what must hold before; what holds after>.
-- Black-box: <what a caller can observe, with no internals>.
-
-## Invariants
-
-- <rule that always holds for this component; not restated from the system design>.
-
-## Verification
-
-How a change under this component is proven to work. An issue's `## Verification` predicates are drawn from here.
-
-### Direct
-- <in-tree checks: the unit / e2e / regression suites and how to run them>.
-
-### Indirect (live)
-- <how to exercise a change through the built/installed/served artifact>.
-```
-
-`## Interfaces` is per operation. A component with no consumer interface writes one line saying so.
+**REQUIRED REFERENCE:** Use skills/writing-component-design/references/body-shape.md for the heading skeleton and per-heading content.
 
 **Optional sections** (add only when they earn their place):
 
@@ -77,11 +42,11 @@ How a change under this component is proven to work. An issue's `## Verification
 - `## Decisions` - links to decisions, not their prose.
 - `## Open questions` - unresolved items.
 
-**Forbidden:** Purpose and Precedents sections, Risks, Flow, Decision tree, and system invariants restated from the system design. History lives in a decision, a learning, or the issue.
+**Forbidden:** `## Purpose`, Risks, Flow, Decision tree, and system invariants restated from the system design. Record history in a decision, a learning, or the issue; an append-only `## Precedents` log is allowed but no reader loads it.
 
 **Discriminating test for `## Code design`:** a rule belongs in a `[[convention.X]]` iff it would be copied verbatim into another project's component design. A rule specific to this component's architecture stays here.
 
-**Verification strategy:** read `references/verification-strategy.md` before writing `## Verification`.
+**REQUIRED REFERENCE:** Use skills/writing-component-design/references/verification-strategy.md before writing ## Verification.
 
 ---
 

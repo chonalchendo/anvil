@@ -139,7 +139,7 @@ func TestTagsAdd_RejectsKindFacet(t *testing.T) {
 	}
 }
 
-func TestCreateComponentDesign_BodyRequiresBoundaryHalf(t *testing.T) {
+func TestCreateComponentDesign_BodyRequiresCore(t *testing.T) {
 	setupVault(t)
 	if _, err := runArgs(t, "component-design", "kinds", "add", "data"); err != nil {
 		t.Fatal(err)
@@ -158,7 +158,7 @@ func TestCreateComponentDesign_BodyRequiresBoundaryHalf(t *testing.T) {
 	}
 }
 
-func TestCreateComponentDesign_NoBodyGetsBoundarySkeleton(t *testing.T) {
+func TestCreateComponentDesign_NoBodyGetsCoreSkeleton(t *testing.T) {
 	setupVault(t)
 	if _, err := runArgs(t, "component-design", "kinds", "add", "data"); err != nil {
 		t.Fatal(err)
@@ -186,14 +186,14 @@ func TestCreateComponentDesign_NoBodyGetsBoundarySkeleton(t *testing.T) {
 		t.Fatalf("--show-template: %v", err)
 	}
 	if !strings.Contains(tmpl, "## Interfaces") {
-		t.Errorf("--show-template missing boundary skeleton:\n%s", tmpl)
+		t.Errorf("--show-template missing core skeleton:\n%s", tmpl)
 	}
 }
 
-// TestComponentDesign_ValidateEnforcesBoundaryHalf pins that a design which
-// lost a boundary heading after create is refused by validate, and that a
+// TestComponentDesign_ValidateEnforcesCore pins that a design which
+// lost a core heading after create is refused by validate, and that a
 // plain append onto a valid design still lands.
-func TestComponentDesign_ValidateEnforcesBoundaryHalf(t *testing.T) {
+func TestComponentDesign_ValidateEnforcesCore(t *testing.T) {
 	setupVault(t)
 	if _, err := runArgs(t, "component-design", "kinds", "add", "data"); err != nil {
 		t.Fatal(err)

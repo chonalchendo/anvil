@@ -60,7 +60,7 @@ Prioritise `draft` and `verified` learnings (those the deterministic pass left u
 | **update** | Core claim holds, details drifted | Edit the body; bump `updated`; revive via `verified` if it was stale |
 | **consolidate** | Two+ learnings say one thing | Merge into the strongest; `retracted` the rest with a `related` pointer to the survivor |
 | **synthesize** | Two+ *distinct* learnings share a generalizable pattern worth a higher tier | Create a new generalized learning citing them; the specifics are kept, not retracted |
-| **promote** | A learning crystallizes a does/does-not boundary worth enforcing | Graduate it into a component design precedent (`writing-component-design` update mode); link learning↔component design |
+| **promote** | A learning crystallizes a does/does-not boundary worth enforcing | Graduate it into a component design `## Does not` entry (`writing-component-design` update mode); link learning↔component design |
 | **replace** | Superseded by a newer claim | `retracted`; distil the replacement via `distilling-learning` |
 | **delete** | Never load-bearing; noise | Remove the file (vault hygiene) |
 | **stale** | Claim no longer holds, no replacement yet | `anvil transition learning <id> stale` |
@@ -82,14 +82,14 @@ anvil link learning <new-id> learning <source-id>                         # cite
 
 The `related[]` links *are* the tier marker — a learning citing 2+ source learnings is a generalization; add a `source_learnings` field only when a query needs to filter on one. It surfaces through the same `anvil-learnings-researcher` + FTS5 crossbar as any learning. Gate on the user: generalization is a judgement call, not an automatic roll-up.
 
-**Promote** is synthesize's enforcement sibling: it graduates a does/does-not boundary learning into an *enforced* component design precedent — the edge from the corpus (retrieved only when queried) to a component design's `## Does not`, which `reviewing-pr` treats as blocker-severity and `resuming-session` surfaces at startup. Only a boundary rule qualifies; an observation stays a learning. Reuse [[writing-component-design]] update mode — no new skill or verb:
+**Promote** is synthesize's enforcement sibling: it graduates a does/does-not boundary learning into an *enforced* component design `## Does not` entry — the edge from the corpus (retrieved only when queried) to a component design's `## Does not`, which `reviewing-pr` treats as blocker-severity and `resuming-session` surfaces at startup. Only a boundary rule qualifies; an observation stays a learning. Reuse [[writing-component-design]] update mode — no new skill or verb:
 
 ```bash
 anvil link learning <id> component-design <component-design-id>   # learning → component design
 anvil link component-design <component-design-id> learning <id>   # component design → learning — `anvil link` writes only the source's related[]; run both for a materialized back-link
 ```
 
-Then, via `writing-component-design` update mode, append a `## Does not` entry (the rule itself — `reviewing-pr` enforces only `## Does not`, not `## Precedents`) plus a `## Precedents` line anchored on the **issue/PR** id that proved it, not the learning id (a learning can later be retracted, leaving the component design stale-but-authoritative). The learning stays `verified` — the bidirectional link is the graduation marker, not a new status. Gate on the user: enforced-blocker status is a judgement call.
+Then, via `writing-component-design` update mode, append a `## Does not` entry (the rule itself — `reviewing-pr` enforces only `## Does not`) and record the **issue/PR** id that proved it in a decision, a learning, or the issue, not the learning id (a learning can later be retracted, leaving the component design stale-but-authoritative). The learning stays `verified` — the bidirectional link is the graduation marker, not a new status. Gate on the user: enforced-blocker status is a judgement call.
 
 ## Phase 4 — Validate
 
