@@ -1,6 +1,8 @@
 package core
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"regexp"
 	"slices"
@@ -466,4 +468,12 @@ func verificationSpan(body string) string {
 		}
 	}
 	return span.String()
+}
+
+// VerificationLock is the hex SHA-256 of the body's `## Verification` section,
+// the value the claim stamps and `anvil verify` compares. Text outside the
+// section does not move it.
+func VerificationLock(body string) string {
+	sum := sha256.Sum256([]byte(verificationSpan(body)))
+	return hex.EncodeToString(sum[:])
 }

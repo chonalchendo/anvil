@@ -14,6 +14,7 @@ func stampIssueGate(a *core.Artifact, to, reason string, now time.Time) {
 	switch to {
 	case "in-progress":
 		a.FrontMatter["claimed_at"] = now.Format(time.RFC3339)
+		a.FrontMatter["verification_lock"] = core.VerificationLock(a.Body)
 		// The claiming session lets a later same-owner claim from a different
 		// session be refused. Omitted outside a Claude session (env unset).
 		if sid := os.Getenv(envSessionID); sid != "" {

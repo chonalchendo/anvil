@@ -202,3 +202,56 @@ func TestVerifyLeavesExitNilWhenTheBlockNeverRan(t *testing.T) {
 		}
 	}
 }
+
+func TestVerifyLock(t *testing.T) {
+	const id = "issue.anvil.0003.lock"
+	vault := setupVault(t)
+	writeVerifyIssue(t, vault, id, "true", "true")
+	path := filepath.Join(vault, "70-issues", id+".md")
+	edit := func(f func(a *core.Artifact)) {
+		t.Helper()
+		a, err := core.LoadArtifact(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f(a)
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Claim stamping.
+	edit(func(a *core.Artifact) { stampIssueGate(a, "in-progress", "", time.Now()) })
+	t.Setenv("ANVIL_VAULT", vault)
+
+	// Body edit outside the section does not trip the lock.
+	edit(func(a *core.Artifact) { a.Body = "## Notes\n\nhi\n\n" + a.Body })
+	if _, _, err := runCmd(t, newVerifyCmd(), id, "--json"); err != nil {
+		t.Fatalf("edit outside section tripped lock: %v", err)
+	}
+
+	// Section edit refuses, unstamped, before running.
+	edit(func(a *core.Artifact) {
+		delete(a.FrontMatter, "verified_verdict")
+		a.Body = strings.Replace(a.Body, "```bash\ntrue\n```\n\n### Indirect", "```bash\ntrue; true\n```\n\n### Indirect", 1)
+	})
+	_, _, err := runCmd(t, newVerifyCmd(), id, "--json")
+	if err == nil || !strings.Contains(err.Error(), "verification_changed") && !strings.Contains(fmt.Sprintf("%+v", err), "verification_changed") {
+		t.Fatalf("want verification_changed, got %v", err)
+	}
+	a, _ := core.LoadArtifact(path)
+	if _, ok := a.FrontMatter["verified_verdict"]; ok {
+		t.Error("refusal must not stamp a verdict")
+	}
+
+	// --accept-change re-locks and runs.
+	if _, _, err := runCmd(t, newVerifyCmd(), id, "--accept-change", "--json"); err != nil {
+		t.Fatalf("accept-change: %v", err)
+	}
+	a, _ = core.LoadArtifact(path)
+	if a.FrontMatter["verification_lock"] != core.VerificationLock(a.Body) || a.FrontMatter["verified_verdict"] != "pass" {
+		t.Errorf("not re-locked/run: %v", a.FrontMatter)
+	}
+	if _, _, err := runCmd(t, newVerifyCmd(), id, "--json"); err != nil {
+		t.Fatalf("after re-lock: %v", err)
+	}
+}
