@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -53,7 +56,20 @@ type blockRun struct {
 	output   string
 	timedOut bool
 	runErr   error
+	// redLine is the 1-based block line a set -e abort stopped on, or 0 when
+	// the block ended another way (explicit exit, success, kill).
+	redLine int
+	// lastLine is the 1-based line of the block's final command.
+	lastLine int
+	// redText is the trimmed text of redLine.
+	redText string
 }
+
+// redLineMarker prefixes the ERR-trap report in the block's stderr. An explicit
+// `exit`, a `|| true` guard and an `if <cmd>` condition do not fire the trap;
+// only a set -e abort does, which is what separates a broken setup line from a
+// deliberate red.
+const redLineMarker = "@@anvil-red-line:"
 
 // runFeasibilityGate executes every ```bash block under the issue body's
 // Verification → Direct and Indirect subsections in the authoring environment
@@ -108,6 +124,9 @@ func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.Validat
 			if label == "Direct" && r.runErr == nil && !r.timedOut && r.exit == 0 {
 				cmd.PrintErrln("anvil: " + name + " exits 0 — " + directGreenNote)
 			}
+			if label == "Direct" && r.redLine > 0 {
+				cmd.PrintErrln(fmt.Sprintf("anvil: %s exits non-zero at line %d (`%s`); accepted, but check it is not a missing path or an empty suite", name, r.redLine, r.redText))
+			}
 			msg, fix := classifyFeasibility(label, name, r)
 			if msg == "" {
 				continue
@@ -128,6 +147,7 @@ const (
 	nonGatingNegationWhy = "a `!` in command position on a line that is not the block's last. " +
 		"set -e exempts a non-final `!` command, so its failure cannot fail the block; " +
 		"and where a loop or if tail does gate, only its final iteration's status survives"
+	earlyRedFix          = "move the setup fix so the block reaches its assertion, or make the assertion the block's last line; split independent assertions into separate blocks"
 	nonGatingNegationFix = "rewrite the negative assertion as `if <cmd>; then exit 1; fi`, which gates on any line — or make it the block's last line"
 )
 
@@ -160,6 +180,9 @@ func classifyFeasibility(label, name string, r blockRun) (msg, fix string) {
 			"point the block at an executable path — the predicate never ran, so its exit status says nothing about the code"
 	case label != "Indirect":
 		return "", ""
+	case r.redLine > 0 && r.redLine < r.lastLine:
+		return fmt.Sprintf("%s aborts at line %d (`%s`) before its last line (%d), so it is red for a setup reason, not the assertion", name, r.redLine, r.redText, r.lastLine),
+			earlyRedFix
 	case r.exit == 0:
 		return fmt.Sprintf("%s already passes (exit 0) against the current, unfixed tree, so it cannot discriminate fixed from broken", name),
 			"write an Indirect predicate that is red until the fix lands: assert the observed post-fix behaviour, not the presence of a mechanism. " +
@@ -178,7 +201,18 @@ func runFeasibilityBlock(block, dir string) blockRun {
 	// /bin/bash, not a $PATH lookup: the same pinned-shell precedent
 	// runAnchorCheck sets, so the gate's verdict does not depend on which bash
 	// happens to come first on the author's PATH.
-	c := exec.CommandContext(ctx, "/bin/bash", "-ec", block) //nolint:gosec // G204: runs the issue's own Verification block verbatim by design — proving it is what the feasibility gate (anvil.0196) exists to do; author-trusted vault content, bounded by feasibilityTimeout
+	// A script file, not -c: bash 3.2 numbers -c lines from 0, so $LINENO would
+	// disagree across the bash versions the gate may meet.
+	script, err := os.CreateTemp("", "anvil-verify-*.sh")
+	if err != nil {
+		return blockRun{runErr: err}
+	}
+	defer func() { _ = os.Remove(script.Name()) }()
+	_, werr := script.WriteString("trap 'printf \"\\n" + redLineMarker + "%s\\n\" \"$LINENO\" >&2' ERR; " + block)
+	if cerr := script.Close(); werr != nil || cerr != nil {
+		return blockRun{runErr: errors.Join(werr, cerr)}
+	}
+	c := exec.CommandContext(ctx, "/bin/bash", "-e", script.Name()) //nolint:gosec // G204: runs the issue's own Verification block verbatim by design — proving it is what the feasibility gate (anvil.0196) exists to do; author-trusted vault content, bounded by feasibilityTimeout
 	// Run the block in its own process group so the timeout kill reaches the
 	// whole tree. A block that backgrounds work (`nohup … &`) leaves
 	// grandchildren that survive a signal aimed at bash alone and keep running
@@ -197,6 +231,8 @@ func runFeasibilityBlock(block, dir string) blockRun {
 		tail += "\n(output truncated)"
 	}
 	r := blockRun{output: tail}
+	r.output, r.redLine = splitRedLine(tail)
+	r.lastLine, r.redText = blockLines(block, r.redLine)
 	var exitErr *exec.ExitError
 	switch {
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
@@ -208,4 +244,32 @@ func runFeasibilityBlock(block, dir string) blockRun {
 		r.runErr = runErr
 	}
 	return r
+}
+
+// splitRedLine strips the ERR-trap report from the captured output and returns
+// the reported line (0 when absent).
+func splitRedLine(out string) (string, int) {
+	i := strings.LastIndex(out, "\n"+redLineMarker)
+	if i < 0 {
+		return out, 0
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(out[i+1+len(redLineMarker):]))
+	if err != nil {
+		return out, 0
+	}
+	return out[:i], n
+}
+
+// blockLines returns the 1-based line where the block's final command starts
+// (backslash continuations folded in) and the trimmed text of line red.
+func blockLines(block string, red int) (last int, redText string) {
+	lines := strings.Split(strings.TrimRight(block, " \t\r\n"), "\n")
+	last = len(lines)
+	for last > 1 && strings.HasSuffix(strings.TrimRight(lines[last-2], " \t"), "\\") {
+		last--
+	}
+	if red >= 1 && red <= len(lines) {
+		redText = strings.TrimSpace(lines[red-1])
+	}
+	return last, redText
 }

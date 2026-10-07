@@ -787,6 +787,14 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 			name: "direct command not found", direct: "definitely-not-a-command", indirect: "exit 3",
 			refused: true, wantMsg: "verification Direct block 1 is unrunnable here (exit 127",
 		},
+		{name: "indirect healthy true-then-false shape", direct: "true", indirect: "true\nfalse", wantWarn: true},
+		{name: "indirect explicit exit before last line is accepted", direct: "true", indirect: "exit 1\ntrue", wantWarn: true},
+		{name: "indirect if-guarded exit is accepted", direct: "true", indirect: "if false; then exit 1; fi\nexit 3", wantWarn: true},
+		{
+			name: "indirect set -e abort before last line", direct: "true", indirect: "false\ntrue",
+			refused: true, wantMsg: "verification Indirect block 1 aborts at line 1 (`false`) before its last line (2)",
+		},
+		{name: "direct non-zero abort is accepted with a notice", direct: "false\ntrue", indirect: "exit 3"},
 		{
 			// A directory is on disk and readable but not executable: exit 126.
 			name: "indirect not executable", direct: "true", indirect: "\"$probeDir\"",
@@ -828,6 +836,22 @@ func TestCreate_Issue_FeasibilityGateVerdicts(t *testing.T) {
 				t.Errorf("file should not be created; stat err = %v", statErr)
 			}
 		})
+	}
+}
+
+// TestCreate_Issue_FeasibilityGateNamesDirectRedLine: a Direct set -e abort is
+// accepted, but the notice names the line so a missing path is visible.
+func TestCreate_Issue_FeasibilityGateNamesDirectRedLine(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	stderr, err := runCreateIssueBody(t, "probe", feasibilityBody("true\nfalse\ntrue", "exit 3"))
+	if err != nil {
+		t.Fatalf("err = %v, want nil\nstderr: %s", err, stderr)
+	}
+	if !strings.Contains(stderr, "Direct block 1 exits non-zero at line 2 (`false`)") {
+		t.Errorf("stderr should name the red line, got: %s", stderr)
 	}
 }
 
