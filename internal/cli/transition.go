@@ -197,7 +197,8 @@ func newTransitionCmd() *cobra.Command {
 			// resolved` edge below; only the unclaimed-open case needs the
 			// synthesized edge. The claim is stamped into frontmatter but only
 			// persisted by the single Save() after doLandPR succeeds, so a failed
-			// land leaves the issue on disk exactly as it was: open.
+			// land never persists the claim. A red clean run still writes
+			// verified_* on disk: the stamp is the run's record, not the claim's.
 			autoClaimLandPR := landPRNum != 0 && from == "open"
 			var tr core.Transition
 			if autoClaimLandPR {
@@ -281,7 +282,7 @@ func newTransitionCmd() *cobra.Command {
 			}
 
 			if landPRNum != 0 {
-				if err := doLandPR(cmd.ErrOrStderr(), a, id, landPRNum, worktreeOverride, localValidated); err != nil {
+				if err := doLandPR(cmd.ErrOrStderr(), v, a, id, landPRNum, worktreeOverride, localValidated); err != nil {
 					return printAndReturn(cmd, err)
 				}
 				a.Body += postLandRedNote(runPostLandBlocks(cmd.ErrOrStderr(), a.Body), a.Body)
@@ -418,7 +419,7 @@ func newTransitionCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&cutWorktree, "cut-worktree", false, "create the conventional worktree+branch before transitioning (issue → in-progress only); copies paths declared in .anvil-worktree-carry into the new worktree")
 	cmd.Flags().StringVar(&worktreeOverride, "worktree", "", "override the derived worktree path (used with --cut-worktree or --land-pr)")
 	cmd.Flags().StringVar(&branchOverride, "branch", "", "override the derived branch name (used with --cut-worktree)")
-	cmd.Flags().IntVar(&landPRNum, "land-pr", 0, "PR number to land: refuse without a pass verdict at the PR head on an intact lock for the issue's own branch, verify-mergeable + CI-green, squash-merge, verify MERGED, remove worktree, delete branch, then transition (issue → resolved only); auto-claims an unclaimed open issue atomically (--owner optional, stamped if given)")
+	cmd.Flags().IntVar(&landPRNum, "land-pr", 0, "PR number to land: runs the issue's verification on a fresh checkout of the PR head and merges only on its pass; refuses land_pr_verification_failed, verification_changed and a foreign PR; verify-mergeable + CI-green, squash-merge, verify MERGED, remove worktree, delete branch, then transition (issue → resolved only); auto-claims an unclaimed open issue atomically (--owner optional, stamped if given)")
 	cmd.Flags().BoolVar(&localValidated, "local-validated", false, "bypass the CI-green gate when used with --land-pr; for use when required CI is genuinely unavailable and the operator has validated locally (audit-logged)")
 	return cmd
 }

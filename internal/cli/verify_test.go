@@ -411,3 +411,37 @@ func TestVerifyAtRemovalFailureIsANotice(t *testing.T) {
 		}
 	}
 }
+
+func TestVerifyAtCheckoutFailedNamesItsCauseAndStampsNothing(t *testing.T) {
+	vault := setupVault(t)
+	repo := t.TempDir()
+	gitIn(t, repo, "init", "-q")
+	gitIn(t, repo, "commit", "-q", "--allow-empty", "-m", "init")
+	const id = "issue.anvil.0009.atcheckout"
+	writeVerifyIssue(t, vault, id, "true", "true")
+	t.Setenv("ANVIL_VAULT", vault)
+	t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "nonexistent"))
+	t.Chdir(repo)
+
+	_, _, err := runCmd(t, newVerifyCmd(), id, "--at", "HEAD", "--json")
+	var se *errfmt.Structured
+	if !errors.As(err, &se) || se.Code != "verify_at_checkout_failed" {
+		t.Fatalf("want verify_at_checkout_failed, got %v", err)
+	}
+	hint := ""
+	for _, kv := range se.Fields {
+		if kv.Key == "fix_hint" {
+			hint, _ = kv.Value.(string)
+		}
+	}
+	if !strings.Contains(hint, "TMPDIR") {
+		t.Errorf("fix_hint = %q, want the TMPDIR cause", hint)
+	}
+	a, lerr := core.LoadArtifact(filepath.Join(vault, "70-issues", id+".md"))
+	if lerr != nil {
+		t.Fatal(lerr)
+	}
+	if _, stamped := a.FrontMatter["verified_verdict"]; stamped {
+		t.Error("a refusal must not stamp verified_verdict")
+	}
+}

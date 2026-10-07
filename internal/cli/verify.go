@@ -2,7 +2,9 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -66,40 +68,31 @@ func newVerifyCmd() *cobra.Command {
 			if err := checkVerificationLock(a, id, flagAccept); err != nil {
 				return printAndReturn(cmd, err)
 			}
-			dir, atCommit := "", ""
+			var rec verifyRecord
 			if flagAt != "" {
-				var cleanup func()
-				if dir, atCommit, cleanup, err = checkoutAt(cmd, id, flagAt); err != nil {
+				root, terr := gitToplevelFn()
+				if terr != nil {
+					return printAndReturn(cmd, errfmt.NewStructured("verify_at_no_repo").
+						Set("message", "--at needs a git repo; the current directory is not in one").
+						Set("fix_hint", "cd into the repo that holds "+flagAt+", then run anvil verify "+id+" --at "+flagAt))
+				}
+				rec, err = verifyAt(cmd.ErrOrStderr(), id, root, flagAt, a.Body)
+			} else {
+				rec, err = runVerification(cmd.ErrOrStderr(), a.Body, "")
+			}
+			if err != nil {
+				var se *errfmt.Structured
+				if errors.As(err, &se) {
 					return printAndReturn(cmd, err)
 				}
-				defer cleanup()
-			}
-			ranBody := a.Body
-			rec, err := runVerification(cmd, ranBody, dir)
-			if err != nil {
 				return err
 			}
-			if atCommit != "" {
-				// The checkout is the resolved commit by construction; git status
-				// can still report changes on it (case-folding filesystems).
-				rec.Commit = atCommit
-			}
-			// Reload: the run can take minutes, and a write to the issue in that
-			// window must not be overwritten by the pre-run copy.
-			if a, err = loadIssueForVerify(path, id, args[0]); err != nil {
-				return err
-			}
+			lock := ""
 			if flagAccept {
-				a.FrontMatter["verification_lock"] = core.VerificationLock(ranBody)
+				lock = core.VerificationLock(a.Body)
 			}
-			a.FrontMatter["verified_verdict"] = rec.Verdict
-			a.FrontMatter["verified_commit"] = rec.Commit
-			a.FrontMatter["verified_at"] = rec.RanAt
-			if err := a.Save(); err != nil {
-				return fmt.Errorf("saving artifact: %w", err)
-			}
-			if err := indexAfterSave(v, a); err != nil {
-				return fmt.Errorf("indexing %s: %w", id, err)
+			if err := stampVerification(v, path, id, args[0], rec, lock); err != nil {
+				return err
 			}
 			if flagJSON {
 				b, _ := json.Marshal(rec)
@@ -141,16 +134,52 @@ func loadIssueForVerify(path, id, arg string) (*core.Artifact, error) {
 	return a, nil
 }
 
-// checkoutAt adds a detached worktree of sha under a temp dir and returns it
+// stampVerification reloads the issue, stamps the record on it and saves. The
+// run can take minutes, and a write to the issue in that window must not be
+// overwritten by a pre-run copy. A non-empty lock also re-locks the section.
+func stampVerification(v *core.Vault, path, id, arg string, rec verifyRecord, lock string) error {
+	a, err := loadIssueForVerify(path, id, arg)
+	if err != nil {
+		return err
+	}
+	if lock != "" {
+		a.FrontMatter["verification_lock"] = lock
+	}
+	a.FrontMatter["verified_verdict"] = rec.Verdict
+	a.FrontMatter["verified_commit"] = rec.Commit
+	a.FrontMatter["verified_at"] = rec.RanAt
+	if err := a.Save(); err != nil {
+		return fmt.Errorf("saving artifact: %w", err)
+	}
+	if err := indexAfterSave(v, a); err != nil {
+		return fmt.Errorf("indexing %s: %w", id, err)
+	}
+	return nil
+}
+
+// verifyAt runs body on a fresh detached checkout of sha in root's repo and
+// returns the record stamped at the resolved commit.
+func verifyAt(errW io.Writer, id, root, sha, body string) (verifyRecord, error) {
+	dir, commit, cleanup, err := checkoutAt(errW, id, root, sha)
+	if err != nil {
+		return verifyRecord{}, err
+	}
+	defer cleanup()
+	rec, err := runVerification(errW, body, dir)
+	if err != nil {
+		return rec, err
+	}
+	// The checkout is the resolved commit by construction; git status can still
+	// report changes on it (case-folding filesystems).
+	rec.Commit = commit
+	return rec, nil
+}
+
+// checkoutAt adds a detached worktree of sha under a temp dir, provisions it
+// like a cut worktree (carry files, then the worktree hook), and returns it
 // with the resolved commit and its cleanup. A removal failure is a notice: it
 // must not change the verdict.
-func checkoutAt(cmd *cobra.Command, id, sha string) (string, string, func(), error) {
-	root, err := gitToplevelFn()
-	if err != nil {
-		return "", "", nil, errfmt.NewStructured("verify_at_no_repo").
-			Set("message", "--at needs a git repo; the current directory is not in one").
-			Set("fix_hint", "cd into the repo that holds "+sha+", then run anvil verify "+id+" --at "+sha)
-	}
+func checkoutAt(errW io.Writer, id, root, sha string) (string, string, func(), error) {
 	full, err := exec.Command("git", "-C", root, "rev-parse", "--verify", "--end-of-options", sha+"^{commit}").Output() //nolint:gosec // sha is a single argv element after --end-of-options
 	if err != nil {
 		return "", "", nil, errfmt.NewStructured("verify_at_unresolved").
@@ -158,31 +187,49 @@ func checkoutAt(cmd *cobra.Command, id, sha string) (string, string, func(), err
 			Set("fix_hint", "fetch it with git fetch, or check it with git rev-parse "+sha+"^{commit}")
 	}
 	commit := strings.TrimSpace(string(full))
-	failed := func(msg string) error {
+	failed := func(msg, hint string) error {
 		return errfmt.NewStructured("verify_at_checkout_failed").
 			Set("message", msg).
-			Set("fix_hint", "check free disk space and that TMPDIR is writable, then re-run anvil verify "+id+" --at "+sha)
+			Set("fix_hint", hint+", then re-run anvil verify "+id+" --at "+sha)
 	}
 	tmp, err := os.MkdirTemp("", "anvil-verify-at-*")
 	if err != nil {
-		return "", "", nil, failed("creating checkout dir: " + err.Error())
+		return "", "", nil, failed("creating checkout dir: "+err.Error(), "check free disk space and that TMPDIR is writable")
 	}
 	dir := filepath.Join(tmp, "wt")
 	if out, err := exec.Command("git", "-C", root, "worktree", "add", "--detach", dir, commit).CombinedOutput(); err != nil { //nolint:gosec // commit is a resolved sha
 		_ = os.RemoveAll(tmp)
-		return "", "", nil, failed("git worktree add: " + err.Error() + ": " + strings.TrimSpace(string(out)))
+		return "", "", nil, failed("git worktree add: "+err.Error()+": "+strings.TrimSpace(string(out)), "fix the git error in message")
 	}
-	return dir, commit, func() {
+	cleanup := func() {
 		if err := gitWorktreeRemoveForceFn(root, dir); err != nil {
-			cmd.PrintErrln("anvil: could not remove verify checkout " + dir + ": " + err.Error())
+			fmt.Fprintln(errW, "anvil: could not remove verify checkout "+dir+": "+err.Error())
 		}
 		_ = os.RemoveAll(tmp)
-	}, nil
+	}
+	if err := provisionCheckout(root, dir); err != nil {
+		cleanup()
+		return "", "", nil, failed("provisioning the checkout: "+err.Error(), "fix the carry list or worktree hook named in message")
+	}
+	return dir, commit, cleanup, nil
+}
+
+// provisionCheckout gives a clean checkout what a cut worktree gets: the
+// declared carry files, then the repo's worktree hook.
+func provisionCheckout(root, dir string) error {
+	paths, err := checkCarryDeclarations(root)
+	if err != nil {
+		return err
+	}
+	if err := copyCarryFiles(root, dir, paths); err != nil {
+		return err
+	}
+	return runWorktreeHookFn(root, dir)
 }
 
 // runVerification runs every Direct then Indirect block in dir ("" is the cwd).
 // Unlike the create gate, green and red mean pass and fail for both subsections.
-func runVerification(cmd *cobra.Command, body, dir string) (verifyRecord, error) {
+func runVerification(errW io.Writer, body, dir string) (verifyRecord, error) {
 	rec := verifyRecord{Failed: []verifyFailure{}, Deferred: []verifyFailure{}, RanAt: time.Now().UTC().Format(time.RFC3339)}
 	rec.Commit = commitOf(dir)
 	for _, label := range []string{"Direct", "Indirect"} {
@@ -193,7 +240,7 @@ func runVerification(cmd *cobra.Command, body, dir string) (verifyRecord, error)
 		if len(blocks) == 0 {
 			// Invariant 6: a section with nothing to run is a failed check, not a pass.
 			rec.Checks++
-			cmd.PrintErrln(fmt.Sprintf("FAIL ### %s has no executable ```bash block", label))
+			fmt.Fprintf(errW, "FAIL ### %s has no executable ```bash block\n", label)
 			rec.Failed = append(rec.Failed, verifyFailure{Check: label, Preview: "no executable bash block"})
 			continue
 		}
@@ -203,23 +250,23 @@ func runVerification(cmd *cobra.Command, body, dir string) (verifyRecord, error)
 			f := verifyFailure{Check: check, Preview: blockPreview(block)}
 			if f.Preview == "" {
 				f.Preview = "block has no executable command"
-				cmd.PrintErrln(fmt.Sprintf("FAIL [%s] %s (empty or all comments)", check, f.Preview))
+				fmt.Fprintf(errW, "FAIL [%s] %s (empty or all comments)\n", check, f.Preview)
 				rec.Failed = append(rec.Failed, f)
 				continue
 			}
 			if vacuous := core.NonGatingNegation(block); vacuous != "" {
-				cmd.PrintErrln(fmt.Sprintf("FAIL [%s] %s: carries `%s`; %s", check, f.Preview, vacuous, nonGatingNegationWhy))
+				fmt.Fprintf(errW, "FAIL [%s] %s: carries `%s`; %s\n", check, f.Preview, vacuous, nonGatingNegationWhy)
 				f.Preview = "non-gating negation: " + vacuous
 				rec.Failed = append(rec.Failed, f)
 				continue
 			}
-			cmd.PrintErrln("anvil: running verification " + check + " in this environment (your privileges, cwd and environment; not sandboxed)")
+			fmt.Fprintln(errW, "anvil: running verification "+check+" in this environment (your privileges, cwd and environment; not sandboxed)")
 			// No timeout: Direct is typically the repo's whole suite, which the
 			// create gate's cap would fail as red.
 			r := runFeasibilityBlock(block, dir, 0)
 			why, failed := r.failure()
 			if !failed {
-				cmd.PrintErrln(fmt.Sprintf("PASS [%s] %s", check, f.Preview))
+				fmt.Fprintf(errW, "PASS [%s] %s\n", check, f.Preview)
 				continue
 			}
 			if r.runErr == nil && !r.timedOut {
@@ -228,11 +275,11 @@ func runVerification(cmd *cobra.Command, body, dir string) (verifyRecord, error)
 			}
 			_, f.Line, _ = blockLines(block, r.redLine)
 			if label == "Indirect" && core.IsPostLand(block) {
-				cmd.PrintErrln(fmt.Sprintf("DEFERRED [%s] %s (%s; post-land)\n%s", check, f.Preview, why, firstLines(r.output, 10)))
+				fmt.Fprintf(errW, "DEFERRED [%s] %s (%s; post-land)\n%s\n", check, f.Preview, why, firstLines(r.output, 10))
 				rec.Deferred = append(rec.Deferred, f)
 				continue
 			}
-			cmd.PrintErrln(fmt.Sprintf("FAIL [%s] %s (%s)\n%s", check, f.Preview, why, firstLines(r.output, 10)))
+			fmt.Fprintf(errW, "FAIL [%s] %s (%s)\n%s\n", check, f.Preview, why, firstLines(r.output, 10))
 			rec.Failed = append(rec.Failed, f)
 		}
 	}

@@ -17,24 +17,7 @@ const (
 
 func passingEvidence() landEvidence {
 	return landEvidence{
-		id: "issue.demo.foo", verdict: "pass", commit: landTestHead,
-		lock: "L", currentLock: "L", branch: "demo/foo",
-	}
-}
-
-// stampLandEvidence writes a verification record onto an already-claimed
-// fixture issue.
-func stampLandEvidence(t *testing.T, id, verdict, commit string) {
-	t.Helper()
-	path := filepath.Join(os.Getenv("ANVIL_VAULT"), "70-issues", id+".md")
-	a, err := core.LoadArtifact(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	a.FrontMatter["verified_verdict"] = verdict
-	a.FrontMatter["verified_commit"] = commit
-	if err := a.Save(); err != nil {
-		t.Fatal(err)
+		id: "issue.demo.foo", lock: "L", currentLock: "L", branch: "demo/foo",
 	}
 }
 
@@ -50,9 +33,6 @@ func TestLandEvidenceCheck(t *testing.T) {
 		want string
 	}{
 		{"passes", func(*landEvidence) {}, headJSON(landTestHead, "demo/foo"), ""},
-		{"failed verdict", func(e *landEvidence) { e.verdict = "fail" }, headJSON(landTestHead, "demo/foo"), "verification_failed"},
-		{"stale commit", func(e *landEvidence) { e.commit = "deadbeef" }, headJSON(landTestHead, "demo/foo"), "verification_stale"},
-		{"dirty commit", func(e *landEvidence) { e.commit = landTestHead + "-dirty" }, headJSON(landTestHead, "demo/foo"), "verification_stale"},
 		{"changed lock", func(e *landEvidence) { e.currentLock = "other" }, headJSON(landTestHead, "demo/foo"), "verification_changed"},
 		{"no lock is intact", func(e *landEvidence) { e.lock = ""; e.currentLock = "other" }, headJSON(landTestHead, "demo/foo"), ""},
 		{"foreign pr", func(*landEvidence) {}, headJSON(landTestHead, "demo/sibling"), "land_pr_not_issue_pr"},
@@ -85,28 +65,6 @@ func TestLandEvidenceViewFailureRefuses(t *testing.T) {
 	}
 }
 
-// The missing-record refusal fires before any gh call and carries a fix hint
-// through --json.
-func TestLandPRMissingEvidenceRefusesBeforeGh(t *testing.T) {
-	vault := t.TempDir()
-	t.Setenv("ANVIL_VAULT", vault)
-	execCmd(t, "init", vault)
-	createDemoIssue(t)
-	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
-	s := stubSideFX(t)
-
-	out, _, err := runCmd(t, newRootCmd(), "transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json")
-	if err == nil {
-		t.Fatal("want refusal")
-	}
-	if !strings.Contains(out, "verification_missing") || !strings.Contains(out, "anvil verify") {
-		t.Errorf("output = %s", out)
-	}
-	if len(s.viewCalls) != 0 || len(s.mergeCalls) != 0 {
-		t.Errorf("gh touched: views=%v merges=%v", s.viewCalls, s.mergeCalls)
-	}
-}
-
 // A renamed branch is the issue's own when it is checked out at the issue's
 // worktree path; any other path is foreign.
 func TestLandEvidenceRenamedBranch(t *testing.T) {
@@ -121,10 +79,10 @@ func TestLandEvidenceRenamedBranch(t *testing.T) {
 			s := stubSideFX(t)
 			s.viewByField[landHeadFields] = headJSON(landTestHead, "anvil/renamed")
 			s.listEntries["anvil/renamed"] = worktreeInfo{path: c.listed}
-			branch, err := passingEvidence().check(42, wt, false)
+			head, err := passingEvidence().check(42, wt, false)
 			if c.want == "" {
-				if err != nil || branch != "anvil/renamed" {
-					t.Fatalf("branch=%q err=%v", branch, err)
+				if err != nil || head.branch != "anvil/renamed" {
+					t.Fatalf("head=%+v err=%v", head, err)
 				}
 				return
 			}
@@ -135,51 +93,242 @@ func TestLandEvidenceRenamedBranch(t *testing.T) {
 	}
 }
 
-// An already-MERGED PR skips the verdict checks: refusing after the merge
-// would strand the issue in-progress.
+// An already-MERGED PR skips the lock and ownership checks: refusing after
+// the merge would strand the issue in-progress.
 func TestLandEvidenceSkippedWhenAlreadyMerged(t *testing.T) {
 	s := stubSideFX(t)
-	s.viewByField[landHeadFields] = headJSON("other-head", "demo/foo")
+	s.viewByField[landHeadFields] = headJSON("other-head", "demo/sibling")
 	ev := passingEvidence()
-	ev.verdict = "fail"
-	branch, err := ev.check(42, "", true)
-	if err != nil || branch != "demo/foo" {
-		t.Fatalf("branch=%q err=%v", branch, err)
+	ev.currentLock = "other"
+	head, err := ev.check(42, "", true)
+	if err != nil || head.branch != "demo/sibling" {
+		t.Fatalf("head=%+v err=%v", head, err)
 	}
 }
 
-// A stale head refuses through the verb, with and without --local-validated,
-// before any merge call.
-func TestLandPRStaleEvidenceRefusesThroughVerb(t *testing.T) {
-	for _, local := range []bool{false, true} {
-		name := "ci-gated"
-		if local {
-			name = "local-validated"
-		}
-		t.Run(name, func(t *testing.T) {
-			vault := t.TempDir()
-			t.Setenv("ANVIL_VAULT", vault)
-			execCmd(t, "init", vault)
-			createDemoIssue(t)
-			execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
-			s := stubSideFX(t)
-			stampLandEvidence(t, "demo.foo", "pass", "deadbeef")
-			s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
-			s.viewByField["state"] = []byte(`{"state":"OPEN"}`)
-			args := []string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--json"}
-			if local {
-				args = append(args, "--local-validated")
-			}
-			out, _, err := runCmd(t, newRootCmd(), args...)
-			if err == nil {
-				t.Fatal("want refusal")
-			}
-			if !strings.Contains(out, "verification_stale") {
-				t.Errorf("output = %s", out)
-			}
-			if len(s.mergeCalls) != 0 {
-				t.Errorf("merge calls = %v, want none", s.mergeCalls)
-			}
-		})
+const landCleanBody = "## Problem\n\nfixture.\n\n## Non-goals\n\n- none\n\n## Verification\n\n### Direct\n\n```bash\n%s\n```\n\n### Indirect\n\n```bash\ntrue\n```\n\n## Links\n\n- none\n"
+
+// landCleanFixture claims an issue whose Direct block is direct, builds a temp
+// repo as the main root, and points the PR head at its commit. The real clean
+// run, fetch-stub and real checkout removal are wired, so the checkout leaves
+// no worktree registered in the temp repo.
+func landCleanFixture(t *testing.T, direct string) (s *sideFXStub, repo, sha, wt string) {
+	t.Helper()
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	path := filepath.Join(vault, "70-issues", "demo.foo.md")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Body = strings.Replace(landCleanBody, "%s", direct, 1)
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	repo = t.TempDir()
+	gitIn(t, repo, "init", "-q")
+	gitIn(t, repo, "commit", "-q", "--allow-empty", "-m", "init")
+	sha = gitIn(t, repo, "rev-parse", "HEAD")
+
+	s = stubSideFX(t)
+	s.mainRoot = repo
+	landCleanRunFn = landCleanRun
+	gitWorktreeRemoveForceFn = gitWorktreeRemoveForceReal
+	s.viewByField[landHeadFields] = headJSON(sha, "demo/foo")
+	s.viewByField["mergeable,mergeStateStatus"] = []byte(`{"mergeable":"MERGEABLE","mergeStateStatus":"CLEAN"}`)
+	s.viewSeq["state"] = [][]byte{[]byte(`{"state":"OPEN"}`)}
+	s.viewByField["state"] = []byte(`{"state":"MERGED"}`)
+	wt = t.TempDir()
+	return s, repo, sha, wt
+}
+
+func landCleanRecord(t *testing.T) (verdict, commit string) {
+	t.Helper()
+	a, err := core.LoadArtifact(filepath.Join(os.Getenv("ANVIL_VAULT"), "70-issues", "demo.foo.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	verdict, _ = a.FrontMatter["verified_verdict"].(string)
+	commit, _ = a.FrontMatter["verified_commit"].(string)
+	return verdict, commit
+}
+
+func landCleanArgs(wt string, extra ...string) []string {
+	return append([]string{"transition", "issue", "demo.foo", "resolved", "--land-pr", "42", "--worktree", wt, "--json"}, extra...)
+}
+
+func worktreeCount(t *testing.T, repo string) int {
+	return strings.Count(gitIn(t, repo, "worktree", "list"), "\n")
+}
+
+func TestLandPRCleanRedRunRefusesWithoutMerge(t *testing.T) {
+	s, repo, sha, wt := landCleanFixture(t, "false")
+	n0 := worktreeCount(t, repo)
+	out, _, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...)
+	if err == nil || !strings.Contains(out, "land_pr_verification_failed") || !strings.Contains(out, "Direct#1") {
+		t.Fatalf("err=%v out=%s", err, out)
+	}
+	if len(s.mergeCalls) != 0 {
+		t.Errorf("merge calls = %v, want none", s.mergeCalls)
+	}
+	if v, c := landCleanRecord(t); v != "fail" || c != sha {
+		t.Errorf("record = %s at %s, want fail at %s", v, c, sha)
+	}
+	if s.fetchCalls != 1 {
+		t.Errorf("fetch calls = %d, want 1", s.fetchCalls)
+	}
+	if n := worktreeCount(t, repo); n != n0 {
+		t.Errorf("worktree count %d, want %d", n, n0)
+	}
+}
+
+func TestLandPRCleanPassMergesOnceAndStampsHead(t *testing.T) {
+	s, repo, sha, wt := landCleanFixture(t, "true")
+	n0 := worktreeCount(t, repo)
+	if out, _, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...); err != nil {
+		t.Fatalf("err=%v out=%s", err, out)
+	}
+	if len(s.mergeCalls) != 1 {
+		t.Errorf("merge calls = %v, want one", s.mergeCalls)
+	}
+	if len(s.mergeOids) != 1 || s.mergeOids[0] != sha {
+		t.Errorf("merge oids = %v, want the verified head %s", s.mergeOids, sha)
+	}
+	if v, c := landCleanRecord(t); v != "pass" || c != sha {
+		t.Errorf("record = %s at %s, want pass at %s", v, c, sha)
+	}
+	if n := worktreeCount(t, repo); n != n0 {
+		t.Errorf("worktree count %d, want %d", n, n0)
+	}
+}
+
+// An old record on the issue neither blocks nor satisfies the land.
+func TestLandPRCleanIgnoresAnOldRecord(t *testing.T) {
+	s, _, sha, wt := landCleanFixture(t, "true")
+	path := filepath.Join(os.Getenv("ANVIL_VAULT"), "70-issues", "demo.foo.md")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.FrontMatter["verified_verdict"] = "fail"
+	a.FrontMatter["verified_commit"] = "deadbeef-dirty"
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...)
+	if err != nil || len(s.mergeCalls) != 1 {
+		t.Fatalf("err=%v merges=%v out=%s", err, s.mergeCalls, out)
+	}
+	if v, c := landCleanRecord(t); v != "pass" || c != sha {
+		t.Errorf("record = %s at %s, want pass at %s", v, c, sha)
+	}
+}
+
+func TestLandPRCleanRunsUnderLocalValidated(t *testing.T) {
+	s, _, _, wt := landCleanFixture(t, "false")
+	out, _, err := runCmd(t, newRootCmd(), landCleanArgs(wt, "--local-validated")...)
+	if err == nil || !strings.Contains(out, "land_pr_verification_failed") || len(s.mergeCalls) != 0 {
+		t.Fatalf("err=%v merges=%v out=%s", err, s.mergeCalls, out)
+	}
+}
+
+func TestLandPRCleanSkippedWhenAlreadyMerged(t *testing.T) {
+	s, _, _, wt := landCleanFixture(t, "false")
+	s.viewSeq["state"] = nil
+	if out, _, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...); err != nil {
+		t.Fatalf("err=%v out=%s", err, out)
+	}
+	if len(s.mergeCalls) != 0 || s.fetchCalls != 0 {
+		t.Errorf("merges=%v fetches=%d, want none", s.mergeCalls, s.fetchCalls)
+	}
+	if v, _ := landCleanRecord(t); v != "" {
+		t.Errorf("verdict = %q, want no run", v)
+	}
+}
+
+func TestLandPRCleanFetchFailureWarnsAndRuns(t *testing.T) {
+	s, _, _, wt := landCleanFixture(t, "true")
+	s.fetchErr = errors.New("network down")
+	_, errOut, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...)
+	if err != nil || len(s.mergeCalls) != 1 {
+		t.Fatalf("err=%v merges=%v", err, s.mergeCalls)
+	}
+	if !strings.Contains(errOut, "fetch failed") || !strings.Contains(errOut, "network down") {
+		t.Errorf("stderr = %q, want the fetch warning", errOut)
+	}
+}
+
+func TestLandPRCleanFetchFailureNamesCauseWhenShaMissing(t *testing.T) {
+	s, _, _, wt := landCleanFixture(t, "true")
+	s.fetchErr = errors.New("network down")
+	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	out, _, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...)
+	if err == nil || !strings.Contains(out, "verify_at_unresolved") || !strings.Contains(out, "network down") || len(s.mergeCalls) != 0 {
+		t.Fatalf("err=%v merges=%v out=%s", err, s.mergeCalls, out)
+	}
+}
+
+// The clean checkout is provisioned like a cut worktree: a carried file is
+// there when a block reads it.
+func TestLandPRCleanCheckoutHasCarryFiles(t *testing.T) {
+	s, repo, _, wt := landCleanFixture(t, "test -f carried.env")
+	if err := os.WriteFile(filepath.Join(repo, "carried.env"), []byte("K=v\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, carryFileName), []byte("carried.env\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out, _, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...); err != nil || len(s.mergeCalls) != 1 {
+		t.Fatalf("err=%v merges=%v out=%s", err, s.mergeCalls, out)
+	}
+}
+
+func TestLandPRCleanHeadMovedIsRetryable(t *testing.T) {
+	s, repo, sha, wt := landCleanFixture(t, "true")
+	s.viewByField["state"] = []byte(`{"state":"OPEN"}`)
+	s.mergeErr = errors.New("gh pr merge: exit status 1: GraphQL: Head branch was modified. Review and try the merge again")
+	n0 := worktreeCount(t, repo)
+	out, _, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...)
+	if err == nil || !strings.Contains(out, "land_pr_head_moved") || !strings.Contains(out, sha) {
+		t.Fatalf("err=%v out=%s", err, out)
+	}
+	if len(s.mergeCalls) != 1 {
+		t.Errorf("merge calls = %v, want one", s.mergeCalls)
+	}
+	if len(s.removeCalls) != 0 {
+		t.Errorf("worktree removed: %v", s.removeCalls)
+	}
+	if v, c := landCleanRecord(t); v != "pass" || c != sha {
+		t.Errorf("record = %s at %s, want pass at %s", v, c, sha)
+	}
+	if n := worktreeCount(t, repo); n != n0 {
+		t.Errorf("worktree count %d, want %d", n, n0)
+	}
+}
+
+func TestLandPRCleanHookFailureRefusesAndCleansUp(t *testing.T) {
+	s, repo, _, wt := landCleanFixture(t, "true")
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	prev := runWorktreeHookFn
+	runWorktreeHookFn = func(_, _ string) error { return errors.New("hook boom") }
+	t.Cleanup(func() { runWorktreeHookFn = prev })
+	n0 := worktreeCount(t, repo)
+	out, _, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...)
+	if err == nil || !strings.Contains(out, "verify_at_checkout_failed") || !strings.Contains(out, "hook boom") {
+		t.Fatalf("err=%v out=%s", err, out)
+	}
+	if len(s.mergeCalls) != 0 {
+		t.Errorf("merge calls = %v, want none", s.mergeCalls)
+	}
+	if n := worktreeCount(t, repo); n != n0 {
+		t.Errorf("worktree count %d, want %d", n, n0)
+	}
+	if left, _ := filepath.Glob(filepath.Join(tmp, "anvil-verify-at-*")); len(left) != 0 {
+		t.Errorf("checkout dirs left: %v", left)
 	}
 }
