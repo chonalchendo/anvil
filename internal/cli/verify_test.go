@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -263,5 +265,79 @@ func TestVerifyLock(t *testing.T) {
 	}
 	if _, _, err := runCmd(t, newVerifyCmd(), id, "--json"); err != nil {
 		t.Fatalf("after re-lock: %v", err)
+	}
+}
+
+func gitIn(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	c := exec.Command("git", append([]string{"-C", dir, "-c", "user.email=t@t", "-c", "user.name=t"}, args...)...)
+	out, err := c.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func TestVerifyAtRunsOnAFreshCheckout(t *testing.T) {
+	vault := setupVault(t)
+	repo := t.TempDir()
+	gitIn(t, repo, "init", "-q")
+	gitIn(t, repo, "commit", "-q", "--allow-empty", "-m", "init")
+	sha := gitIn(t, repo, "rev-parse", "HEAD")
+	if err := os.WriteFile(filepath.Join(repo, "untracked.txt"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	const id = "issue.anvil.0005.at"
+	writeVerifyIssue(t, vault, id, "true", "test -f ./untracked.txt")
+	t.Chdir(repo)
+
+	if rec, _, err := runVerify(t, vault, id); err != nil || rec.Verdict != "pass" {
+		t.Fatalf("plain verify: verdict=%q err=%v", rec.Verdict, err)
+	}
+	count := func() int { return strings.Count(gitIn(t, repo, "worktree", "list"), "\n") }
+	n0 := count()
+
+	out, _, err := runCmd(t, newVerifyCmd(), id, "--at", "HEAD", "--json")
+	if err == nil {
+		t.Fatal("--at HEAD must fail: the untracked file is absent from the checkout")
+	}
+	var rec verifyRecord
+	if jerr := json.Unmarshal([]byte(strings.SplitN(out, "\n", 2)[0]), &rec); jerr != nil {
+		t.Fatalf("no JSON record: %v\n%q", jerr, out)
+	}
+	if rec.Verdict != "fail" || rec.Commit != sha {
+		t.Errorf("record = %+v, want fail at %s", rec, sha)
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", id+".md"))
+	if a.FrontMatter["verified_commit"] != sha {
+		t.Errorf("verified_commit = %v, want %s", a.FrontMatter["verified_commit"], sha)
+	}
+	if n := count(); n != n0 {
+		t.Errorf("worktree count %d after run, want %d", n, n0)
+	}
+}
+
+func TestVerifyAtRefusals(t *testing.T) {
+	vault := setupVault(t)
+	const id = "issue.anvil.0006.atrefuse"
+	writeVerifyIssue(t, vault, id, "true", "true")
+	t.Setenv("ANVIL_VAULT", vault)
+
+	repo := t.TempDir()
+	gitIn(t, repo, "init", "-q")
+	gitIn(t, repo, "commit", "-q", "--allow-empty", "-m", "init")
+	for _, tc := range []struct{ name, dir, code string }{
+		{"unresolved", repo, "verify_at_unresolved"},
+		{"no repo", t.TempDir(), "verify_at_no_repo"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("GIT_CEILING_DIRECTORIES", filepath.Dir(tc.dir))
+			t.Chdir(tc.dir)
+			_, _, err := runCmd(t, newVerifyCmd(), id, "--at", "deadbeef00", "--json")
+			var se *errfmt.Structured
+			if !errors.As(err, &se) || se.Code != tc.code {
+				t.Fatalf("want %s, got %v", tc.code, err)
+			}
+		})
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -38,14 +39,17 @@ type verifyRecord struct {
 
 func newVerifyCmd() *cobra.Command {
 	var flagJSON, flagAccept bool
+	var flagAt string
 	cmd := &cobra.Command{
 		Use:   "verify <issue-id>",
 		Short: "Run an issue's Verification blocks here and record the verdict on the issue",
 		Long: "Run every Direct and Indirect block of the issue's `## Verification` in the current directory " +
 			"and stamp verified_verdict, verified_commit and verified_at on the issue, pass or fail. " +
+			"--at <sha> runs the blocks on a fresh detached checkout of that commit instead and stamps the record at it, so untracked files and local builds cannot turn a red block green. " +
 			"Refuses with verification_changed when the section differs from the claim's verification_lock, unless --accept-change. A red Indirect block marked `# anvil:post-land` is deferred, not failed. Exits non-zero unless the verdict is pass.",
-		Example: "  anvil verify issue.anvil.0314.anvil-verify-records-the-verdict --json | jq -r .verdict",
-		Args:    namedArgs("anvil verify <issue-id>", []string{"<issue-id>"}, 1, 1),
+		Example: "  anvil verify issue.anvil.0314.anvil-verify-records-the-verdict --json | jq -r .verdict\n" +
+			"  anvil verify <issue> --at $(gh pr view <n> --json headRefOid -q .headRefOid) --json",
+		Args: namedArgs("anvil verify <issue-id>", []string{"<issue-id>"}, 1, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			v, err := core.ResolveVault()
 			if err != nil {
@@ -62,8 +66,16 @@ func newVerifyCmd() *cobra.Command {
 			if err := checkVerificationLock(a, id, flagAccept); err != nil {
 				return printAndReturn(cmd, err)
 			}
+			dir := ""
+			if flagAt != "" {
+				var cleanup func()
+				if dir, cleanup, err = checkoutAt(flagAt); err != nil {
+					return printAndReturn(cmd, err)
+				}
+				defer cleanup()
+			}
 			ranBody := a.Body
-			rec, err := runVerification(cmd, ranBody)
+			rec, err := runVerification(cmd, ranBody, dir)
 			if err != nil {
 				return err
 			}
@@ -95,6 +107,7 @@ func newVerifyCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&flagAccept, "accept-change", false, "re-lock a Verification section edited after the claim, then run (the human's flag)")
+	cmd.Flags().StringVar(&flagAt, "at", "", "run the blocks on a fresh detached checkout of this commit and stamp it")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "print the verdict record as one JSON line on stdout")
 	return cmd
 }
@@ -123,11 +136,45 @@ func loadIssueForVerify(path, id, arg string) (*core.Artifact, error) {
 	return a, nil
 }
 
-// runVerification runs every Direct then Indirect block in the cwd. Unlike the
-// create gate, green and red mean pass and fail for both subsections.
-func runVerification(cmd *cobra.Command, body string) (verifyRecord, error) {
+// checkoutAt adds a detached worktree of sha under a temp dir and returns it
+// with its cleanup. A removal failure is a notice: it must not change the verdict.
+func checkoutAt(sha string) (string, func(), error) {
+	top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output() //nolint:gosec // fixed argv
+	if err != nil {
+		return "", nil, errfmt.NewStructured("verify_at_no_repo").
+			Set("message", "--at needs a git repo; the current directory is not in one").
+			Set("fix_hint", "cd into the repo that holds the commit, then re-run anvil verify <issue> --at "+sha)
+	}
+	root := strings.TrimSpace(string(top))
+	full, err := exec.Command("git", "-C", root, "rev-parse", "--verify", "--end-of-options", sha+"^{commit}").Output() //nolint:gosec // sha is a single argv element after --end-of-options
+	if err != nil {
+		return "", nil, errfmt.NewStructured("verify_at_unresolved").
+			Set("message", sha+" does not resolve to a commit in "+root).
+			Set("fix_hint", "fetch it with git fetch, or check it with git rev-parse "+sha+"^{commit}")
+	}
+	commit := strings.TrimSpace(string(full))
+	tmp, err := os.MkdirTemp("", "anvil-verify-at-*")
+	if err != nil {
+		return "", nil, fmt.Errorf("creating checkout dir: %w", err)
+	}
+	dir := filepath.Join(tmp, "wt")
+	if out, err := exec.Command("git", "-C", root, "worktree", "add", "--detach", dir, commit).CombinedOutput(); err != nil { //nolint:gosec // commit is a resolved sha
+		_ = os.RemoveAll(tmp)
+		return "", nil, fmt.Errorf("git worktree add: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return dir, func() {
+		if out, err := exec.Command("git", "-C", root, "worktree", "remove", "--force", dir).CombinedOutput(); err != nil { //nolint:gosec // dir is ours
+			fmt.Fprintf(os.Stderr, "anvil: could not remove verify checkout %s: %v: %s\n", dir, err, strings.TrimSpace(string(out)))
+		}
+		_ = os.RemoveAll(tmp)
+	}, nil
+}
+
+// runVerification runs every Direct then Indirect block in dir ("" is the cwd).
+// Unlike the create gate, green and red mean pass and fail for both subsections.
+func runVerification(cmd *cobra.Command, body, dir string) (verifyRecord, error) {
 	rec := verifyRecord{Failed: []verifyFailure{}, Deferred: []verifyFailure{}, RanAt: time.Now().UTC().Format(time.RFC3339)}
-	rec.Commit = cwdCommit()
+	rec.Commit = commitOf(dir)
 	for _, label := range []string{"Direct", "Indirect"} {
 		blocks, err := core.VerificationBlocks(body, label)
 		if err != nil {
@@ -159,7 +206,7 @@ func runVerification(cmd *cobra.Command, body string) (verifyRecord, error) {
 			cmd.PrintErrln("anvil: running verification " + check + " in this environment (your privileges, cwd and environment; not sandboxed)")
 			// No timeout: Direct is typically the repo's whole suite, which the
 			// create gate's cap would fail as red.
-			r := runFeasibilityBlock(block, "", 0)
+			r := runFeasibilityBlock(block, dir, 0)
 			why, failed := r.failure()
 			if !failed {
 				cmd.PrintErrln(fmt.Sprintf("PASS [%s] %s", check, f.Preview))
@@ -196,15 +243,19 @@ func blockPreview(block string) string {
 	return ""
 }
 
-// cwdCommit is the cwd's HEAD, suffixed -dirty when the tree has uncommitted
-// changes, and empty outside a git repo. A verdict must name the tree it ran on.
-func cwdCommit() string {
-	out, err := exec.Command("git", "rev-parse", "HEAD").Output() //nolint:gosec // fixed argv
+// commitOf is dir's HEAD ("" is the cwd), suffixed -dirty when the tree has
+// uncommitted changes, and empty outside a git repo. A verdict must name the tree it ran on.
+func commitOf(dir string) string {
+	rp := exec.Command("git", "rev-parse", "HEAD") //nolint:gosec // fixed argv
+	rp.Dir = dir
+	out, err := rp.Output()
 	if err != nil {
 		return ""
 	}
 	sha := strings.TrimSpace(string(out))
-	if st, err := exec.Command("git", "status", "--porcelain").Output(); err == nil && len(strings.TrimSpace(string(st))) > 0 { //nolint:gosec // fixed argv
+	stc := exec.Command("git", "status", "--porcelain") //nolint:gosec // fixed argv
+	stc.Dir = dir
+	if st, err := stc.Output(); err == nil && len(strings.TrimSpace(string(st))) > 0 { //nolint:gosec // fixed argv
 		sha += "-dirty"
 	}
 	return sha
