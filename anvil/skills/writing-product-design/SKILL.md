@@ -22,7 +22,7 @@ metadata:
 
 A workflow for authoring a project's product-design artifact — the top of Anvil's design-driven hierarchy. Greenfield only.
 
-**Frontmatter is the universal spine** (`type, title, description, created, updated, status, project, tags, aliases, related`). Every output of this skill is body prose under named sections; the schema rejects anything else (`additionalProperties: false`).
+**Frontmatter is the universal spine** (`type, title, description, created, updated, status, project, tags, aliases, related, external_links`). Every output of this skill is body prose under named sections; the schema rejects anything else (`additionalProperties: false`).
 
 ## When to use
 
@@ -37,9 +37,9 @@ A workflow for authoring a project's product-design artifact — the top of Anvi
 - Light revisions to an existing PD → direct edit, not a re-author.
 - Brownfield carving — different activity; this skill does not handle it.
 
-## Output path
+## Saving
 
-Canonical destination: `~/anvil-vault/05-projects/<project>/product-design.md`. Vault-only — never committed to the project's source repo. Surface this at Phase 1 so the user can flag any can't-commit-anywhere constraint up front.
+Save with `anvil create product-design --project <slug> --title … --body-file <file>`; read it back with `anvil show product-design <slug> --body`. The design lives in the vault, never in the project's source repo. Surface this at Phase 1 so the user can flag any can't-commit-anywhere constraint up front.
 
 ## The phases
 
@@ -53,7 +53,7 @@ The per-phase procedure — drafting instructions, voice checks, gate criteria �
 
 | Phase | What | Output | Gate |
 |---|---|---|---|
-| 1 Frame | Project scope, slug, path | — | Trivial |
+| 1 Frame | Project scope, slug, save route | — | Trivial |
 | 2 Problem & users | Why it matters / Who it's for | Body | User confirms |
 | 3 What we're building | One-line shape + convictions | Body | **Load-bearing** |
 | 3.5 Approach | Fat-marker sketch (3–7) | Body | Altitude check |

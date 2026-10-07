@@ -4,11 +4,11 @@ Loaded on demand from `writing-product-design/SKILL.md`. Each phase has an expli
 
 ### Phase 1 — Frame
 
-Confirm scope: project slug, what counts as the product (one or several), destination path.
+Confirm scope: project slug, what counts as the product (one or several), and that it saves through `anvil create product-design`.
 
 Say up front: workers do not load this doc. Write it for the human. Do not put worker instructions in it. The doc is explanation: why and what, never how-to steps.
 
-**Gate:** scope, slug, path confirmed.
+**Gate:** scope, slug, save route confirmed.
 
 ### Phase 2 — Problem & users
 
@@ -57,7 +57,7 @@ All three are body sections (prose under headings); no frontmatter arrays.
 
 Draft body sections:
 
-- **`## Goals and how we measure them`** — 3–5 goals, each paired with a measure. A goal is outcome-shaped. A measure is checkable, quantitative or qualitative. For a qualitative measure, name how you will check it (informal survey, telemetry signal). Examples:
+- **Goals and how we measure them** — 3–5 goals, each paired with a measure. A goal is outcome-shaped. A measure is checkable, quantitative or qualitative. For a qualitative measure, name how you will check it (informal survey, telemetry signal). Examples:
   - Goal "Users feel the tool is on their side"; measure "weekly informal check-in, 4 of 5 say yes".
   - Goal "Plans work first try"; measure "≥80% of plans auto-fire on first try".
 
@@ -105,12 +105,12 @@ If unavailable in v0.1, collect titles + summaries inline; wikilinks stay unreso
 1. Write `## TL;DR` (5 lines or fewer) as the first body section. Flip frontmatter `status: draft` → `active`. Bump `updated` to today.
 2. Hand-check the frontmatter and body:
    - Required frontmatter: `type, title, description, created, status, project`.
-   - Optional frontmatter: `updated, tags, aliases, related`.
+   - Optional frontmatter: `updated, tags, aliases, related, external_links`.
    - **No other frontmatter fields** — schema is `additionalProperties: false`. If you wrote `goals:`, `risks:`, `milestones:`, `target_users:`, `revisions:` as frontmatter arrays, move them to body sections.
-   - Body has these sections in order: TL;DR / What we're building / Who it's for / Why it matters / Approach / Goals and how we measure them / Constraints & appetite / What's deliberately out of scope / Risks, rabbit holes, open questions / Milestones.
+   - Body has these sections in order: `## TL;DR` / What we're building / Who it's for / Why it matters / Approach / `## Goals and how we measure them` / Constraints & appetite / What's deliberately out of scope / Risks, rabbit holes, open questions / Milestones.
    - No worker instructions or pointers to repo docs anywhere in the body.
    - Wikilinks under Milestones (and mirrored in `related`) are well-formed `[[milestone.<project>.<slug>]]`.
-3. Run `anvil validate <path>` — must pass clean.
-4. Write to `~/anvil-vault/05-projects/<project>/product-design.md`.
+3. Write the body (no frontmatter) to a temp file. Save with `anvil create product-design --project <slug> --title "…" --description "…" --body-file <file>`. Create validates frontmatter, sections and wikilinks, and rolls back on failure.
+4. Read it back with `anvil show product-design <slug> --body` for the cold read.
 
 **Gate:** user reads the artifact cold. Capture the project's vision? Fix and re-show if not.
