@@ -31,7 +31,7 @@ cd <dispatched-worktree-path> && anvil show issue <issue-id> \
   | bash ~/.claude/skills/completing-issue/scripts/run-verification.sh > /tmp/verdict.<issue-id>.json
 ```
 
-`<issue-id>` is the full id, never the short number: for `issue.acme.0042.fix-login` the path is `/tmp/verdict.issue.acme.0042.fix-login.json` — the orchestrator gates on exactly that path. Duplicated in `dispatching-issue-fleet SKILL.md` — edit both together.
+`<issue-id>` is the full id, never the short number: for `issue.acme.0042.fix-login` the path is `/tmp/verdict.issue.acme.0042.fix-login.json` — the orchestrator gates on exactly that path. Duplicated in `running-milestone SKILL.md` — edit both together.
 
 - `jq -r .verdict` is `pass` → proceed to `gh pr create`, and paste the verdict line verbatim into the PR body under a `## Verification verdict` heading.
 - Anything else → back to `completing-issue` Phase 2 (fix, re-run, max 5 cycles); a `fail` that survives the cycle budget halts with `Blocker: verification-failed <the verdict line, or "no verdict emitted">`. Do not open the PR.

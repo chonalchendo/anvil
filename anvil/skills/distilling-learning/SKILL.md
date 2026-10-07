@@ -40,7 +40,7 @@ The terminal contract is retrieval: every learning must be reachable later via `
 
 ## Autonomous mode (trigger-invoked, attended)
 
-When an **attended** end-of-run trigger invokes this skill — `completing-issue`, `dispatching-issue-fleet`, `responding-to-pr-review` — the operator is present but must not be prompted per run. Resolve this skill's three human gates from the **compounding bar** instead of asking, and distil only what clears it.
+When an **attended** end-of-run trigger invokes this skill — `completing-issue`, `running-milestone`, `responding-to-pr-review` — the operator is present but must not be prompted per run. Resolve this skill's three human gates from the **compounding bar** instead of asking, and distil only what clears it.
 
 **The bar — high-value only, default to silence.** Most runs produce *no* learning; distilling is the rare exception, not a closing ritual. The bar is one question: **can you name the specific future failure this prevents?** — the concrete wrong path a later agent takes *without* it (repeats a dead end, ships a regression, burns a cycle rediscovering a non-obvious gotcha or a hard-won working approach). If you cannot name that failure in one sentence, it does not clear the bar — stay silent.
 

@@ -5,7 +5,7 @@ description: "Use when a PR has review findings to address — a reviewing-pr su
 
 # Responding to PR Review
 
-Your job is to drive every review finding — inline thread or thread-less report — to an outcome (fix / skip / push-back) and CI to green, then either surface the PR for the human's merge **decision** or, on an explicit per-PR approval, run the merge **mechanics** yourself: `--land-pr`, then distil + handoff, never raw `gh pr merge`. `dispatching-issue-fleet`'s human-owns-the-merge-button law is preserved as that per-PR decision gate — it bans the agent from *deciding* the merge, not from *executing* one the human just approved.
+Your job is to drive every review finding — inline thread or thread-less report — to an outcome (fix / skip / push-back) and CI to green, then either surface the PR for the human's merge **decision** or, on an explicit per-PR approval, run the merge **mechanics** yourself: `--land-pr`, then distil + handoff, never raw `gh pr merge`. `running-milestone`'s human-owns-the-merge-button law is preserved as that per-PR decision gate — it bans the agent from *deciding* the merge, not from *executing* one the human just approved.
 
 ## Iron Law
 

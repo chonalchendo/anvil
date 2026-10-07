@@ -68,7 +68,7 @@ anvil list issue --tag activity/self-test --status open --json   # triage; pick 
 
 Fire the worker on each auto-fixable id: it claims → fixes → live-smokes → opens one review-green PR (and can run on a cheaper subagent). A worker that cannot converge leaves its issue filed — so the hard ones correctly stay as issues. The human owns the merge button. For a larger batch the fleet parallelises workers — hand it the gated subset as `--ids <id>...` so it dispatches exactly that set.
 
-**REQUIRED SUB-SKILL:** Use completing-issue per auto-fixable bug (main session only — a subagent cannot fan out its own workers); dispatching-issue-fleet is the batch alternative — pass the chosen subset as `--ids`.
+**REQUIRED SUB-SKILL:** Use completing-issue per auto-fixable bug (main session only — a subagent cannot fan out its own workers); running-milestone runs the issues of a milestone.
 
 ## Phase 6 — Report
 

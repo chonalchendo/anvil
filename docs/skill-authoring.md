@@ -33,7 +33,7 @@ Anvil's methodology mapped (`ls anvil/skills/` or `anvil show skill <name>` for 
 | `capturing-inbox` | execution | workflow |
 | `writing-issue` | execution | workflow |
 | `completing-issue` | execution | workflow |
-| `dispatching-issue-fleet` | execution | workflow |
+| `running-milestone` | execution | workflow |
 | `reviewing-pr` | execution | workflow |
 | `responding-to-pr-review` | execution | workflow |
 | `distilling-learning` | execution | workflow |
