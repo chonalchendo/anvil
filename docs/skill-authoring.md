@@ -123,7 +123,7 @@ Why mermaid: text-based (clean commits, PR-diffable), renders inline in Obsidian
 
 Where:
 
-- **`writing-system-design`**: context (boundaries), component (internal pieces), data flow (critical paths). Core deliverables, not afterthoughts.
+- **`writing-system-design`**: context (boundaries), runtime flow (critical path, steps marked shipped or target). Core deliverables, not afterthoughts.
 - **`writing-product-design`**: gantt for milestone roadmap when timing matters.
 - **`defining-milestone`**: graph for non-trivial predecessor/successor webs.
 

@@ -1,6 +1,6 @@
 ---
 name: writing-system-design
-description: "Use when authoring system design — architecture, components, data flow, invariants. Requires existing product-design. Not for product vision (writing-product-design) or issues (writing-issue)."
+description: "Use when authoring system design — architecture, components, runtime flow, invariants. Requires existing product-design. Not for product vision (writing-product-design) or issues (writing-issue)."
 license: MIT
 allowed-tools: [Read, Edit, Write]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -22,6 +22,8 @@ metadata:
 
 A workflow for authoring a project's system-design artifact — the architectural counterpart to `product-design`. The product design says *what* we're building and *why*; the system design says *what shape* it has, *what's load-bearing*, and *what must always be true*. It records the **target state only**: no "today" statements, no tech-stack inventory, no decision deliberation. Current state lives in code and in component designs' `## Interfaces` rows. Both are vault-only.
 
+The system design is explanation plus reference (Diátaxis): Solution strategy explains; Constraints, Components and System invariants are reference.
+
 ## When to use
 
 - A `product-design` exists and the project needs an architectural shape before milestones or code.
@@ -32,15 +34,15 @@ A workflow for authoring a project's system-design artifact — the architectura
 
 - No product-design yet → `writing-product-design` first.
 - Vision, users, scope → `writing-product-design`.
-- One milestone in detail → `defining-milestone`.
-- Implementation tasks → `creating-issue` or `planning`.
-- Documenting a *single* architectural choice (e.g., "JWT vs sessions") → that's a decision, record it with `anvil create decision`.
+- One milestone in detail → `writing-milestone`.
+- Implementation tasks → `writing-issue`.
+- Documenting a *single* architectural choice (e.g., "JWT vs sessions") → that's a decision, record it with `anvil create decision --title "<the choice>" --topic <topic> --json` (body: `## Context`, `## Decision`, `## Rationale`, `## Consequences`, `## Links`).
 
 ## Output path
 
-Canonical destination: `~/anvil-vault/05-projects/{project}/system-design.md`. Vault-only — never committed to the project's source repo. The `system-design` frontmatter schema is spelled out inline in the Phase 11 hand-check (`references/phases.md`); run `anvil validate <path>` to confirm conformance against your project's schema.
+Read the product design with `anvil show product-design <project> --body`. Save with `anvil create system-design --project <project> --title "<title>" --body-file <file>`. Vault-only — never committed to the project's source repo. The `system-design` frontmatter schema is spelled out inline in the Phase 11 hand-check (`references/phases.md`); `anvil create` validates on write.
 
-Surface this path at Phase 1 so the user can flag any constraint up front.
+Surface the save command at Phase 1 so the user can flag any constraint up front.
 
 ## The phases
 
@@ -66,11 +68,11 @@ artifacts: [[product-design.<project>]]
 Return the findings that genuinely bear on this work, highest-precision first.
 ```
 
-Fold non-stale, high-confidence findings into components (Phase 4), invariants (Phase 7), and open questions (Phase 9) as you draft, and record the surfaced set in the Solution strategy (Phase 9) so the reasoning is auditable. `Findings: none` → note it and move on. A `stale?: yes` finding is a signal to weigh against present evidence, not a directive.
+Fold non-stale, high-confidence findings into components (Phase 4), invariants (Phase 7), and open questions (Phase 9) as you draft, and cite a shaping learning by wikilink at the row it shapes. `Findings: none` → note it and move on. A `stale?: yes` finding is a signal to weigh against present evidence, not a directive.
 
 ## Required sections
 
-The body has these sections, in order: `## TL;DR`, `## Context and scope`, `## Non-goals`, `## Constraints and quality goals` (tech choices live here), `## Components` (table: component, responsibility, component-design link), `## Runtime flow` (target only; mark each step shipped or target), `## System invariants`, `## Decisions` (links), `## Open questions`. Optional: `## Solution strategy` (10 lines or fewer, plus decision links) and `## Risks`.
+The body has these sections, in order: `## TL;DR`, `## Context and scope`, `## Non-goals`, `## Constraints and quality goals` (tech choices live here), `## Components` (table: component, responsibility, component-design link), `## Runtime flow` (target only; mark each step shipped or target), `## System invariants`, `## Decisions` (links), `## Open questions`. Optional, after Open questions: `## Solution strategy` (10 lines or fewer, plus decision links) and `## Risks`.
 
 ## Quick reference
 
@@ -94,10 +96,10 @@ The body has these sections, in order: `## TL;DR`, `## Context and scope`, `## N
 - **Soft invariants in Phase 7.** "We try to..." is not an invariant. If the user shrugs at a candidate, strip it.
 - **"Today" statements.** State the target only. Current state decays; it lives in code and component designs.
 - **Duplicated invariants.** A system invariant is cross-component. Link a component rule; never copy it.
-- **Unrecorded tech choices.** Record a non-trivial choice with `anvil create decision` and link it under Decisions.
+- **Unrecorded tech choices.** Record a non-trivial choice as a decision (`anvil create decision`) and link it under Decisions.
 - **Mermaid as decoration.** Phases 5 and 6 require diagrams as core content. A system design without a context diagram is incomplete.
-- **AI-generic Solution strategy prose.** Cite the user's own words; reference the product-design and ADRs; don't generate filler.
-- **Conflating system design with planning.** Components are responsibilities, not work items. If a section reads like a task list, it belongs in `planning`.
+- **AI-generic Solution strategy prose.** Cite the user's own words; reference the product-design and decisions; don't generate filler.
+- **Conflating system design with planning.** Components are responsibilities, not work items. If a section reads like a task list, it belongs in a milestone or issue.
 
 ## Prose style
 

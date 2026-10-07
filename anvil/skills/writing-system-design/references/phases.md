@@ -5,8 +5,8 @@ Loaded on demand from `writing-system-design/SKILL.md`. Each phase has an explic
 ### Phase 1 — Frame (LOAD-BEARING)
 
 - Confirm the slug from the existing product-design.
-- Read `~/anvil-vault/05-projects/{slug}/product-design.md`. **If it doesn't exist, stop.** Hand off to `writing-product-design`.
-- Confirm destination path: `~/anvil-vault/05-projects/{slug}/system-design.md`.
+- Read it with `anvil show product-design {slug} --body`. **If it doesn't exist, stop.** Hand off to `writing-product-design`.
+- Confirm the save command: `anvil create system-design --project {slug} --title … --body-file <f>`.
 
 **Gate (load-bearing):** product-design exists and is read.
 
@@ -20,7 +20,7 @@ Draft `## TL;DR` (the shape in one or two sentences: "X is a three-layer system:
 
 Draft `## Constraints and quality goals`: language, framework, storage, deployment, plus quality bars (latency, privacy, cost). Tech choices are constraints; there is no Tech stack section. Link a decision for each non-trivial choice.
 
-Record an unmade choice with `anvil create decision`, or mark it `TODO: decide`.
+Record an unmade choice as a decision (see Phase 8), or mark it `TODO: record via anvil create decision`.
 
 **Gate:** user confirms each constraint.
 
@@ -29,10 +29,10 @@ Record an unmade choice with `anvil create decision`, or mark it `TODO: decide`.
 Draft `## Components` as a table: component, responsibility, component-design link.
 
 - 3-8 components (more is a smell; fold related responsibilities).
-- Every product-design need maps to at least one component. The candidate-to-component map lives in the product design's Milestones list, not here.
+- Every product-design goal maps to at least one component. The candidate-to-component map lives in the product design's Milestones list, not here.
 - Link a component design (`writing-component-design`) only if the component has an interface others build against, state or invariants beyond this design's, or spans more than one milestone. Write it when the milestone building it starts.
 
-**Gate (load-bearing):** no product-design need is orphaned.
+**Gate (load-bearing):** no product-design goal is orphaned.
 
 ### Phase 5 — Runtime flow
 
@@ -44,8 +44,8 @@ sequenceDiagram
     participant CLI
     participant Orchestrator
     User->>CLI: command
-    CLI->>Orchestrator: parsed spec
-    Orchestrator-->>User: result
+    CLI->>Orchestrator: parsed spec (shipped)
+    Orchestrator-->>User: result (target)
 ```
 
 (Replace with the project's actual flow — do not ship the placeholder.)
@@ -73,7 +73,7 @@ Draft `## System invariants`: 3-7 statements that must always be true. Planning 
 - One level only. A system invariant is cross-component. Link a component rule; never copy it.
 - Declarative and absolute. "We try to..." is not an invariant.
 
-Examples:
+Examples (from anvil itself):
 - "Each agent CLI subprocess gets an isolated `CLAUDE_CONFIG_DIR` / `CODEX_HOME`."
 - "Telemetry is local-only without explicit opt-in."
 
@@ -81,7 +81,7 @@ Examples:
 
 ### Phase 8 — Decisions
 
-Draft `## Decisions`: wikilinks to decisions that authorized the choices above, and fill frontmatter `authorized_by` with the same links. Create a missing one with `anvil create decision`. Unresolved links are acceptable: flag them `TODO: record via anvil create decision`.
+Draft `## Decisions`: wikilinks to decisions that authorized the choices above, and fill frontmatter `authorized_by` with the same links. Create a missing one with `anvil create decision --title "<the choice>" --topic <topic> --json` (body: `## Context`, `## Decision`, `## Rationale`, `## Consequences`, `## Links`). Unresolved links are acceptable: flag them `TODO: record via anvil create decision`.
 
 **Gate:** list confirmed, or TODO list accepted.
 
@@ -104,15 +104,14 @@ Draft `## Risks` only if load-bearing assumptions could fail. 3-7 bullets, each 
 ### Phase 11 — Serialize & save
 
 1. Flip frontmatter `status: draft` → `active`. Bump `updated` to today.
-2. Hand-check against `schemas/system-design.schema.json`:
+2. Hand-check against the system-design schema:
    - Required frontmatter: `type, title, description, created, status, project`.
    - Optional frontmatter: `updated, tags, aliases, product_design, authorized_by, related`.
    - **No other frontmatter fields** — schema is `additionalProperties: false`.
-   - Body has these sections in order: TL;DR / Context and scope / Non-goals / Constraints and quality goals / Components / Runtime flow / System invariants / Decisions / Open questions. Optional Solution strategy and Risks follow.
+   - Body matches SKILL.md §Required sections, in order.
    - No Tech stack section; no "today" statements.
    - Mermaid diagrams render (paste-test in Obsidian).
-   - Wikilinks under `authorized_by` are well-formed `[[decision.{project}.NNNN-{slug}]]`.
-3. Run `anvil validate <path>` — must pass clean.
-4. Write to `~/anvil-vault/05-projects/{project}/system-design.md`.
+   - Wikilinks under `authorized_by` are well-formed `[[decision.{topic}.NNNN-{slug}]]`.
+3. Save with `anvil create system-design --project {project} --title "<title>" --body-file <file>`; it validates on write and must pass clean.
 
 **Gate:** user reads the artifact cold. If anything's off, fix and re-show.
