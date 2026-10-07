@@ -1,13 +1,13 @@
 # Body shape (cold reader)
 
-The reader is `running-milestone` at Phase 0, plus the human deciding what to work next in Obsidian's reading view. Both scan before they read: bold labels, list heads and table cells carry the section; prose carries only the lead sentence and rationale. Four sections, in this order:
+The reader is `running-milestone` at Phase 0, plus the human deciding what to work next in Obsidian's reading view, plus the worker reading one hop up the spine. Both scan before they read: bold labels, list heads and table cells carry the section; prose carries only the lead sentence and rationale. Four sections, in this order:
 
 - `## Objective`
   - Lead sentence, its own paragraph: what ships and what it changes for whom. ≤25 words, no history or mechanism.
   - **Why now** — bold run-in label, then the gap's measurement as a list, one fact per item.
-  - **Design change** — bold run-in label, then one bullet per design artifact the milestone touches, component designs included.
+  - **Design change** — bold run-in label, then one bullet per design artifact the milestone touches, component designs included; acceptance updates each one.
   - **Components changed:** — bold run-in label, then the components touched.
-  - **Limit:** — bold label with colon, one line: the appetite, counted in issues (for example `Limit: 6 issues`). `running-milestone` reads it at Phase 0 and Exit 3.
+  - **Limit:** — bold label with colon, one line: the appetite, counted in issues (for example `**Limit:** 6 issues`). `running-milestone` reads it at Phase 0 and Exit 3.
   - **Risks:** — optional bold label, one line naming what could stall the milestone.
 - `## Non-goals` — bulleted scope fence.
 - `## Links` — sibling milestones and reader-facing references, each with a few words after the link saying why it is here. The governing design travels in the typed slots (Phase 4); component designs reach a worker via `writing-issue` Phase 4b, not from here.
