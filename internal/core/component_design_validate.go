@@ -1,19 +1,19 @@
 package core
 
-// RequiredComponentDesignSections is the boundary half every component design
-// carries; the design half (Interfaces, Shape, Flow, Invariants, Decisions,
-// Risks) is optional and gated in writing-component-design, not here.
+// RequiredComponentDesignSections is the interface-and-ownership core every
+// component design carries; internal design (Code design, Decisions, Open
+// questions) is optional and gated in writing-component-design, not here.
 var RequiredComponentDesignSections = []string{
-	"## Purpose",
 	"## Does",
 	"## Does not",
+	"## Interfaces",
+	"## Invariants",
 	"## Verification",
 	"### Direct",
 	"### Indirect",
-	"## Precedents",
 }
 
-// ValidateComponentDesign checks the boundary-half headings appear in order.
+// ValidateComponentDesign checks the core headings appear in order.
 func ValidateComponentDesign(a *Artifact) []error {
 	return scanOrderedHeadings(a.Body, "component-design", RequiredComponentDesignSections)
 }

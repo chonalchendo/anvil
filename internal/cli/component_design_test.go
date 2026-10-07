@@ -149,12 +149,12 @@ func TestCreateComponentDesign_BodyRequiresBoundaryHalf(t *testing.T) {
 			"--title", "Probe", "--kind", "data", "--description", "d", "--body", body)
 		return err
 	}
-	if err := create("## Purpose\n\np\n\n## Interfaces\n\n- x\n"); err == nil {
-		t.Error("body missing required boundary sections must be rejected")
+	if err := create("## Does\n\n- a\n\n## Interfaces\n\n- x\n"); err == nil {
+		t.Error("body missing required sections must be rejected")
 	}
-	full := "## Purpose\n\np\n\n## Does\n\n- a\n\n## Does not\n\n- b\n\n## Verification\n\n### Direct\n\nx\n\n### Indirect\n\ny\n\n## Precedents\n\n"
+	full := "## Does\n\n- a\n\n## Does not\n\n- b\n\n## Interfaces\n\ni\n\n## Invariants\n\n- v\n\n## Verification\n\n### Direct\n\nx\n\n### Indirect\n\ny\n"
 	if err := create(full); err != nil {
-		t.Errorf("boundary-half-only body must be accepted: %v", err)
+		t.Errorf("core-only body must be accepted: %v", err)
 	}
 }
 
@@ -185,7 +185,7 @@ func TestCreateComponentDesign_NoBodyGetsBoundarySkeleton(t *testing.T) {
 	if err != nil {
 		t.Fatalf("--show-template: %v", err)
 	}
-	if !strings.Contains(tmpl, "## Precedents") {
+	if !strings.Contains(tmpl, "## Interfaces") {
 		t.Errorf("--show-template missing boundary skeleton:\n%s", tmpl)
 	}
 }

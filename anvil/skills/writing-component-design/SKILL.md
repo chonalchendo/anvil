@@ -1,6 +1,6 @@
 ---
 name: writing-component-design
-description: "Use when authoring a component design or appending a precedent. Triggers: 'write the X component design', 'design the internals of X', 'what does/does not X own', 'record a boundary violation for X'. Modes: author, update."
+description: "Use when authoring or updating a component design. Triggers: 'write the X component design', 'design the internals of X', 'what does/does not X own', 'what is the interface of X'. Modes: author, update."
 license: MIT
 allowed-tools: [Bash, Read, Edit, Write]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -10,7 +10,7 @@ metadata:
   skill_type: workflow
   side: design
   created: 2026-06-02
-  updated: 2026-06-10
+  updated: 2026-10-07
   tags: [type/skill, activity/component-design]
   diataxis: how-to
   authored_via: manual
@@ -20,25 +20,21 @@ metadata:
 
 # Writing Component Design
 
-Workflow for creating or updating a component design — the per-component document — a required boundary half (`does / does not`, verification, precedents) plus an optional design half (interfaces, shape, invariants) — registered in the project vault. Component designs are plural per project (one per component-family) and carry a registry-validated `kind`.
+Workflow for creating or updating a component design: the per-component reference document. It has an interface-and-ownership core (required) plus optional internal design. Component designs are plural per project (one per component-family) and carry a registry-validated `kind`. A component design is reference (Diataxis): facts a reader looks up, no explanation or history.
 
 ## Mode selection
 
-**Author mode** — no component design exists for this component yet; you are distilling its boundaries from the codebase and design docs.
+**Author mode** - no component design exists for this component yet; you distil its interface and boundaries from the codebase and design docs.
 
-**Update mode** — a component design exists; you are appending a precedent (a violated or clarified boundary) or sharpening an existing `does not` entry.
+**Update mode** - a component design exists; you sharpen an entry or add a missing one.
 
-Decide before Phase 1. If uncertain, run `anvil list component-design` to check whether one already exists.
+Decide before Phase 1. If uncertain, run `anvil list component-design`.
 
 ## Component design skeleton (both modes)
 
-Every component design body carries the **boundary half** (required — `create` and `validate` reject a body missing `## Purpose`, `## Does`, `## Does not`, `## Verification` with `### Direct` / `### Indirect`, or `## Precedents`). The **design half** (optional) follows it.
+`create` and `validate` reject a body missing any of these headings, in this order:
 
 ```
-## Purpose
-
-<one or two sentences: what this component is for and who builds against it>.
-
 ## Does
 
 - <component> owns <responsibility>.
@@ -47,147 +43,105 @@ Every component design body carries the **boundary half** (required — `create`
 ## Does not
 
 - <component> does not <boundary that surprised someone or needs emphasis>.
-- <component> does not own <Y> — that belongs to <other component>.
+- <component> does not own <Y> - that belongs to <other component>.
 
-## Code design
+## Interfaces
 
-- <component-specific design delta: how *this* component is shaped — file/package layout, a pattern to follow or avoid, an entry-seam rule>.
-- House-wide language/tool style: `[[convention.<lang>]]` (canonical cross-project spec) — link, never restate.
+### <operation>
+- Input: <args, types>.
+- Output: <result shape>.
+- Errors: <named failure modes>.
+- Pre/postconditions: <what must hold before; what holds after>.
+- Black-box: <what a caller can observe, with no internals>.
+
+## Invariants
+
+- <rule that always holds for this component; not restated from the system design>.
 
 ## Verification
 
-How a change under this component design is proven to work — the strategy an issue's `## Verification` predicates are drawn from, not invented per issue.
+How a change under this component is proven to work. An issue's `## Verification` predicates are drawn from here.
 
 ### Direct
-- <in-tree checks for this component: the unit / e2e / regression suites and how to run them>.
+- <in-tree checks: the unit / e2e / regression suites and how to run them>.
 
 ### Indirect (live)
-- <how you exercise a change for real under this boundary, driven through the built/installed/served artifact: e.g. ping the endpoint and assert the response / run the CLI verb / query the downstream table>.
-
-## Decision tree
-
-When in doubt: <brief heuristic for the hardest boundary call>.
-
-## Precedents
-
-> <iso-date> · issue/PR <id>: <one-sentence description of the boundary violation or clarification that produced this precedent>.
-
-<!-- design half, all optional: fill per the gate in Author mode -->
-## Interfaces
-## Shape
-## Flow
-## Invariants
-## Decisions
-## Risks
+- <how to exercise a change through the built/installed/served artifact>.
 ```
 
-The `## Precedents` section is append-only. Never rewrite a precedent; add a new one.
+`## Interfaces` is per operation. A component with no consumer interface writes one line saying so.
 
-`## Code design` holds *component-specific design deltas* (how this component is shaped) **+** `[[convention.<lang>]]` links to the house-wide style — never restated house-wide rules.
+**Optional sections** (add only when they earn their place):
 
-**The discriminating test** — a rule belongs in a `[[convention.X]]`, not the component design, iff it would be copy-pasted verbatim into another project's component design. If it is specific to *this* component's architecture, it stays in the component design. So: "use module-alias imports" is house-wide → it lives in `convention.python` and the component design just links it; "config is bound once at the `--env` entry seam" is this component's shape → it stays in the component design. The section is **optional but always considered** — omit only when the component has neither a design delta nor a governing convention to link.
+- `## Code design` - the delta only: how *this* component is shaped. Link `[[convention.<lang>]]`; never restate house-wide rules.
+- `## Decisions` - links to decisions, not their prose.
+- `## Open questions` - unresolved items.
 
-`## Verification` holds the component's **testing strategy** (Direct + Indirect). Verification is keyed by what the component *is*, not its language: an API is verified by hitting the endpoint in Python or Go, while one language verifies a CLI, a pipeline, and an API three different ways — so it lives here, not in the language convention (style only). The **Indirect (live)** part is the live check `completing-issue`'s Iron Law gates on; record any system topology it must respect (e.g. the prod registry is unreachable from dev → a vs-prod check is a prod-time step). An issue draws its predicates from these parts (`writing-issue` loads the component design): the component design names the strategy, the issue writes the command.
+**Forbidden:** Purpose and Precedents sections, Risks, Flow, Decision tree, and system invariants restated from the system design. History lives in a decision, a learning, or the issue.
 
-**Deriving the strategy — read the *targets* off the component design, ground the *approach* in three sources:**
+**Discriminating test for `## Code design`:** a rule belongs in a `[[convention.X]]` iff it would be copied verbatim into another project's component design. A rule specific to this component's architecture stays here.
 
-The *what-to-verify* is read off the component design — don't invent it:
-
-- **Direct** = the `## Does not` invariants + each `## Precedents` entry as a regression test + the component's failure mode (data-integrity → assert a downstream value; response shape → assert the typed model; idempotency → run twice, assert stable).
-- **Indirect** = the component's real entry point (HTTP route / CLI verb / landed table) + the most-downstream **non-proxy** observable that proves the change worked.
-
-The *how-to-verify* — the strategy keyed to what the component *is* (you verify an API vs an ingest job vs an infra/deploy path three different ways) — is grounded in **three sources, not the repo alone**: the **repo** (its invariants, real entry points, existing suites — above), your **training data** (the recognised approach for the component type — contract/endpoint tests for an API boundary, golden round-trip / data-quality assertions for ingest, smoke-after-deploy + idempotency for infra), and **online research** (corroborate the approach against current sources, taking only recognised industry experts, not arbitrary blogs). When the approach for a component type isn't already settled, dispatch an `anvil-researcher` subagent (`subagent_type: anvil-researcher` — topic and deliverable shape as fill-ins) before naming the strategy.
-
-Test discipline and *style* (test-first, given-when-then, framework idiom) are **not** re-grounded here — they are inherited from the language convention (`[[convention.<lang>]]`), which research-grounds the style once. This skill grounds the verification *strategy*; the convention grounds the test *style*.
+**Verification strategy:** read `references/verification-strategy.md` before writing `## Verification`.
 
 ---
 
 ## Author mode
 
-### Phase 1 — Discover layout
+### Phase 1 - Discover layout
 
-Read the project's CLAUDE.md (or AGENTS.md) to learn the vault root and project slug. Then:
-
-```bash
-anvil list component-design   # confirm none exists for this component
-anvil component-design kinds list      # see registered kinds; register a new one if needed
-```
-
-If no matching kind exists, register it before creating the component design:
+Read the project's CLAUDE.md (or AGENTS.md) for the vault root and project slug. Then:
 
 ```bash
-anvil component-design kinds add <name> --desc "<one-line description>"
+anvil list component-design            # confirm none exists for this component
+anvil component-design kinds list      # see registered kinds
+anvil component-design kinds add <name> --desc "<one line>"   # only if none fits
 ```
 
-### Phase 2 — Read the design boundary
+### Phase 2 - Read the boundary
 
-Identify the component's boundary from at least two of:
+Identify the boundary from at least two of: the system design (`anvil show system-design <project>`), the codebase (package boundary, public surface, ownership comments), and issues that touched the boundary.
 
-- The system-design doc (`anvil show system-design <project>` or the file directly).
-- The codebase — grep for the component's package/module boundary, public surface, and any existing comments that name ownership.
-- Existing issues or precedents that touched the boundary.
+Write the core just in time, when the milestone building the component starts. Add optional sections only when the component has a convention to link, linked decisions, or open questions. When the parent system design exists, link it: `anvil set component-design <id> system_design "[[system-design.<project>]]"`.
 
-**Design-half gate.** Fill the design half (`## Interfaces`, `## Shape`, `## Flow`, `## Invariants`, `## Decisions`, `## Risks`) only if the component (1) has an interface others build against, (2) has state or invariants beyond its parent system design's, or (3) spans more than one milestone or a handful of issues. Otherwise write the boundary half alone. Write it just in time, when the milestone building the component starts — not up front with the system design. When the parent system design exists, link it: `anvil set component-design <id> system_design "[[system-design.<project>]]"`.
-
-Draft the `## Purpose`, `## Does` and `## Does not` sections before writing the file. The `## Decision tree` entry is one sentence capturing the hardest boundary call — skip it if no non-obvious case has surfaced yet.
-
-For `## Code design`, apply the guess heuristic above and extract those rules now. For `## Verification`, name the component's Direct and Indirect strategy from what the component *is* — how its tests run, and how a change is exercised live through the real artifact.
-
-### Phase 3 — Create the component design
+### Phase 3 - Create
 
 ```bash
 anvil create component-design \
   --title "<Component> component design" \
   --project <slug> \
   --kind <registered-kind> \
-  --description "<one sentence — the component's primary responsibility>" \
+  --description "<one sentence - the component's primary responsibility>" \
   --body-file <body.md>
 ```
 
-Compose `<body.md>` from the skeleton above first (`anvil create component-design --show-template` prints the boundary headings); `create` checks the boundary half only on a supplied body, so a bodiless create writes an unchecked empty skeleton.
+Compose `<body.md>` from the skeleton (`anvil create component-design --show-template` prints the headings). `create` checks the core only on a supplied body, so a bodiless create writes an unchecked empty skeleton.
 
-**Gate:** validate before promoting to `active`.
-
-```bash
-anvil validate
-```
-
-Fix any schema errors. Promote once the boundary is honest:
-
-```bash
-anvil set component-design <id> status active
-```
+**Gate:** run `anvil validate`, fix schema errors, then promote: `anvil set component-design <id> status active`.
 
 ---
 
 ## Update mode
 
-### Phase 1 — Locate the component design
+### Phase 1 - Locate
 
 ```bash
-anvil list component-design --json      # find the component design id
-anvil show component-design <id>        # read current body
+anvil list component-design --json
+anvil show component-design <id>
 ```
 
-### Phase 2 — Classify the update
+### Phase 2 - Classify and apply
 
-- **New precedent** — a boundary was violated or clarified by a real issue or PR. Append to `## Precedents`.
-- **Sharpen a does-not** — an existing `does not` entry is ambiguous or incomplete. Edit the entry in-place; do not add a redundant entry.
-- **New does-not** — a boundary omission was found. Append to `## Does not`. If it was discovered via an issue/PR, also add a `## Precedents` entry.
-- **Code design rule** — a pattern surfaced during implementation. Apply the discriminating test: a *component-specific* delta goes in `## Code design` (add the section if absent); a rule that would copy-paste verbatim into another project belongs in a `[[convention.<lang>]]` (author via `writing-convention` — its wire-the-rail phase links the new convention from every component design it governs, this one included; the frontmatter edge is idempotent, so check the component design's `## Code design` for an existing link line before adding one).
-- **Verification strategy** — a Direct or Indirect check the component needs surfaced (a regression suite to name, a live-exercise step a recent issue had to invent). Add to `## Verification` (add the section if absent) so the next issue draws it instead of re-deriving it.
+Make the minimal edit in the component design file:
 
-### Phase 3 — Apply the update
+- **Sharpen an entry** - edit an ambiguous `Does`, `Does not` or `Invariants` line in place; add no redundant line.
+- **New does-not or invariant** - append it. Record the cause (the issue or PR) in a decision, a learning, or the issue, not in the component design.
+- **Interface change** - edit the operation's input, output, errors or conditions.
+- **Code design delta** - add `## Code design` if absent. A rule that would copy verbatim into another project goes to a `[[convention.<lang>]]` via `writing-convention`; its wire-the-rail phase links the convention here.
+- **Verification strategy** - add the Direct or Indirect check a recent issue had to invent.
 
-Open the component design file directly and make the minimal edit. Precedent format:
+When the component retires, archive or delete its component design.
 
-```
-> <iso-date> · issue/PR <id>: <one sentence — what happened and what the boundary clarification is>.
-```
-
-Use today's date (ISO 8601). Reference the causing issue or PR by id — do not leave the precedent unanchored.
-
-### Phase 4 — Validate and commit
+### Phase 3 - Validate
 
 ```bash
 anvil validate
@@ -199,7 +153,7 @@ anvil set component-design <id> updated <today-iso>
 ## Non-goals
 
 - Routing (linking an issue to its component design) — use `anvil link` directly.
-- Enforcing the design half — `create` checks only the boundary-half headings; this skill gates the design half.
+- Enforcing optional sections — `create` checks only the required core headings; this skill gates the optional ones.
 - Lifecycle tags and command verification — out of scope for v0.1.
 
 ## Prose style
