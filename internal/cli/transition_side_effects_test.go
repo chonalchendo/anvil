@@ -88,6 +88,10 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		viewByFieldE: map[string]error{},
 		viewSeq:      map[string][][]byte{},
 	}
+	// Land tests start from a fixture that passes every evidence check; the
+	// evidence tests override one field at a time.
+	s.viewByField[landHeadFields] = []byte(`{"headRefOid":"` + landTestHead + `","headRefName":"demo/foo"}`)
+	stampLandEvidence(t, "demo.foo", "pass", landTestHead)
 
 	// landPR os.Chdir's to mainRoot; restore cwd so it doesn't leak to later
 	// tests that resolve paths (e.g. go.mod) relative to the working dir.
@@ -2136,7 +2140,7 @@ func TestLandPRChdirsToRootBeforeWorktreeRemoval(t *testing.T) {
 		return nil
 	}
 
-	if err := landPR(&bytes.Buffer{}, 42, deadCwd, false); err != nil {
+	if err := landPR(&bytes.Buffer{}, 42, deadCwd, false, passingEvidence()); err != nil {
 		t.Fatalf("landPR returned error: %v", err)
 	}
 	if substepErr != nil {

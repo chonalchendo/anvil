@@ -264,9 +264,6 @@ func samePath(a, b string) bool {
 // claims "worktree removed" and we refuse to lie if we can't compute the
 // location.
 func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOverride string, localValidated bool) error {
-	if worktreeOverride != "" {
-		return landPR(errW, prNum, worktreeOverride, localValidated)
-	}
 	project := projectFromArtifact(a, id)
 	slug := slugFromIssueID(id)
 	if project == "" || slug == "" {
@@ -274,11 +271,18 @@ func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOv
 			Set("error", "issue id lacks `<project>.<slug>` shape").
 			Set("id", id)
 	}
+	ev, eerr := readLandEvidence(a, id, project, slug)
+	if eerr != nil {
+		return eerr
+	}
+	if worktreeOverride != "" {
+		return landPR(errW, prNum, worktreeOverride, localValidated, ev)
+	}
 	wtPath, derr := defaultWorktreePath(project, slug)
 	if derr != nil {
 		return errfmt.NewStructured("land_pr_path_failed").Set("error", derr.Error())
 	}
-	return landPR(errW, prNum, wtPath, localValidated)
+	return landPR(errW, prNum, wtPath, localValidated, ev)
 }
 
 // landPR runs gate→merge→verify→remove-worktree→delete-local-branch→delete-remote-branch.
@@ -297,7 +301,7 @@ func doLandPR(errW io.Writer, a *core.Artifact, id string, prNum int, worktreeOv
 // localValidated skips the ghPRChecks gate when the operator has already
 // validated the work locally (e.g. with `just check`) and required CI is
 // genuinely unavailable. The caller is responsible for recording an audit line.
-func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) error {
+func landPR(errW io.Writer, num int, worktreePath string, localValidated bool, ev landEvidence) error {
 	// An already-MERGED PR also reads mergeable:UNKNOWN (GitHub never
 	// recomputes it for a closed PR), so a retry of an interrupted batch line
 	// must recognise "already landed" before burning the mergeability poll.
@@ -355,6 +359,9 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool) e
 				return errfmt.NewStructured("land_pr_ci_not_green").Set("pr", num).Set("error", err.Error())
 			}
 		}
+	}
+	if err := ev.check(num); err != nil {
+		return err
 	}
 	// Resolve the PR's head branch once: it both keys the worktree-list fallback
 	// below and names the local branch to delete after the worktree is removed.
