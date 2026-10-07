@@ -239,7 +239,7 @@ func TestBuildFleetRows_MatchesIssuesToWorktrees(t *testing.T) {
 			"/tmp/wt/matched-issue": {
 				Number: 42, URL: "https://github.com/x/y/pull/42",
 				Mergeable: "MERGEABLE", ReviewDecision: "APPROVED",
-				CIConclusion: "success",
+				CIConclusion: "success", State: "OPEN",
 			},
 		},
 		map[int]int{42: 3},
@@ -260,12 +260,18 @@ func TestBuildFleetRows_MatchesIssuesToWorktrees(t *testing.T) {
 	}
 	got := byID["issue.anvil.matched-issue"]
 	want := fleetRow{
-		ID: "issue.anvil.matched-issue", Owner: "claude-alpha",
+		ID: "issue.anvil.matched-issue", Status: "in-progress", Owner: "claude-alpha",
 		Worktree: "/tmp/wt/matched-issue", Branch: "anvil/matched-issue",
 		HeadSHA: "deadbee", PushState: "ahead-2",
 		PRNumber: 42, PRURL: "https://github.com/x/y/pull/42",
 		PRMergeable: "MERGEABLE", CIConclusion: "success",
 		ReviewerState: "APPROVED", OpenInlineComments: 3,
+		Gate: fleetGate{
+			Claim:  gateClaim{Owner: "claude-alpha"},
+			PR:     gatePR{Number: 42, State: "OPEN"},
+			Review: gateReview{State: "APPROVED", OpenComments: 3},
+			CI:     gateCI{Conclusion: "success"},
+		},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("matched row (-want +got):\n%s", diff)
@@ -521,5 +527,29 @@ func swapFleetStubs(
 	}
 	return func() {
 		gitWorktreeListFn, gitPushStateFn, ghPRViewFn, ghPRCommentsFn, resolveProjectRepoFn = origWT, origPush, origPR, origCom, origRepo
+	}
+}
+
+func TestBuildFleetRows_EscalatedRowCarriesReason(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("ANVIL_VAULT", vault)
+	writeIssue(t, vault, "anvil.stuck-issue", "escalated", "claude-alpha")
+	p := filepath.Join(vault, "70-issues", "anvil.stuck-issue.md")
+	a, err := core.LoadArtifact(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.FrontMatter["escalation_reason"] = "predicate cannot pass"
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(swapFleetStubs(nil, nil, nil, nil))
+
+	rows, err := buildFleetRows(&core.Vault{Root: vault})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Status != "escalated" || rows[0].Reason != "predicate cannot pass" {
+		t.Fatalf("want one escalated row with its reason, got %+v", rows)
 	}
 }

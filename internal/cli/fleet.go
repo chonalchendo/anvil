@@ -16,19 +16,22 @@ import (
 // emitted as zero values (empty string, 0, false) so an orchestrator can
 // branch on presence without coercion.
 type fleetRow struct {
-	ID                 string `json:"id"`
-	Owner              string `json:"owner"`
-	Worktree           string `json:"worktree,omitempty"`
-	Branch             string `json:"branch,omitempty"`
-	HeadSHA            string `json:"head_sha,omitempty"`
-	PushState          string `json:"push_state,omitempty"`
-	PRNumber           int    `json:"pr_number,omitempty"`
-	PRURL              string `json:"pr_url,omitempty"`
-	PRMergeable        string `json:"pr_mergeable,omitempty"`
-	CIConclusion       string `json:"ci_conclusion,omitempty"`
-	ReviewerState      string `json:"reviewer_state,omitempty"`
-	OpenInlineComments int    `json:"open_inline_comments"`
-	Note               string `json:"note,omitempty"`
+	ID                 string    `json:"id"`
+	Status             string    `json:"status"`
+	Owner              string    `json:"owner"`
+	Worktree           string    `json:"worktree,omitempty"`
+	Branch             string    `json:"branch,omitempty"`
+	HeadSHA            string    `json:"head_sha,omitempty"`
+	PushState          string    `json:"push_state,omitempty"`
+	PRNumber           int       `json:"pr_number,omitempty"`
+	PRURL              string    `json:"pr_url,omitempty"`
+	PRMergeable        string    `json:"pr_mergeable,omitempty"`
+	CIConclusion       string    `json:"ci_conclusion,omitempty"`
+	ReviewerState      string    `json:"reviewer_state,omitempty"`
+	OpenInlineComments int       `json:"open_inline_comments"`
+	Note               string    `json:"note,omitempty"`
+	Reason             string    `json:"reason,omitempty"`
+	Gate               fleetGate `json:"gate"`
 }
 
 // fleetEnvelope wraps the rows so consumers can pin on `count` without
@@ -101,7 +104,7 @@ func newFleetStatusCmd() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "status",
-		Short: "One-row-per-in-progress-issue snapshot of worktree + PR + CI state",
+		Short: "One-row-per-in-progress-or-escalated-issue snapshot of worktree + PR + CI state",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
 			if err != nil {
@@ -122,7 +125,7 @@ func newFleetStatusCmd() *cobra.Command {
 	return cmd
 }
 
-// buildFleetRows discovers every in-progress issue, matches it to a worktree
+// buildFleetRows discovers every in-progress or escalated issue, matches it to a worktree
 // by branch candidate, and gathers per-worktree git + PR + CI state. Each
 // shell-out is best-effort: a missing gh, detached HEAD, or no upstream
 // downgrades to a blank field with a `note`, never an aborting error. The
@@ -166,13 +169,14 @@ func buildFleetRows(v *core.Vault) ([]fleetRow, error) {
 		if err != nil {
 			continue
 		}
-		if s, _ := a.FrontMatter["status"].(string); s != "in-progress" {
+		status, _ := a.FrontMatter["status"].(string)
+		if status != "in-progress" && status != "escalated" {
 			continue
 		}
 		id := core.CanonicalID(core.TypeIssue, strings.TrimSuffix(filepath.Base(p), ".md"))
 		owner, _ := a.FrontMatter["owner"].(string)
 
-		row := fleetRow{ID: id, Owner: owner}
+		row := fleetRow{ID: id, Status: status, Owner: owner}
 		project := projectFromArtifact(a, id)
 		worktrees, repoResolved := worktreesForProject(project)
 		matched := false
@@ -197,26 +201,32 @@ func buildFleetRows(v *core.Vault) ([]fleetRow, error) {
 				apply(b, wt)
 			}
 		}
+		prState := ""
 		switch {
 		case matched:
-			fillRowFromWorktree(&row)
+			prState = fillRowFromWorktree(&row)
 		case !repoResolved:
 			row.Note = fmt.Sprintf("project repo not found (expected ~/Development/%s); matched against ambient repo", project)
 		default:
 			row.Note = "no matching worktree"
+		}
+		row.Gate = gateFromRow(a, row, prState)
+		if status == "escalated" {
+			row.Reason, _ = a.FrontMatter["escalation_reason"].(string)
 		}
 		rows = append(rows, row)
 	}
 	return rows, nil
 }
 
-func fillRowFromWorktree(row *fleetRow) {
+// fillRowFromWorktree returns the PR state, which only the gate reads.
+func fillRowFromWorktree(row *fleetRow) string {
 	if state, err := gitPushStateFn(row.Worktree); err == nil {
 		row.PushState = state
 	}
 	pr, err := ghPRViewFn(row.Worktree, row.Branch)
 	if err != nil || pr == nil {
-		return
+		return ""
 	}
 	row.PRNumber = pr.Number
 	row.PRURL = pr.URL
@@ -228,22 +238,23 @@ func fillRowFromWorktree(row *fleetRow) {
 			row.OpenInlineComments = n
 		}
 	}
+	return pr.State
 }
 
 func emitFleetTable(cmd *cobra.Command, rows []fleetRow) error {
 	w := cmd.OutOrStdout()
 	if len(rows) == 0 {
-		fmt.Fprintln(w, "no in-progress issues")
+		fmt.Fprintln(w, "no in-progress or escalated issues")
 		return nil
 	}
-	fmt.Fprintln(w, "ID\tOWNER\tBRANCH\tPR\tMERGEABLE\tCI\tREVIEW\tINLINE")
+	fmt.Fprintln(w, "ID\tSTATUS\tOWNER\tBRANCH\tPR\tMERGEABLE\tCI\tREVIEW\tINLINE")
 	for _, r := range rows {
 		pr := "—"
 		if r.PRNumber > 0 {
 			pr = fmt.Sprintf("#%d", r.PRNumber)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n",
-			r.ID, dashIfEmpty(r.Owner), dashIfEmpty(r.Branch),
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\n",
+			r.ID, r.Status, dashIfEmpty(r.Owner), dashIfEmpty(r.Branch),
 			pr, dashIfEmpty(r.PRMergeable), dashIfEmpty(r.CIConclusion),
 			dashIfEmpty(r.ReviewerState), r.OpenInlineComments,
 		)
@@ -310,6 +321,7 @@ type ghStatusCheck struct {
 // ghPRSnapshot is the JSON shape gh returns for the fields we ask for.
 type ghPRSnapshot struct {
 	Number          int             `json:"number"`
+	State           string          `json:"state"`
 	URL             string          `json:"url"`
 	Mergeable       string          `json:"mergeable"`
 	ReviewDecision  string          `json:"reviewDecision"`
@@ -326,7 +338,7 @@ func ghPRViewReal(dir, branch string) (*ghPRSnapshot, error) {
 		return nil, errGhUnavailable
 	}
 	cmd := exec.Command("gh", "pr", "view", branch, //nolint:gosec // binary path resolved from trusted sources; not user input
-		"--json", "number,url,mergeable,reviewDecision,statusCheckRollup")
+		"--json", "number,url,state,mergeable,reviewDecision,statusCheckRollup")
 	cmd.Dir = dir
 	out, err := cmd.Output()
 	if err != nil {

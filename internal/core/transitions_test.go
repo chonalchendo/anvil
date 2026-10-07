@@ -61,3 +61,18 @@ func TestMilestoneDoneToPlannedIsReverse(t *testing.T) {
 		t.Fatalf("expected reverse=true for done→planned reopen")
 	}
 }
+
+func TestIssueTransitions_FromEscalated_OnlyOpenAndAbandonedLegal(t *testing.T) {
+	tr, err := LookupTransition(TypeIssue, "in-progress", "escalated")
+	if err != nil || len(tr.Requires) != 1 || tr.Requires[0] != "reason" {
+		t.Fatalf("in-progress→escalated must require reason: %+v, %v", tr, err)
+	}
+	for _, to := range []string{"open", "abandoned"} {
+		if _, err := LookupTransition(TypeIssue, "escalated", to); err != nil {
+			t.Errorf("escalated→%s must be legal: %v", to, err)
+		}
+	}
+	if _, err := LookupTransition(TypeIssue, "escalated", "resolved"); !errors.Is(err, ErrIllegalTransition) {
+		t.Errorf("escalated→resolved must be illegal, got %v", err)
+	}
+}

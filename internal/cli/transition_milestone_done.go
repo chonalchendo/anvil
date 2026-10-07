@@ -15,7 +15,8 @@ import (
 )
 
 // unfinishedIssues lists the issues linked to milestone ms that are not yet
-// terminal (open or in-progress). A scan or load failure is an error: a
+// terminal: any status other than resolved or abandoned (open, in-progress,
+// escalated). A scan or load failure is an error: a
 // partial list could let a milestone close with work still open.
 func unfinishedIssues(v *core.Vault, ms string) ([]string, error) {
 	paths, err := collectArtifactPaths(v.Root, core.TypeIssue)
@@ -31,7 +32,7 @@ func unfinishedIssues(v *core.Vault, ms string) ([]string, error) {
 		if milestoneSlug(other.FrontMatter["milestone"]) != ms {
 			continue
 		}
-		if status, _ := other.FrontMatter["status"].(string); status == "open" || status == "in-progress" {
+		if status, _ := other.FrontMatter["status"].(string); status != "resolved" && status != "abandoned" {
 			ids = append(ids, listIDFor(core.TypeIssue, p))
 		}
 	}

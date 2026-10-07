@@ -86,6 +86,24 @@ func TestTransitionMilestoneDoneGates(t *testing.T) {
 		}
 	})
 
+	t.Run("escalated issue refuses", func(t *testing.T) {
+		vault := finishLineVault(t, "true")
+		writeFixtureIssueWithMilestone(t, vault, "demo", "child", "demo.line")
+		p := filepath.Join(vault, "70-issues", "demo.child.md")
+		a, err := core.LoadArtifact(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a.FrontMatter["status"] = "escalated"
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+		execCmd(t, "reindex")
+		if got := failCode(t); got != "milestone_open_issues" {
+			t.Fatalf("code = %q", got)
+		}
+	})
+
 	t.Run("green line rewrites the status block", func(t *testing.T) {
 		vault := finishLineVault(t, "true")
 		execCmd(t, "transition", "milestone", "demo.line", "done")

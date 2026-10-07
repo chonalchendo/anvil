@@ -251,8 +251,8 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename, rawID str
 
 	emitFrontMatterText(cmd, a.FrontMatter)
 	if out.Children != nil {
-		fmt.Fprintf(w, "children: %d open, %d in-progress, %d resolved (of %d)\tstale=%t\n",
-			out.Children.Open, out.Children.InProgress, out.Children.Resolved, out.Children.Total, *out.Stale)
+		fmt.Fprintf(w, "children: %d open, %d in-progress, %d escalated, %d resolved (of %d)\tstale=%t\n",
+			out.Children.Open, out.Children.InProgress, out.Children.Escalated, out.Children.Resolved, out.Children.Total, *out.Stale)
 	}
 	// Body before incoming so a --body or default-body load surfaces the artifact
 	// body first, not buried under the incoming-links wall (anvil.0129).

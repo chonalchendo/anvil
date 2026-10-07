@@ -132,6 +132,16 @@ Never `gh pr merge`, `git worktree remove`, `anvil transition resolved`, or `anv
 
 Never a GitHub closing keyword (`close/closes/closed/fix/fixes/fixed/resolve/resolves/resolved` + `#<number>`) in a PR body — a repo's PR and issue number spaces can share one counter, so it can silently auto-close an unrelated PR at merge time. Cite the full issue id instead.
 
+## Escalate a blocker (mandatory)
+
+Before your final `Blocker:` return line, escalate the issue so the vault records the reason:
+
+```bash
+cd <dispatched-worktree-path> && anvil transition issue <issue-id> escalated --reason "<the blocker, one line>"
+```
+
+If the issue is not `in-progress` or the escalate call fails, skip it and emit the `Blocker:` line alone. Otherwise the issue leaves the ready queue and returns to the human. Do not escalate a PR-opened return. The final report still names the reason.
+
 ## Return contract
 
 Your LAST LINE, alone, is exactly one of: the PR url (`https://github.com/.../pull/<n>`) or `Blocker: <one line>`. Immediately before it, print two lines:

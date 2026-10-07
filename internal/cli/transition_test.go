@@ -966,3 +966,34 @@ func TestTransition_Thread_Closed_DanglingLinkStillWarns(t *testing.T) {
 		t.Errorf("expected the distill warning for a dangling target, got %q", out)
 	}
 }
+
+func TestTransition_EscalateThenRequeue_ClearsReasonAndStampsClaim(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	path := filepath.Join(vault, core.TypeIssue.Dir(), "demo.foo.md")
+	load := func() map[string]any {
+		a, err := core.LoadArtifact(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a.FrontMatter
+	}
+
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+	execCmd(t, "transition", "issue", "demo.foo", "escalated", "--reason", "blocked on x")
+	if got, _ := load()["escalation_reason"].(string); got != "blocked on x" {
+		t.Fatalf("escalation_reason = %q, want %q", got, "blocked on x")
+	}
+	execCmd(t, "transition", "issue", "demo.foo", "open")
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	fm := load()
+	if _, present := fm["escalation_reason"]; present {
+		t.Errorf("escalation_reason survived re-queue: %v", fm["escalation_reason"])
+	}
+	if got, _ := fm["claimed_at"].(string); got == "" {
+		t.Errorf("claimed_at not stamped on re-claim")
+	}
+}

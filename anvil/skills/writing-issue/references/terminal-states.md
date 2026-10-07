@@ -1,6 +1,6 @@
 # Working the issue (state machine) and terminal states
 
-The issue lifecycle is `open → in-progress → resolved` (with `→ abandoned` and reverse audit edges). All status changes go through `anvil transition`, not direct frontmatter edits.
+The issue lifecycle is `open → in-progress → resolved` (with `→ abandoned`, `in-progress → escalated --reason`, and reverse audit edges). All status changes go through `anvil transition`, not direct frontmatter edits.
 
 ```bash
 # Claim — --owner is required (open → in-progress)

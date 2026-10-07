@@ -175,13 +175,13 @@ func TestMilestoneStatusNonMilestoneIDErrors(t *testing.T) {
 func TestMilestoneChildrenCountsByStatus(t *testing.T) {
 	db := openTestDB(t)
 	seedMilestone(t, db, "milestone.m", map[string]string{
-		"i1": "open", "i2": "in-progress", "i3": "resolved", "i4": "abandoned",
+		"i1": "open", "i2": "in-progress", "i3": "resolved", "i4": "abandoned", "i5": "escalated",
 	})
 	got, err := db.MilestoneChildren("m")
 	if err != nil {
 		t.Fatalf("MilestoneChildren: %v", err)
 	}
-	want := MilestoneChildren{Open: 1, InProgress: 1, Resolved: 1, Abandoned: 1, Total: 4}
+	want := MilestoneChildren{Open: 1, InProgress: 1, Escalated: 1, Resolved: 1, Abandoned: 1, Total: 5}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("children mismatch (-want +got):\n%s", diff)
 	}

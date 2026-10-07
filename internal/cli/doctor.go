@@ -411,7 +411,7 @@ func checkFinishedMilestone(msPath string, a *core.Artifact, children []childIss
 			continue
 		}
 		hasChild = true
-		if c.status == "open" || c.status == "in-progress" {
+		if c.status != "resolved" && c.status != "abandoned" {
 			return nil // still open work
 		}
 	}
