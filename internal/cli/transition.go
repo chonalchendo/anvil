@@ -185,7 +185,7 @@ func newTransitionCmd() *cobra.Command {
 				}
 				return emitTransitionJSON(cmd, asJSON, transitionResult{
 					ID: id, Path: path, From: from, To: "resolved", Status: "transitioned",
-					Advisory: milestoneCloseAdvisory(v, a),
+					Advisory: milestoneCloseAdvisory(cmd, v, a),
 				})
 			}
 
@@ -227,6 +227,9 @@ func newTransitionCmd() *cobra.Command {
 						Set("milestone", id).
 						Set("kind", "bucket").
 						Set("hint", "bucket milestones are rolling trackers with no terminal state; use abandoned to close one"))
+				}
+				if gerr := gateMilestoneDone(cmd, v, a, id); gerr != nil {
+					return printAndReturn(cmd, gerr)
 				}
 			}
 
@@ -386,7 +389,7 @@ func newTransitionCmd() *cobra.Command {
 
 			var advisory string
 			if t == core.TypeIssue && to == "resolved" {
-				advisory = milestoneCloseAdvisory(v, a)
+				advisory = milestoneCloseAdvisory(cmd, v, a)
 			}
 
 			return emitTransitionJSON(cmd, asJSON, transitionResult{
@@ -430,7 +433,7 @@ type transitionResult struct {
 // to disk as resolved, so a full scan (no self-exclusion) is correct. Scan
 // failures return "" — the advisory is best-effort and must never fail a
 // transition that already landed.
-func milestoneCloseAdvisory(v *core.Vault, resolved *core.Artifact) string {
+func milestoneCloseAdvisory(cmd *cobra.Command, v *core.Vault, resolved *core.Artifact) string {
 	ms := milestoneSlug(resolved.FrontMatter["milestone"])
 	if ms == "" {
 		return ""
@@ -443,22 +446,13 @@ func milestoneCloseAdvisory(v *core.Vault, resolved *core.Artifact) string {
 	if status, _ := m.FrontMatter["status"].(string); status != "in-progress" {
 		return ""
 	}
-	paths, err := collectArtifactPaths(v.Root, core.TypeIssue)
-	if err != nil {
+	// A scan error reads as no advisory: the advisory is best-effort.
+	if open, err := unfinishedIssues(v, ms); err != nil || len(open) > 0 {
 		return ""
 	}
-	for _, p := range paths {
-		other, err := core.LoadArtifact(p)
-		if err != nil {
-			continue
-		}
-		if milestoneSlug(other.FrontMatter["milestone"]) != ms {
-			continue
-		}
-		status, _ := other.FrontMatter["status"].(string)
-		if status == "open" || status == "in-progress" {
-			return ""
-		}
+	// A red finish line means done would be refused, so do not advise it.
+	if len(unmetCriteria(runAcceptance(cmd, m, checkFinishLine(projectFromArtifact(m, ms)).Dir))) > 0 {
+		return ""
 	}
 	return fmt.Sprintf("last open issue in %s; consider: anvil transition milestone %s done", ms, ms)
 }

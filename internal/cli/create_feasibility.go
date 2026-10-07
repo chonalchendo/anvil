@@ -101,7 +101,7 @@ func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.Validat
 				continue
 			}
 			cmd.PrintErrln("anvil: running " + name + " in this environment (your privileges, cwd and environment; not sandboxed)")
-			r := runFeasibilityBlock(block)
+			r := runFeasibilityBlock(block, "")
 			if r.timedOut && label == "Direct" {
 				cmd.PrintErrln("anvil: " + name + " did not finish within " + feasibilityTimeout.String() + "; accepted unjudged (Direct is only checked for runnability)")
 			}
@@ -169,9 +169,9 @@ func classifyFeasibility(label, name string, r blockRun) (msg, fix string) {
 }
 
 // runFeasibilityBlock runs a single Verification block's lines as one bash
-// script and reports what it observed. It never decides pass/fail — that is
+// script in dir ("" = the process cwd) and reports what it observed. It never decides pass/fail — that is
 // classifyFeasibility's job.
-func runFeasibilityBlock(block string) blockRun {
+func runFeasibilityBlock(block, dir string) blockRun {
 	ctx, cancel := context.WithTimeout(context.Background(), feasibilityTimeout)
 	defer cancel()
 
@@ -183,6 +183,7 @@ func runFeasibilityBlock(block string) blockRun {
 	// whole tree. A block that backgrounds work (`nohup … &`) leaves
 	// grandchildren that survive a signal aimed at bash alone and keep running
 	// (and holding the output pipe) long after create returns.
+	c.Dir = dir // "" keeps the process cwd
 	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	c.Cancel = func() error { return syscall.Kill(-c.Process.Pid, syscall.SIGKILL) }
 	c.WaitDelay = feasibilityWaitDelay
