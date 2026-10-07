@@ -24,7 +24,9 @@ type verifyFailure struct {
 }
 
 // verifyRecord mirrors run-verification.sh's verdict line so the skill bundle
-// can swap the script for this verb.
+// can swap the script for this verb. One known difference for wave 5: a block
+// that leaves a background process holding stdout (`sleep 8 &`) fails here once
+// the 2 s WaitDelay passes (exit null), where the script waits and passes it.
 type verifyRecord struct {
 	Verdict  string          `json:"verdict"`
 	Checks   int             `json:"checks"`

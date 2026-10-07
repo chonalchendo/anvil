@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -166,5 +167,38 @@ func TestVerifyKeepsWritesMadeDuringTheRun(t *testing.T) {
 	}
 	if got.FrontMatter["severity"] != "high" {
 		t.Errorf("mid-run write lost: severity = %v", got.FrontMatter["severity"])
+	}
+}
+
+func TestRunFeasibilityBlockTimeout(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		timeout time.Duration
+		want    bool
+	}{
+		{"cap hit sets timedOut", 100 * time.Millisecond, true},
+		{"zero means no cap", 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if r := runFeasibilityBlock("sleep 1", "", tc.timeout); r.timedOut != tc.want {
+				t.Errorf("timedOut = %v, want %v", r.timedOut, tc.want)
+			}
+		})
+	}
+}
+
+func TestVerifyLeavesExitNilWhenTheBlockNeverRan(t *testing.T) {
+	vault := setupVault(t)
+	writeVerifyIssue(t, vault, "issue.anvil.0005.neverran", "true", "true")
+	// An unusable TMPDIR makes the script temp file fail: runErr, not an exit code.
+	t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "missing"))
+	rec, _, _ := runVerify(t, vault, "issue.anvil.0005.neverran")
+	if len(rec.Failed) == 0 {
+		t.Fatalf("a block that never ran must fail: %+v", rec)
+	}
+	for _, f := range rec.Failed {
+		if f.Exit != nil {
+			t.Errorf("%s: Exit = %d, want nil", f.Check, *f.Exit)
+		}
 	}
 }
