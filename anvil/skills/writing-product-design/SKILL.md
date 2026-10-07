@@ -22,7 +22,7 @@ metadata:
 
 A workflow for authoring a project's product-design artifact — the top of Anvil's design-driven hierarchy. Greenfield only.
 
-**Frontmatter is the universal spine** (`type, title, description, created, updated, status, project, tags, aliases, related`). Every output of this skill is body prose under named sections; the schema rejects anything else (`additionalProperties: false`). Schema: `schemas/product-design.schema.json`.
+**Frontmatter is the universal spine** (`type, title, description, created, updated, status, project, tags, aliases, related`). Every output of this skill is body prose under named sections; the schema rejects anything else (`additionalProperties: false`).
 
 ## When to use
 
@@ -64,14 +64,13 @@ The per-phase procedure — drafting instructions, voice checks, gate criteria �
 
 ## Common mistakes
 
-- **Stuffing prose into frontmatter.** Schema is `additionalProperties: false`; only universals + `related` are accepted. Goals, metrics, constraints, risks, milestones, target users — all body sections.
+- **Stuffing prose into frontmatter.** Schema is `additionalProperties: false`; only universals + `related` are accepted. Goals, measures, constraints, risks, milestones, target users — all body sections.
 - **Drafting from a source doc.** Greenfield: there is no source. If you find yourself reading "lines X–Y of file Y", stop — that's brownfield carving.
 - **Conflating *what* with *how*.** Implementation strategy, packaging, subprocess choices belong in `system-design.md`.
-- **Generic success metrics.** "Users are happy" isn't a metric. Blend quantitative and qualitative; tie qualitative to a measurement plan.
-- **Skipping the past-pain prompt in Phase 4.** Old-tool failure modes are the most concrete metrics.
-- **Writing for workers.** No worker instructions in the doc: no pointers like `docs/issue-spec.md`, no "agents must" rules. Those belong in conventions.
+- **Goals without measures.** "Users are happy" is not a measure. Blend quantitative and qualitative; tie each qualitative measure to how you check it.
+- **Skipping the past-pain prompt in Phase 4.** Old-tool failure modes are the most concrete measures.
+- **Writing for workers.** No worker instructions in the doc: no pointers to repo docs or convention files, no "agents must" rules. Those belong in conventions.
 - **Bare milestone one-liners.** Each open candidate needs a `Why now:` line and a `Components:` line.
-- **Goals without measures.** Every goal in `## Goals and how we measure them` pairs with a measure.
 - **Voice drift.** AI-generic prose fails the cold read. Match project voice; audit for hedging and corporate-speak.
 - **Treating gates as one-shot approvals.** Each is an iteration loop. Reframes after a draft = gate working, not failing.
 
