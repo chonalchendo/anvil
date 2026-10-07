@@ -5,6 +5,8 @@ The reader is a human deciding what to work next in Obsidian's reading view, or 
 - `## Objective`
   - Lead sentence, its own paragraph: what ships and what it changes for whom. ≤25 words, no history or mechanism.
   - **Why now** — bold run-in label, then the gap's measurement as a list, one fact per item.
+  - **Design change** — bold run-in label, then one bullet per design artifact that changes at acceptance.
+  - **Components changed:** — bold run-in label, then the components touched.
   - **Waves** — bold run-in label, then a numbered list:
     - A wave is one line: bold name, then one sentence of intent.
     - Under it, one nested bullet per issue: the `[[wikilink]]`, then what lands in ≤15 words.

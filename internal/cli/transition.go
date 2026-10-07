@@ -344,6 +344,16 @@ func newTransitionCmd() *cobra.Command {
 				a.Body += audit
 			}
 
+			// Amend: leaving in-progress for planned withdraws the approval so the
+			// gate runs again. No --reason: the edge stays forward.
+			if t == core.TypeMilestone && from == "in-progress" && to == "planned" {
+				delete(a.FrontMatter, "approved")
+				if !strings.HasSuffix(a.Body, "\n") {
+					a.Body += "\n"
+				}
+				a.Body += fmt.Sprintf("\n> amended %s\n", time.Now().UTC().Format("2006-01-02"))
+			}
+
 			if t == core.TypeIssue && to == "resolved" && force {
 				stamp := time.Now().UTC().Format("2006-01-02")
 				note := reason
@@ -388,7 +398,7 @@ func newTransitionCmd() *cobra.Command {
 			}
 
 			if t == core.TypeIssue && to == "in-progress" {
-				if merr := advanceMilestoneOnClaim(v, a); merr != nil {
+				if merr := advanceMilestoneOnClaim(v, a, cmd.ErrOrStderr()); merr != nil {
 					cmd.PrintErrln("warning: milestone advance: " + merr.Error())
 				}
 			}

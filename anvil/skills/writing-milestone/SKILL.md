@@ -57,13 +57,13 @@ Draft before calling the CLI:
 **REQUIRED REFERENCE:** Use skills/writing-milestone/references/finish-line.md — refuse a state-phrased goal or silent empty acceptance before proceeding.
 **REQUIRED REFERENCE:** Use skills/writing-milestone/references/body-shape.md — the four-section body a cold reader scans: labelled parts, one nested bullet per issue under each wave, the Status acceptance table.
 
-Read the routed inbox before the gate. List the open inbox items. Read each one, and keep those whose `## Route` names this milestone:
+Read the routed inbox before the gate. List the raw inbox items. Read each one, and keep those whose `## Route` names this milestone:
 
 ```bash
-anvil list inbox --status raw
+anvil list inbox --status raw --limit 1000 --json --fields id,title
 ```
 
-The human promotes or drops each routed item. The `## Links` section of the milestone names each item it absorbed. `anvil transition milestone <id> in-progress` refuses with `inbox_unread` while an open inbox item links the milestone.
+The human promotes or drops each routed item. The `## Links` section of the milestone names each item it absorbed. `anvil transition milestone <id> in-progress` refuses with `inbox_unread` while a raw inbox item links the milestone. After Phase 3, run `anvil link --to milestone.<id>` to list the exact set the gate refuses on.
 
 **Gate:** user confirms title, goal, kind, and acceptance — and, for scoped, that the goal is event-phrased and acceptance carries a runnable predicate; for bucket, that the open-ended kind was explicitly affirmed.
 

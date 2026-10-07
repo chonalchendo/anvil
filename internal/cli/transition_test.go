@@ -451,7 +451,7 @@ func writeFixtureMilestone(t *testing.T, vault, id, status string) {
 
 // TestTransitionBucketMilestoneToDoneRejected pins the bucket guard: a
 // milestone with kind: bucket has no terminal predicate, so done is meaningless.
-// The edge exists in the transition table (planned→done), so the guard must fire
+// The edge exists in the transition table (in-progress→done), so the guard must fire
 // after LookupTransition with the structured bucket_milestone_no_done code; a
 // scoped milestone on the same edge still transitions cleanly.
 func TestTransitionBucketMilestoneToDoneRejected(t *testing.T) {
@@ -464,7 +464,7 @@ func TestTransitionBucketMilestoneToDoneRejected(t *testing.T) {
 			FrontMatter: map[string]any{
 				"type": "milestone", "title": id, "description": "fixture description",
 				"created": "2026-01-01", "updated": "2026-01-01",
-				"status": "planned", "project": "demo",
+				"status": "in-progress", "project": "demo",
 				"goal": "rolling tracker", "kind": "bucket",
 			},
 			Body: "fixture body\n",
@@ -501,13 +501,13 @@ func TestTransitionBucketMilestoneToDoneRejected(t *testing.T) {
 			t.Fatalf("expected kind=bucket in envelope, got: %v", env)
 		}
 
-		// Guard fires before any state mutation: disk stays planned.
+		// Guard fires before any state mutation: disk stays in-progress.
 		a, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", id+".md"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got, _ := a.FrontMatter["status"].(string); got != "planned" {
-			t.Fatalf("status mutated to %q, want planned (guard must precede mutation)", got)
+		if got, _ := a.FrontMatter["status"].(string); got != "in-progress" {
+			t.Fatalf("status mutated to %q, want in-progress (guard must precede mutation)", got)
 		}
 	})
 
@@ -515,7 +515,7 @@ func TestTransitionBucketMilestoneToDoneRejected(t *testing.T) {
 		vault := t.TempDir()
 		t.Setenv("ANVIL_VAULT", vault)
 		execCmd(t, "init", vault)
-		writeFixtureMilestone(t, vault, "demo.scoped", "planned")
+		writeFixtureMilestone(t, vault, "demo.scoped", "in-progress")
 		execCmd(t, "reindex")
 
 		out := execCmdJSON(t, "transition", "milestone", "demo.scoped", "done", "--json")
@@ -708,6 +708,7 @@ func TestTransitionClaimAdvancesMilestone(t *testing.T) {
 	t.Run("first claim moves planned milestone to in-progress", func(t *testing.T) {
 		vault := setup(t)
 		writeFixtureMilestone(t, vault, milestone, "planned")
+		setMilestoneBody(t, vault, milestone, formBody)
 		writeFixtureIssueWithMilestone(t, vault, "demo", "a", milestone)
 		execCmd(t, "reindex")
 
@@ -715,6 +716,24 @@ func TestTransitionClaimAdvancesMilestone(t *testing.T) {
 
 		if got := milestoneStatus(t, vault); got != "in-progress" {
 			t.Fatalf("milestone status = %q, want in-progress", got)
+		}
+	})
+
+	t.Run("gate refusal leaves milestone planned and warns", func(t *testing.T) {
+		vault := setup(t)
+		writeFixtureMilestone(t, vault, milestone, "planned")
+		writeFixtureIssueWithMilestone(t, vault, "demo", "a", milestone)
+		execCmd(t, "reindex")
+
+		_, stderr, err := runCmd(t, newRootCmd(), "transition", "issue", "demo.a", "in-progress", "--owner", "claude")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := milestoneStatus(t, vault); got != "planned" {
+			t.Fatalf("milestone status = %q, want planned (gate refused)", got)
+		}
+		if !strings.Contains(stderr, "milestone_gate_design_change") {
+			t.Fatalf("stderr = %q, want the refusal code", stderr)
 		}
 	})
 

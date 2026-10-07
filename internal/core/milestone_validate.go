@@ -83,11 +83,13 @@ var MilestoneFormParts = []struct{ Label, Code string }{
 }
 
 // MissingMilestoneFormPart returns the first form part absent from the
-// milestone's `## Objective`, or missing=false when the form is whole.
+// milestone body, or missing=false when the form is whole. It is a heuristic
+// over the fence-stripped body, not an Objective parse: a label counts only
+// when a line starts with it, so an inline or negated mention does not pass.
 func MissingMilestoneFormPart(a *Artifact) (label, code string, missing bool) {
 	body := StripFencedBlocks(a.Body)
 	for _, p := range MilestoneFormParts {
-		if !strings.Contains(body, p.Label) {
+		if !regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(p.Label)).MatchString(body) {
 			return p.Label, p.Code, true
 		}
 	}

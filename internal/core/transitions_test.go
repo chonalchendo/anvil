@@ -42,13 +42,6 @@ func TestLegalNextLists(t *testing.T) {
 	}
 }
 
-func TestMilestonePlannedToDoneIsLegal(t *testing.T) {
-	_, err := LookupTransition(TypeMilestone, "planned", "done")
-	if err != nil {
-		t.Fatalf("planned→done must be legal for milestones: %v", err)
-	}
-}
-
 func TestReverseTransitionFlagged(t *testing.T) {
 	tr, err := LookupTransition(TypeIssue, "resolved", "open")
 	if err != nil {
@@ -66,15 +59,5 @@ func TestMilestoneDoneToPlannedIsReverse(t *testing.T) {
 	}
 	if !tr.Reverse {
 		t.Fatalf("expected reverse=true for done→planned reopen")
-	}
-}
-
-func TestMilestoneInProgressToPlannedIsLegal(t *testing.T) {
-	tr, err := LookupTransition(TypeMilestone, "in-progress", "planned")
-	if err != nil {
-		t.Fatalf("amend edge must be legal: %v", err)
-	}
-	if tr.Reverse {
-		t.Error("amend is not a reverse edge")
 	}
 }

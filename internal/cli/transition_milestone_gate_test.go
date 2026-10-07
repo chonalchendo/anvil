@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,6 +11,18 @@ import (
 )
 
 const formBody = "## Objective\n\n**Design change**\n\n- none\n\n**Components changed:** none\n"
+
+func setMilestoneBody(t *testing.T, vault, id, body string) {
+	t.Helper()
+	a, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", id+".md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Body = body
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func gateVault(t *testing.T, body string) string {
 	t.Helper()
@@ -88,6 +101,49 @@ func TestMilestoneApprovalGate(t *testing.T) {
 		}
 		if out, err := gateTransition(t, "planned"); err != nil {
 			t.Fatalf("amend exit: %v out=%s", err, out)
+		}
+	})
+	t.Run("frontmatter-slot link counts as routed", func(t *testing.T) {
+		vault := gateVault(t, formBody)
+		item := &core.Artifact{
+			Path: filepath.Join(vault, "00-inbox", "2026-10-07-slot.md"),
+			FrontMatter: map[string]any{
+				"type": "inbox", "title": "slot", "created": "2026-10-07", "status": "raw",
+				"related": []any{"[[milestone.demo.loop]]"},
+			},
+			Body: "no body link\n",
+		}
+		if err := item.Save(); err != nil {
+			t.Fatal(err)
+		}
+		out, err := gateTransition(t, "in-progress")
+		if err == nil || !strings.Contains(out, "2026-10-07-slot") {
+			t.Fatalf("want inbox_unread naming the slot-linked item, err=%v out=%s", err, out)
+		}
+	})
+	t.Run("malformed inbox file refuses with milestone_scan_failed", func(t *testing.T) {
+		vault := gateVault(t, formBody)
+		bad := filepath.Join(vault, "00-inbox", "2026-10-07-bad.md")
+		if err := os.WriteFile(bad, []byte("---\n: : not yaml [\n---\nbody\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		out, err := gateTransition(t, "in-progress")
+		if err == nil || !strings.Contains(out, "milestone_scan_failed") {
+			t.Fatalf("want milestone_scan_failed, err=%v out=%s", err, out)
+		}
+	})
+	t.Run("bucket milestone with bare body passes the form check", func(t *testing.T) {
+		vault := gateVault(t, "## Objective\n\nGoal only.\n")
+		m, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", "demo.loop.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.FrontMatter["kind"] = "bucket"
+		if err := m.Save(); err != nil {
+			t.Fatal(err)
+		}
+		if out, err := gateTransition(t, "in-progress"); err != nil {
+			t.Fatalf("bucket approval: %v out=%s", err, out)
 		}
 	})
 }

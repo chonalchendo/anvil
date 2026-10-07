@@ -24,7 +24,6 @@ var transitions = map[Type][]Transition{
 	},
 	TypeMilestone: {
 		{From: "planned", To: "in-progress"},
-		{From: "planned", To: "done"},
 		{From: "in-progress", To: "done"},
 		{From: "in-progress", To: "planned"},
 		{From: "in-progress", To: "abandoned"},
