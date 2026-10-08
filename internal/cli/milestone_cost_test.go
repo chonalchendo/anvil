@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
