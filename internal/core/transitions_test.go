@@ -2,7 +2,11 @@ package core
 
 import (
 	"errors"
+	"strings"
 	"testing"
+
+	"github.com/chonalchendo/anvil/internal/schema"
+	"github.com/chonalchendo/anvil/internal/templates"
 )
 
 func TestTransitionLookupHit(t *testing.T) {
@@ -74,5 +78,64 @@ func TestIssueTransitions_FromEscalated_OnlyOpenAndAbandonedLegal(t *testing.T) 
 	}
 	if _, err := LookupTransition(TypeIssue, "escalated", "resolved"); !errors.Is(err, ErrIllegalTransition) {
 		t.Errorf("escalated→resolved must be illegal, got %v", err)
+	}
+}
+
+func TestEveryStatusEnumValueIsReachable(t *testing.T) {
+	for _, ty := range AllTypes {
+		enum, err := schema.FieldEnum(string(ty), "status")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(enum) == 0 {
+			continue
+		}
+		inEnum := map[string]bool{}
+		for _, v := range enum {
+			inEnum[v] = true
+		}
+		for _, tr := range transitions[ty] {
+			for _, s := range []string{tr.From, tr.To} {
+				if !inEnum[s] {
+					t.Errorf("%s: table status %q is not in the schema enum %v", ty, s, enum)
+				}
+			}
+		}
+		seen := map[string]bool{InitialStatus(ty): true}
+		queue := []string{InitialStatus(ty)}
+		for len(queue) > 0 {
+			cur := queue[0]
+			queue = queue[1:]
+			for _, next := range LegalNext(ty, cur) {
+				if !seen[next] {
+					seen[next] = true
+					queue = append(queue, next)
+				}
+			}
+		}
+		for _, v := range enum {
+			if !seen[v] {
+				t.Errorf("%s: enum value %q is not reachable from %q", ty, v, InitialStatus(ty))
+			}
+		}
+	}
+}
+
+func TestTemplateStatusMatchesInitialStatus(t *testing.T) {
+	for _, ty := range AllTypes {
+		src, err := templates.FS.ReadFile(string(ty) + ".tmpl")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got string
+		for _, line := range strings.Split(string(src), "\n") {
+			if v, ok := strings.CutPrefix(line, "status: "); ok {
+				got = strings.TrimSpace(v)
+				break
+			}
+		}
+		if want := InitialStatus(ty); got != want {
+			t.Errorf("%s: template status %q != InitialStatus %q", ty, got, want)
+		}
 	}
 }

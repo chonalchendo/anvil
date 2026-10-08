@@ -91,6 +91,24 @@ func FieldRequired(typeName, fieldName string) (bool, error) {
 	return false, nil
 }
 
+// FieldEnum returns typeName's `properties.<field>.enum` values in schema
+// order. An error is returned only when typeName has no embedded schema.
+func FieldEnum(typeName, field string) ([]string, error) {
+	b, err := EmbeddedFS.ReadFile(typeName + ".schema.json")
+	if err != nil {
+		return nil, fmt.Errorf("read %s schema: %w", typeName, err)
+	}
+	var raw struct {
+		Properties map[string]struct {
+			Enum []string `json:"enum"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return nil, fmt.Errorf("parse %s schema: %w", typeName, err)
+	}
+	return raw.Properties[field].Enum, nil
+}
+
 // classify maps a JSON Schema "type" value to a FieldKind. The value may be a
 // string ("array"), a slice of strings (["string","null"]), or absent (e.g.
 // fields defined via `enum` or `const` — treated as scalar).

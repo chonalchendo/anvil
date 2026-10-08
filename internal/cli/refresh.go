@@ -34,9 +34,9 @@ func newRefreshLearningsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "learnings",
 		Short: "Mark verified/draft learnings stale when a related-link target is gone",
-		Long: `Drive the deterministic freshness signal: a verified learning whose
+		Long: `Drive the deterministic freshness signal: a draft or verified learning whose
 related wikilink targets a moved or deleted artifact is transitioned to
-stale (verified→stale is the only legal edge into stale).
+stale.
 
 Only learnings eligible for →stale are examined; the judgement calls
 (keep / update / consolidate / replace / delete) belong to the
@@ -124,7 +124,7 @@ type staleCandidate struct {
 	Missing []string
 }
 
-// staleLearnings returns learnings eligible for →stale (currently verified)
+// staleLearnings returns learnings eligible for →stale (draft or verified)
 // that have a related-link target no longer present in the index, and the
 // count examined. The target is the deterministic drift signal: a wikilink in
 // `related:` pointing at a moved or deleted artifact.
@@ -136,9 +136,8 @@ func staleLearnings(db *index.DB) ([]staleCandidate, int, error) {
 	var out []staleCandidate
 	checked := 0
 	for _, l := range learnings {
-		// Only learnings for which →stale is a legal edge are eligible; the
-		// state machine has verified→stale but no draft→stale (a draft hasn't
-		// been confirmed, so it can't go stale — the skill promotes it first).
+		// Only learnings for which →stale is a legal edge are eligible: draft
+		// and verified have one; stale and retracted do not.
 		if _, err := core.LookupTransition(core.TypeLearning, l.Status, "stale"); err != nil {
 			continue
 		}
