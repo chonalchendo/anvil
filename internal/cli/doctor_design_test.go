@@ -157,7 +157,7 @@ func TestDoctorDesignUntouchedAfterMilestone(t *testing.T) {
 			if err := pd.Save(); err != nil {
 				t.Fatal(err)
 			}
-			got, err := checkDesignUntouchedAfterMilestone(&core.Vault{Root: vault})
+			got, err := checkDesignUntouchedAfterMilestone(&core.Vault{Root: vault}, "demo")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -172,7 +172,7 @@ func TestDoctorDesignUntouchedAfterMilestone(t *testing.T) {
 			}
 			f := got[0]
 			if f.Kind != "design-untouched-after-milestone" || f.ID != "demo" ||
-				f.Evidence != "milestone milestone.demo.loop done 2026-10-08; demo updated 2026-01-01" {
+				f.Evidence != "updated 2026-01-01; untouched after 1 done milestone(s), latest milestone.demo.loop done 2026-10-08" {
 				t.Errorf("finding = %+v", f)
 			}
 		})
@@ -180,18 +180,75 @@ func TestDoctorDesignUntouchedAfterMilestone(t *testing.T) {
 }
 
 func TestDoctorDesignUntouchedAfterMilestoneEmptyVault(t *testing.T) {
-	got, err := checkDesignUntouchedAfterMilestone(&core.Vault{Root: setupVault(t)})
+	got, err := checkDesignUntouchedAfterMilestone(&core.Vault{Root: setupVault(t)}, "demo")
 	if err != nil || len(got) != 0 {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 }
 
-func TestDoctorDesignCodeRefMissing(t *testing.T) {
-	repo := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(repo, "internal"), 0o755); err != nil {
+func seedDoneMilestone(t *testing.T, vault, id, done string) {
+	t.Helper()
+	writeFixtureMilestone(t, vault, id, "done")
+	setMilestoneFields(t, vault, id, id, done)
+	m, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", id+".md"))
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(repo, "internal", "here.go"), nil, 0o644); err != nil {
+	m.FrontMatter["product_design"] = "[[product-design.demo]]"
+	if err := m.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDoctorDesignUntouchedAfterMilestoneScope(t *testing.T) {
+	t.Run("other project's done milestone skipped", func(t *testing.T) {
+		vault := setupVault(t)
+		seedProductDesign(t, vault, "## Milestones\n")
+		seedDoneMilestone(t, vault, "other.loop", "2026-10-08")
+		got, err := checkDesignUntouchedAfterMilestone(&core.Vault{Root: vault}, "demo")
+		if err != nil || len(got) != 0 {
+			t.Fatalf("got %+v, %v", got, err)
+		}
+	})
+	t.Run("empty slug examines nothing", func(t *testing.T) {
+		vault := setupVault(t)
+		seedProductDesign(t, vault, "## Milestones\n")
+		seedDoneMilestone(t, vault, "demo.loop", "2026-10-08")
+		got, err := checkDesignUntouchedAfterMilestone(&core.Vault{Root: vault}, "")
+		if err != nil || len(got) != 0 {
+			t.Fatalf("got %+v, %v", got, err)
+		}
+	})
+	t.Run("two milestones one design give one finding", func(t *testing.T) {
+		vault := setupVault(t)
+		seedProductDesign(t, vault, "## Milestones\n")
+		seedDoneMilestone(t, vault, "demo.early", "2026-10-05")
+		seedDoneMilestone(t, vault, "demo.late", "2026-10-08")
+		pd, err := core.LoadArtifact(filepath.Join(vault, "05-product-designs", "demo.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		pd.FrontMatter["updated"] = "2026-01-01"
+		if err := pd.Save(); err != nil {
+			t.Fatal(err)
+		}
+		got, err := checkDesignUntouchedAfterMilestone(&core.Vault{Root: vault}, "demo")
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "updated 2026-01-01; untouched after 2 done milestone(s), latest milestone.demo.late done 2026-10-08"
+		if len(got) != 1 || got[0].ID != "demo" || got[0].Evidence != want {
+			t.Fatalf("findings = %+v", got)
+		}
+	})
+}
+
+func TestDoctorDesignCodeRefMissing(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repo, "internal"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "internal", "here.go"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cases := []struct {

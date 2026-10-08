@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/chonalchendo/anvil/internal/core"
@@ -18,7 +19,7 @@ func checkDesignDrift(v *core.Vault, projectSlug string) ([]doctorFinding, error
 	if err != nil {
 		return nil, err
 	}
-	untouched, err := checkDesignUntouchedAfterMilestone(v)
+	untouched, err := checkDesignUntouchedAfterMilestone(v, projectSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +28,10 @@ func checkDesignDrift(v *core.Vault, projectSlug string) ([]doctorFinding, error
 	return append(findings, checkDesignCodeRefMissing(v, projectSlug, root)...), nil
 }
 
-type milestoneRef struct{ id, status, done string }
+type milestoneRef struct {
+	id, status, done string
+	fm               map[string]any
+}
 
 // checkCandidateMilestoneDone flags each done milestone that a top-level bullet
 // of the product design's ## Milestones section names, by link or by title.
@@ -122,7 +126,7 @@ func projectMilestones(v *core.Vault, projectSlug string) (byID, byTitle map[str
 		}
 		status, _ := a.FrontMatter["status"].(string)
 		done, _ := a.FrontMatter["done"].(string)
-		m := milestoneRef{core.CanonicalID(core.TypeMilestone, strings.TrimSuffix(filepath.Base(p), ".md")), status, done}
+		m := milestoneRef{core.CanonicalID(core.TypeMilestone, strings.TrimSuffix(filepath.Base(p), ".md")), status, done, a.FrontMatter}
 		byID[m.id] = m
 		if title, _ := a.FrontMatter["title"].(string); title != "" {
 			byTitle[strings.ToLower(title)] = m
@@ -131,29 +135,28 @@ func projectMilestones(v *core.Vault, projectSlug string) (byID, byTitle map[str
 	return byID, byTitle, nil
 }
 
-// checkDesignUntouchedAfterMilestone flags a design that a done milestone links
-// but whose updated date predates the milestone's done date. A done milestone
+// checkDesignUntouchedAfterMilestone flags a design that done milestones of the
+// project link but whose updated date predates their done dates. It emits one
+// finding per design, naming the latest such milestone. A done milestone
 // without a done date is not examined.
-func checkDesignUntouchedAfterMilestone(v *core.Vault) ([]doctorFinding, error) {
-	paths, err := collectArtifactPaths(v.Root, core.TypeMilestone)
-	if err != nil {
-		return nil, fmt.Errorf("reading milestones: %w", err)
+func checkDesignUntouchedAfterMilestone(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
+	if projectSlug == "" {
+		return nil, nil
 	}
-	var findings []doctorFinding
-	for _, p := range paths {
-		m, err := core.LoadArtifact(p)
-		if err != nil {
-			continue // unreadable: validate's domain
-		}
-		if status, _ := m.FrontMatter["status"].(string); status != "done" {
+	byID, _, err := projectMilestones(v, projectSlug)
+	if err != nil {
+		return nil, err
+	}
+	type stale struct {
+		updated, latestID, latestDone string
+		n                             int
+	}
+	byDesign := map[string]*stale{}
+	for _, m := range byID {
+		if m.status != "done" || m.done == "" {
 			continue
 		}
-		done, _ := m.FrontMatter["done"].(string)
-		if done == "" {
-			continue
-		}
-		mID := listIDFor(core.TypeMilestone, p)
-		for _, d := range linkedDesigns(m.FrontMatter) {
+		for _, d := range linkedDesigns(m.fm) {
 			_, dPath, err := core.ResolveArtifact(v, d.t, d.target)
 			if err != nil {
 				return nil, err
@@ -163,17 +166,35 @@ func checkDesignUntouchedAfterMilestone(v *core.Vault) ([]doctorFinding, error) 
 				continue // dangling link: validate's domain
 			}
 			updated, _ := design.FrontMatter["updated"].(string)
-			if updated == "" || updated >= done { // ISO dates order lexically
+			if updated == "" || updated >= m.done { // ISO dates order lexically
 				continue
 			}
 			dID := core.CanonicalID(d.t, d.target)
-			findings = append(findings, doctorFinding{
-				Kind:     "design-untouched-after-milestone",
-				ID:       dID,
-				Evidence: fmt.Sprintf("milestone %s done %s; %s updated %s", mID, done, dID, updated),
-				Fix:      fmt.Sprintf("revise %s (set updated), or unlink it from %s", dID, mID),
-			})
+			st := byDesign[dID]
+			if st == nil {
+				st = &stale{updated: updated, latestID: m.id, latestDone: m.done}
+				byDesign[dID] = st
+			}
+			st.n++
+			if m.done > st.latestDone || (m.done == st.latestDone && m.id > st.latestID) {
+				st.latestID, st.latestDone = m.id, m.done
+			}
 		}
+	}
+	ids := make([]string, 0, len(byDesign))
+	for id := range byDesign {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	var findings []doctorFinding
+	for _, id := range ids {
+		st := byDesign[id]
+		findings = append(findings, doctorFinding{
+			Kind:     "design-untouched-after-milestone",
+			ID:       id,
+			Evidence: fmt.Sprintf("updated %s; untouched after %d done milestone(s), latest %s done %s", st.updated, st.n, st.latestID, st.latestDone),
+			Fix:      fmt.Sprintf("revise %s (set updated), or unlink it from the done milestones", id),
+		})
 	}
 	return findings, nil
 }
