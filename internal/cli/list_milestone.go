@@ -52,7 +52,7 @@ func measurementStaleWarning(id string) string {
 }
 
 // flagMeasurementStale sets item.MeasurementStale for a milestone row when
-// the verdict applies (scoped, in-progress, dated); otherwise it stays nil
+// the verdict applies (in-progress, dated); otherwise it stays nil
 // and the key is omitted. The stderr warning is emitted separately, after
 // --limit truncation, by warnMeasurementStale.
 func flagMeasurementStale(item *listItem, a *core.Artifact) {

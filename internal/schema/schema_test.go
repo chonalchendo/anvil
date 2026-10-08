@@ -153,7 +153,7 @@ func TestValidate_Milestone_KindScopedAcceptsEmptyAcceptance(t *testing.T) {
 		"acceptance": []any{},
 	}
 	if err := Validate("milestone", fm); err != nil {
-		t.Fatalf("expected valid scoped milestone with empty acceptance (schema-level): %v", err)
+		t.Fatalf("expected valid milestone with empty acceptance (schema-level): %v", err)
 	}
 }
 

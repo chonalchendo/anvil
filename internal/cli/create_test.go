@@ -1116,11 +1116,11 @@ func TestCreateMilestone_KindDefaultsToScoped(t *testing.T) {
 	}
 }
 
-// TestCreateMilestone_ScopedWithoutAcceptance_Refused pins the create-time
+// TestCreateMilestone_WithoutAcceptance_Refused pins the create-time
 // gate (anvil.0273): a bare `create milestone` with no --acceptance defaults
 // to kind: scoped and is refused up front, with an actionable hint, instead
 // of writing an artifact `anvil validate` immediately refuses.
-func TestCreateMilestone_ScopedWithoutAcceptance_Refused(t *testing.T) {
+func TestCreateMilestone_WithoutAcceptance_Refused(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Chdir(repo)

@@ -24,7 +24,7 @@ func milestoneFM(acceptance []string) map[string]any {
 	return fm
 }
 
-func TestValidateMilestone_GoodArtifact_ScopedWithAcceptance(t *testing.T) {
+func TestValidateMilestone_GoodArtifact_WithAcceptance(t *testing.T) {
 	a := &Artifact{
 		FrontMatter: milestoneFM([]string{"`just install-local` exits 0"}),
 		Body:        goodMilestoneBody,
@@ -92,7 +92,7 @@ func TestValidateMilestone_SuccessCriteriaInsideFence_NotRejected(t *testing.T) 
 	}
 }
 
-func TestValidateMilestone_ScopedEmptyAcceptance_Rejected(t *testing.T) {
+func TestValidateMilestone_EmptyAcceptance_Rejected(t *testing.T) {
 	a := &Artifact{
 		FrontMatter: milestoneFM(nil),
 		Body:        goodMilestoneBody,
