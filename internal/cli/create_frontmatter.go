@@ -139,7 +139,7 @@ func staticBodyFailures(cmd *cobra.Command, v *core.Vault, t core.Type, path str
 	// it runs before the feasibility gate shells out — an author with a
 	// dead wikilink pays no block-execution time to learn it.
 	for _, link := range core.ResolveBodyLinks(v, body) {
-		failures = append(failures, unresolvedLinkError(path, link))
+		failures = append(failures, unresolvedLinkError(v, path, link))
 	}
 	switch t {
 	case core.TypeIssue:
