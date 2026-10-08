@@ -28,7 +28,13 @@ var milestoneOrder = []string{"in-progress", "planned", "done", "abandoned"}
 var issueOrder = []string{"in-progress", "open", "escalated", "resolved", "abandoned"}
 
 // glyphs are the status marks shown before the status text.
-var glyphs = map[string]string{"in-progress": "●", "open": "○", "planned": "○", "escalated": "!", "done": "✓", "resolved": "✓", "abandoned": "×"}
+var glyphs = map[string]string{
+	"in-progress": "●", "active": "●",
+	"open": "○", "planned": "○", "draft": "○",
+	"done": "✓", "resolved": "✓",
+	"abandoned": "×", "superseded": "×", "retired": "×", "deprecated": "×",
+	"escalated": "▲",
+}
 
 func (s *server) home(w http.ResponseWriter, _ *http.Request) {
 	trees, err := s.spineTrees()

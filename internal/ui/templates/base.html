@@ -62,8 +62,8 @@
   }
   document.addEventListener('keydown', function (ev) {
     if (ev.metaKey && ev.key.toLowerCase() === 'k') { ev.preventDefault(); open(); return; }
-    if (!dlg.open && !ev.metaKey && !ev.ctrlKey && !ev.altKey && document.activeElement.closest('.tree')) { treeKey(ev); return; }
     if (dlg.open || ev.metaKey || ev.ctrlKey || ev.altKey || /^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) return;
+    if (document.activeElement.closest('.tree')) { treeKey(ev); return; }
     var l = layers();
     if (ev.key === 'j') focusLayer(at + 1);
     else if (ev.key === 'k') focusLayer(at - 1);

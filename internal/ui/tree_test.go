@@ -22,7 +22,7 @@ func treeVault(t *testing.T) (string, int) {
 	writeArtifact(t, v, core.TypeMilestone, "milestone.p.loose", map[string]any{"project": "p", "title": "Loose ms", "status": "planned"}, "x\n")
 	writeArtifact(t, v, core.TypeIssue, "issue.p.0001-doing", map[string]any{"project": "p", "title": "Doing issue", "status": "in-progress", "milestone": "[[milestone.p.active]]"}, "x\n")
 	writeArtifact(t, v, core.TypeIssue, "issue.p.0002-queued", map[string]any{"project": "p", "title": "Queued issue", "status": "open", "milestone": "[[milestone.p.active]]"}, "x\n")
-	writeArtifact(t, v, core.TypeIssue, "issue.p.0004-shipped", map[string]any{"project": "p", "title": "Shipped issue", "status": "resolved", "milestone": "[[milestone.p.active]]"}, "x\n")
+	writeArtifact(t, v, core.TypeIssue, "issue.p.0000-shipped", map[string]any{"project": "p", "title": "Shipped issue", "status": "resolved", "milestone": "[[milestone.p.active]]"}, "x\n")
 	writeArtifact(t, v, core.TypeIssue, "issue.q.0001-orphan", map[string]any{"project": "q", "title": "Orphan project issue", "status": "open"}, "x\n")
 	writeArtifact(t, v, core.TypeIssue, "issue.p.0003-idle", map[string]any{"project": "p", "title": "Idle ms issue", "status": "in-progress", "milestone": "[[milestone.p.waiting]]"}, "x\n")
 	db, err := index.Open(index.DBPath(v.Root))
@@ -76,7 +76,10 @@ func TestTree_UnlinkedUnderProject(t *testing.T) {
 
 func TestTree_InProgressMilestoneListsAllIssuesInStatusOrder(t *testing.T) {
 	body, _ := treeVault(t)
-	inOrder(t, body, "/artifact/milestone.p.active", "/artifact/issue.p.0001-doing", "/artifact/issue.p.0002-queued", "/artifact/issue.p.0004-shipped", "Milestones · planned")
+	inOrder(t, body, "/artifact/milestone.p.active", "/artifact/issue.p.0001-doing", "/artifact/issue.p.0002-queued", "/artifact/issue.p.0000-shipped", "Milestones · planned")
+	if strings.Contains(body, "issue.p.0003-idle") {
+		t.Fatalf("issue under planned milestone rendered:\n%s", body)
+	}
 }
 
 func TestTree_IssueOnlyProjectHasNoSection(t *testing.T) {
