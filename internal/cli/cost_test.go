@@ -43,10 +43,9 @@ func writeCostIssue(t *testing.T, vault string, links []any, session string) {
 
 func stubCostEnv(t *testing.T, view func(int, string) ([]byte, error)) {
 	t.Helper()
-	prevView, prevTop := ghPRViewJSONFn, gitToplevelFn
-	t.Cleanup(func() { ghPRViewJSONFn, gitToplevelFn = prevView, prevTop })
+	prevView := ghPRViewJSONFn
+	t.Cleanup(func() { ghPRViewJSONFn = prevView })
 	ghPRViewJSONFn = view
-	gitToplevelFn = func() (string, error) { return "/Users/x/anvil", nil }
 }
 
 func okView(_ int, _ string) ([]byte, error) {
@@ -68,7 +67,7 @@ func writeTranscript(t *testing.T, dir, name string, lines ...string) {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil { //nolint:gosec // G703 false positive: dir is always a t.TempDir() path; the taint is fixture file content
 		t.Fatal(err)
 	}
 }
@@ -86,7 +85,7 @@ func TestCostDerivesRoundsDiffAndDedupedTokens(t *testing.T) {
 		return okView(n, f)
 	})
 	projects := t.TempDir()
-	dir := filepath.Join(projects, "-Users-x-anvil", "sess1", "subagents")
+	dir := filepath.Join(projects, "any-dir-name", "sess1", "subagents")
 	writeTranscript(t, dir, "agent-a.jsonl",
 		`{"type":"user","message":{"role":"user","content":"Complete anvil issue `+costID+`."}}`,
 		asst("m1", 100, 200, 300, 400), asst("m1", 100, 200, 300, 400), asst("m2", 1, 2, 3, 4))
@@ -158,7 +157,7 @@ func TestCostMissingTranscriptsGiveZeroTokensAndNotice(t *testing.T) {
 	if rec.Tokens != 0 || len(rec.ByAgent) != 0 || rec.Rounds != 2 {
 		t.Errorf("record = %+v", rec)
 	}
-	if !strings.Contains(errOut, filepath.Join(projects, "-Users-x-anvil", "gone", "subagents")) {
+	if !strings.Contains(errOut, filepath.Join(projects, "*", "gone", "subagents")) {
 		t.Errorf("notice %q does not name the path looked at", errOut)
 	}
 }
@@ -171,5 +170,107 @@ func TestCostTextOutput(t *testing.T) {
 	out, _, err := runCmd(t, newCostCmd(), costID, "--projects-dir", t.TempDir())
 	if err != nil || !strings.Contains(out, "rounds:  2") || !strings.Contains(out, "diff:    42") {
 		t.Fatalf("out = %q err = %v", out, err)
+	}
+}
+
+func runCostJSON(t *testing.T, args ...string) (costRecord, string) {
+	t.Helper()
+	out, errOut, err := runCmd(t, newCostCmd(), args...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rec costRecord
+	if err := json.Unmarshal([]byte(out), &rec); err != nil {
+		t.Fatalf("bad JSON %q: %v", out, err)
+	}
+	return rec, errOut
+}
+
+// The fixture is trimmed from a real subagent transcript: a user line with a
+// string prompt and no attributionAgent, then two assistant lines of one
+// message id carrying the full usage object (service_tier, cache_creation, ...).
+func TestCostReadsRealTranscriptShape(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("ANVIL_VAULT", vault)
+	writeCostIssue(t, vault, []any{"https://github.com/o/r/pull/7"}, "sess1")
+	stubCostEnv(t, okView)
+	raw, err := os.ReadFile("testdata/cost_real_transcript.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projects := t.TempDir()
+	dir := filepath.Join(projects, "-Users-x-anvil", "sess1", "subagents")
+	body := strings.ReplaceAll(strings.TrimRight(string(raw), "\n"), "@ISSUE@", costID)
+	writeTranscript(t, dir, "agent-real.jsonl", body)
+	rec, _ := runCostJSON(t, costID, "--projects-dir", projects, "--json")
+	// First line of the message id: 2 input + 15816 cache-creation + 0 cache-read + 8 output.
+	if rec.Tokens != 15826 || rec.ByAgent["anvil-pr-reviewer"] != 15826 {
+		t.Errorf("tokens = %d by_agent = %v, want 15826 under anvil-pr-reviewer", rec.Tokens, rec.ByAgent)
+	}
+}
+
+func TestCostPRFlagWinsOverMissingLink(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("ANVIL_VAULT", vault)
+	writeCostIssue(t, vault, nil, "")
+	var gotNum int
+	stubCostEnv(t, func(n int, f string) ([]byte, error) { gotNum = n; return okView(n, f) })
+	rec, _ := runCostJSON(t, costID, "--pr", "7", "--projects-dir", t.TempDir(), "--json")
+	if gotNum != 7 || rec.PR != 7 || rec.Rounds != 2 {
+		t.Errorf("viewed %d, record = %+v", gotNum, rec)
+	}
+}
+
+func TestCostPullNewLinkDoesNotPanic(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("ANVIL_VAULT", vault)
+	writeCostIssue(t, vault, []any{"https://github.com/o/r/pull/7", "https://github.com/o/r/pull/new/anvil/branch"}, "")
+	stubCostEnv(t, okView)
+	rec, _ := runCostJSON(t, costID, "--projects-dir", t.TempDir(), "--json")
+	if rec.PR != 7 {
+		t.Errorf("pr = %d, want 7", rec.PR)
+	}
+	writeCostIssue(t, vault, []any{"https://github.com/o/r/pull/new/anvil/branch"}, "")
+	_, _, err := runCmd(t, newCostCmd(), costID, "--projects-dir", t.TempDir())
+	var se *errfmt.Structured
+	if !errors.As(err, &se) || se.Code != "cost_no_pr" {
+		t.Fatalf("err = %v, want cost_no_pr", err)
+	}
+}
+
+func TestCostIgnoresTranscriptNamingTargetSecond(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("ANVIL_VAULT", vault)
+	writeCostIssue(t, vault, []any{"https://github.com/o/r/pull/7"}, "sess1")
+	stubCostEnv(t, okView)
+	projects := t.TempDir()
+	dir := filepath.Join(projects, "p", "sess1", "subagents")
+	writeTranscript(t, dir, "agent-a.jsonl",
+		`{"type":"user","message":{"role":"user","content":"Review issue.anvil.0002.other, which follows `+costID+`"}}`,
+		asst("m1", 5000, 0, 0, 0))
+	rec, errOut := runCostJSON(t, costID, "--projects-dir", projects, "--json")
+	if rec.Tokens != 0 || !strings.Contains(errOut, "first issue id") {
+		t.Errorf("tokens = %d, stderr = %q", rec.Tokens, errOut)
+	}
+}
+
+func TestCostNoticePerCause(t *testing.T) {
+	vault := setupVault(t)
+	t.Setenv("ANVIL_VAULT", vault)
+	writeCostIssue(t, vault, []any{"https://github.com/o/r/pull/7"}, "")
+	stubCostEnv(t, okView)
+	_, errOut := runCostJSON(t, costID, "--projects-dir", t.TempDir(), "--json")
+	if !strings.Contains(errOut, "no claim_session") {
+		t.Errorf("stderr = %q, want a no-claim_session notice", errOut)
+	}
+
+	writeCostIssue(t, vault, []any{"https://github.com/o/r/pull/7"}, "sess1")
+	projects := t.TempDir()
+	writeTranscript(t, filepath.Join(projects, "p", "sess1", "subagents"), "agent-a.jsonl",
+		`{"type":"user","message":{"role":"user","content":"Complete `+costID+`"}}`,
+		`{"type":"assistant","message":{"id":"m1","usage":{}}}`)
+	_, errOut = runCostJSON(t, costID, "--projects-dir", projects, "--json")
+	if !strings.Contains(errOut, "summed to 0 tokens") {
+		t.Errorf("stderr = %q, want a zero-sum notice", errOut)
 	}
 }

@@ -30,20 +30,25 @@ type costRecord struct {
 	Tokens    int            `json:"tokens"`
 	ByAgent   map[string]int `json:"by_agent"`
 	Session   string         `json:"session"`
-	notice    string
+	notices   []string
 }
 
 var prURLNumber = regexp.MustCompile(`/pull/(\d+)`)
 
+// issueIDInPrompt: only the first id counts, so a review of another issue that
+// merely mentions this one is not claimed.
+var issueIDInPrompt = regexp.MustCompile(`issue\.[a-z0-9-]+\.\d{4}\.[a-z0-9-]+`)
+
 func newCostCmd() *cobra.Command {
 	var flagJSON bool
 	var flagProjects string
+	var flagPR int
 	cmd := &cobra.Command{
 		Use:   "cost <issue-id>",
 		Short: "Print an issue's review rounds, PR diff size and subagent tokens",
 		Long: "Derive what one issue's PR cost: review rounds (the `## Review findings — PR <n>, round <k>` sections), " +
 			"diff size from `gh pr view`, and subagent tokens from the claim session's transcripts under --projects-dir, deduped by message id. " +
-			"Read-only. Missing transcripts give tokens 0 and a stderr notice.",
+			"Read-only. Missing transcripts give tokens 0 and a stderr notice per cause.",
 		Example: "  anvil cost issue.anvil.0330.anvil-cost-derives-rounds-diff-and --json | jq .diff",
 		Args:    namedArgs("anvil cost <issue-id>", []string{"<issue-id>"}, 1, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -59,12 +64,20 @@ func newCostCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rec, err := issueCost(a, id, flagProjects)
+			projects := flagProjects
+			if projects == "" {
+				home, herr := userHomeFn()
+				if herr != nil {
+					return fmt.Errorf("resolving home for the projects dir: %w", herr)
+				}
+				projects = filepath.Join(home, ".claude", "projects")
+			}
+			rec, err := issueCost(a, id, flagPR, projects)
 			if err != nil {
 				return printAndReturn(cmd, err)
 			}
-			if rec.notice != "" {
-				cmd.PrintErrln(rec.notice)
+			for _, n := range rec.notices {
+				cmd.PrintErrln(n)
 			}
 			if flagJSON {
 				b, _ := json.Marshal(rec)
@@ -86,18 +99,29 @@ func newCostCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "print the record as one JSON line")
+	cmd.Flags().IntVar(&flagPR, "pr", 0, "PR number (default: the last PR in the issue's external_links)")
 	cmd.Flags().StringVar(&flagProjects, "projects-dir", "", "Claude Code projects root (default ~/.claude/projects)")
 	return cmd
 }
 
-// issueCost derives the record for an issue that has a PR link.
-func issueCost(a *core.Artifact, id, projectsDir string) (costRecord, error) {
-	links := prLinks(a)
-	if len(links) == 0 {
-		return costRecord{}, errfmt.NewStructured("cost_no_pr").Set("issue", id).
-			Set("fix_hint", "anvil link issue "+id+" --external <pr-url>")
+// issueCost derives the record. pr 0 reads the PR from external_links; the
+// caller resolves projectsDir so this reads no home or git state.
+func issueCost(a *core.Artifact, id string, pr int, projectsDir string) (costRecord, error) {
+	num := pr
+	if num == 0 {
+		links, _ := a.FrontMatter["external_links"].([]any)
+		for _, raw := range links {
+			if url, ok := raw.(string); ok {
+				if m := prURLNumber.FindStringSubmatch(url); m != nil {
+					num, _ = strconv.Atoi(m[1])
+				}
+			}
+		}
 	}
-	num, _ := strconv.Atoi(prURLNumber.FindStringSubmatch(links[len(links)-1])[1])
+	if num == 0 {
+		return costRecord{}, errfmt.NewStructured("cost_no_pr").Set("issue", id).
+			Set("fix_hint", "anvil cost "+id+" --pr <n>, or anvil link issue "+id+" --external <pr-url>")
+	}
 	raw, err := ghPRViewJSONFn(num, "additions,deletions,changedFiles")
 	var view struct {
 		Additions    int `json:"additions"`
@@ -131,22 +155,21 @@ func countRounds(body string, pr int) int {
 	return n
 }
 
-// tokensFromTranscripts fills Tokens and ByAgent. A missing session or
-// directory is a notice, not a refusal: the harness garbage-collects transcripts.
+// tokensFromTranscripts fills Tokens and ByAgent. Each missing input is a
+// notice naming what it lacked, not a refusal: the harness garbage-collects
+// transcripts. The harness keys the project dir on the session's cwd, so the
+// glob spans every project dir; session ids are UUIDs.
 func (r *costRecord) tokensFromTranscripts(id, projectsDir string) {
-	if projectsDir == "" {
-		home, err := userHomeFn()
-		if err == nil {
-			projectsDir = filepath.Join(home, ".claude", "projects")
-		}
-	}
-	root, terr := gitToplevelFn()
-	if r.Session == "" || projectsDir == "" || terr != nil {
-		r.notice = "cost: no transcripts to read (session, projects dir or repo root unknown); tokens 0"
+	if r.Session == "" {
+		r.notices = append(r.notices, "cost: issue "+id+" has no claim_session; tokens 0")
 		return
 	}
-	dir := filepath.Join(projectsDir, strings.ReplaceAll(root, "/", "-"), r.Session, "subagents")
-	files, _ := filepath.Glob(filepath.Join(dir, "agent-*.jsonl"))
+	pattern := filepath.Join(projectsDir, "*", r.Session, "subagents", "agent-*.jsonl")
+	files, _ := filepath.Glob(pattern)
+	if len(files) == 0 {
+		r.notices = append(r.notices, "cost: no transcript dir for session "+r.Session+" (looked for "+pattern+"); tokens 0")
+		return
+	}
 	matched := 0
 	for _, f := range files {
 		agent, total, ok := transcriptTokens(f, id)
@@ -158,7 +181,9 @@ func (r *costRecord) tokensFromTranscripts(id, projectsDir string) {
 		r.ByAgent[agent] += total
 	}
 	if matched == 0 {
-		r.notice = "cost: no subagent transcript for " + id + " under " + dir + "; tokens 0"
+		r.notices = append(r.notices, "cost: no transcript in "+pattern+" has "+id+" as its first issue id; tokens 0")
+	} else if r.Tokens == 0 {
+		r.notices = append(r.notices, fmt.Sprintf("cost: %d transcript(s) matched %s but summed to 0 tokens", matched, id))
 	}
 }
 
@@ -168,7 +193,12 @@ type transcriptLine struct {
 	Message          struct {
 		ID      string          `json:"id"`
 		Content json.RawMessage `json:"content"`
-		Usage   map[string]int  `json:"usage"`
+		Usage   struct {
+			Input         int `json:"input_tokens"`
+			CacheCreation int `json:"cache_creation_input_tokens"`
+			CacheRead     int `json:"cache_read_input_tokens"`
+			Output        int `json:"output_tokens"`
+		} `json:"usage"`
 	} `json:"message"`
 }
 
@@ -195,16 +225,16 @@ func transcriptTokens(path, id string) (agent string, total int, ok bool) {
 		switch {
 		case l.Type == "user" && !sawUser:
 			sawUser = true
-			if !strings.Contains(promptText(l.Message.Content), id) {
+			if issueIDInPrompt.FindString(promptText(l.Message.Content)) != id {
 				return "", 0, false
 			}
 		case l.Type == "assistant" && !seen[l.Message.ID]:
 			seen[l.Message.ID] = true
 			u := l.Message.Usage
-			total += u["input_tokens"] + u["cache_creation_input_tokens"] + u["cache_read_input_tokens"] + u["output_tokens"]
+			total += u.Input + u.CacheCreation + u.CacheRead + u.Output
 		}
 	}
-	if !sawUser {
+	if sc.Err() != nil || !sawUser {
 		return "", 0, false
 	}
 	if agent == "" {
