@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"math"
 	"sort"
 
 	"github.com/chonalchendo/anvil/internal/core"
@@ -84,6 +85,9 @@ func intField(raw any) (int, bool) {
 	case int64:
 		return int(n), true
 	case uint64:
+		if n > math.MaxInt32 {
+			return 0, false
+		}
 		return int(n), true
 	case float64:
 		return int(n), true
