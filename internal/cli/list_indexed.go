@@ -51,8 +51,7 @@ func runListIndexed(cmd *cobra.Command, t core.Type, ready, orphans bool, f list
 	return emitList(cmd, items, total, asJSON, t, fields)
 }
 
-// indexRowsToItems enriches index rows with frontmatter fields the index does
-// not store (title, description, severity, milestone, tags), applying the
+// indexRowsToItems enriches index rows with frontmatter fields (title, description, severity, milestone, tags), applying the
 // post-load search/severity/milestone/invalid-body filters. Input order is preserved
 // — callers relying on a query's ORDER BY (e.g. FTS rank) keep that order.
 func indexRowsToItems(rows []index.ArtifactRow, f listFilters) []listItem {

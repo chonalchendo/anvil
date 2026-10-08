@@ -319,7 +319,10 @@ func TestListByType_Filters(t *testing.T) {
 			t.Errorf("%s (-want +got):\n%s", c.name, diff)
 		}
 	}
-	got, _ := db.ListByType("issue", QueryFilters{Project: "p2"})
+	got, err := db.ListByType("issue", QueryFilters{Project: "p2"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(got) != 1 || got[0].Title != "C" {
 		t.Errorf("title not returned: %+v", got)
 	}

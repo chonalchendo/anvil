@@ -60,7 +60,7 @@ func (d *DB) SearchLearnings(query string, f QueryFilters) ([]ArtifactRow, error
 		return nil, nil
 	}
 	q := `
-SELECT a.id, a.type, a.status, a.project, a.path, a.created, a.updated
+SELECT a.id, a.type, a.status, a.project, a.title, a.path, a.created, a.updated
 FROM learning_fts
 JOIN artifacts a ON a.id = learning_fts.id
 WHERE learning_fts MATCH ?`
@@ -95,7 +95,7 @@ WHERE learning_fts MATCH ?`
 	var out []ArtifactRow
 	for rs.Next() {
 		var r ArtifactRow
-		if err := rs.Scan(&r.ID, &r.Type, &r.Status, &r.Project, &r.Path, &r.Created, &r.Updated); err != nil {
+		if err := rs.Scan(&r.ID, &r.Type, &r.Status, &r.Project, &r.Title, &r.Path, &r.Created, &r.Updated); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -115,7 +115,7 @@ func (d *DB) SearchArtifactContent(query, excludeID string, f QueryFilters) ([]A
 		return nil, nil
 	}
 	q := `
-SELECT a.id, a.type, a.status, a.project, a.path, a.created, a.updated
+SELECT a.id, a.type, a.status, a.project, a.title, a.path, a.created, a.updated
 FROM artifact_fts
 JOIN artifacts a ON a.id = artifact_fts.id
 WHERE artifact_fts MATCH ?`
@@ -146,7 +146,7 @@ WHERE artifact_fts MATCH ?`
 	var out []ArtifactRow
 	for rs.Next() {
 		var r ArtifactRow
-		if err := rs.Scan(&r.ID, &r.Type, &r.Status, &r.Project, &r.Path, &r.Created, &r.Updated); err != nil {
+		if err := rs.Scan(&r.ID, &r.Type, &r.Status, &r.Project, &r.Title, &r.Path, &r.Created, &r.Updated); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -271,7 +271,7 @@ const relatedLinkBonus = 2
 func (d *DB) RelatedByID(id string, f QueryFilters) ([]RelatedRow, error) {
 	filt, fargs := artifactFilterClauses(f)
 	q := `
-SELECT a.id, a.type, a.status, a.project, a.path, a.created, a.updated,
+SELECT a.id, a.type, a.status, a.project, a.title, a.path, a.created, a.updated,
        COUNT(DISTINCT st.tag) AS shared,
        group_concat(DISTINCT st.tag) AS shared_tags
 FROM tags seed
@@ -320,7 +320,7 @@ func (d *DB) RelatedByTags(tags []string, f QueryFilters) ([]RelatedRow, error) 
 	filt, fargs := artifactFilterClauses(f)
 	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(tags)), ",")
 	q := `
-SELECT a.id, a.type, a.status, a.project, a.path, a.created, a.updated,
+SELECT a.id, a.type, a.status, a.project, a.title, a.path, a.created, a.updated,
        COUNT(DISTINCT t.tag) AS shared,
        group_concat(DISTINCT t.tag) AS shared_tags
 FROM tags t
@@ -341,7 +341,7 @@ GROUP BY a.id`
 
 // scanRelated runs a related-query and returns the rows keyed by id plus the
 // insertion order, so rankRelated can apply a deterministic sort. The query
-// must select the seven ArtifactRow columns then shared-count and a
+// must select the eight ArtifactRow columns then shared-count and a
 // comma-joined shared-tags string.
 func scanRelated(db *sql.DB, q string, args []any) (map[string]*RelatedRow, []string, error) {
 	rs, err := db.Query(q, args...)
@@ -355,7 +355,7 @@ func scanRelated(db *sql.DB, q string, args []any) (map[string]*RelatedRow, []st
 		var r RelatedRow
 		var shared int
 		var sharedTags sql.NullString
-		if err := rs.Scan(&r.ID, &r.Type, &r.Status, &r.Project, &r.Path, &r.Created, &r.Updated, &shared, &sharedTags); err != nil {
+		if err := rs.Scan(&r.ID, &r.Type, &r.Status, &r.Project, &r.Title, &r.Path, &r.Created, &r.Updated, &shared, &sharedTags); err != nil {
 			return nil, nil, err
 		}
 		r.Score = shared

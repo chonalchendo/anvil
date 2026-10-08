@@ -3,7 +3,6 @@ package index
 import (
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -88,12 +87,8 @@ func TestDeleteArtifactRemovesLinks(t *testing.T) {
 	}
 }
 
-// Mirrors indexAfterSave: row extracted from frontmatter, then upserted.
 func TestArtifactsTitle_WriteThrough(t *testing.T) {
 	db := openTestDB(t)
-	if err := db.SetLastReindex(time.Now()); err != nil {
-		t.Fatal(err)
-	}
 	fm := map[string]any{"type": "issue", "id": "demo.t", "title": "Titled probe"}
 	row, err := ArtifactRowFromFrontmatter(fm, "/p/t.md")
 	if err != nil {
