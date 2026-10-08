@@ -86,3 +86,22 @@ func TestDeleteArtifactRemovesLinks(t *testing.T) {
 		t.Fatalf("expected GetArtifact to fail after delete")
 	}
 }
+
+func TestArtifactsTitle_WriteThrough(t *testing.T) {
+	db := openTestDB(t)
+	fm := map[string]any{"type": "issue", "id": "demo.t", "title": "Titled probe"}
+	row, err := ArtifactRowFromFrontmatter(fm, "/p/t.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertArtifact(row); err != nil {
+		t.Fatal(err)
+	}
+	got, err := db.GetArtifact(row.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Title != "Titled probe" {
+		t.Errorf("title = %q, want %q", got.Title, "Titled probe")
+	}
+}

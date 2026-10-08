@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS artifacts (
     type     TEXT NOT NULL,
     status   TEXT,
     project  TEXT,
+    title    TEXT,
     path     TEXT NOT NULL,
     created  TEXT,
     updated  TEXT

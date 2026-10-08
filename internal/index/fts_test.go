@@ -102,7 +102,7 @@ func writeLearning(t *testing.T, vault, id, tldr string) {
 	t.Helper()
 	writeArtifactBody(t,
 		filepath.Join(vault, "20-learnings", id+".md"),
-		"type: learning\nid: "+id+"\nstatus: draft\n",
+		"type: learning\nid: "+id+"\nstatus: draft\ntitle: T-"+id+"\n",
 		"## TL;DR\n\n"+tldr+"\n\n## Evidence\n\ne\n\n## Caveats\n\nc")
 }
 
@@ -129,6 +129,9 @@ func TestFTSReindexPopulatesAndSearches(t *testing.T) {
 	}
 	if len(hits) != 1 || hits[0].ID != "learning.demo.a" {
 		t.Fatalf("search 'content': got %+v want [demo.a]", hits)
+	}
+	if hits[0].Title != "T-demo.a" {
+		t.Fatalf("search hit Title = %q, want T-demo.a", hits[0].Title)
 	}
 
 	// Multi-term query is implicit-AND: both terms must be present.

@@ -281,3 +281,49 @@ func TestLinksUnresolved(t *testing.T) {
 		t.Fatalf("unresolved: %v", got)
 	}
 }
+
+func TestListByType_Filters(t *testing.T) {
+	db := openTestDB(t)
+	rows := []ArtifactRow{
+		{ID: "issue.a", Type: "issue", Status: "open", Project: "p1", Title: "A", Path: "/a.md"},
+		{ID: "issue.b", Type: "issue", Status: "resolved", Project: "p1", Title: "B", Path: "/b.md"},
+		{ID: "issue.c", Type: "issue", Status: "open", Project: "p2", Title: "C", Path: "/c.md"},
+		{ID: "learning.d", Type: "learning", Status: "open", Project: "p1", Path: "/d.md"},
+	}
+	for _, r := range rows {
+		if err := db.UpsertArtifact(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cases := []struct {
+		name string
+		f    QueryFilters
+		want []string
+	}{
+		{"none", QueryFilters{}, []string{"issue.a", "issue.b", "issue.c"}},
+		{"project", QueryFilters{Project: "p1"}, []string{"issue.a", "issue.b"}},
+		{"status", QueryFilters{Status: "open"}, []string{"issue.a", "issue.c"}},
+		{"both", QueryFilters{Project: "p1", Status: "open"}, []string{"issue.a"}},
+		{"limit", QueryFilters{Limit: 1}, []string{"issue.a"}},
+	}
+	for _, c := range cases {
+		got, err := db.ListByType("issue", c.f)
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		var ids []string
+		for _, r := range got {
+			ids = append(ids, r.ID)
+		}
+		if diff := cmp.Diff(c.want, ids); diff != "" {
+			t.Errorf("%s (-want +got):\n%s", c.name, diff)
+		}
+	}
+	got, err := db.ListByType("issue", QueryFilters{Project: "p2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Title != "C" {
+		t.Errorf("title not returned: %+v", got)
+	}
+}

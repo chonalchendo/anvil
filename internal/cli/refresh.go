@@ -129,7 +129,7 @@ type staleCandidate struct {
 // count examined. The target is the deterministic drift signal: a wikilink in
 // `related:` pointing at a moved or deleted artifact.
 func staleLearnings(db *index.DB) ([]staleCandidate, int, error) {
-	learnings, err := db.ListByType(string(core.TypeLearning))
+	learnings, err := db.ListByType(string(core.TypeLearning), index.QueryFilters{})
 	if err != nil {
 		return nil, 0, err
 	}
