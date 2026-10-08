@@ -63,7 +63,7 @@ Read the routed inbox before the gate. List the raw inbox items. Read each one, 
 anvil list inbox --status raw --limit 1000 --json --fields id,title
 ```
 
-The human promotes or drops each routed item. The `## Links` section of the milestone names each item it absorbed. `anvil transition milestone <id> in-progress` refuses with `inbox_unread` while a raw inbox item links the milestone. After Phase 3, run `anvil link --to milestone.<id>` to list the exact set the gate refuses on.
+The human promotes or drops each routed item. The `## Links` section of the milestone names each item it absorbed. `anvil transition milestone <id> in-progress` refuses with `inbox_unread` while a raw inbox item links the milestone.
 
 **Gate:** user confirms title, goal, kind, and acceptance — and, for scoped, that the goal is event-phrased and acceptance carries a runnable predicate; for bucket, that the open-ended kind was explicitly affirmed.
 
@@ -73,11 +73,13 @@ The human promotes or drops each routed item. The `## Links` section of the mile
 anvil create milestone --title "<title>" --description "<one-line preview>" --goal "<terminal predicate>" --acceptance "<criterion>" --json
 ```
 
-`--acceptance` repeats, one per Phase 2 criterion. A bucket passes `--kind bucket` and no `--acceptance`. Capture `id` and `path` from the JSON output.
+`--acceptance` repeats, one per Phase 2 criterion. A bucket passes `--kind bucket` and no `--acceptance`. Capture `id` and `path` from the JSON output. From here on, `<id>` is the JSON `id` without its `milestone.` prefix, that is `<project>.<slug>`.
 
 If the JSON `warnings[]` carries a `kind: validation` entry, the milestone was written but its body needs revising — fix it per the entry's `code`.
 
 Then direct-edit the body sections (shaped in Phase 2) into the file at `path`.
+
+Then run `anvil link --to milestone.<id>` to list the exact set the gate refuses on.
 
 ## Phase 4 — Link to design docs
 
@@ -87,6 +89,21 @@ anvil set milestone <id> system_design "[[system-design.<project>]]"
 ```
 
 `system_design` is the governing spine edge — issues scoped under it inherit that design as box grounding. Make an absent link an **explicit decision**, not a silent omission. Either attach the governing design, or affirm to the user that none governs this slice, before leaving the slot empty.
+
+`anvil doctor` flags a design that a done milestone links through `related` and whose `updated` predates the milestone's `done`. The `product_design` and `system_design` slots never flag. When the Design change names a text change to a design, link that design through `related`. Run only the matching line.
+
+```bash
+anvil link milestone <id> system-design <project>
+anvil link milestone <id> product-design <project>
+```
+
+When the milestone came from a product-design candidate, rewrite that candidate's top-level bullet under `## Milestones`. Use the shaped form `- [[milestone.<id>]] <title>`. Keep the nested "Why now" and "Components" lines. Then add the reverse edge:
+
+```bash
+anvil set product-design <project> related --add "[[milestone.<id>]]"
+```
+
+The human removes the bullet at acceptance; `anvil doctor` reports `candidate-milestone-done` until then.
 
 ## Phase 4b — Component-design coverage
 
