@@ -9,6 +9,7 @@ import (
 
 	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/hydrate"
 )
 
 // issueWalkability is one issue's spine-walk verdict: Walkable iff every spine
@@ -47,7 +48,7 @@ func newWalkabilityCmd() *cobra.Command {
 }
 
 // runWalkabilityReport walks every issue's methodology spine (the same walk
-// assembleHydration performs for one issue) and returns a per-issue verdict.
+// hydrate.Assemble performs for one issue) and returns a per-issue verdict.
 // Unreadable artifacts encountered mid-walk abort the report — a report that
 // silently drops issues on I/O error would misreport the aggregate.
 func runWalkabilityReport(v *core.Vault, project string) ([]issueWalkability, error) {
@@ -69,9 +70,9 @@ func runWalkabilityReport(v *core.Vault, project string) ([]issueWalkability, er
 			}
 		}
 
-		h, err := assembleHydration(v, id)
+		h, err := hydrate.Assemble(v, id)
 		if err != nil {
-			return nil, fmt.Errorf("walking issue %s: %w", id, err)
+			return nil, fmt.Errorf("walking issue %s: %w", id, mapHydrateErr(err))
 		}
 		out = append(out, walkabilityOf(id, h))
 	}
@@ -81,14 +82,14 @@ func runWalkabilityReport(v *core.Vault, project string) ([]issueWalkability, er
 }
 
 // walkabilityOf reduces one issue's hydration walk to its verdict. Node 0 is
-// always the issue itself (assembleHydration seeds it first) — its own body
+// always the issue itself (hydrate.Assemble seeds it first) — its own body
 // is not an edge target, so emptiness only applies to nodes[1:].
-func walkabilityOf(id string, h *hydration) issueWalkability {
+func walkabilityOf(id string, h *hydrate.Hydration) issueWalkability {
 	w := issueWalkability{ID: id}
-	for _, e := range h.broken {
+	for _, e := range h.Broken {
 		w.BrokenEdges = append(w.BrokenEdges, fmt.Sprintf("%s → [[%s]] (target not found)", e.Source, e.Target))
 	}
-	for _, n := range h.nodes[1:] {
+	for _, n := range h.Nodes[1:] {
 		if strings.TrimSpace(n.Body) == "" {
 			w.EmptyEdges = append(w.EmptyEdges, fmt.Sprintf("%s %s (stub body)", n.Type, n.ID))
 		}
