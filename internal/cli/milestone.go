@@ -24,14 +24,15 @@ func newMilestoneCmd() *cobra.Command {
 	return cmd
 }
 
-// newMilestoneStatusCmd reports a milestone's issue counts and runs each
-// `acceptance:` predicate on the current checkout, reporting met or not met.
+// newMilestoneStatusCmd reports a milestone's issue counts and per-issue cost,
+// and runs each `acceptance:` predicate on the current checkout, reporting met
+// or not met.
 func newMilestoneStatusCmd() *cobra.Command {
 	var flagJSON bool
 
 	cmd := &cobra.Command{
 		Use:   "status <milestone-id>",
-		Short: "Report a milestone's issue counts and run its acceptance predicates",
+		Short: "Report a milestone's issue counts, per-issue cost and acceptance predicates",
 		Args:  cobra.ExactArgs(1),
 		Example: `  anvil milestone status anvil.<slug>
   anvil milestone status anvil.<slug> --json`,
@@ -68,20 +69,28 @@ func newMilestoneStatusCmd() *cobra.Command {
 				cmd.PrintErrln("warning: HEAD " + fl.Head + " is not the default branch tip " + fl.Base + "; `transition milestone done` refuses here")
 			}
 			acceptance := runAcceptance(cmd, m, fl.Dir)
-			open, scanErr := unfinishedIssues(v, strings.TrimPrefix(args[0], "milestone."))
+			rows, total, scanErr := milestoneCostRows(v, strings.TrimPrefix(args[0], "milestone."))
 			if scanErr != nil {
 				cmd.PrintErrln("warning: issue scan failed: " + scanErr.Error())
 			}
-			done := scanErr == nil && len(open) == 0 && len(unmetCriteria(acceptance)) == 0
+			open := 0
+			for _, r := range rows {
+				if r.unfinished() {
+					open++
+				}
+			}
+			done := scanErr == nil && open == 0 && len(unmetCriteria(acceptance)) == 0
 
 			if flagJSON {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
 				return enc.Encode(struct {
 					index.MilestoneStatus
-					Done       bool               `json:"done"`
-					Acceptance []acceptanceResult `json:"acceptance"`
-				}{st, done, acceptance})
+					Done       bool                `json:"done"`
+					Acceptance []acceptanceResult  `json:"acceptance"`
+					Issues     []milestoneIssueRow `json:"issues"`
+					CostTotal  milestoneCostTotal  `json:"cost_total"`
+				}{st, done, acceptance, rows, total})
 			}
 			cmd.Printf("%s\t%d/%d resolved\tdone=%t\n", st.Milestone, st.Resolved, st.Total, done)
 			for i, r := range acceptance {
@@ -91,10 +100,13 @@ func newMilestoneStatusCmd() *cobra.Command {
 				}
 				cmd.Printf("AC %d\t%s\t%s\t%s\n", i+1, verdict, r.detail(), tableCell(r.Criterion))
 			}
+			for _, r := range rows {
+				cmd.Println(r.line())
+			}
 			return nil
 		},
 	}
 
-	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit the status and acceptance results as JSON")
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit status, acceptance and cost rows as JSON")
 	return cmd
 }
