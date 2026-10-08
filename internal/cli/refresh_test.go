@@ -42,6 +42,7 @@ func TestFreshnessStalesMissingRelated(t *testing.T) {
 		{ID: "learning.l.fresh", Type: "learning", Status: "verified", Path: "/v/l.fresh.md"},
 		{ID: "learning.l.draft-drift", Type: "learning", Status: "draft", Path: "/v/l.draft-drift.md"},
 		{ID: "learning.l.already-stale", Type: "learning", Status: "stale", Path: "/v/l.already-stale.md"},
+		{ID: "learning.l.retracted", Type: "learning", Status: "retracted", Path: "/v/l.retracted.md"},
 		{ID: "issue.anvil.alive", Type: "issue", Status: "open", Path: "/v/anvil.alive.md"},
 	}
 	links := []index.LinkRow{
@@ -53,8 +54,9 @@ func TestFreshnessStalesMissingRelated(t *testing.T) {
 		{Source: "learning.l.fresh", Target: "issue.anvil.alive", Relation: "related"},
 		// draft-drift: a missing related target on a draft learning.
 		{Source: "learning.l.draft-drift", Target: "anvil.gone", Relation: "related"},
-		// already-stale: missing related, but excluded (not draft/verified).
+		// already-stale and retracted: missing related, but excluded (no edge to stale).
 		{Source: "learning.l.already-stale", Target: "anvil.gone", Relation: "related"},
+		{Source: "learning.l.retracted", Target: "anvil.gone", Relation: "related"},
 	}
 	db := openTestIndex(t, arts, links)
 
@@ -62,14 +64,15 @@ func TestFreshnessStalesMissingRelated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("staleLearnings: %v", err)
 	}
-	// Only verified learnings are eligible (verified→stale is the sole legal
-	// edge into stale): drifted + fresh. draft-drift and already-stale are
-	// excluded by the state machine even though both have a dead related link.
-	if checked != 2 {
-		t.Errorf("checked = %d, want 2", checked)
+	// Draft and verified learnings are eligible (both have an edge to stale):
+	// drifted, fresh, draft-drift. already-stale and retracted are excluded by
+	// the state machine even though both have a dead related link.
+	if checked != 3 {
+		t.Errorf("checked = %d, want 3", checked)
 	}
 	sort.Slice(got, func(i, j int) bool { return got[i].ID < got[j].ID })
 	want := []staleCandidate{
+		{ID: "l.draft-drift", Path: "/v/l.draft-drift.md", Missing: []string{"anvil.gone"}},
 		{ID: "l.drifted", Path: "/v/l.drifted.md", Missing: []string{"anvil.gone"}},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -79,8 +82,8 @@ func TestFreshnessStalesMissingRelated(t *testing.T) {
 
 // TestFreshnessCommandRespectsStateMachine drives the full command through a
 // temp vault and asserts the on-disk transition obeys the learning state
-// machine: a verified learning with a dead related link goes stale, a draft
-// one does not (draft→stale is illegal).
+// machine: verified and draft learnings with a dead related link go stale, a
+// retracted one does not (retracted→stale is not an edge).
 func TestFreshnessCommandRespectsStateMachine(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)
@@ -95,13 +98,19 @@ func TestFreshnessCommandRespectsStateMachine(t *testing.T) {
 	execCmd(t, append([]string{"create", "learning", "--title", "drifted draft claim"}, tags...)...)
 	execCmd(t, "set", "learning", "drifted-draft-claim", "related", "[[issue.demo.ghost]]")
 
+	execCmd(t, append([]string{"create", "learning", "--title", "drifted retracted claim"}, tags...)...)
+	execCmd(t, "set", "learning", "drifted-retracted-claim", "related", "[[issue.demo.ghost]]")
+	execCmd(t, "transition", "learning", "drifted-retracted-claim", "verified")
+	execCmd(t, "transition", "learning", "drifted-retracted-claim", "retracted")
+
 	execCmd(t, "reindex")
 	execCmd(t, "refresh", "learnings")
 
 	dir := filepath.Join(vault, core.TypeLearning.Dir())
 	for id, want := range map[string]string{
-		"drifted-verified-claim": "stale", // verified→stale: legal, drifted
-		"drifted-draft-claim":    "draft", // draft→stale: illegal, untouched
+		"drifted-verified-claim":  "stale",     // verified→stale: legal, drifted
+		"drifted-draft-claim":     "stale",     // draft→stale: legal, drifted
+		"drifted-retracted-claim": "retracted", // retracted→stale: no edge, untouched
 	} {
 		a, err := core.LoadArtifact(filepath.Join(dir, id+".md"))
 		if err != nil {
