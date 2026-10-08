@@ -285,6 +285,7 @@ func newTransitionCmd() *cobra.Command {
 				if err := doLandPR(cmd.ErrOrStderr(), v, a, id, landPRNum, worktreeOverride, localValidated); err != nil {
 					return printAndReturn(cmd, err)
 				}
+				stampLandCost(cmd.ErrOrStderr(), a, id, landPRNum)
 				a.Body += postLandRedNote(runPostLandBlocks(cmd.ErrOrStderr(), a.Body), a.Body)
 			}
 
