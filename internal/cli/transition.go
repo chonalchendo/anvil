@@ -420,7 +420,7 @@ func newTransitionCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&cutWorktree, "cut-worktree", false, "create the conventional worktree+branch before transitioning (issue → in-progress only); copies paths declared in .anvil-worktree-carry into the new worktree")
 	cmd.Flags().StringVar(&worktreeOverride, "worktree", "", "override the derived worktree path (used with --cut-worktree or --land-pr)")
 	cmd.Flags().StringVar(&branchOverride, "branch", "", "override the derived branch name (used with --cut-worktree)")
-	cmd.Flags().IntVar(&landPRNum, "land-pr", 0, "PR number to land: runs the issue's verification on a fresh checkout of the PR head and merges only on its pass; refuses land_pr_verification_failed, verification_changed and a foreign PR; verify-mergeable + CI-green, squash-merge, verify MERGED, remove worktree, delete branch, then transition (issue → resolved only); auto-claims an unclaimed open issue atomically (--owner optional, stamped if given)")
+	cmd.Flags().IntVar(&landPRNum, "land-pr", 0, "PR number to land: runs the issue's verification on a fresh checkout of the PR head and merges only on its pass; refuses land_pr_verification_failed, verification_changed, a foreign PR, and a missing, stale or blocked review round (land_pr_review_*); verify-mergeable + CI-green, squash-merge, verify MERGED, remove worktree, delete branch, then transition (issue → resolved only); auto-claims an unclaimed open issue atomically (--owner optional, stamped if given)")
 	cmd.Flags().BoolVar(&localValidated, "local-validated", false, "bypass the CI-green gate when used with --land-pr; for use when required CI is genuinely unavailable and the operator has validated locally (audit-logged)")
 	return cmd
 }

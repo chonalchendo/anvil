@@ -181,6 +181,7 @@ cost_rounds: <int>        # review rounds; set by `--land-pr` at land
 cost_diff: <int>          # diff lines changed; set by `--land-pr` at land
 cost_files: <int>         # files changed; set by `--land-pr` at land
 cost_tokens: <int>        # tokens spent; set by `--land-pr` at land
+review_head: <sha>        # PR head the clean review round covered; set by `--land-pr` at the merge
 acceptance: ["criterion", ...]   # optional prose checklist; the binary gate is ## Verification
 ```
 

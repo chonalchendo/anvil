@@ -34,6 +34,7 @@
     "cost_diff": { "type": "integer", "minimum": 0 },
     "cost_files": { "type": "integer", "minimum": 0 },
     "cost_tokens": { "type": "integer", "minimum": 0 },
+    "review_head": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "escalation_reason": { "type": "string", "minLength": 1 },
     "acceptance":   { "type": "array", "items": { "type": "string" } },
     "related":      { "type": "array", "items": { "type": "string" } },
