@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -63,19 +62,11 @@ type listFilters struct {
 // failure here means that invariant broke — panic rather than silently
 // disabling the check.
 func enumFor(t core.Type, field string) []string {
-	b, err := schema.EmbeddedFS.ReadFile(string(t) + ".schema.json")
+	enum, err := schema.FieldEnum(string(t), field)
 	if err != nil {
-		panic(fmt.Sprintf("enumFor: reading embedded schema for %s: %v", t, err))
+		panic(fmt.Sprintf("enumFor: %v", err))
 	}
-	var raw struct {
-		Properties map[string]struct {
-			Enum []string `json:"enum"`
-		} `json:"properties"`
-	}
-	if err := json.Unmarshal(b, &raw); err != nil {
-		panic(fmt.Sprintf("enumFor: parsing embedded schema for %s: %v", t, err))
-	}
-	return raw.Properties[field].Enum
+	return enum
 }
 
 // severityEnum is issue's declared severity enum. --severity is issue-only

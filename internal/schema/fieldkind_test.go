@@ -54,12 +54,17 @@ func TestFieldIsInteger(t *testing.T) {
 	}
 }
 
-func TestStatusEnum(t *testing.T) {
-	got, err := StatusEnum("issue")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) == 0 || got[0] != "open" {
-		t.Errorf("StatusEnum(issue) = %v, want first value open", got)
+func TestFieldEnum(t *testing.T) {
+	for _, tc := range []struct{ field, first string }{
+		{"status", "open"},
+		{"severity", "low"},
+	} {
+		got, err := FieldEnum("issue", tc.field)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) == 0 || got[0] != tc.first {
+			t.Errorf("FieldEnum(issue, %s) = %v, want first value %s", tc.field, got, tc.first)
+		}
 	}
 }

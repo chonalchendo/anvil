@@ -104,7 +104,7 @@ var designTable = []Transition{
 // InitialStatus returns the status create writes for t: by invariant, the
 // first value of the schema's status enum.
 func InitialStatus(t Type) string {
-	enum, err := schema.StatusEnum(string(t))
+	enum, err := schema.FieldEnum(string(t), "status")
 	if err != nil {
 		panic(fmt.Sprintf("InitialStatus: %v", err))
 	}

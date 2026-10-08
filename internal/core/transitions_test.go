@@ -83,7 +83,7 @@ func TestIssueTransitions_FromEscalated_OnlyOpenAndAbandonedLegal(t *testing.T) 
 
 func TestEveryStatusEnumValueIsReachable(t *testing.T) {
 	for _, ty := range AllTypes {
-		enum, err := schema.StatusEnum(string(ty))
+		enum, err := schema.FieldEnum(string(ty), "status")
 		if err != nil {
 			t.Fatal(err)
 		}
