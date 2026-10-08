@@ -92,7 +92,7 @@ Each candidate is one top-level plain bullet (`<slug> — one-line summary`) wit
   - Components: the system-design components it touches (write `TBD` until the system design names them)
 ```
 
-Linking: after `writing-milestone` creates a milestone, run `anvil set product-design <slug> related --add "[[milestone.<project>.<slug>]]"` and turn that bullet into a `[[milestone.<project>.<slug>]]` wikilink. The milestone's child→parent link is `product_design` on the milestone side.
+Linking: `writing-milestone` Phase 4 rewrites the bullet to the shaped form and adds the `related` edge.
 
 **REQUIRED SUB-SKILL:** `writing-milestone` (a.k.a. `defining-milestone`).
 

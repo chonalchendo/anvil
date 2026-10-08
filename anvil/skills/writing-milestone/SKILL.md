@@ -73,13 +73,11 @@ The human promotes or drops each routed item. The `## Links` section of the mile
 anvil create milestone --title "<title>" --description "<one-line preview>" --goal "<terminal predicate>" --acceptance "<criterion>" --json
 ```
 
-`--acceptance` repeats, one per Phase 2 criterion. A bucket passes `--kind bucket` and no `--acceptance`. Capture `id` and `path` from the JSON output.
+`--acceptance` repeats, one per Phase 2 criterion. A bucket passes `--kind bucket` and no `--acceptance`. Capture `id` and `path` from the JSON output. In this skill `<id>` is the JSON `id` without its `milestone.` prefix, that is `<project>.<slug>`.
 
 If the JSON `warnings[]` carries a `kind: validation` entry, the milestone was written but its body needs revising — fix it per the entry's `code`.
 
 Then direct-edit the body sections (shaped in Phase 2) into the file at `path`.
-
-When the milestone came from a product-design candidate, edit that candidate's top-level bullet under `## Milestones` to the shaped form `- [[milestone.<id>]] <title>`. Keep its nested "Why now" and "Components" lines. `anvil doctor` reports `candidate-milestone-done` once the milestone is done, and the acceptance step removes the bullet.
 
 ## Phase 4 — Link to design docs
 
@@ -89,6 +87,14 @@ anvil set milestone <id> system_design "[[system-design.<project>]]"
 ```
 
 `system_design` is the governing spine edge — issues scoped under it inherit that design as box grounding. Make an absent link an **explicit decision**, not a silent omission. Either attach the governing design, or affirm to the user that none governs this slice, before leaving the slot empty.
+
+When the milestone came from a product-design candidate, rewrite that candidate's top-level bullet under `## Milestones`. Use the shaped form `- [[milestone.<id>]] <title>`. Keep the nested "Why now" and "Components" lines. Then add the reverse edge:
+
+```bash
+anvil set product-design <project> related --add "[[milestone.<id>]]"
+```
+
+The human removes the bullet at acceptance; `anvil doctor` reports `candidate-milestone-done` until then.
 
 ## Phase 4b — Component-design coverage
 
