@@ -73,7 +73,7 @@ The human promotes or drops each routed item. The `## Links` section of the mile
 anvil create milestone --title "<title>" --description "<one-line preview>" --goal "<terminal predicate>" --acceptance "<criterion>" --json
 ```
 
-`--acceptance` repeats, one per Phase 2 criterion. A bucket passes `--kind bucket` and no `--acceptance`. Capture `id` and `path` from the JSON output. In this skill `<id>` is the JSON `id` without its `milestone.` prefix, that is `<project>.<slug>`.
+`--acceptance` repeats, one per Phase 2 criterion. A bucket passes `--kind bucket` and no `--acceptance`. Capture `id` and `path` from the JSON output. From here on, `<id>` is the JSON `id` without its `milestone.` prefix, that is `<project>.<slug>`.
 
 If the JSON `warnings[]` carries a `kind: validation` entry, the milestone was written but its body needs revising — fix it per the entry's `code`.
 
@@ -87,6 +87,13 @@ anvil set milestone <id> system_design "[[system-design.<project>]]"
 ```
 
 `system_design` is the governing spine edge — issues scoped under it inherit that design as box grounding. Make an absent link an **explicit decision**, not a silent omission. Either attach the governing design, or affirm to the user that none governs this slice, before leaving the slot empty.
+
+When the Design change names a text change to a design, link that design through `related`. `anvil doctor` flags a design that a done milestone links through `related` and whose `updated` is older than the milestone's `done`; the slots never flag.
+
+```bash
+anvil link milestone <id> system-design <project>
+anvil link milestone <id> product-design <project>
+```
 
 When the milestone came from a product-design candidate, rewrite that candidate's top-level bullet under `## Milestones`. Use the shaped form `- [[milestone.<id>]] <title>`. Keep the nested "Why now" and "Components" lines. Then add the reverse edge:
 
