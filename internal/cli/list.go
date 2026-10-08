@@ -263,8 +263,7 @@ func runList(cmd *cobra.Command, v *core.Vault, t core.Type, f listFilters, asJS
 			Milestone: milestone, Tags: stringTags(a.FrontMatter["tags"]), Path: path,
 			MissingSection: missingSection,
 		}
-		kind, _ := a.FrontMatter["kind"].(string)
-		if err := enrichMilestoneItem(db, &item, id, status, kind); err != nil {
+		if err := enrichMilestoneItem(db, &item, id, status); err != nil {
 			return err
 		}
 		flagMeasurementStale(&item, a)

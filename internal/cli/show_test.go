@@ -376,9 +376,10 @@ func TestShowValidate_Milestone_DanglingArrayEntry(t *testing.T) {
 		FrontMatter: map[string]any{
 			"type": "milestone", "title": "M", "description": "fixture description", "created": "2026-04-29",
 			"status": "planned", "project": "foo",
-			"goal":    "M ships and all attached issues are resolved",
-			"kind":    "bucket",
-			"related": []any{"[[issue.foo.ghost]]"},
+			"goal":       "M ships and all attached issues are resolved",
+			"kind":       "scoped",
+			"acceptance": []any{"`true` exits 0"},
+			"related":    []any{"[[issue.foo.ghost]]"},
 		},
 	}
 	if err := a.Save(); err != nil {

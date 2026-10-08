@@ -14,7 +14,7 @@ import (
 
 const statusFixtureBody = "## Objective\n\nx\n\n## Status\n\nMeasured: 2026-01-01. stale.\n\n| AC | Met | Measured |\n|---|---|---|\n| old | met | old |\n\n## Links\n\n- none\n"
 
-// finishLineVault seeds a vault with an in-progress scoped milestone carrying
+// finishLineVault seeds a vault with an in-progress milestone carrying
 // the given acceptance predicates.
 func finishLineVault(t *testing.T, acceptance ...any) string {
 	t.Helper()

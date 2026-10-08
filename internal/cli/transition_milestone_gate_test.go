@@ -132,18 +132,4 @@ func TestMilestoneApprovalGate(t *testing.T) {
 			t.Fatalf("want milestone_scan_failed, err=%v out=%s", err, out)
 		}
 	})
-	t.Run("bucket milestone with bare body passes the form check", func(t *testing.T) {
-		vault := gateVault(t, "## Objective\n\nGoal only.\n")
-		m, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", "demo.loop.md"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		m.FrontMatter["kind"] = "bucket"
-		if err := m.Save(); err != nil {
-			t.Fatal(err)
-		}
-		if out, err := gateTransition(t, "in-progress"); err != nil {
-			t.Fatalf("bucket approval: %v out=%s", err, out)
-		}
-	})
 }

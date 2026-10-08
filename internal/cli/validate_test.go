@@ -770,7 +770,7 @@ func TestValidate_Sweep_MilestoneBodyShape_WarnsNotFails(t *testing.T) {
 		FrontMatter: map[string]any{
 			"type": "milestone", "title": "no status", "created": "2026-08-06",
 			"status": "planned", "project": "foo", "goal": "fixed",
-			"description": "test", "kind": "bucket",
+			"description": "test", "kind": "scoped", "acceptance": []any{"`true` exits 0"},
 		},
 		Body: "\n## Objective\nobj\n\n## Non-goals\nng\n\n## Links\nlinks\n",
 	}

@@ -90,7 +90,7 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 
 	// Milestone runs staticBodyFailures even on the CLI-generated scaffold
 	// body (authoredBody false): the check that actually bites an
-	// un-authored milestone is frontmatter-shaped (kind: scoped + empty
+	// un-authored milestone is frontmatter-shaped (empty
 	// acceptance), not body prose, and the scaffold always satisfies the
 	// heading/wikilink layers — so a bare `create milestone` without
 	// --acceptance is refused up front with the templateFix hint, instead of

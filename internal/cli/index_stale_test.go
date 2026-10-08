@@ -66,14 +66,14 @@ func TestCreateUpdateAbsorbsExternalDriftWithoutManualReindex(t *testing.T) {
 	execCmd(t, "create", "milestone",
 		"--project", "demo", "--title", "foo",
 		"--description", "original desc",
-		"--goal", "foo ships", "--kind", "bucket",
+		"--goal", "foo ships", "--acceptance", "true",
 		"--tags", "domain/dev-tools", "--allow-new-facet=domain")
 	markVaultExternallyStale(t, vault, "demo.external.md")
 
 	execCmd(t, "create", "milestone",
 		"--project", "demo", "--title", "foo",
 		"--description", "rewritten desc",
-		"--goal", "foo ships", "--kind", "bucket",
+		"--goal", "foo ships", "--acceptance", "true",
 		"--tags", "domain/dev-tools", "--update")
 
 	got, err := os.ReadFile(filepath.Join(vault, "85-milestones", "milestone.demo.foo.md")) //nolint:gosec // path is test-controlled or application-managed; not user input

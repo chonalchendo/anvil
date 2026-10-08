@@ -31,7 +31,7 @@ func openMilestoneListIndex(cmd *cobra.Command, v *core.Vault, t core.Type) *ind
 // issue-status breakdown for a milestone row, and whether the milestone's
 // stored status has drifted behind it (anvil.0275). No-op when db is nil
 // (index unopenable, or t != milestone).
-func enrichMilestoneItem(db *index.DB, item *listItem, id, status, kind string) error {
+func enrichMilestoneItem(db *index.DB, item *listItem, id, status string) error {
 	if db == nil {
 		return nil
 	}
@@ -39,7 +39,7 @@ func enrichMilestoneItem(db *index.DB, item *listItem, id, status, kind string) 
 	if err != nil {
 		return err
 	}
-	stale := index.MilestoneStale(mc, status, kind)
+	stale := index.MilestoneStale(mc, status)
 	item.Children = &mc
 	item.Stale = &stale
 	return nil
@@ -52,7 +52,7 @@ func measurementStaleWarning(id string) string {
 }
 
 // flagMeasurementStale sets item.MeasurementStale for a milestone row when
-// the verdict applies (scoped, in-progress, dated); otherwise it stays nil
+// the verdict applies (in-progress, dated); otherwise it stays nil
 // and the key is omitted. The stderr warning is emitted separately, after
 // --limit truncation, by warnMeasurementStale.
 func flagMeasurementStale(item *listItem, a *core.Artifact) {

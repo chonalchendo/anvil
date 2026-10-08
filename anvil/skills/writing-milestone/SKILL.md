@@ -51,8 +51,8 @@ Read the returned artifact(s) directly (`anvil show product-design <id> --body` 
 Draft before calling the CLI:
 - **title** — verb-noun, one line.
 - **goal** — one sentence, ≤120 chars, terminal predicate; required by schema.
-- **kind** — `scoped` default, or `bucket` for rolling-findings trackers only.
-- **acceptance** — runnable predicates (substance: `references/finish-line.md`); required for `kind: scoped`.
+- **kind** — always `scoped`; do not pass `--kind`.
+- **acceptance** — runnable predicates (substance: `references/finish-line.md`); required.
 
 **REQUIRED REFERENCE:** Use skills/writing-milestone/references/finish-line.md — refuse a state-phrased goal or silent empty acceptance before proceeding.
 **REQUIRED REFERENCE:** Use skills/writing-milestone/references/body-shape.md — the four-section body a cold reader scans: labelled parts including the **Limit:** line, the Status acceptance table.
@@ -65,7 +65,7 @@ anvil list inbox --status raw --limit 1000 --json --fields id,title
 
 The human promotes or drops each routed item. The `## Links` section of the milestone names each item it absorbed. `anvil transition milestone <id> in-progress` refuses with `inbox_unread` while a raw inbox item links the milestone.
 
-**Gate:** user confirms title, goal, kind, and acceptance — and, for scoped, that the goal is event-phrased and acceptance carries a runnable predicate; for bucket, that the open-ended kind was explicitly affirmed.
+**Gate:** user confirms title, goal, and acceptance — and that the goal is event-phrased and acceptance carries a runnable predicate.
 
 ## Phase 3 — Create
 
@@ -73,7 +73,7 @@ The human promotes or drops each routed item. The `## Links` section of the mile
 anvil create milestone --title "<title>" --description "<one-line preview>" --goal "<terminal predicate>" --acceptance "<criterion>" --json
 ```
 
-`--acceptance` repeats, one per Phase 2 criterion. A bucket passes `--kind bucket` and no `--acceptance`. Capture `id` and `path` from the JSON output. From here on, `<id>` is the JSON `id` without its `milestone.` prefix, that is `<project>.<slug>`.
+`--acceptance` repeats, one per Phase 2 criterion. Capture `id` and `path` from the JSON output. From here on, `<id>` is the JSON `id` without its `milestone.` prefix, that is `<project>.<slug>`.
 
 If the JSON `warnings[]` carries a `kind: validation` entry, the milestone was written but its body needs revising — fix it per the entry's `code`.
 
@@ -115,11 +115,11 @@ The human removes the bullet at acceptance; `anvil doctor` reports `candidate-mi
 anvil show milestone <id> --validate
 ```
 
-Fix any schema errors reported. Re-run until clean. Validate now also enforces body shape: the four required headings in order, no `## Success criteria` section, and (for `kind: scoped`) non-empty `acceptance`.
+Fix any schema errors reported. Re-run until clean. Validate now also enforces body shape: the four required headings in order, no `## Success criteria` section, and non-empty `acceptance`.
 
 ## Approval
 
-Approval is `anvil transition milestone <id> in-progress`. For a scoped milestone, the body must carry the **Design change** and **Components changed** parts. The verb refuses with a `milestone_gate_` code when a part is absent. On success it stamps `approved:` in the frontmatter. To amend an approved milestone, run `anvil transition milestone <id> planned`, edit it, and approve again.
+Approval is `anvil transition milestone <id> in-progress`. The body must carry the **Design change** and **Components changed** parts. The verb refuses with a `milestone_gate_` code when a part is absent. On success it stamps `approved:` in the frontmatter. To amend an approved milestone, run `anvil transition milestone <id> planned`, edit it, and approve again.
 
 ## Hand-off
 

@@ -11,15 +11,15 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-func writeMeasuredMilestone(t *testing.T, vault, id, kind, statusBody string) {
+func writeMeasuredMilestone(t *testing.T, vault, id, status, statusBody string) {
 	t.Helper()
 	a := &core.Artifact{
 		Path: filepath.Join(vault, "85-milestones", id+".md"),
 		FrontMatter: map[string]any{
 			"type": "milestone", "title": id, "description": "fixture description",
 			"created": "2026-01-01", "updated": "2026-01-01",
-			"status": "in-progress", "project": "demo",
-			"goal": "fixture milestone is done", "kind": kind,
+			"status": status, "project": "demo",
+			"goal": "fixture milestone is done", "kind": "scoped",
 		},
 		Body: "## Objective\no\n\n## Status\n" + statusBody + "\n",
 	}
@@ -30,8 +30,8 @@ func writeMeasuredMilestone(t *testing.T, vault, id, kind, statusBody string) {
 
 func TestList_MeasurementStale(t *testing.T) {
 	vault := setupVault(t)
-	writeMeasuredMilestone(t, vault, "demo.old", "scoped", "Measured: 2020-01-01")
-	writeMeasuredMilestone(t, vault, "demo.bucket", "bucket", "Measured: 2020-01-01")
+	writeMeasuredMilestone(t, vault, "demo.old", "in-progress", "Measured: 2020-01-01")
+	writeMeasuredMilestone(t, vault, "demo.planned", "planned", "Measured: 2020-01-01")
 
 	out, errOut, err := runCmd(t, newRootCmd(), "list", "milestone", "--json")
 	if err != nil {
@@ -48,16 +48,19 @@ func TestList_MeasurementStale(t *testing.T) {
 		switch it["id"] {
 		case "milestone.demo.old":
 			if v != true {
-				t.Errorf("scoped stale: measurement_stale = %v, want true", v)
+				t.Errorf("in-progress stale: measurement_stale = %v, want true", v)
 			}
-		case "milestone.demo.bucket":
+		case "milestone.demo.planned":
 			if has {
-				t.Errorf("bucket: measurement_stale = %v, want key absent", v)
+				t.Errorf("planned milestone: measurement_stale = %v, want key absent", v)
 			}
 		}
 	}
-	if !strings.Contains(errOut, "milestone.demo.old") || strings.Contains(errOut, "milestone.demo.bucket") {
+	if !strings.Contains(errOut, "milestone.demo.old") {
 		t.Errorf("stderr warning mismatch: %q", errOut)
+	}
+	if strings.Contains(errOut, "milestone.demo.planned") {
+		t.Errorf("planned milestone must not warn: %q", errOut)
 	}
 
 	out, _, err = runCmd(t, newRootCmd(), "list", "milestone", "--json", "--fields", "id,measurement_stale")
@@ -71,8 +74,8 @@ func TestList_MeasurementStale(t *testing.T) {
 
 func TestList_MeasurementStale_WarnsOnlyForReturnedItems(t *testing.T) {
 	vault := setupVault(t)
-	writeMeasuredMilestone(t, vault, "demo.a", "scoped", "Measured: 2020-01-01")
-	writeMeasuredMilestone(t, vault, "demo.b", "scoped", "Measured: 2020-01-01")
+	writeMeasuredMilestone(t, vault, "demo.a", "in-progress", "Measured: 2020-01-01")
+	writeMeasuredMilestone(t, vault, "demo.b", "in-progress", "Measured: 2020-01-01")
 
 	_, errOut, err := runCmd(t, newRootCmd(), "list", "milestone", "--limit", "1")
 	if err != nil {
@@ -85,8 +88,7 @@ func TestList_MeasurementStale_WarnsOnlyForReturnedItems(t *testing.T) {
 
 func TestShow_MeasurementStale(t *testing.T) {
 	vault := setupVault(t)
-	writeMeasuredMilestone(t, vault, "demo.old", "scoped", "Measured: 2020-01-01")
-	writeMeasuredMilestone(t, vault, "demo.bucket", "bucket", "Measured: 2020-01-01")
+	writeMeasuredMilestone(t, vault, "demo.old", "in-progress", "Measured: 2020-01-01")
 
 	out, _, err := runCmd(t, newRootCmd(), "show", "milestone", "demo.old", "--json")
 	if err != nil {
@@ -98,18 +100,6 @@ func TestShow_MeasurementStale(t *testing.T) {
 	}
 	if got["measurement_stale"] != true {
 		t.Errorf("measurement_stale = %v, want true", got["measurement_stale"])
-	}
-
-	out, _, err = runCmd(t, newRootCmd(), "show", "milestone", "demo.bucket", "--json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got = nil
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
-		t.Fatal(err)
-	}
-	if _, has := got["measurement_stale"]; has {
-		t.Errorf("bucket: measurement_stale present, want absent")
 	}
 }
 

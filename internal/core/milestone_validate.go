@@ -17,7 +17,7 @@ var RequiredMilestoneSections = []string{"## Objective", "## Non-goals", "## Lin
 //     algorithm as ValidateIssue / ValidateLearning)
 //   - body does not carry a `## Success criteria` section — `acceptance:`
 //     frontmatter is the single source of truth, refined via `anvil set`
-//   - a `kind: scoped` milestone does not carry an empty `acceptance` list
+//   - a milestone does not carry an empty `acceptance` list
 //
 // A `done` or `abandoned` milestone is a historical record: all checks skip.
 func ValidateMilestone(a *Artifact) []error {
@@ -36,30 +36,28 @@ func ValidateMilestone(a *Artifact) []error {
 		errs = append(errs, fmt.Errorf("milestone body carries %q — acceptance criteria live in the `acceptance:` frontmatter field, refined via `anvil set milestone <id> acceptance --add/--remove`, not a body section", successHeading))
 	}
 
-	kind, _ := a.FrontMatter["kind"].(string)
 	acceptance, _ := a.FrontMatter["acceptance"].([]any)
-	if kind == "scoped" && len(acceptance) == 0 {
-		errs = append(errs, fmt.Errorf("kind: scoped milestone has empty acceptance — a scoped milestone needs a witnessable finish line; add at least one runnable-predicate acceptance criterion, or flip kind to bucket if the work is genuinely open-ended"))
+	if len(acceptance) == 0 {
+		errs = append(errs, fmt.Errorf("milestone has empty acceptance — a milestone needs a witnessable finish line; add at least one runnable-predicate acceptance criterion"))
 	}
 
 	return errs
 }
 
 // MeasurementStaleDays is how far the Status block's `Measured:` date may
-// trail today before a scoped in-progress milestone is flagged.
+// trail today before an in-progress milestone is flagged.
 const MeasurementStaleDays = 14
 
 var measuredLine = regexp.MustCompile(`(?m)^Measured: (\d{4}-\d{2}-\d{2})\b`)
 
-// MeasurementStale reports whether a scoped, in-progress milestone's `##
+// MeasurementStale reports whether an in-progress milestone's `##
 // Status` block was measured more than MeasurementStaleDays whole days
-// before now. ok is false when the verdict does not apply — not scoped, not
+// before now. ok is false when the verdict does not apply — not
 // in-progress, or no parseable `Measured:` line — so callers omit the field
 // rather than assert "fresh" about a milestone with no date to age.
 func MeasurementStale(a *Artifact, now time.Time) (stale, ok bool) {
 	status, _ := a.FrontMatter["status"].(string)
-	kind, _ := a.FrontMatter["kind"].(string)
-	if kind != "scoped" || status != "in-progress" {
+	if status != "in-progress" {
 		return false, false
 	}
 	m := measuredLine.FindStringSubmatch(Section(StripFencedBlocks(a.Body), "Status"))
@@ -73,7 +71,7 @@ func MeasurementStale(a *Artifact, now time.Time) (stale, ok bool) {
 	return now.UTC().Truncate(24*time.Hour).Sub(measured) > MeasurementStaleDays*24*time.Hour, true
 }
 
-// MilestoneFormParts are the bold labels a scoped milestone's body carries
+// MilestoneFormParts are the bold labels a milestone's body carries
 // before approval, paired with the `milestone_gate_` code that names
 // each missing one. Create-time validation does not check them: the form is
 // filled after scaffolding, and the approval gate is where it must be whole.

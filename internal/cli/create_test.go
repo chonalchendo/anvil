@@ -1074,36 +1074,19 @@ func TestCreate_BodyFlagAndBodyFile_Conflict(t *testing.T) {
 	}
 }
 
-// TestCreateMilestone_SeedsAcceptanceSlot pins the bucket path: kind: bucket
-// is the deliberate opt-in for a genuinely open-ended milestone, and only
-// there does an empty acceptance slot stay legal through create's body gate
-// (core.ValidateMilestone refuses kind: scoped with empty acceptance).
-func TestCreateMilestone_SeedsAcceptanceSlot(t *testing.T) {
+// TestCreateMilestone_KindBucketRefused pins the retired bucket kind: the
+// schema enum allows only scoped, so create rolls back with enum_violation.
+func TestCreateMilestone_KindBucketRefused(t *testing.T) {
 	vault := setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Chdir(repo)
 
-	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "milestone", "--title", "CLI substrate", "--description", "test description", "--goal", "CLI substrate ships and all attached issues are resolved", "--kind", "bucket"})
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("execute: %v", err)
+	stdout, stderr, err := runCmd(t, newRootCmd(), "create", "milestone", "--title", "CLI substrate", "--description", "test description", "--goal", "CLI substrate ships and all attached issues are resolved", "--kind", "bucket", "--json")
+	if out := stdout + stderr; err == nil || !strings.Contains(out, "enum_violation") || !strings.Contains(out, `"field":"kind"`) {
+		t.Fatalf("want enum_violation on kind, err=%v out=%s", err, out)
 	}
-	a, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", "milestone.foo.cli-substrate.md"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	acc, ok := a.FrontMatter["acceptance"].([]any)
-	if !ok {
-		t.Fatalf("acceptance field missing or wrong type: %#v", a.FrontMatter["acceptance"])
-	}
-	if len(acc) != 0 {
-		t.Errorf("acceptance = %v, want empty slice", acc)
-	}
-	if got := a.FrontMatter["kind"]; got != "bucket" {
-		t.Errorf("kind = %v, want \"bucket\" (--kind bucket)", got)
-	}
-	if err := schema.Validate("milestone", a.FrontMatter); err != nil {
-		t.Errorf("frontmatter fails milestone schema: %v", err)
+	if _, statErr := os.Stat(filepath.Join(vault, "85-milestones", "milestone.foo.cli-substrate.md")); !os.IsNotExist(statErr) {
+		t.Errorf("milestone file must not exist after refusal, stat err = %v", statErr)
 	}
 }
 
@@ -1133,11 +1116,11 @@ func TestCreateMilestone_KindDefaultsToScoped(t *testing.T) {
 	}
 }
 
-// TestCreateMilestone_ScopedWithoutAcceptance_Refused pins the create-time
+// TestCreateMilestone_WithoutAcceptance_Refused pins the create-time
 // gate (anvil.0273): a bare `create milestone` with no --acceptance defaults
 // to kind: scoped and is refused up front, with an actionable hint, instead
 // of writing an artifact `anvil validate` immediately refuses.
-func TestCreateMilestone_ScopedWithoutAcceptance_Refused(t *testing.T) {
+func TestCreateMilestone_WithoutAcceptance_Refused(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Chdir(repo)

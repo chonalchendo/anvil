@@ -153,20 +153,7 @@ func TestValidate_Milestone_KindScopedAcceptsEmptyAcceptance(t *testing.T) {
 		"acceptance": []any{},
 	}
 	if err := Validate("milestone", fm); err != nil {
-		t.Fatalf("expected valid scoped milestone with empty acceptance (schema-level): %v", err)
-	}
-}
-
-func TestValidate_Milestone_KindBucketAllowsEmptyAcceptance(t *testing.T) {
-	fm := map[string]any{
-		"type": "milestone", "title": "M", "description": "x",
-		"created": "2026-04-29", "status": "planned", "project": "anvil",
-		"goal":       "M ships with all issues resolved",
-		"kind":       "bucket",
-		"acceptance": []any{},
-	}
-	if err := Validate("milestone", fm); err != nil {
-		t.Fatalf("expected valid bucket milestone: %v", err)
+		t.Fatalf("expected valid milestone with empty acceptance (schema-level): %v", err)
 	}
 }
 
