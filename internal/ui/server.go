@@ -122,7 +122,3 @@ func (s *server) fresh(next http.HandlerFunc) http.HandlerFunc {
 		next(w, r)
 	}
 }
-
-func (s *server) home(w http.ResponseWriter, _ *http.Request) {
-	s.pages.render(w, "home", nil)
-}

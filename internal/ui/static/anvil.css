@@ -60,3 +60,10 @@ dialog input { width: 100%; padding: 6px 8px; background: var(--bg); color: var(
 dialog ul { list-style: none; padding: 0; margin: 8px 0 0; max-height: 50vh; overflow-y: auto; }
 dialog li { padding: 4px 8px; border-radius: var(--radius); font-family: var(--mono); font-size: 12px; }
 dialog li[aria-selected="true"] { background: var(--sel); box-shadow: 0 0 0 1px var(--accent); }
+
+.tree, .tree ul { list-style: none; padding-left: 0; margin: 0; }
+.tree ul { padding-left: 18px; border-left: 1px solid var(--border); margin-left: 6px; }
+.tree li { padding: 2px 0; }
+.tree summary { cursor: pointer; padding: 2px 4px; border-radius: var(--radius); }
+.tree summary.group, .tree .group { color: var(--text-2); font-weight: 500; }
+.tree .status { color: var(--muted); font-size: 11px; margin-left: 6px; }
