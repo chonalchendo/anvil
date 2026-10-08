@@ -34,7 +34,7 @@ NO SYNTHESIS WITHOUT AN OPPOSING VIEW CONSIDERED.
 
 ### Heavy
 
-EVERY CLAIM CITES ITS SOURCE.
+In heavy mode, every claim cites its source.
 
 1. **Source-map** — list candidate sources and grade each: **primary** (project docs, original paper, maintainer post, source, changelog), **secondary** (recognised synthesis or survey), **blogspam** (unsourced or content-farm posts). Drop blogspam; a claim found only there is a gap, not a fact. Want one primary per major claim area.
 2. **Gather** — per kept source record the claim, a verbatim evidence quote (3 lines at most), and the grade. No supporting quote means the source does not support the claim.
@@ -45,7 +45,7 @@ EVERY CLAIM CITES ITS SOURCE.
 Run only when the dispatch prompt asks to verify claims with multiple skeptics. The token cost is high.
 
 1. Pick the load-bearing claims from the synthesis (2–5).
-2. Per claim, run K = 3 independent skeptic passes. Each argues against the claim using only sources not already cited for it. Each pass starts from the claim text alone, never from a prior pass's verdict. Run sequentially in one context if you cannot fan out.
+2. Per claim, run K = 3 independent skeptic passes. Each argues against the claim using only sources not already cited for it. Each pass starts from the claim text alone, never from a prior pass's verdict. Run the K passes in sequence in this context.
 3. If at least ⌈K×2/3⌉ passes refute a claim, drop it and note "claim dropped: <gist>, refuted by <n>/<K> independent skeptics."
 4. Revise the synthesis to match.
 
@@ -80,7 +80,7 @@ Never `anvil transition` anything — this agent researches, it does not own iss
 
 ## Return contract
 
-Return the mode reference's Synthesise output (opposing view reflected, gaps marked explicitly, sources cited inline) followed by one line per persisted learning: `Captured: [[learning.<id>]] — <one-line title>` (omit the line entirely if nothing cleared the Capture bar). No narrative tail, no "let me check", no offer to do more.
+Return the chosen mode's Synthesise output (opposing view reflected, gaps marked explicitly, sources cited inline) followed by one line per persisted learning: `Captured: [[learning.<id>]] — <one-line title>` (omit the line entirely if nothing cleared the Capture bar). No narrative tail, no "let me check", no offer to do more.
 
 ## Prose style
 
