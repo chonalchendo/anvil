@@ -79,6 +79,8 @@ If the JSON `warnings[]` carries a `kind: validation` entry, the milestone was w
 
 Then direct-edit the body sections (shaped in Phase 2) into the file at `path`.
 
+When the milestone came from a product-design candidate, edit that candidate's top-level bullet under `## Milestones` to the shaped form `- [[milestone.<id>]] <title>`. Keep its nested "Why now" and "Components" lines. `anvil doctor` reports `candidate-milestone-done` once the milestone is done, and the acceptance step removes the bullet.
+
 ## Phase 4 — Link to design docs
 
 ```bash
