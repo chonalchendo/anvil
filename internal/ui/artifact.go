@@ -72,7 +72,6 @@ func (s *server) artifact(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, error) {
-	s.refresh()
 	body, err := s.md.render(art.Body)
 	if err != nil {
 		return artifactPage{}, err
@@ -92,7 +91,7 @@ func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, er
 	return artifactPage{
 		Title:   title,
 		Key:     key,
-		Crumbs:  s.crumbs(art),
+		Crumbs:  s.crumbs(key),
 		Props:   s.props(art.FrontMatter),
 		Body:    body,
 		Hanging: s.groups(in, func(r index.LinkRow) (string, string) { return r.Source, typeOfKey(r.Source) }),
@@ -130,20 +129,18 @@ func (s *server) props(fm map[string]any) []prop {
 
 func (s *server) slotValue(v any) link {
 	str := fmt.Sprint(v)
-	if inner, ok := strings.CutPrefix(str, "[["); ok {
-		if inner, ok = strings.CutSuffix(inner, "]]"); ok {
-			return s.res.resolve(inner)
-		}
+	if inner := core.UnwrapWikilink(str); inner != str {
+		return s.res.resolve(inner)
 	}
 	return link{Text: str, Plain: true}
 }
 
-// crumbs climbs the spine slots from art, nearest ancestor last.
-func (s *server) crumbs(art *core.Artifact) []link {
+// crumbs climbs the spine slots from key through the index, nearest ancestor
+// last. The index already holds every parent edge, so no parent file is read.
+func (s *server) crumbs(key string) []link {
 	var up []link
-	fm := art.FrontMatter
 	for range maxCrumbs {
-		next, ok := firstSlot(fm)
+		next, ok := s.parent(key)
 		if !ok {
 			break
 		}
@@ -152,20 +149,7 @@ func (s *server) crumbs(art *core.Artifact) []link {
 		if l.Href == "" {
 			break
 		}
-		prefix, id, _ := strings.Cut(next, ".")
-		t, err := core.ParseType(prefix)
-		if err != nil {
-			break
-		}
-		_, path, err := core.ResolveArtifact(s.v, t, id)
-		if err != nil {
-			break
-		}
-		parent, err := core.LoadArtifact(path)
-		if err != nil {
-			break
-		}
-		fm = parent.FrontMatter
+		key = next
 	}
 	for i, j := 0, len(up)-1; i < j; i, j = i+1, j-1 {
 		up[i], up[j] = up[j], up[i]
@@ -173,13 +157,16 @@ func (s *server) crumbs(art *core.Artifact) []link {
 	return up
 }
 
-func firstSlot(fm map[string]any) (string, bool) {
+// parent returns the target of key's first outgoing spine-slot link.
+func (s *server) parent(key string) (string, bool) {
+	rows, err := s.db.LinksFrom(key)
+	if err != nil {
+		return "", false
+	}
 	for _, slot := range spineSlots {
-		if str, ok := fm[slot].(string); ok {
-			if inner, ok := strings.CutPrefix(str, "[["); ok {
-				if inner, ok = strings.CutSuffix(inner, "]]"); ok {
-					return inner, true
-				}
+		for _, r := range rows {
+			if r.Relation == slot {
+				return r.Target, true
 			}
 		}
 	}

@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
 )
@@ -54,8 +53,8 @@ func Handler(v *core.Vault, db *index.DB) (http.Handler, error) {
 		return nil, err
 	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /{$}", s.home)
-	mux.HandleFunc("GET /artifact/{key}", s.artifact)
+	mux.HandleFunc("GET /{$}", s.fresh(s.home))
+	mux.HandleFunc("GET /artifact/{key}", s.fresh(s.artifact))
 	mux.HandleFunc("GET /static/{file}", s.files.serve)
 	return mux, nil
 }
@@ -93,35 +92,34 @@ func Serve(ctx context.Context, v *core.Vault, db *index.DB, addr string, out io
 	return nil
 }
 
+// ErrAddrNotLoopback refuses a bind address that is not loopback; the view has no auth.
+type ErrAddrNotLoopback struct{ Addr string }
+
+func (e *ErrAddrNotLoopback) Error() string {
+	return fmt.Sprintf("ui address %q is not loopback; bind 127.0.0.0/8, ::1 or localhost", e.Addr)
+}
+
 func requireLoopback(addr string) error {
 	host, _, err := net.SplitHostPort(addr)
 	if err == nil && (host == "localhost" || net.ParseIP(host).IsLoopback()) {
 		return nil
 	}
-	return errfmt.NewStructured("ui_addr_not_loopback").
-		Set("addr", addr).
-		Set("hint", "bind 127.0.0.0/8, ::1 or localhost; the view has no auth")
+	return &ErrAddrNotLoopback{Addr: addr}
 }
 
-// refresh reindexes when the vault drifted, at most once per freshnessEvery.
-func (s *server) refresh() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if time.Since(s.checked) < freshnessEvery {
-		return
-	}
-	s.checked = time.Now()
-	err := s.db.CheckFreshness(s.v.Root)
-	if err == nil {
-		return
-	}
-	var stale *index.StaleError
-	if !errors.Is(err, index.ErrLastReindexUnset) && !errors.As(err, &stale) {
-		slog.Warn("index freshness check failed", "err", err)
-		return
-	}
-	if _, err := s.db.Reindex(s.v.Root); err != nil {
-		slog.Warn("reindex failed", "err", err)
+// fresh wraps a page route: it reindexes when the vault drifted, at most once
+// per freshnessEvery. The throttle is the only policy kept here.
+func (s *server) fresh(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		if time.Since(s.checked) >= freshnessEvery {
+			s.checked = time.Now()
+			if err := s.db.EnsureFresh(s.v.Root); err != nil {
+				slog.Warn("index refresh failed", "err", err)
+			}
+		}
+		s.mu.Unlock()
+		next(w, r)
 	}
 }
 
