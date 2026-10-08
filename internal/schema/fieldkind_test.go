@@ -41,3 +41,15 @@ func TestFieldKind_UnknownType(t *testing.T) {
 		t.Error("expected error for unknown type")
 	}
 }
+
+func TestFieldIsInteger(t *testing.T) {
+	for _, tc := range []struct {
+		field string
+		want  bool
+	}{{"cost_rounds", true}, {"title", false}, {"no_such_field", false}} {
+		got, err := FieldIsInteger("issue", tc.field)
+		if err != nil || got != tc.want {
+			t.Errorf("FieldIsInteger(issue, %s) = %v, %v; want %v", tc.field, got, err, tc.want)
+		}
+	}
+}

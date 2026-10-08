@@ -20,31 +20,40 @@ const (
 // KindUnknown means the field is not declared on the schema (ad-hoc field).
 // An error is returned only when typeName itself has no embedded schema.
 func FieldKind(typeName, fieldName string) (Kind, error) {
-	b, err := EmbeddedFS.ReadFile(typeName + ".schema.json")
-	if err != nil {
-		return KindUnknown, fmt.Errorf("read %s schema: %w", typeName, err)
+	t, declared, err := propertyType(typeName, fieldName)
+	if err != nil || !declared {
+		return KindUnknown, err
 	}
-	var raw struct {
-		Properties map[string]struct {
-			Type any `json:"type"`
-		} `json:"properties"`
-	}
-	if err := json.Unmarshal(b, &raw); err != nil {
-		return KindUnknown, fmt.Errorf("parse %s schema: %w", typeName, err)
-	}
-	prop, ok := raw.Properties[fieldName]
-	if !ok {
-		return KindUnknown, nil
-	}
-	return classify(prop.Type), nil
+	return classify(t), nil
 }
 
 // FieldIsInteger reports whether typeName's fieldName is declared with JSON
-// Schema type "integer", so set can coerce its string argument.
+// Schema type "integer" (alone or in a union such as ["integer","null"]), so
+// set can coerce its string argument.
 func FieldIsInteger(typeName, fieldName string) (bool, error) {
+	t, _, err := propertyType(typeName, fieldName)
+	if err != nil {
+		return false, err
+	}
+	switch v := t.(type) {
+	case string:
+		return v == "integer", nil
+	case []any:
+		for _, x := range v {
+			if x == "integer" {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// propertyType returns the raw JSON Schema "type" of fieldName and whether the
+// schema declares the field at all.
+func propertyType(typeName, fieldName string) (any, bool, error) {
 	b, err := EmbeddedFS.ReadFile(typeName + ".schema.json")
 	if err != nil {
-		return false, fmt.Errorf("read %s schema: %w", typeName, err)
+		return nil, false, fmt.Errorf("read %s schema: %w", typeName, err)
 	}
 	var raw struct {
 		Properties map[string]struct {
@@ -52,10 +61,10 @@ func FieldIsInteger(typeName, fieldName string) (bool, error) {
 		} `json:"properties"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
-		return false, fmt.Errorf("parse %s schema: %w", typeName, err)
+		return nil, false, fmt.Errorf("parse %s schema: %w", typeName, err)
 	}
-	t, _ := raw.Properties[fieldName].Type.(string)
-	return t == "integer", nil
+	prop, ok := raw.Properties[fieldName]
+	return prop.Type, ok, nil
 }
 
 // FieldRequired reports whether fieldName is in typeName's schema `required`

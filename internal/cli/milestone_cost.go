@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"math"
 	"sort"
 
 	"github.com/chonalchendo/anvil/internal/core"
@@ -31,18 +30,23 @@ type costTotal struct {
 }
 
 // milestoneCostRows returns the issues linked to ms (bare slug) sorted by id,
-// and the sum of their costed rows.
+// and the sum of their costed rows. A file that fails to load is skipped; the
+// first such error is returned beside the rows that did load.
 func milestoneCostRows(v *core.Vault, ms string) ([]milestoneIssueRow, costTotal, error) {
 	rows := []milestoneIssueRow{}
 	var total costTotal
 	paths, err := collectArtifactPaths(v.Root, core.TypeIssue)
 	if err != nil {
-		return nil, total, err
+		return rows, total, err
 	}
+	var firstErr error
 	for _, p := range paths {
 		a, err := core.LoadArtifact(p)
 		if err != nil {
-			return nil, total, fmt.Errorf("loading %s: %w", p, err)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("loading %s: %w", p, err)
+			}
+			continue
 		}
 		if milestoneSlug(a.FrontMatter["milestone"]) != ms {
 			continue
@@ -62,37 +66,24 @@ func milestoneCostRows(v *core.Vault, ms string) ([]milestoneIssueRow, costTotal
 		total.Files += r.Cost.Files
 		total.Tokens += r.Cost.Tokens
 	}
-	return rows, total, nil
+	return rows, total, firstErr
+}
+
+// unfinished reports whether the row's issue is neither resolved nor abandoned.
+func (r milestoneIssueRow) unfinished() bool {
+	return r.Status != "resolved" && r.Status != "abandoned"
 }
 
 func costFromFrontMatter(fm map[string]any) *issueCost {
 	var vals [4]int
 	for i, k := range []string{"cost_rounds", "cost_diff", "cost_files", "cost_tokens"} {
-		n, ok := intField(fm[k])
+		n, ok := fm[k].(int)
 		if !ok {
 			return nil
 		}
 		vals[i] = n
 	}
 	return &issueCost{vals[0], vals[1], vals[2], vals[3]}
-}
-
-// intField accepts the numeric types YAML decoding yields.
-func intField(raw any) (int, bool) {
-	switch n := raw.(type) {
-	case int:
-		return n, true
-	case int64:
-		return int(n), true
-	case uint64:
-		if n > math.MaxInt32 {
-			return 0, false
-		}
-		return int(n), true
-	case float64:
-		return int(n), true
-	}
-	return 0, false
 }
 
 func (r milestoneIssueRow) line() string {

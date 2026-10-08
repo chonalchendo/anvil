@@ -125,6 +125,7 @@ func newSetCmd() *cobra.Command {
 				if ierr != nil {
 					return fmt.Errorf("schema lookup: %w", ierr)
 				}
+				var val any = sv
 				if isInt {
 					n, perr := strconv.Atoi(sv)
 					if perr != nil {
@@ -134,14 +135,11 @@ func newSetCmd() *cobra.Command {
 								WithNote(fmt.Sprintf("%q takes an integer; pass a whole number such as 3", field)),
 						})
 					}
-					a.FrontMatter[field] = n
-					result.From = prev
-					result.To = n
-					break
+					val = n
 				}
-				a.FrontMatter[field] = sv
+				a.FrontMatter[field] = val
 				result.From = prev
-				result.To = sv
+				result.To = val
 
 			case schema.KindArray:
 				switch {
