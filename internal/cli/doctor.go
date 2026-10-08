@@ -51,7 +51,7 @@ func newDoctorCmd() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "doctor",
-		Short: "Detect stale lifecycle state (merged-PR issues, dead claims, finished milestones, orphan worktrees, empty component design convention rails, duplicate ordinals, live work on open issues, stale or retired-target installed skills)",
+		Short: "Detect stale lifecycle state (merged-PR issues, dead claims, finished milestones, orphan worktrees, empty component design convention rails, duplicate ordinals, live work on open issues, stale or retired-target installed skills, design drift)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			v, err := core.ResolveVault()
@@ -191,7 +191,7 @@ func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 	}
 	findings = append(findings, componentDesignFindings...)
 
-	// Shape 9: done milestone still listed as a product-design candidate.
+	// Shape 9: design drift (candidate-done milestone, stale design, dead code ref).
 	designFindings, err := checkDesignDrift(v, projectSlug)
 	if err != nil {
 		return nil, err
