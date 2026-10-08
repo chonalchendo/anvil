@@ -129,7 +129,9 @@ func gateMilestoneDone(cmd *cobra.Command, v *core.Vault, m *core.Artifact, id s
 			Set("fix_hint", "run: anvil milestone status "+id+"; fix the red criteria, then retry")
 	}
 	commit, _ := gitRevParseFn(fl.Dir, "--short", "HEAD")
-	m.Body = replaceStatusBlock(m.Body, statusBlock(results, time.Now().UTC().Format("2006-01-02"), commit))
+	date := time.Now().UTC().Format("2006-01-02")
+	m.FrontMatter["done"] = date
+	m.Body = replaceStatusBlock(m.Body, statusBlock(results, date, commit))
 	return nil
 }
 
