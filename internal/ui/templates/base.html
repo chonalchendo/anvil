@@ -47,8 +47,22 @@
   });
   var layers = function () { return Array.prototype.slice.call(document.querySelectorAll('details.layer')); }, at = -1;
   function focusLayer(i) { var l = layers(); if (!l.length) return; at = Math.max(0, Math.min(l.length - 1, i)); l[at].querySelector('summary').focus(); }
+  function treeKey(ev) {
+    var e = document.activeElement;
+    var r = Array.prototype.slice.call(document.querySelectorAll('.tree a, .tree summary:not(:has(a))')).filter(function (x) { return x.offsetParent !== null; });
+    var i = r.indexOf(e), d = (e.closest('summary') || e).parentElement;
+    var isDetails = d && d.tagName === 'DETAILS';
+    if (ev.key === 'ArrowDown' && i < r.length - 1) r[i + 1].focus();
+    else if (ev.key === 'ArrowUp' && i > 0) r[i - 1].focus();
+    else if (ev.key === 'ArrowRight' && isDetails && !d.open) d.open = true;
+    else if (ev.key === 'ArrowLeft' && isDetails && d.open) d.open = false;
+    else if (ev.key === 'ArrowLeft') { var up = (isDetails ? d.parentElement : e.parentElement).closest('details'); if (!up) return; (up.querySelector('summary a') || up.querySelector('summary')).focus(); }
+    else return;
+    ev.preventDefault();
+  }
   document.addEventListener('keydown', function (ev) {
     if (ev.metaKey && ev.key.toLowerCase() === 'k') { ev.preventDefault(); open(); return; }
+    if (!dlg.open && !ev.metaKey && !ev.ctrlKey && !ev.altKey && document.activeElement.closest('.tree')) { treeKey(ev); return; }
     if (dlg.open || ev.metaKey || ev.ctrlKey || ev.altKey || /^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) return;
     var l = layers();
     if (ev.key === 'j') focusLayer(at + 1);

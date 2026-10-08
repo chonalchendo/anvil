@@ -1,27 +1,8 @@
 {{define "title"}}Spine · anvil{{end}}
-{{define "row"}}{{if .Href}}<a href="{{.Href}}">{{.Title}}</a>{{if .Status}} <span class="status">{{.Status}}</span>{{end}}{{else}}<span class="group">{{.Title}}</span>{{end}}{{end}}
+{{define "row"}}{{if .Href}}<a href="{{.Href}}">{{.Title}}</a>{{if .Status}} <span class="status {{.Status}}">{{.Glyph}} {{.Status}}</span>{{end}}{{else}}<span class="group">{{.Title}}</span>{{end}}{{end}}
 {{define "node"}}<li>{{if .Kids}}<details{{if .Open}} open{{end}}><summary{{if not .Href}} class="group"{{end}}>{{template "row" .}}</summary><ul>{{range .Kids}}{{template "node" .}}{{end}}</ul></details>{{else}}{{template "row" .}}{{end}}</li>{{end}}
 {{define "content"}}<h1>Design spine</h1>
 {{range .Page}}<section aria-label="{{.Name}}"><h2>{{.Name}}</h2>
-<ul class="tree" role="tree">{{range .Nodes}}{{template "node" .}}{{end}}</ul></section>
+<ul class="tree">{{range .Nodes}}{{template "node" .}}{{end}}</ul></section>
 {{else}}<p class="muted">No designs indexed.</p>{{end}}
-<script>
-(function () {
-  function rows() { return Array.prototype.slice.call(document.querySelectorAll('.tree a, .tree summary:not(:has(a))')).filter(function (e) { return e.offsetParent !== null; }); }
-  function summaryOf(e) { return e.closest('summary') || e; }
-  document.addEventListener('keydown', function (ev) {
-    var e = document.activeElement;
-    if (!e || !e.closest('.tree') || ev.metaKey || ev.ctrlKey || ev.altKey) return;
-    var r = rows(), i = r.indexOf(e), d = summaryOf(e).parentElement;
-    var isDetails = d && d.tagName === 'DETAILS';
-    if (ev.key === 'ArrowDown' && i < r.length - 1) r[i + 1].focus();
-    else if (ev.key === 'ArrowUp' && i > 0) r[i - 1].focus();
-    else if (ev.key === 'ArrowRight' && isDetails && !d.open) d.open = true;
-    else if (ev.key === 'ArrowLeft' && isDetails && d.open) d.open = false;
-    else if (ev.key === 'ArrowLeft') { var up = (isDetails ? d.parentElement : e.parentElement).closest('details'); if (!up) return; (up.querySelector('summary a') || up.querySelector('summary')).focus(); }
-    else return;
-    ev.preventDefault();
-  });
-})();
-</script>
 {{end}}

@@ -66,4 +66,5 @@ dialog li[aria-selected="true"] { background: var(--sel); box-shadow: 0 0 0 1px 
 .tree li { padding: 2px 0; }
 .tree summary { cursor: pointer; padding: 2px 4px; border-radius: var(--radius); }
 .tree summary.group, .tree .group { color: var(--text-2); font-weight: 500; }
-.tree .status { color: var(--muted); font-size: 11px; margin-left: 6px; }
+.tree .status { color: var(--muted); font-size: 12px; margin-left: 6px; }
+.status.in-progress { color: var(--accent); }
