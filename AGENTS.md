@@ -28,7 +28,7 @@ Every task runs in a worktree and lands via PR. Never commit directly on `master
 
 - Pick from `anvil list issue --ready --json`, not arbitrary `anvil list issue`. Ready issues have no unresolved blockers.
 - Claim atomically: `anvil transition issue <id> in-progress --owner <your-name>`. Owner flag is required.
-- Resolve via `anvil transition issue <id> resolved`. Use `anvil set ... status` only as a force-edit escape hatch.
+- Resolve via `anvil transition issue <id> resolved`. Use `anvil set ... status <v> --force --reason "<why>"` only as an audited escape hatch.
 - Search before creating: `anvil list <type>` and `anvil link --to <id>` before `anvil create`.
 - Don't promote inbox items already covered by an issue: check `anvil link --to <issue-id>` first.
 

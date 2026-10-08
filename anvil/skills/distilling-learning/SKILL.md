@@ -203,7 +203,7 @@ Same commit as the learning files.
 
 | Source kind | Aftermath |
 |---|---|
-| Thread | Ask user: `closed | paused | stay open`. If `closed` and active, run `anvil thread deactivate`. Apply via `anvil set thread <id> status <state>`. |
+| Thread | Ask user: `closed | paused | stay open`. If `closed` and active, run `anvil thread deactivate`. Apply via `anvil transition thread <id> <state>`. |
 | Transcript | None. |
 | Reflection | None. |
 

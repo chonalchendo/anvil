@@ -26,6 +26,8 @@ func newSetCmd() *cobra.Command {
 		flagJSON          bool
 		flagCommand       string
 		flagExpected      string
+		flagForce         bool
+		flagReason        string
 	)
 
 	cmd := &cobra.Command{
@@ -70,6 +72,10 @@ func newSetCmd() *cobra.Command {
 			}
 			if flagRemSet && len(values) > 0 {
 				return fmt.Errorf("positional values cannot be combined with --remove")
+			}
+
+			if ferr := refuseForceOnOtherField(cmd, field, flagForce, flagReason); ferr != nil {
+				return ferr
 			}
 
 			kind, err := schema.FieldKind(string(t), field)
@@ -299,6 +305,12 @@ func newSetCmd() *cobra.Command {
 					return renderSchemaErr(cmd, v, path, err, flagJSON)
 				}
 			}
+			if field == "status" && !fieldUnset {
+				to, _ := a.FrontMatter[field].(string)
+				if gerr := guardStatusSet(cmd, a, t, id, prev, to, flagForce, flagReason); gerr != nil {
+					return gerr
+				}
+			}
 			if err := a.Save(); err != nil {
 				return fmt.Errorf("saving artifact: %w", err)
 			}
@@ -316,6 +328,8 @@ func newSetCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
 	cmd.Flags().StringVar(&flagCommand, "command", "", "shell command for reproduction_anchor")
 	cmd.Flags().StringVar(&flagExpected, "expected", "", "expected stdout for reproduction_anchor (empty = not asserted)")
+	cmd.Flags().BoolVar(&flagForce, "force", false, "status only: bypass the transition table (needs --reason; appends an audit line)")
+	cmd.Flags().StringVar(&flagReason, "reason", "", "why --force bypasses the transition table")
 	cmd.PreRunE = func(c *cobra.Command, _ []string) error {
 		flagAddSet = c.Flags().Changed("add")
 		flagRemSet = c.Flags().Changed("remove")

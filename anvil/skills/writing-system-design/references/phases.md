@@ -105,7 +105,7 @@ Draft `## Risks` only if load-bearing assumptions could fail. 3-7 bullets, each 
 
 1. Check the body against SKILL.md §Required sections, in order. No Tech stack section; no "today" statements. Mermaid diagrams render.
 2. Save with `anvil create system-design --project {project} --title "<title>" --description "<one line>" --body-file <file>`. It writes `status: draft`, validates on write, and must pass clean.
-3. Activate: `anvil set system-design {project} status active`.
+3. Activate: `anvil transition system-design {project} active`.
 4. For each Phase 8 decision: `anvil set system-design {project} authorized_by --add "[[decision.{topic}.NNNN-{slug}]]"`.
 
 **Gate:** user reads the artifact cold. If anything's off, fix and re-show.

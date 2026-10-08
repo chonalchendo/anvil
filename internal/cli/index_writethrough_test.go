@@ -178,7 +178,7 @@ func TestSetStatusWritesThroughToIndex(t *testing.T) {
 	execCmd(t, "init", vault)
 	writeFixtureIssueDated(t, vault, "demo", "foo", "foo", "2026-01-01")
 	execCmd(t, "reindex")
-	execCmd(t, "set", "issue", "demo.foo", "status", "in-progress")
+	execCmd(t, "set", "issue", "demo.foo", "status", "in-progress", "--force", "--reason", "test")
 
 	row, err := openIndex(t, vault).GetArtifact("issue.demo.foo")
 	if err != nil {
@@ -233,7 +233,7 @@ func TestExternalEditAbsorbedOnNextWrite(t *testing.T) {
 
 	// The next write through indexAfterSave auto-reindexes, absorbing the
 	// external file so the user is not forced to run `anvil reindex` first.
-	execCmd(t, "set", "issue", "demo.foo", "status", "in-progress")
+	execCmd(t, "set", "issue", "demo.foo", "status", "in-progress", "--force", "--reason", "test")
 
 	db := openIndex(t, vault)
 	if row, err := db.GetArtifact("issue.demo.foo"); err != nil || row.Status != "in-progress" {

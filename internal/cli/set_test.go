@@ -17,7 +17,7 @@ func TestSet_PrintsConfirmation_Scalar(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "resolved"})
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "resolved", "--force", "--reason", "test"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -35,7 +35,7 @@ func TestSet_JSONEnvelope_Scalar(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "resolved", "--json"})
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "resolved", "--json", "--force", "--reason", "test"})
 	var out, errOut bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&errOut)
@@ -168,12 +168,105 @@ func TestSet_JSONEnvelope_ArrayPositionalReplace(t *testing.T) {
 	}
 }
 
+func TestSet_Status_RefusedWithHint(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "in-progress", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected refusal")
+	}
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("json: %v\n%s", err, out.String())
+	}
+	if got["code"] != "status_via_set" || got["fix_hint"] != "anvil transition issue issue.foo.a in-progress --owner <owner>" {
+		t.Errorf("got %#v", got)
+	}
+}
+
+func TestSet_Status_ForceNeedsReason(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "resolved", "--force", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected refusal")
+	}
+	if !strings.Contains(out.String(), "status_force_needs_reason") {
+		t.Errorf("output = %s", out.String())
+	}
+}
+
+func TestSet_Status_ForceWritesAuditLine(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "resolved", "--force", "--reason", "probe"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("set: %v\n%s", err, out.String())
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(a.Body, "> status open → resolved --force ") || !strings.Contains(a.Body, " by ") || !strings.Contains(a.Body, ": probe") {
+		t.Errorf("body missing audit line:\n%s", a.Body)
+	}
+}
+
+func TestSet_ForceOnOtherField_Refused(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "title", "B", "--force", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected refusal")
+	}
+	if !strings.Contains(out.String(), "force_status_only") {
+		t.Errorf("output = %s", out.String())
+	}
+}
+
+func TestSet_Status_BogusValueIsSchemaInvalid(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "bogus", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("expected refusal")
+	}
+	if strings.Contains(out.String(), "status_via_set") || !strings.Contains(out.String(), "schema_invalid") {
+		t.Errorf("output = %s", out.String())
+	}
+}
+
 func TestSet_Status_Succeeds(t *testing.T) {
 	vault := setupVault(t)
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "resolved"})
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "resolved", "--force", "--reason", "test"})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
@@ -194,7 +287,7 @@ func TestSet_InvalidEnum_ReturnsSchemaInvalid(t *testing.T) {
 	writeFixtureIssue(t, vault, "foo", "a", "A")
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "bogus"})
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "status", "bogus", "--force", "--reason", "test"})
 	var stderr bytes.Buffer
 	cmd.SetErr(&stderr)
 	cmd.SetOut(&stderr)

@@ -81,7 +81,7 @@ anvil create component-design \
 
 Compose `<body.md>` from the skeleton (`anvil create component-design --show-template` prints the headings). `create` checks the core only on a supplied body, so a bodiless create writes an unchecked empty skeleton.
 
-**Gate:** run `anvil validate`, fix schema errors, then promote: `anvil set component-design <id> status active`.
+**Gate:** run `anvil validate`, fix schema errors, then promote: `anvil transition component-design <id> active`.
 
 ---
 

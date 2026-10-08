@@ -13,7 +13,7 @@ anvil transition issue <id> resolved
 anvil transition issue <id> open --reason "<why>"
 ```
 
-Use `anvil set ... status` only as a force-edit escape hatch when `transition` rejects a legal-but-unusual move.
+Use `anvil set ... status <v> --force --reason "<why>"` only as an audited escape hatch when `transition` rejects a legal-but-unusual move.
 
 ## Terminal states
 
@@ -23,7 +23,7 @@ Three exits:
 2. **`decision/rejected`** — user bailed mid-session. Prompt: "log this as a rejected decision?" If yes:
    ```bash
    anvil create decision --title "Considered: <X>" --json
-   anvil set decision <id> status rejected
+   anvil transition decision <id> rejected
    anvil set decision <id> date <today>
    ```
    Decision file lands at `~/anvil-vault/30-decisions/<topic>.<NNNN>-<slug>.md` (MADR-conformant; see your project's decision-doc conventions). Body is one paragraph: what was considered, why rejected. If no, no artifact.
