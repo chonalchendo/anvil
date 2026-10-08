@@ -143,8 +143,6 @@ func TestDoctorDesignUntouchedAfterMilestone(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			// product_design slot and related name one design: one finding only.
-			m.FrontMatter["product_design"] = "[[product-design.demo]]"
 			m.FrontMatter["related"] = []any{"[[product-design.demo]]", "[[milestone.demo.other]]"}
 			if err := m.Save(); err != nil {
 				t.Fatal(err)
@@ -177,6 +175,34 @@ func TestDoctorDesignUntouchedAfterMilestone(t *testing.T) {
 			}
 		})
 	}
+	t.Run("related names one design twice: one finding only", func(t *testing.T) {
+		vault := setupVault(t)
+		seedProductDesign(t, vault, "## Milestones\n")
+		seedDoneMilestone(t, vault, "demo.loop", "2026-10-08")
+		m, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", "demo.loop.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.FrontMatter["related"] = []any{"[[product-design.demo]]", "product-design.demo", "[[milestone.demo.other]]"}
+		if err := m.Save(); err != nil {
+			t.Fatal(err)
+		}
+		pd, err := core.LoadArtifact(filepath.Join(vault, "05-product-designs", "demo.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		pd.FrontMatter["updated"] = "2026-01-01"
+		if err := pd.Save(); err != nil {
+			t.Fatal(err)
+		}
+		got, err := checkDesignUntouchedAfterMilestone(&core.Vault{Root: vault}, "demo")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 || !strings.Contains(got[0].Evidence, "1 done milestone(s)") {
+			t.Fatalf("findings = %+v, want 1 with 1 done milestone(s)", got)
+		}
+	})
 	t.Run("spine slot alone", func(t *testing.T) {
 		vault := setupVault(t)
 		seedProductDesign(t, vault, "## Milestones\n")

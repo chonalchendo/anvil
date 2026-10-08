@@ -221,20 +221,17 @@ type designLink struct {
 func linkedDesigns(fm map[string]any) []designLink {
 	var out []designLink
 	seen := map[string]bool{}
-	add := func(t core.Type, raw string) {
-		target := core.BareID(t, raw)
-		if key := string(t) + "." + target; target != "" && !seen[key] {
-			seen[key] = true
-			out = append(out, designLink{t, target})
-		}
-	}
 	rel, _ := fm["related"].([]any)
 	for _, r := range rel {
 		s, _ := r.(string)
 		s = core.UnwrapWikilink(s)
 		for _, t := range []core.Type{core.TypeComponentDesign, core.TypeSystemDesign, core.TypeProductDesign} {
 			if strings.HasPrefix(s, string(t)+".") {
-				add(t, s)
+				target := core.BareID(t, s)
+				if key := string(t) + "." + target; target != "" && !seen[key] {
+					seen[key] = true
+					out = append(out, designLink{t, target})
+				}
 			}
 		}
 	}
