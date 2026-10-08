@@ -215,7 +215,9 @@ type designLink struct {
 	target string
 }
 
-// linkedDesigns lists the distinct designs a milestone's frontmatter links.
+// linkedDesigns lists the distinct designs a milestone links through related.
+// The product_design and system_design slots are spine edges every milestone
+// carries, so they never count as a claim to have changed the design.
 func linkedDesigns(fm map[string]any) []designLink {
 	var out []designLink
 	seen := map[string]bool{}
@@ -224,14 +226,6 @@ func linkedDesigns(fm map[string]any) []designLink {
 		if key := string(t) + "." + target; target != "" && !seen[key] {
 			seen[key] = true
 			out = append(out, designLink{t, target})
-		}
-	}
-	for _, f := range []struct {
-		field string
-		t     core.Type
-	}{{"product_design", core.TypeProductDesign}, {"system_design", core.TypeSystemDesign}} {
-		if s, _ := fm[f.field].(string); s != "" {
-			add(f.t, s)
 		}
 	}
 	rel, _ := fm["related"].([]any)
