@@ -218,3 +218,20 @@ func TestResolveProject_RepoWithSchemasDir_IsProject(t *testing.T) {
 		t.Errorf("slug = %q, want widgets", p.Slug)
 	}
 }
+
+func TestProjectFromSlug(t *testing.T) {
+	t.Setenv("ANVIL_HOME", t.TempDir())
+	if _, err := ProjectFromSlug("foo"); err == nil {
+		t.Fatal("want error without a binding")
+	}
+	dir := t.TempDir()
+	gitInit(t, dir, "git@github.com:acme/foo.git")
+	t.Chdir(dir)
+	if err := AdoptProject("foo"); err != nil {
+		t.Fatal(err)
+	}
+	p, err := ProjectFromSlug("foo")
+	if err != nil || p.Slug != "foo" || p.Root == "" {
+		t.Fatalf("got %+v, %v", p, err)
+	}
+}

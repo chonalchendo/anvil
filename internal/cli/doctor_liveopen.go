@@ -7,15 +7,6 @@ import (
 	"strings"
 )
 
-// gitRepoRootFn returns the cwd repo's top-level dir. Injectable so tests
-// don't shell out.
-var gitRepoRootFn = gitRepoRootReal
-
-func gitRepoRootReal() (string, error) {
-	out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
-	return strings.TrimSpace(string(out)), err
-}
-
 // gitLocalBranchesFn lists local and remote-tracking branch names from the
 // cwd repo's existing refs. Injectable so tests don't shell out.
 var gitLocalBranchesFn = gitLocalBranchesReal

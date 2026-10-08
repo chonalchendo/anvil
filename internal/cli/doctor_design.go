@@ -24,8 +24,19 @@ func checkDesignDrift(v *core.Vault, projectSlug string) ([]doctorFinding, error
 		return nil, err
 	}
 	findings = append(findings, untouched...)
-	root, _ := gitRepoRootFn() // no repo → empty root → no code-ref findings
-	return append(findings, checkDesignCodeRefMissing(v, projectSlug, root)...), nil
+	// The project's bound repo, else the checkout doctor runs from. No repo
+	// gives an empty root, which examines nothing.
+	root := ""
+	if p, err := core.ProjectFromSlug(projectSlug); err == nil {
+		root = p.Root
+	} else {
+		root, _ = gitToplevelFn()
+	}
+	refs, err := checkDesignCodeRefMissing(v, projectSlug, root)
+	if err != nil {
+		return nil, err
+	}
+	return append(findings, refs...), nil
 }
 
 type milestoneRef struct {
@@ -169,7 +180,7 @@ func checkDesignUntouchedAfterMilestone(v *core.Vault, projectSlug string) ([]do
 			if updated == "" || updated >= m.done { // ISO dates order lexically
 				continue
 			}
-			dID := core.CanonicalID(d.t, d.target)
+			dID := core.WikilinkTarget(d.t, d.target)
 			st := byDesign[dID]
 			if st == nil {
 				st = &stale{updated: updated, latestID: m.id, latestDone: m.done}
@@ -243,15 +254,15 @@ var (
 
 // checkDesignCodeRefMissing flags a backticked repo path in a design body of
 // the project that does not exist under repoRoot. An empty root examines nothing.
-func checkDesignCodeRefMissing(v *core.Vault, projectSlug, repoRoot string) []doctorFinding {
+func checkDesignCodeRefMissing(v *core.Vault, projectSlug, repoRoot string) ([]doctorFinding, error) {
 	if projectSlug == "" || repoRoot == "" {
-		return nil
+		return nil, nil
 	}
 	var findings []doctorFinding
 	for _, t := range []core.Type{core.TypeComponentDesign, core.TypeSystemDesign, core.TypeProductDesign} {
 		paths, err := collectArtifactPaths(v.Root, t)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("reading %s: %w", t, err)
 		}
 		for _, p := range paths {
 			a, err := core.LoadArtifact(p)
@@ -261,15 +272,15 @@ func checkDesignCodeRefMissing(v *core.Vault, projectSlug, repoRoot string) []do
 			if proj, _ := a.FrontMatter["project"].(string); proj != projectSlug {
 				continue
 			}
-			id := listIDFor(t, p)
+			id := core.WikilinkTarget(t, listIDFor(t, p))
 			seen := map[string]bool{}
 			for _, m := range backtickToken.FindAllStringSubmatch(a.Body, -1) {
 				ref := m[1]
-				if seen[ref] || !strings.Contains(ref, "/") || strings.ContainsAny(ref, "*<>{") || !repoPathToken.MatchString(ref) {
+				if seen[ref] || !strings.Contains(ref, "/") || strings.ContainsAny(ref, "*<>{") || !repoPathToken.MatchString(ref) || !filepath.IsLocal(ref) {
 					continue
 				}
 				seen[ref] = true
-				if _, err := os.Stat(filepath.Join(repoRoot, ref)); err == nil {
+				if _, err := os.Stat(filepath.Join(repoRoot, ref)); err == nil { //nolint:gosec // G703: ref passed filepath.IsLocal and the stat is read-only
 					continue
 				}
 				findings = append(findings, doctorFinding{
@@ -281,5 +292,5 @@ func checkDesignCodeRefMissing(v *core.Vault, projectSlug, repoRoot string) []do
 			}
 		}
 	}
-	return findings
+	return findings, nil
 }

@@ -29,7 +29,7 @@ var ErrVaultCheckout = fmt.Errorf("%w: cwd is the vault checkout", ErrNoProject)
 // cwd's git tree → git remote (never for a vault checkout) → current-project pointer → error.
 func ResolveProject() (*Project, error) {
 	if slug := os.Getenv("ANVIL_PROJECT"); slug != "" {
-		if p, err := projectFromSlug(slug); err == nil {
+		if p, err := ProjectFromSlug(slug); err == nil {
 			return p, nil
 		}
 		// Env names an unknown slug: fall through to other resolution paths
@@ -195,9 +195,9 @@ func slugFromRemote(remote string) string {
 	return strings.TrimSuffix(m, ".git")
 }
 
-// projectFromSlug returns the Project for an adopted slug, or an error if no
+// ProjectFromSlug returns the Project for an adopted slug, or an error if no
 // binding exists.
-func projectFromSlug(slug string) (*Project, error) {
+func ProjectFromSlug(slug string) (*Project, error) {
 	anvil, err := anvilHome()
 	if err != nil {
 		return nil, err

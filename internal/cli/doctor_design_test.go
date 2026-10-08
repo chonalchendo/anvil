@@ -171,7 +171,7 @@ func TestDoctorDesignUntouchedAfterMilestone(t *testing.T) {
 				t.Fatalf("findings = %+v, want 1", got)
 			}
 			f := got[0]
-			if f.Kind != "design-untouched-after-milestone" || f.ID != "demo" ||
+			if f.Kind != "design-untouched-after-milestone" || f.ID != "product-design.demo" ||
 				f.Evidence != "updated 2026-01-01; untouched after 1 done milestone(s), latest milestone.demo.loop done 2026-10-08" {
 				t.Errorf("finding = %+v", f)
 			}
@@ -237,7 +237,7 @@ func TestDoctorDesignUntouchedAfterMilestoneScope(t *testing.T) {
 			t.Fatal(err)
 		}
 		want := "updated 2026-01-01; untouched after 2 done milestone(s), latest milestone.demo.late done 2026-10-08"
-		if len(got) != 1 || got[0].ID != "demo" || got[0].Evidence != want {
+		if len(got) != 1 || got[0].ID != "product-design.demo" || got[0].Evidence != want {
 			t.Fatalf("findings = %+v", got)
 		}
 	})
@@ -268,12 +268,15 @@ func TestDoctorDesignCodeRefMissing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			vault := setupVault(t)
 			seedDesign(t, vault, "05-product-designs", "product-design", "demo", "2026-01-01", tc.body)
-			got := checkDesignCodeRefMissing(&core.Vault{Root: vault}, "demo", tc.root)
+			got, err := checkDesignCodeRefMissing(&core.Vault{Root: vault}, "demo", tc.root)
+			if err != nil {
+				t.Fatal(err)
+			}
 			if len(got) != len(tc.want) {
 				t.Fatalf("findings = %+v, want %v", got, tc.want)
 			}
 			for i, f := range got {
-				if f.Kind != "design-code-ref-missing" || f.ID != "demo" || f.Evidence != tc.want[i]+" not in "+repo {
+				if f.Kind != "design-code-ref-missing" || f.ID != "product-design.demo" || f.Evidence != tc.want[i]+" not in "+repo {
 					t.Errorf("finding = %+v", f)
 				}
 			}
@@ -282,8 +285,93 @@ func TestDoctorDesignCodeRefMissing(t *testing.T) {
 	t.Run("other project's design skipped", func(t *testing.T) {
 		vault := setupVault(t)
 		seedDesign(t, vault, "05-product-designs", "product-design", "demo", "2026-01-01", "`a/b.go`\n")
-		if got := checkDesignCodeRefMissing(&core.Vault{Root: vault}, "other", repo); len(got) != 0 {
+		if got, _ := checkDesignCodeRefMissing(&core.Vault{Root: vault}, "other", repo); len(got) != 0 {
 			t.Fatalf("findings = %+v, want none", got)
+		}
+	})
+	t.Run("unreadable design dir errors", func(t *testing.T) {
+		vault := setupVault(t)
+		dir := filepath.Join(vault, "05-product-designs")
+		if err := os.RemoveAll(dir); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(dir, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := checkDesignCodeRefMissing(&core.Vault{Root: vault}, "demo", repo); err == nil {
+			t.Fatal("want error for an unreadable design dir")
+		}
+	})
+}
+
+func TestDoctorDesignUntouchedSharedSlug(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureMilestone(t, vault, "demo.loop", "done")
+	setMilestoneFields(t, vault, "demo.loop", "Loop", "2026-10-08")
+	seedProductDesign(t, vault, "## Milestones\n")
+	seedDesign(t, vault, "06-system-designs", "system-design", "demo", "2026-02-02", "x\n")
+	m, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", "demo.loop.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.FrontMatter["product_design"] = "[[product-design.demo]]"
+	m.FrontMatter["system_design"] = "[[system-design.demo]]"
+	if err := m.Save(); err != nil {
+		t.Fatal(err)
+	}
+	got, err := checkDesignUntouchedAfterMilestone(&core.Vault{Root: vault}, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].ID != "product-design.demo" || got[1].ID != "system-design.demo" ||
+		!strings.HasPrefix(got[0].Evidence, "updated 2026-01-01; untouched after 1 ") ||
+		!strings.HasPrefix(got[1].Evidence, "updated 2026-02-02; untouched after 1 ") {
+		t.Fatalf("findings = %+v, want one per design", got)
+	}
+}
+
+func TestDoctorDesignDriftRootFollowsBinding(t *testing.T) {
+	bound, cwdRepo := t.TempDir(), t.TempDir()
+	for _, f := range []string{filepath.Join(bound, "internal", "here.go"), filepath.Join(cwdRepo, "internal", "there.go")} {
+		if err := os.MkdirAll(filepath.Dir(f), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(f, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	home := t.TempDir()
+	t.Setenv("ANVIL_HOME", home)
+	if err := os.MkdirAll(filepath.Join(home, "projects", "demo"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "projects", "demo", ".binding"), []byte(bound+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	prev := gitToplevelFn
+	t.Cleanup(func() { gitToplevelFn = prev })
+	gitToplevelFn = func() (string, error) { return cwdRepo, nil }
+
+	vault := setupVault(t)
+	seedProductDesign(t, vault, "`internal/there.go` `internal/here.go`\n")
+	got, err := checkDesignDrift(&core.Vault{Root: vault}, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Evidence != "internal/there.go not in "+bound {
+		t.Fatalf("findings = %+v, want only internal/there.go missing from the bound repo", got)
+	}
+
+	t.Run("no binding falls back to cwd repo", func(t *testing.T) {
+		if err := os.Remove(filepath.Join(home, "projects", "demo", ".binding")); err != nil {
+			t.Fatal(err)
+		}
+		got, err := checkDesignDrift(&core.Vault{Root: vault}, "demo")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 || got[0].Evidence != "internal/here.go not in "+cwdRepo {
+			t.Fatalf("findings = %+v", got)
 		}
 	})
 }
