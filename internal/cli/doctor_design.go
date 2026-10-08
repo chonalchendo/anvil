@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/chonalchendo/anvil/internal/core"
@@ -13,7 +14,17 @@ import (
 // checkDesignDrift gathers the design-vs-reality checks. It stays a wrapper
 // because doctor.go sits at the 500-line cap; later checks append here.
 func checkDesignDrift(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
-	return checkCandidateMilestoneDone(v, projectSlug)
+	findings, err := checkCandidateMilestoneDone(v, projectSlug)
+	if err != nil {
+		return nil, err
+	}
+	untouched, err := checkDesignUntouchedAfterMilestone(v)
+	if err != nil {
+		return nil, err
+	}
+	findings = append(findings, untouched...)
+	root, _ := gitRepoRootFn() // no repo → empty root → no code-ref findings
+	return append(findings, checkDesignCodeRefMissing(v, projectSlug, root)...), nil
 }
 
 type milestoneRef struct{ id, status, done string }
@@ -118,4 +129,136 @@ func projectMilestones(v *core.Vault, projectSlug string) (byID, byTitle map[str
 		}
 	}
 	return byID, byTitle, nil
+}
+
+// checkDesignUntouchedAfterMilestone flags a design that a done milestone links
+// but whose updated date predates the milestone's done date. A done milestone
+// without a done date is not examined.
+func checkDesignUntouchedAfterMilestone(v *core.Vault) ([]doctorFinding, error) {
+	paths, err := collectArtifactPaths(v.Root, core.TypeMilestone)
+	if err != nil {
+		return nil, fmt.Errorf("reading milestones: %w", err)
+	}
+	var findings []doctorFinding
+	for _, p := range paths {
+		m, err := core.LoadArtifact(p)
+		if err != nil {
+			continue // unreadable: validate's domain
+		}
+		if status, _ := m.FrontMatter["status"].(string); status != "done" {
+			continue
+		}
+		done, _ := m.FrontMatter["done"].(string)
+		if done == "" {
+			continue
+		}
+		mID := listIDFor(core.TypeMilestone, p)
+		for _, d := range linkedDesigns(m.FrontMatter) {
+			_, dPath, err := core.ResolveArtifact(v, d.t, d.target)
+			if err != nil {
+				return nil, err
+			}
+			design, err := core.LoadArtifact(dPath)
+			if err != nil {
+				continue // dangling link: validate's domain
+			}
+			updated, _ := design.FrontMatter["updated"].(string)
+			if updated == "" || updated >= done { // ISO dates order lexically
+				continue
+			}
+			dID := core.CanonicalID(d.t, d.target)
+			findings = append(findings, doctorFinding{
+				Kind:     "design-untouched-after-milestone",
+				ID:       dID,
+				Evidence: fmt.Sprintf("milestone %s done %s; %s updated %s", mID, done, dID, updated),
+				Fix:      fmt.Sprintf("revise %s (set updated), or unlink it from %s", dID, mID),
+			})
+		}
+	}
+	return findings, nil
+}
+
+type designLink struct {
+	t      core.Type
+	target string
+}
+
+// linkedDesigns lists the distinct designs a milestone's frontmatter links.
+func linkedDesigns(fm map[string]any) []designLink {
+	var out []designLink
+	seen := map[string]bool{}
+	add := func(t core.Type, raw string) {
+		target := core.BareID(t, raw)
+		if key := string(t) + "." + target; target != "" && !seen[key] {
+			seen[key] = true
+			out = append(out, designLink{t, target})
+		}
+	}
+	for _, f := range []struct {
+		field string
+		t     core.Type
+	}{{"product_design", core.TypeProductDesign}, {"system_design", core.TypeSystemDesign}} {
+		if s, _ := fm[f.field].(string); s != "" {
+			add(f.t, s)
+		}
+	}
+	rel, _ := fm["related"].([]any)
+	for _, r := range rel {
+		s, _ := r.(string)
+		s = core.UnwrapWikilink(s)
+		for _, t := range []core.Type{core.TypeComponentDesign, core.TypeSystemDesign, core.TypeProductDesign} {
+			if strings.HasPrefix(s, string(t)+".") {
+				add(t, s)
+			}
+		}
+	}
+	return out
+}
+
+var (
+	backtickToken = regexp.MustCompile("`([^`\\n]+)`")
+	repoPathToken = regexp.MustCompile(`^[A-Za-z0-9_./-]+\.(go|md|sh|json|ya?ml|tmpl|toml)$`)
+)
+
+// checkDesignCodeRefMissing flags a backticked repo path in a design body of
+// the project that does not exist under repoRoot. An empty root examines nothing.
+func checkDesignCodeRefMissing(v *core.Vault, projectSlug, repoRoot string) []doctorFinding {
+	if projectSlug == "" || repoRoot == "" {
+		return nil
+	}
+	var findings []doctorFinding
+	for _, t := range []core.Type{core.TypeComponentDesign, core.TypeSystemDesign, core.TypeProductDesign} {
+		paths, err := collectArtifactPaths(v.Root, t)
+		if err != nil {
+			continue
+		}
+		for _, p := range paths {
+			a, err := core.LoadArtifact(p)
+			if err != nil {
+				continue // unreadable: validate's domain
+			}
+			if proj, _ := a.FrontMatter["project"].(string); proj != projectSlug {
+				continue
+			}
+			id := listIDFor(t, p)
+			seen := map[string]bool{}
+			for _, m := range backtickToken.FindAllStringSubmatch(a.Body, -1) {
+				ref := m[1]
+				if seen[ref] || !strings.Contains(ref, "/") || strings.ContainsAny(ref, "*<>{") || !repoPathToken.MatchString(ref) {
+					continue
+				}
+				seen[ref] = true
+				if _, err := os.Stat(filepath.Join(repoRoot, ref)); err == nil {
+					continue
+				}
+				findings = append(findings, doctorFinding{
+					Kind:     "design-code-ref-missing",
+					ID:       id,
+					Evidence: fmt.Sprintf("%s not in %s", ref, repoRoot),
+					Fix:      fmt.Sprintf("edit %s: fix or remove %s", id, ref),
+				})
+			}
+		}
+	}
+	return findings
 }

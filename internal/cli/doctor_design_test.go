@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -101,4 +102,131 @@ func TestDoctorCandidateMilestoneDoneEmptyProject(t *testing.T) {
 	if err != nil || len(got) != 0 {
 		t.Fatalf("got %+v, %v", got, err)
 	}
+}
+
+func seedDesign(t *testing.T, vault, dir, typ, name, updated, body string) {
+	t.Helper()
+	a := &core.Artifact{
+		Path: filepath.Join(vault, dir, name+".md"),
+		FrontMatter: map[string]any{
+			"type": typ, "title": name, "description": "d",
+			"created": "2026-01-01", "updated": updated, "project": "demo",
+		},
+		Body: body,
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDoctorDesignUntouchedAfterMilestone(t *testing.T) {
+	cases := []struct {
+		name    string
+		status  string
+		done    string
+		updated string
+		want    bool
+	}{
+		{"design older than done", "done", "2026-10-08", "2026-01-01", true},
+		{"design updated on done date", "done", "2026-10-08", "2026-10-08", false},
+		{"design updated after done", "done", "2026-10-08", "2026-10-09", false},
+		{"done milestone without date", "done", "", "2026-01-01", false},
+		{"milestone not done", "in-progress", "", "2026-01-01", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vault := setupVault(t)
+			writeFixtureMilestone(t, vault, "demo.loop", tc.status)
+			seedProductDesign(t, vault, "## Milestones\n")
+			setMilestoneFields(t, vault, "demo.loop", "Loop", tc.done)
+			m, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", "demo.loop.md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			// product_design and related name one design: one finding only.
+			m.FrontMatter["product_design"] = "[[product-design.demo]]"
+			m.FrontMatter["related"] = []any{"[[product-design.demo]]", "[[milestone.demo.other]]"}
+			if err := m.Save(); err != nil {
+				t.Fatal(err)
+			}
+			pd, err := core.LoadArtifact(filepath.Join(vault, "05-product-designs", "demo.md"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			pd.FrontMatter["updated"] = tc.updated
+			if err := pd.Save(); err != nil {
+				t.Fatal(err)
+			}
+			got, err := checkDesignUntouchedAfterMilestone(&core.Vault{Root: vault})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !tc.want {
+				if len(got) != 0 {
+					t.Fatalf("findings = %+v, want none", got)
+				}
+				return
+			}
+			if len(got) != 1 {
+				t.Fatalf("findings = %+v, want 1", got)
+			}
+			f := got[0]
+			if f.Kind != "design-untouched-after-milestone" || f.ID != "demo" ||
+				f.Evidence != "milestone milestone.demo.loop done 2026-10-08; demo updated 2026-01-01" {
+				t.Errorf("finding = %+v", f)
+			}
+		})
+	}
+}
+
+func TestDoctorDesignUntouchedAfterMilestoneEmptyVault(t *testing.T) {
+	got, err := checkDesignUntouchedAfterMilestone(&core.Vault{Root: setupVault(t)})
+	if err != nil || len(got) != 0 {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
+func TestDoctorDesignCodeRefMissing(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repo, "internal"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repo, "internal", "here.go"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		name string
+		body string
+		root string
+		want []string // missing paths reported
+	}{
+		{"missing path", "see `internal/gone.go`\n", repo, []string{"internal/gone.go"}},
+		{"existing path", "see `internal/here.go`\n", repo, nil},
+		{"duplicate reported once", "`a/b.go` and `a/b.go`\n", repo, []string{"a/b.go"}},
+		{"not path-shaped", "`here.go` `internal/*.go` `internal/<x>.go` `internal/{a}.go` `a/b` `go test ./...`\n", repo, nil},
+		{"empty root", "see `internal/gone.go`\n", "", nil},
+		{"no body refs", "plain prose\n", repo, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			vault := setupVault(t)
+			seedDesign(t, vault, "05-product-designs", "product-design", "demo", "2026-01-01", tc.body)
+			got := checkDesignCodeRefMissing(&core.Vault{Root: vault}, "demo", tc.root)
+			if len(got) != len(tc.want) {
+				t.Fatalf("findings = %+v, want %v", got, tc.want)
+			}
+			for i, f := range got {
+				if f.Kind != "design-code-ref-missing" || f.ID != "demo" || f.Evidence != tc.want[i]+" not in "+repo {
+					t.Errorf("finding = %+v", f)
+				}
+			}
+		})
+	}
+	t.Run("other project's design skipped", func(t *testing.T) {
+		vault := setupVault(t)
+		seedDesign(t, vault, "05-product-designs", "product-design", "demo", "2026-01-01", "`a/b.go`\n")
+		if got := checkDesignCodeRefMissing(&core.Vault{Root: vault}, "other", repo); len(got) != 0 {
+			t.Fatalf("findings = %+v, want none", got)
+		}
+	})
 }
