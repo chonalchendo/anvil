@@ -110,7 +110,7 @@ Per Anthropic's skill-building guide ("iterate on a single task before expanding
 
 1. **Identify a real recurring activity.** Not "someone might want this" — "I do this every week."
 2. **Do it for real with Claude Code.** Iterate until it works.
-3. **Run the meta-skill** (`bootstrapping-knowledge-skill` for knowledge bootstraps, `synthesizing-knowledge-skill` for refreshes).
+3. **Run the meta-skill** (`bootstrapping-knowledge-skill` for knowledge bootstraps, `synthesizing-knowledge-skill` for refreshes); workflow skills skip this and change through path 0 (`writing-issue` + a reviewed PR).
 4. **Meta-skill produces SKILL.md** via `writing-skills`.
 5. **Test before shipping.** 10-20 trigger-eval queries (mix of should-fire / should-NOT-fire), 3 runs each. Aim ≥90% on relevant, ≤10% on unrelated. Trigger-eval harness deferred to v0.2+; in v0.1 the authoring agent self-checks the trigger contract.
 6. **Iterate on real use.** Skills are living. Each gap → learning; refresh periodically.

@@ -522,12 +522,15 @@ func TestInstallSkills_CopyModePrunesRemovedSkill(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	changed, err := InstallSkills(fakeSkillsFS(), mat, target, true, false)
+	changed, err := PruneOrphanedSkills(fakeSkillsFS(), mat, target)
 	if err != nil {
-		t.Fatalf("install bundle B: %v", err)
+		t.Fatalf("prune bundle B: %v", err)
 	}
 	if !changed {
 		t.Error("pruning a removed skill should report changed=true")
+	}
+	if again, err := PruneOrphanedSkills(fakeSkillsFS(), mat, target); err != nil || again {
+		t.Errorf("second prune = (%v, %v), want (false, nil)", again, err)
 	}
 	if _, err := os.Lstat(filepath.Join(target, "dead-skill")); !os.IsNotExist(err) {
 		t.Errorf("removed skill dir should be pruned; lstat err = %v", err)

@@ -273,9 +273,9 @@ func removeOneSkill(materialiseDir, target, name string) (bool, error) {
 	return true, nil
 }
 
-// PruneOrphanedSkills removes anvil-owned symlinks in target that are absent
-// from the current bundle in srcFS. Foreign entries and non-anvil-owned
-// symlinks are never touched. It is safe to call when InstallSkills was
+// PruneOrphanedSkills removes anvil-owned symlinks and marker-carrying copied
+// dirs in target that are absent from the current bundle in srcFS. Foreign
+// entries and non-anvil-owned symlinks are never touched. It is safe to call when InstallSkills was
 // skipped (e.g. bundle hash is fresh) — the prune reconciles target to match
 // the current bundle regardless.
 func PruneOrphanedSkills(srcFS fs.FS, materialiseDir, target string) (bool, error) {
