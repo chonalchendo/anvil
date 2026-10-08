@@ -285,6 +285,7 @@ func newTransitionCmd() *cobra.Command {
 				if err := doLandPR(cmd.ErrOrStderr(), v, a, id, landPRNum, worktreeOverride, localValidated); err != nil {
 					return printAndReturn(cmd, err)
 				}
+				stampLandCost(cmd.ErrOrStderr(), a, id, landPRNum)
 				a.Body += postLandRedNote(runPostLandBlocks(cmd.ErrOrStderr(), a.Body), a.Body)
 			}
 
@@ -386,7 +387,7 @@ func newTransitionCmd() *cobra.Command {
 						Set("issue", id).
 						Set("pr", landPRNum).
 						Set("error", err.Error()).
-						Set("fix_hint", fmt.Sprintf("PR #%d is merged but vault save failed; run `anvil set issue %s status resolved` to repair", landPRNum, id)))
+						Set("fix_hint", fmt.Sprintf("PR #%d is merged but vault save failed; run `anvil set issue %s status resolved` to repair; then `anvil cost %s --json` for the numbers", landPRNum, id, id)))
 				}
 				return fmt.Errorf("saving: %w", err)
 			}
