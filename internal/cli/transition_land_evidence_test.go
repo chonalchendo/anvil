@@ -18,6 +18,7 @@ const (
 func passingEvidence() landEvidence {
 	return landEvidence{
 		id: "issue.demo.foo", lock: "L", currentLock: "L", branch: "demo/foo",
+		body: "## Review findings — PR 42, round 1 @ 0123456\n\nFindings: 0\n",
 	}
 }
 
@@ -106,7 +107,7 @@ func TestLandEvidenceSkippedWhenAlreadyMerged(t *testing.T) {
 	}
 }
 
-const landCleanBody = "## Problem\n\nfixture.\n\n## Non-goals\n\n- none\n\n## Verification\n\n### Direct\n\n```bash\n%s\n```\n\n### Indirect\n\n```bash\ntrue\n```\n\n## Links\n\n- none\n"
+const landCleanBody = "## Problem\n\nfixture.\n\n## Non-goals\n\n- none\n\n## Verification\n\n### Direct\n\n```bash\n%s\n```\n\n### Indirect\n\n```bash\ntrue\n```\n\n## Links\n\n- none\n\n## Review findings — PR 42, round 1 @ %r\n\nFindings: 0\n"
 
 // landCleanFixture claims an issue whose Direct block is direct, builds a temp
 // repo as the main root, and points the PR head at its commit. The real clean
@@ -118,21 +119,22 @@ func landCleanFixture(t *testing.T, direct string) (s *sideFXStub, repo, sha, wt
 	t.Setenv("ANVIL_VAULT", vault)
 	execCmd(t, "init", vault)
 	createDemoIssue(t)
+	repo = t.TempDir()
+	gitIn(t, repo, "init", "-q")
+	gitIn(t, repo, "commit", "-q", "--allow-empty", "-m", "init")
+	sha = gitIn(t, repo, "rev-parse", "HEAD")
+
 	path := filepath.Join(vault, "70-issues", "demo.foo.md")
 	a, err := core.LoadArtifact(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	a.Body = strings.Replace(landCleanBody, "%s", direct, 1)
+	a.Body = strings.Replace(a.Body, "%r", sha[:7], 1)
 	if err := a.Save(); err != nil {
 		t.Fatal(err)
 	}
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
-
-	repo = t.TempDir()
-	gitIn(t, repo, "init", "-q")
-	gitIn(t, repo, "commit", "-q", "--allow-empty", "-m", "init")
-	sha = gitIn(t, repo, "rev-parse", "HEAD")
 
 	s = stubSideFX(t)
 	s.mainRoot = repo
@@ -263,9 +265,10 @@ func TestLandPRCleanFetchFailureWarnsAndRuns(t *testing.T) {
 }
 
 func TestLandPRCleanFetchFailureNamesCauseWhenShaMissing(t *testing.T) {
-	s, _, _, wt := landCleanFixture(t, "true")
+	s, _, sha, wt := landCleanFixture(t, "true")
 	s.fetchErr = errors.New("network down")
-	s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
+	// Shares the reviewed prefix but names no commit in the repo.
+	s.viewByField[landHeadFields] = headJSON(sha[:7]+strings.Repeat("f", 33), "demo/foo")
 	out, _, err := runCmd(t, newRootCmd(), landCleanArgs(wt)...)
 	if err == nil || !strings.Contains(out, "verify_at_unresolved") || !strings.Contains(out, "network down") || len(s.mergeCalls) != 0 {
 		t.Fatalf("err=%v merges=%v out=%s", err, s.mergeCalls, out)

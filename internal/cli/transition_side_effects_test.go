@@ -2146,7 +2146,7 @@ func TestLandPRChdirsToRootBeforeWorktreeRemoval(t *testing.T) {
 		return nil
 	}
 
-	if err := landPR(&bytes.Buffer{}, 42, deadCwd, false, passingEvidence(), landClean{}); err != nil {
+	if err := landPR(&bytes.Buffer{}, 42, deadCwd, false, passingEvidence(), landClean{a: &core.Artifact{FrontMatter: map[string]any{}}}); err != nil {
 		t.Fatalf("landPR returned error: %v", err)
 	}
 	if substepErr != nil {

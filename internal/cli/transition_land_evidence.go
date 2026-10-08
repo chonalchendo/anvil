@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
@@ -15,14 +16,14 @@ import (
 // another lock or branch is void. The verdict is not read from the issue: the
 // land earns its own on a clean checkout of the PR head.
 type landEvidence struct {
-	id, lock, currentLock, branch string
+	id, lock, currentLock, branch, body string
 }
 
 func newLandEvidence(a *core.Artifact, id, project, slug string) landEvidence {
 	lock, _ := a.FrontMatter["verification_lock"].(string)
 	return landEvidence{
 		id: id, lock: lock, currentLock: core.VerificationLock(a.Body),
-		branch: project + "/" + slug,
+		branch: project + "/" + slug, body: a.Body,
 	}
 }
 
@@ -67,7 +68,29 @@ func (e landEvidence) check(num int, worktreePath string, alreadyMerged bool) (l
 			Set("pr_branch", head.HeadRefName).Set("issue_branch", e.branch).
 			Set("fix_hint", "pass the PR opened from "+e.branch+", or pass --worktree <path> when the issue worktree uses a renamed branch")
 	}
-	return h, nil
+	return h, e.checkReview(num, h)
+}
+
+// checkReview refuses a land with no review round, a round for another head,
+// or a round that still holds a blocking finding. The sha match is a prefix
+// match: the round records the abbreviated head.
+func (e landEvidence) checkReview(num int, h landHead) error {
+	rr, ok := latestReviewRound(e.body, num)
+	switch {
+	case !ok:
+		return errfmt.NewStructured("land_pr_review_missing").
+			Set("issue", e.id).Set("pr", num).
+			Set("fix_hint", "fire reviewing-pr on the PR; it persists the round on the issue")
+	case !strings.HasPrefix(h.oid, rr.sha):
+		return errfmt.NewStructured("land_pr_review_stale").
+			Set("reviewed", rr.sha).Set("head", h.oid).
+			Set("fix_hint", "fire a fresh reviewing-pr round at the PR head")
+	case rr.blocked:
+		return errfmt.NewStructured("land_pr_review_blocked").
+			Set("round", rr.round).
+			Set("fix_hint", "dispatch the responder, then a confirming reviewing-pr round")
+	}
+	return nil
 }
 
 // landCleanRunFn is a seam: land tests that stop short of verification stub it.
