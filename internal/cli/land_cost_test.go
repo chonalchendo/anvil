@@ -91,3 +91,42 @@ func TestLandPRCostViewFailureWarnsAndResolves(t *testing.T) {
 		}
 	}
 }
+
+func TestLandPRCostSkipsURLFetchWhenLinked(t *testing.T) {
+	s, vault := landCostSetup(t)
+	s.viewByField["additions,deletions,changedFiles"] = []byte(`{"additions":100,"deletions":53,"changedFiles":2}`)
+	execCmd(t, "link", "issue", landCostID, "--external", "https://github.com/o/r/pull/42")
+
+	execCmd(t, "transition", "issue", landCostID, "resolved", "--land-pr", "42")
+
+	for _, f := range s.viewCalls {
+		if f == "url" {
+			t.Errorf("url view fetched although the pr is linked: %v", s.viewCalls)
+		}
+	}
+	a := loadIssueDoc(t, vault, landCostID)
+	if links, _ := a.FrontMatter["external_links"].([]any); len(links) != 1 {
+		t.Errorf("external_links = %v, want 1 entry", links)
+	}
+	if a.FrontMatter["cost_rounds"] != 2 {
+		t.Errorf("cost_rounds = %v, want 2", a.FrontMatter["cost_rounds"])
+	}
+}
+
+func TestLandPRCostURLFetchFailureStillStamps(t *testing.T) {
+	s, vault := landCostSetup(t)
+	s.viewByField["additions,deletions,changedFiles"] = []byte(`{"additions":100,"deletions":53,"changedFiles":2}`)
+	s.viewByFieldE["url"] = errors.New("boom")
+
+	_, errOut, err := runCmd(t, newRootCmd(), "transition", "issue", landCostID, "resolved", "--land-pr", "42")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errOut, "warning: land-pr 42: pr url not linked") {
+		t.Errorf("stderr = %q, want the url warning", errOut)
+	}
+	a := loadIssueDoc(t, vault, landCostID)
+	if a.FrontMatter["cost_tokens"] != 1010 {
+		t.Errorf("cost_tokens = %v, want 1010", a.FrontMatter["cost_tokens"])
+	}
+}
