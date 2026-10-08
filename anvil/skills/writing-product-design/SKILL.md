@@ -47,6 +47,8 @@ Six phases plus two half-phases, each with an explicit user gate — gates are t
 
 The per-phase procedure — drafting instructions, voice checks, gate criteria — lives in the reference below. The quick-reference table is the phase index; load the reference before drafting Phase 1.
 
+**REQUIRED REFERENCE:** Use `convention.design` §Design from first principles (`anvil show convention design --body`) before shaping. Refuse a draft whose components precede its needs.
+
 **REQUIRED REFERENCE:** Use skills/writing-product-design/references/phases.md
 
 ## Quick reference
