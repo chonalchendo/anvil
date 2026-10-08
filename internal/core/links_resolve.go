@@ -469,11 +469,8 @@ func LinkTargetsOfType(a *Artifact, linkType Type) []string {
 	prefix := "[[" + string(linkType) + "."
 	seen := make(map[string]bool)
 	targets := make([]string, 0)
-	add := func(s string) {
-		if !strings.HasPrefix(s, prefix) || !strings.HasSuffix(s, "]]") {
-			return
-		}
-		if t := s[2 : len(s)-2]; t != "" && !seen[t] {
+	add := func(t string) {
+		if t != "" && !seen[t] {
 			seen[t] = true
 			targets = append(targets, t)
 		}
@@ -481,17 +478,19 @@ func LinkTargetsOfType(a *Artifact, linkType Type) []string {
 	for _, fmval := range a.FrontMatter {
 		switch typed := fmval.(type) {
 		case string:
-			add(typed)
+			if strings.HasPrefix(typed, prefix) && strings.HasSuffix(typed, "]]") {
+				add(typed[2 : len(typed)-2])
+			}
 		case []any:
 			for _, elem := range typed {
-				if s, ok := elem.(string); ok {
-					add(s)
+				if s, ok := elem.(string); ok && strings.HasPrefix(s, prefix) && strings.HasSuffix(s, "]]") {
+					add(s[2 : len(s)-2])
 				}
 			}
 		}
 	}
 	for _, t := range BodyWikilinkTargetsOfType(a.Body, linkType) {
-		add("[[" + t + "]]")
+		add(t)
 	}
 	sort.Strings(targets)
 	return targets
