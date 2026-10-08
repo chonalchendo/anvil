@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" style="color-scheme: dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{block "title" .}}anvil{{end}}</title>
+<link rel="preload" href="{{asset "inter.woff2"}}" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="{{asset "anvil.css"}}">
+</head>
+<body>
+<aside class="sidebar">
+  <a class="brand" href="/">anvil</a>
+  <nav aria-label="Types">
+    {{range .Types}}<a href="/type/{{.}}">{{.}}</a>{{end}}
+  </nav>
+  <span class="hint"><kbd>⌘</kbd><kbd>K</kbd></span>
+</aside>
+<main>{{block "content" .}}{{end}}</main>
+<dialog id="palette"><input id="palette-q" type="search" placeholder="Jump to…" aria-label="Jump to an artifact"><ul id="palette-list"></ul></dialog>
+<script>
+(function () {
+  var dlg = document.getElementById('palette'), q = document.getElementById('palette-q'),
+      list = document.getElementById('palette-list'), entries = null, cur = 0;
+  function show() {
+    var s = q.value.toLowerCase(), n = 0;
+    list.textContent = '';
+    (entries || []).forEach(function (e) {
+      if (n >= 30 || (e.key + ' ' + e.title).toLowerCase().indexOf(s) < 0) return;
+      var li = document.createElement('li'); li.textContent = e.key + '  ' + e.title; li.dataset.key = e.key;
+      if (n === cur) li.setAttribute('aria-selected', 'true');
+      list.appendChild(li); n++;
+    });
+  }
+  function open() {
+    dlg.showModal(); q.value = ''; cur = 0;
+    if (entries) return show();
+    fetch('/palette').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (j) { entries = j; show(); }).catch(function () { /* entries stays unset: the next open retries */ });
+  }
+  q.addEventListener('input', function () { cur = 0; show(); });
+  q.addEventListener('keydown', function (ev) {
+    var items = list.children;
+    if (ev.key === 'ArrowDown' && cur < items.length - 1) cur++;
+    else if (ev.key === 'ArrowUp' && cur > 0) cur--;
+    else if (ev.key === 'Enter' && items[cur]) { location.href = '/artifact/' + encodeURIComponent(items[cur].dataset.key); return; }
+    else return;
+    ev.preventDefault(); show();
+  });
+  var layers = function () { return Array.prototype.slice.call(document.querySelectorAll('details.layer')); }, at = -1;
+  function focusLayer(i) { var l = layers(); if (!l.length) return; at = Math.max(0, Math.min(l.length - 1, i)); l[at].querySelector('summary').focus(); }
+  document.addEventListener('keydown', function (ev) {
+    if (ev.metaKey && ev.key.toLowerCase() === 'k') { ev.preventDefault(); open(); return; }
+    if (dlg.open || ev.metaKey || ev.ctrlKey || ev.altKey || /^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) return;
+    var l = layers();
+    if (ev.key === 'j') focusLayer(at + 1);
+    else if (ev.key === 'k') focusLayer(at - 1);
+    else if (ev.key === 'o' && l[at]) l[at].open = !l[at].open;
+    else if (ev.key === 'O') l.forEach(function (d) { d.open = true; });
+    else if (ev.key === 'C') l.forEach(function (d) { d.open = false; });
+  });
+})();
+</script>
+</body>
+</html>
+{{define "ref"}}{{if .Href}}<a href="{{.Href}}">{{.Text}}</a>{{else if .Plain}}<span>{{.Text}}</span>{{else}}<span class="unresolved">{{.Text}}</span>{{end}}{{end}}
