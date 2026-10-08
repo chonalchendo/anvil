@@ -7,8 +7,8 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-// issueCost holds the four cost_* fields an issue carries once landed.
-type issueCost struct {
+// costFields holds the four cost_* fields an issue carries once landed.
+type costFields struct {
 	Rounds int `json:"rounds"`
 	Diff   int `json:"diff"`
 	Files  int `json:"files"`
@@ -18,13 +18,13 @@ type issueCost struct {
 // milestoneIssueRow is one issue of a milestone; Cost is nil unless all four
 // cost fields are present.
 type milestoneIssueRow struct {
-	ID     string     `json:"id"`
-	Status string     `json:"status"`
-	Cost   *issueCost `json:"cost"`
+	ID     string      `json:"id"`
+	Status string      `json:"status"`
+	Cost   *costFields `json:"cost"`
 }
 
-type costTotal struct {
-	issueCost
+type milestoneCostTotal struct {
+	costFields
 	Costed int `json:"costed"`
 	Issues int `json:"issues"`
 }
@@ -32,9 +32,9 @@ type costTotal struct {
 // milestoneCostRows returns the issues linked to ms (bare slug) sorted by id,
 // and the sum of their costed rows. A file that fails to load is skipped; the
 // first such error is returned beside the rows that did load.
-func milestoneCostRows(v *core.Vault, ms string) ([]milestoneIssueRow, costTotal, error) {
+func milestoneCostRows(v *core.Vault, ms string) ([]milestoneIssueRow, milestoneCostTotal, error) {
 	rows := []milestoneIssueRow{}
-	var total costTotal
+	var total milestoneCostTotal
 	paths, err := collectArtifactPaths(v.Root, core.TypeIssue)
 	if err != nil {
 		return rows, total, err
@@ -74,7 +74,7 @@ func (r milestoneIssueRow) unfinished() bool {
 	return r.Status != "resolved" && r.Status != "abandoned"
 }
 
-func costFromFrontMatter(fm map[string]any) *issueCost {
+func costFromFrontMatter(fm map[string]any) *costFields {
 	var vals [4]int
 	for i, k := range []string{"cost_rounds", "cost_diff", "cost_files", "cost_tokens"} {
 		n, ok := fm[k].(int)
@@ -83,7 +83,7 @@ func costFromFrontMatter(fm map[string]any) *issueCost {
 		}
 		vals[i] = n
 	}
-	return &issueCost{vals[0], vals[1], vals[2], vals[3]}
+	return &costFields{vals[0], vals[1], vals[2], vals[3]}
 }
 
 func (r milestoneIssueRow) line() string {

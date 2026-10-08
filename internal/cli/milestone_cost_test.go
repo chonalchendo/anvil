@@ -32,9 +32,9 @@ func TestMilestoneStatus_CostRowsAndTotal(t *testing.T) {
 	var got struct {
 		Issues []struct {
 			ID, Status string
-			Cost       *issueCost
+			Cost       *costFields
 		}
-		CostTotal costTotal `json:"cost_total"`
+		CostTotal milestoneCostTotal `json:"cost_total"`
 	}
 	out := execCmdJSON(t, "milestone", "status", "demo.m1", "--json")
 	if err := jsonUnmarshal(t, strings.TrimSpace(out), &got); err != nil {
@@ -43,7 +43,7 @@ func TestMilestoneStatus_CostRowsAndTotal(t *testing.T) {
 	if len(got.Issues) != 3 || got.Issues[0].Cost == nil || got.Issues[1].Cost != nil || got.Issues[2].Cost != nil {
 		t.Fatalf("rows mismatch: %+v", got.Issues)
 	}
-	want := costTotal{issueCost{2, 153, 2, 1010}, 1, 3}
+	want := milestoneCostTotal{costFields{2, 153, 2, 1010}, 1, 3}
 	if got.CostTotal != want {
 		t.Fatalf("cost_total = %+v, want %+v", got.CostTotal, want)
 	}

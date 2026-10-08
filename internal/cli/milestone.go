@@ -89,7 +89,7 @@ func newMilestoneStatusCmd() *cobra.Command {
 					Done       bool                `json:"done"`
 					Acceptance []acceptanceResult  `json:"acceptance"`
 					Issues     []milestoneIssueRow `json:"issues"`
-					CostTotal  costTotal           `json:"cost_total"`
+					CostTotal  milestoneCostTotal  `json:"cost_total"`
 				}{st, done, acceptance, rows, total})
 			}
 			cmd.Printf("%s\t%d/%d resolved\tdone=%t\n", st.Milestone, st.Resolved, st.Total, done)
