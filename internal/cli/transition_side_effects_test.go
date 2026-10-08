@@ -1723,7 +1723,7 @@ func TestLandPRSaveFailureSurfacesRecovery(t *testing.T) {
 	if !strings.Contains(stdout.String(), "land_pr_succeeded_save_failed") {
 		t.Errorf("missing structured code: %s", stdout.String())
 	}
-	if !strings.Contains(stdout.String(), "anvil set issue issue.demo.foo status resolved") {
+	if !strings.Contains(stdout.String(), "anvil set issue issue.demo.foo status resolved --force --reason") {
 		t.Errorf("missing recovery hint: %s", stdout.String())
 	}
 }

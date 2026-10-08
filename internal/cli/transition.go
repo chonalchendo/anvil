@@ -388,7 +388,7 @@ func newTransitionCmd() *cobra.Command {
 						Set("issue", id).
 						Set("pr", landPRNum).
 						Set("error", err.Error()).
-						Set("fix_hint", fmt.Sprintf("PR #%d is merged but vault save failed; run `anvil set issue %s status resolved` to repair; then `anvil cost %s --json` for the numbers", landPRNum, id, id)))
+						Set("fix_hint", fmt.Sprintf("PR #%d is merged but vault save failed; run `anvil set issue %s status resolved --force --reason \"land-pr merged, vault save failed\"` to repair; then `anvil cost %s --json` for the numbers", landPRNum, id, id)))
 				}
 				return fmt.Errorf("saving: %w", err)
 			}

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -20,9 +21,19 @@ func guardStatusSet(cmd *cobra.Command, a *core.Artifact, t core.Type, id string
 	}
 	fromS, _ := from.(string)
 	if !force {
-		hint := fmt.Sprintf("anvil transition %s %s %s", t, id, to)
-		if _, err := core.LookupTransition(t, fromS, to); err != nil {
-			hint = fmt.Sprintf("anvil set %s %s status %s --force --reason \"<why>\"", t, id, to)
+		hint := fmt.Sprintf("anvil set %s %s status %s --force --reason \"<why>\"", t, id, to)
+		if tr, err := core.LookupTransition(t, fromS, to); err == nil {
+			hint = fmt.Sprintf("anvil transition %s %s %s", t, id, to)
+			for _, f := range tr.Requires {
+				if f == "reason" {
+					hint += ` --reason "<why>"`
+				} else {
+					hint += fmt.Sprintf(" --%s <%s>", f, f)
+				}
+			}
+			if tr.Reverse && !strings.Contains(hint, "--reason") {
+				hint += ` --reason "<why>"`
+			}
 		}
 		return printAndReturn(cmd, errfmt.NewStructured("status_via_set").
 			Set("type", string(t)).
@@ -41,6 +52,21 @@ func guardStatusSet(cmd *cobra.Command, a *core.Artifact, t core.Type, id string
 	if !strings.HasSuffix(a.Body, "\n") {
 		a.Body += "\n"
 	}
-	a.Body += fmt.Sprintf("\n> status %s → %s --force %s: %s\n", fromS, to, time.Now().UTC().Format("2006-01-02"), reason)
+	who := os.Getenv(envSessionID)
+	if who == "" {
+		who = "unknown"
+	}
+	a.Body += fmt.Sprintf("\n> status %s → %s --force %s by %s: %s\n", fromS, to, time.Now().UTC().Format("2006-01-02"), who, reason)
 	return nil
+}
+
+// refuseForceOnOtherField stops --force/--reason from being silently ignored
+// on a field that is not status.
+func refuseForceOnOtherField(cmd *cobra.Command, field string, force bool, reason string) error {
+	if field == "status" || (!force && reason == "") {
+		return nil
+	}
+	return printAndReturn(cmd, errfmt.NewStructured("force_status_only").
+		Set("field", field).
+		Set("fix_hint", "--force and --reason apply only to the status field; drop them"))
 }

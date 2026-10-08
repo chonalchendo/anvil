@@ -74,6 +74,10 @@ func newSetCmd() *cobra.Command {
 				return fmt.Errorf("positional values cannot be combined with --remove")
 			}
 
+			if ferr := refuseForceOnOtherField(cmd, field, flagForce, flagReason); ferr != nil {
+				return ferr
+			}
+
 			kind, err := schema.FieldKind(string(t), field)
 			if err != nil {
 				return fmt.Errorf("schema lookup: %w", err)
@@ -122,11 +126,6 @@ func newSetCmd() *cobra.Command {
 						return rerr
 					}
 					sv = resolved
-				}
-				if field == "status" {
-					if gerr := guardStatusSet(cmd, a, t, id, prev, sv, flagForce, flagReason); gerr != nil {
-						return gerr
-					}
 				}
 				isInt, ierr := schema.FieldIsInteger(string(t), field)
 				if ierr != nil {
@@ -304,6 +303,12 @@ func newSetCmd() *cobra.Command {
 			if !fieldUnset {
 				if err := schema.ValidateField(string(t), field, a.FrontMatter[field]); err != nil {
 					return renderSchemaErr(cmd, v, path, err, flagJSON)
+				}
+			}
+			if field == "status" && !fieldUnset {
+				to, _ := a.FrontMatter[field].(string)
+				if gerr := guardStatusSet(cmd, a, t, id, prev, to, flagForce, flagReason); gerr != nil {
+					return gerr
 				}
 			}
 			if err := a.Save(); err != nil {
