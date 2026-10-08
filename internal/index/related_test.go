@@ -26,7 +26,7 @@ func seedRelated(t *testing.T, db *DB) {
 		{"d", "milestone", []string{"domain/cli"}},
 	}
 	for _, r := range rows {
-		if err := db.UpsertArtifact(ArtifactRow{ID: r.id, Type: r.typ, Status: "open", Project: "demo", Path: "/p/" + r.id + ".md"}); err != nil {
+		if err := db.UpsertArtifact(ArtifactRow{ID: r.id, Type: r.typ, Status: "open", Project: "demo", Path: "/p/" + r.id + ".md", Title: "T-" + r.id}); err != nil {
 			t.Fatalf("upsert %s: %v", r.id, err)
 		}
 		if err := db.ReplaceTags(r.id, r.tags); err != nil {
@@ -47,9 +47,9 @@ func TestRelatedByIDRanksAndExcludesSeed(t *testing.T) {
 		t.Fatalf("RelatedByID: %v", err)
 	}
 	want := []RelatedRow{
-		{ArtifactRow: ArtifactRow{ID: "d", Type: "milestone", Status: "open", Project: "demo", Path: "/p/d.md"}, Score: 3, SharedTags: []string{"domain/cli"}, Links: []string{"related"}},
-		{ArtifactRow: ArtifactRow{ID: "a", Type: "learning", Status: "open", Project: "demo", Path: "/p/a.md"}, Score: 2, SharedTags: []string{"activity/issue", "domain/cli"}},
-		{ArtifactRow: ArtifactRow{ID: "b", Type: "issue", Status: "open", Project: "demo", Path: "/p/b.md"}, Score: 1, SharedTags: []string{"domain/cli"}},
+		{ArtifactRow: ArtifactRow{ID: "d", Type: "milestone", Status: "open", Project: "demo", Path: "/p/d.md", Title: "T-d"}, Score: 3, SharedTags: []string{"domain/cli"}, Links: []string{"related"}},
+		{ArtifactRow: ArtifactRow{ID: "a", Type: "learning", Status: "open", Project: "demo", Path: "/p/a.md", Title: "T-a"}, Score: 2, SharedTags: []string{"activity/issue", "domain/cli"}},
+		{ArtifactRow: ArtifactRow{ID: "b", Type: "issue", Status: "open", Project: "demo", Path: "/p/b.md", Title: "T-b"}, Score: 1, SharedTags: []string{"domain/cli"}},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Fatalf("RelatedByID mismatch (-want +got):\n%s", diff)
@@ -86,6 +86,9 @@ func TestRelatedByTagsCountsMatchesIncludingSeed(t *testing.T) {
 	}
 	if diff := cmp.Diff(wantIDs, gotIDs); diff != "" {
 		t.Fatalf("RelatedByTags order mismatch (-want +got):\n%s", diff)
+	}
+	if got[0].Title != "T-a" {
+		t.Fatalf("got[0].Title = %q, want T-a", got[0].Title)
 	}
 	if got[0].Score != 2 || got[2].Score != 1 {
 		t.Fatalf("scores: a=%d b=%d, want 2 and 1", got[0].Score, got[2].Score)
