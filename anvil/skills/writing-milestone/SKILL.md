@@ -73,11 +73,13 @@ The human promotes or drops each routed item. The `## Links` section of the mile
 anvil create milestone --title "<title>" --description "<one-line preview>" --goal "<terminal predicate>" --acceptance "<criterion>" --json
 ```
 
-`--acceptance` repeats, one per Phase 2 criterion. A bucket passes `--kind bucket` and no `--acceptance`. Capture `id` and `path` from the JSON output. From here on, `<id>` is the JSON `id` without its `milestone.` prefix, that is `<project>.<slug>`. After Phase 3, run `anvil link --to milestone.<id>` to list the exact set the gate refuses on.
+`--acceptance` repeats, one per Phase 2 criterion. A bucket passes `--kind bucket` and no `--acceptance`. Capture `id` and `path` from the JSON output. From here on, `<id>` is the JSON `id` without its `milestone.` prefix, that is `<project>.<slug>`.
 
 If the JSON `warnings[]` carries a `kind: validation` entry, the milestone was written but its body needs revising — fix it per the entry's `code`.
 
 Then direct-edit the body sections (shaped in Phase 2) into the file at `path`.
+
+Then run `anvil link --to milestone.<id>` to list the exact set the gate refuses on.
 
 ## Phase 4 — Link to design docs
 
@@ -88,7 +90,7 @@ anvil set milestone <id> system_design "[[system-design.<project>]]"
 
 `system_design` is the governing spine edge — issues scoped under it inherit that design as box grounding. Make an absent link an **explicit decision**, not a silent omission. Either attach the governing design, or affirm to the user that none governs this slice, before leaving the slot empty.
 
-`anvil doctor` flags a design that a done milestone links through `related` and whose `updated` predates the milestone's `done`. The `product_design` and `system_design` slots never flag. When the Design change names a text change to a design, link each design it names through `related`; run only the matching line.
+`anvil doctor` flags a design that a done milestone links through `related` and whose `updated` predates the milestone's `done`. The `product_design` and `system_design` slots never flag. When the Design change names a text change to a design, link that design through `related`. Run only the matching line.
 
 ```bash
 anvil link milestone <id> system-design <project>
