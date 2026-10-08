@@ -53,7 +53,8 @@ func landReviewSetup(t *testing.T, review string) (*sideFXStub, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a.Body = fixtureIssueBody[:strings.Index(fixtureIssueBody, "## Review findings")] + review
+	head, _, _ := strings.Cut(fixtureIssueBody, "## Review findings")
+	a.Body = head + review
 	if err := a.Save(); err != nil {
 		t.Fatal(err)
 	}
