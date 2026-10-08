@@ -293,12 +293,12 @@ func doLandPR(errW io.Writer, v *core.Vault, a *core.Artifact, id string, prNum 
 // non-default slug. The evidence check accepts such a renamed branch only when
 // it is checked out at the issue's own worktree path (the --worktree override
 // or the default path); any other head branch refuses as land_pr_not_issue_pr.
-// An already-MERGED PR skips the evidence check and the clean run, since
-// refusing after the merge would strand the issue. If neither path resolves to
-// a real worktree, landPR returns land_pr_worktree_missing before merging
-// rather than silently skipping removal — unless the PR is already MERGED (a
-// retry of an interrupted land), where a missing worktree is treated as
-// already cleaned.
+// An already-MERGED PR skips the evidence check (lock, branch, review) and
+// the clean run, since refusing after the merge would strand the issue. If
+// neither path resolves to a real worktree, landPR returns
+// land_pr_worktree_missing before merging rather than silently skipping
+// removal — unless the PR is already MERGED (a retry of an interrupted land),
+// where a missing worktree is treated as already cleaned.
 //
 // localValidated skips the ghPRChecks gate when the operator has already
 // validated the work locally (e.g. with `just check`) and required CI is
@@ -449,6 +449,11 @@ func landPR(errW io.Writer, num int, worktreePath string, localValidated bool, e
 			return errfmt.NewStructured("land_pr_merge_failed").Set("pr", num).Set("error", mergeErr.Error())
 		}
 		return errfmt.NewStructured("land_pr_state_not_merged").Set("pr", num).Set("state", finalState)
+	}
+	// A retry stamps review_head only from a clean round at this head; it
+	// never refuses, since the merge already happened.
+	if rr, ok := latestReviewRound(ev.body, num); !alreadyMerged || (ok && !rr.blocked && strings.HasPrefix(head.oid, rr.sha)) {
+		clean.a.FrontMatter["review_head"] = head.oid
 	}
 	// Worktree removal stays fatal: a failure here usually means uncommitted
 	// work in the worktree, and surfacing it lets the operator recover that work

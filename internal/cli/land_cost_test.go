@@ -27,7 +27,7 @@ func landCostSetup(t *testing.T) (*sideFXStub, string) {
 			"status": "open", "project": "demo", "severity": "medium",
 			"tags": []any{"domain/dev-tools"}, "goal": "fixture goal is done",
 		},
-		Body: fixtureIssueBody + "\n## Review findings — PR 42, round 1 @ a\n\nnone\n\n## Review findings — PR 42, round 2 @ b\n\nnone\n",
+		Body: fixtureIssueBody + "\n## Review findings — PR 42, round 2 @ " + landTestShort + "\n\nnone\n",
 	}
 	if err := a.Save(); err != nil {
 		t.Fatal(err)
