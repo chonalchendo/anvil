@@ -2,10 +2,10 @@
 # usage.sh — report token usage per model and per anvil agent type from local
 # Claude Code transcripts.
 #
-# Transcripts log one JSONL line per content block, so a naive sum over
-# `message.usage` overcounts roughly twofold: group by `message.id` and take the max of each
-# usage field, because only the last line of a message carries the final
-# `output_tokens`.
+# Transcripts log one JSONL line per content block, so each line repeats
+# `message.id`. A naive sum over `message.usage` overcounts roughly twofold.
+# Group by `message.id` and take the max of each usage field. Only the last
+# line of a message carries the final `output_tokens`.
 # Subagent transcripts sit under <project>/<session>/subagents/*.jsonl and
 # carry a structured `attributionAgent` field naming the dispatched agent
 # (e.g. "anvil-pr-responder"); that field is used verbatim as agent_type,

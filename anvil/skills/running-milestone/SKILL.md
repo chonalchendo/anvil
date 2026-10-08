@@ -103,7 +103,7 @@ The verb runs the issue's verification on a fresh checkout of the PR head and me
 
 After each landing, fast-forward the parent checkout to the base branch tip (`git pull --ff-only`). `milestone status` measures that checkout. Then re-read `fleet status --json` and `milestone status --json` from the vault. Never use session memory.
 
-The report reads each issue's cost from `issues[].cost` and the total from `cost_total`. Print `—` when `cost` is null. A landed issue with a null cost means the land skipped the stamp. Report it. Do not stamp it by hand.
+A landed issue with a null cost landed before the stamp shipped, or the land skipped it. Report it. Never stamp a cost by hand.
 
 - Open criteria remain: return to Phase 1.
 - The finish line is green: harvest learnings (Phase 8), then stop at the acceptance gate.
@@ -135,6 +135,8 @@ Exit: <none | 1 | 2 | 3> <reason>
 To land each ready PR:
   anvil transition issue <id> resolved --land-pr <n>
 ```
+
+The report reads each issue's cost from `issues[].cost` and the total from `cost_total`. Print `—` when `cost` is null.
 
 ## What NOT to do
 
