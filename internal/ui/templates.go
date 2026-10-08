@@ -5,7 +5,10 @@ import (
 	"embed"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"net/http"
+	"path"
+	"strings"
 )
 
 //go:embed templates
@@ -20,8 +23,16 @@ type pages map[string]*template.Template
 func loadPages(a assets) (pages, error) {
 	funcs := template.FuncMap{"asset": a.url}
 	out := pages{}
-	for _, name := range []string{"home", "artifact"} {
-		t, err := template.New("base.html").Funcs(funcs).ParseFS(templateFS, "templates/base.html", "templates/"+name+".html")
+	files, err := fs.Glob(templateFS, "templates/*.html")
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range files {
+		name := strings.TrimSuffix(path.Base(f), ".html")
+		if name == "base" {
+			continue
+		}
+		t, err := template.New("base.html").Funcs(funcs).ParseFS(templateFS, "templates/base.html", f)
 		if err != nil {
 			return nil, fmt.Errorf("parsing %s template: %w", name, err)
 		}

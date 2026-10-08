@@ -59,4 +59,4 @@ dialog::backdrop { background: var(--bg); opacity: 0.8; }
 dialog input { width: 100%; padding: 6px 8px; background: var(--bg); color: var(--text); border: 0; border-radius: var(--radius); box-shadow: 0 0 0 1px var(--border); font: inherit; }
 dialog ul { list-style: none; padding: 0; margin: 8px 0 0; max-height: 50vh; overflow-y: auto; }
 dialog li { padding: 4px 8px; border-radius: var(--radius); font-family: var(--mono); font-size: 12px; }
-dialog li[aria-selected="true"] { background: var(--sel); box-shadow: inset 2px 0 0 var(--accent); }
+dialog li[aria-selected="true"] { background: var(--sel); box-shadow: 0 0 0 1px var(--accent); }

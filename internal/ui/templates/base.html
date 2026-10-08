@@ -34,7 +34,7 @@
   function open() {
     dlg.showModal(); q.value = ''; cur = 0;
     if (entries) return show();
-    fetch('/palette').then(function (r) { return r.json(); }).then(function (j) { entries = j; show(); }).catch(function () { entries = []; });
+    fetch('/palette').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (j) { entries = j; show(); }).catch(function () { /* entries stays unset: the next open retries */ });
   }
   q.addEventListener('input', function () { cur = 0; show(); });
   q.addEventListener('keydown', function (ev) {
@@ -61,3 +61,4 @@
 </script>
 </body>
 </html>
+{{define "ref"}}{{if .Href}}<a href="{{.Href}}">{{.Text}}</a>{{else if .Plain}}<span>{{.Text}}</span>{{else}}<span class="unresolved">{{.Text}}</span>{{end}}{{end}}

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"io/fs"
 	"net/http"
+	"path"
 	"time"
 )
 
@@ -31,11 +32,31 @@ func loadAssets() (assets, error) {
 		if err != nil {
 			return a, err
 		}
-		sum := sha256.Sum256(b)
 		a.files[e.Name()] = b
-		a.ver[e.Name()] = hex.EncodeToString(sum[:])[:8]
+	}
+	// Fonts hash first: the CSS names them by versioned URL, so the CSS hash
+	// covers the font versions too.
+	for name, b := range a.files {
+		if path.Ext(name) == ".woff2" {
+			a.ver[name] = hash8(b)
+		}
+	}
+	css := a.files["anvil.css"]
+	for name := range a.ver {
+		css = bytes.ReplaceAll(css, []byte(`url("`+name+`")`), []byte(`url("`+name+`?v=`+a.ver[name]+`")`))
+	}
+	a.files["anvil.css"] = css
+	for name, b := range a.files {
+		if _, done := a.ver[name]; !done {
+			a.ver[name] = hash8(b)
+		}
 	}
 	return a, nil
+}
+
+func hash8(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])[:8]
 }
 
 // url is the template-facing `asset` func.

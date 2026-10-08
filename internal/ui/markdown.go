@@ -71,15 +71,56 @@ func (wr wikilinkRenderer) render(w util.BufWriter, _ []byte, n ast.Node, enteri
 	return ast.WalkContinue, nil
 }
 
-// markdown renders vault bodies. Raw HTML stays off (no html.WithUnsafe), so a
-// `<script>` in a body renders escaped.
+// rawHTMLRenderer writes raw HTML source as escaped text, so prose like
+// `<type>.<id>` stays visible instead of vanishing the way goldmark's default
+// "raw HTML omitted" comment would hide it.
+type rawHTMLRenderer struct{}
+
+func (rawHTMLRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
+	reg.Register(ast.KindRawHTML, renderRawHTML)
+	reg.Register(ast.KindHTMLBlock, renderHTMLBlock)
+}
+
+func renderRawHTML(w util.BufWriter, src []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
+	if !entering {
+		return ast.WalkContinue, nil
+	}
+	segs := n.(*ast.RawHTML).Segments
+	for i := range segs.Len() {
+		seg := segs.At(i)
+		_, _ = w.WriteString(html.EscapeString(string(seg.Value(src))))
+	}
+	return ast.WalkSkipChildren, nil
+}
+
+func renderHTMLBlock(w util.BufWriter, src []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
+	if !entering {
+		return ast.WalkContinue, nil
+	}
+	b := n.(*ast.HTMLBlock)
+	lines := b.Lines()
+	_, _ = w.WriteString("<p>")
+	for i := range lines.Len() {
+		seg := lines.At(i)
+		_, _ = w.WriteString(html.EscapeString(string(seg.Value(src))))
+	}
+	if b.HasClosure() {
+		seg := b.ClosureLine
+		_, _ = w.WriteString(html.EscapeString(string(seg.Value(src))))
+	}
+	_, _ = w.WriteString("</p>\n")
+	return ast.WalkSkipChildren, nil
+}
+
+// markdown renders vault bodies. Raw HTML stays off (no html.WithUnsafe) and
+// renders escaped, so a `<script>` in a body shows as text.
 type markdown struct{ md goldmark.Markdown }
 
 func newMarkdown(res resolver) markdown {
 	return markdown{md: goldmark.New(
 		goldmark.WithExtensions(extension.Table),
 		goldmark.WithParserOptions(parser.WithInlineParsers(util.Prioritized(wikilinkParser{}, 199))),
-		goldmark.WithRendererOptions(renderer.WithNodeRenderers(util.Prioritized(wikilinkRenderer{res}, 500))),
+		goldmark.WithRendererOptions(renderer.WithNodeRenderers(util.Prioritized(wikilinkRenderer{res}, 500), util.Prioritized(rawHTMLRenderer{}, 100))),
 	)}
 }
 

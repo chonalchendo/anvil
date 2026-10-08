@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"io"
 	"io/fs"
@@ -14,7 +15,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
 )
@@ -47,7 +47,7 @@ func seed(t *testing.T) (http.Handler, *core.Vault) {
 		"title":   "A decision",
 		"related": []any{"[[product-design.anvil]]", "[[milestone.anvil.m1]]"},
 	}, "See [[product-design.anvil]], [[thread.anvil-design-docs.0002-x]], [[learning.a-learning|the learning]] and [[thread.gone.0001-missing]].\n\n"+
-		"Code `[[product-design.anvil]]` stays literal.\n\n```\n[[product-design.anvil]]\n```\n\n<script>alert(1)</script>\n\nRun `anvil transition issue x resolved`.\n")
+		"Code `[[product-design.anvil]]` stays literal.\n\n```\n[[product-design.anvil]]\n```\n\n<script>alert(1)</script>\n\nPath is /artifact/<key> here.\n\nRun `anvil transition issue x resolved`.\n")
 	db, err := index.Open(index.DBPath(v.Root))
 	if err != nil {
 		t.Fatal(err)
@@ -115,6 +115,11 @@ func TestArtifactPage_RawHTMLEscapedCommandIsCode(t *testing.T) {
 	if strings.Contains(body, "<script>alert(1)") {
 		t.Error("body <script> rendered raw")
 	}
+	for _, want := range []string{"&lt;script&gt;", "&lt;key&gt;"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("raw HTML %s not escaped into visible text", want)
+		}
+	}
 	if !strings.Contains(body, "<code>anvil transition issue x resolved</code>") {
 		t.Error("command is not plain code text")
 	}
@@ -168,11 +173,17 @@ func TestHome_DarkShell(t *testing.T) {
 func TestStatic_VersionedAndImmutable(t *testing.T) {
 	h, _ := seed(t)
 	_, body := do(h, "GET", "/")
-	css, _ := staticFS.ReadFile("static/anvil.css")
-	sum := sha256.Sum256(css)
-	want := `/static/anvil.css?v=` + hex8(sum[:])
+	_, rewritten := do(h, "GET", "/static/anvil.css")
+	sum := sha256.Sum256([]byte(rewritten))
+	want := `/static/anvil.css?v=` + hex.EncodeToString(sum[:])[:8]
 	if !strings.Contains(body, want) {
 		t.Errorf("home lacks %s", want)
+	}
+	_, served := do(h, "GET", "/static/anvil.css")
+	font, _ := staticFS.ReadFile("static/inter.woff2")
+	fsum := sha256.Sum256(font)
+	if want := `url("inter.woff2?v=` + hex.EncodeToString(fsum[:])[:8] + `")`; !strings.Contains(served, want) {
+		t.Errorf("served css lacks versioned font %s", want)
 	}
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/static/inter.woff2?v=x", nil))
@@ -186,21 +197,12 @@ func TestStatic_VersionedAndImmutable(t *testing.T) {
 	}
 }
 
-func hex8(b []byte) string {
-	const digits = "0123456789abcdef"
-	out := make([]byte, 8)
-	for i := range 4 {
-		out[2*i], out[2*i+1] = digits[b[i]>>4], digits[b[i]&15]
-	}
-	return string(out)
-}
-
 func TestServe_RefusesNonLoopback(t *testing.T) {
 	for _, addr := range []string{"0.0.0.0:0", "192.168.1.5:7780", ":7780", "example.com:80", "nonsense"} {
 		err := Serve(context.Background(), nil, nil, addr, io.Discard)
-		var se *errfmt.Structured
-		if !errors.As(err, &se) || se.Code != "ui_addr_not_loopback" {
-			t.Errorf("Serve(%q) err = %v, want ui_addr_not_loopback", addr, err)
+		var nl *ErrAddrNotLoopback
+		if !errors.As(err, &nl) || nl.Addr != addr {
+			t.Errorf("Serve(%q) err = %v, want ErrAddrNotLoopback", addr, err)
 		}
 	}
 	for _, addr := range []string{"127.0.0.1:0", "localhost:0", "[::1]:0", "127.0.0.2:0"} {
@@ -272,7 +274,7 @@ func TestPackage_DoesNotImportCLI(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, dep := range strings.Fields(string(out)) {
-		if strings.HasSuffix(dep, "/internal/cli") {
+		if strings.Contains(dep, "/internal/cli") {
 			t.Errorf("internal/ui depends on %s", dep)
 		}
 	}

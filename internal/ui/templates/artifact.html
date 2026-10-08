@@ -13,4 +13,3 @@
 {{range .Out}}<h3>{{.Relation}}</h3><ul>{{range .Items}}<li>{{template "ref" .}}</li>{{end}}</ul>
 {{else}}<p class="muted">No outgoing links.</p>{{end}}</section>
 {{end}}{{end}}
-{{define "ref"}}{{if .Href}}<a href="{{.Href}}">{{.Text}}</a>{{else if .Plain}}<span>{{.Text}}</span>{{else}}<span class="unresolved">{{.Text}}</span>{{end}}{{end}}
