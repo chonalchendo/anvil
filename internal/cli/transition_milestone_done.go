@@ -96,8 +96,8 @@ func warnBaseUnchecked(cmd *cobra.Command, fl finishLine) {
 
 // gateMilestoneDone refuses `transition milestone done` while a linked issue is
 // unfinished, the checkout is off the default branch, or an acceptance
-// predicate is red. On success it rewrites the milestone body's `## Status`
-// block with the measured ledger; the caller saves.
+// predicate is red. On success it stamps the `done` date and rewrites the
+// milestone body's `## Status` block with the measured ledger; the caller saves.
 func gateMilestoneDone(cmd *cobra.Command, v *core.Vault, m *core.Artifact, id string) error {
 	open, err := unfinishedIssues(v, strings.TrimPrefix(id, "milestone."))
 	if err != nil {

@@ -24,23 +24,28 @@ func seedProductDesign(t *testing.T, vault, body string) {
 }
 
 func TestDoctorCandidateMilestoneDone(t *testing.T) {
-	list := "## Milestones\n\n- [[milestone.demo.loop]]\n"
 	cases := []struct {
 		name   string
 		status string
+		done   string
 		pd     string // empty means no product design
-		want   int
+		want   string // evidence suffix; empty means no finding
 	}{
-		{"done milestone still listed", "done", list, 1},
-		{"in-progress milestone listed", "in-progress", list, 0},
-		{"done milestone not listed", "done", "## Milestones\n\n- none\n", 0},
-		{"no Milestones section", "done", "## Other\n\n- [[milestone.demo.loop]]\n", 0},
-		{"no product design", "done", "", 0},
+		{"linked, done and dated", "done", "2026-10-08", "## Milestones\n\n- [[milestone.demo.loop]]\n", "(done 2026-10-08)"},
+		{"linked, done and undated", "done", "", "## Milestones\n\n- [[milestone.demo.loop]]\n", "(done date not stamped)"},
+		{"listed by title", "done", "2026-10-08", "## Milestones\n\n- Close the loop. Why: x\n", "(done 2026-10-08)"},
+		{"title with colon, mixed case", "done", "", "## Milestones\n\n- CLOSE THE LOOP: why\n", "(done date not stamped)"},
+		{"in-progress milestone listed", "in-progress", "", "## Milestones\n\n- [[milestone.demo.loop]]\n", ""},
+		{"done milestone not listed", "done", "", "## Milestones\n\n- none\n", ""},
+		{"nested evidence link", "done", "", "## Milestones\n\n- Other candidate.\n  - Why now: [[milestone.demo.loop]] shipped.\n", ""},
+		{"no Milestones section", "done", "", "## Other\n\n- [[milestone.demo.loop]]\n", ""},
+		{"no product design", "done", "", "", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			vault := setupVault(t)
 			writeFixtureMilestone(t, vault, "demo.loop", tc.status)
+			setMilestoneFields(t, vault, "demo.loop", "Close the loop", tc.done)
 			if tc.pd != "" {
 				seedProductDesign(t, vault, tc.pd)
 			}
@@ -48,17 +53,38 @@ func TestDoctorCandidateMilestoneDone(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(got) != tc.want {
-				t.Fatalf("findings = %+v, want %d", got, tc.want)
-			}
-			if tc.want == 1 {
-				f := got[0]
-				if f.Kind != "candidate-milestone-done" || f.ID != "milestone.demo.loop" ||
-					!strings.Contains(f.Evidence, "product-design.demo ## Milestones links milestone.demo.loop") {
-					t.Errorf("finding = %+v", f)
+			if tc.want == "" {
+				if len(got) != 0 {
+					t.Fatalf("findings = %+v, want none", got)
 				}
+				return
+			}
+			if len(got) != 1 {
+				t.Fatalf("findings = %+v, want 1", got)
+			}
+			f := got[0]
+			if f.Kind != "candidate-milestone-done" || f.ID != "milestone.demo.loop" ||
+				!strings.HasPrefix(f.Evidence, "product-design.demo ## Milestones lists milestone.demo.loop") ||
+				!strings.HasSuffix(f.Evidence, tc.want) {
+				t.Errorf("finding = %+v", f)
 			}
 		})
+	}
+}
+
+func setMilestoneFields(t *testing.T, vault, id, title, done string) {
+	t.Helper()
+	path := filepath.Join(vault, "85-milestones", id+".md")
+	m, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.FrontMatter["title"] = title
+	if done != "" {
+		m.FrontMatter["done"] = done
+	}
+	if err := m.Save(); err != nil {
+		t.Fatal(err)
 	}
 }
 

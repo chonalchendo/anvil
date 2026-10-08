@@ -103,7 +103,7 @@ system_design: "[[system-design.<project>]]"
 authorized_by: ["[[decision...]]"]
 acceptance: ["criterion", ...]
 approved: <date>           # stamped by transition milestone in-progress; cleared on amend
-done: <date>               # stamped by transition milestone done; nothing clears it
+done: <date>               # stamped by transition milestone done; cleared on reopen
 ```
 
 `transition milestone <id> in-progress` from `planned` is the approval gate. A scoped milestone must carry the `**Design change**` and `**Components changed**` labels (`milestone_gate_*` codes), and no raw inbox item may link it (`inbox_unread`).

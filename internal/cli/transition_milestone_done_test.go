@@ -22,3 +22,17 @@ func TestTransitionMilestoneDoneStampsDone(t *testing.T) {
 		t.Fatalf("frontmatter done = %q, Status block = %v", done, block)
 	}
 }
+
+func TestTransitionMilestoneReopenClearsDone(t *testing.T) {
+	vault := finishLineVault(t, "true")
+	stubBranches(t, "base")
+	execCmd(t, "transition", "milestone", "demo.line", "done")
+	execCmd(t, "transition", "milestone", "demo.line", "planned", "--reason", "x")
+	m, err := core.LoadArtifact(filepath.Join(vault, "85-milestones", "demo.line.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := m.FrontMatter["done"]; ok {
+		t.Fatalf("done survived reopen: %v", m.FrontMatter["done"])
+	}
+}

@@ -341,6 +341,9 @@ func newTransitionCmd() *cobra.Command {
 					a.Body += "\n"
 				}
 				a.Body += audit
+				if t == core.TypeMilestone {
+					delete(a.FrontMatter, "done")
+				}
 			}
 
 			// Amend: leaving in-progress for planned withdraws the approval so the
