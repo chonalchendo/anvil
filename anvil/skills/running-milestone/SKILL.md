@@ -97,7 +97,7 @@ Present each ready PR to the human with its verdict, review result (with the rev
 anvil transition issue <id> resolved --land-pr <n>
 ```
 
-The verb runs the issue's verification on a fresh checkout of the PR head and merges only on its pass, on an intact lock, for the issue's own branch, mergeable and CI-green; a red run refuses `land_pr_verification_failed` and the PR is untouched; a missing, stale or blocked latest review round refuses `land_pr_review_missing`, `land_pr_review_stale` or `land_pr_review_blocked`, and the fix is a fresh `reviewing-pr` round at the PR head; it then merges, confirms the merge, removes the worktree and resolves the issue. Never run `gh pr merge` yourself.
+The verb runs the issue's verification on a fresh checkout of the PR head and merges only on its pass, on an intact lock, for the issue's own branch, mergeable and CI-green. A red run refuses `land_pr_verification_failed` and the PR is untouched. A missing, stale or blocked latest review round refuses `land_pr_review_missing`, `land_pr_review_stale` or `land_pr_review_blocked`. The fix is a fresh `reviewing-pr` round at the PR head. It then merges, confirms the merge, removes the worktree and resolves the issue. Never run `gh pr merge` yourself.
 
 ## Phase 7 — Continue
 
