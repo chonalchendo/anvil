@@ -181,8 +181,9 @@ func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 	if _, err := tx.Exec(`DELETE FROM links`); err != nil {
 		return ReindexStats{}, fmt.Errorf("clear links: %w", err)
 	}
-	if _, err := tx.Exec(`DELETE FROM artifacts`); err != nil {
-		return ReindexStats{}, fmt.Errorf("clear artifacts: %w", err)
+	// Drop, not DELETE: a lagging db holds an artifacts table without newer columns.
+	if _, err := tx.Exec(`DROP TABLE IF EXISTS artifacts`); err != nil {
+		return ReindexStats{}, fmt.Errorf("drop artifacts: %w", err)
 	}
 	if _, err := tx.Exec(`DELETE FROM learning_fts`); err != nil {
 		return ReindexStats{}, fmt.Errorf("clear learning fts: %w", err)
@@ -195,6 +196,9 @@ func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 	}
 	if err := tx.Commit(); err != nil {
 		return ReindexStats{}, fmt.Errorf("commit clear: %w", err)
+	}
+	if _, err := d.sql.Exec(schema); err != nil {
+		return ReindexStats{}, fmt.Errorf("recreate artifacts: %w", err)
 	}
 
 	walkErr := filepath.WalkDir(vaultRoot, func(path string, dEntry fs.DirEntry, err error) error {

@@ -3,6 +3,7 @@ package index
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -84,5 +85,28 @@ func TestDeleteArtifactRemovesLinks(t *testing.T) {
 	}
 	if _, err := db.GetArtifact("a"); err == nil {
 		t.Fatalf("expected GetArtifact to fail after delete")
+	}
+}
+
+// Mirrors indexAfterSave: row extracted from frontmatter, then upserted.
+func TestArtifactsTitle_WriteThrough(t *testing.T) {
+	db := openTestDB(t)
+	if err := db.SetLastReindex(time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	fm := map[string]any{"type": "issue", "id": "demo.t", "title": "Titled probe"}
+	row, err := ArtifactRowFromFrontmatter(fm, "/p/t.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertArtifact(row); err != nil {
+		t.Fatal(err)
+	}
+	got, err := db.GetArtifact(row.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Title != "Titled probe" {
+		t.Errorf("title = %q, want %q", got.Title, "Titled probe")
 	}
 }

@@ -133,6 +133,38 @@ func TestCreateWritesThroughTagsToIndex(t *testing.T) {
 	}
 }
 
+func TestCreateWritesThroughTitleToIndex(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	// Stamp last_reindex first so create takes the write-through path; the
+	// bootstrap full-reindex would index the title anyway and hide the gap.
+	execCmd(t, "reindex")
+
+	out := execCmdJSON(t, "create", "issue",
+		"--project", "demo",
+		"--title", "Titled via create",
+		"--description", "titled desc",
+		"--goal", "titled is done",
+		"--tags", "domain/dev-tools",
+		"--allow-new-facet=domain",
+		"--json",
+	)
+	var result map[string]any
+	if err := jsonUnmarshal(t, out, &result); err != nil {
+		t.Fatal(err)
+	}
+	id, _ := result["id"].(string)
+
+	row, err := openIndex(t, vault).GetArtifact(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.Title != "Titled via create" {
+		t.Fatalf("title = %q, want %q", row.Title, "Titled via create")
+	}
+}
+
 func TestCreateWritesThroughLearningFTSToIndex(t *testing.T) {
 	vault := t.TempDir()
 	t.Setenv("ANVIL_VAULT", vault)

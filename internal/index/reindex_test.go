@@ -575,3 +575,38 @@ func TestReindexCrossTypeBareIDCollision(t *testing.T) {
 		}
 	}
 }
+
+func TestSchemaVersionLag_RebuildsArtifacts(t *testing.T) {
+	vault := t.TempDir()
+	writeArtifact(t, filepath.Join(vault, "70-issues", "issue.demo.t.md"),
+		"type: issue\nid: demo.t\ntitle: Titled probe\nstatus: open\nproject: demo\n")
+	db := openTestDB(t)
+	// Rebuild a version-5 db: artifacts without the title column.
+	for _, q := range []string{
+		`DROP TABLE artifacts`,
+		`CREATE TABLE artifacts (id TEXT PRIMARY KEY, type TEXT NOT NULL, status TEXT, project TEXT, path TEXT NOT NULL, created TEXT, updated TEXT)`,
+	} {
+		if _, err := db.sql.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.SetLastReindex(time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSchemaVersion(5); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Reindex(vault); err != nil {
+		t.Fatalf("Reindex: %v", err)
+	}
+	got, err := db.GetArtifact("issue.demo.t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Title != "Titled probe" {
+		t.Errorf("title = %q after rebuild", got.Title)
+	}
+	if v, _ := db.GetSchemaVersion(); v != SchemaVersion {
+		t.Errorf("schema version = %d, want %d", v, SchemaVersion)
+	}
+}

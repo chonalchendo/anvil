@@ -12,7 +12,7 @@ import (
 
 // ArtifactRow is the in-memory shape of a row in the artifacts table.
 type ArtifactRow struct {
-	ID, Type, Status, Project, Path, Created, Updated string
+	ID, Type, Status, Project, Title, Path, Created, Updated string
 }
 
 // LinkRow is the in-memory shape of a row in the links table.
@@ -70,6 +70,7 @@ func ArtifactRowFromFrontmatter(fm map[string]any, path string) (ArtifactRow, er
 		Type:    get("type"),
 		Status:  get("status"),
 		Project: get("project"),
+		Title:   get("title"),
 		Path:    path,
 		Created: get("created"),
 		Updated: get("updated"),

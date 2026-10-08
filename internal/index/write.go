@@ -11,12 +11,12 @@ var ErrArtifactNotInIndex = errors.New("artifact not in index")
 
 // UpsertArtifact inserts or updates an artifact row. ON CONFLICT replaces all columns.
 func (d *DB) UpsertArtifact(r ArtifactRow) error {
-	const q = `INSERT INTO artifacts(id, type, status, project, path, created, updated)
-VALUES(?, ?, ?, ?, ?, ?, ?)
+	const q = `INSERT INTO artifacts(id, type, status, project, title, path, created, updated)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
-    type=excluded.type, status=excluded.status, project=excluded.project,
+    type=excluded.type, status=excluded.status, project=excluded.project, title=excluded.title,
     path=excluded.path, created=excluded.created, updated=excluded.updated`
-	if _, err := d.sql.Exec(q, r.ID, r.Type, r.Status, r.Project, r.Path, r.Created, r.Updated); err != nil {
+	if _, err := d.sql.Exec(q, r.ID, r.Type, r.Status, r.Project, r.Title, r.Path, r.Created, r.Updated); err != nil {
 		return fmt.Errorf("upsert artifact %s: %w", r.ID, err)
 	}
 	return nil
@@ -24,10 +24,10 @@ ON CONFLICT(id) DO UPDATE SET
 
 // GetArtifact reads a single artifact row by id.
 func (d *DB) GetArtifact(id string) (ArtifactRow, error) {
-	const q = `SELECT id, type, status, project, path, created, updated FROM artifacts WHERE id = ?`
+	const q = `SELECT id, type, status, project, title, path, created, updated FROM artifacts WHERE id = ?`
 	row := d.sql.QueryRow(q, id)
 	var r ArtifactRow
-	if err := row.Scan(&r.ID, &r.Type, &r.Status, &r.Project, &r.Path, &r.Created, &r.Updated); err != nil {
+	if err := row.Scan(&r.ID, &r.Type, &r.Status, &r.Project, &r.Title, &r.Path, &r.Created, &r.Updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ArtifactRow{}, ErrArtifactNotInIndex
 		}
