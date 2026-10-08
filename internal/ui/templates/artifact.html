@@ -1,6 +1,7 @@
 {{define "title"}}{{.Page.Title}} · anvil{{end}}
 {{define "content"}}{{with .Page}}
 {{if .Crumbs}}<nav class="crumbs" aria-label="Spine">{{range .Crumbs}}{{template "ref" .}}<span aria-hidden="true"> / </span>{{end}}<span>{{.Key}}</span></nav>{{end}}
+{{if .StackHref}}<nav class="tabs" aria-label="Issue views"><a href="/artifact/{{.Key}}" aria-current="page">Issue</a><a href="{{.StackHref}}">Stack</a></nav>{{end}}
 <header><h1>{{.Title}}</h1><code class="key">{{.Key}}</code></header>
 <section aria-label="Properties"><dl class="props">
 {{range .Props}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{template "ref" .}} {{end}}</dd>{{end}}

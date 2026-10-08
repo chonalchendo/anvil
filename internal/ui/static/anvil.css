@@ -68,3 +68,9 @@ dialog li[aria-selected="true"] { background: var(--sel); box-shadow: 0 0 0 1px 
 .tree summary.group, .tree .group { color: var(--text-2); font-weight: 500; }
 .tree .status { color: var(--muted); font-size: 12px; margin-left: 6px; }
 .status.in-progress { color: var(--accent); }
+
+.tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+.tabs a { padding: 4px 10px; border-radius: var(--radius); color: var(--text-2); text-decoration: none; }
+.tabs a:hover, .tabs a[aria-current="page"] { background: var(--sel); color: var(--text); }
+details.layer > summary .size { float: right; }
+details.layer > .body { padding: 0 12px; }
