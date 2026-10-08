@@ -37,7 +37,7 @@ func StripFencedBlocks(body string) string {
 // edges — the fields `anvil link` and the create paths write. Prose fields
 // (title, description, goal, acceptance, ...) may quote a wikilink
 // mid-sentence without declaring an edge, so the resolver never walks them;
-// hydrate's spine walk likewise ignores them (linkTargetsOfType only matches
+// hydrate's spine walk likewise ignores them (LinkTargetsOfType only matches
 // a value that is entirely a wikilink).
 var linkSlotFields = map[string]struct{}{
 	"related": {}, "depends_on": {}, "blocks": {}, "milestone": {},
@@ -460,4 +460,39 @@ func ResolveBodyLinks(v *Vault, body string) []UnresolvedLink {
 		}
 	}
 	return out
+}
+
+// LinkTargetsOfType returns the distinct wikilink targets of linkType declared
+// by a — frontmatter slots (string or []any) and body prose — as full
+// `type.id` targets, sorted. Both surfaces are real graph edges.
+func LinkTargetsOfType(a *Artifact, linkType Type) []string {
+	prefix := "[[" + string(linkType) + "."
+	seen := make(map[string]bool)
+	targets := make([]string, 0)
+	add := func(s string) {
+		if !strings.HasPrefix(s, prefix) || !strings.HasSuffix(s, "]]") {
+			return
+		}
+		if t := s[2 : len(s)-2]; t != "" && !seen[t] {
+			seen[t] = true
+			targets = append(targets, t)
+		}
+	}
+	for _, fmval := range a.FrontMatter {
+		switch typed := fmval.(type) {
+		case string:
+			add(typed)
+		case []any:
+			for _, elem := range typed {
+				if s, ok := elem.(string); ok {
+					add(s)
+				}
+			}
+		}
+	}
+	for _, t := range BodyWikilinkTargetsOfType(a.Body, linkType) {
+		add("[[" + t + "]]")
+	}
+	sort.Strings(targets)
+	return targets
 }

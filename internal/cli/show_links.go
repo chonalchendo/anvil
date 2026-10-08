@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -36,7 +35,7 @@ func runShowLinks(cmd *cobra.Command, vault *core.Vault, t core.Type, artifactID
 		return fmt.Errorf("loading artifact: %w", err)
 	}
 
-	targets := linkTargetsOfType(a, linkType)
+	targets := core.LinkTargetsOfType(a, linkType)
 
 	if includeBody {
 		return emitLinkBodies(cmd, vault, linkType, targets, asJSON)
@@ -55,44 +54,6 @@ func runShowLinks(cmd *cobra.Command, vault *core.Vault, t core.Type, artifactID
 		fmt.Fprintln(w, target)
 	}
 	return nil
-}
-
-// linkTargetsOfType returns the distinct wikilink targets of linkType declared
-// by artifact a — both frontmatter slots (string or []any fields) and body prose
-// (a component design links its conventions from `## Code design`, not a frontmatter
-// slot) — as full `type.id` targets, sorted. Both surfaces are real graph edges.
-func linkTargetsOfType(a *core.Artifact, linkType core.Type) []string {
-	prefix := "[[" + string(linkType) + "."
-	seen := make(map[string]bool)
-	targets := make([]string, 0)
-	for _, fmval := range a.FrontMatter {
-		switch typed := fmval.(type) {
-		case string:
-			if target, ok := wikilinkTarget(typed, prefix); ok && !seen[target] {
-				seen[target] = true
-				targets = append(targets, target)
-			}
-		case []any:
-			for _, elem := range typed {
-				s, ok := elem.(string)
-				if !ok {
-					continue
-				}
-				if target, ok := wikilinkTarget(s, prefix); ok && !seen[target] {
-					seen[target] = true
-					targets = append(targets, target)
-				}
-			}
-		}
-	}
-	for _, target := range core.BodyWikilinkTargetsOfType(a.Body, linkType) {
-		if !seen[target] {
-			seen[target] = true
-			targets = append(targets, target)
-		}
-	}
-	sort.Strings(targets)
-	return targets
 }
 
 // emitLinkBodies loads each resolved link target's body (capped at
@@ -150,19 +111,4 @@ func emitLinkBodies(cmd *cobra.Command, v *core.Vault, linkType core.Type, targe
 		fmt.Fprintln(w, lb.Body)
 	}
 	return nil
-}
-
-// wikilinkTarget returns the inner target of a wikilink if s has the form
-// [[prefix<rest>]] (non-empty rest, closing ]]). Used to filter frontmatter
-// fields by type prefix without re-invoking the full wikilink regex.
-func wikilinkTarget(s, prefix string) (string, bool) {
-	if !strings.HasPrefix(s, prefix) || !strings.HasSuffix(s, "]]") {
-		return "", false
-	}
-	// Strip surrounding [[ and ]] — prefix already begins with [[.
-	inner := s[2 : len(s)-2]
-	if inner == "" {
-		return "", false
-	}
-	return inner, true
 }

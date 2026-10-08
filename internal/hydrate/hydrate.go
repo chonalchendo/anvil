@@ -5,8 +5,6 @@ package hydrate
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/chonalchendo/anvil/internal/core"
@@ -55,9 +53,8 @@ type Hydration struct {
 	SkippedBodyLinks []string
 }
 
-// Assemble walks the methodology spine from issueID and returns the accumulated
-// closure (resolved nodes + any broken edges). One walk feeds every consumer: the
-// `hydrate` command, the `build` driver and the human view.
+// Assemble walks the methodology spine from issueID and returns the closure.
+// anvil hydrate, walkability and the human view share this one walk, so load order has one owner.
 func Assemble(v *core.Vault, issueID string) (*Hydration, error) {
 	// Callers hand a canonical id (walkability derives one per file), which may
 	// differ from the on-disk basename until the back catalogue is renamed.
@@ -80,7 +77,7 @@ func Assemble(v *core.Vault, issueID string) (*Hydration, error) {
 	issueSrc := "issue " + issueID
 
 	// issue → milestone → {product-design, system-design} → convention
-	for _, mt := range linkTargetsOfType(iss, core.TypeMilestone) {
+	for _, mt := range core.LinkTargetsOfType(iss, core.TypeMilestone) {
 		ms, err := h.walk(v, issueSrc, core.TypeMilestone, mt)
 		if err != nil {
 			return nil, err
@@ -90,7 +87,7 @@ func Assemble(v *core.Vault, issueID string) (*Hydration, error) {
 		}
 		msSrc := "milestone " + mt
 		for _, dtype := range []core.Type{core.TypeProductDesign, core.TypeSystemDesign} {
-			for _, dt := range linkTargetsOfType(ms, dtype) {
+			for _, dt := range core.LinkTargetsOfType(ms, dtype) {
 				if err := h.walkDesign(v, msSrc, dtype, dt); err != nil {
 					return nil, err
 				}
@@ -99,7 +96,7 @@ func Assemble(v *core.Vault, issueID string) (*Hydration, error) {
 	}
 
 	// issue → component design → {convention, system-design → convention}
-	for _, ct := range linkTargetsOfType(iss, core.TypeComponentDesign) {
+	for _, ct := range core.LinkTargetsOfType(iss, core.TypeComponentDesign) {
 		c, err := h.walk(v, issueSrc, core.TypeComponentDesign, ct)
 		if err != nil {
 			return nil, err
@@ -114,7 +111,7 @@ func Assemble(v *core.Vault, issueID string) (*Hydration, error) {
 		// Walk the component design's forward system-design links; back-links
 		// to prefix-retaining types do not resolve as incoming edges. seen
 		// dedups a design the milestone path already reached.
-		for _, st := range linkTargetsOfType(c, core.TypeSystemDesign) {
+		for _, st := range core.LinkTargetsOfType(c, core.TypeSystemDesign) {
 			if err := h.walkDesign(v, cSrc, core.TypeSystemDesign, st); err != nil {
 				return nil, err
 			}
@@ -122,7 +119,7 @@ func Assemble(v *core.Vault, issueID string) (*Hydration, error) {
 	}
 
 	// issue → prior learnings
-	for _, lt := range linkTargetsOfType(iss, core.TypeLearning) {
+	for _, lt := range core.LinkTargetsOfType(iss, core.TypeLearning) {
 		if _, err := h.walk(v, issueSrc, core.TypeLearning, lt); err != nil {
 			return nil, err
 		}
@@ -149,16 +146,11 @@ func Assemble(v *core.Vault, issueID string) (*Hydration, error) {
 // missing target records a broken edge and returns nil so the walk continues;
 // the loaded artifact is returned so the caller can descend into its own links.
 func (h *Hydration) walk(v *core.Vault, sourceDesc string, linkType core.Type, target string) (*core.Artifact, error) {
-	raw := target
-	if linkType == core.TypeIssue {
-		resolved, err := core.ResolveIssueArg(v, target)
-		if err != nil {
-			return nil, err
-		}
-		raw = resolved
+	id, path, err := core.ResolveArtifact(v, linkType, target)
+	if err != nil {
+		return nil, err
 	}
-	basename := core.ArtifactBasename(v, linkType, raw)
-	a, err := core.LoadArtifact(artifactPath(v.Root, linkType, basename))
+	a, err := core.LoadArtifact(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			h.Broken = append(h.Broken, BrokenEdge{Source: sourceDesc, Target: target})
@@ -166,9 +158,8 @@ func (h *Hydration) walk(v *core.Vault, sourceDesc string, linkType core.Type, t
 		}
 		return nil, fmt.Errorf("loading %s %s: %w", linkType, target, err)
 	}
-	// The basename loads the file; the node reports the canonical id — a bare
-	// back-catalogue filename must not leak into hydrate's output.
-	id := core.CanonicalID(linkType, basename)
+	// ResolveArtifact reports the canonical id — a bare back-catalogue
+	// filename must not leak into hydrate's output.
 	if key := string(linkType) + " " + id; !h.seen[key] {
 		h.seen[key] = true
 		h.Nodes = append(h.Nodes, nodeOf(linkType, id, a))
@@ -190,7 +181,7 @@ func (h *Hydration) walkDesign(v *core.Vault, src string, t core.Type, target st
 // obey, so reaching conventions only through a component design left them unreachable for
 // any issue whose repo declares no component design.
 func (h *Hydration) descendConventions(v *core.Vault, sourceDesc string, a *core.Artifact) error {
-	for _, cv := range linkTargetsOfType(a, core.TypeConvention) {
+	for _, cv := range core.LinkTargetsOfType(a, core.TypeConvention) {
 		if _, err := h.walk(v, sourceDesc, core.TypeConvention, cv); err != nil {
 			return err
 		}
@@ -201,52 +192,4 @@ func (h *Hydration) descendConventions(v *core.Vault, sourceDesc string, a *core
 func nodeOf(t core.Type, id string, a *core.Artifact) SpineNode {
 	status, _ := a.FrontMatter["status"].(string)
 	return SpineNode{Type: t, ID: id, Status: status, Body: strings.TrimPrefix(a.Body, "\n"), Path: a.Path, FrontMatter: a.FrontMatter}
-}
-
-func artifactPath(vaultRoot string, t core.Type, id string) string {
-	return filepath.Join(vaultRoot, t.Dir(), id+".md")
-}
-
-// linkTargetsOfType returns the distinct wikilink targets of linkType declared
-// by artifact a — frontmatter slots (string or []any) and body prose — as full
-// `type.id` targets, sorted.
-func linkTargetsOfType(a *core.Artifact, linkType core.Type) []string {
-	prefix := "[[" + string(linkType) + "."
-	seen := make(map[string]bool)
-	targets := make([]string, 0)
-	add := func(t string) {
-		if !seen[t] {
-			seen[t] = true
-			targets = append(targets, t)
-		}
-	}
-	for _, fmval := range a.FrontMatter {
-		switch typed := fmval.(type) {
-		case string:
-			if t, ok := wikilinkTarget(typed, prefix); ok {
-				add(t)
-			}
-		case []any:
-			for _, elem := range typed {
-				if s, ok := elem.(string); ok {
-					if t, ok := wikilinkTarget(s, prefix); ok {
-						add(t)
-					}
-				}
-			}
-		}
-	}
-	for _, t := range core.BodyWikilinkTargetsOfType(a.Body, linkType) {
-		add(t)
-	}
-	sort.Strings(targets)
-	return targets
-}
-
-func wikilinkTarget(s, prefix string) (string, bool) {
-	if !strings.HasPrefix(s, prefix) || !strings.HasSuffix(s, "]]") {
-		return "", false
-	}
-	inner := s[2 : len(s)-2]
-	return inner, inner != ""
 }
