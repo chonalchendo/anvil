@@ -26,7 +26,7 @@ func unreadInbox(v *core.Vault, id string) ([]string, error) {
 		if status, _ := item.FrontMatter["status"].(string); status != "raw" {
 			continue
 		}
-		if slices.Contains(linkTargetsOfType(item, core.TypeMilestone), id) {
+		if slices.Contains(core.LinkTargetsOfType(item, core.TypeMilestone), id) {
 			ids = append(ids, listIDFor(core.TypeInbox, p))
 		}
 	}

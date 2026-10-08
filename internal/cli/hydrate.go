@@ -12,6 +12,7 @@ import (
 
 	"github.com/chonalchendo/anvil/internal/cli/output"
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/hydrate"
 	"github.com/chonalchendo/anvil/internal/index"
 )
 
@@ -42,7 +43,7 @@ func newHydrateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			// Probed here, where the raw arg is still in hand: assembleHydration
+			// Probed here, where the raw arg is still in hand: hydrate.Assemble
 			// only ever sees the canonical id.
 			if _, err := os.Stat(path); os.IsNotExist(err) {
 				return notFoundErr(id, args[0])
@@ -54,193 +55,14 @@ func newHydrateCmd() *cobra.Command {
 	return cmd
 }
 
-// spineNode is one resolved artifact in the assembled closure: its type, canonical
-// id, frontmatter status (so a non-active design reads as advisory), body, and the
-// parsed frontmatter (the --tldr digest renders it in place of the body).
-type spineNode struct {
-	Type        core.Type
-	ID          string
-	Status      string
-	Body        string
-	Path        string
-	FrontMatter map[string]any
-}
-
-// brokenEdge is a declared spine wikilink whose target does not resolve on disk.
-// Target carries the full type-qualified wikilink (e.g. milestone.foo.ghost), so
-// the edge type needs no separate field.
-type brokenEdge struct {
-	Source string // "<type> <id>" of the artifact declaring the edge
-	Target string // the type-qualified wikilink target that failed to resolve
-}
-
-// hydration accumulates the assembled closure and any broken edges as the walk
-// descends the fixed methodology spine. seen keys the nodes already emitted, so a
-// convention reachable by two rails (a component design and a design) enters the bundle
-// once — a duplicated body is pure context cost to the reader.
-type hydration struct {
-	nodes  []spineNode
-	broken []brokenEdge
-	seen   map[string]bool
-	// skippedBodyLinks names the issue body ## Links targets whose type
-	// parsed but is not governing (e.g. thread, sibling issue) — reported so
-	// the omission is stated, never silent (anvil.0240).
-	skippedBodyLinks []string
-}
-
-// walk resolves target of linkType declared by sourceDesc via forward file
-// resolution (target file exists?), never incoming-edge presence — forward
-// resolution keeps hydrate independent of index freshness, so a vault whose
-// links table predates the canonical-target fix still walks correctly. A
-// missing target records a broken edge and returns nil so the walk continues;
-// the loaded artifact is returned so the caller can descend into its own links.
-func (h *hydration) walk(v *core.Vault, sourceDesc string, linkType core.Type, target string) (*core.Artifact, error) {
-	basename, err := canonicalArtifactID(v, linkType, target)
-	if err != nil {
-		return nil, err
-	}
-	a, err := core.LoadArtifact(resolveArtifactPath(v.Root, linkType, basename))
-	if err != nil {
-		if os.IsNotExist(err) {
-			h.broken = append(h.broken, brokenEdge{Source: sourceDesc, Target: target})
-			return nil, nil
-		}
-		return nil, fmt.Errorf("loading %s %s: %w", linkType, target, err)
-	}
-	// The basename loads the file; the node reports the canonical id — a bare
-	// back-catalogue filename must not leak into hydrate's output.
-	id := core.CanonicalID(linkType, basename)
-	if key := string(linkType) + " " + id; !h.seen[key] {
-		h.seen[key] = true
-		h.nodes = append(h.nodes, nodeOf(linkType, id, a))
-	}
-	return a, nil
-}
-
-func nodeOf(t core.Type, id string, a *core.Artifact) spineNode {
-	status, _ := a.FrontMatter["status"].(string)
-	return spineNode{Type: t, ID: id, Status: status, Body: strings.TrimPrefix(a.Body, "\n"), Path: a.Path, FrontMatter: a.FrontMatter}
-}
-
 func runHydrate(cmd *cobra.Command, v *core.Vault, issueID string, tldr bool) error {
-	h, err := assembleHydration(v, issueID)
+	h, err := hydrate.Assemble(v, issueID)
 	if err != nil {
-		return err
+		return mapHydrateErr(err)
 	}
-	emitHydration(cmd, h.nodes, h.skippedBodyLinks, tldr)
-	if len(h.broken) > 0 {
-		return brokenSpineError(h.broken)
-	}
-	return nil
-}
-
-// assembleHydration walks the methodology spine from issueID and returns the
-// accumulated closure (resolved nodes + any broken edges). One walk feeds both
-// consumers: the `hydrate` command emits it, the `build` driver folds it into a
-// dispatch task body — so an interactive and a headless implementer open the
-// same box.
-func assembleHydration(v *core.Vault, issueID string) (*hydration, error) {
-	// Callers hand a canonical id (walkability derives one per file), which may
-	// differ from the on-disk basename until the back catalogue is renamed.
-	issID, issPath, err := core.ResolveArtifact(v, core.TypeIssue, issueID)
-	if err != nil {
-		return nil, err
-	}
-	iss, err := core.LoadArtifact(issPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, notFoundErr(issID, issueID)
-		}
-		return nil, fmt.Errorf("loading issue: %w", err)
-	}
-
-	h := &hydration{
-		nodes: []spineNode{nodeOf(core.TypeIssue, issueID, iss)},
-		seen:  map[string]bool{string(core.TypeIssue) + " " + issueID: true},
-	}
-	issueSrc := "issue " + issueID
-
-	// issue → milestone → {product-design, system-design} → convention
-	for _, mt := range linkTargetsOfType(iss, core.TypeMilestone) {
-		ms, err := h.walk(v, issueSrc, core.TypeMilestone, mt)
-		if err != nil {
-			return nil, err
-		}
-		if ms == nil {
-			continue
-		}
-		msSrc := "milestone " + mt
-		for _, dtype := range []core.Type{core.TypeProductDesign, core.TypeSystemDesign} {
-			for _, dt := range linkTargetsOfType(ms, dtype) {
-				if err := h.walkDesign(v, msSrc, dtype, dt); err != nil {
-					return nil, err
-				}
-			}
-		}
-	}
-
-	// issue → component design → {convention, system-design → convention}
-	for _, ct := range linkTargetsOfType(iss, core.TypeComponentDesign) {
-		c, err := h.walk(v, issueSrc, core.TypeComponentDesign, ct)
-		if err != nil {
-			return nil, err
-		}
-		if c == nil {
-			continue
-		}
-		cSrc := "component design " + ct
-		if err := h.descendConventions(v, cSrc, c); err != nil {
-			return nil, err
-		}
-		// Walk the component design's forward system-design links; back-links
-		// to prefix-retaining types do not resolve as incoming edges. seen
-		// dedups a design the milestone path already reached.
-		for _, st := range linkTargetsOfType(c, core.TypeSystemDesign) {
-			if err := h.walkDesign(v, cSrc, core.TypeSystemDesign, st); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	// issue → prior learnings
-	for _, lt := range linkTargetsOfType(iss, core.TypeLearning) {
-		if _, err := h.walk(v, issueSrc, core.TypeLearning, lt); err != nil {
-			return nil, err
-		}
-	}
-
-	// issue body `## Links` → the governing artifacts the author deliberately
-	// placed there. Unlike the rails above this isn't a fixed spine hop; the
-	// type filter is governingBodyLinkTypes (see links_resolve.go).
-	bodyTargets, skipped := core.BodyLinksSectionTargets(iss.Body)
-	h.skippedBodyLinks = skipped
-	for _, target := range bodyTargets {
-		if _, err := h.walk(v, issueSrc, target.Type, target.ID); err != nil {
-			return nil, err
-		}
-	}
-
-	return h, nil
-}
-
-// walkDesign walks one design target, then its convention links.
-func (h *hydration) walkDesign(v *core.Vault, src string, t core.Type, target string) error {
-	d, err := h.walk(v, src, t, target)
-	if err != nil || d == nil {
-		return err
-	}
-	return h.descendConventions(v, string(t)+" "+target, d)
-}
-
-// descendConventions walks an artifact's convention links — the shared last hop of
-// both governing rails. A design carries the house style every issue under it must
-// obey, so reaching conventions only through a component design left them unreachable for
-// any issue whose repo declares no component design.
-func (h *hydration) descendConventions(v *core.Vault, sourceDesc string, a *core.Artifact) error {
-	for _, cv := range linkTargetsOfType(a, core.TypeConvention) {
-		if _, err := h.walk(v, sourceDesc, core.TypeConvention, cv); err != nil {
-			return err
-		}
+	emitHydration(cmd, h.Nodes, h.SkippedBodyLinks, tldr)
+	if len(h.Broken) > 0 {
+		return brokenSpineError(h.Broken)
 	}
 	return nil
 }
@@ -253,7 +75,7 @@ func (h *hydration) descendConventions(v *core.Vault, sourceDesc string, a *core
 // fan-out doesn't pollute the bundle; a clipped body's marker goes to stdout
 // (see clipBody) since a stderr-only hint is invisible to a caller that drops
 // stderr.
-func emitHydration(cmd *cobra.Command, nodes []spineNode, skippedBodyLinks []string, tldr bool) {
+func emitHydration(cmd *cobra.Command, nodes []hydrate.SpineNode, skippedBodyLinks []string, tldr bool) {
 	w := cmd.OutOrStdout()
 	emitManifest(w, nodes, skippedBodyLinks)
 	for _, n := range nodes {
@@ -278,7 +100,7 @@ func emitHydration(cmd *cobra.Command, nodes []spineNode, skippedBodyLinks []str
 // body's `## TL;DR` section (heading through the text before the next `## `) when
 // one exists. Learnings and conventions carry a TL;DR; other types fall back to
 // frontmatter alone, which is where its one-line summary already lives.
-func compactBody(n spineNode) string {
+func compactBody(n hydrate.SpineNode) string {
 	var b strings.Builder
 	if fm, err := yaml.Marshal(n.FrontMatter); err == nil {
 		b.Write(fm)
@@ -315,7 +137,7 @@ func clipBody(body string) (clipped string, total int, wasClipped bool) {
 // own line immediately after the block (never inside it), so the omission is
 // stated rather than silent (anvil.0240) without disturbing the `=== <type>
 // <id> (status: <s>) ===` node-header scrape.
-func emitManifest(w io.Writer, nodes []spineNode, skippedBodyLinks []string) {
+func emitManifest(w io.Writer, nodes []hydrate.SpineNode, skippedBodyLinks []string) {
 	fmt.Fprintf(w, "=== hydrate manifest: %d spine node(s) ===\n", len(nodes))
 	for _, n := range nodes {
 		fmt.Fprintf(w, "  %-14s %s (%s)\n", n.Type, n.ID, nodeStatus(n))
@@ -331,14 +153,14 @@ func emitManifest(w io.Writer, nodes []spineNode, skippedBodyLinks []string) {
 // closureHeader formats a spine node's bundle header — `=== <type> <id> (status:
 // <s>[, empty]) ===`. Shared by the `hydrate` emit and the `build` driver's
 // task-body fold.
-func closureHeader(n spineNode) string {
+func closureHeader(n hydrate.SpineNode) string {
 	return fmt.Sprintf("=== %s %s (status: %s) ===", n.Type, n.ID, nodeStatus(n))
 }
 
 // nodeStatus renders the status the bundle header and the manifest both report:
 // `unset` when frontmatter carries none, `, empty` appended when the node has no
 // body — which keeps a node with nothing to read distinct from one left unread.
-func nodeStatus(n spineNode) string {
+func nodeStatus(n hydrate.SpineNode) string {
 	status := n.Status
 	if status == "" {
 		status = "unset"
@@ -351,11 +173,20 @@ func nodeStatus(n spineNode) string {
 
 // brokenSpineError names every dangling spine edge so the failure is actionable
 // (which artifact declares which unresolvable target), not just a non-zero exit.
-func brokenSpineError(broken []brokenEdge) error {
+func brokenSpineError(broken []hydrate.BrokenEdge) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d broken spine edge(s):", len(broken))
 	for _, e := range broken {
 		fmt.Fprintf(&b, "\n  %s → [[%s]] (target not found)", e.Source, e.Target)
 	}
 	return errors.New(b.String())
+}
+
+// mapHydrateErr turns the walk's typed not-found error into the CLI envelope.
+func mapHydrateErr(err error) error {
+	var nf *hydrate.NotFoundError
+	if errors.As(err, &nf) {
+		return notFoundErr(nf.ID, nf.Input)
+	}
+	return err
 }
