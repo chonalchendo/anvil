@@ -56,3 +56,44 @@ func TestMilestoneStatus_CostRowsAndTotal(t *testing.T) {
 		t.Fatalf("line = %q", line)
 	}
 }
+
+func TestSet_IntegerField_WritesInteger(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "cost_rounds", "3"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("set: %v\n%s", err, out.String())
+	}
+	a, err := core.LoadArtifact(filepath.Join(vault, "70-issues", "foo.a.md"))
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if got, ok := a.FrontMatter["cost_rounds"].(int); !ok || got != 3 {
+		t.Errorf("cost_rounds = %#v, want int 3", a.FrontMatter["cost_rounds"])
+	}
+}
+
+func TestSet_IntegerField_NonNumericRefused(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "A")
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"set", "issue", "foo.a", "cost_rounds", "many"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	err := cmd.Execute()
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
+	}
+	for _, want := range []string{"type_mismatch", "cost_rounds", "integer"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output missing %q:\n%s", want, out.String())
+		}
+	}
+}
