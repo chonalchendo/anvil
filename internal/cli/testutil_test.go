@@ -165,7 +165,7 @@ func createIssueGetPath(t *testing.T, args ...string) string {
 // fixtureIssueBody is a schema-valid issue body (all required H2s) that also
 // carries the "## Context" heading and "fixture body" text some show tests
 // assert on, so fixtures survive `validate`.
-const fixtureIssueBody = "## Problem\n\nfixture body.\n\n## Context\n\nfixture body.\n\n## Non-goals\n\n- none\n\n## Verification\n\n### Direct\n\njust test\n\n### Indirect\n\nsmoke\n\n## Links\n\n- none\n\n## Review findings — PR 42, round 1 @ 0123456\n\nFindings: 0\n"
+const fixtureIssueBody = "## Problem\n\nfixture body.\n\n## Context\n\nfixture body.\n\n## Non-goals\n\n- none\n\n## Verification\n\n### Direct\n\njust test\n\n### Indirect\n\nsmoke\n\n## Links\n\n- none\n\n## Review findings — PR 42, round 1 @ " + landTestShort + "\n\nFindings: 0\n"
 
 func writeFixtureIssueDated(t *testing.T, vault, project, slug, title, created string) string {
 	t.Helper()
