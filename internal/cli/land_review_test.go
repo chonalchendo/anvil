@@ -91,11 +91,11 @@ func TestLandPRReviewStaleRefuses(t *testing.T) {
 }
 
 func TestLandPRReviewBlockedRefuses(t *testing.T) {
-	landReviewRefusal(t, "## Review findings — PR 42, round 1 @ 0123456\n\n[medium] x.go:1 — bad.\n", "land_pr_review_blocked")
+	landReviewRefusal(t, "## Review findings — PR 42, round 1 @ "+landTestShort+"\n\n[medium] x.go:1 — bad.\n", "land_pr_review_blocked")
 }
 
 func TestLandPRReviewCleanMergesAndStampsHead(t *testing.T) {
-	s, vault := landReviewSetup(t, "## Review findings — PR 42, round 1 @ 0123456\n\n[low] x.go:1 — nit.\n")
+	s, vault := landReviewSetup(t, "## Review findings — PR 42, round 1 @ "+landTestShort+"\n\n[low] x.go:1 — nit.\n")
 	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
 	if len(s.mergeCalls) != 1 {
 		t.Errorf("merge calls = %v, want one", s.mergeCalls)
@@ -113,6 +113,24 @@ func TestLandPRReviewSkippedWhenAlreadyMerged(t *testing.T) {
 		t.Errorf("merge calls = %v, want none", s.mergeCalls)
 	}
 	if _, ok := loadIssueDoc(t, vault, "demo.foo").FrontMatter["review_head"]; ok {
-		t.Error("an already-merged retry must not stamp review_head")
+		t.Error("an already-merged retry with no round must not stamp review_head")
+	}
+}
+
+func TestLandPRReviewRetryStampsWhenRoundMatches(t *testing.T) {
+	s, vault := landReviewSetup(t, "## Review findings — PR 42, round 1 @ "+landTestShort+"\n\nFindings: 0\n")
+	s.viewSeq["state"] = nil
+	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
+	if got := loadIssueDoc(t, vault, "demo.foo").FrontMatter["review_head"]; got != landTestHead {
+		t.Errorf("review_head = %v, want %s", got, landTestHead)
+	}
+}
+
+func TestLandPRReviewRetryNoStampWhenRoundStale(t *testing.T) {
+	s, vault := landReviewSetup(t, "## Review findings — PR 42, round 1 @ deadbee\n\nFindings: 0\n")
+	s.viewSeq["state"] = nil
+	execCmd(t, "transition", "issue", "demo.foo", "resolved", "--land-pr", "42")
+	if _, ok := loadIssueDoc(t, vault, "demo.foo").FrontMatter["review_head"]; ok {
+		t.Error("a stale round must not stamp review_head on a retry")
 	}
 }

@@ -14,7 +14,7 @@ type reviewRound struct {
 }
 
 var (
-	reviewHeadingRe = regexp.MustCompile(`^## Review findings\s+\S+\s+PR (\d+), round (\d+) @ ([0-9a-f]+)`)
+	reviewHeadingRe = regexp.MustCompile(`^## Review findings\s+\S+\s+PR (\d+), round (\d+) @ ([0-9a-f]{7,40})`)
 	blockingBandRe  = regexp.MustCompile(`^\[(blocker|high|medium)\]`)
 )
 

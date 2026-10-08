@@ -12,8 +12,9 @@ import (
 )
 
 // landEvidence is what the land verb knows of the issue before `gh pr view`
-// answers: its claim lock and the branch a PR must come from. Evidence for
-// another lock or branch is void. The verdict is not read from the issue: the
+// answers: its claim lock, the branch a PR must come from, and the body's
+// review rounds. Evidence for another lock or branch is void. The verdict is
+// not read from the issue: the
 // land earns its own on a clean checkout of the PR head.
 type landEvidence struct {
 	id, lock, currentLock, branch, body string
@@ -38,8 +39,8 @@ type landClean struct {
 // landHead is the PR head the evidence check read.
 type landHead struct{ oid, branch string }
 
-// check reads the PR head once. An already-MERGED PR skips the lock and
-// ownership checks: refusing after the merge would strand the issue
+// check reads the PR head once. An already-MERGED PR skips the lock,
+// ownership and review checks: refusing after the merge would strand the issue
 // in-progress, and the merge already happened. The head is returned either way.
 func (e landEvidence) check(num int, worktreePath string, alreadyMerged bool) (landHead, error) {
 	raw, err := ghPRViewJSONFn(num, "headRefOid,headRefName")
@@ -57,6 +58,8 @@ func (e landEvidence) check(num int, worktreePath string, alreadyMerged bool) (l
 	if alreadyMerged {
 		return h, nil
 	}
+	// The round's sha is a prefix match: the round records the abbreviated head.
+	rr, ok := latestReviewRound(e.body, num)
 	switch {
 	case e.lock != "" && e.lock != e.currentLock:
 		return landHead{}, errfmt.NewStructured("verification_changed").
@@ -67,30 +70,20 @@ func (e landEvidence) check(num int, worktreePath string, alreadyMerged bool) (l
 			Set("issue", e.id).Set("pr", num).
 			Set("pr_branch", head.HeadRefName).Set("issue_branch", e.branch).
 			Set("fix_hint", "pass the PR opened from "+e.branch+", or pass --worktree <path> when the issue worktree uses a renamed branch")
-	}
-	return h, e.checkReview(num, h)
-}
-
-// checkReview refuses a land with no review round, a round for another head,
-// or a round that still holds a blocking finding. The sha match is a prefix
-// match: the round records the abbreviated head.
-func (e landEvidence) checkReview(num int, h landHead) error {
-	rr, ok := latestReviewRound(e.body, num)
-	switch {
 	case !ok:
-		return errfmt.NewStructured("land_pr_review_missing").
+		return landHead{}, errfmt.NewStructured("land_pr_review_missing").
 			Set("issue", e.id).Set("pr", num).
 			Set("fix_hint", "fire reviewing-pr on the PR; it persists the round on the issue")
 	case !strings.HasPrefix(h.oid, rr.sha):
-		return errfmt.NewStructured("land_pr_review_stale").
+		return landHead{}, errfmt.NewStructured("land_pr_review_stale").
 			Set("reviewed", rr.sha).Set("head", h.oid).
 			Set("fix_hint", "fire a fresh reviewing-pr round at the PR head")
 	case rr.blocked:
-		return errfmt.NewStructured("land_pr_review_blocked").
+		return landHead{}, errfmt.NewStructured("land_pr_review_blocked").
 			Set("round", rr.round).
 			Set("fix_hint", "dispatch the responder, then a confirming reviewing-pr round")
 	}
-	return nil
+	return h, nil
 }
 
 // landCleanRunFn is a seam: land tests that stop short of verification stub it.

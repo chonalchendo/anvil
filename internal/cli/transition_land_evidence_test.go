@@ -12,13 +12,14 @@ import (
 
 const (
 	landHeadFields = "headRefOid,headRefName"
-	landTestHead   = "0123456789abcdef0123456789abcdef01234567"
+	landTestShort  = "0123456"
+	landTestHead   = landTestShort + "789abcdef0123456789abcdef01234567"
 )
 
 func passingEvidence() landEvidence {
 	return landEvidence{
 		id: "issue.demo.foo", lock: "L", currentLock: "L", branch: "demo/foo",
-		body: "## Review findings — PR 42, round 1 @ 0123456\n\nFindings: 0\n",
+		body: "## Review findings — PR 42, round 1 @ " + landTestShort + "\n\nFindings: 0\n",
 	}
 }
 
