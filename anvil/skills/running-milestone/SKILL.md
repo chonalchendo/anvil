@@ -87,17 +87,17 @@ Rebuild with the project's build command from CLAUDE.md first. Put any worktree-
 1. Fire `reviewing-pr` on the PR. Do not let it fire `responding-to-pr-review` in your session. The fixes live in a worktree you are not in.
 2. Route the findings. Findings at low or below with CI green: the PR is ready. Any blocker, high or actionable medium finding: dispatch `anvil-pr-responder` into the PR's worktree. Hand it the issue id, worktree path, branch and findings. End the turn. On the responder's return: a `Blocker:` line takes Exit 1. A PR url re-runs the Phase 4 re-measure at the new head, then returns to step 1 of this phase.
 3. Count the responder's resolution summaries on the PR (`gh pr view <n> --comments`). A third round with findings left is the round limit: take Exit 1.
-4. Confirm CI green. Wire any rail edge that the PR's `## Context box` names in a `swept` row. Do not merge.
+4. Confirm CI green. Confirm the latest review round is at the PR head. A sibling landing or `gh pr update-branch` moves the head; re-fire `reviewing-pr` before Phase 6. Wire any rail edge that the PR's `## Context box` names in a `swept` row. Do not merge.
 
 ## Phase 6 — Land on approval
 
-Present each ready PR to the human with its verdict, review result and CI state. Wait for the human's approval of that PR. Then land it from the parent checkout:
+Present each ready PR to the human with its verdict, review result (with the review round's sha next to the head) and CI state. Wait for the human's approval of that PR. Then land it from the parent checkout:
 
 ```bash
 anvil transition issue <id> resolved --land-pr <n>
 ```
 
-The verb runs the issue's verification on a fresh checkout of the PR head and merges only on its pass, on an intact lock, for the issue's own branch, mergeable and CI-green; a red run refuses `land_pr_verification_failed` and the PR is untouched; it then merges, confirms the merge, removes the worktree and resolves the issue. Never run `gh pr merge` yourself.
+The verb runs the issue's verification on a fresh checkout of the PR head and merges only on its pass, on an intact lock, for the issue's own branch, mergeable and CI-green; a red run refuses `land_pr_verification_failed` and the PR is untouched; a missing, stale or blocked latest review round refuses `land_pr_review_missing`, `land_pr_review_stale` or `land_pr_review_blocked`, and the fix is a fresh `reviewing-pr` round at the PR head; it then merges, confirms the merge, removes the worktree and resolves the issue. Never run `gh pr merge` yourself.
 
 ## Phase 7 — Continue
 
