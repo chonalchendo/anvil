@@ -65,7 +65,7 @@ anvil list inbox --status raw --limit 1000 --json --fields id,title
 
 The human promotes or drops each routed item. The `## Links` section of the milestone names each item it absorbed. `anvil transition milestone <id> in-progress` refuses with `inbox_unread` while a raw inbox item links the milestone.
 
-**Gate:** user confirms title, goal, kind, and acceptance — and that the goal is event-phrased and acceptance carries a runnable predicate.
+**Gate:** user confirms title, goal, and acceptance — and that the goal is event-phrased and acceptance carries a runnable predicate.
 
 ## Phase 3 — Create
 
@@ -115,11 +115,11 @@ The human removes the bullet at acceptance; `anvil doctor` reports `candidate-mi
 anvil show milestone <id> --validate
 ```
 
-Fix any schema errors reported. Re-run until clean. Validate now also enforces body shape: the four required headings in order, no `## Success criteria` section, and (for `kind: scoped`) non-empty `acceptance`.
+Fix any schema errors reported. Re-run until clean. Validate now also enforces body shape: the four required headings in order, no `## Success criteria` section, and non-empty `acceptance`.
 
 ## Approval
 
-Approval is `anvil transition milestone <id> in-progress`. For a scoped milestone, the body must carry the **Design change** and **Components changed** parts. The verb refuses with a `milestone_gate_` code when a part is absent. On success it stamps `approved:` in the frontmatter. To amend an approved milestone, run `anvil transition milestone <id> planned`, edit it, and approve again.
+Approval is `anvil transition milestone <id> in-progress`. The body must carry the **Design change** and **Components changed** parts. The verb refuses with a `milestone_gate_` code when a part is absent. On success it stamps `approved:` in the frontmatter. To amend an approved milestone, run `anvil transition milestone <id> planned`, edit it, and approve again.
 
 ## Hand-off
 

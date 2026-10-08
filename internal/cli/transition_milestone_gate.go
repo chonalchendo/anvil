@@ -34,7 +34,7 @@ func unreadInbox(v *core.Vault, id string) ([]string, error) {
 }
 
 // gateMilestoneApproval refuses `transition milestone in-progress` from
-// planned while a scoped milestone's form is incomplete or an open inbox item
+// planned while a milestone's form is incomplete or an open inbox item
 // still links it. On success it stamps the approval date; the caller saves.
 func gateMilestoneApproval(v *core.Vault, m *core.Artifact, id string) error {
 	if label, code, missing := core.MissingMilestoneFormPart(m); missing {

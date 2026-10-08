@@ -92,9 +92,8 @@ WHERE l.relation = 'milestone' AND l.target = ?`
 // MilestoneStale reports whether every linked issue is caught up (resolved or
 // abandoned) but the milestone's own stored status hasn't caught up to done —
 // the drift anvil.0275 makes visible in list/show milestone. A milestone with
-// no linked issues is never stale. The kind parameter is unused now that
-// every milestone is scoped; callers still pass it.
-func MilestoneStale(mc MilestoneChildren, status, _ string) bool {
+// no linked issues is never stale.
+func MilestoneStale(mc MilestoneChildren, status string) bool {
 	caughtUp := mc.Resolved + mc.Abandoned
 	return mc.Total > 0 && caughtUp == mc.Total && status != "done"
 }

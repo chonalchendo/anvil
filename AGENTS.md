@@ -46,7 +46,7 @@ Anvil is its own primary user. Friction surfaces here — no side logs, no exter
 
 2. **Friction is signal, not work.** Repeated friction against the same surface (a verb, a flag, an error message) aggregates. Don't file five issues for five paper-cuts on the same edge; the *fix* is a redesign of that surface, surfaced when the signal crosses a threshold. The CLI is the highest-value surface to measure (`@docs/agent-cli-principles.md`).
 
-3. **Milestones are scoped, not buckets.** Every milestone has closed acceptance criteria. "Worth fixing now?" reduces to "blocks a named AC on an open milestone?" — yes pulls in, no aggregates. Existing bucket milestones (e.g. `v0-1-polish-dogfood-findings`) are grandfathered until they're re-scoped or culled.
+3. **Milestones are scoped, not buckets.** Every milestone has closed acceptance criteria. "Worth fixing now?" reduces to "blocks a named AC on an open milestone?" — yes pulls in, no aggregates. The bucket kind is retired: `kind` is `scoped` only.
 
 When to use which surface:
 

@@ -192,7 +192,6 @@ func TestMilestoneStaleReportsDriftAndCaughtUp(t *testing.T) {
 		name   string
 		mc     MilestoneChildren
 		status string
-		kind   string
 		want   bool
 	}{
 		{
@@ -228,8 +227,8 @@ func TestMilestoneStaleReportsDriftAndCaughtUp(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := MilestoneStale(tc.mc, tc.status, tc.kind); got != tc.want {
-				t.Fatalf("MilestoneStale(%+v, %q, %q) = %v, want %v", tc.mc, tc.status, tc.kind, got, tc.want)
+			if got := MilestoneStale(tc.mc, tc.status); got != tc.want {
+				t.Fatalf("MilestoneStale(%+v, %q) = %v, want %v", tc.mc, tc.status, got, tc.want)
 			}
 		})
 	}

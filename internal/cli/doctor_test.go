@@ -629,9 +629,9 @@ func TestDoctorFinishedMilestone(t *testing.T) {
 }
 
 // runFinishedMilestoneCheck builds a vault with one milestone at the given
-// status/kind and a single resolved child, then reports whether doctor emits a
-// finished-milestone finding for it. kind "" omits the field.
-func runFinishedMilestoneCheck(t *testing.T, status, kind string) bool {
+// status and a single resolved child, then reports whether doctor emits a
+// finished-milestone finding for it.
+func runFinishedMilestoneCheck(t *testing.T, status string) bool {
 	t.Helper()
 	vault := setupVault(t)
 	v := &core.Vault{Root: vault}
@@ -644,9 +644,7 @@ func runFinishedMilestoneCheck(t *testing.T, status, kind string) bool {
 		"project": "anvil",
 		"created": "2026-06-01",
 		"updated": "2026-06-01",
-	}
-	if kind != "" {
-		fm["kind"] = kind
+		"kind":    "scoped",
 	}
 	ms := &core.Artifact{Path: filepath.Join(vault, "85-milestones", msSlug+".md"), FrontMatter: fm, Body: "## Goal\n\nAll done.\n"}
 	if err := ms.Save(); err != nil {
@@ -690,7 +688,7 @@ func runFinishedMilestoneCheck(t *testing.T, status, kind string) bool {
 // A planned milestone reaches done directly, so all-issues-resolved at planned
 // is finished — the gap doctor missed by gating only on in-progress.
 func TestDoctorFinishedMilestone_Planned(t *testing.T) {
-	if !runFinishedMilestoneCheck(t, "planned", "scoped") {
+	if !runFinishedMilestoneCheck(t, "planned") {
 		t.Error("planned milestone with all issues resolved should be flagged finished")
 	}
 }

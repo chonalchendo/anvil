@@ -209,8 +209,7 @@ func runShow(cmd *cobra.Command, v *core.Vault, t core.Type, basename, rawID str
 				cmd.PrintErrln(merr)
 			} else {
 				status, _ := a.FrontMatter["status"].(string)
-				kind, _ := a.FrontMatter["kind"].(string)
-				stale := index.MilestoneStale(mc, status, kind)
+				stale := index.MilestoneStale(mc, status)
 				out.Children = &mc
 				out.Stale = &stale
 			}

@@ -449,27 +449,6 @@ func writeFixtureMilestone(t *testing.T, vault, id, status string) {
 	}
 }
 
-// TestTransitionMilestoneScopedToDone pins that a scoped milestone moves
-// in-progress to done.
-func TestTransitionMilestoneScopedToDone(t *testing.T) {
-	t.Run("scoped milestone on same edge transitions", func(t *testing.T) {
-		vault := t.TempDir()
-		t.Setenv("ANVIL_VAULT", vault)
-		execCmd(t, "init", vault)
-		writeFixtureMilestone(t, vault, "demo.scoped", "in-progress")
-		execCmd(t, "reindex")
-
-		out := execCmdJSON(t, "transition", "milestone", "demo.scoped", "done", "--json")
-		var env map[string]any
-		if err := jsonUnmarshal(t, strings.TrimSpace(out), &env); err != nil {
-			t.Fatalf("json: %v\nout: %s", err, out)
-		}
-		if env["status"] != "transitioned" || env["to"] != "done" {
-			t.Fatalf("scoped milestone done envelope: %v", env)
-		}
-	})
-}
-
 // TestTransitionResolveLastIssueAdvisory pins the milestone-close advisory:
 // resolving the last open/in-progress issue linked to a milestone surfaces
 // "consider: anvil transition milestone <id> done" in both the human output

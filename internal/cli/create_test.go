@@ -1081,8 +1081,8 @@ func TestCreateMilestone_KindBucketRefused(t *testing.T) {
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Chdir(repo)
 
-	stdout, stderr, err := runCmd(t, newRootCmd(), "create", "milestone", "--title", "CLI substrate", "--description", "test description", "--goal", "CLI substrate ships and all attached issues are resolved", "--kind", "bucket")
-	if out := stdout + stderr; err == nil || !strings.Contains(out, "enum_violation") || !strings.Contains(out, "kind") {
+	stdout, stderr, err := runCmd(t, newRootCmd(), "create", "milestone", "--title", "CLI substrate", "--description", "test description", "--goal", "CLI substrate ships and all attached issues are resolved", "--kind", "bucket", "--json")
+	if out := stdout + stderr; err == nil || !strings.Contains(out, "enum_violation") || !strings.Contains(out, `"field":"kind"`) {
 		t.Fatalf("want enum_violation on kind, err=%v out=%s", err, out)
 	}
 	if _, statErr := os.Stat(filepath.Join(vault, "85-milestones", "milestone.foo.cli-substrate.md")); !os.IsNotExist(statErr) {
