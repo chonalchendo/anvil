@@ -82,7 +82,7 @@ func Serve(ctx context.Context, v *core.Vault, db *index.DB, addr string, out io
 		return err
 	case <-ctx.Done():
 	}
-	shutdown, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	shutdown, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(shutdown); err != nil {
 		return err
