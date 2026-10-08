@@ -3,7 +3,9 @@
 # Claude Code transcripts.
 #
 # Transcripts log one JSONL line per content block, so a naive sum over
-# `message.usage` overcounts roughly twofold: dedupe by `message.id` first.
+# `message.usage` overcounts roughly twofold: group by `message.id` and take the max of each
+# usage field, because only the last line of a message carries the final
+# `output_tokens`.
 # Subagent transcripts sit under <project>/<session>/subagents/*.jsonl and
 # carry a structured `attributionAgent` field naming the dispatched agent
 # (e.g. "anvil-pr-responder"); that field is used verbatim as agent_type,
@@ -116,7 +118,13 @@ while IFS= read -r -d '' file; do
 done < <("${find_cmd[@]}")
 
 jq -s '
-    unique_by(.id)
+    group_by(.id)
+    | map(.[0] + {
+        input: (map(.input) | max),
+        cache_create: (map(.cache_create) | max),
+        cache_read: (map(.cache_read) | max),
+        output: (map(.output) | max)
+    })
     | group_by([.model, .agent_type])
     | map({
         model: .[0].model,
