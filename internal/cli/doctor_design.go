@@ -23,7 +23,7 @@ func checkCandidateMilestoneDone(v *core.Vault, projectSlug string) ([]doctorFin
 	if err != nil {
 		return nil, err
 	}
-	pdID := core.CanonicalID(core.TypeProductDesign, projectSlug)
+	pdID := "product-design." + projectSlug
 	pd, err := core.LoadArtifact(pdPath)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
