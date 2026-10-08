@@ -26,6 +26,8 @@ func newSetCmd() *cobra.Command {
 		flagJSON          bool
 		flagCommand       string
 		flagExpected      string
+		flagForce         bool
+		flagReason        string
 	)
 
 	cmd := &cobra.Command{
@@ -120,6 +122,11 @@ func newSetCmd() *cobra.Command {
 						return rerr
 					}
 					sv = resolved
+				}
+				if field == "status" {
+					if gerr := guardStatusSet(cmd, a, t, id, prev, sv, flagForce, flagReason); gerr != nil {
+						return gerr
+					}
 				}
 				isInt, ierr := schema.FieldIsInteger(string(t), field)
 				if ierr != nil {
@@ -316,6 +323,8 @@ func newSetCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
 	cmd.Flags().StringVar(&flagCommand, "command", "", "shell command for reproduction_anchor")
 	cmd.Flags().StringVar(&flagExpected, "expected", "", "expected stdout for reproduction_anchor (empty = not asserted)")
+	cmd.Flags().BoolVar(&flagForce, "force", false, "status only: bypass the transition table (needs --reason; appends an audit line)")
+	cmd.Flags().StringVar(&flagReason, "reason", "", "why --force bypasses the transition table")
 	cmd.PreRunE = func(c *cobra.Command, _ []string) error {
 		flagAddSet = c.Flags().Changed("add")
 		flagRemSet = c.Flags().Changed("remove")

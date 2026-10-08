@@ -93,7 +93,7 @@ The id is `convention.<slug>` (project-agnostic — no `--project`). Validate, t
 
 ```bash
 anvil validate
-anvil set convention convention.<slug> status active
+anvil transition convention convention.<slug> active
 ```
 
 If `anvil validate` reports `type/convention` as an unknown glossary tag (first convention in a fresh vault), register it once: `anvil tags add type/convention --desc "..."`.

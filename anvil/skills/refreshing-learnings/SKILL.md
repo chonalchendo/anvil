@@ -71,7 +71,7 @@ Status is gated by the learning state machine — drive it through `transition`,
 anvil transition learning <id> <verified|stale|retracted>
 ```
 
-Legal edges: `draft→verified`, `verified→stale`, `stale→verified`, `verified→retracted` (so a draft is promoted to `verified` before it can go stale or be retracted). `transition` rejects an illegal jump; reach for `anvil set learning <id> status` only as a deliberate force-edit escape hatch. Gate the destructive verdicts (consolidate / replace / delete) on the user before acting.
+Legal edges: `draft→verified`, `verified→stale`, `stale→verified`, `verified→retracted`, `draft→stale` (so a draft is promoted to `verified` before it can go stale or be retracted). `transition` rejects an illegal jump; reach for `anvil set learning <id> status <v> --force --reason "<why>"` only as a deliberate audited escape hatch. Gate the destructive verdicts (consolidate / replace / delete) on the user before acting.
 
 **Synthesize** is consolidate's additive sibling: consolidate collapses duplicates and retracts the losers; synthesize rolls a cluster of *distinct* learnings up into a new higher-tier generalization while keeping every specific. Reuse the `learning` type — no new artifact type:
 

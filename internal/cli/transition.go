@@ -28,6 +28,7 @@ func newTransitionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "transition <type> <id> <new-state>",
 		Short: "Move an artifact through its state machine",
+		Long:  "Move an artifact through its state machine.\n\nTypes with a table: " + strings.Join(core.TabledTypes(), ", ") + ".",
 		Args:  namedArgs("anvil transition <type> <id> <new-state>", []string{"<type>", "<id>", "<new-state>"}, 3, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t, err := core.ParseType(args[0])

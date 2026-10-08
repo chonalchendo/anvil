@@ -131,3 +131,16 @@ func LegalNext(t Type, from string) []string {
 	}
 	return out
 }
+
+// TabledTypes lists the types that have a transition table, in AllTypes order.
+func TabledTypes() (out []string) {
+	for _, t := range AllTypes {
+		if HasTransitions(t) {
+			out = append(out, string(t))
+		}
+	}
+	return out
+}
+
+// HasTransitions reports whether t has a transition table.
+func HasTransitions(t Type) bool { return len(transitions[t]) > 0 }
