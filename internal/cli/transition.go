@@ -222,15 +222,7 @@ func newTransitionCmd() *cobra.Command {
 				return printAndReturn(cmd, errfmt.NewTransitionFlagRequired(string(t), id, from, to, "reason"))
 			}
 
-			// A bucket milestone has no terminal predicate, so done is meaningless.
-			// Reject before any state mutation.
 			if t == core.TypeMilestone && to == "done" {
-				if kind, _ := a.FrontMatter["kind"].(string); kind == "bucket" {
-					return printAndReturn(cmd, errfmt.NewStructured("bucket_milestone_no_done").
-						Set("milestone", id).
-						Set("kind", "bucket").
-						Set("hint", "bucket milestones are rolling trackers with no terminal state; use abandoned to close one"))
-				}
 				if gerr := gateMilestoneDone(cmd, v, a, id); gerr != nil {
 					return printAndReturn(cmd, gerr)
 				}

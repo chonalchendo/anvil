@@ -39,7 +39,7 @@ func ValidateMilestone(a *Artifact) []error {
 	kind, _ := a.FrontMatter["kind"].(string)
 	acceptance, _ := a.FrontMatter["acceptance"].([]any)
 	if kind == "scoped" && len(acceptance) == 0 {
-		errs = append(errs, fmt.Errorf("kind: scoped milestone has empty acceptance — a scoped milestone needs a witnessable finish line; add at least one runnable-predicate acceptance criterion, or flip kind to bucket if the work is genuinely open-ended"))
+		errs = append(errs, fmt.Errorf("kind: scoped milestone has empty acceptance — a scoped milestone needs a witnessable finish line; add at least one runnable-predicate acceptance criterion"))
 	}
 
 	return errs

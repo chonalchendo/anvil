@@ -695,13 +695,6 @@ func TestDoctorFinishedMilestone_Planned(t *testing.T) {
 	}
 }
 
-// Buckets have no terminal done state; all issues resolved must not flag them.
-func TestDoctorFinishedMilestone_BucketNotFlagged(t *testing.T) {
-	if runFinishedMilestoneCheck(t, "planned", "bucket") {
-		t.Error("bucket milestone must not be flagged finished")
-	}
-}
-
 // runComponentDesignRailCheck builds a vault with one component design (given status/body)
 // and, when withConvention is set, one convention artifact, then reports
 // whether doctor emits a component-design-empty-convention-rail finding for it.

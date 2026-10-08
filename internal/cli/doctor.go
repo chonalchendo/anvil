@@ -393,18 +393,13 @@ func claimSessionLive(v *core.Vault, claimSession string, now time.Time) bool {
 
 // checkFinishedMilestone returns a finding when a not-yet-done milestone has
 // every child issue resolved or abandoned. Returns nil for milestones that are
-// already terminal, are buckets, have open work, or have no children.
+// already terminal, have open work, or have no children.
 func checkFinishedMilestone(msPath string, a *core.Artifact, children []childIssue) *doctorFinding {
 	status, _ := a.FrontMatter["status"].(string)
 	// planned and in-progress both precede done: milestones transition
 	// planned → done directly, so a planned milestone with all issues
 	// resolved is finished too, not only an in-progress one.
 	if status != "planned" && status != "in-progress" {
-		return nil
-	}
-	// Buckets are rolling trackers with no terminal done state; all issues
-	// resolved never means finished for them.
-	if kind, _ := a.FrontMatter["kind"].(string); kind == "bucket" {
 		return nil
 	}
 	// children carry milestoneSlug()'s bare wikilink tail, so compare bare —

@@ -31,7 +31,6 @@ func writeMeasuredMilestone(t *testing.T, vault, id, kind, statusBody string) {
 func TestList_MeasurementStale(t *testing.T) {
 	vault := setupVault(t)
 	writeMeasuredMilestone(t, vault, "demo.old", "scoped", "Measured: 2020-01-01")
-	writeMeasuredMilestone(t, vault, "demo.bucket", "bucket", "Measured: 2020-01-01")
 
 	out, errOut, err := runCmd(t, newRootCmd(), "list", "milestone", "--json")
 	if err != nil {
@@ -44,19 +43,15 @@ func TestList_MeasurementStale(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, it := range env.Items {
-		v, has := it["measurement_stale"]
+		v := it["measurement_stale"]
 		switch it["id"] {
 		case "milestone.demo.old":
 			if v != true {
 				t.Errorf("scoped stale: measurement_stale = %v, want true", v)
 			}
-		case "milestone.demo.bucket":
-			if has {
-				t.Errorf("bucket: measurement_stale = %v, want key absent", v)
-			}
 		}
 	}
-	if !strings.Contains(errOut, "milestone.demo.old") || strings.Contains(errOut, "milestone.demo.bucket") {
+	if !strings.Contains(errOut, "milestone.demo.old") {
 		t.Errorf("stderr warning mismatch: %q", errOut)
 	}
 
@@ -86,7 +81,6 @@ func TestList_MeasurementStale_WarnsOnlyForReturnedItems(t *testing.T) {
 func TestShow_MeasurementStale(t *testing.T) {
 	vault := setupVault(t)
 	writeMeasuredMilestone(t, vault, "demo.old", "scoped", "Measured: 2020-01-01")
-	writeMeasuredMilestone(t, vault, "demo.bucket", "bucket", "Measured: 2020-01-01")
 
 	out, _, err := runCmd(t, newRootCmd(), "show", "milestone", "demo.old", "--json")
 	if err != nil {
@@ -100,17 +94,6 @@ func TestShow_MeasurementStale(t *testing.T) {
 		t.Errorf("measurement_stale = %v, want true", got["measurement_stale"])
 	}
 
-	out, _, err = runCmd(t, newRootCmd(), "show", "milestone", "demo.bucket", "--json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got = nil
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
-		t.Fatal(err)
-	}
-	if _, has := got["measurement_stale"]; has {
-		t.Errorf("bucket: measurement_stale present, want absent")
-	}
 }
 
 // TestListItemFields_MatchJSONTags keeps the --fields allowlist in step with

@@ -225,13 +225,6 @@ func TestMilestoneStaleReportsDriftAndCaughtUp(t *testing.T) {
 			status: "planned",
 			want:   false,
 		},
-		{
-			name:   "bucket milestone never stale even fully caught up",
-			mc:     MilestoneChildren{Resolved: 2, Total: 2},
-			status: "in-progress",
-			kind:   "bucket",
-			want:   false,
-		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
