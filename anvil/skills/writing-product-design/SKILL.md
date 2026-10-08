@@ -13,7 +13,6 @@ metadata:
   updated: 2026-05-24
   tags: [type/skill, activity/product-design]
   diataxis: how-to
-  authored_via: extracting-skill-from-session
   confidence: low
   status: in-use
 ---
