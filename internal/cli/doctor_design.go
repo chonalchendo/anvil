@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/chonalchendo/anvil/internal/core"
@@ -16,8 +15,6 @@ import (
 func checkDesignDrift(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 	return checkCandidateMilestoneDone(v, projectSlug)
 }
-
-var leadingLink = regexp.MustCompile(`^\s*\[\[[^\]]*\]\]`)
 
 type milestoneRef struct{ id, status, done string }
 
@@ -58,11 +55,11 @@ func checkCandidateMilestoneDone(v *core.Vault, projectSlug string) ([]doctorFin
 				refs = append(refs, m)
 			}
 		}
-		text := strings.ToLower(strings.TrimSpace(leadingLink.ReplaceAllString(bullet, "")))
+		text := strings.ToLower(strings.TrimSpace(bullet))
 		for title, m := range byTitle {
 			// Prefix match: a title may itself contain "." (v0.1), so the
 			// boundary is the character after the title, not a cut.
-			if rest, ok := strings.CutPrefix(text, title); ok && (rest == "" || rest[0] == '.' || rest[0] == ':') {
+			if rest, ok := strings.CutPrefix(text, title); ok && (rest == "" || rest[0] == ':' || rest == "." || strings.HasPrefix(rest, ". ")) {
 				refs = append(refs, m)
 			}
 		}

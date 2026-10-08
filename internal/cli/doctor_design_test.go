@@ -26,30 +26,32 @@ func seedProductDesign(t *testing.T, vault, body string) {
 func TestDoctorCandidateMilestoneDone(t *testing.T) {
 	cases := []struct {
 		name   string
+		title  string // milestone title; empty means "Close the loop"
 		status string
 		done   string
 		pd     string // empty means no product design
 		want   string // evidence suffix; empty means no finding
 	}{
-		{"linked, done and dated", "done", "2026-10-08", "## Milestones\n\n- [[milestone.demo.loop]]\n", "(done 2026-10-08)"},
-		{"linked, done and undated", "done", "", "## Milestones\n\n- [[milestone.demo.loop]]\n", "(done date not stamped)"},
-		{"listed by title", "done", "2026-10-08", "## Milestones\n\n- Close the loop. Why: x\n", "(done 2026-10-08)"},
-		{"title with colon, mixed case", "done", "", "## Milestones\n\n- CLOSE THE LOOP: why\n", "(done date not stamped)"},
-		{"title containing a dot", "done", "", "## Milestones\n\n- v0.1 polish — dogfood findings.\n", "(done date not stamped)"},
-		{"listed title is a strict prefix of a longer one", "done", "", "## Milestones\n\n- Close the loop properly.\n", ""},
-		{"in-progress milestone listed", "in-progress", "", "## Milestones\n\n- [[milestone.demo.loop]]\n", ""},
-		{"done milestone not listed", "done", "", "## Milestones\n\n- none\n", ""},
-		{"nested evidence link", "done", "", "## Milestones\n\n- Other candidate.\n  - Why now: [[milestone.demo.loop]] shipped.\n", ""},
-		{"no Milestones section", "done", "", "## Other\n\n- [[milestone.demo.loop]]\n", ""},
-		{"no product design", "done", "", "", ""},
+		{"linked, done and dated", "", "done", "2026-10-08", "## Milestones\n\n- [[milestone.demo.loop]]\n", "(done 2026-10-08)"},
+		{"linked, done and undated", "", "done", "", "## Milestones\n\n- [[milestone.demo.loop]]\n", "(done date not stamped)"},
+		{"listed by title", "", "done", "2026-10-08", "## Milestones\n\n- Close the loop. Why: x\n", "(done 2026-10-08)"},
+		{"title with colon, mixed case", "", "done", "", "## Milestones\n\n- CLOSE THE LOOP: why\n", "(done date not stamped)"},
+		{"title containing a dot", "v0.1 polish — dogfood findings", "done", "", "## Milestones\n\n- v0.1 polish — dogfood findings.\n", "(done date not stamped)"},
+		{"listed title is a strict prefix of a longer one", "", "done", "", "## Milestones\n\n- Close the loop properly.\n", ""},
+		{"title is a prefix of a dotted bullet", "v0", "done", "", "## Milestones\n\n- v0.2: next\n", ""},
+		{"in-progress milestone listed", "", "in-progress", "", "## Milestones\n\n- [[milestone.demo.loop]]\n", ""},
+		{"done milestone not listed", "", "done", "", "## Milestones\n\n- none\n", ""},
+		{"nested evidence link", "", "done", "", "## Milestones\n\n- Other candidate.\n  - Why now: [[milestone.demo.loop]] shipped.\n", ""},
+		{"no Milestones section", "", "done", "", "## Other\n\n- [[milestone.demo.loop]]\n", ""},
+		{"no product design", "", "done", "", "", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			vault := setupVault(t)
 			writeFixtureMilestone(t, vault, "demo.loop", tc.status)
-			title := "Close the loop"
-			if strings.HasPrefix(tc.name, "title containing") {
-				title = "v0.1 polish — dogfood findings"
+			title := tc.title
+			if title == "" {
+				title = "Close the loop"
 			}
 			setMilestoneFields(t, vault, "demo.loop", title, tc.done)
 			if tc.pd != "" {
