@@ -49,7 +49,7 @@ func stubCostEnv(t *testing.T, view func(int, string) ([]byte, error)) {
 	gitToplevelFn = func() (string, error) { return "/Users/x/anvil", nil }
 }
 
-func okView(num int, fields string) ([]byte, error) {
+func okView(_ int, _ string) ([]byte, error) {
 	return []byte(`{"additions":30,"deletions":12,"changedFiles":4}`), nil
 }
 
