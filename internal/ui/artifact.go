@@ -163,14 +163,20 @@ func (s *server) parent(key string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	for _, slot := range spineSlots {
+	t := slotOf(rows, spineSlots...)
+	return t, t != ""
+}
+
+// slotOf returns the target of the first row whose relation is a slot, trying slots in order.
+func slotOf(rows []index.LinkRow, slots ...string) string {
+	for _, slot := range slots {
 		for _, r := range rows {
 			if r.Relation == slot {
-				return r.Target, true
+				return r.Target
 			}
 		}
 	}
-	return "", false
+	return ""
 }
 
 // groups folds link rows into relation (and source type) groups, sorted by name.
