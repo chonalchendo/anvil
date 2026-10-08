@@ -1,8 +1,11 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
+
+	"github.com/chonalchendo/anvil/internal/schema"
 )
 
 func TestTransitionLookupHit(t *testing.T) {
@@ -74,5 +77,61 @@ func TestIssueTransitions_FromEscalated_OnlyOpenAndAbandonedLegal(t *testing.T) 
 	}
 	if _, err := LookupTransition(TypeIssue, "escalated", "resolved"); !errors.Is(err, ErrIllegalTransition) {
 		t.Errorf("escalated→resolved must be illegal, got %v", err)
+	}
+}
+
+func statusEnum(t *testing.T, ty Type) []string {
+	t.Helper()
+	b, err := schema.EmbeddedFS.ReadFile(string(ty) + ".schema.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw struct {
+		Properties struct {
+			Status struct {
+				Enum []string `json:"enum"`
+			} `json:"status"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		t.Fatal(err)
+	}
+	return raw.Properties.Status.Enum
+}
+
+func TestEveryStatusEnumValueIsReachable(t *testing.T) {
+	for _, ty := range AllTypes {
+		enum := statusEnum(t, ty)
+		if len(enum) == 0 {
+			continue
+		}
+		inEnum := map[string]bool{}
+		for _, v := range enum {
+			inEnum[v] = true
+		}
+		for _, tr := range transitions[ty] {
+			for _, s := range []string{tr.From, tr.To} {
+				if !inEnum[s] {
+					t.Errorf("%s: table status %q is not in the schema enum %v", ty, s, enum)
+				}
+			}
+		}
+		seen := map[string]bool{InitialStatus(ty): true}
+		queue := []string{InitialStatus(ty)}
+		for len(queue) > 0 {
+			cur := queue[0]
+			queue = queue[1:]
+			for _, next := range LegalNext(ty, cur) {
+				if !seen[next] {
+					seen[next] = true
+					queue = append(queue, next)
+				}
+			}
+		}
+		for _, v := range enum {
+			if !seen[v] {
+				t.Errorf("%s: enum value %q is not reachable from %q", ty, v, InitialStatus(ty))
+			}
+		}
 	}
 }

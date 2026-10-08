@@ -1,6 +1,12 @@
 package core
 
-import "errors"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+
+	"github.com/chonalchendo/anvil/internal/schema"
+)
 
 // ErrIllegalTransition signals no edge from current to target in the type's table.
 var ErrIllegalTransition = errors.New("illegal transition")
@@ -43,6 +49,9 @@ var transitions = map[Type][]Transition{
 	TypeInbox: {
 		{From: "raw", To: "promoted"},
 		{From: "raw", To: "dropped"},
+		{From: "raw", To: "triaged"},
+		{From: "triaged", To: "promoted"},
+		{From: "triaged", To: "dropped"},
 	},
 	TypeThread: {
 		{From: "open", To: "paused"},
@@ -52,6 +61,7 @@ var transitions = map[Type][]Transition{
 	},
 	TypeLearning: {
 		{From: "draft", To: "verified"},
+		{From: "draft", To: "stale"},
 		{From: "verified", To: "stale"},
 		{From: "stale", To: "verified"},
 		{From: "verified", To: "retracted"},
@@ -62,6 +72,55 @@ var transitions = map[Type][]Transition{
 		{From: "in-progress", To: "abandoned"},
 		{From: "planned", To: "abandoned"},
 	},
+	TypeComponentDesign: {
+		{From: "draft", To: "active"},
+		{From: "active", To: "deprecated"},
+		{From: "deprecated", To: "active", Reverse: true},
+	},
+	TypeConvention: {
+		{From: "draft", To: "active"},
+		{From: "active", To: "deprecated"},
+		{From: "active", To: "superseded"},
+		{From: "deprecated", To: "active", Reverse: true},
+	},
+	TypeProductDesign: designTable,
+	TypeSystemDesign:  designTable,
+	TypeSession: {
+		{From: "raw", To: "triaged"},
+		{From: "triaged", To: "distilled"},
+		{From: "distilled", To: "archived"},
+		{From: "raw", To: "archived"},
+	},
+}
+
+// designTable is shared: product-design and system-design have one lifecycle.
+var designTable = []Transition{
+	{From: "draft", To: "active"},
+	{From: "active", To: "superseded"},
+	{From: "active", To: "retired"},
+	{From: "superseded", To: "active", Reverse: true},
+	{From: "retired", To: "active", Reverse: true},
+}
+
+// InitialStatus returns the status a new artifact of type t starts in. By
+// invariant the first value of the schema's status enum is the initial status
+// for all twelve types; the schema owns the enum.
+func InitialStatus(t Type) string {
+	b, err := schema.EmbeddedFS.ReadFile(string(t) + ".schema.json")
+	if err != nil {
+		panic(fmt.Sprintf("InitialStatus: reading embedded schema for %s: %v", t, err))
+	}
+	var raw struct {
+		Properties struct {
+			Status struct {
+				Enum []string `json:"enum"`
+			} `json:"status"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		panic(fmt.Sprintf("InitialStatus: parsing embedded schema for %s: %v", t, err))
+	}
+	return raw.Properties.Status.Enum[0]
 }
 
 // LookupTransition returns the matching edge or ErrIllegalTransition.
