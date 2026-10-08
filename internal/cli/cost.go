@@ -172,7 +172,7 @@ func (r *costRecord) tokensFromTranscripts(id, projectsDir string) {
 	}
 	matched := 0
 	for _, f := range files {
-		agent, total, ok := transcriptTokens(f, id)
+		agent, total, ok := r.transcriptTokens(f, id)
 		if !ok {
 			continue
 		}
@@ -202,9 +202,11 @@ type transcriptLine struct {
 	} `json:"message"`
 }
 
-// transcriptTokens sums one transcript's usage deduped by message id. ok is
-// false when the dispatch prompt does not name the issue.
-func transcriptTokens(path, id string) (agent string, total int, ok bool) {
+// transcriptTokens sums one transcript's usage. A streamed message repeats
+// its id across lines with growing output_tokens, so each usage field takes
+// its max per id, whatever the line order. ok is false when the dispatch
+// prompt does not name the issue or the scan failed (noted on r).
+func (r *costRecord) transcriptTokens(path, id string) (agent string, total int, ok bool) {
 	f, err := os.Open(path) //nolint:gosec // path comes from a Glob under the projects dir
 	if err != nil {
 		return "", 0, false
@@ -212,7 +214,7 @@ func transcriptTokens(path, id string) (agent string, total int, ok bool) {
 	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 1<<20), 64<<20)
-	seen := map[string]bool{}
+	byMsg := map[string][4]int{}
 	sawUser := false
 	for sc.Scan() {
 		var l transcriptLine
@@ -228,14 +230,24 @@ func transcriptTokens(path, id string) (agent string, total int, ok bool) {
 			if issueIDInPrompt.FindString(promptText(l.Message.Content)) != id {
 				return "", 0, false
 			}
-		case l.Type == "assistant" && !seen[l.Message.ID]:
-			seen[l.Message.ID] = true
+		case l.Type == "assistant":
 			u := l.Message.Usage
-			total += u.Input + u.CacheCreation + u.CacheRead + u.Output
+			m := byMsg[l.Message.ID]
+			for i, v := range [4]int{u.Input, u.CacheCreation, u.CacheRead, u.Output} {
+				m[i] = max(m[i], v)
+			}
+			byMsg[l.Message.ID] = m
 		}
 	}
-	if sc.Err() != nil || !sawUser {
+	if err := sc.Err(); err != nil {
+		r.notices = append(r.notices, "cost: transcript "+path+" skipped: "+err.Error())
 		return "", 0, false
+	}
+	if !sawUser {
+		return "", 0, false
+	}
+	for _, m := range byMsg {
+		total += m[0] + m[1] + m[2] + m[3]
 	}
 	if agent == "" {
 		agent = "subagent-unknown"

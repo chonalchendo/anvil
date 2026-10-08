@@ -1,6 +1,7 @@
 package cli
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"os"
@@ -13,6 +14,9 @@ import (
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 )
+
+//go:embed testdata/cost_real_transcript.jsonl
+var realTranscript string
 
 const costID = "issue.anvil.0001.cost"
 
@@ -67,7 +71,7 @@ func writeTranscript(t *testing.T, dir, name string, lines ...string) {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil { //nolint:gosec // G703 false positive: dir is always a t.TempDir() path; the taint is fixture file content
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -194,18 +198,14 @@ func TestCostReadsRealTranscriptShape(t *testing.T) {
 	t.Setenv("ANVIL_VAULT", vault)
 	writeCostIssue(t, vault, []any{"https://github.com/o/r/pull/7"}, "sess1")
 	stubCostEnv(t, okView)
-	raw, err := os.ReadFile("testdata/cost_real_transcript.jsonl")
-	if err != nil {
-		t.Fatal(err)
-	}
 	projects := t.TempDir()
 	dir := filepath.Join(projects, "-Users-x-anvil", "sess1", "subagents")
-	body := strings.ReplaceAll(strings.TrimRight(string(raw), "\n"), "@ISSUE@", costID)
+	body := strings.ReplaceAll(strings.TrimRight(realTranscript, "\n"), "@ISSUE@", costID)
 	writeTranscript(t, dir, "agent-real.jsonl", body)
 	rec, _ := runCostJSON(t, costID, "--projects-dir", projects, "--json")
-	// First line of the message id: 2 input + 15816 cache-creation + 0 cache-read + 8 output.
-	if rec.Tokens != 15826 || rec.ByAgent["anvil-pr-reviewer"] != 15826 {
-		t.Errorf("tokens = %d by_agent = %v, want 15826 under anvil-pr-reviewer", rec.Tokens, rec.ByAgent)
+	// Max per field across the id's two lines: 2 input + 15816 cache-creation + 0 cache-read + 238 output.
+	if rec.Tokens != 16056 || rec.ByAgent["anvil-pr-reviewer"] != 16056 {
+		t.Errorf("tokens = %d by_agent = %v, want 16056 under anvil-pr-reviewer", rec.Tokens, rec.ByAgent)
 	}
 }
 
