@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/cli/facets"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/schema"
@@ -119,6 +120,24 @@ func newSetCmd() *cobra.Command {
 						return rerr
 					}
 					sv = resolved
+				}
+				isInt, ierr := schema.FieldIsInteger(string(t), field)
+				if ierr != nil {
+					return fmt.Errorf("schema lookup: %w", ierr)
+				}
+				if isInt {
+					n, perr := strconv.Atoi(sv)
+					if perr != nil {
+						return emitValidationErrors(cmd, flagJSON, []*errfmt.ValidationError{
+							errfmt.NewValidationError(errfmt.CodeTypeMismatch, path, field, sv).
+								WithExpected("integer").
+								WithNote(fmt.Sprintf("%q takes an integer; pass a whole number such as 3", field)),
+						})
+					}
+					a.FrontMatter[field] = n
+					result.From = prev
+					result.To = n
+					break
 				}
 				a.FrontMatter[field] = sv
 				result.From = prev

@@ -39,6 +39,25 @@ func FieldKind(typeName, fieldName string) (Kind, error) {
 	return classify(prop.Type), nil
 }
 
+// FieldIsInteger reports whether typeName's fieldName is declared with JSON
+// Schema type "integer", so set can coerce its string argument.
+func FieldIsInteger(typeName, fieldName string) (bool, error) {
+	b, err := EmbeddedFS.ReadFile(typeName + ".schema.json")
+	if err != nil {
+		return false, fmt.Errorf("read %s schema: %w", typeName, err)
+	}
+	var raw struct {
+		Properties map[string]struct {
+			Type any `json:"type"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return false, fmt.Errorf("parse %s schema: %w", typeName, err)
+	}
+	t, _ := raw.Properties[fieldName].Type.(string)
+	return t == "integer", nil
+}
+
 // FieldRequired reports whether fieldName is in typeName's schema `required`
 // array. The set unset-on-empty path consults this so clearing a required
 // scalar (title, goal, …) falls through to ValidateField's minLength:1 reject
