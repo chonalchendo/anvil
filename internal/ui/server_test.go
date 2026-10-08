@@ -179,10 +179,9 @@ func TestStatic_VersionedAndImmutable(t *testing.T) {
 	if !strings.Contains(body, want) {
 		t.Errorf("home lacks %s", want)
 	}
-	_, served := do(h, "GET", "/static/anvil.css")
 	font, _ := staticFS.ReadFile("static/inter.woff2")
 	fsum := sha256.Sum256(font)
-	if want := `url("inter.woff2?v=` + hex.EncodeToString(fsum[:])[:8] + `")`; !strings.Contains(served, want) {
+	if want := `url("inter.woff2?v=` + hex.EncodeToString(fsum[:])[:8] + `")`; !strings.Contains(rewritten, want) {
 		t.Errorf("served css lacks versioned font %s", want)
 	}
 	rec := httptest.NewRecorder()

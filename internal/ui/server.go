@@ -96,7 +96,7 @@ func Serve(ctx context.Context, v *core.Vault, db *index.DB, addr string, out io
 type ErrAddrNotLoopback struct{ Addr string }
 
 func (e *ErrAddrNotLoopback) Error() string {
-	return fmt.Sprintf("ui address %q is not loopback; bind 127.0.0.0/8, ::1 or localhost", e.Addr)
+	return fmt.Sprintf("ui address %q is not loopback", e.Addr)
 }
 
 func requireLoopback(addr string) error {
