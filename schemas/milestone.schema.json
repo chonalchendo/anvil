@@ -20,6 +20,7 @@
     "system_design":  { "type": "string", "minLength": 1 },
     "authorized_by":  { "type": "array", "items": { "type": "string" } },
     "approved":       { "type": "string", "format": "date" },
+    "done":           { "type": "string", "format": "date" },
     "acceptance":     { "type": "array", "items": { "type": "string" } },
     "related":        { "type": "array", "items": { "type": "string" } },
     "external_links": { "type": "array", "items": { "type": "string", "minLength": 1 } }

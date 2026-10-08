@@ -191,6 +191,13 @@ func runDoctor(v *core.Vault, projectSlug string) ([]doctorFinding, error) {
 	}
 	findings = append(findings, componentDesignFindings...)
 
+	// Shape 9: done milestone still listed as a product-design candidate.
+	designFindings, err := checkDesignDrift(v, projectSlug)
+	if err != nil {
+		return nil, err
+	}
+	findings = append(findings, designFindings...)
+
 	// Shape 6: two issues minted under one ordinal.
 	findings = append(findings, checkDuplicateOrdinals(issuePaths)...)
 
