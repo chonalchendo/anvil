@@ -1,11 +1,12 @@
 package core
 
 import (
-	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/chonalchendo/anvil/internal/schema"
+	"github.com/chonalchendo/anvil/internal/templates"
 )
 
 func TestTransitionLookupHit(t *testing.T) {
@@ -80,28 +81,12 @@ func TestIssueTransitions_FromEscalated_OnlyOpenAndAbandonedLegal(t *testing.T) 
 	}
 }
 
-func statusEnum(t *testing.T, ty Type) []string {
-	t.Helper()
-	b, err := schema.EmbeddedFS.ReadFile(string(ty) + ".schema.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-	var raw struct {
-		Properties struct {
-			Status struct {
-				Enum []string `json:"enum"`
-			} `json:"status"`
-		} `json:"properties"`
-	}
-	if err := json.Unmarshal(b, &raw); err != nil {
-		t.Fatal(err)
-	}
-	return raw.Properties.Status.Enum
-}
-
 func TestEveryStatusEnumValueIsReachable(t *testing.T) {
 	for _, ty := range AllTypes {
-		enum := statusEnum(t, ty)
+		enum, err := schema.StatusEnum(string(ty))
+		if err != nil {
+			t.Fatal(err)
+		}
 		if len(enum) == 0 {
 			continue
 		}
@@ -132,6 +117,25 @@ func TestEveryStatusEnumValueIsReachable(t *testing.T) {
 			if !seen[v] {
 				t.Errorf("%s: enum value %q is not reachable from %q", ty, v, InitialStatus(ty))
 			}
+		}
+	}
+}
+
+func TestTemplateStatusMatchesInitialStatus(t *testing.T) {
+	for _, ty := range AllTypes {
+		src, err := templates.FS.ReadFile(string(ty) + ".tmpl")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got string
+		for _, line := range strings.Split(string(src), "\n") {
+			if v, ok := strings.CutPrefix(line, "status: "); ok {
+				got = strings.TrimSpace(v)
+				break
+			}
+		}
+		if want := InitialStatus(ty); got != want {
+			t.Errorf("%s: template status %q != InitialStatus %q", ty, got, want)
 		}
 	}
 }

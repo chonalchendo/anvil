@@ -53,3 +53,13 @@ func TestFieldIsInteger(t *testing.T) {
 		}
 	}
 }
+
+func TestStatusEnum(t *testing.T) {
+	got, err := StatusEnum("issue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) == 0 || got[0] != "open" {
+		t.Errorf("StatusEnum(issue) = %v, want first value open", got)
+	}
+}

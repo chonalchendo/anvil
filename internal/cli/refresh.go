@@ -34,9 +34,9 @@ func newRefreshLearningsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "learnings",
 		Short: "Mark verified/draft learnings stale when a related-link target is gone",
-		Long: `Drive the deterministic freshness signal: a verified learning whose
+		Long: `Drive the deterministic freshness signal: a draft or verified learning whose
 related wikilink targets a moved or deleted artifact is transitioned to
-stale (verified→stale is the only legal edge into stale).
+stale.
 
 Only learnings eligible for →stale are examined; the judgement calls
 (keep / update / consolidate / replace / delete) belong to the

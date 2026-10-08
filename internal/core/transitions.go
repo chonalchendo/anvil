@@ -1,7 +1,6 @@
 package core
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -102,25 +101,14 @@ var designTable = []Transition{
 	{From: "retired", To: "active", Reverse: true},
 }
 
-// InitialStatus returns the status a new artifact of type t starts in. By
-// invariant the first value of the schema's status enum is the initial status
-// for all twelve types; the schema owns the enum.
+// InitialStatus returns the status create writes for t: by invariant, the
+// first value of the schema's status enum.
 func InitialStatus(t Type) string {
-	b, err := schema.EmbeddedFS.ReadFile(string(t) + ".schema.json")
+	enum, err := schema.StatusEnum(string(t))
 	if err != nil {
-		panic(fmt.Sprintf("InitialStatus: reading embedded schema for %s: %v", t, err))
+		panic(fmt.Sprintf("InitialStatus: %v", err))
 	}
-	var raw struct {
-		Properties struct {
-			Status struct {
-				Enum []string `json:"enum"`
-			} `json:"status"`
-		} `json:"properties"`
-	}
-	if err := json.Unmarshal(b, &raw); err != nil {
-		panic(fmt.Sprintf("InitialStatus: parsing embedded schema for %s: %v", t, err))
-	}
-	return raw.Properties.Status.Enum[0]
+	return enum[0]
 }
 
 // LookupTransition returns the matching edge or ErrIllegalTransition.
