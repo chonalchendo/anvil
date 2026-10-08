@@ -25,11 +25,11 @@ Anvil's methodology mapped (`ls anvil/skills/` or `anvil show skill <name>` for 
 
 | Skill | Side | Type |
 |---|---|---|
-| `extracting-skill-from-session` | meta | workflow |
-| `researching` | meta | workflow |
 | `writing-product-design` | design | workflow |
 | `writing-system-design` | design | workflow |
 | `writing-milestone` | design | workflow |
+| `writing-component-design` | design | workflow |
+| `writing-convention` | design | workflow |
 | `capturing-inbox` | execution | workflow |
 | `writing-issue` | execution | workflow |
 | `completing-issue` | execution | workflow |
@@ -37,10 +37,10 @@ Anvil's methodology mapped (`ls anvil/skills/` or `anvil show skill <name>` for 
 | `reviewing-pr` | execution | workflow |
 | `responding-to-pr-review` | execution | workflow |
 | `distilling-learning` | execution | workflow |
+| `refreshing-learnings` | execution | workflow |
 | `opening-thread` | session | workflow |
 | `resuming-session` | session | workflow |
 | `handing-off-session` | session | workflow |
-| `self-testing` | meta | workflow |
 
 Anvil's methodology is workflow-dominant. User vault skills are knowledge-dominant (library/tool/domain expertise).
 
@@ -82,21 +82,21 @@ Anvil's methodology is workflow-dominant. User vault skills are knowledge-domina
 
 A skill is a hypothesis about a recurring pattern, packaged for reuse. Source can be anything — successful session, learnings, research, a colleague. Packaging is constant; lifecycle produces value.
 
-Three authoring paths, three meta-skills:
+Three authoring paths:
 
-1. **`extracting-skill-from-session`** — crystallize a working in-context workflow. You did the activity, iterated, want to capture what worked. Best for workflow skills (especially Anvil's methodology). Strips session noise, identifies the load-bearing pattern, produces SKILL.md via `writing-skills`.
+0. **Workflow skills** (the design, execution and session skills in the table above) change through `writing-issue` and a reviewed PR. No meta-skill drafts them.
 
-2. **`bootstrapping-knowledge-skill`** *(future)* — first-draft a knowledge skill on a domain you don't yet know. Calls `researching` (general-purpose research skill) as a sub-skill to gather best practices, then synthesises a draft body. Best for bootstrapping knowledge skills on new domains. The research half is general-purpose: `researching` also serves design / planning / inbox-promotion flows that need external facts; it is not skill-authoring-specific.
+1. **`bootstrapping-knowledge-skill`** *(future)* — first-draft a knowledge skill on a domain you don't yet know. Gathers best practices through the `anvil-researcher` agent, then synthesises a draft body. Best for bootstrapping knowledge skills on new domains.
 
-3. **`synthesizing-knowledge-skill`** — refresh a knowledge skill from accumulated learnings. Captured learnings in `~/anvil-vault/20-learnings/`; want the skill updated. Diffs new learnings against the existing skill, proposes updates.
+2. **`synthesizing-knowledge-skill`** — refresh a knowledge skill from accumulated learnings. Captured learnings in `~/anvil-vault/20-learnings/`; want the skill updated. Diffs new learnings against the existing skill, proposes updates.
 
-All three invoke `writing-skills` as sub-skill for formatting. Provenance differs by path; reflected in skill metadata.
+Paths 1 and 2 invoke `writing-skills` as sub-skill for formatting. Provenance differs by path; reflected in skill metadata.
 
 **Honest distinction**: research-derived skills are less reliable than experience-derived. Sources can be wrong, stale, or contextually off. Lifecycle that respects this:
 
-1. `bootstrapping-knowledge-skill` (which calls `researching`) produces a draft knowledge skill at `confidence: medium`, `status: from-research-only`.
+1. `bootstrapping-knowledge-skill` (which dispatches `anvil-researcher`) produces a draft knowledge skill at `confidence: medium`, `status: from-research-only`.
 2. Skill auto-fires on real work; helps where it can, fails where it has gaps.
-3. Each gap → learning in the vault.
+3. Each gap → learning in the vault. For a workflow skill, the fix goes through path 0.
 4. Periodic `synthesizing-knowledge-skill` refresh incorporates new learnings.
 5. Eventually `confidence: high`, `status: experience-validated`. Research bootstrapped; experience refined.
 
@@ -110,9 +110,9 @@ Per Anthropic's skill-building guide ("iterate on a single task before expanding
 
 1. **Identify a real recurring activity.** Not "someone might want this" — "I do this every week."
 2. **Do it for real with Claude Code.** Iterate until it works.
-3. **Run the meta-skill** (`extracting-skill-from-session` for workflows, `bootstrapping-knowledge-skill` for knowledge bootstraps, `synthesizing-knowledge-skill` for refreshes).
+3. **Run the meta-skill** (`bootstrapping-knowledge-skill` for knowledge bootstraps, `synthesizing-knowledge-skill` for refreshes); workflow skills skip this and change through path 0 (`writing-issue` + a reviewed PR).
 4. **Meta-skill produces SKILL.md** via `writing-skills`.
-5. **Test before shipping.** 10-20 trigger-eval queries (mix of should-fire / should-NOT-fire), 3 runs each. Aim ≥90% on relevant, ≤10% on unrelated. Trigger-eval harness deferred to v0.2+; in v0.1 the authoring agent self-checks the trigger contract during phase 6 of `extracting-skill-from-session`.
+5. **Test before shipping.** 10-20 trigger-eval queries (mix of should-fire / should-NOT-fire), 3 runs each. Aim ≥90% on relevant, ≤10% on unrelated. Trigger-eval harness deferred to v0.2+; in v0.1 the authoring agent self-checks the trigger contract.
 6. **Iterate on real use.** Skills are living. Each gap → learning; refresh periodically.
 
 ## Diagrams as deliverable content

@@ -273,9 +273,8 @@ func newInstallSkillsCmd() *cobra.Command {
 						return fmt.Errorf("checking skills freshness: %w", err)
 					}
 					if fresh {
-						// Bundle content is current, but orphaned symlinks from
-						// removed skills may still exist — prune them even though
-						// we skip the full install.
+						// Bundle content is current, but entries for removed skills
+						// may remain — prune them even though we skip the full install.
 						if _, err := installer.PruneOrphanedSkills(skills.FS, mat, skillsDir); err != nil {
 							return fmt.Errorf("pruning orphaned skills: %w", err)
 						}

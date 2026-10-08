@@ -246,7 +246,7 @@ The pipeline ends here for the source. Possible next moves the user may signal:
 - Continue the thread (don't close it; new sessions will keep stacking).
 - Open a new thread on a follow-up subquestion → `opening-thread`.
 - Surface project work the distillation revealed → `writing-issue`.
-- Extract a methodology lesson into a skill → `extracting-skill-from-session` (orthogonal track).
+- Extract a methodology lesson into a skill → open an issue (`writing-issue`) to change the skill through a reviewed PR.
 
 ## Prose style
 

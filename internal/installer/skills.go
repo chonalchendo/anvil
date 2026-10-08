@@ -273,9 +273,9 @@ func removeOneSkill(materialiseDir, target, name string) (bool, error) {
 	return true, nil
 }
 
-// PruneOrphanedSkills removes anvil-owned symlinks in target that are absent
-// from the current bundle in srcFS. Foreign entries and non-anvil-owned
-// symlinks are never touched. It is safe to call when InstallSkills was
+// PruneOrphanedSkills removes anvil-owned symlinks and marker-carrying copied
+// dirs in target that are absent from the current bundle in srcFS. Foreign
+// entries and non-anvil-owned symlinks are never touched. It is safe to call when InstallSkills was
 // skipped (e.g. bundle hash is fresh) — the prune reconciles target to match
 // the current bundle regardless.
 func PruneOrphanedSkills(srcFS fs.FS, materialiseDir, target string) (bool, error) {
@@ -286,9 +286,9 @@ func PruneOrphanedSkills(srcFS fs.FS, materialiseDir, target string) (bool, erro
 	return pruneOrphanedSkills(materialiseDir, target, names)
 }
 
-// pruneOrphanedSkills removes anvil-owned symlinks in target that are absent
-// from the current bundle (names). Foreign entries and non-anvil-owned symlinks
-// are never touched.
+// pruneOrphanedSkills removes anvil-owned symlinks and marker-carrying copied
+// dirs in target that are absent from the current bundle (names). Foreign
+// entries, non-anvil-owned symlinks and marker-less dirs are never touched.
 func pruneOrphanedSkills(materialiseDir, target string, names []string) (bool, error) {
 	entries, err := os.ReadDir(target)
 	if err != nil {
@@ -304,6 +304,18 @@ func pruneOrphanedSkills(materialiseDir, target string, names []string) (bool, e
 	changed := false
 	for _, e := range entries {
 		if _, ok := current[e.Name()]; ok {
+			continue
+		}
+		if e.IsDir() {
+			// A copy-mode install leaves a marked dir; the marker proves anvil owns it.
+			dir := filepath.Join(target, e.Name())
+			if _, err := os.Stat(filepath.Join(dir, skillMarker)); err != nil {
+				continue
+			}
+			if err := os.RemoveAll(dir); err != nil {
+				return false, fmt.Errorf("remove orphaned skill dir %s: %w", e.Name(), err)
+			}
+			changed = true
 			continue
 		}
 		if e.Type()&os.ModeSymlink == 0 {

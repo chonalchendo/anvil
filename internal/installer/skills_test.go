@@ -504,3 +504,41 @@ func TestInstallSkills_ReconcilePreservesForeignOrphan(t *testing.T) {
 		t.Errorf("foreign symlink should be preserved: %v", err)
 	}
 }
+
+// TestInstallSkills_CopyModePrunesRemovedSkill covers an upgrade in --copy
+// mode: a skill dropped from the bundle leaves a marked dir behind unless
+// pruning removes it. A marker-less dir is the user's and must stay.
+func TestInstallSkills_CopyModePrunesRemovedSkill(t *testing.T) {
+	mat := filepath.Join(t.TempDir(), "skills")
+	target := filepath.Join(t.TempDir(), "codex-skills")
+
+	bundleA := fakeSkillsFS()
+	bundleA["dead-skill/SKILL.md"] = &fstest.MapFile{Data: []byte("# dead-skill\n")}
+	if _, err := InstallSkills(bundleA, mat, target, true, false); err != nil {
+		t.Fatalf("install bundle A: %v", err)
+	}
+	foreign := filepath.Join(target, "user-skill")
+	if err := os.MkdirAll(foreign, 0o755); err != nil { //nolint:gosec // 0755 is correct for directories that must be traversable
+		t.Fatal(err)
+	}
+
+	changed, err := PruneOrphanedSkills(fakeSkillsFS(), mat, target)
+	if err != nil {
+		t.Fatalf("prune bundle B: %v", err)
+	}
+	if !changed {
+		t.Error("pruning a removed skill should report changed=true")
+	}
+	if again, err := PruneOrphanedSkills(fakeSkillsFS(), mat, target); err != nil || again {
+		t.Errorf("second prune = (%v, %v), want (false, nil)", again, err)
+	}
+	if _, err := os.Lstat(filepath.Join(target, "dead-skill")); !os.IsNotExist(err) {
+		t.Errorf("removed skill dir should be pruned; lstat err = %v", err)
+	}
+	if _, err := os.Lstat(foreign); err != nil {
+		t.Errorf("marker-less dir should be preserved: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(target, "writing-issue")); err != nil {
+		t.Errorf("bundled skill should remain: %v", err)
+	}
+}
