@@ -62,6 +62,8 @@ anvil component-design kinds list      # see registered kinds
 anvil component-design kinds add <name> --desc "<one line>"   # only if none fits
 ```
 
+**REQUIRED REFERENCE:** Use `convention.design` §Design from first principles (`anvil show convention convention.design --body`) before shaping. Refuse a draft whose `## Interfaces` or `## Code design` names a unit that no `## Does` line needs.
+
 ### Phase 2 - Read the boundary
 
 Identify the boundary from at least two of: the system design (`anvil show system-design <project>`), the codebase (package boundary, public surface, ownership comments), and issues that touched the boundary.

@@ -52,6 +52,8 @@ The per-phase procedure — drafting instructions, mermaid templates, gate crite
 
 **Frame the fork, then recommend.** At a *genuine* architectural fork — a choice that shapes structure the human will later have to steer — make it legible in a few lines *before* recommending: name the options plainly, state the tension, surface the rejected alternative *and why it fails*, and give the one fact that discriminates. Then recommend a single direction — don't hand back a menu. A default, not a template: stay silent on trivial choices, never manufacture tension to fill slots, and keep it brief — legible means clearer, not longer.
 
+**REQUIRED REFERENCE:** Use `convention.design` §Design from first principles (`anvil show convention convention.design --body`) before shaping. Refuse a draft whose components precede its needs.
+
 **REQUIRED REFERENCE:** Use skills/writing-system-design/references/phases.md
 
 ## Prior learnings (after Phase 1, before Phase 4)
