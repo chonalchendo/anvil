@@ -72,6 +72,10 @@ func newMilestoneStatusCmd() *cobra.Command {
 			if scanErr != nil {
 				cmd.PrintErrln("warning: issue scan failed: " + scanErr.Error())
 			}
+			rows, total, costErr := milestoneCostRows(v, strings.TrimPrefix(args[0], "milestone."))
+			if costErr != nil {
+				return costErr
+			}
 			done := scanErr == nil && len(open) == 0 && len(unmetCriteria(acceptance)) == 0
 
 			if flagJSON {
@@ -79,9 +83,11 @@ func newMilestoneStatusCmd() *cobra.Command {
 				enc.SetIndent("", "  ")
 				return enc.Encode(struct {
 					index.MilestoneStatus
-					Done       bool               `json:"done"`
-					Acceptance []acceptanceResult `json:"acceptance"`
-				}{st, done, acceptance})
+					Done       bool                `json:"done"`
+					Acceptance []acceptanceResult  `json:"acceptance"`
+					Issues     []milestoneIssueRow `json:"issues"`
+					CostTotal  costTotal           `json:"cost_total"`
+				}{st, done, acceptance, rows, total})
 			}
 			cmd.Printf("%s\t%d/%d resolved\tdone=%t\n", st.Milestone, st.Resolved, st.Total, done)
 			for i, r := range acceptance {
@@ -90,6 +96,9 @@ func newMilestoneStatusCmd() *cobra.Command {
 					verdict = "not met"
 				}
 				cmd.Printf("AC %d\t%s\t%s\t%s\n", i+1, verdict, r.detail(), tableCell(r.Criterion))
+			}
+			for _, r := range rows {
+				cmd.Println(r.line())
 			}
 			return nil
 		},

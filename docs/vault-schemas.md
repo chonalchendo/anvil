@@ -177,6 +177,10 @@ verification_lock: <hex sha256>  # set on every → in-progress over the `## Ver
 verified_verdict: pass | fail  # set by `anvil verify` on every run
 verified_commit: <sha>       # HEAD the run saw, `-dirty` suffix on an unclean tree; empty outside git
 verified_at: <RFC3339>       # when that run started
+cost_rounds: <int>        # review rounds; set by `--land-pr` at land
+cost_diff: <int>          # diff lines changed; set by `--land-pr` at land
+cost_files: <int>         # files changed; set by `--land-pr` at land
+cost_tokens: <int>        # tokens spent; set by `--land-pr` at land
 acceptance: ["criterion", ...]   # optional prose checklist; the binary gate is ## Verification
 ```
 
