@@ -715,3 +715,25 @@ func TestValidateField_UnknownField_NoError(t *testing.T) {
 		t.Errorf("expected unknown field to be accepted, got %v", err)
 	}
 }
+
+// Warrant: a design type that drops the diagrams slot or its name pattern
+// lets a path-like name reach the vault-file lookup.
+func TestDesignDiagrams_SlotAcceptsNamesRejectsPathLike(t *testing.T) {
+	for _, typ := range []string{"product-design", "system-design", "component-design"} {
+		fm := map[string]any{
+			"type": typ, "title": "X", "description": "x", "created": "2026-04-29",
+			"status": "draft", "project": "anvil",
+			"diagrams": []any{"anvil-two-loop"},
+		}
+		if typ == "component-design" {
+			fm["kind"] = "data"
+		}
+		if err := Validate(typ, fm); err != nil {
+			t.Errorf("%s: good name refused: %v", typ, err)
+		}
+		fm["diagrams"] = []any{"../etc/passwd"}
+		if err := Validate(typ, fm); err == nil {
+			t.Errorf("%s: path-like name accepted", typ)
+		}
+	}
+}

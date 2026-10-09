@@ -1050,3 +1050,37 @@ func TestSet_IntegerField_NonNumericRefused(t *testing.T) {
 		}
 	}
 }
+
+// Warrant: set that saves before the file check writes an unresolvable
+// diagram name into the vault, which validate then rejects.
+func TestSetDiagrams_RefusesMissingFileLeavesDesignUntouched(t *testing.T) {
+	for _, withFile := range []bool{false, true} {
+		vault := setupVault(t)
+		path := writeDiagramSystemDesign(t, vault, withFile)
+		a, err := core.LoadArtifact(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a.FrontMatter["diagrams"] = []any{}
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"set", "system-design", "foo", "diagrams", "ghost", "--add"})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		err = cmd.Execute()
+		b, lerr := core.LoadArtifact(path)
+		if lerr != nil {
+			t.Fatal(lerr)
+		}
+		got, _ := b.FrontMatter["diagrams"].([]any)
+		if withFile && (err != nil || len(got) != 1) {
+			t.Errorf("file present: err=%v diagrams=%v\n%s", err, got, out.String())
+		}
+		if !withFile && (err == nil || len(got) != 0) {
+			t.Errorf("file missing: want refusal and no write, err=%v diagrams=%v", err, got)
+		}
+	}
+}

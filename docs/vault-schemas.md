@@ -72,6 +72,7 @@ promoted_to: "[[<artifact>]]" | null
 type: product-design
 project: <slug>
 status: draft | active | superseded | retired
+diagrams: [<name>]   # optional; each `<vault>/_meta/diagrams/<name>.html` must exist
 ```
 
 Body absorbs: target-users, problem statement, success metrics, goals, constraints, appetite, risks, out-of-scope, revisions.
@@ -84,11 +85,12 @@ project: <slug>
 status: draft | active | superseded | retired
 product_design: "[[product-design.<project>]]"
 authorized_by: ["[[decision...]]"]
+diagrams: [<name>]   # optional; each `<vault>/_meta/diagrams/<name>.html` must exist
 ```
 
 Addressable as `<project>` (per-project) or `<project>.<shard>` (per subsystem); files sit flat in `06-system-designs/` under the bare id (e.g. `burgh.md`) and resolve in show/list/wikilinks. The index DB still keys on the type-qualified form (`system-design.burgh`), which is also the wikilink target shape.
 
-Body absorbs: constraints and quality goals, system invariants, boundary diagrams, open questions. No Tech stack section. Mermaid diagrams stay first-class body content.
+Body absorbs: constraints and quality goals, system invariants, boundary diagrams, open questions. No Tech stack section. Diagrams are HTML files named in `diagrams`; `validate`, `create` and `set` refuse a name with no file.
 
 ### `milestone`
 
@@ -134,6 +136,7 @@ project: <slug>
 status: draft | active | deprecated
 system_design: "[[system-design.<project>]]"   # optional
 kind: <registered label>   # required; register via `anvil component-design kinds add <name>`
+diagrams: [<name>]   # optional; each `<vault>/_meta/diagrams/<name>.html` must exist
 ```
 
 Plural per project (many component designs, one per component-family — e.g. `data`, `analytics`), unlike the singleton design types. `description` is the always-on layer surfaced in `anvil list component-design --json`; the interface-and-ownership core plus optional internal design lives in the body, loaded on demand via `anvil show ... --body`.

@@ -305,6 +305,11 @@ func newSetCmd() *cobra.Command {
 					return renderSchemaErr(cmd, v, path, err, flagJSON)
 				}
 			}
+			if field == "diagrams" {
+				if errs := diagramFailures(v.Root, path, a.FrontMatter); len(errs) > 0 {
+					return emitValidationErrors(cmd, flagJSON, errs)
+				}
+			}
 			if field == "status" && !fieldUnset {
 				to, _ := a.FrontMatter[field].(string)
 				if gerr := guardStatusSet(cmd, a, t, id, prev, to, flagForce, flagReason); gerr != nil {

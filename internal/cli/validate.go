@@ -267,6 +267,8 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 		out = append(out, leadSentenceFailures(t, a.Body, path)...)
 	}
 
+	out = append(out, diagramFailures(v.Root, path, a.FrontMatter)...)
+
 	if t == core.TypeComponentDesign {
 		for _, vErr := range core.ValidateComponentDesign(a) {
 			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(fmt.Sprintf("run `anvil create %s --show-template` to print the required body skeleton + tag rules", t)))
