@@ -8,7 +8,7 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-// Warrant: fails if the band drops a column, lists a non-flight status, or omits the capped "N more" link.
+// Warrant: fails if the band drops a column, lists a non-flight status, omits the capped "N more" link, or shows drafts oldest-first.
 func TestNowBand(t *testing.T) {
 	v := &core.Vault{Root: t.TempDir()}
 	writeArtifact(t, v, core.TypeMilestone, "milestone.p.live", map[string]any{"title": "Live", "status": "in-progress", "project": "p"}, "x\n")
