@@ -1,8 +1,11 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/chonalchendo/anvil/internal/core"
 )
 
 func TestNodeHeader_ShowsIdentityAndSlots(t *testing.T) {
@@ -43,5 +46,48 @@ func TestProps_FoldedClosedAndHeaderKeysExcluded(t *testing.T) {
 		if strings.Contains(props, no) {
 			t.Errorf("props repeats header field %s", no)
 		}
+	}
+}
+
+// Warrant: a rail that counted rows instead of sources, or skipped the cap, would misreport or flood.
+func TestRail_GroupsCountsCapsAndOmitsEmpty(t *testing.T) {
+	h, v := seed(t)
+	for i := 2; i <= 10; i++ {
+		fm := map[string]any{"title": "More", "related": []any{"[[product-design.anvil]]"}}
+		if i == 10 {
+			fm["updated"] = "2099-01-01"
+		}
+		writeArtifact(t, v, core.TypeDecision, fmt.Sprintf("ui.%04d-more", i), fm, "x\n")
+	}
+	_, body := do(h, "GET", "/artifact/product-design.anvil")
+	_, rail, ok := strings.Cut(body, `<aside class="rail">`)
+	rail, _, ok2 := strings.Cut(rail, "</aside>")
+	if !ok || !ok2 {
+		t.Fatal("rail missing")
+	}
+	if strings.Contains(body, "Hanging off this node") {
+		t.Error("flat block still renders")
+	}
+	for _, want := range []string{`<h3>decision <span class="count">10</span>`, `<h3>milestone <span class="count">1</span>`, `<li class="more"><a href="/type/decision?to=product-design.anvil">2 more</a>`} {
+		if !strings.Contains(rail, want) {
+			t.Errorf("rail lacks %q", want)
+		}
+	}
+	if n := strings.Count(rail, `href="/artifact/decision.`); n != 8 {
+		t.Errorf("decision links = %d, want 8", n)
+	}
+	if !strings.Contains(rail, `href="/artifact/decision.ui.0010-more"`) {
+		t.Error("newest source is cut by the cap")
+	}
+	if strings.Contains(rail, "<h3>issue") || strings.Contains(rail, "<h3>learning") {
+		t.Error("empty group rendered")
+	}
+}
+
+func TestRail_NoIncomingShowsNothing(t *testing.T) {
+	h, _ := seed(t)
+	_, body := do(h, "GET", "/artifact/"+stackIssue)
+	if !strings.Contains(body, `<aside class="rail">`) || strings.Contains(body, `<section><h3>`) {
+		t.Error("rail should render empty without groups")
 	}
 }

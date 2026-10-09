@@ -3,7 +3,8 @@
 <form class="filters" method="get" action="/type/{{.Page.Type}}">
   <label>project <input name="project" value="{{.Page.Project}}"></label>
   <label>status <input name="status" value="{{.Page.Status}}"></label>
-  <button type="submit">Filter</button>{{if or .Page.Project .Page.Status}} <a href="/type/{{.Page.Type}}">clear</a>{{end}}
+  {{with .Page.To}}<input type="hidden" name="to" value="{{.}}">{{end}}
+  <button type="submit">Filter</button>{{if or .Page.Project .Page.Status .Page.To}} <a href="/type/{{.Page.Type}}">clear</a>{{end}}
 </form>
 {{range .Page.Groups}}<section aria-label="{{.Status}}"><h2><span class="status {{.Status}}">{{.Glyph}} {{.Status}}</span></h2>
 <ul class="rows">{{range .Rows}}<li><a href="{{.Href}}">{{.Title}}</a> <span class="muted">{{with .Project}}{{.}} · {{end}}{{.Updated}}</span></li>{{end}}</ul></section>

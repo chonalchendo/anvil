@@ -1,5 +1,6 @@
 {{define "title"}}{{.Page.Title}} · anvil{{end}}
 {{define "content"}}{{with .Page}}
+<div class="with-rail"><div class="node-col">
 {{if .Crumbs}}<nav class="crumbs" aria-label="Spine">{{range .Crumbs}}{{template "ref" .}}<span aria-hidden="true"> / </span>{{end}}<span>{{.Key}}</span></nav>{{end}}
 {{if .Tabs.Stack}}{{template "tabs" .Tabs}}{{end}}
 <header class="node">
@@ -12,10 +13,13 @@
 <details class="props"><summary>All properties</summary><dl>
 {{range .Props}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{template "ref" .}} {{end}}</dd>{{end}}
 </dl></details>
-<section><h2>Hanging off this node</h2>
-{{range .Hanging}}<h3>{{.Relation}} <span class="muted">from {{.SourceType}}</span></h3><ul>{{range .Items}}<li>{{template "ref" .}}</li>{{end}}</ul>
-{{else}}<p class="muted">Nothing links here.</p>{{end}}</section>
 <section><h2>Links out</h2>
 {{range .Out}}<h3>{{.Relation}}</h3><ul>{{range .Items}}<li>{{template "ref" .}}</li>{{end}}</ul>
 {{else}}<p class="muted">No outgoing links.</p>{{end}}</section>
+</div>
+<aside class="rail"><h2>Cited by</h2>
+{{range .Rail}}<section><h3>{{.Type}} <span class="count">{{.Count}}</span></h3>
+<ul>{{range .Items}}<li>{{template "ref" .}}</li>{{end}}{{if .More}}<li class="more"><a href="{{.MoreHref}}">{{.More}} more</a></li>{{end}}</ul></section>
+{{else}}<p class="muted">Nothing links here.</p>{{end}}
+</aside></div>
 {{end}}{{end}}

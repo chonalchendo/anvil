@@ -151,3 +151,16 @@ func TestPalette_JSONShape(t *testing.T) {
 		t.Error("palette lacks the seeded decision")
 	}
 }
+
+// Warrant: a to= filter that ignored the link target would list every decision.
+func TestTypeList_ToKeepsOnlyCitingArtifacts(t *testing.T) {
+	h, v := seed(t)
+	writeArtifact(t, v, core.TypeDecision, "ui.0002-loner", map[string]any{"title": "Loner"}, "x\n")
+	_, body := do(h, "GET", "/type/decision?to=product-design.anvil")
+	if !strings.Contains(body, "/artifact/decision.ui.0001-a-decision") {
+		t.Error("citing decision missing")
+	}
+	if strings.Contains(body, "decision.ui.0002-loner") {
+		t.Error("non-citing decision listed")
+	}
+}

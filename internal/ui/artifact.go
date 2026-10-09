@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"sort"
 	"strings"
@@ -20,10 +21,20 @@ type prop struct {
 	Values []link
 }
 
-// group is a run of links sharing a relation (and, for incoming links, a source type).
+// group is a run of outgoing links sharing a relation.
 type group struct {
-	Relation, SourceType string
-	Items                []link
+	Relation string
+	Items    []link
+}
+
+// railGroup is the cited-by rail's run of sources sharing one type. Count is
+// the total; Items keeps the first railMax, MoreHref reaches the rest.
+type railGroup struct {
+	Type     string
+	Count    int
+	Items    []link
+	More     int
+	MoreHref string
 }
 
 // header is the node header: the identity fields plus typed slots as links.
@@ -38,7 +49,7 @@ type artifactPage struct {
 	Crumbs     []link
 	Props      []prop
 	Body       template.HTML
-	Hanging    []group
+	Rail       []railGroup
 	Out        []group
 	// Tabs is set on issue pages only: hydrate is issue-only.
 	Tabs tabs
@@ -98,20 +109,24 @@ func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, er
 	if err != nil {
 		return artifactPage{}, fmt.Errorf("outgoing links: %w", err)
 	}
+	rail, err := s.rail(key, in)
+	if err != nil {
+		return artifactPage{}, err
+	}
 	var tb tabs
 	if typeOfKey(key) == string(core.TypeIssue) {
 		tb = issueTabs(key, "issue")
 	}
 	return artifactPage{
-		Tabs:    tb,
-		Title:   title,
-		Key:     key,
-		Crumbs:  s.crumbs(key),
-		Head:    s.header(key, art.FrontMatter),
-		Props:   s.props(art.FrontMatter),
-		Body:    body,
-		Hanging: s.groups(in, func(r index.LinkRow) (string, string) { return r.Source, typeOfKey(r.Source) }),
-		Out:     s.groups(out, func(r index.LinkRow) (string, string) { return r.Target, "" }),
+		Tabs:   tb,
+		Title:  title,
+		Key:    key,
+		Crumbs: s.crumbs(key),
+		Head:   s.header(key, art.FrontMatter),
+		Props:  s.props(art.FrontMatter),
+		Body:   body,
+		Rail:   rail,
+		Out:    s.groups(out),
 	}, nil
 }
 
@@ -220,20 +235,68 @@ func slotOf(rows []index.LinkRow, slots ...string) string {
 	return ""
 }
 
-// groups folds link rows into relation (and source type) groups, sorted by name.
-func (s *server) groups(rows []index.LinkRow, pick func(index.LinkRow) (target, srcType string)) []group {
+// railMax is how many links a rail group shows before "N more".
+const railMax = 8
+
+// rail groups incoming links by source type, one entry per distinct source,
+// types in name order, sources newest first. A type with no sources never appears.
+func (s *server) rail(key string, rows []index.LinkRow) ([]railGroup, error) {
+	byType := map[string][]string{}
+	seen := map[string]bool{}
+	for _, r := range rows {
+		if seen[r.Source] {
+			continue
+		}
+		seen[r.Source] = true
+		t := typeOfKey(r.Source)
+		byType[t] = append(byType[t], r.Source)
+	}
+	types := make([]string, 0, len(byType))
+	for t := range byType {
+		types = append(types, t)
+	}
+	sort.Strings(types)
+	out := make([]railGroup, 0, len(types))
+	for _, t := range types {
+		srcs := byType[t]
+		rows, err := s.db.ListByType(t, index.QueryFilters{})
+		if err != nil {
+			return nil, fmt.Errorf("listing %s: %w", t, err)
+		}
+		updated := make(map[string]string, len(rows))
+		for _, r := range rows {
+			updated[r.ID] = r.Updated
+		}
+		sort.Slice(srcs, func(a, b int) bool {
+			if updated[srcs[a]] != updated[srcs[b]] {
+				return updated[srcs[a]] > updated[srcs[b]]
+			}
+			return srcs[a] < srcs[b]
+		})
+		g := railGroup{Type: t, Count: len(srcs)}
+		for _, src := range srcs[:min(len(srcs), railMax)] {
+			g.Items = append(g.Items, s.res.resolve(src))
+		}
+		if g.More = len(srcs) - len(g.Items); g.More > 0 {
+			g.MoreHref = "/type/" + url.PathEscape(t) + "?to=" + url.QueryEscape(key)
+		}
+		out = append(out, g)
+	}
+	return out, nil
+}
+
+// groups folds outgoing link rows into relation groups, sorted by relation.
+func (s *server) groups(rows []index.LinkRow) []group {
 	byName := map[string]*group{}
 	var names []string
 	for _, r := range rows {
-		target, srcType := pick(r)
-		name := r.Relation + "\x00" + srcType
-		g, ok := byName[name]
+		g, ok := byName[r.Relation]
 		if !ok {
-			g = &group{Relation: r.Relation, SourceType: srcType}
-			byName[name] = g
-			names = append(names, name)
+			g = &group{Relation: r.Relation}
+			byName[r.Relation] = g
+			names = append(names, r.Relation)
 		}
-		g.Items = append(g.Items, s.res.resolve(target))
+		g.Items = append(g.Items, s.res.resolve(r.Target))
 	}
 	sort.Strings(names)
 	out := make([]group, 0, len(names))
