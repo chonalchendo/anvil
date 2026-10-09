@@ -7,6 +7,7 @@
   --panel: #141516;
   --raise: #1a1b1e;
   --sel: #222327;
+  --sidebar-w: 232px;
   --border: #26282b;
   --text: #e6e6e6;
   --text-2: #b6b9bf;
@@ -33,7 +34,7 @@ pre code { background: none; padding: 0; }
 .key, .muted { color: var(--muted); }
 .unresolved { color: var(--text-2); text-decoration: line-through; text-decoration-color: var(--muted); }
 
-.sidebar { width: 232px; overflow-y: auto; height: 100vh; position: sticky; top: 0; flex: none; padding: 16px 12px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px; }
+.sidebar { width: var(--sidebar-w); overflow-y: auto; height: 100vh; position: sticky; top: 0; flex: none; padding: 16px 12px; background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px; }
 .sidebar .brand { font-weight: 600; text-decoration: none; }
 .sidebar nav { display: flex; flex-direction: column; gap: 2px; }
 .sidebar nav a { display: flex; padding: 4px 8px; border-radius: var(--radius); color: var(--text-2); text-decoration: none; }
@@ -50,7 +51,7 @@ pre code { background: none; padding: 0; }
 .sidebar .foot { margin-top: auto; display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--muted); }
 kbd { display: inline-block; min-width: 20px; height: 20px; line-height: 20px; text-align: center; margin-right: 2px; border-radius: 4px; box-shadow: 0 0 0 1px var(--border); font-family: var(--sans); color: var(--text-2); }
 
-main { flex: 1; max-width: 880px; padding: 24px 32px; }
+main { flex: 1; max-width: 880px; padding: 24px 32px 56px; }
 .crumbs { color: var(--muted); margin-bottom: 8px; }
 .node-title { display: flex; align-items: center; gap: 10px; }
 .node-title h1 { margin: 0; }
@@ -111,3 +112,6 @@ main:has(.with-rail) { max-width: 1180px; }
 .rail .count { margin-left: auto; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
 .rail ul { list-style: none; margin: 0; padding: 0; }
 .rail li { padding: 2px 0; overflow-wrap: anywhere; }
+.tree summary .count { margin-left: 8px; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.tree li.more > details > summary { color: var(--muted); }
+footer.keys { position: fixed; bottom: 0; right: 0; left: var(--sidebar-w); display: flex; gap: 16px; padding: 6px 32px; background: var(--panel); border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }

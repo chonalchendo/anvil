@@ -21,6 +21,7 @@
   <div class="foot"><span>read-only</span>{{with .Sidebar.Port}}<span>:{{.}}</span>{{end}}</div>
 </aside>
 <main>{{block "content" .}}{{end}}</main>
+<footer class="keys">{{block "keys" .}}<span><kbd>⌘K</kbd> jump</span>{{end}}</footer>
 <dialog id="palette"><input id="palette-dq" type="search" placeholder="Jump to…" aria-label="Jump to an artifact"><ul id="palette-list"></ul></dialog>
 <script>
 (function () {
