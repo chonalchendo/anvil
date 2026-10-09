@@ -61,30 +61,42 @@ var spineSlots = []string{"milestone", "system_design", "product_design"}
 
 const maxCrumbs = 6
 
-func (s *server) artifact(w http.ResponseWriter, r *http.Request) {
-	key := r.PathValue("key")
+var errNotFound = errors.New("artifact not found")
+
+// load resolves a `type.id` key to its canonical index key and artifact.
+// A malformed or missing key returns errNotFound.
+func (s *server) load(key string) (string, *core.Artifact, error) {
 	prefix, id, ok := strings.Cut(key, ".")
 	t, err := core.ParseType(prefix)
 	if !ok || err != nil || id == "" || strings.ContainsAny(id, `/\`) {
-		http.NotFound(w, r)
-		return
+		return "", nil, errNotFound
 	}
 	cid, path, err := core.ResolveArtifact(s.v, t, id)
 	if err != nil {
-		http.NotFound(w, r)
-		return
+		return "", nil, errNotFound
 	}
 	art, err := core.LoadArtifact(path)
 	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil, errNotFound
+	}
+	if err != nil {
+		return "", nil, fmt.Errorf("loading %s: %w", key, err)
+	}
+	return core.IndexKey(t, cid), art, nil
+}
+
+func (s *server) artifact(w http.ResponseWriter, r *http.Request) {
+	key, art, err := s.load(r.PathValue("key"))
+	if errors.Is(err, errNotFound) {
 		http.NotFound(w, r)
 		return
 	}
 	if err != nil {
-		slog.Error("loading artifact", "key", key, "err", err)
+		slog.Error("loading artifact", "err", err)
 		http.Error(w, "artifact unreadable", http.StatusInternalServerError)
 		return
 	}
-	page, err := s.buildArtifact(core.IndexKey(t, cid), art)
+	page, err := s.buildArtifact(key, art)
 	if err != nil {
 		slog.Error("building artifact page", "key", key, "err", err)
 		http.Error(w, "page failed", http.StatusInternalServerError)
@@ -93,7 +105,9 @@ func (s *server) artifact(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "artifact", page)
 }
 
-func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, error) {
+// node fills the part of the page every view of one artifact shares: title,
+// key, header and rendered body.
+func (s *server) node(key string, art *core.Artifact) (artifactPage, error) {
 	body, err := s.md.renderSections(art.Body)
 	if err != nil {
 		return artifactPage{}, err
@@ -101,6 +115,14 @@ func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, er
 	title, _ := art.FrontMatter["title"].(string)
 	if title == "" {
 		title = key
+	}
+	return artifactPage{Title: title, Key: key, Head: s.header(key, art.FrontMatter, art.Body), Body: body}, nil
+}
+
+func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, error) {
+	page, err := s.node(key, art)
+	if err != nil {
+		return artifactPage{}, err
 	}
 	in, err := s.db.LinksTo(key)
 	if err != nil {
@@ -118,17 +140,12 @@ func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, er
 	if typeOfKey(key) == string(core.TypeIssue) {
 		tb = issueTabs(key, "issue")
 	}
-	return artifactPage{
-		Tabs:   tb,
-		Title:  title,
-		Key:    key,
-		Crumbs: s.crumbs(key),
-		Head:   s.header(key, art.FrontMatter, art.Body),
-		Props:  s.props(typeOfKey(key), art.FrontMatter),
-		Body:   body,
-		Rail:   rail,
-		Out:    s.groups(out),
-	}, nil
+	page.Tabs = tb
+	page.Crumbs = s.crumbs(key)
+	page.Props = s.props(typeOfKey(key), art.FrontMatter)
+	page.Rail = rail
+	page.Out = s.groups(out)
+	return page, nil
 }
 
 func typeOfKey(key string) string {
