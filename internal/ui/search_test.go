@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -43,5 +44,29 @@ func TestSearchPage_HostileQueries(t *testing.T) {
 		if code, _ := do(h, "GET", "/search?q="+q); code != 200 {
 			t.Errorf("/search?q=%s = %d, want 200", q, code)
 		}
+	}
+}
+
+// Warrant: fails if the cap notice shows at exactly searchCap matches or
+// is missing once a 51st match exists.
+func TestSearchPage_CapBoundary(t *testing.T) {
+	page := func(n int) string {
+		h, v := seed(t)
+		for i := 0; i < n; i++ {
+			writeArtifact(t, v, core.TypeLearning, fmt.Sprintf("cap-%02d", i),
+				map[string]any{"title": "Cap"}, "zebrafinch\n")
+		}
+		code, body := do(h, "GET", "/search?q=zebrafinch")
+		if code != 200 {
+			t.Fatalf("/search = %d", code)
+		}
+		return body
+	}
+	at := page(searchCap)
+	if !strings.Contains(at, "50 matches") || strings.Contains(at, "first 50") {
+		t.Error("exactly 50 matches must show the plain count with no cap notice")
+	}
+	if over := page(searchCap + 1); !strings.Contains(over, "first 50 matches") {
+		t.Error("51 matches must show the capped 'first 50 matches' notice")
 	}
 }
