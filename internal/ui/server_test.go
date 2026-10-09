@@ -38,7 +38,7 @@ func writeArtifact(t *testing.T, v *core.Vault, typ core.Type, id string, fm map
 func seed(t *testing.T) (http.Handler, *core.Vault) {
 	t.Helper()
 	v := &core.Vault{Root: t.TempDir()}
-	writeArtifact(t, v, core.TypeProductDesign, "anvil", map[string]any{"title": "Anvil product"}, "## TL;DR\n\nproduct\n")
+	writeArtifact(t, v, core.TypeProductDesign, "anvil", map[string]any{"title": "Anvil product", "diagrams": []any{"anvil-two-loop"}}, "## TL;DR\n\nproduct\n")
 	writeArtifact(t, v, core.TypeThread, "anvil-design-docs.0002-x", map[string]any{"title": "A thread"}, "thread\n")
 	writeArtifact(t, v, core.TypeLearning, "a-learning", map[string]any{"title": "A learning"}, "learning\n"+strings.Repeat("x", 4096))
 	writeArtifact(t, v, core.TypeIssue, stackIssue, map[string]any{
@@ -55,6 +55,7 @@ func seed(t *testing.T) (http.Handler, *core.Vault) {
 		"related": []any{"[[product-design.anvil]]", "[[milestone.anvil.m1]]"},
 	}, "See [[product-design.anvil]], [[thread.anvil-design-docs.0002-x]], [[learning.a-learning|the learning]] and [[thread.gone.0001-missing]].\n\n"+
 		"Code `[[product-design.anvil]]` stays literal.\n\n```\n[[product-design.anvil]]\n```\n\n<script>alert(1)</script>\n\nPath is /artifact/<key> here.\n\nRun `anvil transition issue x resolved`.\n")
+	writeDiagram(t, v, "anvil-two-loop", "<html><body><svg></svg></body></html>")
 	db, err := index.Open(index.DBPath(v.Root))
 	if err != nil {
 		t.Fatal(err)
@@ -158,7 +159,7 @@ func TestArtifactPage_NotFound(t *testing.T) {
 
 func TestRoutes_PostReturns405(t *testing.T) {
 	h, _ := seed(t)
-	for _, p := range []string{"/", decisionPath, stackPath, "/type/decision", "/palette", "/search?q=x", "/compare?a=product-design.anvil&b=decision.ui.0001-a-decision", "/static/anvil.css"} {
+	for _, p := range []string{"/", decisionPath, stackPath, "/type/decision", "/palette", "/search?q=x", "/compare?a=product-design.anvil&b=decision.ui.0001-a-decision", "/diagram/anvil-two-loop", "/diagram-src/anvil-two-loop", "/static/anvil.css"} {
 		for _, m := range []string{"POST", "PUT", "DELETE", "PATCH"} {
 			if code, _ := do(h, m, p); code != 405 {
 				t.Errorf("%s %s = %d, want 405", m, p, code)
@@ -224,7 +225,7 @@ func TestServe_RefusesNonLoopback(t *testing.T) {
 func TestRequestsDoNotWriteVault(t *testing.T) {
 	h, v := seed(t)
 	before := hashTree(t, v.Root)
-	for _, p := range []string{"/", decisionPath, stackPath, "/artifact/milestone.anvil.m1", "/type/decision", "/palette", "/search?q=x", "/compare?a=product-design.anvil&b=decision.ui.0001-a-decision", "/static/anvil.css"} {
+	for _, p := range []string{"/", decisionPath, stackPath, "/artifact/milestone.anvil.m1", "/type/decision", "/palette", "/search?q=x", "/compare?a=product-design.anvil&b=decision.ui.0001-a-decision", "/diagram/anvil-two-loop", "/diagram-src/anvil-two-loop", "/static/anvil.css"} {
 		do(h, "GET", p)
 		do(h, "POST", p)
 	}

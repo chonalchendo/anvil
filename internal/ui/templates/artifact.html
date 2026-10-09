@@ -1,11 +1,12 @@
-{{define "keys"}}<span><kbd>j</kbd><kbd>k</kbd> move</span><span><kbd>o</kbd> toggle</span><span><kbd>⇧O</kbd> open all</span><span><kbd>⇧C</kbd> close all</span><span><kbd>⌘K</kbd> jump</span>{{end}}
+{{define "keys"}}<span><kbd>j</kbd><kbd>k</kbd> move</span><span><kbd>o</kbd> toggle</span><span><kbd>⇧O</kbd> open all</span><span><kbd>⇧C</kbd> close all</span>{{if .Page.Diagrams}}<span><kbd>f</kbd> fit</span><span><kbd>0</kbd> 1:1</span>{{end}}<span><kbd>⌘K</kbd> jump</span>{{end}}
 {{define "title"}}{{.Page.Title}} · anvil{{end}}
 {{define "content"}}{{with .Page}}
 <div class="with-rail"><div class="node-col">
 {{if .Crumbs}}<nav class="crumbs" aria-label="Spine">{{range .Crumbs}}{{template "ref" .}}<span aria-hidden="true"> / </span>{{end}}<span>{{.Key}}</span></nav>{{end}}
 {{if .Tabs.Stack}}{{template "tabs" .Tabs}}{{end}}
 {{template "nodeheader" .}}
-<section class="body">{{.Body}}</section>
+{{range .Diagrams}}{{template "canvas" .}}
+{{end}}<section class="body">{{.Body}}</section>
 <details class="props"><summary>All properties</summary><dl>
 {{range .Props}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{template "ref" .}} {{end}}</dd>{{end}}
 </dl></details>
