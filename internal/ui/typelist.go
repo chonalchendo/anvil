@@ -10,7 +10,7 @@ import (
 )
 
 type typeRow struct {
-	Href, Title, Project, Status, Glyph, Updated string
+	Href, Title, Project, Updated string
 }
 
 type statusGroup struct {
@@ -23,7 +23,7 @@ type typePage struct {
 	Groups                []statusGroup
 }
 
-// typeList lists one type from the index, grouped by status, newest first.
+// typeList lists one type from the index, grouped by status live-first, newest first within a group.
 func (s *server) typeList(w http.ResponseWriter, r *http.Request) {
 	t, err := core.ParseType(r.PathValue("type"))
 	if err != nil {
@@ -38,7 +38,16 @@ func (s *server) typeList(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "page failed", http.StatusInternalServerError)
 		return
 	}
-	sort.SliceStable(rows, func(a, b int) bool { return rows[a].Updated > rows[b].Updated })
+	sort.SliceStable(rows, func(a, b int) bool {
+		ra, rb := rank(liveOrder, rows[a].Status), rank(liveOrder, rows[b].Status)
+		if ra != rb {
+			return ra < rb
+		}
+		if rows[a].Status != rows[b].Status {
+			return rows[a].Status < rows[b].Status
+		}
+		return rows[a].Updated > rows[b].Updated
+	})
 	at := map[string]int{}
 	for _, row := range rows {
 		i, ok := at[row.Status]
@@ -49,7 +58,7 @@ func (s *server) typeList(w http.ResponseWriter, r *http.Request) {
 		}
 		page.Groups[i].Rows = append(page.Groups[i].Rows, typeRow{
 			Href: artifactHref(row.ID), Title: row.Title, Project: row.Project,
-			Status: row.Status, Glyph: glyphs[row.Status], Updated: row.Updated,
+			Updated: row.Updated,
 		})
 	}
 	s.pages.render(w, "type", page)

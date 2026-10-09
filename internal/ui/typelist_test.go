@@ -47,6 +47,46 @@ func TestTypeList_FiltersDiscriminate(t *testing.T) {
 	}
 }
 
+// Warrant: if the comparator ignored status or updated, groups would repeat or rows misorder.
+func TestTypeList_GroupsLiveFirstNewestFirst(t *testing.T) {
+	h, v := seed(t)
+	for id, fm := range map[string][2]string{
+		"ui.0010-older": {"accepted", "2026-01-01"},
+		"ui.0011-newer": {"accepted", "2026-03-01"},
+		"ui.0012-live":  {"proposed", "2026-02-01"},
+		"ui.0013-dead":  {"rejected", "2026-04-01"},
+		"ui.0014-gone":  {"stale", "2026-04-02"},
+		"ui.0015-odd":   {"weird", "2026-04-03"},
+	} {
+		writeArtifact(t, v, core.TypeDecision, id, map[string]any{
+			"title": id, "project": "anvil", "status": fm[0], "updated": fm[1],
+		}, "x\n")
+	}
+	_, body := do(h, "GET", "/type/decision")
+	at := func(id string) int { return strings.Index(body, "/artifact/decision."+id) }
+	if at("ui.0011-newer") > at("ui.0010-older") {
+		t.Error("older decision listed before newer in one group")
+	}
+	for _, c := range [][2]string{
+		{"ui.0012-live", "ui.0010-older"}, {"ui.0010-older", "ui.0014-gone"},
+		{"ui.0014-gone", "ui.0013-dead"}, {"ui.0013-dead", "ui.0015-odd"},
+	} {
+		if at(c[0]) > at(c[1]) {
+			t.Errorf("%s should precede %s", c[0], c[1])
+		}
+	}
+	for _, st := range []string{"accepted", "proposed", "rejected", "stale", "weird"} {
+		if n := strings.Count(body, `aria-label="`+st+`"`); n != 1 {
+			t.Errorf("status heading %q appears %d times, want 1", st, n)
+		}
+	}
+	for _, st := range []string{"accepted", "proposed", "rejected", "stale"} {
+		if glyphs[st] == "" {
+			t.Errorf("no glyph for seeded status %s", st)
+		}
+	}
+}
+
 func TestTypeList_UnknownType404(t *testing.T) {
 	h, _ := seed(t)
 	if code, _ := do(h, "GET", "/type/nonsense"); code != 404 {

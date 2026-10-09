@@ -29,11 +29,7 @@ func (s *server) palette(w http.ResponseWriter, _ *http.Request) {
 			return
 		}
 		for _, r := range rows {
-			title := r.Title
-			if title == "" {
-				title = r.ID
-			}
-			out = append(out, paletteEntry{Key: r.ID, Type: r.Type, Title: title, Status: r.Status})
+			out = append(out, paletteEntry{Key: r.ID, Type: r.Type, Title: r.Title, Status: r.Status})
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
