@@ -793,8 +793,11 @@ func TestValidate_Sweep_MilestoneBodyShape_WarnsNotFails(t *testing.T) {
 
 // writeDiagramSystemDesign plants a system design naming diagram "ghost" and,
 // when withFile, the vault file that resolves it.
-func writeDiagramSystemDesign(t *testing.T, vault string, withFile bool) string {
+func writeDiagramSystemDesign(t *testing.T, vault string, withFile bool, names ...any) string {
 	t.Helper()
+	if len(names) == 0 {
+		names = []any{"ghost"}
+	}
 	if withFile {
 		dir := filepath.Join(vault, "_meta", "diagrams")
 		if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // test fixture; 0755 matches vault convention
@@ -809,7 +812,7 @@ func writeDiagramSystemDesign(t *testing.T, vault string, withFile bool) string 
 		FrontMatter: map[string]any{
 			"type": "system-design", "title": "Foo", "description": "fixture",
 			"created": "2026-01-01", "updated": "2026-01-01", "status": "draft",
-			"project": "foo", "diagrams": []any{"ghost"},
+			"project": "foo", "diagrams": names,
 		},
 		Body: "fixture body\n",
 	}
@@ -837,5 +840,20 @@ func TestValidateDiagrams_NamesMissingFileOnly(t *testing.T) {
 		if !withFile && (err == nil || !strings.Contains(out.String(), `diagram "ghost" has no file`)) {
 			t.Errorf("file missing: want diagram finding, err=%v\n%s", err, out.String())
 		}
+	}
+}
+
+// Warrant: validate that accepts a repeated diagram name lets a design list
+// one asset twice, so the human view renders it twice.
+func TestValidateDiagrams_RefusesDuplicateName(t *testing.T) {
+	vault := setupVault(t)
+	path := writeDiagramSystemDesign(t, vault, true, "ghost", "ghost")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"validate", path})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Errorf("duplicate diagram name: want validate failure\n%s", out.String())
 	}
 }

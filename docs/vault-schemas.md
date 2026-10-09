@@ -90,7 +90,7 @@ diagrams: [<name>]   # optional; each `<vault>/_meta/diagrams/<name>.html` must 
 
 Addressable as `<project>` (per-project) or `<project>.<shard>` (per subsystem); files sit flat in `06-system-designs/` under the bare id (e.g. `burgh.md`) and resolve in show/list/wikilinks. The index DB still keys on the type-qualified form (`system-design.burgh`), which is also the wikilink target shape.
 
-Body absorbs: constraints and quality goals, system invariants, boundary diagrams, open questions. No Tech stack section. Diagrams are HTML files named in `diagrams`; `validate`, `create` and `set` refuse a name with no file.
+Body absorbs: constraints and quality goals, system invariants, open questions. No Tech stack section. Diagrams are HTML files named in `diagrams`; `validate` and `set` refuse a name with no file.
 
 ### `milestone`
 

@@ -88,8 +88,6 @@ func validateBeforeCreate(cmd *cobra.Command, v *core.Vault, t core.Type, path s
 		}
 	}
 
-	failures = append(failures, diagramFailures(v.Root, path, fm)...)
-
 	// Milestone runs staticBodyFailures even on the CLI-generated scaffold
 	// body (authoredBody false): the check that actually bites an
 	// un-authored milestone is frontmatter-shaped (empty
