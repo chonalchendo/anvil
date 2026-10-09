@@ -259,12 +259,12 @@ func (s *server) rail(key string, rows []index.LinkRow) ([]railGroup, error) {
 	out := make([]railGroup, 0, len(types))
 	for _, t := range types {
 		srcs := byType[t]
-		rows, err := s.db.ListByType(t, index.QueryFilters{})
+		arts, err := s.db.ListByType(t, index.QueryFilters{})
 		if err != nil {
 			return nil, fmt.Errorf("listing %s: %w", t, err)
 		}
-		updated := make(map[string]string, len(rows))
-		for _, r := range rows {
+		updated := make(map[string]string, len(arts))
+		for _, r := range arts {
 			updated[r.ID] = r.Updated
 		}
 		sort.Slice(srcs, func(a, b int) bool {

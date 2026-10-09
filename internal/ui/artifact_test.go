@@ -79,12 +79,18 @@ func TestRail_GroupsCountsCapsAndOmitsEmpty(t *testing.T) {
 	if !strings.Contains(rail, `href="/artifact/decision.ui.0010-more"`) {
 		t.Error("newest source is cut by the cap")
 	}
+	for _, cut := range []string{"decision.ui.0008-more", "decision.ui.0009-more"} {
+		if strings.Contains(rail, `href="/artifact/`+cut+`"`) {
+			t.Errorf("older source %s survived the cap", cut)
+		}
+	}
 	if strings.Contains(rail, "<h3>issue") || strings.Contains(rail, "<h3>learning") {
 		t.Error("empty group rendered")
 	}
 }
 
-func TestRail_NoIncomingShowsNothing(t *testing.T) {
+// Warrant: a rail that rendered empty group sections would show headings with no sources.
+func TestRail_NoIncomingRendersPlaceholderOnly(t *testing.T) {
 	h, _ := seed(t)
 	_, body := do(h, "GET", "/artifact/"+stackIssue)
 	if !strings.Contains(body, `<aside class="rail">`) || strings.Contains(body, `<section><h3>`) {
