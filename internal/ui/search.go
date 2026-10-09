@@ -33,14 +33,17 @@ type searchPage struct {
 func (s *server) search(w http.ResponseWriter, r *http.Request) {
 	page := searchPage{Query: strings.TrimSpace(r.URL.Query().Get("q"))}
 	if page.Query != "" {
-		hits, err := s.db.Search(page.Query, searchCap)
+		hits, err := s.db.Search(page.Query, searchCap+1)
 		if err != nil {
 			slog.Error("searching bodies", "err", err)
 			http.Error(w, "search failed", http.StatusInternalServerError)
 			return
 		}
-		page.Searched, page.Total = true, len(hits)
-		page.Capped = page.Total == searchCap
+		page.Searched, page.Capped = true, len(hits) > searchCap
+		if page.Capped {
+			hits = hits[:searchCap]
+		}
+		page.Total = len(hits)
 		at := map[string]int{}
 		for _, h := range hits {
 			i, ok := at[h.Type]
