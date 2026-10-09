@@ -14,7 +14,7 @@ import (
 //go:embed templates
 var templateFS embed.FS
 
-// sidebarTypes are the type lists the sidebar links; 0351 serves the routes.
+// sidebarTypes are the type lists the sidebar links.
 var sidebarTypes = []string{"convention", "decision", "learning", "thread", "inbox"}
 
 // pages holds one parsed template set per page: base plus that page's content.

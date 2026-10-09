@@ -24,8 +24,12 @@ type projectTree struct {
 // milestoneOrder lists the milestone status groups shown, in order.
 var milestoneOrder = []string{"in-progress", "planned", "done", "abandoned"}
 
-// issueOrder ranks the issues listed under an in-progress milestone; unknown statuses sort last.
-var issueOrder = []string{"in-progress", "open", "escalated", "resolved", "abandoned"}
+// liveOrder ranks statuses live-first, for issue lists and type lists; unknown statuses sort last.
+var liveOrder = []string{
+	"in-progress", "active", "open", "escalated", "planned", "draft", "proposed", "raw", "triaged", "paused",
+	"accepted", "verified", "promoted", "closed", "resolved", "done", "distilled", "archived", "merged",
+	"superseded", "retired", "deprecated", "stale", "rejected", "dropped", "retracted", "abandoned",
+}
 
 // glyphs are the status marks shown before the status text.
 var glyphs = map[string]string{
@@ -33,7 +37,11 @@ var glyphs = map[string]string{
 	"open": "○", "planned": "○", "draft": "○",
 	"done": "✓", "resolved": "✓",
 	"abandoned": "×", "superseded": "×", "retired": "×", "deprecated": "×",
-	"escalated": "▲",
+	"escalated": "▲", "stale": "▲",
+	"accepted": "✓", "verified": "✓", "closed": "✓", "promoted": "✓",
+	"proposed": "○", "raw": "○", "triaged": "○", "paused": "○",
+	"distilled": "✓", "archived": "✓", "merged": "✓",
+	"rejected": "×", "dropped": "×", "retracted": "×",
 }
 
 func (s *server) home(w http.ResponseWriter, _ *http.Request) {
@@ -165,7 +173,7 @@ func (s *server) milestoneIssues(ms string, issues map[string]index.ArtifactRow)
 		}
 	}
 	sort.Slice(out, func(a, b int) bool {
-		ra, rb := rank(issueOrder, out[a].Status), rank(issueOrder, out[b].Status)
+		ra, rb := rank(liveOrder, out[a].Status), rank(liveOrder, out[b].Status)
 		if ra != rb {
 			return ra < rb
 		}
