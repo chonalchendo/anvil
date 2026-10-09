@@ -76,20 +76,11 @@ func (d *DB) TagsByType(typ string) (map[string][]string, error) {
 	return out, rs.Err()
 }
 
-// RecentlyUpdated returns the n most recently updated artifacts, newest first; ties break by id.
+// RecentlyUpdated returns the n most recently updated non-session artifacts, newest first; ties break by id.
 func (d *DB) RecentlyUpdated(n int) ([]ArtifactRow, error) {
-	rs, err := d.sql.Query(`SELECT id, type, status, project, title, path, created, updated FROM artifacts ORDER BY updated DESC, id LIMIT ?`, n)
+	rs, err := d.sql.Query(`SELECT id, type, status, project, title, path, created, updated FROM artifacts WHERE type != 'session' ORDER BY updated DESC, id LIMIT ?`, n)
 	if err != nil {
 		return nil, fmt.Errorf("recently updated: %w", err)
 	}
-	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
-	var out []ArtifactRow
-	for rs.Next() {
-		var r ArtifactRow
-		if err := rs.Scan(&r.ID, &r.Type, &r.Status, &r.Project, &r.Title, &r.Path, &r.Created, &r.Updated); err != nil {
-			return nil, fmt.Errorf("recently updated: %w", err)
-		}
-		out = append(out, r)
-	}
-	return out, rs.Err()
+	return scanArtifactRows(rs)
 }

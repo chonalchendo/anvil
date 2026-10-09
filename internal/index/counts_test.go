@@ -106,7 +106,7 @@ func TestTagsByType(t *testing.T) {
 	}
 }
 
-// Warrant: fails if RecentlyUpdated orders oldest-first, ignores the limit, or breaks ties unstably.
+// Warrant: fails if RecentlyUpdated orders oldest-first, ignores the limit, breaks ties unstably, or lets sessions in.
 func TestRecentlyUpdated(t *testing.T) {
 	db := openTestDB(t)
 	for _, r := range []ArtifactRow{
@@ -114,6 +114,7 @@ func TestRecentlyUpdated(t *testing.T) {
 		{ID: "issue.b", Type: "issue", Path: "/b.md", Updated: "2026-10-09"},
 		{ID: "learning.a", Type: "learning", Path: "/a.md", Updated: "2026-10-09"},
 		{ID: "thread.mid", Type: "thread", Path: "/m.md", Updated: "2026-05-05"},
+		{ID: "session.new", Type: "session", Path: "/s.md", Updated: "2026-10-10"},
 	} {
 		if err := db.UpsertArtifact(r); err != nil {
 			t.Fatal(err)

@@ -3,22 +3,20 @@ package ui
 import (
 	"fmt"
 	"net/url"
+	"slices"
+	"strings"
 
 	"github.com/chonalchendo/anvil/internal/index"
 )
 
-// nowCap is how many links a Now column shows before the "N more" link.
-const nowCap = 8
-
 // recentLimit is how many recently updated nodes the Now band lists.
 const recentLimit = 10
-
-type nowItem struct{ Href, Title, Status, Glyph string }
 
 type nowColumn struct {
 	Title    string
 	Count    int
-	Items    []nowItem
+	NoCount  bool
+	Items    []node
 	More     int
 	MoreHref string
 }
@@ -48,9 +46,9 @@ func (s *server) nowBand() (nowBand, error) {
 	if err != nil {
 		return nil, err
 	}
-	rc := nowColumn{Title: "Recently updated", Count: len(recent)}
+	rc := nowColumn{Title: "Recently updated", NoCount: true}
 	for _, r := range recent {
-		rc.Items = append(rc.Items, nowLink(r))
+		rc.Items = append(rc.Items, leaf(r))
 	}
 	return nowBand{
 		capColumn("Milestones in flight", "milestone", ms),
@@ -60,19 +58,20 @@ func (s *server) nowBand() (nowBand, error) {
 	}, nil
 }
 
-func nowLink(r index.ArtifactRow) nowItem {
-	return nowItem{Href: artifactHref(r.ID), Title: r.Title, Status: r.Status, Glyph: glyphs[r.Status]}
-}
-
-// capColumn shows the first nowCap rows; "N more" opens the type list at the first hidden row's status.
+// capColumn shows the newest treeCap rows. "N more" opens the type list, filtered to the hidden rows' status only when they share one.
 func capColumn(title, typ string, rows []index.ArtifactRow) nowColumn {
+	slices.SortStableFunc(rows, func(a, b index.ArtifactRow) int { return strings.Compare(b.Updated, a.Updated) })
 	c := nowColumn{Title: title, Count: len(rows)}
-	for _, r := range rows[:min(len(rows), nowCap)] {
-		c.Items = append(c.Items, nowLink(r))
+	for _, r := range rows[:min(len(rows), treeCap)] {
+		c.Items = append(c.Items, leaf(r))
 	}
-	if len(rows) > nowCap {
-		c.More = len(rows) - nowCap
-		c.MoreHref = fmt.Sprintf("/type/%s?status=%s", typ, url.QueryEscape(rows[nowCap].Status))
+	if len(rows) > treeCap {
+		hidden := rows[treeCap:]
+		c.More = len(hidden)
+		c.MoreHref = "/type/" + typ
+		if !slices.ContainsFunc(hidden, func(r index.ArtifactRow) bool { return r.Status != hidden[0].Status }) {
+			c.MoreHref = fmt.Sprintf("%s?status=%s", c.MoreHref, url.QueryEscape(hidden[0].Status))
+		}
 	}
 	return c
 }

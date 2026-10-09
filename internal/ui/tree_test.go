@@ -45,12 +45,16 @@ func treeVault(t *testing.T) (string, int) {
 	writeArtifact(t, v, core.TypeIssue, "issue.q.0001-orphan", map[string]any{"project": "q", "title": "Orphan project issue", "status": "open"}, "x\n")
 	writeArtifact(t, v, core.TypeIssue, "issue.p.0003-idle", map[string]any{"project": "p", "title": "Idle ms issue", "status": "in-progress", "milestone": "[[milestone.p.waiting]]"}, "x\n")
 	code, body := homeBody(t, v)
-	return belowBand(body), code
+	return belowBand(t, body), code
 }
 
 // belowBand drops the Now band, which repeats tree nodes the tree assertions count.
-func belowBand(body string) string {
-	_, tree, _ := strings.Cut(body, "<h1>Design spine</h1>")
+func belowBand(t *testing.T, body string) string {
+	t.Helper()
+	_, tree, ok := strings.Cut(body, "<h1>Design spine</h1>")
+	if !ok {
+		t.Fatal("home lacks the spine heading")
+	}
 	return tree
 }
 
@@ -113,7 +117,7 @@ func manyIssues(t *testing.T, n int) string {
 		writeArtifact(t, v, core.TypeIssue, id, map[string]any{"project": "p", "title": fmt.Sprintf("Issue %d", i), "status": "open", "milestone": "[[milestone.p.big]]"}, "x\n")
 	}
 	_, body := homeBody(t, v)
-	return belowBand(body)
+	return belowBand(t, body)
 }
 
 // Warrant: a group summary must show how many children it holds, so the count is the whole group not the shown rows.

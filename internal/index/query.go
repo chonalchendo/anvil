@@ -91,6 +91,11 @@ WHERE learning_fts MATCH ?`
 	if err != nil {
 		return nil, fmt.Errorf("search learnings: %w", err)
 	}
+	return scanArtifactRows(rs)
+}
+
+// scanArtifactRows drains rs, whose columns must be id, type, status, project, title, path, created, updated.
+func scanArtifactRows(rs *sql.Rows) ([]ArtifactRow, error) {
 	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
 	var out []ArtifactRow
 	for rs.Next() {
