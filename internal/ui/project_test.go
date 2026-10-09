@@ -60,7 +60,7 @@ func TestProject_Dashboard(t *testing.T) {
 		`<code>deadbee</code>`, `class="judge"`, `A deck line`, `status-not-met`,
 		`0 of 11 issues resolved`, `class="bar"`, `style="--n:1"`,
 		`<i class="status-open status-planned"`, `<code>/project/anvil</code> dashboard`,
-		`href="/type/issue?project=anvil"`, `href="/type/issue?to=milestone.anvil.live"`, `3 more`,
+		`href="/type/issue?project=anvil"`, `href="/type/issue?to=milestone.anvil.live&amp;status=open"`, `3 more`,
 		`href="/artifact/thread.anvil-design-docs.0001-ours"`, `href="/artifact/thread.anvil.0002-also-ours"`,
 		`Still open:`, `(7 Oct)`, `(8 Oct)`, `1 of 1, 1 Oct`, `<code>anvil-two-loop</code> The state lives in the vault.`,
 		`href="/type/thread"`, `>2 open</span>`, `loading="lazy"`,
@@ -120,5 +120,24 @@ func TestDiagramNote(t *testing.T) {
 	}
 	if got := diagramNote(body, "y"); got != "" {
 		t.Errorf("diagramNote y = %q, want empty under a heading", got)
+	}
+}
+
+// Warrant: fails if "N more" filters by status when the hidden issues differ, or drops the filter when they agree.
+func TestProject_MoreHrefStatusFilter(t *testing.T) {
+	h, v := seed(t)
+	writeArtifact(t, v, core.TypeMilestone, "milestone.anvil.mixed", map[string]any{"title": "Mixed", "status": "in-progress", "project": "anvil"}, "x\n")
+	for i := 1; i <= treeCap+2; i++ {
+		status := "in-progress"
+		if i == treeCap+2 {
+			status = "open"
+		}
+		writeArtifact(t, v, core.TypeIssue, fmt.Sprintf("anvil.%04d-mixed-%d", i, i), map[string]any{
+			"title": "Mixed", "status": status, "project": "anvil", "milestone": "[[milestone.anvil.mixed]]",
+		}, "x\n")
+	}
+	body, _ := projectBody(t, h)
+	if !strings.Contains(body, `href="/type/issue?to=milestone.anvil.mixed"`) || strings.Contains(body, "milestone.anvil.mixed&amp;status") {
+		t.Error("mixed hidden statuses must not filter the More link")
 	}
 }
