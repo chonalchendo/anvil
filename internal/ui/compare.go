@@ -21,11 +21,14 @@ func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		if err == nil {
-			page.Panes[i], err = s.node(key, art)
-		}
 		if err != nil {
-			slog.Error("building compare pane", "param", name, "err", err)
+			slog.Error("loading artifact", "param", name, "err", err)
+			http.Error(w, "artifact unreadable", http.StatusInternalServerError)
+			return
+		}
+		page.Panes[i], err = s.node(key, art)
+		if err != nil {
+			slog.Error("building compare pane", "param", name, "key", key, "err", err)
 			http.Error(w, "page failed", http.StatusInternalServerError)
 			return
 		}

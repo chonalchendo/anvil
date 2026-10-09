@@ -31,6 +31,9 @@ func TestComparePage_TwoPanes(t *testing.T) {
 	if !strings.Contains(pb, "A decision") || !strings.Contains(pb, "alert(1)") || strings.Contains(pb, "Anvil product") {
 		t.Error("second pane is not the b node")
 	}
+	if !strings.Contains(body, "<kbd>j</kbd>") {
+		t.Error("compare must show the j/k key hints its sections respond to")
+	}
 	if strings.Contains(body, `class="rail"`) || !strings.Contains(body, `class="sidebar"`) {
 		t.Error("compare must keep the sidebar and render no rail")
 	}
