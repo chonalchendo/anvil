@@ -30,7 +30,7 @@ func TestSidebar_CarriesGroupsCountsAndProjects(t *testing.T) {
 		`href="/type/decision"><span class="ticon type-decision" aria-hidden="true">` + typeIcons["decision"] + `</span>Decisions<span class="count">2</span>`,
 		`href="/type/thread"><span class="ticon type-thread" aria-hidden="true">` + typeIcons["thread"] + `</span>Threads<span class="count">1</span>`,
 		`href="/type/session"><span class="ticon type-session" aria-hidden="true">` + typeIcons["session"] + `</span>Sessions<span class="count">0</span>`,
-		`<ul class="projects">`, `href="/type/issue?project=a&#43;b%26c"`, `read-only`,
+		`<ul class="projects">`, `href="/project/a%20b&amp;c"`, `<details class="browse">`, `read-only`,
 	} {
 		if !strings.Contains(sb, want) {
 			t.Errorf("sidebar lacks %q in\n%s", want, sb)
@@ -56,5 +56,21 @@ func TestGroupThousands(t *testing.T) {
 		if got := groupThousands(n); got != want {
 			t.Errorf("groupThousands(%d) = %q, want %q", n, got, want)
 		}
+	}
+}
+
+// Warrant: fails if a project loses its dashboard link, the current one is unmarked, or Browse opens by default.
+func TestSidebar_ProjectsFirstAndBrowseClosed(t *testing.T) {
+	h, _ := seed(t)
+	_, body := do(h, "GET", "/project/anvil")
+	sb := sidebarOf(t, body)
+	if !strings.Contains(sb, `<a href="/project/anvil" aria-current="page">anvil</a>`) {
+		t.Errorf("current project is not marked:\n%s", sb)
+	}
+	if strings.Index(sb, `class="projects"`) > strings.Index(sb, `class="browse"`) {
+		t.Error("Projects must come before Browse")
+	}
+	if strings.Contains(sb, `<details class="browse" open`) {
+		t.Error("Browse opens by default")
 	}
 }

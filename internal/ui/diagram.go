@@ -19,7 +19,9 @@ const diagramCSP = "default-src 'none'; style-src 'unsafe-inline'; font-src 'sel
 // canvas is one diagram on a pan-and-zoom surface; Full fills the viewport.
 type canvas struct {
 	Name string
+	Note string
 	Full bool
+	Lazy bool
 }
 
 // diagramsOf lists the names in a design's diagrams slot, in slot order.

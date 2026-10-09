@@ -84,3 +84,51 @@ func (d *DB) RecentlyUpdated(n int) ([]ArtifactRow, error) {
 	}
 	return scanArtifactRows(rs)
 }
+
+// CountByTypeStatus returns one project's artifact counts keyed by type, then status.
+func (d *DB) CountByTypeStatus(project string) (map[string]map[string]int, error) {
+	rs, err := d.sql.Query(`SELECT type, status, COUNT(*) FROM artifacts WHERE project = ? GROUP BY type, status`, project)
+	if err != nil {
+		return nil, fmt.Errorf("count by type and status: %w", err)
+	}
+	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
+	out := map[string]map[string]int{}
+	for rs.Next() {
+		var t, st string
+		var n int
+		if err := rs.Scan(&t, &st, &n); err != nil {
+			return nil, err
+		}
+		if out[t] == nil {
+			out[t] = map[string]int{}
+		}
+		out[t][st] = n
+	}
+	return out, rs.Err()
+}
+
+// MilestoneIssueCounts returns, for each milestone that has issues in project,
+// the issues linked through the `milestone` slot and how many are resolved.
+func (d *DB) MilestoneIssueCounts(project string) (map[string]MilestoneStatus, error) {
+	const q = `
+SELECT l.target, COUNT(*), COUNT(CASE WHEN a.status = 'resolved' THEN 1 END)
+FROM links l
+JOIN artifacts a ON a.id = l.source AND a.type = 'issue'
+WHERE l.relation = 'milestone' AND a.project = ?
+GROUP BY l.target`
+	rs, err := d.sql.Query(q, project)
+	if err != nil {
+		return nil, fmt.Errorf("milestone issue counts: %w", err)
+	}
+	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
+	out := map[string]MilestoneStatus{}
+	for rs.Next() {
+		m := MilestoneStatus{}
+		if err := rs.Scan(&m.Milestone, &m.Total, &m.Resolved); err != nil {
+			return nil, err
+		}
+		m.Done = m.Total > 0 && m.Resolved == m.Total
+		out[m.Milestone] = m
+	}
+	return out, rs.Err()
+}

@@ -18,13 +18,28 @@ type sidebarGroup struct {
 	Types []sidebarType
 }
 
-type projectLink struct{ Name, Href string }
+type projectLink struct {
+	Name, Href string
+	Current    bool
+}
 
 // sidebar is the nav data every page renders; it comes from the index only.
 type sidebar struct {
 	Groups   []sidebarGroup
 	Projects []projectLink
 	Port     string
+}
+
+// Count returns the sidebar's formatted count for typ.
+func (sb sidebar) Count(typ string) string {
+	for _, g := range sb.Groups {
+		for _, t := range g.Types {
+			if t.Type == typ {
+				return t.Count
+			}
+		}
+	}
+	return "0"
 }
 
 type sidebarEntry struct{ typ, label string }
@@ -58,7 +73,7 @@ func (s *server) sidebar(r *http.Request) (sidebar, error) {
 		sb.Groups = append(sb.Groups, grp)
 	}
 	for _, p := range projects {
-		sb.Projects = append(sb.Projects, projectLink{Name: p, Href: "/type/issue?project=" + url.QueryEscape(p)})
+		sb.Projects = append(sb.Projects, projectLink{Name: p, Href: "/project/" + url.PathEscape(p), Current: p == r.PathValue("slug")})
 	}
 	// The port comes from the request so Handler needs no listener knowledge.
 	if _, port, err := net.SplitHostPort(r.Host); err == nil {

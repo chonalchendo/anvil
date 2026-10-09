@@ -59,6 +59,7 @@ func Handler(v *core.Vault, db *index.DB) (http.Handler, error) {
 	mux.HandleFunc("GET /diagram/{name}", s.diagram)
 	mux.HandleFunc("GET /diagram-src/{name}", s.diagramSrc)
 	mux.HandleFunc("GET /issue/{id}/stack", s.fresh(s.stack))
+	mux.HandleFunc("GET /project/{slug}", s.fresh(s.project))
 	mux.HandleFunc("GET /type/{type}", s.fresh(s.typeList))
 	mux.HandleFunc("GET /search", s.fresh(s.search))
 	mux.HandleFunc("GET /palette", s.fresh(s.palette))
