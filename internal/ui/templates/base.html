@@ -53,7 +53,7 @@
     else return;
     ev.preventDefault(); show();
   });
-  var layers = function () { return Array.prototype.slice.call(document.querySelectorAll('details.layer')); }, at = -1;
+  var layers = function () { return Array.prototype.slice.call(document.querySelectorAll('details.layer, details.section')); }, at = -1;
   function focusLayer(i) { var l = layers(); if (!l.length) return; at = Math.max(0, Math.min(l.length - 1, i)); l[at].querySelector('summary').focus(); }
   function treeKey(ev) {
     var e = document.activeElement;

@@ -82,7 +82,7 @@ func (s *server) artifact(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, error) {
-	body, err := s.md.render(art.Body)
+	body, err := s.md.renderSections(art.Body)
 	if err != nil {
 		return artifactPage{}, err
 	}

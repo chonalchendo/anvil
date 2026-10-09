@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"html"
 	"html/template"
+	"strconv"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -120,7 +121,7 @@ func newMarkdown(res resolver) markdown {
 	return markdown{md: goldmark.New(
 		goldmark.WithExtensions(extension.Table),
 		goldmark.WithParserOptions(parser.WithInlineParsers(util.Prioritized(wikilinkParser{}, 199))),
-		goldmark.WithRendererOptions(renderer.WithNodeRenderers(util.Prioritized(wikilinkRenderer{res}, 500), util.Prioritized(rawHTMLRenderer{}, 100))),
+		goldmark.WithRendererOptions(renderer.WithNodeRenderers(util.Prioritized(wikilinkRenderer{res}, 500), util.Prioritized(rawHTMLRenderer{}, 100), util.Prioritized(sectionRenderer{}, 500))),
 	)}
 }
 
@@ -132,4 +133,88 @@ func (m markdown) render(body string) (template.HTML, error) {
 		return "", err
 	}
 	return template.HTML(buf.String()), nil //nolint:gosec // raw HTML is off; see doc comment
+}
+
+var (
+	kindSection = ast.NewNodeKind("Section")
+	kindSummary = ast.NewNodeKind("SectionSummary")
+)
+
+// sectionNode groups an H2 and the blocks up to the next H2 as a fold.
+type sectionNode struct{ ast.BaseBlock }
+
+func (n *sectionNode) Kind() ast.NodeKind          { return kindSection }
+func (n *sectionNode) Dump(src []byte, level int) { ast.DumpHelper(n, src, level, nil, nil) }
+
+// summaryNode holds the H2 and the item count of its section.
+type summaryNode struct {
+	ast.BaseBlock
+	items int
+}
+
+func (n *summaryNode) Kind() ast.NodeKind          { return kindSummary }
+func (n *summaryNode) Dump(src []byte, level int) { ast.DumpHelper(n, src, level, nil, nil) }
+
+type sectionRenderer struct{}
+
+func (sectionRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
+	reg.Register(kindSection, renderSection)
+	reg.Register(kindSummary, renderSummary)
+}
+
+func renderSection(w util.BufWriter, _ []byte, _ ast.Node, entering bool) (ast.WalkStatus, error) {
+	if entering {
+		_, _ = w.WriteString("<details class=\"section\" open>\n")
+	} else {
+		_, _ = w.WriteString("</details>\n")
+	}
+	return ast.WalkContinue, nil
+}
+
+func renderSummary(w util.BufWriter, _ []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
+	switch {
+	case entering:
+		_, _ = w.WriteString("<summary>")
+	case n.(*summaryNode).items > 0:
+		_, _ = w.WriteString(`<span class="count">` + strconv.Itoa(n.(*summaryNode).items) + "</span></summary>\n")
+	default:
+		_, _ = w.WriteString("</summary>\n")
+	}
+	return ast.WalkContinue, nil
+}
+
+// foldSections moves each H2 and the blocks after it into a sectionNode. The
+// count is the section's top-level list items.
+func foldSections(doc ast.Node) {
+	var sec *sectionNode
+	var sum *summaryNode
+	for c := doc.FirstChild(); c != nil; {
+		next := c.NextSibling()
+		if h, ok := c.(*ast.Heading); ok && h.Level == 2 {
+			sec, sum = &sectionNode{}, &summaryNode{}
+			doc.InsertBefore(doc, c, sec)
+			doc.RemoveChild(doc, c)
+			sum.AppendChild(sum, c)
+			sec.AppendChild(sec, sum)
+		} else if sec != nil {
+			if l, ok := c.(*ast.List); ok {
+				sum.items += l.ChildCount()
+			}
+			doc.RemoveChild(doc, c)
+			sec.AppendChild(sec, c)
+		}
+		c = next
+	}
+}
+
+// renderSections is render with each H2 section folded as a details element.
+func (m markdown) renderSections(body string) (template.HTML, error) {
+	src := []byte(body)
+	doc := m.md.Parser().Parse(text.NewReader(src))
+	foldSections(doc)
+	var buf bytes.Buffer
+	if err := m.md.Renderer().Render(&buf, src, doc); err != nil {
+		return "", err
+	}
+	return template.HTML(buf.String()), nil //nolint:gosec // raw HTML is off; see render
 }
