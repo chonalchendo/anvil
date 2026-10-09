@@ -50,6 +50,7 @@ type artifactPage struct {
 	Crumbs     []link
 	Props      []prop
 	Body       template.HTML
+	Diagrams   []canvas
 	Rail       []railGroup
 	Out        []group
 	// Tabs is set on issue pages only: hydrate is issue-only.
@@ -141,6 +142,7 @@ func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, er
 		tb = issueTabs(key, "issue")
 	}
 	page.Tabs = tb
+	page.Diagrams = diagramsOf(art.FrontMatter)
 	page.Crumbs = s.crumbs(key)
 	page.Props = s.props(typeOfKey(key), art.FrontMatter)
 	page.Rail = rail
