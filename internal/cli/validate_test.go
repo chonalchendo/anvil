@@ -791,8 +791,8 @@ func TestValidate_Sweep_MilestoneBodyShape_WarnsNotFails(t *testing.T) {
 	}
 }
 
-// writeDiagramSystemDesign plants a system design naming diagram "ghost" and,
-// when withFile, the vault file that resolves it.
+// writeDiagramSystemDesign plants a system design naming names (default "ghost")
+// and, when withFile, the ghost.html that resolves them.
 func writeDiagramSystemDesign(t *testing.T, vault string, withFile bool, names ...any) string {
 	t.Helper()
 	if len(names) == 0 {
@@ -855,5 +855,8 @@ func TestValidateDiagrams_RefusesDuplicateName(t *testing.T) {
 	cmd.SetErr(&out)
 	if err := cmd.Execute(); err == nil {
 		t.Errorf("duplicate diagram name: want validate failure\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "field: diagrams") {
+		t.Errorf("output should name the diagrams field, got: %s", out.String())
 	}
 }
