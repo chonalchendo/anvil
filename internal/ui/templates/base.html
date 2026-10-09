@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f1011">
 <title>{{block "title" .}}anvil{{end}}</title>
 <link rel="preload" href="{{asset "inter.woff2"}}" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="{{asset "anvil.css"}}">
@@ -136,7 +137,7 @@
 {{define "tabs"}}<nav class="tabs" aria-label="Issue views"><a href="{{.Issue}}"{{if eq .Current "issue"}} aria-current="page"{{end}}>Issue</a><a href="{{.Stack}}"{{if eq .Current "stack"}} aria-current="page"{{end}}>Stack</a></nav>{{end}}
 {{define "nodeheader"}}<header class="node">
 <div class="node-title"><span class="ticon type-{{.Head.Type}}" title="{{.Head.Type}}" aria-hidden="true">{{.Head.Icon}}</span><h1>{{.Title}}</h1></div>
-<div class="node-meta">{{if .Head.Status}}<span class="status status-{{.Head.Status}}">{{.Head.Glyph}} {{.Head.Status}}</span>{{end}}{{with .Head.Project}}<span>{{.}}</span>{{end}}{{with .Head.Updated}}<span>updated {{.}}</span>{{end}}<code class="key">{{.Key}}</code></div>
+<div class="node-meta">{{if .Head.Status}}<span class="status status-{{.Head.Status}}{{hue .Head.Type .Head.Status}}">{{.Head.Glyph}} {{.Head.Status}}</span>{{end}}{{with .Head.Project}}<span>{{.}}</span>{{end}}{{with .Head.Updated}}<span>updated {{.}}</span>{{end}}<code class="key">{{.Key}}</code></div>
 {{with .Head.Description}}<p class="deck">{{.}}</p>{{end}}
 {{with .Head.Judge}}<div class="judge">{{range .}}<span class="jk">{{.Name}}</span><span class="jv">{{range .Values}}{{template "ref" .}} {{end}}</span>{{end}}</div>{{end}}
 {{with .Head.Slots}}<dl class="slots">{{range .}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{template "ref" .}} {{end}}</dd>{{end}}</dl>{{end}}

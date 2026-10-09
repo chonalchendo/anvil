@@ -1,6 +1,6 @@
 {{define "keys"}}<span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>←</kbd><kbd>→</kbd> fold</span><span><kbd>⌘K</kbd> jump</span>{{end}}
 {{define "title"}}Spine · anvil{{end}}
-{{define "row"}}{{if .Href}}<a href="{{.Href}}">{{.Title}}</a>{{if .Status}} <span class="status status-{{.Status}}">{{.Glyph}} {{.Status}}</span>{{end}}{{else}}<span class="group">{{.Title}}</span>{{end}}{{end}}
+{{define "row"}}{{if .Href}}<a href="{{.Href}}">{{.Title}}</a>{{if .Status}} <span class="status status-{{.Status}}{{hue .Type .Status}}">{{.Glyph}} {{.Status}}</span>{{end}}{{else}}<span class="group">{{.Title}}</span>{{end}}{{end}}
 {{define "node"}}<li>{{if .Kids}}<details{{if .Open}} open{{end}}><summary{{if not .Href}} class="group"{{end}}>{{template "row" .}}<span class="count">{{len .Kids}}</span></summary><ul>{{range .Shown}}{{template "node" .}}{{end}}{{with .Hidden}}<li class="more"><details><summary>{{len .}} more</summary><ul>{{range .}}{{template "node" .}}{{end}}</ul></details></li>{{end}}</ul></details>{{else}}{{template "row" .}}{{end}}</li>{{end}}
 {{define "content"}}<section class="now" aria-label="Now">{{range .Page.Now}}<div class="now-col"><h2>{{.Title}}{{with .Count}} <span class="count">{{.}}</span>{{end}}</h2>
 <ul>{{range .Items}}<li>{{template "row" .}}</li>{{else}}<li class="muted">none</li>{{end}}{{if .More}}<li class="more"><a href="{{.MoreHref}}">{{.More}} more</a></li>{{end}}</ul></div>{{end}}</section>

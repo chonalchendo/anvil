@@ -3,7 +3,7 @@
 <form class="search-form" action="/search" method="get" role="search"><input type="search" name="q" value="{{.Page.Query}}" placeholder="Search every body…" aria-label="Search artifact bodies" autofocus><button type="submit">Search</button></form>
 {{if .Page.Searched}}{{if .Page.Groups}}<p class="muted">{{if .Page.Capped}}first {{.Page.Total}} matches{{else}}{{.Page.Total}} match{{if ne .Page.Total 1}}es{{end}}{{end}}</p>
 {{range .Page.Groups}}<section class="hits"><h2><span class="ticon type-{{.Type}}" aria-hidden="true">{{.Icon}}</span>{{.Type}} <span class="count">{{len .Hits}}</span></h2>
-<ul>{{range .Hits}}<li><span class="status status-{{.Status}}">{{.Glyph}}</span> <a href="{{.Href}}">{{.ID}}</a> <span class="hit-title">{{.Title}}</span><p class="snippet">{{.Snippet}}</p></li>
+<ul>{{range .Hits}}<li><span class="status status-{{.Status}}{{hue .Type .Status}}">{{.Glyph}} {{.Status}}</span> <a href="{{.Href}}">{{.ID}}</a> <span class="hit-title">{{.Title}}</span><p class="snippet">{{.Snippet}}</p></li>
 {{end}}</ul></section>
 {{end}}{{else}}<p class="muted">no matches</p>{{end}}{{end}}
 {{end}}

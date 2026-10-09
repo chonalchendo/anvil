@@ -6,16 +6,23 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/chonalchendo/anvil/internal/core"
 )
 
-func cssTokens(t *testing.T) map[string]string {
+func cssSource(t *testing.T) string {
 	t.Helper()
 	b, err := staticFS.ReadFile("static/anvil.css")
 	if err != nil {
 		t.Fatal(err)
 	}
+	return string(b)
+}
+
+func cssTokens(t *testing.T) map[string]string {
+	t.Helper()
 	out := map[string]string{}
-	for _, m := range regexp.MustCompile(`--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6})`).FindAllStringSubmatch(string(b), -1) {
+	for _, m := range regexp.MustCompile(`--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6})`).FindAllStringSubmatch(cssSource(t), -1) {
 		out[m[1]] = m[2]
 	}
 	return out
@@ -72,8 +79,7 @@ func TestCSS_StatusTokensAndFullWidthMain(t *testing.T) {
 	if n < 4 {
 		t.Errorf("%d --status- tokens, want >= 4", n)
 	}
-	b, _ := staticFS.ReadFile("static/anvil.css")
-	m := regexp.MustCompile(`(?m)^main\s*\{[^}]*\}`).FindString(string(b))
+	m := regexp.MustCompile(`(?m)^main\s*\{[^}]*\}`).FindString(cssSource(t))
 	if m == "" || strings.Contains(m, "max-width") {
 		t.Errorf("main rule = %q, want present with no max-width", m)
 	}
@@ -85,6 +91,43 @@ func TestStatusGlyphCarriesHueClass(t *testing.T) {
 		_, body := do(h, "GET", p)
 		if !strings.Contains(body, `class="status status-`) {
 			t.Errorf("%s lacks a status-<value> class on the glyph span", p)
+		}
+	}
+}
+
+func TestHue_OpenIssueIsPlannedOpenThreadIsNot(t *testing.T) {
+	for _, c := range []struct{ typ, status, want string }{
+		{"issue", "open", " status-planned"},
+		{"thread", "open", ""},
+		{"issue", "in-progress", ""},
+	} {
+		if got := hue(c.typ, c.status); got != c.want {
+			t.Errorf("hue(%s, %s) = %q, want %q", c.typ, c.status, got, c.want)
+		}
+	}
+}
+
+func TestCSS_ClosedAndPausedAreRetired(t *testing.T) {
+	css := cssSource(t)
+	for _, v := range []string{"closed", "paused"} {
+		re := regexp.MustCompile(`\.status-` + v + `\b[^{]*\{ color: var\(--status-retired\)`)
+		if !re.MatchString(css) {
+			t.Errorf(".status-%s is not mapped to --status-retired", v)
+		}
+	}
+	if !strings.Contains(css, "white-space: nowrap") {
+		t.Error("css lacks white-space: nowrap on .status")
+	}
+}
+
+func TestSearchHit_ShowsStatusWordAndTypeHue(t *testing.T) {
+	h, v := seed(t)
+	writeArtifact(t, v, core.TypeIssue, "issue.anvil.0900-kiwi", map[string]any{"title": "Kiwi issue", "status": "open", "project": "anvil"}, "kiwi\n")
+	writeArtifact(t, v, core.TypeThread, "anvil-design-docs.0900-kiwi", map[string]any{"title": "Kiwi thread", "status": "open"}, "kiwi\n")
+	_, body := do(h, "GET", "/search?q=kiwi")
+	for _, want := range []string{`class="status status-open status-planned">`, `class="status status-open">`, "open</span>"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("search body lacks %q", want)
 		}
 	}
 }

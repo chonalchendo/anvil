@@ -11,9 +11,18 @@ import (
 
 // node is one row of the spine tree. A node with no Href is a group heading.
 type node struct {
-	Href, Title, Status, Glyph string
-	Kids                       []node
-	Open                       bool
+	Href, Title, Type, Status, Glyph string
+	Kids                             []node
+	Open                             bool
+}
+
+// hue returns the extra hue class for a status whose colour depends on the
+// type: an open issue is queued work (planned), an open thread stays open.
+func hue(typ, status string) string {
+	if typ == "issue" && status == "open" {
+		return " status-planned"
+	}
+	return ""
 }
 
 // treeCap is how many children a group shows before folding the rest behind "N more".
@@ -183,7 +192,7 @@ func (s *server) projectNodes(rows map[string][]index.ArtifactRow, issues map[st
 }
 
 func leaf(r index.ArtifactRow) node {
-	return node{Href: artifactHref(r.ID), Title: r.Title, Status: r.Status, Glyph: glyphs[r.Status]}
+	return node{Href: artifactHref(r.ID), Title: r.Title, Type: r.Type, Status: r.Status, Glyph: glyphs[r.Status]}
 }
 
 // milestoneIssues lists every issue whose milestone slot names ms, in status order.
