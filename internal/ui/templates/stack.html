@@ -3,7 +3,7 @@
 {{define "content"}}{{with .Page}}
 {{template "tabs" .Tabs}}
 <header><h1>{{.Title}}</h1><code class="key">{{.Key}}</code> <span class="muted">{{len .Layers}} layers · {{.Total}}</span></header>
-{{range .Layers}}<details class="layer"><summary><span class="muted">{{.Type}}</span> {{template "ref" .Ref}} {{.Title}} <span class="status {{.Status}}">{{.Glyph}} {{.Status}}</span> <span class="muted size">{{.Size}}</span></summary>
+{{range .Layers}}<details class="layer"><summary><span class="muted">{{.Type}}</span> {{template "ref" .Ref}} {{.Title}} <span class="status status-{{.Status}}{{hue .Type .Status}}">{{.Glyph}} {{.Status}}</span> <span class="muted size">{{.Size}}</span></summary>
 <section class="body">{{.Body}}</section></details>
 {{end}}
 {{if .Broken}}<section><h2>Broken edges</h2><ul>{{range .Broken}}<li><span class="muted">{{.Source}}</span> → <span class="unresolved">{{.Target}}</span></li>{{end}}</ul></section>{{end}}

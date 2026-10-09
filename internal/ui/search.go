@@ -11,8 +11,8 @@ import (
 const searchCap = 50
 
 type searchRow struct {
-	Href, ID, Title, Status, Glyph string
-	Snippet                        template.HTML
+	Href, ID, Title, Type, Status, Glyph string
+	Snippet                              template.HTML
 }
 
 type searchGroup struct {
@@ -53,7 +53,7 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 				page.Groups = append(page.Groups, searchGroup{Type: h.Type, Icon: typeIcons[h.Type]})
 			}
 			page.Groups[i].Hits = append(page.Groups[i].Hits, searchRow{
-				Href: artifactHref(h.ID), ID: h.ID, Title: h.Title, Status: h.Status, Glyph: glyphs[h.Status],
+				Href: artifactHref(h.ID), ID: h.ID, Title: h.Title, Type: h.Type, Status: h.Status, Glyph: glyphs[h.Status],
 				Snippet: markSnippet(h.Snippet),
 			})
 		}

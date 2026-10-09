@@ -17,7 +17,7 @@ func TestNodeHeader_ShowsIdentityAndSlots(t *testing.T) {
 		t.Fatal("node header missing")
 	}
 	head := body[i:j]
-	for _, want := range []string{"<h1>Thing</h1>", `class="status in-progress"`, "●", "in-progress", `<p class="deck">Deck line</p>`, "updated 2026-10-09", `<code class="key">` + stackIssue, `href="/artifact/milestone.anvil.m1"`} {
+	for _, want := range []string{"<h1>Thing</h1>", `class="status status-in-progress"`, "●", "in-progress", `<p class="deck">Deck line</p>`, "updated 2026-10-09", `<code class="key">` + stackIssue, `href="/artifact/milestone.anvil.m1"`} {
 		if !strings.Contains(head, want) {
 			t.Errorf("header lacks %q", want)
 		}

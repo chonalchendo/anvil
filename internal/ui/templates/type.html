@@ -1,10 +1,10 @@
 {{define "title"}}{{.Page.Type}} · anvil{{end}}
-{{define "content"}}<h1 class="node-title"><span class="ticon" aria-hidden="true">{{.Page.Icon}}</span>{{.Page.Type}}</h1>
+{{define "content"}}<h1 class="node-title"><span class="ticon type-{{.Page.Type}}" aria-hidden="true">{{.Page.Icon}}</span>{{.Page.Type}}</h1>
 <nav class="tabs" aria-label="Status">{{range .Page.Tabs}}<a href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{.Label}} <span class="count">{{.Count}}</span></a>{{end}}</nav>
 <div class="chips"><span class="muted">project</span><a class="chip" href="{{.Page.AllHref}}"{{if not .Page.Project}} aria-current="true"{{end}}>all</a>{{range .Page.Projects}}<a class="chip" href="{{.Href}}"{{if .Current}} aria-current="true"{{end}}>{{.Name}}</a>{{end}}{{range .Page.Chips}}<a class="chip" href="{{.Remove}}" title="Remove filter">{{.Label}} ×</a>{{end}}</div>
 {{if .Page.Groups}}<table class="rows-table"><thead><tr><th>status</th><th>id</th><th>title</th><th>tags</th><th>links in</th><th>updated</th></tr></thead>
 {{range .Page.Groups}}<tbody aria-label="{{.Status}}">{{range .Rows}}<tr>
-<td class="status"><span class="status {{.Status}}">{{.Glyph}} {{.Status}}</span></td>
+<td class="status"><span class="status status-{{.Status}}{{hue $.Page.Type .Status}}">{{.Glyph}} {{.Status}}</span></td>
 <td class="id"><a href="{{.Href}}">{{.ID}}</a></td>
 <td class="title">{{.Title}}</td>
 <td class="tags">{{range .Tags}}<a class="tag" href="{{.Href}}">{{.Name}}</a> {{end}}</td>

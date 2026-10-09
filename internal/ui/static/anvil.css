@@ -13,6 +13,18 @@
   --text-2: #b6b9bf;
   --muted: #8a8f98;
   --accent: #eb6c36;
+  --status-planned: #7fa7f3;
+  --status-in-progress: #e5b24c;
+  --status-done: #62c18b;
+  --status-draft: #b795f0;
+  --status-open: #55c4c9;
+  --status-retired: #8a8f98;
+  --status-not-met: #f07e7e;
+  --type-design: #9fb4d2;
+  --type-work: #cdb892;
+  --type-decision: #c9a0b2;
+  --type-learning: #9ccbbd;
+  --type-thread: #b3a1d6;
   --radius: 6px;
   --sans: "Inter", system-ui, sans-serif;
   --mono: "Geist Mono", ui-monospace, monospace;
@@ -51,7 +63,7 @@ pre code { background: none; padding: 0; }
 .sidebar .foot { margin-top: auto; display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--muted); }
 kbd { display: inline-block; min-width: 20px; height: 20px; line-height: 20px; text-align: center; margin-right: 2px; border-radius: 4px; box-shadow: 0 0 0 1px var(--border); font-family: var(--sans); color: var(--text-2); }
 
-main { flex: 1; max-width: 880px; padding: 24px 32px 56px; }
+main { flex: 1; min-width: 0; padding: 24px 32px 56px; }
 .crumbs { color: var(--muted); margin-bottom: 8px; }
 .node-title { display: flex; align-items: center; gap: 10px; }
 .node-title h1 { margin: 0; }
@@ -86,8 +98,32 @@ dialog li[aria-selected="true"] { background: var(--sel); box-shadow: 0 0 0 1px 
 .tree li { padding: 2px 0; }
 .tree summary { cursor: pointer; padding: 2px 4px; border-radius: var(--radius); }
 .tree summary.group, .tree .group { color: var(--text-2); font-weight: 500; }
-.status { color: var(--muted); font-size: 12px; margin-left: 6px; }
-.status.in-progress { color: var(--accent); }
+/* Glyph and word share the hue; the accent is not a status. */
+.status { color: var(--status-retired); font-size: 12px; margin-left: 6px; white-space: nowrap; }
+.rows-table td { padding: 4px 8px 4px 0; }
+.rows-table .updated { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.status-open { color: var(--status-open); }
+.status-planned { color: var(--status-planned); }
+.status-in-progress, .status-escalated { color: var(--status-in-progress); }
+.status-done, .status-resolved, .status-accepted, .status-active, .status-verified, .status-promoted, .status-distilled, .status-archived, .status-merged { color: var(--status-done); }
+.status-draft, .status-proposed, .status-raw, .status-triaged { color: var(--status-draft); }
+.status-abandoned, .status-closed, .status-paused, .status-superseded, .status-retired, .status-deprecated, .status-stale, .status-rejected, .status-dropped, .status-retracted { color: var(--status-retired); }
+.status-not-met { color: var(--status-not-met); }
+.type-milestone, .type-issue { color: var(--type-work); }
+.type-decision { color: var(--type-decision); }
+.type-learning { color: var(--type-learning); }
+.type-thread { color: var(--type-thread); }
+.type-product-design, .type-system-design, .type-component-design, .type-convention { color: var(--type-design); }
+.bar { display: flex; height: 8px; gap: 2px; border-radius: 2px; overflow: hidden; }
+.bar i { display: block; min-width: 2px; background: var(--text-2); flex-grow: var(--n, 1); }
+.bar i.planned { background: var(--status-planned); }
+.bar i.in-progress { background: var(--status-in-progress); }
+.bar i.done { background: var(--status-done); }
+.bar i.draft { background: var(--status-draft); }
+.bar i.open { background: var(--status-open); }
+.bar i.retired { background: var(--status-retired); }
+.bar i.not-met { background: var(--status-not-met); }
+.body p, .body li, .deck { max-width: 84ch; }
 
 .tabs { display: flex; gap: 16px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
 .tabs a { padding: 6px 0; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--text-2); text-decoration: none; }
@@ -98,9 +134,8 @@ details.layer > .body { padding: 0 12px; }
 details.section > summary h2 { display: inline; margin: 0; font-size: 1em; }
 details.section > summary .count { float: right; color: var(--muted); }
 details.section > :not(summary) { margin-left: 12px; margin-right: 12px; }
-main:has(.with-rail) { max-width: 1180px; }
 .with-rail { display: flex; gap: 32px; align-items: flex-start; }
-.node-col { flex: 1; min-width: 0; max-width: 820px; }
+.node-col { flex: 1; min-width: 0; }
 .rail { flex: none; width: 240px; position: sticky; top: 24px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; }
 .rail h2 { margin: 0 0 6px; font-size: 11.5px; font-weight: 500; color: var(--muted); }
 .rail h3 { display: flex; align-items: center; margin: 10px 0 2px; font-size: 12px; font-weight: 500; color: var(--text-2); }
@@ -133,12 +168,11 @@ mark { background: var(--sel); color: var(--text); box-shadow: 0 0 0 1px var(--a
 .judge { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 8px 0 0; font-size: 12px; }
 .judge .jk { color: var(--muted); }
 .judge .jv { color: var(--text); margin-right: 8px; }
-main:has(.compare) { max-width: none; }
 .compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; height: calc(100vh - 80px); }
 .pane { overflow-y: auto; min-width: 0; padding: 0 16px 24px; border: 1px solid var(--border); border-radius: var(--radius); }
 .canvas { position: relative; height: 480px; margin: 16px 0; overflow: hidden; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); cursor: grab; touch-action: none; }
 .canvas[data-full] { flex: 1; min-height: 0; margin-bottom: 0; }
-main:has(.canvas[data-full]) { max-width: none; height: 100vh; display: flex; flex-direction: column; box-sizing: border-box; }
+main:has(.canvas[data-full]) { height: 100vh; display: flex; flex-direction: column; box-sizing: border-box; }
 .canvas:fullscreen { height: 100vh; border: 0; border-radius: 0; }
 .canvas .stage { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
 .canvas iframe { display: block; width: 100%; height: 100%; border: 0; pointer-events: none; }
