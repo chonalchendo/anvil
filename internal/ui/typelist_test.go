@@ -189,8 +189,8 @@ func seedTyped(t *testing.T) http.Handler {
 func TestTypeListTabs(t *testing.T) {
 	h := seedTyped(t)
 	_, body := do(h, "GET", "/type/decision?project=anvil")
-	tabs := body[strings.Index(body, `<nav class="tabs"`):]
-	tabs = tabs[:strings.Index(tabs, "</nav>")]
+	_, tabs, _ := strings.Cut(body, `<nav class="tabs"`)
+	tabs, _, _ = strings.Cut(tabs, "</nav>")
 	for _, want := range []string{
 		`>All <span class="count">2</span>`,
 		`href="/type/decision?project=anvil&amp;status=accepted"`, `>accepted <span class="count">1</span>`,
@@ -224,8 +224,7 @@ func TestTypeListColumns(t *testing.T) {
 	h := seedTyped(t)
 	_, body := do(h, "GET", "/type/decision")
 	at := strings.Index(body, `decision.ui.0002-second">`)
-	row := body[strings.LastIndex(body[:at], "<tr>"):]
-	row = row[:strings.Index(row, "</tr>")]
+	row, _, _ := strings.Cut(body[strings.LastIndex(body[:at], "<tr>"):], "</tr>")
 	for _, want := range []string{
 		`<td class="status">`, `<td class="id"><a href="/artifact/decision.ui.0002-second">decision.ui.0002-second</a></td>`,
 		`<td class="title">Second one</td>`, `<td class="tags">`, `>domain/ui</a>`, `href="/type/decision?tag=domain%2Fui"`,
