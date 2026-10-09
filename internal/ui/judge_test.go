@@ -81,7 +81,7 @@ func TestJudgeStrip_DecisionShowsEveryKeyAndNoMeasured(t *testing.T) {
 		}
 	}
 	date, sup, supBy := strings.Index(strip, ">date<"), strings.Index(strip, ">supersedes<"), strings.Index(strip, ">superseded_by<")
-	if !(date < sup && sup < supBy) {
+	if date >= sup || sup >= supBy {
 		t.Fatalf("strip order: date=%d supersedes=%d superseded_by=%d, want date < supersedes < superseded_by", date, sup, supBy)
 	}
 	if strings.Contains(strip, ">measured<") {
