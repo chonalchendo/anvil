@@ -145,7 +145,7 @@ func (s *server) header(key string, fm map[string]any) header {
 	str := func(k string) string { v, _ := fm[k].(string); return v }
 	h := header{Type: typeOfKey(key), Status: str("status"), Project: str("project"), Updated: str("updated"), Description: str("description")}
 	h.Glyph = glyphs[h.Status]
-	h.Icon = h.Type[:1]
+	h.Icon = typeIcons[h.Type]
 	for _, n := range headerSlots {
 		if v, ok := fm[n]; ok {
 			h.Slots = append(h.Slots, s.prop(n, v))

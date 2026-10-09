@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -162,5 +163,102 @@ func TestTypeList_ToKeepsOnlyCitingArtifacts(t *testing.T) {
 	}
 	if strings.Contains(body, "decision.ui.0002-loner") {
 		t.Error("non-citing decision listed")
+	}
+}
+
+func seedTyped(t *testing.T) http.Handler {
+	t.Helper()
+	h, v := seed(t)
+	writeArtifact(t, v, core.TypeDecision, "ui.0002-second", map[string]any{
+		"title": "Second one", "project": "anvil", "status": "accepted", "tags": []any{"domain/ui", "type/decision"},
+		"related": []any{"[[product-design.anvil]]"},
+	}, "x\n")
+	writeArtifact(t, v, core.TypeDecision, "ui.0003-third", map[string]any{
+		"title": "Third one", "project": "other", "status": "accepted", "tags": []any{"domain/cli"},
+	}, "x\n")
+	writeArtifact(t, v, core.TypeDecision, "ui.0004-fourth", map[string]any{
+		"title": "Fourth one", "project": "anvil", "status": "proposed",
+	}, "x\n")
+	writeArtifact(t, v, core.TypeIssue, "anvil.0900-cites", map[string]any{
+		"title": "Cites", "project": "anvil", "related": []any{"[[decision.ui.0002-second]]"},
+	}, "x\n")
+	return h
+}
+
+// Warrant: tab counts taken before the project filter, or hrefs dropping a filter, would mislead or break composition.
+func TestTypeListTabs(t *testing.T) {
+	h := seedTyped(t)
+	_, body := do(h, "GET", "/type/decision?project=anvil")
+	tabs := body[strings.Index(body, `<nav class="tabs"`):]
+	tabs = tabs[:strings.Index(tabs, "</nav>")]
+	for _, want := range []string{
+		`>All <span class="count">2</span>`,
+		`href="/type/decision?project=anvil&amp;status=accepted"`, `>accepted <span class="count">1</span>`,
+	} {
+		if !strings.Contains(tabs, want) {
+			t.Errorf("tabs lack %q in\n%s", want, tabs)
+		}
+	}
+	if !strings.Contains(tabs, `href="/type/decision?project=anvil" aria-current="page">All`) {
+		t.Errorf("All tab is not current or lost the project filter:\n%s", tabs)
+	}
+	if strings.Contains(tabs, "other") {
+		t.Error("tabs leak the other project")
+	}
+	_, body = do(h, "GET", "/type/decision?project=anvil&status=accepted&tag=type/decision&to=product-design.anvil")
+	if !strings.Contains(body, "decision.ui.0002-second") || strings.Contains(body, "decision.ui.0001-a-decision") {
+		t.Error("status, tag and to filters did not compose")
+	}
+	for _, want := range []string{"project anvil ×", "tag type/decision ×", "cites product-design.anvil ×", `aria-current="page">accepted`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("composed page lacks %q", want)
+		}
+	}
+	if _, body = do(h, "GET", "/type/decision?tag=domain/cli"); strings.Contains(body, "ui.0002-second") || !strings.Contains(body, "ui.0003-third") {
+		t.Error("tag filter did not discriminate")
+	}
+}
+
+// Warrant: a column bound to the wrong source would show a wrong id, tag or backlink count.
+func TestTypeListColumns(t *testing.T) {
+	h := seedTyped(t)
+	_, body := do(h, "GET", "/type/decision")
+	at := strings.Index(body, `decision.ui.0002-second">`)
+	row := body[strings.LastIndex(body[:at], "<tr>"):]
+	row = row[:strings.Index(row, "</tr>")]
+	for _, want := range []string{
+		`<td class="status">`, `<td class="id"><a href="/artifact/decision.ui.0002-second">decision.ui.0002-second</a></td>`,
+		`<td class="title">Second one</td>`, `<td class="tags">`, `>domain/ui</a>`, `href="/type/decision?tag=domain%2Fui"`,
+		`<td class="backlinks">1</td>`, `<td class="updated">`,
+	} {
+		if !strings.Contains(row, want) {
+			t.Errorf("row lacks %q in\n%s", want, row)
+		}
+	}
+	if !strings.Contains(body, `<footer class="keys">`) {
+		t.Error("type list lost the key hint bar")
+	}
+}
+
+// Warrant: a type missing from the map, or sharing a glyph, would render a blank or ambiguous icon.
+func TestTypeIcons(t *testing.T) {
+	seen := map[string]core.Type{}
+	for _, typ := range core.AllTypes {
+		ic := typeIcons[string(typ)]
+		if ic == "" {
+			t.Errorf("%s has no icon", typ)
+		}
+		if other, dup := seen[ic]; dup {
+			t.Errorf("%s and %s share icon %q", typ, other, ic)
+		}
+		seen[ic] = typ
+	}
+	h, _ := seed(t)
+	_, page := do(h, "GET", decisionPath)
+	_, list := do(h, "GET", "/type/decision")
+	for name, body := range map[string]string{"header": page, "type list": list, "sidebar": sidebarOf(t, page)} {
+		if !strings.Contains(body, `>`+typeIcons["decision"]+`</span>`) {
+			t.Errorf("%s lacks the decision icon", name)
+		}
 	}
 }

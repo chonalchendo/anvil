@@ -115,3 +115,14 @@ main:has(.with-rail) { max-width: 1180px; }
 .tree summary .count { margin-left: 8px; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
 .tree li.more > details > summary { color: var(--muted); }
 footer.keys { position: fixed; bottom: 0; right: 0; left: var(--sidebar-w); display: flex; gap: 16px; padding: 6px 32px; background: var(--panel); border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+.sidebar nav a .ticon { width: 18px; height: 18px; margin-right: 8px; font-size: 11px; }
+.tabs .count { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.chip { padding: 2px 8px; border-radius: 10px; background: var(--raise); box-shadow: 0 0 0 1px var(--border); color: var(--text-2); font-size: 12px; text-decoration: none; }
+.rows-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+.rows-table th { padding: 4px 8px; text-align: left; font-weight: 500; font-size: 11.5px; color: var(--muted); border-bottom: 1px solid var(--border); }
+.rows-table td { padding: 4px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.rows-table td.id, .rows-table td.updated, .rows-table td.backlinks { font: 12px var(--mono); font-variant-numeric: tabular-nums; }
+.rows-table td.backlinks, .rows-table td.updated { color: var(--muted); }
+.rows-table td.status .status { margin-left: 0; white-space: nowrap; }
+.tag { font: 12px var(--mono); color: var(--text-2); text-decoration: none; }

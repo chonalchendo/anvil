@@ -13,7 +13,7 @@
   <label class="search"><input id="palette-q" type="search" readonly placeholder="Search or jump to…" aria-label="Search or jump to an artifact"><kbd>⌘K</kbd></label>
   <nav aria-label="Types">
     {{range .Sidebar.Groups}}<div class="group">{{.Name}}</div>
-    {{range .Types}}<a href="/type/{{.Type}}">{{.Label}}<span class="count">{{.Count}}</span></a>
+    {{range .Types}}<a href="/type/{{.Type}}"><span class="ticon" aria-hidden="true">{{.Icon}}</span>{{.Label}}<span class="count">{{.Count}}</span></a>
     {{end}}{{end}}
     {{with .Sidebar.Projects}}<div class="group">Projects</div>
     <ul class="projects">{{range .}}<li><a href="{{.Href}}">{{.Name}}</a></li>{{end}}</ul>{{end}}

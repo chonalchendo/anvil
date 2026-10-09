@@ -152,7 +152,7 @@ func TestKeyHints_PerPage(t *testing.T) {
 			t.Errorf("%s: footer missing or before main", c.path)
 			continue
 		}
-		bar := body[i:]
+		bar := body[i : i+strings.Index(body[i:], "</footer>")]
 		for _, k := range c.want {
 			if !strings.Contains(bar, k) {
 				t.Errorf("%s: hint bar lacks %s", c.path, k)

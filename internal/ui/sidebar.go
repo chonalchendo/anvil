@@ -8,9 +8,9 @@ import (
 )
 
 type sidebarType struct {
-	Type  string
-	Label string
-	Count string
+	Type, Icon string
+	Label      string
+	Count      string
 }
 
 type sidebarGroup struct {
@@ -53,7 +53,7 @@ func (s *server) sidebar(r *http.Request) (sidebar, error) {
 	for _, g := range sidebarLayout {
 		grp := sidebarGroup{Name: g.name}
 		for _, t := range g.types {
-			grp.Types = append(grp.Types, sidebarType{Type: t.typ, Label: t.label, Count: groupThousands(counts[t.typ])})
+			grp.Types = append(grp.Types, sidebarType{Type: t.typ, Icon: typeIcons[t.typ], Label: t.label, Count: groupThousands(counts[t.typ])})
 		}
 		sb.Groups = append(sb.Groups, grp)
 	}
