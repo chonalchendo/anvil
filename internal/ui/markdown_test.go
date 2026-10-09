@@ -51,6 +51,9 @@ func TestSection_H1ClosesOpenSection(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := string(out)
+	if n := strings.Count(got, `<details class="section"`); n != 1 {
+		t.Fatalf("sections = %d, want 1:\n%s", n, got)
+	}
 	if strings.Index(got, "<h1>Top</h1>") < strings.LastIndex(got, "</details>") {
 		t.Errorf("H1 sits inside the previous section:\n%s", got)
 	}

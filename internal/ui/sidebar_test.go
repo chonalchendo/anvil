@@ -27,9 +27,9 @@ func TestSidebar_CarriesGroupsCountsAndProjects(t *testing.T) {
 	sb := sidebarOf(t, body)
 	for _, want := range []string{
 		`id="palette-q"`, `>Design</div>`, `>Work</div>`, `>Knowledge</div>`, `>Capture</div>`,
-		`href="/type/decision">Decisions<span class="count">2</span>`,
-		`href="/type/thread">Threads<span class="count">1</span>`,
-		`href="/type/session">Sessions<span class="count">0</span>`,
+		`href="/type/decision"><span class="ticon" aria-hidden="true">` + typeIcons["decision"] + `</span>Decisions<span class="count">2</span>`,
+		`href="/type/thread"><span class="ticon" aria-hidden="true">` + typeIcons["thread"] + `</span>Threads<span class="count">1</span>`,
+		`href="/type/session"><span class="ticon" aria-hidden="true">` + typeIcons["session"] + `</span>Sessions<span class="count">0</span>`,
 		`<ul class="projects">`, `href="/type/issue?project=a&#43;b%26c"`, `read-only`,
 	} {
 		if !strings.Contains(sb, want) {

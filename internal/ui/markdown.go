@@ -140,7 +140,7 @@ var (
 	kindSummary = ast.NewNodeKind("SectionSummary")
 )
 
-// sectionNode groups an H2 and the blocks up to the next H2 as a fold.
+// sectionNode groups an H2 and the blocks up to the next H2 or H1 as a fold.
 type sectionNode struct{ ast.BaseBlock }
 
 func (n *sectionNode) Kind() ast.NodeKind         { return kindSection }
@@ -184,8 +184,8 @@ func renderSummary(w util.BufWriter, _ []byte, n ast.Node, entering bool) (ast.W
 	return ast.WalkContinue, nil
 }
 
-// foldSections moves each H2 and the blocks after it into a sectionNode. The
-// count is the section's top-level list items.
+// foldSections moves each H2 and the blocks after it, up to the next H2 or H1,
+// into a sectionNode. The count is the section's top-level list items.
 func foldSections(doc ast.Node) {
 	var sec *sectionNode
 	var sum *summaryNode
