@@ -30,20 +30,28 @@ func TestSection_WrapsEachH2WithCount(t *testing.T) {
 	}
 }
 
-func TestFold_StackRenderStaysFlatAndKeysCoverSections(t *testing.T) {
-	out, err := newMarkdown(resolver{}).render(sectionBody)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(out), "<details") {
-		t.Error("render must not fold; stack layers share it")
-	}
+func TestFold_StackStaysFlatAndArtifactFolds(t *testing.T) {
 	h, _ := seed(t)
+	_, stack := do(h, "GET", stackPath)
+	if strings.Contains(stack, `<details class="section"`) {
+		t.Error("stack must not fold sections")
+	}
+	if !strings.Contains(stack, `details class="layer"`) {
+		t.Error("stack lost its layers")
+	}
 	_, page := do(h, "GET", "/artifact/product-design.anvil")
 	if !strings.Contains(page, `<details class="section"`) {
 		t.Error("artifact page has no folded section")
 	}
-	if !strings.Contains(page, "details.layer, details.section") {
-		t.Error("key handler does not cover details.section")
+}
+
+func TestSection_H1ClosesOpenSection(t *testing.T) {
+	out, err := newMarkdown(resolver{}).renderSections("## One\n\ntext\n\n# Top\n\nafter\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(out)
+	if strings.Index(got, "<h1>Top</h1>") < strings.LastIndex(got, "</details>") {
+		t.Errorf("H1 sits inside the previous section:\n%s", got)
 	}
 }

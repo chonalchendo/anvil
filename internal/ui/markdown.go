@@ -172,12 +172,13 @@ func renderSection(w util.BufWriter, _ []byte, _ ast.Node, entering bool) (ast.W
 }
 
 func renderSummary(w util.BufWriter, _ []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
-	switch {
-	case entering:
+	if entering {
 		_, _ = w.WriteString("<summary>")
-	case n.(*summaryNode).items > 0:
-		_, _ = w.WriteString(`<span class="count">` + strconv.Itoa(n.(*summaryNode).items) + "</span></summary>\n")
-	default:
+		return ast.WalkContinue, nil
+	}
+	if items := n.(*summaryNode).items; items > 0 {
+		_, _ = w.WriteString(`<span class="count">` + strconv.Itoa(items) + "</span></summary>\n")
+	} else {
 		_, _ = w.WriteString("</summary>\n")
 	}
 	return ast.WalkContinue, nil
@@ -190,7 +191,9 @@ func foldSections(doc ast.Node) {
 	var sum *summaryNode
 	for c := doc.FirstChild(); c != nil; {
 		next := c.NextSibling()
-		if h, ok := c.(*ast.Heading); ok && h.Level == 2 {
+		if h, ok := c.(*ast.Heading); ok && h.Level == 1 {
+			sec = nil
+		} else if ok && h.Level == 2 {
 			sec, sum = &sectionNode{}, &summaryNode{}
 			doc.InsertBefore(doc, c, sec)
 			doc.RemoveChild(doc, c)
