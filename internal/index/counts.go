@@ -84,3 +84,25 @@ func (d *DB) RecentlyUpdated(n int) ([]ArtifactRow, error) {
 	}
 	return scanArtifactRows(rs)
 }
+
+// CountByTypeStatus returns one project's artifact counts keyed by type, then status.
+func (d *DB) CountByTypeStatus(project string) (map[string]map[string]int, error) {
+	rs, err := d.sql.Query(`SELECT type, status, COUNT(*) FROM artifacts WHERE project = ? GROUP BY type, status`, project)
+	if err != nil {
+		return nil, fmt.Errorf("count by type and status: %w", err)
+	}
+	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
+	out := map[string]map[string]int{}
+	for rs.Next() {
+		var t, st string
+		var n int
+		if err := rs.Scan(&t, &st, &n); err != nil {
+			return nil, err
+		}
+		if out[t] == nil {
+			out[t] = map[string]int{}
+		}
+		out[t][st] = n
+	}
+	return out, rs.Err()
+}

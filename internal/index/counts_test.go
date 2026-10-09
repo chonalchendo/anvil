@@ -132,3 +132,26 @@ func TestRecentlyUpdated(t *testing.T) {
 		t.Errorf("RecentlyUpdated mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestCountByTypeStatus(t *testing.T) {
+	db := openTestDB(t)
+	for _, r := range []ArtifactRow{
+		{ID: "a", Type: "issue", Status: "open", Project: "p", Path: "/a.md"},
+		{ID: "b", Type: "issue", Status: "open", Project: "p", Path: "/b.md"},
+		{ID: "c", Type: "issue", Status: "resolved", Project: "p", Path: "/c.md"},
+		{ID: "d", Type: "learning", Status: "draft", Project: "p", Path: "/d.md"},
+		{ID: "e", Type: "issue", Status: "open", Project: "other", Path: "/e.md"},
+	} {
+		if err := db.UpsertArtifact(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := db.CountByTypeStatus("p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]map[string]int{"issue": {"open": 2, "resolved": 1}, "learning": {"draft": 1}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("CountByTypeStatus mismatch (-want +got):\n%s", diff)
+	}
+}
