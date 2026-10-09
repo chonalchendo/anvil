@@ -341,3 +341,37 @@ func TestSearchArtifactContent_HeadOnly(t *testing.T) {
 		}
 	}
 }
+
+// Warrant: fails if DeleteArtifact leaves the artifact_fts row behind, or if a
+// later artifact reusing the freed rowid inherits the deleted artifact's text.
+func TestDeleteArtifactPurgesFTS(t *testing.T) {
+	db := openTestDB(t)
+	a := ArtifactRow{ID: "decision.a", Type: "decision", Status: "open", Title: "A", Path: "/p/a.md"}
+	if err := db.UpsertArtifact(a); err != nil {
+		t.Fatalf("upsert a: %v", err)
+	}
+	if err := db.IndexArtifactFTS(a, nil, "the quokka habitat"); err != nil {
+		t.Fatalf("index a: %v", err)
+	}
+	if err := db.DeleteArtifact(a.ID); err != nil {
+		t.Fatalf("delete a: %v", err)
+	}
+	var n int
+	if err := db.sql.QueryRow(`SELECT count(*) FROM artifact_fts`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("artifact_fts rows after delete = %d, want 0", n)
+	}
+	b := ArtifactRow{ID: "decision.b", Type: "decision", Status: "open", Title: "B", Path: "/p/b.md"}
+	if err := db.UpsertArtifact(b); err != nil {
+		t.Fatalf("upsert b: %v", err)
+	}
+	hits, err := db.Search("quokka", 0)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("search after delete = %v, want none", hits)
+	}
+}
