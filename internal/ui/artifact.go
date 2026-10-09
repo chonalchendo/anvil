@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 
@@ -25,8 +26,15 @@ type group struct {
 	Items                []link
 }
 
+// header is the node header: the identity fields plus typed slots as links.
+type header struct {
+	Type, Icon, Status, Glyph, Project, Updated, Description string
+	Slots                                                    []prop
+}
+
 type artifactPage struct {
 	Title, Key string
+	Head       header
 	Crumbs     []link
 	Props      []prop
 	Body       template.HTML
@@ -99,6 +107,7 @@ func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, er
 		Title:   title,
 		Key:     key,
 		Crumbs:  s.crumbs(key),
+		Head:    s.header(key, art.FrontMatter),
 		Props:   s.props(art.FrontMatter),
 		Body:    body,
 		Hanging: s.groups(in, func(r index.LinkRow) (string, string) { return r.Source, typeOfKey(r.Source) }),
@@ -111,27 +120,52 @@ func typeOfKey(key string) string {
 	return t
 }
 
-// props lists frontmatter in name order; a `[[type.id]]` value becomes a link.
+// headerSlots are the typed slots the node header shows as links.
+var headerSlots = []string{"milestone", "product_design", "system_design", "related", "depends_on"}
+
+// headerKeys are the frontmatter keys the header shows; props folds the rest.
+var headerKeys = map[string]bool{"type": true, "title": true, "status": true, "project": true, "updated": true, "description": true}
+
+func (s *server) header(key string, fm map[string]any) header {
+	str := func(k string) string { v, _ := fm[k].(string); return v }
+	h := header{Type: typeOfKey(key), Status: str("status"), Project: str("project"), Updated: str("updated"), Description: str("description")}
+	h.Glyph = glyphs[h.Status]
+	h.Icon = h.Type[:1]
+	for _, n := range headerSlots {
+		if v, ok := fm[n]; ok {
+			h.Slots = append(h.Slots, s.prop(n, v))
+		}
+	}
+	return h
+}
+
+// props lists the frontmatter the header does not show, in name order; a
+// `[[type.id]]` value becomes a link.
 func (s *server) props(fm map[string]any) []prop {
 	names := make([]string, 0, len(fm))
 	for n := range fm {
-		names = append(names, n)
+		if !headerKeys[n] && !slices.Contains(headerSlots, n) {
+			names = append(names, n)
+		}
 	}
 	sort.Strings(names)
 	out := make([]prop, 0, len(names))
 	for _, n := range names {
-		p := prop{Name: n}
-		switch v := fm[n].(type) {
-		case []any:
-			for _, e := range v {
-				p.Values = append(p.Values, s.slotValue(e))
-			}
-		default:
-			p.Values = []link{s.slotValue(v)}
-		}
-		out = append(out, p)
+		out = append(out, s.prop(n, fm[n]))
 	}
 	return out
+}
+
+func (s *server) prop(name string, v any) prop {
+	p := prop{Name: name}
+	if list, ok := v.([]any); ok {
+		for _, e := range list {
+			p.Values = append(p.Values, s.slotValue(e))
+		}
+		return p
+	}
+	p.Values = []link{s.slotValue(v)}
+	return p
 }
 
 func (s *server) slotValue(v any) link {
