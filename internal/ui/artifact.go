@@ -41,6 +41,7 @@ type railGroup struct {
 type header struct {
 	Type, Icon, Status, Glyph, Project, Updated, Description string
 	Slots                                                    []prop
+	Judge                                                    []prop
 }
 
 type artifactPage struct {
@@ -122,8 +123,8 @@ func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, er
 		Title:  title,
 		Key:    key,
 		Crumbs: s.crumbs(key),
-		Head:   s.header(key, art.FrontMatter),
-		Props:  s.props(art.FrontMatter),
+		Head:   s.header(key, art.FrontMatter, art.Body),
+		Props:  s.props(typeOfKey(key), art.FrontMatter),
 		Body:   body,
 		Rail:   rail,
 		Out:    s.groups(out),
@@ -141,11 +142,12 @@ var headerSlots = []string{"milestone", "product_design", "system_design", "rela
 // headerKeys are the frontmatter keys the header shows; props folds the rest.
 var headerKeys = map[string]bool{"type": true, "title": true, "status": true, "project": true, "updated": true, "description": true}
 
-func (s *server) header(key string, fm map[string]any) header {
+func (s *server) header(key string, fm map[string]any, body string) header {
 	str := func(k string) string { v, _ := fm[k].(string); return v }
 	h := header{Type: typeOfKey(key), Status: str("status"), Project: str("project"), Updated: str("updated"), Description: str("description")}
 	h.Glyph = glyphs[h.Status]
 	h.Icon = typeIcons[h.Type]
+	h.Judge = s.judge(h.Type, fm, body)
 	for _, n := range headerSlots {
 		if v, ok := fm[n]; ok {
 			h.Slots = append(h.Slots, s.prop(n, v))
@@ -156,10 +158,10 @@ func (s *server) header(key string, fm map[string]any) header {
 
 // props lists the frontmatter the header does not show, in name order; a
 // `[[type.id]]` value becomes a link.
-func (s *server) props(fm map[string]any) []prop {
+func (s *server) props(typ string, fm map[string]any) []prop {
 	names := make([]string, 0, len(fm))
 	for n := range fm {
-		if !headerKeys[n] && !slices.Contains(headerSlots, n) {
+		if !headerKeys[n] && !slices.Contains(headerSlots, n) && !inJudge(typ, n) {
 			names = append(names, n)
 		}
 	}
