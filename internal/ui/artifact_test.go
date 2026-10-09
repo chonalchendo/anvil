@@ -14,7 +14,7 @@ func TestNodeHeader_ShowsIdentityAndSlots(t *testing.T) {
 		t.Fatal("node header missing")
 	}
 	head := body[i:j]
-	for _, want := range []string{"<h1>Thing</h1>", `class="status in-progress"`, "●", "in-progress", `href="/artifact/milestone.anvil.m1"`} {
+	for _, want := range []string{"<h1>Thing</h1>", `class="status in-progress"`, "●", "in-progress", `<p class="deck">Deck line</p>`, "updated 2026-10-09", `<code class="key">` + stackIssue, `href="/artifact/milestone.anvil.m1"`} {
 		if !strings.Contains(head, want) {
 			t.Errorf("header lacks %q", want)
 		}
@@ -24,11 +24,14 @@ func TestNodeHeader_ShowsIdentityAndSlots(t *testing.T) {
 func TestProps_FoldedClosedAndHeaderKeysExcluded(t *testing.T) {
 	h, _ := seed(t)
 	_, body := do(h, "GET", "/artifact/issue."+stackIssue)
-	if !strings.Contains(body, `<details class="props">`) || strings.Contains(body, `<details class="props" open`) {
+	_, props, ok := strings.Cut(body, `<details class="props">`)
+	props, _, ok2 := strings.Cut(props, "</details>")
+	if !ok || !ok2 {
+		t.Fatal("props block missing")
+	}
+	if strings.Contains(body, `<details class="props" open`) {
 		t.Fatal("props must fold closed")
 	}
-	props := body[strings.Index(body, `<details class="props">`):]
-	props = props[:strings.Index(props, "</details>")]
 	if !strings.Contains(props, "<dt>learnings</dt>") {
 		t.Error("learnings missing from props")
 	}

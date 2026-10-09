@@ -43,6 +43,7 @@ func seed(t *testing.T) (http.Handler, *core.Vault) {
 	writeArtifact(t, v, core.TypeLearning, "a-learning", map[string]any{"title": "A learning"}, "learning\n"+strings.Repeat("x", 4096))
 	writeArtifact(t, v, core.TypeIssue, stackIssue, map[string]any{
 		"title": "Thing", "status": "in-progress",
+		"project": "anvil", "updated": "2026-10-09", "description": "Deck line",
 		"milestone": "[[milestone.anvil.m1]]",
 		"learnings": []any{"[[learning.a-learning]]", "[[learning.ghost]]"},
 	}, strings.Repeat("x", 2048)+"\n\n## Links\n\n- [[thread.anvil-design-docs.0002-x]]\n")

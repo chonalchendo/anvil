@@ -8,10 +8,10 @@
 {{with .Head.Description}}<p class="deck">{{.}}</p>{{end}}
 {{with .Head.Slots}}<dl class="slots">{{range .}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{template "ref" .}} {{end}}</dd>{{end}}</dl>{{end}}
 </header>
+<section class="body">{{.Body}}</section>
 <details class="props"><summary>All properties</summary><dl>
 {{range .Props}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{template "ref" .}} {{end}}</dd>{{end}}
 </dl></details>
-<section class="body">{{.Body}}</section>
 <section><h2>Hanging off this node</h2>
 {{range .Hanging}}<h3>{{.Relation}} <span class="muted">from {{.SourceType}}</span></h3><ul>{{range .Items}}<li>{{template "ref" .}}</li>{{end}}</ul>
 {{else}}<p class="muted">Nothing links here.</p>{{end}}</section>

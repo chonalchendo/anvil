@@ -121,7 +121,7 @@ func typeOfKey(key string) string {
 }
 
 // headerSlots are the typed slots the node header shows as links.
-var headerSlots = []string{"milestone", "product_design", "system_design", "component_designs", "related", "depends_on"}
+var headerSlots = []string{"milestone", "product_design", "system_design", "related", "depends_on"}
 
 // headerKeys are the frontmatter keys the header shows; props folds the rest.
 var headerKeys = map[string]bool{"type": true, "title": true, "status": true, "project": true, "updated": true, "description": true}
@@ -130,7 +130,7 @@ func (s *server) header(key string, fm map[string]any) header {
 	str := func(k string) string { v, _ := fm[k].(string); return v }
 	h := header{Type: typeOfKey(key), Status: str("status"), Project: str("project"), Updated: str("updated"), Description: str("description")}
 	h.Glyph = glyphs[h.Status]
-	h.Icon = h.Type[:min(1, len(h.Type))]
+	h.Icon = h.Type[:1]
 	for _, n := range headerSlots {
 		if v, ok := fm[n]; ok {
 			h.Slots = append(h.Slots, s.prop(n, v))
