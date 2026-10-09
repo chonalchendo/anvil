@@ -19,7 +19,7 @@ var templateFS embed.FS
 type pages map[string]*template.Template
 
 func loadPages(a assets) (pages, error) {
-	funcs := template.FuncMap{"asset": a.url, "hue": hue}
+	funcs := template.FuncMap{"asset": a.url, "hue": hue, "anchor": anchorHTML}
 	out := pages{}
 	files, err := fs.Glob(templateFS, "templates/*.html")
 	if err != nil {

@@ -8,7 +8,7 @@
 {{range .Diagrams}}{{template "canvas" .}}
 {{end}}<section class="body">{{.Body}}</section>
 <details class="props" id="props"><summary>All properties</summary><dl>
-{{range .Props}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{template "ref" .}} {{end}}</dd>{{end}}
+{{range .Props}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{anchor .}} {{end}}</dd>{{end}}
 </dl></details>
 </div>
 <section class="contents" aria-label="Contents">
@@ -23,7 +23,7 @@
 <h2>Cited by</h2>
 {{if .Cited}}<details class="cited"><summary>{{.CitedTotal}} {{if eq .CitedTotal 1}}artifact{{else}}artifacts{{end}}</summary>
 {{range .Cited}}<h3>{{.Type}} <span class="count">{{.Count}}</span></h3>
-<ul>{{range .Items}}<li>{{template "ref" .}}</li>{{end}}{{if .More}}<li class="more"><a href="{{.MoreHref}}">{{.More}} more</a></li>{{end}}</ul>
+<ul>{{range .Items}}<li>{{anchor .}}</li>{{end}}{{if .More}}<li class="more"><a href="{{.MoreHref}}">{{.More}} more</a></li>{{end}}</ul>
 {{end}}</details>{{else}}<p class="muted">Nothing links here.</p>{{end}}
 </section>
 </div>

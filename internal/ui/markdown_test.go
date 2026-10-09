@@ -68,7 +68,7 @@ func TestSection_EmptyHeadingRendersWithoutPanic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pb.Outline) != 2 || pb.Outline[0].Title != "" || pb.Outline[0].Size != "1 line" || pb.Outline[1].Size != "1 line" {
+	if len(pb.Outline) != 1 || pb.Outline[0].Title != "Two" || pb.Outline[0].N != 1 || pb.Outline[0].Size != "1 line" {
 		t.Errorf("outline = %+v", pb.Outline)
 	}
 }

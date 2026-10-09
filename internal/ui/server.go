@@ -21,8 +21,6 @@ const freshnessEvery = 2 * time.Second
 type server struct {
 	v     *core.Vault
 	db    *index.DB
-	res   resolver
-	md    markdown
 	pages pages
 	files assets
 
@@ -40,8 +38,7 @@ func newServer(v *core.Vault, db *index.DB) (*server, error) {
 	if err != nil {
 		return nil, err
 	}
-	res := resolver{v: v, lookup: func(id string) (index.ArtifactRow, bool) { r, err := db.GetArtifact(id); return r, err == nil }}
-	return &server{v: v, db: db, res: res, md: newMarkdown(res), pages: p, files: files}, nil
+	return &server{v: v, db: db, pages: p, files: files}, nil
 }
 
 // Handler returns the route table. Each follow-on view adds one line here.

@@ -50,7 +50,13 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "page failed", http.StatusInternalServerError)
 		return
 	}
-	page, err := s.buildStack(core.IndexKey(core.TypeIssue, id), h)
+	vw, err := s.view()
+	if err != nil {
+		slog.Error("building stack view", "issue", id, "err", err)
+		http.Error(w, "page failed", http.StatusInternalServerError)
+		return
+	}
+	page, err := vw.buildStack(core.IndexKey(core.TypeIssue, id), h)
 	if err != nil {
 		slog.Error("building stack page", "issue", id, "err", err)
 		http.Error(w, "page failed", http.StatusInternalServerError)
@@ -59,7 +65,7 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "stack", page)
 }
 
-func (s *server) buildStack(key string, h *hydrate.Hydration) (stackPage, error) {
+func (s *view) buildStack(key string, h *hydrate.Hydration) (stackPage, error) {
 	page := stackPage{Key: key, Tabs: issueTabs(key, "stack"), Broken: h.Broken, Skipped: h.SkippedBodyLinks}
 	total := 0
 	for _, n := range h.Nodes {

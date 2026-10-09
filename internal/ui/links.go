@@ -38,11 +38,10 @@ func (l link) TypeWord() string { return strings.ReplaceAll(l.Type, "-", " ") }
 
 // resolver decides every typed link by artifact existence, never by file name,
 // so prefix-less types (product-design, decision, learning, thread) resolve.
-// lookup supplies a target's index row: one query per link on the server-wide
-// resolver, a map hit on a request's catalog.
+// rows is the request's id → index row catalog, so no link costs a query.
 type resolver struct {
-	v      *core.Vault
-	lookup func(id string) (index.ArtifactRow, bool)
+	v    *core.Vault
+	rows map[string]index.ArtifactRow
 }
 
 // resolve maps a wikilink target (`type.id`, optional `|alias` and `#anchor`)
@@ -68,7 +67,7 @@ func (r resolver) resolve(target string) link {
 	l.Href = artifactHref(key)
 	l.Type = string(t)
 	// A target the index lacks keeps its link; only the status hue and title go.
-	if row, ok := r.lookup(key); ok {
+	if row, ok := r.rows[key]; ok {
 		l.Title, l.Status = row.Title, row.Status
 		l.Hue = cmp.Or(hue(l.Type, row.Status), row.Status)
 	}

@@ -232,7 +232,7 @@ main:has(.desk) { padding: 0; }
 .outline { list-style: none; margin: 0; padding: 0; }
 .outline a { display: flex; gap: 10px; padding: 4px 0; color: var(--text-2); text-decoration: none; }
 .outline a:hover { color: var(--text); }
-.outline .n, .outline .c { color: var(--muted); }
+.outline .n, .outline .c { color: var(--muted); font-variant-numeric: tabular-nums; }
 .outline .n { min-width: 2ch; }
 .outline .c { margin-left: auto; white-space: nowrap; }
 .contents .judge { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; padding-top: 12px; border-top: 1px solid var(--border); }

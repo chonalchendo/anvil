@@ -64,15 +64,16 @@ type artifactPage struct {
 // id → row catalog, so no link costs an index query.
 type view struct {
 	*server
-	res  resolver
-	md   markdown
-	rows map[string]index.ArtifactRow
+	res resolver
+	md  markdown
 }
 
 // catalogAll is the row limit that reads the whole index.
 const catalogAll = math.MaxInt32
 
 func (s *server) view() (*view, error) {
+	// RecentlyUpdated omits sessions; the only other read, ListByType, costs a
+	// second query per page and a session is never a link target worth a title.
 	all, err := s.db.RecentlyUpdated(catalogAll)
 	if err != nil {
 		return nil, fmt.Errorf("reading catalog: %w", err)
@@ -81,8 +82,8 @@ func (s *server) view() (*view, error) {
 	for _, r := range all {
 		rows[r.ID] = r
 	}
-	res := resolver{v: s.v, lookup: func(id string) (index.ArtifactRow, bool) { r, ok := rows[id]; return r, ok }}
-	return &view{server: s, res: res, md: newMarkdown(res), rows: rows}, nil
+	res := resolver{v: s.v, rows: rows}
+	return &view{server: s, res: res, md: newMarkdown(res)}, nil
 }
 
 // spineSlots are the frontmatter slots a breadcrumb climbs, in preference order.
@@ -176,10 +177,7 @@ func (s *view) buildArtifact(key string, art *core.Artifact) (artifactPage, erro
 	if err != nil {
 		return artifactPage{}, fmt.Errorf("incoming links: %w", err)
 	}
-	cited, err := s.cited(key, in)
-	if err != nil {
-		return artifactPage{}, err
-	}
+	cited := s.cited(key, in)
 	var tb tabs
 	if typeOfKey(key) == string(core.TypeIssue) {
 		tb = issueTabs(key, "issue")
@@ -314,7 +312,7 @@ const citedMax = 8
 
 // cited groups incoming links by source type, one entry per distinct source,
 // types in name order, sources newest first. A type with no sources never appears.
-func (s *view) cited(key string, rows []index.LinkRow) ([]citedGroup, error) {
+func (s *view) cited(key string, rows []index.LinkRow) []citedGroup {
 	byType := map[string][]string{}
 	seen := map[string]bool{}
 	for _, r := range rows {
@@ -334,7 +332,7 @@ func (s *view) cited(key string, rows []index.LinkRow) ([]citedGroup, error) {
 	for _, t := range types {
 		srcs := byType[t]
 		sort.Slice(srcs, func(a, b int) bool {
-			if ua, ub := s.rows[srcs[a]].Updated, s.rows[srcs[b]].Updated; ua != ub {
+			if ua, ub := s.res.rows[srcs[a]].Updated, s.res.rows[srcs[b]].Updated; ua != ub {
 				return ua > ub
 			}
 			return srcs[a] < srcs[b]
@@ -348,5 +346,5 @@ func (s *view) cited(key string, rows []index.LinkRow) ([]citedGroup, error) {
 		}
 		out = append(out, g)
 	}
-	return out, nil
+	return out
 }

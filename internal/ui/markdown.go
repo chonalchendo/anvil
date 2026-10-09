@@ -73,6 +73,9 @@ func (wr wikilinkRenderer) render(w util.BufWriter, _ []byte, n ast.Node, enteri
 // bare span.
 func linkHTML(l link) string {
 	text := html.EscapeString(l.label())
+	if l.Plain {
+		return `<span>` + text + `</span>`
+	}
 	if l.Href == "" {
 		return `<span class="unresolved">` + text + `</span>`
 	}
@@ -81,6 +84,12 @@ func linkHTML(l link) string {
 		a += ` class="to-` + html.EscapeString(l.Hue) + `" title="` + html.EscapeString(l.Status) + `"`
 	}
 	return a + `>` + text + `</a>`
+}
+
+// anchorHTML is linkHTML as a template func, so a slot value, a state-line ref
+// and a cited-by entry print exactly what a body link prints.
+func anchorHTML(l link) template.HTML {
+	return template.HTML(linkHTML(l)) //nolint:gosec // linkHTML escapes every interpolated field
 }
 
 // rawHTMLRenderer writes raw HTML source as escaped text, so prose like
@@ -320,7 +329,7 @@ func (m markdown) renderPage(body string, res resolver) (pageBody, error) {
 	var pb pageBody
 	for c := doc.FirstChild(); c != nil; {
 		next := c.NextSibling()
-		if sec, ok := c.(*sectionNode); ok {
+		if sec, ok := c.(*sectionNode); ok && sec.titled {
 			if sent := lifted(res, sec); sent != "" {
 				pb.Links = sent
 				doc.RemoveChild(doc, c)
