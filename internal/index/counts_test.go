@@ -105,3 +105,29 @@ func TestTagsByType(t *testing.T) {
 		t.Errorf("TagsByType mismatch (-want +got):\n%s", diff)
 	}
 }
+
+// Warrant: fails if RecentlyUpdated orders oldest-first, ignores the limit, or breaks ties unstably.
+func TestRecentlyUpdated(t *testing.T) {
+	db := openTestDB(t)
+	for _, r := range []ArtifactRow{
+		{ID: "issue.old", Type: "issue", Path: "/o.md", Updated: "2026-01-01"},
+		{ID: "issue.b", Type: "issue", Path: "/b.md", Updated: "2026-10-09"},
+		{ID: "learning.a", Type: "learning", Path: "/a.md", Updated: "2026-10-09"},
+		{ID: "thread.mid", Type: "thread", Path: "/m.md", Updated: "2026-05-05"},
+	} {
+		if err := db.UpsertArtifact(r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rows, err := db.RecentlyUpdated(3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, r := range rows {
+		got = append(got, r.ID)
+	}
+	if diff := cmp.Diff([]string{"issue.b", "learning.a", "thread.mid"}, got); diff != "" {
+		t.Errorf("RecentlyUpdated mismatch (-want +got):\n%s", diff)
+	}
+}
