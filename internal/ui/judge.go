@@ -9,7 +9,7 @@ import (
 // Only these types get a strip; the keys leave "All properties".
 var judgeKeys = map[string][]string{
 	"learning":  {"confidence", "diataxis"},
-	"decision":  {"date", "superseded_by", "supersedes"},
+	"decision":  {"date", "supersedes", "superseded_by"},
 	"milestone": {"approved", "done"},
 }
 
