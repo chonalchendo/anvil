@@ -64,6 +64,8 @@ func TestJudgeStrip_OtherTypesGetNone(t *testing.T) {
 	}
 }
 
+// The strip follows judgeKeys order: date, supersedes, superseded_by.
+// A reorder of that slice must fail here, not pass on mere presence.
 func TestJudgeStrip_DecisionShowsEveryKeyAndNoMeasured(t *testing.T) {
 	h, v := seed(t)
 	writeArtifact(t, v, core.TypeDecision, "ui.0002-dated", map[string]any{
@@ -77,6 +79,10 @@ func TestJudgeStrip_DecisionShowsEveryKeyAndNoMeasured(t *testing.T) {
 		if !strings.Contains(strip, want) {
 			t.Errorf("strip lacks %q", want)
 		}
+	}
+	date, sup, supBy := strings.Index(strip, ">date<"), strings.Index(strip, ">supersedes<"), strings.Index(strip, ">superseded_by<")
+	if !(date < sup && sup < supBy) {
+		t.Fatalf("strip order: date=%d supersedes=%d superseded_by=%d, want date < supersedes < superseded_by", date, sup, supBy)
 	}
 	if strings.Contains(strip, ">measured<") {
 		t.Error("decision got a Measured row")
