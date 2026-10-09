@@ -91,3 +91,10 @@
 </html>
 {{define "ref"}}{{if .Href}}<a href="{{.Href}}">{{.Text}}</a>{{else if .Plain}}<span>{{.Text}}</span>{{else}}<span class="unresolved">{{.Text}}</span>{{end}}{{end}}
 {{define "tabs"}}<nav class="tabs" aria-label="Issue views"><a href="{{.Issue}}"{{if eq .Current "issue"}} aria-current="page"{{end}}>Issue</a><a href="{{.Stack}}"{{if eq .Current "stack"}} aria-current="page"{{end}}>Stack</a></nav>{{end}}
+{{define "nodeheader"}}<header class="node">
+<div class="node-title"><span class="ticon" title="{{.Head.Type}}" aria-hidden="true">{{.Head.Icon}}</span><h1>{{.Title}}</h1></div>
+<div class="node-meta">{{if .Head.Status}}<span class="status {{.Head.Status}}">{{.Head.Glyph}} {{.Head.Status}}</span>{{end}}{{with .Head.Project}}<span>{{.}}</span>{{end}}{{with .Head.Updated}}<span>updated {{.}}</span>{{end}}<code class="key">{{.Key}}</code></div>
+{{with .Head.Description}}<p class="deck">{{.}}</p>{{end}}
+{{with .Head.Judge}}<div class="judge">{{range .}}<span class="jk">{{.Name}}</span><span class="jv">{{range .Values}}{{template "ref" .}} {{end}}</span>{{end}}</div>{{end}}
+{{with .Head.Slots}}<dl class="slots">{{range .}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{template "ref" .}} {{end}}</dd>{{end}}</dl>{{end}}
+</header>{{end}}

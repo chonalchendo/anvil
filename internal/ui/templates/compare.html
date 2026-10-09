@@ -1,0 +1,9 @@
+{{define "title"}}{{.Page.Title}} · anvil{{end}}
+{{define "content"}}{{with .Page}}
+<div class="compare">
+{{range .Panes}}<article class="pane">
+{{template "nodeheader" .}}
+<section class="body">{{.Body}}</section>
+</article>
+{{end}}</div>
+{{end}}{{end}}

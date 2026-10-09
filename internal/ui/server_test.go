@@ -158,7 +158,7 @@ func TestArtifactPage_NotFound(t *testing.T) {
 
 func TestRoutes_PostReturns405(t *testing.T) {
 	h, _ := seed(t)
-	for _, p := range []string{"/", decisionPath, stackPath, "/type/decision", "/palette", "/search?q=x", "/static/anvil.css"} {
+	for _, p := range []string{"/", decisionPath, stackPath, "/type/decision", "/palette", "/search?q=x", "/compare?a=product-design.anvil&b=decision.ui.0001-a-decision", "/static/anvil.css"} {
 		for _, m := range []string{"POST", "PUT", "DELETE", "PATCH"} {
 			if code, _ := do(h, m, p); code != 405 {
 				t.Errorf("%s %s = %d, want 405", m, p, code)
@@ -224,7 +224,7 @@ func TestServe_RefusesNonLoopback(t *testing.T) {
 func TestRequestsDoNotWriteVault(t *testing.T) {
 	h, v := seed(t)
 	before := hashTree(t, v.Root)
-	for _, p := range []string{"/", decisionPath, stackPath, "/artifact/milestone.anvil.m1", "/type/decision", "/palette", "/search?q=x", "/static/anvil.css"} {
+	for _, p := range []string{"/", decisionPath, stackPath, "/artifact/milestone.anvil.m1", "/type/decision", "/palette", "/search?q=x", "/compare?a=product-design.anvil&b=decision.ui.0001-a-decision", "/static/anvil.css"} {
 		do(h, "GET", p)
 		do(h, "POST", p)
 	}
