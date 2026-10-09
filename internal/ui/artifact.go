@@ -32,6 +32,8 @@ type artifactPage struct {
 	Body       template.HTML
 	Hanging    []group
 	Out        []group
+	// Tabs is set on issue pages only: hydrate is issue-only.
+	Tabs tabs
 }
 
 // spineSlots are the frontmatter slots a breadcrumb climbs, in preference order.
@@ -88,7 +90,12 @@ func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, er
 	if err != nil {
 		return artifactPage{}, fmt.Errorf("outgoing links: %w", err)
 	}
+	var tb tabs
+	if typeOfKey(key) == string(core.TypeIssue) {
+		tb = issueTabs(key, "issue")
+	}
 	return artifactPage{
+		Tabs:    tb,
 		Title:   title,
 		Key:     key,
 		Crumbs:  s.crumbs(key),
