@@ -26,8 +26,8 @@ var milestoneOrder = []string{"in-progress", "planned", "done", "abandoned"}
 
 // liveOrder ranks statuses live-first, for issue lists and type lists; unknown statuses sort last.
 var liveOrder = []string{
-	"in-progress", "active", "open", "escalated", "planned", "draft", "proposed", "raw", "paused",
-	"accepted", "verified", "promoted", "closed", "resolved", "done",
+	"in-progress", "active", "open", "escalated", "planned", "draft", "proposed", "raw", "triaged", "paused",
+	"accepted", "verified", "promoted", "closed", "resolved", "done", "distilled", "archived", "merged",
 	"superseded", "retired", "deprecated", "stale", "rejected", "dropped", "retracted", "abandoned",
 }
 
@@ -39,7 +39,8 @@ var glyphs = map[string]string{
 	"abandoned": "×", "superseded": "×", "retired": "×", "deprecated": "×",
 	"escalated": "▲", "stale": "▲",
 	"accepted": "✓", "verified": "✓", "closed": "✓", "promoted": "✓",
-	"proposed": "○", "raw": "○", "paused": "○",
+	"proposed": "○", "raw": "○", "triaged": "○", "paused": "○",
+	"distilled": "✓", "archived": "✓", "merged": "✓",
 	"rejected": "×", "dropped": "×", "retracted": "×",
 }
 

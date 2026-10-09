@@ -2,6 +2,7 @@ package ui
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -63,7 +64,13 @@ func TestTypeList_GroupsLiveFirstNewestFirst(t *testing.T) {
 		}, "x\n")
 	}
 	_, body := do(h, "GET", "/type/decision")
-	at := func(id string) int { return strings.Index(body, "/artifact/decision."+id) }
+	at := func(id string) int {
+		i := strings.Index(body, "/artifact/decision."+id)
+		if i < 0 {
+			t.Fatalf("%s not rendered", id)
+		}
+		return i
+	}
 	if at("ui.0011-newer") > at("ui.0010-older") {
 		t.Error("older decision listed before newer in one group")
 	}
@@ -83,8 +90,33 @@ func TestTypeList_GroupsLiveFirstNewestFirst(t *testing.T) {
 		}
 	}
 	for _, st := range []string{"accepted", "proposed", "rejected", "stale"} {
-		if glyphs[st] == "" {
-			t.Errorf("no glyph for seeded status %s", st)
+		if want := glyphs[st] + " " + st + "</span>"; glyphs[st] == "" || !strings.Contains(body, want) {
+			t.Errorf("page lacks status mark %q", want)
+		}
+	}
+}
+
+// Warrant: if a schema-legal status lacked a glyph, its heading would render bare.
+func TestTypeList_GlyphsForOtherTypes(t *testing.T) {
+	h, v := seed(t)
+	cases := []struct {
+		typ    core.Type
+		status string
+	}{
+		{core.TypeInbox, "triaged"},
+		{core.TypeSession, "distilled"},
+		{core.TypeSession, "archived"},
+		{core.TypeSweep, "merged"},
+	}
+	for i, c := range cases {
+		writeArtifact(t, v, c.typ, fmt.Sprintf("ui.%04d-x", i), map[string]any{
+			"title": "x", "project": "anvil", "status": c.status, "updated": "2026-01-01",
+		}, "x\n")
+	}
+	for _, c := range cases {
+		_, body := do(h, "GET", "/type/"+string(c.typ))
+		if want := glyphs[c.status] + " " + c.status + "</span>"; glyphs[c.status] == "" || !strings.Contains(body, want) {
+			t.Errorf("%s page lacks status mark %q", c.typ, want)
 		}
 	}
 }

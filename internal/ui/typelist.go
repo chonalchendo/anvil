@@ -48,15 +48,12 @@ func (s *server) typeList(w http.ResponseWriter, r *http.Request) {
 		}
 		return rows[a].Updated > rows[b].Updated
 	})
-	at := map[string]int{}
 	for _, row := range rows {
-		i, ok := at[row.Status]
-		if !ok {
-			i = len(page.Groups)
-			at[row.Status] = i
+		if n := len(page.Groups); n == 0 || page.Groups[n-1].Status != row.Status {
 			page.Groups = append(page.Groups, statusGroup{Status: row.Status, Glyph: glyphs[row.Status]})
 		}
-		page.Groups[i].Rows = append(page.Groups[i].Rows, typeRow{
+		last := &page.Groups[len(page.Groups)-1]
+		last.Rows = append(last.Rows, typeRow{
 			Href: artifactHref(row.ID), Title: row.Title, Project: row.Project,
 			Updated: row.Updated,
 		})
