@@ -2,14 +2,13 @@ package ui
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 )
 
 // judgeKeys are the frontmatter fields a reader judges a node by, per type.
 // Only these types get a strip; the keys leave "All properties".
 var judgeKeys = map[string][]string{
-	"learning":  {"confidence", "diataxis", "superseded_by", "stale_reason"},
+	"learning":  {"confidence", "diataxis"},
 	"decision":  {"date", "superseded_by", "supersedes"},
 	"milestone": {"approved", "done"},
 }
@@ -56,10 +55,8 @@ func lastMeasured(body string) string {
 			continue
 		}
 		if rest, ok := strings.CutPrefix(line, "Measured:"); in && ok {
-			got = strings.TrimSpace(rest)
+			got = strings.TrimSpace(strings.ReplaceAll(rest, "`", ""))
 		}
 	}
 	return got
 }
-
-func inJudge(typ, name string) bool { return slices.Contains(judgeKeys[typ], name) }

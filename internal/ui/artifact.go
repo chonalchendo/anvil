@@ -161,7 +161,7 @@ func (s *server) header(key string, fm map[string]any, body string) header {
 func (s *server) props(typ string, fm map[string]any) []prop {
 	names := make([]string, 0, len(fm))
 	for n := range fm {
-		if !headerKeys[n] && !slices.Contains(headerSlots, n) && !inJudge(typ, n) {
+		if !headerKeys[n] && !slices.Contains(headerSlots, n) && !slices.Contains(judgeKeys[typ], n) {
 			names = append(names, n)
 		}
 	}

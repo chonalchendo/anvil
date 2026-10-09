@@ -20,8 +20,7 @@ func judgeStrip(t *testing.T, body string) string {
 func TestJudgeStrip_LearningShowsSetFieldsAndLeavesProps(t *testing.T) {
 	h, v := seed(t)
 	writeArtifact(t, v, core.TypeLearning, "judged", map[string]any{
-		"title": "J", "confidence": "medium", "diataxis": "",
-		"superseded_by": []any{"[[learning.a-learning]]"}, "stale_reason": nil, "tags": []any{"x"},
+		"title": "J", "confidence": "medium", "diataxis": "how-to", "tags": []any{"x"},
 	}, "b\n")
 	_, body := do(h, "GET", "/artifact/learning.judged")
 	i, j := strings.Index(body, `<header class="node">`), strings.Index(body, `</header>`)
@@ -29,18 +28,13 @@ func TestJudgeStrip_LearningShowsSetFieldsAndLeavesProps(t *testing.T) {
 		t.Fatal("judge strip missing from header")
 	}
 	strip := judgeStrip(t, body)
-	for _, want := range []string{">confidence<", ">medium<", ">superseded_by<", `href="/artifact/learning.a-learning"`} {
+	for _, want := range []string{">confidence<", ">medium<", ">diataxis<", ">how-to<"} {
 		if !strings.Contains(strip, want) {
 			t.Errorf("strip lacks %q", want)
 		}
 	}
-	for _, no := range []string{"diataxis", "stale_reason"} {
-		if strings.Contains(strip, no) {
-			t.Errorf("strip shows blank field %s", no)
-		}
-	}
 	_, props, _ := strings.Cut(body, `<details class="props">`)
-	if strings.Contains(props, "<dt>confidence</dt>") || strings.Contains(props, "<dt>superseded_by</dt>") {
+	if strings.Contains(props, "<dt>confidence</dt>") || strings.Contains(props, "<dt>diataxis</dt>") {
 		t.Error("judge keys still in All properties")
 	}
 	if !strings.Contains(props, "<dt>tags</dt>") {
@@ -70,25 +64,41 @@ func TestJudgeStrip_OtherTypesGetNone(t *testing.T) {
 	}
 }
 
-func TestJudgeStrip_DecisionShowsDate(t *testing.T) {
+func TestJudgeStrip_DecisionShowsEveryKeyAndNoMeasured(t *testing.T) {
 	h, v := seed(t)
-	writeArtifact(t, v, core.TypeDecision, "ui.0002-dated", map[string]any{"title": "D", "date": "2026-10-09", "supersedes": []any{"[[decision.ui.0001-a-decision]]"}}, "b\n")
+	writeArtifact(t, v, core.TypeDecision, "ui.0002-dated", map[string]any{
+		"title": "D", "date": "2026-10-09",
+		"supersedes":    []any{"[[decision.ui.0001-a-decision]]"},
+		"superseded_by": []any{"[[decision.ui.0001-a-decision]]"},
+	}, "## Status\n\nMeasured: x\n")
 	_, body := do(h, "GET", "/artifact/decision.ui.0002-dated")
 	strip := judgeStrip(t, body)
-	for _, want := range []string{">date<", ">2026-10-09<", `href="/artifact/decision.ui.0001-a-decision"`} {
+	for _, want := range []string{">date<", ">2026-10-09<", ">supersedes<", `href="/artifact/decision.ui.0001-a-decision"`, ">superseded_by<"} {
 		if !strings.Contains(strip, want) {
 			t.Errorf("strip lacks %q", want)
 		}
+	}
+	if strings.Contains(strip, ">measured<") {
+		t.Error("decision got a Measured row")
+	}
+}
+
+func TestJudgeStrip_EmptyListRendersNoStrip(t *testing.T) {
+	h, v := seed(t)
+	writeArtifact(t, v, core.TypeDecision, "ui.0004-empty", map[string]any{"title": "E", "supersedes": []any{}}, "b\n")
+	_, body := do(h, "GET", "/artifact/decision.ui.0004-empty")
+	if strings.Contains(body, `class="judge"`) {
+		t.Error("empty list rendered a strip")
 	}
 }
 
 func TestJudgeStrip_MilestoneShowsLastMeasuredFromStatusOnly(t *testing.T) {
 	h, v := seed(t)
-	writeArtifact(t, v, core.TypeMilestone, "milestone.anvil.judged", map[string]any{"title": "M", "approved": "2026-10-09"},
-		"Measured: before status\n\n## Status\n\nMeasured: first\n\nMeasured: last one\n\n## Other\n\nMeasured: after status\n")
+	writeArtifact(t, v, core.TypeMilestone, "milestone.anvil.judged", map[string]any{"title": "M", "approved": "2026-10-09", "done": "2026-10-10"},
+		"Measured: before status\n\n## Status\n\nMeasured: first\n\nMeasured: last `one`\n\n## Other\n\nMeasured: after status\n")
 	_, body := do(h, "GET", "/artifact/milestone.milestone.anvil.judged")
 	strip := judgeStrip(t, body)
-	for _, want := range []string{">approved<", ">2026-10-09<", ">last one<"} {
+	for _, want := range []string{">approved<", ">2026-10-09<", ">done<", ">2026-10-10<", ">measured<", ">last one<"} {
 		if !strings.Contains(strip, want) {
 			t.Errorf("strip lacks %q", want)
 		}
