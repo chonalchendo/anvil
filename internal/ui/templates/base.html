@@ -149,5 +149,5 @@
 </header>{{end}}
 {{define "canvas"}}<div class="canvas"{{if .Full}} data-full{{end}}>
 <div class="canvas-bar"><button type="button" data-act="fit">Fit</button><button type="button" data-act="actual">1:1</button><button type="button" data-act="full">Fullscreen</button>{{if not .Full}}<a href="/diagram/{{.Name}}">Open</a>{{end}}</div>
-<div class="stage"><iframe sandbox="allow-same-origin" src="/diagram-src/{{.Name}}" title="{{.Name}}" tabindex="-1"></iframe></div>
+<div class="stage"><iframe sandbox="allow-same-origin"{{if .Lazy}} loading="lazy"{{end}} src="/diagram-src/{{.Name}}" title="{{.Name}}" tabindex="-1"></iframe></div>
 </div>{{end}}

@@ -114,15 +114,8 @@ dialog li[aria-selected="true"] { background: var(--sel); box-shadow: 0 0 0 1px 
 .type-learning { color: var(--type-learning); }
 .type-thread { color: var(--type-thread); }
 .type-product-design, .type-system-design, .type-component-design, .type-convention { color: var(--type-design); }
-.bar { display: flex; height: 8px; gap: 2px; border-radius: 2px; overflow: hidden; }
-.bar i { display: block; min-width: 2px; background: var(--text-2); flex-grow: var(--n, 1); }
-.bar i.planned { background: var(--status-planned); }
-.bar i.in-progress { background: var(--status-in-progress); }
-.bar i.done { background: var(--status-done); }
-.bar i.draft { background: var(--status-draft); }
-.bar i.open { background: var(--status-open); }
-.bar i.retired { background: var(--status-retired); }
-.bar i.not-met { background: var(--status-not-met); }
+.bar { display: flex; color: var(--status-retired); height: 8px; gap: 2px; border-radius: 2px; overflow: hidden; }
+.bar i { display: block; min-width: 2px; background: currentColor; flex-grow: var(--n, 1); }
 .body p, .body li, .deck { max-width: 84ch; }
 
 .tabs { display: flex; gap: 16px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
@@ -181,7 +174,7 @@ main:has(.canvas[data-full]) { height: 100vh; display: flex; flex-direction: col
 
 .sidebar details.browse > summary { padding: 4px 8px; border-radius: var(--radius); color: var(--text-2); cursor: pointer; }
 .sidebar details.browse > summary:hover { background: var(--sel); color: var(--text); }
-.sidebar .projects a[aria-current="page"] { background: var(--sel); color: var(--text); font-weight: 500; }
+.sidebar .projects a[aria-current="page"] { background: none; box-shadow: inset 2px 0 0 var(--accent); color: var(--text); font-weight: 500; }
 
 main:has(.dashboard) { padding: 0; }
 .dashboard { display: grid; grid-template-columns: 360px minmax(0, 1fr); min-height: 100vh; }
@@ -197,6 +190,8 @@ main:has(.dashboard) { padding: 0; }
 .inv .bar { margin: 8px 0 6px; }
 .inv .tally { display: flex; flex-wrap: wrap; gap: 2px 12px; }
 .inv .tally .status { margin-left: 0; }
+.inv .tally.parts a { color: var(--muted); text-decoration: none; }
+.inv .tally.parts a:hover { color: var(--text); text-decoration: underline; }
 .inventory .shared { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); }
 .work { padding: 28px 36px 56px; min-width: 0; }
 .work h2 { margin: 0 0 10px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
@@ -222,7 +217,10 @@ main:has(.dashboard) { padding: 0; }
 .thumb { position: relative; }
 .strip .canvas { width: 200px; height: 110px; margin: 0; cursor: pointer; }
 .strip .canvas-bar { display: none; }
+.thumb:hover .canvas { box-shadow: 0 0 0 1px var(--accent); }
 .thumb .cover { position: absolute; inset: 0; z-index: 2; }
 .strip figcaption { margin-top: 5px; color: var(--muted); }
+.strip figure:hover figcaption { color: var(--text-2); }
+.flight .issues .more { color: var(--muted); }
 .strip .comps { flex-basis: 100%; display: flex; flex-direction: column; gap: 4px; color: var(--text-2); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; border-bottom: 0; }

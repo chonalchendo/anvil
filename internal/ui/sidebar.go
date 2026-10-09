@@ -30,6 +30,18 @@ type sidebar struct {
 	Port     string
 }
 
+// Count returns the sidebar's formatted count for typ.
+func (sb sidebar) Count(typ string) string {
+	for _, g := range sb.Groups {
+		for _, t := range g.Types {
+			if t.Type == typ {
+				return t.Count
+			}
+		}
+	}
+	return "0"
+}
+
 type sidebarEntry struct{ typ, label string }
 
 // sidebarLayout groups every type by purpose, in display order.

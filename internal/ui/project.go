@@ -1,13 +1,14 @@
 package ui
 
 import (
-	"fmt"
 	"log/slog"
 	"net/http"
-	"regexp"
+	"net/url"
 	"slices"
 	"strings"
+	"time"
 
+	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
 )
 
@@ -15,8 +16,8 @@ import (
 const lately = 5
 
 type invSeg struct {
-	Class string
-	N     int
+	Type, Status string
+	N            int
 }
 
 type invStatus struct {
@@ -24,49 +25,41 @@ type invStatus struct {
 	N                   int
 }
 
+type invPart struct{ Text, Href string }
+
 // invRow is one inventory line: a type's count, stacked status bar and per-status counts.
+// Parts is the per-type tally of a merged row.
 type invRow struct {
 	Label, Href string
 	Count       int
 	Segs        []invSeg
 	Statuses    []invStatus
+	Parts       []invPart
 }
 
-// proseItem is a node with the date it was last updated, for the prose bands.
+// proseItem is a node with the short date it was last updated, for the prose bands.
+// Sep is the text that joins it to the item before it in a sentence.
 type proseItem struct {
 	node
-	Updated string
+	Updated, Sep string
+}
+
+// proseGroup is one status and the nodes holding it, written as one sentence.
+type proseGroup struct {
+	Type, Status, Glyph string
+	Items               []proseItem
 }
 
 type projectPage struct {
 	Name, Deck    string
 	Inventory     []invRow
-	ConventionN   int
 	Flight        []flight
 	Done          []doneRow
 	Designs       designs
-	Decided       []proseItem
-	Learned       []proseItem
+	Decided       []proseGroup
+	Learned       []proseGroup
 	LearnedDrafts int
 	OpenThreads   []proseItem
-}
-
-// barClasses maps a status to the stacked-bar hue; an unlisted status is retired.
-var barClasses = map[string]string{
-	"planned": "planned", "in-progress": "in-progress", "escalated": "in-progress", "open": "open",
-	"done": "done", "resolved": "done", "accepted": "done", "active": "done", "verified": "done",
-	"promoted": "done", "distilled": "done", "archived": "done", "merged": "done",
-	"draft": "draft", "proposed": "draft", "raw": "draft", "triaged": "draft",
-}
-
-func barClass(typ, status string) string {
-	if h := hue(typ, status); h != "" {
-		return strings.TrimPrefix(h, " status-")
-	}
-	if c, ok := barClasses[status]; ok {
-		return c
-	}
-	return "retired"
 }
 
 // project serves one project's dashboard; a project with no artifacts is a 404.
@@ -92,255 +85,160 @@ func (s *server) project(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) buildProject(name string, counts map[string]map[string]int) (projectPage, error) {
-	page := projectPage{Name: name, Inventory: inventory(name, counts)}
-	all, err := s.db.CountByType()
+	page := projectPage{Name: name, LearnedDrafts: counts["learning"]["draft"]}
+	threads, err := s.projectThreads(name)
 	if err != nil {
 		return page, err
 	}
-	page.ConventionN = all["convention"]
-	for _, build := range []func(*projectPage) error{s.fillDesigns, s.fillFlight, s.fillLately} {
-		if err := build(&page); err != nil {
+	// Threads carry no project, so the index count is replaced by the topic match.
+	counts["thread"] = map[string]int{}
+	for _, t := range threads {
+		counts["thread"][t.Status]++
+		if t.Status == "open" && len(page.OpenThreads) < lately {
+			page.OpenThreads = append(page.OpenThreads, proseItem{node: leaf(t), Updated: shortDate(t.Updated)})
+		}
+	}
+	joinProse(page.OpenThreads)
+	page.Inventory = inventory(name, counts)
+	for _, build := range []func(*projectPage, map[string]map[string]int) error{s.fillDesigns, s.fillFlight, s.fillLately} {
+		if err := build(&page, counts); err != nil {
 			return page, err
 		}
 	}
 	return page, nil
 }
 
-// inventory builds one row per type the project holds; conventions are shared, sessions are not state.
+// projectThreads returns the project's threads, newest first. A thread belongs to a project
+// by topic: the slug itself, or a topic opening with the slug and a hyphen.
+func (s *server) projectThreads(project string) ([]index.ArtifactRow, error) {
+	all, err := s.db.ListByType("thread", index.QueryFilters{})
+	if err != nil {
+		return nil, err
+	}
+	var out []index.ArtifactRow
+	for _, r := range all {
+		topic, _, _, ok := core.SplitTopicOrdinal(strings.TrimPrefix(r.ID, "thread."))
+		if ok && (topic == project || strings.HasPrefix(topic, project+"-")) {
+			out = append(out, r)
+		}
+	}
+	slices.SortStableFunc(out, byNewest)
+	return out, nil
+}
+
+// inventory builds one row per type the project holds, the three design types merged into one;
+// conventions are shared and sessions are not state.
 func inventory(project string, counts map[string]map[string]int) []invRow {
 	var rows []invRow
 	for _, g := range sidebarLayout {
+		merged := map[string]int{}
+		var parts []invPart
 		for _, t := range g.types {
 			byStatus := counts[t.typ]
 			if len(byStatus) == 0 || t.typ == "convention" || t.typ == "session" {
 				continue
 			}
-			row := invRow{Label: strings.ToLower(t.label), Href: "/type/" + t.typ + "?project=" + project}
-			statuses := make([]string, 0, len(byStatus))
-			for st := range byStatus {
-				statuses = append(statuses, st)
+			href := "/type/" + t.typ + "?project=" + url.QueryEscape(project)
+			if t.typ == "thread" {
+				href = "/type/thread"
 			}
-			slices.SortFunc(statuses, func(a, b string) int {
-				if d := rank(liveOrder, a) - rank(liveOrder, b); d != 0 {
-					return d
-				}
-				return strings.Compare(a, b)
-			})
-			for _, st := range statuses {
-				n := byStatus[st]
-				row.Count += n
-				row.Segs = append(row.Segs, invSeg{Class: barClass(t.typ, st), N: n})
-				row.Statuses = append(row.Statuses, invStatus{Type: t.typ, Status: st, Glyph: glyphs[st], N: n})
+			if g.name != "Design" {
+				rows = append(rows, invRowOf(t.typ, strings.ToLower(t.label), href, byStatus))
+				continue
 			}
+			n := 0
+			for st, c := range byStatus {
+				merged[st] += c
+				n += c
+			}
+			label, _ := strings.CutSuffix(strings.ToLower(t.label), " designs")
+			parts = append(parts, invPart{Text: groupThousands(n) + " " + label, Href: href})
+		}
+		if len(parts) > 0 {
+			row := invRowOf("design", "designs", parts[0].Href, merged)
+			row.Parts = parts
 			rows = append(rows, row)
 		}
 	}
 	return rows
 }
 
-// fillLately fills the prose bands from the newest decisions, learnings and open threads.
-func (s *server) fillLately(p *projectPage) error {
+func invRowOf(typ, label, href string, byStatus map[string]int) invRow {
+	row := invRow{Label: label, Href: href}
+	statuses := make([]string, 0, len(byStatus))
+	for st := range byStatus {
+		statuses = append(statuses, st)
+	}
+	slices.SortFunc(statuses, func(a, b string) int {
+		if d := rank(liveOrder, a) - rank(liveOrder, b); d != 0 {
+			return d
+		}
+		return strings.Compare(a, b)
+	})
+	for _, st := range statuses {
+		n := byStatus[st]
+		row.Count += n
+		row.Segs = append(row.Segs, invSeg{Type: typ, Status: st, N: n})
+		row.Statuses = append(row.Statuses, invStatus{Type: typ, Status: st, Glyph: glyphs[st], N: n})
+	}
+	return row
+}
+
+// fillLately fills the Decided and Learned bands from the newest decisions and learnings.
+func (s *server) fillLately(p *projectPage, counts map[string]map[string]int) error {
 	var err error
-	if p.Decided, err = s.newest("decision", index.QueryFilters{Project: p.Name}); err != nil {
+	if p.Decided, err = s.newestGroups("decision", p.Name, counts); err != nil {
 		return err
 	}
-	if p.Learned, err = s.newest("learning", index.QueryFilters{Project: p.Name}); err != nil {
-		return err
-	}
-	drafts, err := s.db.ListByType("learning", index.QueryFilters{Project: p.Name, Status: "draft"})
-	if err != nil {
-		return err
-	}
-	p.LearnedDrafts = len(drafts)
-	p.OpenThreads, err = s.newest("thread", index.QueryFilters{Project: p.Name, Status: "open"})
+	p.Learned, err = s.newestGroups("learning", p.Name, counts)
 	return err
 }
 
-// newest returns the lately newest rows of typ, newest updated first.
-func (s *server) newest(typ string, f index.QueryFilters) ([]proseItem, error) {
-	rows, err := s.newestRows(typ, f, lately)
-	if err != nil {
-		return nil, fmt.Errorf("newest %s: %w", typ, err)
+// newestGroups returns the lately newest rows of typ, grouped by status in liveOrder, newest first within a group.
+func (s *server) newestGroups(typ, project string, counts map[string]map[string]int) ([]proseGroup, error) {
+	if len(counts[typ]) == 0 {
+		return nil, nil
 	}
-	var out []proseItem
+	rows, err := s.db.ListByType(typ, index.QueryFilters{Project: project})
+	if err != nil {
+		return nil, err
+	}
+	slices.SortStableFunc(rows, byNewest)
+	rows = rows[:min(len(rows), lately)]
+	slices.SortStableFunc(rows, func(a, b index.ArtifactRow) int { return rank(liveOrder, a.Status) - rank(liveOrder, b.Status) })
+	var out []proseGroup
 	for _, r := range rows {
-		out = append(out, proseItem{leaf(r), r.Updated})
+		if len(out) == 0 || out[len(out)-1].Status != r.Status {
+			out = append(out, proseGroup{Type: r.Type, Status: r.Status, Glyph: glyphs[r.Status]})
+		}
+		g := &out[len(out)-1]
+		g.Items = append(g.Items, proseItem{node: leaf(r), Updated: shortDate(r.Updated)})
+	}
+	for _, g := range out {
+		joinProse(g.Items)
 	}
 	return out, nil
 }
 
-// acRow is one row of a milestone's Status acceptance table.
-type acRow struct {
-	N, Text, Measured, Class, Glyph, Met string
+// joinProse sets each item's Sep so the items read as "a, b and c".
+func joinProse(items []proseItem) {
+	for i := range items {
+		switch {
+		case i == 0:
+		case i == len(items)-1:
+			items[i].Sep = " and "
+		default:
+			items[i].Sep = ", "
+		}
+	}
 }
 
-type flight struct {
-	proseItem
-	Judge      []prop
-	Acceptance []acRow
-	Issues     []node
-	Resolved   int
-	Total      int
+// shortDate turns "2026-10-09" or a timestamp into "9 Oct"; anything else passes through.
+func shortDate(s string) string {
+	if len(s) >= 10 {
+		if t, err := time.Parse(time.DateOnly, s[:10]); err == nil {
+			return t.Format("2 Jan")
+		}
+	}
+	return s
 }
-
-type doneRow struct {
-	proseItem
-	Resolved, Total int
-	SHA             string
-}
-
-type designs struct {
-	Canvases []canvas
-	Product  []node
-	System   []node
-	Comps    []node
-}
-
-// fillFlight fills the in-progress milestones whole and the six newest done ones.
-func (s *server) fillFlight(p *projectPage) error {
-	live, err := s.db.ListByType("milestone", index.QueryFilters{Project: p.Name, Status: "in-progress"})
-	if err != nil {
-		return err
-	}
-	issues, err := s.db.ListByType("issue", index.QueryFilters{Project: p.Name})
-	if err != nil {
-		return err
-	}
-	byID := map[string]index.ArtifactRow{}
-	for _, i := range issues {
-		byID[i.ID] = i
-	}
-	for _, r := range live {
-		_, art, err := s.load(r.ID)
-		if err != nil {
-			return err
-		}
-		f := flight{proseItem: proseItem{leaf(r), r.Updated}, Judge: s.judge("milestone", art.FrontMatter, art.Body), Acceptance: acceptance(art.Body)}
-		kids, err := s.milestoneIssues(r.ID, byID)
-		if err != nil {
-			return err
-		}
-		f.Total = len(kids)
-		for _, k := range kids {
-			if k.Status == "resolved" {
-				f.Resolved++
-			} else if k.Status != "abandoned" && len(f.Issues) < treeCap {
-				f.Issues = append(f.Issues, k)
-			}
-		}
-		p.Flight = append(p.Flight, f)
-	}
-	done, err := s.newestRows("milestone", index.QueryFilters{Project: p.Name, Status: "done"}, 6)
-	if err != nil {
-		return err
-	}
-	for _, r := range done {
-		_, art, err := s.load(r.ID)
-		if err != nil {
-			return err
-		}
-		ms, err := s.db.MilestoneStatus(r.ID)
-		if err != nil {
-			return err
-		}
-		p.Done = append(p.Done, doneRow{proseItem{leaf(r), r.Updated}, ms.Resolved, ms.Total, measuredSHA(art.Body)})
-	}
-	return nil
-}
-
-// fillDesigns fills the designs strip: every diagram of the project's product and system designs, then the spine links.
-func (s *server) fillDesigns(p *projectPage) error {
-	for _, typ := range []string{"product-design", "system-design", "component-design"} {
-		rows, err := s.db.ListByType(typ, index.QueryFilters{Project: p.Name})
-		if err != nil {
-			return err
-		}
-		for _, r := range rows {
-			switch typ {
-			case "product-design":
-				p.Designs.Product = append(p.Designs.Product, leaf(r))
-			case "system-design":
-				p.Designs.System = append(p.Designs.System, leaf(r))
-			default:
-				p.Designs.Comps = append(p.Designs.Comps, leaf(r))
-			}
-			if typ == "component-design" {
-				continue
-			}
-			_, art, err := s.load(r.ID)
-			if err != nil {
-				return err
-			}
-			if typ == "product-design" && p.Deck == "" {
-				p.Deck, _ = art.FrontMatter["description"].(string)
-			}
-			for _, c := range diagramsOf(art.FrontMatter) {
-				if !slices.Contains(p.Designs.Canvases, c) {
-					p.Designs.Canvases = append(p.Designs.Canvases, c)
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func (s *server) newestRows(typ string, f index.QueryFilters, n int) ([]index.ArtifactRow, error) {
-	rows, err := s.db.ListByType(typ, f)
-	if err != nil {
-		return nil, err
-	}
-	slices.SortStableFunc(rows, func(a, b index.ArtifactRow) int { return strings.Compare(b.Updated, a.Updated) })
-	return rows[:min(len(rows), n)], nil
-}
-
-var shaRe = regexp.MustCompile(`\bat ([0-9a-f]{7,40})\b`)
-
-// measuredSHA returns the commit in a milestone's last Measured line, or "".
-func measuredSHA(body string) string {
-	if m := shaRe.FindStringSubmatch(lastMeasured(body)); m != nil {
-		return m[1]
-	}
-	return ""
-}
-
-// acceptance parses the Status section's table. Cells are read from the right
-// because an acceptance cell may hold a command with a pipe.
-func acceptance(body string) []acRow {
-	var out []acRow
-	in := false
-	for line := range strings.SplitSeq(body, "\n") {
-		if h, ok := strings.CutPrefix(line, "## "); ok {
-			in = strings.TrimSpace(h) == "Status"
-			continue
-		}
-		if !in || !strings.HasPrefix(line, "|") {
-			continue
-		}
-		cells := strings.Split(strings.Trim(strings.TrimSpace(line), "|"), "|")
-		if len(cells) < 4 {
-			continue
-		}
-		n := strings.TrimSpace(cells[0])
-		if n == "" || strings.Trim(n, "0123456789") != "" {
-			continue
-		}
-		met := strings.TrimSpace(cells[len(cells)-2])
-		row := acRow{
-			N:        n,
-			Text:     plain(strings.Join(cells[1:len(cells)-2], "|")),
-			Measured: plain(cells[len(cells)-1]),
-			Met:      met,
-		}
-		switch met {
-		case "met":
-			row.Class, row.Glyph = "status-done", "✓"
-		case "not met":
-			row.Class, row.Glyph = "status-not-met", "✕"
-		}
-		out = append(out, row)
-	}
-	return out
-}
-
-// plain drops code ticks and trims: the table shows text, never a runnable command.
-func plain(s string) string { return strings.TrimSpace(strings.ReplaceAll(s, "`", "")) }

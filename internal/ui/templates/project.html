@@ -1,16 +1,18 @@
 {{define "title"}}{{.Page.Name}} · anvil{{end}}
 {{define "stat"}}<span class="status status-{{.Status}}{{hue .Type .Status}}">{{.Glyph}} {{.Status}}</span>{{end}}
-{{define "lately"}}{{range $i, $d := .}}{{if $i}}, {{end}}<a href="{{$d.Href}}">{{$d.Title}}</a> <span class="status status-{{$d.Status}}{{hue $d.Type $d.Status}}">{{$d.Glyph}} {{$d.Status}}</span> <span class="muted">{{$d.Updated}}</span>{{end}}{{end}}
+{{define "lately"}}{{range .}}{{.Sep}}<a href="{{.Href}}">{{.Title}}</a> <span class="muted">({{.Updated}})</span>{{end}}{{end}}
+{{define "prose"}}{{range .}}<p>{{template "stat" .}}: {{template "lately" .Items}}.</p>{{end}}{{end}}
 {{define "content"}}{{with .Page}}<div class="dashboard">
 <section class="inventory" aria-label="Inventory">
   <h1>{{.Name}}</h1>
   {{with .Deck}}<p class="deck">{{.}}</p>{{end}}
   <ul class="inv">{{range .Inventory}}
     <li><div class="head"><span class="count">{{.Count}}</span><a href="{{.Href}}">{{.Label}}</a></div>
-    <div class="bar">{{range .Segs}}<i class="{{.Class}}" style="--n:{{.N}}"></i>{{end}}</div>
-    <div class="tally">{{range .Statuses}}<span class="status status-{{.Status}}{{hue .Type .Status}}">{{.N}} {{.Status}}</span>{{end}}</div></li>{{end}}
+    <div class="bar">{{range .Segs}}<i class="status-{{.Status}}{{hue .Type .Status}}" style="--n:{{.N}}"></i>{{end}}</div>
+    <div class="tally">{{range .Statuses}}<span class="status status-{{.Status}}{{hue .Type .Status}}">{{.N}} {{.Status}}</span>{{end}}</div>
+    {{with .Parts}}<div class="tally parts">{{range .}}<a href="{{.Href}}">{{.Text}}</a>{{end}}</div>{{end}}</li>{{end}}
   </ul>
-  <p class="shared">The <a href="/type/convention">{{.ConventionN}} conventions</a> are shared by every project.</p>
+  <p class="shared">The <a href="/type/convention">{{$.Sidebar.Count "convention"}} conventions</a> are shared by every project.</p>
 </section>
 <section class="work" aria-label="Work">
   <h2 class="first">In flight</h2>
@@ -21,7 +23,7 @@
     {{with .Acceptance}}<table class="ac"><thead><tr><th>#</th><th>Acceptance</th><th>Met</th><th>Measured</th></tr></thead><tbody>
       {{range .}}<tr><td class="n">{{.N}}</td><td>{{.Text}}</td><td>{{if .Class}}<span class="status {{.Class}}">{{.Glyph}} {{.Met}}</span>{{else}}{{.Met}}{{end}}</td><td>{{.Measured}}</td></tr>{{end}}
     </tbody></table>{{end}}
-    {{with .Issues}}<ul class="issues">{{range .}}<li><a href="{{.Href}}">{{.Title}}</a> {{template "stat" .}}</li>{{end}}</ul>{{end}}
+    {{if .Issues}}<ul class="issues">{{range .Issues}}<li><a href="{{.Href}}">{{.Title}}</a> {{template "stat" .}}</li>{{end}}{{if .More}}<li class="more"><a href="{{.MoreHref}}">{{.More}} more</a></li>{{end}}</ul>{{end}}
   </div>{{else}}<p class="muted">No milestone in flight.</p>{{end}}
 
   {{with .Done}}<div class="band"><h2>Recently done</h2>
@@ -29,7 +31,7 @@
   </div>{{end}}
 
   {{with .Designs}}{{if or .Canvases .Product .System .Comps}}<div class="band"><h2>Designs</h2>
-    <div class="strip">{{range .Canvases}}<figure><div class="thumb">{{template "canvas" .}}<a class="cover" href="/diagram/{{.Name}}" aria-label="Open diagram {{.Name}}"></a></div><figcaption><code>{{.Name}}</code></figcaption></figure>{{end}}
+    <div class="strip">{{range .Canvases}}<figure><div class="thumb">{{template "canvas" .}}<a class="cover" href="/diagram/{{.Name}}" aria-label="Open diagram {{.Name}}"></a></div><figcaption><code>{{.Name}}</code>{{with .Note}} {{.}}{{end}}</figcaption></figure>{{end}}
     <div class="comps">
       {{with .Product}}<span>Product: {{range $i, $c := .}}{{if $i}}, {{end}}<a href="{{$c.Href}}">{{$c.Title}}</a>{{end}}</span>{{end}}
       {{with .System}}<span>System: {{range $i, $c := .}}{{if $i}}, {{end}}<a href="{{$c.Href}}">{{$c.Title}}</a>{{end}}</span>{{end}}
@@ -38,9 +40,9 @@
   </div>{{end}}{{end}}
 
   <div class="band two">
-    <div><h2>Decided lately</h2>{{with .Decided}}<p>{{template "lately" .}}</p>{{else}}<p class="muted">No decision yet.</p>{{end}}</div>
+    <div><h2>Decided lately</h2>{{with .Decided}}{{template "prose" .}}{{else}}<p class="muted">No decision yet.</p>{{end}}</div>
     <div><h2>Learned lately</h2>
-      {{with .Learned}}<p>{{if $.Page.LearnedDrafts}}{{$.Page.LearnedDrafts}} drafts. {{end}}Newest: {{template "lately" .}}.</p>{{else}}<p class="muted">No learning yet.</p>{{end}}
+      {{if or .Learned .LearnedDrafts}}{{if .LearnedDrafts}}<p>{{.LearnedDrafts}} drafts in all.</p>{{end}}{{template "prose" .Learned}}{{else}}<p class="muted">No learning yet.</p>{{end}}
       {{with .OpenThreads}}<p>Still open: {{template "lately" .}}.</p>{{end}}
     </div>
   </div>
