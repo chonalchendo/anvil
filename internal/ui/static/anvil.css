@@ -100,7 +100,8 @@ dialog li[aria-selected="true"] { background: var(--sel); box-shadow: 0 0 0 1px 
 .tree summary.group, .tree .group { color: var(--text-2); font-weight: 500; }
 /* Glyph and word share the hue; the accent is not a status. */
 .status { color: var(--status-retired); font-size: 12px; margin-left: 6px; white-space: nowrap; }
-.rows-table .updated { white-space: nowrap; }
+.rows-table td { padding: 4px 8px 4px 0; }
+.rows-table .updated { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .status-open { color: var(--status-open); }
 .status-planned { color: var(--status-planned); }
 .status-in-progress, .status-escalated { color: var(--status-in-progress); }

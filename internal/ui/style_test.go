@@ -115,8 +115,8 @@ func TestCSS_ClosedAndPausedAreRetired(t *testing.T) {
 			t.Errorf(".status-%s is not mapped to --status-retired", v)
 		}
 	}
-	if !strings.Contains(css, "white-space: nowrap") {
-		t.Error("css lacks white-space: nowrap on .status")
+	if !regexp.MustCompile(`(?m)^\.status\s*\{[^}]*white-space:\s*nowrap`).MatchString(css) {
+		t.Error(".status rule lacks white-space: nowrap")
 	}
 }
 

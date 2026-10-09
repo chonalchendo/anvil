@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
 )
 
@@ -19,7 +20,7 @@ type node struct {
 // hue returns the extra hue class for a status whose colour depends on the
 // type: an open issue is queued work (planned), an open thread stays open.
 func hue(typ, status string) string {
-	if typ == "issue" && status == "open" {
+	if typ == string(core.TypeIssue) && status == "open" {
 		return " status-planned"
 	}
 	return ""
