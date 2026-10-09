@@ -75,3 +75,8 @@ dialog li[aria-selected="true"] { background: var(--sel); box-shadow: 0 0 0 1px 
 .tabs a[aria-current="page"] { color: var(--text); border-bottom-color: var(--text); }
 details.layer > summary .size { float: right; }
 details.layer > .body { padding: 0 12px; }
+.filters { display: flex; gap: 12px; align-items: center; margin: 0 0 16px; color: var(--muted); }
+.filters input { width: 140px; padding: 4px 8px; background: var(--bg); color: var(--text); border: 0; border-radius: var(--radius); box-shadow: 0 0 0 1px var(--border); font: inherit; }
+.filters button { padding: 4px 10px; background: var(--raise); color: var(--text); border: 0; border-radius: var(--radius); box-shadow: 0 0 0 1px var(--border); font: inherit; cursor: pointer; }
+.rows { list-style: none; padding: 0; margin: 0 0 16px; }
+.rows li { padding: 2px 0; }
