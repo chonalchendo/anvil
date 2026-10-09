@@ -1,44 +1,19 @@
 package ui
 
 import (
-	"net/http"
 	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/hydrate"
-	"github.com/chonalchendo/anvil/internal/index"
 )
 
 const stackIssue = "issue.anvil.0001.thing"
 
-func seedStack(t *testing.T) (http.Handler, *core.Vault) {
-	t.Helper()
-	_, v := seed(t)
-	writeArtifact(t, v, core.TypeIssue, stackIssue, map[string]any{
-		"title": "Thing", "status": "in-progress",
-		"milestone": "[[milestone.anvil.m1]]",
-		"learnings": []any{"[[learning.a-learning]]", "[[learning.ghost]]"},
-	}, "issue body\n\n## Links\n\n- [[thread.anvil-design-docs.0002-x]]\n")
-	db, err := index.Open(index.DBPath(v.Root))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	if _, err := db.Reindex(v.Root); err != nil {
-		t.Fatal(err)
-	}
-	h, err := Handler(v, db)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return h, v
-}
-
 func TestStack_OrderMatchesHydrate(t *testing.T) {
-	h, v := seedStack(t)
-	code, body := do(h, "GET", "/issue/"+stackIssue+"/stack")
+	h, v := seed(t)
+	code, body := do(h, "GET", stackPath)
 	if code != 200 {
 		t.Fatalf("status = %d", code)
 	}
@@ -69,37 +44,48 @@ func TestStack_OrderMatchesHydrate(t *testing.T) {
 	}
 }
 
+// Fails if a layer's size is dropped, zeroed or shown on the wrong layer.
 func TestStack_LayerSizes(t *testing.T) {
-	h, v := seedStack(t)
-	_, body := do(h, "GET", "/issue/"+stackIssue+"/stack")
+	h, v := seed(t)
+	_, body := do(h, "GET", stackPath)
 	hy, err := hydrate.Assemble(v, stackIssue)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, n := range hy.Nodes {
-		if want := kb(len(n.Body)); !strings.Contains(body, want) {
-			t.Errorf("size %s of %s not on page", want, n.ID)
+	summaries := regexp.MustCompile(`(?s)<summary>(.*?)</summary>`).FindAllStringSubmatch(body, -1)
+	if len(summaries) != len(hy.Nodes) {
+		t.Fatalf("summaries = %d, want %d", len(summaries), len(hy.Nodes))
+	}
+	want := map[string]string{stackIssue: "2.0 KB", "learning.a-learning": "4.0 KB"}
+	for i, n := range hy.Nodes {
+		key := core.IndexKey(n.Type, n.ID)
+		sum := summaries[i][1]
+		if !strings.Contains(sum, kb(len(n.Body))) {
+			t.Errorf("%s summary lacks its size %s: %s", key, kb(len(n.Body)), sum)
+		}
+		if w, ok := want[key]; ok {
+			if !strings.Contains(sum, w) {
+				t.Errorf("%s summary lacks %s: %s", key, w, sum)
+			}
+			delete(want, key)
 		}
 	}
-	if !regexp.MustCompile(`\d+\.\d KB`).MatchString(body) {
-		t.Error("no size rendered")
+	if len(want) > 0 {
+		t.Errorf("layers missing from stack: %v", want)
 	}
 }
 
 func TestStack_UnknownIssue404(t *testing.T) {
-	h, _ := seedStack(t)
+	h, _ := seed(t)
 	for _, p := range []string{"/issue/issue.anvil.9999.nope/stack", "/issue/" + stackIssue + "x/stack", "/issue/milestone.anvil.m1/stack"} {
 		if code, _ := do(h, "GET", p); code != 404 {
 			t.Errorf("GET %s = %d, want 404", p, code)
 		}
 	}
-	if code, _ := do(h, "POST", "/issue/"+stackIssue+"/stack"); code != 405 {
-		t.Errorf("POST = %d, want 405", code)
-	}
 }
 
 func TestStack_TabOnIssuePageOnly(t *testing.T) {
-	h, _ := seedStack(t)
+	h, _ := seed(t)
 	_, body := do(h, "GET", "/artifact/"+stackIssue)
 	if !strings.Contains(body, `href="/issue/`+stackIssue+`/stack"`) {
 		t.Error("issue page has no Stack tab")
