@@ -57,9 +57,12 @@ func (s *server) nowBand() (nowBand, error) {
 	}, nil
 }
 
+// byNewest orders rows by updated date, newest first.
+func byNewest(a, b index.ArtifactRow) int { return strings.Compare(b.Updated, a.Updated) }
+
 // capColumn shows the newest treeCap rows. "N more" opens the type list, filtered to the hidden rows' status only when they share one.
 func capColumn(title, typ string, rows []index.ArtifactRow) nowColumn {
-	slices.SortStableFunc(rows, func(a, b index.ArtifactRow) int { return strings.Compare(b.Updated, a.Updated) })
+	slices.SortStableFunc(rows, byNewest)
 	c := nowColumn{Title: title, Count: len(rows)}
 	for _, r := range rows[:min(len(rows), treeCap)] {
 		c.Items = append(c.Items, leaf(r))

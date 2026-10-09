@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"iter"
 	"strings"
 )
 
@@ -45,16 +46,27 @@ func isSet(v any) bool {
 	return strings.TrimSpace(fmt.Sprint(v)) != ""
 }
 
+// statusLines yields the lines of the body's "## Status" section.
+func statusLines(body string) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		in := false
+		for line := range strings.SplitSeq(body, "\n") {
+			if h, ok := strings.CutPrefix(line, "## "); ok {
+				in = strings.TrimSpace(h) == "Status"
+				continue
+			}
+			if in && !yield(line) {
+				return
+			}
+		}
+	}
+}
+
 // lastMeasured returns the last "Measured:" line, label dropped, inside the Status section.
 func lastMeasured(body string) string {
 	var got string
-	in := false
-	for line := range strings.SplitSeq(body, "\n") {
-		if h, ok := strings.CutPrefix(line, "## "); ok {
-			in = strings.TrimSpace(h) == "Status"
-			continue
-		}
-		if rest, ok := strings.CutPrefix(line, "Measured:"); in && ok {
+	for line := range statusLines(body) {
+		if rest, ok := strings.CutPrefix(line, "Measured:"); ok {
 			got = strings.TrimSpace(strings.ReplaceAll(rest, "`", ""))
 		}
 	}
