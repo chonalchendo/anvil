@@ -25,42 +25,41 @@ type canvas struct {
 // diagramsOf lists the names in a design's diagrams slot, in slot order.
 func diagramsOf(fm map[string]any) []canvas {
 	var out []canvas
-	names, _ := fm["diagrams"].([]any)
-	for _, n := range names {
-		if name, ok := n.(string); ok {
-			out = append(out, canvas{Name: name})
-		}
+	for _, name := range core.DiagramNames(fm) {
+		out = append(out, canvas{Name: name})
 	}
 	return out
 }
 
-// diagramFile reads the named diagram. It writes the refusal and returns false
-// when the file is missing (404), unreadable (500) or holds a script (415).
-// filepath.Base is the only path defence: the name never leaves _meta/diagrams.
-func (s *server) diagramFile(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
-	b, err := os.ReadFile(core.DiagramPath(s.v.Root, filepath.Base(r.PathValue("name"))))
+// diagramFile reads the named diagram and returns it with the cleaned name. It
+// writes the refusal and returns false when the file is missing (404),
+// unreadable (500) or holds a script (415). filepath.Base is the only path
+// defence: the name never leaves _meta/diagrams.
+func (s *server) diagramFile(w http.ResponseWriter, r *http.Request) (string, []byte, bool) {
+	name := filepath.Base(r.PathValue("name"))
+	b, err := os.ReadFile(core.DiagramPath(s.v.Root, name))
 	if errors.Is(err, fs.ErrNotExist) {
 		http.NotFound(w, r)
-		return nil, false
+		return "", nil, false
 	}
 	if err != nil {
 		slog.Error("reading diagram", "err", err)
 		http.Error(w, "diagram unreadable", http.StatusInternalServerError)
-		return nil, false
+		return "", nil, false
 	}
 	if bytes.Contains(bytes.ToLower(b), []byte("<script")) {
 		http.Error(w, "diagram holds a script", http.StatusUnsupportedMediaType)
-		return nil, false
+		return "", nil, false
 	}
-	return b, true
+	return name, b, true
 }
 
 // diagram renders the full-page canvas for one diagram.
 func (s *server) diagram(w http.ResponseWriter, r *http.Request) {
-	if _, ok := s.diagramFile(w, r); !ok {
+	name, _, ok := s.diagramFile(w, r)
+	if !ok {
 		return
 	}
-	name := filepath.Base(r.PathValue("name"))
 	s.render(w, r, "diagram", struct {
 		Title  string
 		Canvas canvas
@@ -69,7 +68,7 @@ func (s *server) diagram(w http.ResponseWriter, r *http.Request) {
 
 // diagramSrc serves the diagram file itself, for the canvas frame.
 func (s *server) diagramSrc(w http.ResponseWriter, r *http.Request) {
-	b, ok := s.diagramFile(w, r)
+	_, b, ok := s.diagramFile(w, r)
 	if !ok {
 		return
 	}

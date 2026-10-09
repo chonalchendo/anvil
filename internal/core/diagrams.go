@@ -15,14 +15,25 @@ func DiagramPath(vaultRoot, name string) string {
 	return filepath.Join(vaultRoot, "_meta", "diagrams", name+".html")
 }
 
+// DiagramNames returns the string items of fm["diagrams"], in slot order.
+// Non-string items are the schema's finding.
+func DiagramNames(fm map[string]any) []string {
+	var out []string
+	items, _ := fm["diagrams"].([]any)
+	for _, raw := range items {
+		if name, ok := raw.(string); ok {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
 // MissingDiagrams returns the names in fm["diagrams"] with no HTML file under
 // the vault's _meta/diagrams. Malformed names are the schema's finding.
 func MissingDiagrams(vaultRoot string, fm map[string]any) []string {
 	var missing []string
-	names, _ := fm["diagrams"].([]any)
-	for _, raw := range names {
-		name, ok := raw.(string)
-		if !ok || !diagramName.MatchString(name) {
+	for _, name := range DiagramNames(fm) {
+		if !diagramName.MatchString(name) {
 			continue
 		}
 		if _, err := os.Stat(DiagramPath(vaultRoot, name)); err != nil {

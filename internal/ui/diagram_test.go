@@ -27,7 +27,7 @@ func TestDiagramPage_HoldsSandboxedCanvas(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("status = %d", code)
 	}
-	for _, want := range []string{`class="canvas"`, `<iframe sandbox="" src="/diagram-src/anvil-two-loop"`, `data-full`, `<kbd>f</kbd> fit`} {
+	for _, want := range []string{`class="canvas"`, `<iframe sandbox="allow-same-origin" src="/diagram-src/anvil-two-loop"`, `data-full`, `<kbd>f</kbd> fit`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page lacks %s", want)
 		}
@@ -53,8 +53,10 @@ func TestDiagramSrc_ServesWithCSP(t *testing.T) {
 func TestDiagramRoutes_Refusals(t *testing.T) {
 	h, v := seed(t)
 	writeDiagram(t, v, "scripted", "<html><SCRIPT>alert(1)</SCRIPT></html>")
-	if err := os.WriteFile(filepath.Join(v.Root, "secret.html"), []byte("<p>secret</p>"), 0o600); err != nil {
-		t.Fatal(err)
+	for _, p := range []string{filepath.Join(v.Root, "secret.html"), filepath.Join(v.Root, "_meta", "secret.html")} {
+		if err := os.WriteFile(p, []byte("<p>secret</p>"), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	for _, c := range []struct {
 		path string

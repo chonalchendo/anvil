@@ -74,18 +74,27 @@
     else return;
     ev.preventDefault();
   }
-  var canvases = Array.prototype.slice.call(document.querySelectorAll('.canvas')), NW = 1440, NH = 900;
+  var canvases = Array.prototype.slice.call(document.querySelectorAll('.canvas'));
   function place(c, s, x, y) { c.v = {s: s, x: x, y: y}; c.stage.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + s + ')'; }
-  function fit(c) { var s = Math.min(c.clientWidth / NW, c.clientHeight / NH); c.fitted = true; place(c, s, (c.clientWidth - NW * s) / 2, (c.clientHeight - NH * s) / 2); }
-  function actual(c) { c.fitted = false; place(c, 1, (c.clientWidth - NW) / 2, (c.clientHeight - NH) / 2); }
+  function fit(c) { var s = Math.min(c.clientWidth / c.nw, c.clientHeight / c.nh); c.fitted = true; place(c, s, (c.clientWidth - c.nw * s) / 2, (c.clientHeight - c.nh * s) / 2); }
+  function actual(c) { c.fitted = false; place(c, 1, (c.clientWidth - c.nw) / 2, (c.clientHeight - c.nh) / 2); }
   function zoom(c, f, px, py) {
     var s = Math.max(0.1, Math.min(8, c.v.s * f)), k = s / c.v.s;
     c.fitted = false; place(c, s, px - (px - c.v.x) * k, py - (py - c.v.y) * k);
   }
   canvases.forEach(function (c) {
     var drag = null;
-    c.stage = c.querySelector('.stage'); fit(c);
+    c.stage = c.querySelector('.stage'); c.nw = 1; c.nh = 1; place(c, 1, 0, 0);
+    var frame = c.querySelector('iframe');
+    function sized() {
+      var d = frame.contentDocument.documentElement;
+      c.nw = d.scrollWidth; c.nh = d.scrollHeight;
+      frame.style.width = c.nw + 'px'; frame.style.height = c.nh + 'px'; fit(c);
+    }
+    frame.addEventListener('load', sized);
+    if (frame.contentDocument && frame.contentDocument.readyState === 'complete' && frame.contentDocument.documentElement.scrollWidth > 0) sized();
     c.addEventListener('wheel', function (ev) {
+      if (!c.hasAttribute('data-full') && !ev.ctrlKey && !ev.metaKey) return;
       ev.preventDefault();
       var r = c.getBoundingClientRect();
       zoom(c, Math.exp(-ev.deltaY * (ev.ctrlKey ? 0.01 : 0.002)), ev.clientX - r.left, ev.clientY - r.top);
@@ -96,6 +105,7 @@
     });
     c.addEventListener('pointermove', function (ev) { if (drag) { c.fitted = false; place(c, c.v.s, ev.clientX - drag.x, ev.clientY - drag.y); } });
     c.addEventListener('pointerup', function () { drag = null; });
+    c.addEventListener('pointercancel', function () { drag = null; });
     c.addEventListener('click', function (ev) {
       var b = ev.target.closest('[data-act]');
       if (!b) return;
@@ -131,5 +141,5 @@
 </header>{{end}}
 {{define "canvas"}}<div class="canvas"{{if .Full}} data-full{{end}}>
 <div class="canvas-bar"><button type="button" data-act="fit">Fit</button><button type="button" data-act="actual">1:1</button><button type="button" data-act="full">Fullscreen</button>{{if not .Full}}<a href="/diagram/{{.Name}}">Open</a>{{end}}</div>
-<div class="stage"><iframe sandbox="" src="/diagram-src/{{.Name}}" title="{{.Name}}" tabindex="-1"></iframe></div>
+<div class="stage"><iframe sandbox="allow-same-origin" src="/diagram-src/{{.Name}}" title="{{.Name}}" tabindex="-1"></iframe></div>
 </div>{{end}}

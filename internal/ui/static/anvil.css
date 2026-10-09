@@ -137,9 +137,10 @@ main:has(.compare) { max-width: none; }
 .compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; height: calc(100vh - 80px); }
 .pane { overflow-y: auto; min-width: 0; padding: 0 16px 24px; border: 1px solid var(--border); border-radius: var(--radius); }
 .canvas { position: relative; height: 480px; margin: 16px 0; overflow: hidden; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); cursor: grab; touch-action: none; }
-.canvas[data-full] { height: calc(100vh - 140px); }
+.canvas[data-full] { flex: 1; min-height: 0; margin-bottom: 0; }
+main:has(.canvas[data-full]) { max-width: none; height: 100vh; display: flex; flex-direction: column; box-sizing: border-box; }
 .canvas:fullscreen { height: 100vh; border: 0; border-radius: 0; }
 .canvas .stage { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
-.canvas iframe { display: block; width: 1440px; height: 900px; border: 0; pointer-events: none; }
+.canvas iframe { display: block; width: 100%; height: 100%; border: 0; pointer-events: none; }
 .canvas-bar { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; gap: 6px; }
 .canvas-bar button, .canvas-bar a { padding: 2px 8px; background: var(--raise); color: var(--text-2); border: 1px solid var(--border); border-radius: var(--radius); font: 12px var(--sans); text-decoration: none; cursor: pointer; }
