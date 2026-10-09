@@ -52,10 +52,9 @@ func indexAfterSave(v *core.Vault, a *core.Artifact) error {
 	if err := db.ReplaceLinks(row.ID, links); err != nil {
 		return err
 	}
-	// Keep artifact_fts in lockstep with the just-saved row so a later create's
-	// content-dedup query (which reads artifact_fts) sees this issue/milestone
-	// without relying on an incidental reindex. No-op for non-issue/milestone.
-	if err := db.IndexArtifactFTS(row, a.FrontMatter); err != nil {
+	// Keep artifact_fts in lockstep with the just-saved row so body search and a
+	// later create's content-dedup query see it without an incidental reindex.
+	if err := db.IndexArtifactFTS(row, a.FrontMatter, a.Body); err != nil {
 		return err
 	}
 	// Keep the tags table in lockstep too, so `anvil index` finds the just-saved

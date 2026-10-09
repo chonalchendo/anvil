@@ -116,3 +116,12 @@ footer.keys { position: fixed; bottom: 0; right: 0; left: var(--sidebar-w); disp
 .chip[aria-current] { background: var(--text-2); color: var(--bg); }
 .chip { padding: 2px 8px; border-radius: 10px; background: var(--raise); box-shadow: 0 0 0 1px var(--border); color: var(--text-2); font-size: 12px; text-decoration: none; }
 .tag { font: 12px var(--mono); color: var(--text-2); text-decoration: none; }
+.search-form { display: flex; gap: 8px; margin: 0 0 16px; }
+.search-form input { flex: 1; padding: 6px 8px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); font: inherit; }
+.search-form button { padding: 6px 12px; background: var(--raise); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); font: inherit; cursor: pointer; }
+.hits ul { list-style: none; margin: 0; padding: 0; }
+.hits li { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.hits .hit-title { color: var(--text-2); }
+.hits .snippet { margin: 2px 0 0; color: var(--text-2); font-size: 13px; overflow-wrap: anywhere; }
+.hits h2 .count { color: var(--muted); font: 12px var(--mono); }
+mark { background: var(--sel); color: var(--text); box-shadow: 0 0 0 1px var(--accent); border-radius: 2px; }

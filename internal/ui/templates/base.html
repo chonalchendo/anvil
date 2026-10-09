@@ -36,6 +36,11 @@
       if (n === cur) li.setAttribute('aria-selected', 'true');
       list.appendChild(li); n++;
     });
+    if (n === 0 && entries && q.value.trim()) {
+      var f = document.createElement('li'); f.textContent = 'Search bodies for \u201c' + q.value.trim() + '\u201d';
+      f.dataset.href = '/search?q=' + encodeURIComponent(q.value.trim()); f.setAttribute('aria-selected', 'true');
+      list.appendChild(f);
+    }
   }
   function open() {
     dlg.showModal(); q.value = ''; cur = 0;
@@ -50,7 +55,7 @@
     if (ev.key === 'Escape') { dlg.close(); return; }
     if (ev.key === 'ArrowDown' && cur < items.length - 1) cur++;
     else if (ev.key === 'ArrowUp' && cur > 0) cur--;
-    else if (ev.key === 'Enter' && items[cur]) { location.href = '/artifact/' + encodeURIComponent(items[cur].dataset.key); return; }
+    else if (ev.key === 'Enter' && items[cur]) { location.href = items[cur].dataset.href || '/artifact/' + encodeURIComponent(items[cur].dataset.key); return; }
     else return;
     ev.preventDefault(); show();
   });

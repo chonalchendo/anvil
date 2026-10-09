@@ -107,8 +107,8 @@ WHERE learning_fts MATCH ?`
 // content matches the query, ranked by FTS5 relevance. Excludes excludeID so
 // the calling artifact (just saved) never reports itself as its own duplicate.
 // QueryFilters Status/Project narrow the result; Limit ≤ 0 returns all matches.
-// artifact_fts mixes issues and milestones, so filtering by type is the
-// caller's responsibility.
+// artifact_fts spans every type, so the query keeps to issues and milestones;
+// choosing between those two is the caller's job.
 func (d *DB) SearchArtifactContent(query, excludeID string, f QueryFilters) ([]ArtifactRow, error) {
 	match := ftsMatchExpr(query)
 	if match == "" {
@@ -118,7 +118,7 @@ func (d *DB) SearchArtifactContent(query, excludeID string, f QueryFilters) ([]A
 SELECT a.id, a.type, a.status, a.project, a.title, a.path, a.created, a.updated
 FROM artifact_fts
 JOIN artifacts a ON a.id = artifact_fts.id
-WHERE artifact_fts MATCH ?`
+WHERE artifact_fts MATCH ? AND artifact_fts.type IN ('issue', 'milestone')`
 	args := []any{match}
 	if excludeID != "" {
 		q += " AND a.id != ?"

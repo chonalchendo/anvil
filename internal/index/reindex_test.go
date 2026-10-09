@@ -610,3 +610,33 @@ func TestSchemaVersionLag_RebuildsArtifacts(t *testing.T) {
 		t.Errorf("schema version = %d, want %d", v, SchemaVersion)
 	}
 }
+
+// Warrant: fails if a v6 artifact_fts (no type column) survives the rebuild, so
+// Search errors or finds nothing on a vault indexed before this schema.
+func TestSchemaVersionLag_RebuildsArtifactFTS(t *testing.T) {
+	vault := t.TempDir()
+	writeArtifactBody(t, filepath.Join(vault, "75-decisions", "decision.demo.d.md"),
+		"type: decision\nid: demo.d\ntitle: A decision\nstatus: accepted\nproject: demo\n", "quokka habitat notes")
+	db := openTestDB(t)
+	for _, q := range []string{
+		`DROP TABLE artifact_fts`,
+		`CREATE VIRTUAL TABLE artifact_fts USING fts5(id UNINDEXED, content)`,
+	} {
+		if _, err := db.sql.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.SetLastReindex(time.Now().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetSchemaVersion(6); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Reindex(vault); err != nil {
+		t.Fatalf("Reindex: %v", err)
+	}
+	hits, err := db.Search("quokka", 0)
+	if err != nil || len(hits) != 1 {
+		t.Fatalf("Search after rebuild = %+v, %v; want 1 hit", hits, err)
+	}
+}

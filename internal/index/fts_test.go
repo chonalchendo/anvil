@@ -3,6 +3,7 @@ package index
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -272,5 +273,48 @@ func TestFTSIncrementalReflectsEditedTLDR(t *testing.T) {
 	}
 	if hits, _ := db.SearchLearnings("beta", QueryFilters{}); len(hits) != 1 {
 		t.Fatalf("new term 'beta' not indexed after incremental: %+v", hits)
+	}
+}
+
+// Warrant: fails if Search skips a non-issue type, drops the match markers,
+// ignores rank or the limit, or if dedup starts returning non-issue rows.
+func TestIndexSearch(t *testing.T) {
+	db := openTestDB(t)
+	for _, r := range []struct{ id, typ, body string }{
+		{"decision.d1", "decision", "we chose a zebra zebra zebra layout"},
+		{"learning.l1", "learning", "one long note " + strings.Repeat("filler ", 40) + "with a zebra inside"},
+		{"issue.i1", "issue", "unrelated words"},
+		{"session.s1", "session", "zebra in a transcript"},
+	} {
+		if err := db.UpsertArtifact(ArtifactRow{ID: r.id, Type: r.typ, Status: "open", Path: "/" + r.id + ".md"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.ReplaceArtifactFTS(r.id, r.typ, r.body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hits, err := db.Search("zebra", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, h := range hits {
+		ids = append(ids, h.ID)
+	}
+	if len(ids) != 3 || ids[0] != "decision.d1" {
+		t.Fatalf("ranked ids = %v, want the denser decision first of 3", ids)
+	}
+	if !strings.Contains(hits[0].Snippet, "\x02zebra\x03") {
+		t.Errorf("snippet lacks match markers: %q", hits[0].Snippet)
+	}
+	if limited, _ := db.Search("zebra", 2); len(limited) != 2 {
+		t.Errorf("limit 2 returned %d hits", len(limited))
+	}
+	dups, err := db.SearchArtifactContent("zebra", "", QueryFilters{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dups) != 0 {
+		t.Errorf("dedup query returned non-issue/milestone rows: %+v", dups)
 	}
 }

@@ -54,7 +54,8 @@ const metaKeySchemaVersion = "schema_version"
 //	4: design-type per-type flat folders (product-design → 05-product-designs/product-design.<project>.md, system-design → 06-system-designs/system-design.<project>[.<shard>].md; ids keep the type prefix for global artifacts.id uniqueness)
 //	5: every type keys the index on the type-qualified IndexKey (bare ids may repeat across types)
 //	6: artifacts.title column (ReindexFull drops and recreates artifacts; CREATE TABLE IF NOT EXISTS never adds a column)
-const SchemaVersion = 6
+//	7: artifact_fts widens to (id, type, content) over every type's body (ReindexFull clears artifact_fts, but a v6 table lacks the type column, so it is dropped and recreated)
+const SchemaVersion = 7
 
 // GetSchemaVersion returns the stored schema version, or 0 when unset (a DB
 // built before versioning, or a fresh one).
