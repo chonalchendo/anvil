@@ -3,6 +3,7 @@ package index
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -272,5 +273,105 @@ func TestFTSIncrementalReflectsEditedTLDR(t *testing.T) {
 	}
 	if hits, _ := db.SearchLearnings("beta", QueryFilters{}); len(hits) != 1 {
 		t.Fatalf("new term 'beta' not indexed after incremental: %+v", hits)
+	}
+}
+
+// Warrant: fails if Search skips a non-issue type, drops the match markers,
+// ignores rank or the limit, or if dedup starts returning non-issue rows.
+func TestIndexSearch(t *testing.T) {
+	db := openTestDB(t)
+	for _, r := range []struct{ id, typ, body string }{
+		{"decision.d1", "decision", "we chose a zebra zebra zebra layout"},
+		{"learning.l1", "learning", "one long note " + strings.Repeat("filler ", 40) + "with a zebra inside"},
+		{"issue.i1", "issue", "unrelated words"},
+		{"session.s1", "session", "zebra in a transcript"},
+	} {
+		if err := db.UpsertArtifact(ArtifactRow{ID: r.id, Type: r.typ, Status: "open", Path: "/" + r.id + ".md"}); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.ReplaceArtifactFTS(r.id, r.typ, "", r.body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hits, err := db.Search("zebra", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for _, h := range hits {
+		ids = append(ids, h.ID)
+	}
+	if len(ids) != 3 || ids[0] != "decision.d1" {
+		t.Fatalf("ranked ids = %v, want the denser decision first of 3", ids)
+	}
+	if !strings.Contains(hits[0].Snippet, "\x02zebra\x03") {
+		t.Errorf("snippet lacks match markers: %q", hits[0].Snippet)
+	}
+	if limited, _ := db.Search("zebra", 2); len(limited) != 2 {
+		t.Errorf("limit 2 returned %d hits", len(limited))
+	}
+	dups, err := db.SearchArtifactContent("zebra", "", QueryFilters{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dups) != 0 {
+		t.Errorf("dedup query returned non-issue/milestone rows: %+v", dups)
+	}
+}
+
+// Warrant: fails if the dedup query matches an issue by its title or body, or
+// stops matching it by description and goal, while Search finds all three.
+func TestSearchArtifactContent_HeadOnly(t *testing.T) {
+	db := openTestDB(t)
+	if err := db.UpsertArtifact(ArtifactRow{ID: "issue.p.1", Type: "issue", Status: "open", Project: "p", Path: "/i.md"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ReplaceArtifactFTS("issue.p.1", "issue", "gazelle migration", "okapi title wombat body"); err != nil {
+		t.Fatal(err)
+	}
+	for q, want := range map[string]int{"gazelle": 1, "okapi": 0, "wombat": 0} {
+		got, err := db.SearchArtifactContent(q, "", QueryFilters{})
+		if err != nil || len(got) != want {
+			t.Errorf("SearchArtifactContent(%q) = %d rows, %v; want %d", q, len(got), err, want)
+		}
+	}
+	for _, q := range []string{"gazelle", "okapi", "wombat"} {
+		if got, err := db.Search(q, 0); err != nil || len(got) != 1 {
+			t.Errorf("Search(%q) = %d hits, %v; want 1", q, len(got), err)
+		}
+	}
+}
+
+// Warrant: fails if DeleteArtifact leaves the artifact_fts row behind, or if a
+// later artifact reusing the freed rowid inherits the deleted artifact's text.
+func TestDeleteArtifactPurgesFTS(t *testing.T) {
+	db := openTestDB(t)
+	a := ArtifactRow{ID: "decision.a", Type: "decision", Status: "open", Title: "A", Path: "/p/a.md"}
+	if err := db.UpsertArtifact(a); err != nil {
+		t.Fatalf("upsert a: %v", err)
+	}
+	if err := db.IndexArtifactFTS(a, nil, "the quokka habitat"); err != nil {
+		t.Fatalf("index a: %v", err)
+	}
+	if err := db.DeleteArtifact(a.ID); err != nil {
+		t.Fatalf("delete a: %v", err)
+	}
+	var n int
+	if err := db.sql.QueryRow(`SELECT count(*) FROM artifact_fts`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("artifact_fts rows after delete = %d, want 0", n)
+	}
+	b := ArtifactRow{ID: "decision.b", Type: "decision", Status: "open", Title: "B", Path: "/p/b.md"}
+	if err := db.UpsertArtifact(b); err != nil {
+		t.Fatalf("upsert b: %v", err)
+	}
+	hits, err := db.Search("quokka", 0)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("search after delete = %v, want none", hits)
 	}
 }

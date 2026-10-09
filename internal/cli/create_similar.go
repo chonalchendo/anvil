@@ -20,7 +20,7 @@ const similarityThreshold = 0.5
 // findNearDuplicates returns IDs of existing same-type artifacts that are likely
 // near-duplicates of candidateID. Two strategies are combined: slug-token overlap
 // (catches rephrasings that share significant title words) and FTS content search
-// over description+goal (catches disjoint-title pairs that describe identical work).
+// over description and goal (catches disjoint-title pairs that describe identical work).
 // Project-scoped types are filtered to the same project so cross-project titles
 // don't collide. Inbox is excluded — its date prefix already namespaces and the
 // throwaway nature means warnings would be noise.
@@ -58,7 +58,7 @@ func findNearDuplicates(v *core.Vault, t core.Type, project, candidateID string)
 		}
 	}
 
-	// Strategy 2: FTS content match over description+goal for issues and
+	// Strategy 2: FTS match on the head column (description and goal only) for issues and
 	// milestones. Reads the candidate's own file to build the query; silently
 	// skips if the DB or file is unavailable so create never hard-fails on
 	// index absence.
@@ -82,7 +82,7 @@ func findNearDuplicates(v *core.Vault, t core.Type, project, candidateID string)
 }
 
 // contentDuplicates queries artifact_fts for existing issues/milestones whose
-// description+goal content matches the candidate's own content. Returns nil on
+// description or goal matches the candidate's own description and goal. Returns nil on
 // any index error so the caller degrades gracefully to slug-only detection.
 func contentDuplicates(v *core.Vault, t core.Type, project, candidateID string) []string {
 	// Read candidate's frontmatter to extract the query text.
@@ -111,7 +111,7 @@ func contentDuplicates(v *core.Vault, t core.Type, project, candidateID string) 
 	if err != nil {
 		return nil
 	}
-	// Filter to same type — artifact_fts covers both issues and milestones.
+	// Filter to same type — the query returns both issues and milestones.
 	out := make([]string, 0, len(hits))
 	for _, h := range hits {
 		if h.Type == string(t) {

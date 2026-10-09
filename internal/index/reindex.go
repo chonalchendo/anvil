@@ -129,7 +129,7 @@ func (d *DB) Reindex(vaultRoot string) (ReindexStats, error) {
 		if err := d.IndexLearningFTS(row, a.Body); err != nil {
 			return ReindexStats{}, err
 		}
-		if err := d.IndexArtifactFTS(row, a.FrontMatter); err != nil {
+		if err := d.IndexArtifactFTS(row, a.FrontMatter, a.Body); err != nil {
 			return ReindexStats{}, err
 		}
 		if err := d.ReplaceTags(row.ID, TagsFromFrontmatter(a.FrontMatter)); err != nil {
@@ -185,14 +185,15 @@ func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 	if _, err := tx.Exec(`DROP TABLE IF EXISTS artifacts`); err != nil {
 		return ReindexStats{}, fmt.Errorf("drop artifacts: %w", err)
 	}
+	// Same reason: a v6 artifact_fts has no type column.
+	if _, err := tx.Exec(`DROP TABLE IF EXISTS artifact_fts`); err != nil {
+		return ReindexStats{}, fmt.Errorf("drop artifact fts: %w", err)
+	}
 	if _, err := tx.Exec(schema); err != nil {
 		return ReindexStats{}, fmt.Errorf("recreate artifacts: %w", err)
 	}
 	if _, err := tx.Exec(`DELETE FROM learning_fts`); err != nil {
 		return ReindexStats{}, fmt.Errorf("clear learning fts: %w", err)
-	}
-	if _, err := tx.Exec(`DELETE FROM artifact_fts`); err != nil {
-		return ReindexStats{}, fmt.Errorf("clear artifact fts: %w", err)
 	}
 	if _, err := tx.Exec(`DELETE FROM tags`); err != nil {
 		return ReindexStats{}, fmt.Errorf("clear tags: %w", err)
@@ -232,7 +233,7 @@ func (d *DB) ReindexFull(vaultRoot string) (ReindexStats, error) {
 		if err := d.IndexLearningFTS(row, a.Body); err != nil {
 			return err
 		}
-		if err := d.IndexArtifactFTS(row, a.FrontMatter); err != nil {
+		if err := d.IndexArtifactFTS(row, a.FrontMatter, a.Body); err != nil {
 			return err
 		}
 		if err := d.ReplaceTags(row.ID, TagsFromFrontmatter(a.FrontMatter)); err != nil {
@@ -273,21 +274,17 @@ func (d *DB) IndexLearningFTS(row ArtifactRow, body string) error {
 	return d.ReplaceLearningFTS(row.ID, TLDRSection(body))
 }
 
-// IndexArtifactFTS upserts an issue or milestone's description+goal into the
-// FTS table for content-aware near-duplicate detection; a no-op for every other
-// type. Concatenates description and goal with a space so both fields are
-// searchable in a single FTS column. Exported so the create-time index hook can
-// keep artifact_fts in lockstep with artifacts on each save.
-func (d *DB) IndexArtifactFTS(row ArtifactRow, fm map[string]any) error {
-	if row.Type != string(core.TypeIssue) && row.Type != string(core.TypeMilestone) {
-		return nil
-	}
+// IndexArtifactFTS indexes an artifact for /search and create's dedup in two
+// columns: head (description+goal, the only text dedup matches) and text
+// (title+body). Exported for the create-time index hook.
+func (d *DB) IndexArtifactFTS(row ArtifactRow, fm map[string]any, body string) error {
 	get := func(k string) string {
 		s, _ := fm[k].(string)
 		return strings.TrimSpace(s)
 	}
-	content := strings.TrimSpace(get("description") + " " + get("goal"))
-	return d.ReplaceArtifactFTS(row.ID, content)
+	head := strings.TrimSpace(get("description") + " " + get("goal"))
+	text := strings.TrimSpace(row.Title + " " + body)
+	return d.ReplaceArtifactFTS(row.ID, row.Type, head, text)
 }
 
 // purgeStaleRowFor drops the indexed row whose stored path equals path, used

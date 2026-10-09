@@ -257,6 +257,46 @@ func TestCreate_ContentDuplicate_PriorNotBootstrapReindexed(t *testing.T) {
 	}
 }
 
+// TestCreate_ContentDuplicate_BodyOnlyMatchNoWarning verifies that a candidate
+// whose description and goal appear only in a prior artifact's body raises no
+// near-duplicate warning: dedup reads description and goal only, though /search
+// indexes the body.
+func TestCreate_ContentDuplicate_BodyOnlyMatchNoWarning(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	bodyWith := func(objective string) string {
+		return "## Objective\n\n" + objective + "\n\n## Non-goals\n\nnone\n\n## Links\n\nnone\n\n## Status\n\nopen\n"
+	}
+	create := func(title, desc, goal, body string) map[string]any {
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{
+			"create", "milestone", "--project", "foo", "--title", title,
+			"--description", desc, "--goal", goal, "--acceptance", "true", "--body", body, "--json",
+		})
+		var out, errBuf bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&errBuf)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("create %q: %v\nstdout: %s\nstderr: %s", title, err, out.String(), errBuf.String())
+		}
+		var got map[string]any
+		if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+			t.Fatalf("parse json: %v\nout: %s", err, out.String())
+		}
+		return got
+	}
+	create("Reindex drops links on concurrent writes", "concurrent saves lose graph edges in the index",
+		"concurrent index writes no longer drop link rows",
+		bodyWith("schema validation skips unknown top-level fields and flags every unexpected frontmatter key"))
+	got := create("Validate rejects malformed frontmatter keys", "schema validation skips unknown top-level fields",
+		"validation flags every unexpected frontmatter key", bodyWith("unrelated prose"))
+	if w := similarWarnings(got["warnings"]); len(w) != 0 {
+		t.Fatalf("body-only overlap raised warnings: %v", w)
+	}
+}
+
 // similarWarnings keeps only kind==similar entries so assertions don't pass on
 // an unrelated warning kind.
 func similarWarnings(v any) []any {
