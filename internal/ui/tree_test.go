@@ -9,6 +9,24 @@ import (
 	"github.com/chonalchendo/anvil/internal/index"
 )
 
+// homeBody indexes v and returns the status and body of GET /.
+func homeBody(t *testing.T, v *core.Vault) (int, string) {
+	t.Helper()
+	db, err := index.Open(index.DBPath(v.Root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if _, err := db.Reindex(v.Root); err != nil {
+		t.Fatal(err)
+	}
+	h, err := Handler(v, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return do(h, "GET", "/")
+}
+
 func treeVault(t *testing.T) (string, int) {
 	t.Helper()
 	v := &core.Vault{Root: t.TempDir()}
@@ -26,19 +44,7 @@ func treeVault(t *testing.T) (string, int) {
 	writeArtifact(t, v, core.TypeIssue, "issue.p.0000-shipped", map[string]any{"project": "p", "title": "Shipped issue", "status": "resolved", "milestone": "[[milestone.p.active]]"}, "x\n")
 	writeArtifact(t, v, core.TypeIssue, "issue.q.0001-orphan", map[string]any{"project": "q", "title": "Orphan project issue", "status": "open"}, "x\n")
 	writeArtifact(t, v, core.TypeIssue, "issue.p.0003-idle", map[string]any{"project": "p", "title": "Idle ms issue", "status": "in-progress", "milestone": "[[milestone.p.waiting]]"}, "x\n")
-	db, err := index.Open(index.DBPath(v.Root))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	if _, err := db.Reindex(v.Root); err != nil {
-		t.Fatal(err)
-	}
-	h, err := Handler(v, db)
-	if err != nil {
-		t.Fatal(err)
-	}
-	code, body := do(h, "GET", "/")
+	code, body := homeBody(t, v)
 	return body, code
 }
 
@@ -100,19 +106,7 @@ func manyIssues(t *testing.T, n int) string {
 		id := fmt.Sprintf("issue.p.%04d-i", i)
 		writeArtifact(t, v, core.TypeIssue, id, map[string]any{"project": "p", "title": fmt.Sprintf("Issue %d", i), "status": "open", "milestone": "[[milestone.p.big]]"}, "x\n")
 	}
-	db, err := index.Open(index.DBPath(v.Root))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	if _, err := db.Reindex(v.Root); err != nil {
-		t.Fatal(err)
-	}
-	h, err := Handler(v, db)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, body := do(h, "GET", "/")
+	_, body := homeBody(t, v)
 	return body
 }
 
@@ -137,16 +131,37 @@ func TestTreeMore_FoldsPastEight(t *testing.T) {
 	}
 }
 
-// Warrant: every page must end with the key hint bar, listing only keys the page handles.
-func TestKeyHints_FooterOnEveryPage(t *testing.T) {
-	body := manyIssues(t, 1)
-	i := strings.Index(body, `<footer class="keys">`)
-	if i < 0 || strings.Index(body, "</main>") > i {
-		t.Fatalf("footer missing or before main:\n%s", body)
+// Warrant: the hint bar must list only the keys its page handles, so a dead key never shows.
+func TestKeyHints_PerPage(t *testing.T) {
+	h, _ := seed(t)
+	jk := []string{">j<", ">k<", ">o<", ">⇧O<", ">⇧C<"}
+	arrows := []string{">↑<", ">↓<", ">←<", ">→<"}
+	cases := []struct {
+		path       string
+		want, dead []string
+	}{
+		{"/", append([]string{">⌘K<"}, arrows...), jk},
+		{"/type/decision", []string{">⌘K<"}, append(append([]string{}, jk...), arrows...)},
+		{decisionPath, append([]string{">⌘K<"}, jk...), arrows},
+		{stackPath, append([]string{">⌘K<"}, jk...), arrows},
 	}
-	for _, k := range []string{">j<", ">k<", ">o<", ">⇧O<", ">⇧C<", ">⌘K<"} {
-		if !strings.Contains(body[i:], k) {
-			t.Errorf("hint bar lacks %s", k)
+	for _, c := range cases {
+		_, body := do(h, "GET", c.path)
+		i := strings.Index(body, `<footer class="keys">`)
+		if i < 0 || strings.Index(body, "</main>") > i {
+			t.Errorf("%s: footer missing or before main", c.path)
+			continue
+		}
+		bar := body[i:]
+		for _, k := range c.want {
+			if !strings.Contains(bar, k) {
+				t.Errorf("%s: hint bar lacks %s", c.path, k)
+			}
+		}
+		for _, k := range c.dead {
+			if strings.Contains(bar, k) {
+				t.Errorf("%s: hint bar lists dead key %s", c.path, k)
+			}
 		}
 	}
 }
