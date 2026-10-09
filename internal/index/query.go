@@ -444,10 +444,11 @@ func (d *DB) LinksTo(target string) ([]LinkRow, error) {
 
 // LinksUnresolved returns edges whose target has no row in artifacts.
 func (d *DB) LinksUnresolved() ([]LinkRow, error) {
-	const q = `SELECT l.source, l.target, l.relation, l.anchor
-FROM links l LEFT JOIN artifacts a ON a.id = l.target
-WHERE a.id IS NULL ORDER BY l.source, l.target`
-	rs, err := d.sql.Query(q)
+	return d.linkQuery(`SELECT l.source, l.target, l.relation, l.anchor FROM links l LEFT JOIN artifacts a ON a.id = l.target WHERE a.id IS NULL ORDER BY l.source, l.target`)
+}
+
+func (d *DB) linkQuery(q string, args ...any) ([]LinkRow, error) {
+	rs, err := d.sql.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -463,19 +464,36 @@ WHERE a.id IS NULL ORDER BY l.source, l.target`
 	return out, rs.Err()
 }
 
-func (d *DB) linkQuery(q, arg string) ([]LinkRow, error) {
-	rs, err := d.sql.Query(q, arg)
+// CountByType returns the artifact count per type; types with none are absent.
+func (d *DB) CountByType() (map[string]int, error) {
+	rs, err := d.sql.Query(`SELECT type, COUNT(*) FROM artifacts GROUP BY type`)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("count by type: %w", err)
 	}
 	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
-	var out []LinkRow
-	for rs.Next() {
-		var r LinkRow
-		if err := rs.Scan(&r.Source, &r.Target, &r.Relation, &r.Anchor); err != nil {
+	out := map[string]int{}
+	for t, n := "", 0; rs.Next(); {
+		if err := rs.Scan(&t, &n); err != nil {
 			return nil, err
 		}
-		out = append(out, r)
+		out[t] = n
+	}
+	return out, rs.Err()
+}
+
+// Projects returns the distinct non-empty project names, sorted.
+func (d *DB) Projects() ([]string, error) {
+	rs, err := d.sql.Query(`SELECT DISTINCT project FROM artifacts WHERE project != '' ORDER BY project`)
+	if err != nil {
+		return nil, fmt.Errorf("list projects: %w", err)
+	}
+	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
+	var out []string
+	for p := ""; rs.Next(); {
+		if err := rs.Scan(&p); err != nil {
+			return nil, fmt.Errorf("list projects: %w", err)
+		}
+		out = append(out, p)
 	}
 	return out, rs.Err()
 }

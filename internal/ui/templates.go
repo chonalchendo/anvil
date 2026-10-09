@@ -14,9 +14,6 @@ import (
 //go:embed templates
 var templateFS embed.FS
 
-// sidebarTypes are the type lists the sidebar links.
-var sidebarTypes = []string{"convention", "decision", "learning", "thread", "inbox"}
-
 // pages holds one parsed template set per page: base plus that page's content.
 type pages map[string]*template.Template
 
@@ -43,12 +40,12 @@ func loadPages(a assets) (pages, error) {
 
 // render buffers the page so a template error yields a clean 500, not a
 // half-written 200.
-func (p pages) render(w http.ResponseWriter, name string, data any) {
+func (p pages) render(w http.ResponseWriter, name string, sb sidebar, data any) {
 	var buf bytes.Buffer
 	if err := p[name].Execute(&buf, struct {
-		Types []string
-		Page  any
-	}{sidebarTypes, data}); err != nil {
+		Sidebar sidebar
+		Page    any
+	}{sb, data}); err != nil {
 		http.Error(w, "render failed", http.StatusInternalServerError)
 		return
 	}

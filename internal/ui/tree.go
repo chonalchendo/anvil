@@ -44,14 +44,14 @@ var glyphs = map[string]string{
 	"rejected": "×", "dropped": "×", "retracted": "×",
 }
 
-func (s *server) home(w http.ResponseWriter, _ *http.Request) {
+func (s *server) home(w http.ResponseWriter, r *http.Request) {
 	trees, err := s.spineTrees()
 	if err != nil {
 		slog.Error("building spine tree", "err", err)
 		http.Error(w, "page failed", http.StatusInternalServerError)
 		return
 	}
-	s.pages.render(w, "home", trees)
+	s.render(w, r, "home", trees)
 }
 
 // spineTrees reads only the index: rows for titles and statuses, link rows for

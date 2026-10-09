@@ -58,5 +58,5 @@ func (s *server) typeList(w http.ResponseWriter, r *http.Request) {
 			Updated: row.Updated,
 		})
 	}
-	s.pages.render(w, "type", page)
+	s.render(w, r, "type", page)
 }
