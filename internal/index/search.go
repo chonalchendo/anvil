@@ -10,8 +10,9 @@ type SearchHit struct {
 }
 
 // Search returns artifacts whose title, description, goal or body match q,
-// best FTS rank first. Limit ≤ 0 returns every match. The markers survive HTML escaping, so the caller escapes
-// the snippet first and then swaps them for markup.
+// best FTS rank first. Limit ≤ 0 returns every match. The markers survive
+// HTML escaping, so the caller escapes the snippet first and then swaps them
+// for markup.
 func (d *DB) Search(q string, limit int) ([]SearchHit, error) {
 	match := ftsMatchExpr(q)
 	if match == "" {
