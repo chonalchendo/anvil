@@ -13,7 +13,7 @@ func TestSection_WrapsEachH2WithCount(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := string(out)
-	if n := strings.Count(got, `<details class="section" open>`); n != 2 {
+	if n := strings.Count(got, `<details class="section"`); n != 2 {
 		t.Fatalf("sections = %d, want 2:\n%s", n, got)
 	}
 	if !strings.Contains(got, `<summary><h2>One</h2>`+"\n"+`<span class="count">2</span></summary>`) {

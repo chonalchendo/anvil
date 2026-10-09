@@ -68,9 +68,9 @@ main { flex: 1; min-width: 0; padding: 24px 32px 56px; }
 .node-title { display: flex; align-items: center; gap: 10px; }
 .node-title h1 { margin: 0; }
 .ticon { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 5px; background: var(--raise); color: var(--text-2); font-size: 12px; }
-.node-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 6px; color: var(--muted); font-size: 12px; }
-.node-meta .status { margin-left: 0; }
 .deck { color: var(--text-2); margin: 8px 0; }
+.state { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; margin: 8px 0 0; color: var(--text-2); }
+.state .status { margin-left: 0; }
 .slots, .props dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 16px; }
 .slots { margin: 8px 0 0; }
 .props { margin: 12px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
@@ -127,14 +127,6 @@ details.layer > .body { padding: 0 12px; }
 details.section > summary h2 { display: inline; margin: 0; font-size: 1em; }
 details.section > summary .count { float: right; color: var(--muted); }
 details.section > :not(summary) { margin-left: 12px; margin-right: 12px; }
-.with-rail { display: flex; gap: 32px; align-items: flex-start; }
-.node-col { flex: 1; min-width: 0; }
-.rail { flex: none; width: 240px; position: sticky; top: 24px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; }
-.rail h2 { margin: 0 0 6px; font-size: 11.5px; font-weight: 500; color: var(--muted); }
-.rail h3 { display: flex; align-items: center; margin: 10px 0 2px; font-size: 12px; font-weight: 500; color: var(--text-2); }
-.rail .count { margin-left: auto; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
-.rail ul { list-style: none; margin: 0; padding: 0; }
-.rail li { padding: 2px 0; overflow-wrap: anywhere; }
 .tree summary .count { margin-left: 8px; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
 .tree li.more > details > summary { color: var(--muted); }
 footer.keys { position: fixed; bottom: 0; right: 0; left: var(--sidebar-w); display: flex; gap: 16px; padding: 6px 32px; background: var(--panel); border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
@@ -224,3 +216,37 @@ main:has(.dashboard) { padding: 0; }
 .flight .issues .more { color: var(--muted); }
 .strip .comps { flex-basis: 100%; display: flex; flex-direction: column; gap: 4px; color: var(--text-2); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; border-bottom: 0; }
+
+main:has(.desk) { padding: 0; }
+.desk { display: grid; grid-template-columns: minmax(300px, 26%) minmax(0, 1fr); min-height: 100vh; }
+.contents { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; padding: 28px 24px 56px; background: var(--panel); border-right: 1px solid var(--border); }
+.contents .crumbs { margin: 0 0 18px; }
+.contents h2 { margin: 18px 0 8px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
+.contents h2:first-child { margin-top: 0; }
+.contents h3 { margin: 10px 0 2px; font-size: 12px; font-weight: 500; }
+.contents h3 .count { margin-left: 6px; font: 12px var(--mono); color: var(--muted); }
+.contents ul { list-style: none; margin: 0; padding: 0; }
+.contents li { padding: 2px 0; overflow-wrap: anywhere; }
+.contents .key { margin: 12px 0 0; overflow-wrap: anywhere; }
+.outline { list-style: none; margin: 0; padding: 0; }
+.outline a { display: flex; gap: 10px; padding: 4px 0; color: var(--text-2); text-decoration: none; }
+.outline a:hover { color: var(--text); }
+.outline .n, .outline .c { color: var(--muted); }
+.outline .n { min-width: 2ch; }
+.outline .c { margin-left: auto; white-space: nowrap; }
+.contents .judge { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.contents .judge .jv { margin-right: 0; overflow-wrap: anywhere; }
+.contents .prose { margin: 0; padding-top: 12px; border-top: 1px solid var(--border); color: var(--text-2); }
+.contents details.cited { padding-top: 12px; border-top: 1px solid var(--border); }
+.contents details.cited > summary { cursor: pointer; color: var(--text-2); }
+.node-col { padding: 28px 36px 56px; min-width: 0; }
+.node-col .body { max-width: 88ch; }
+a.to-open { text-decoration-color: var(--status-open); }
+a.to-planned { text-decoration-color: var(--status-planned); }
+a.to-in-progress, a.to-escalated { text-decoration-color: var(--status-in-progress); }
+a.to-done, a.to-resolved, a.to-accepted, a.to-active, a.to-verified, a.to-promoted, a.to-distilled, a.to-archived, a.to-merged { text-decoration-color: var(--status-done); }
+a.to-draft, a.to-proposed, a.to-raw, a.to-triaged { text-decoration-color: var(--status-draft); }
+a.to-abandoned, a.to-closed, a.to-paused, a.to-superseded, a.to-retired, a.to-deprecated, a.to-stale, a.to-rejected, a.to-dropped, a.to-retracted { text-decoration-color: var(--status-retired); }
+a.to-not-met { text-decoration-color: var(--status-not-met); }
+.crumbs a { text-decoration-color: var(--muted); }
+.crumbs a:hover, a[class^="to-"]:hover { text-decoration-color: var(--text); }

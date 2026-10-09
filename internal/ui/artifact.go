@@ -21,15 +21,9 @@ type prop struct {
 	Values []link
 }
 
-// group is a run of outgoing links sharing a relation.
-type group struct {
-	Relation string
-	Items    []link
-}
-
-// railGroup is the cited-by rail's run of sources sharing one type. Count is
-// the total; Items keeps the first railMax, MoreHref reaches the rest.
-type railGroup struct {
+// citedGroup is the cited-by fold's run of sources sharing one type. Count is
+// the total; Items keeps the first citedMax, MoreHref reaches the rest.
+type citedGroup struct {
 	Type     string
 	Count    int
 	Items    []link
@@ -37,7 +31,8 @@ type railGroup struct {
 	MoreHref string
 }
 
-// header is the node header: the identity fields plus typed slots as links.
+// header is the node header: the identity fields, the judge fields and the
+// typed slots the state line needs.
 type header struct {
 	Type, Icon, Status, Glyph, Project, Updated, Description string
 	Slots                                                    []prop
@@ -51,8 +46,12 @@ type artifactPage struct {
 	Props      []prop
 	Body       template.HTML
 	Diagrams   []canvas
-	Rail       []railGroup
-	Out        []group
+	// Outline, Links and Cited fill the contents column; Links is the body's
+	// `## Links` section as a sentence.
+	Outline    []outlineItem
+	Links      template.HTML
+	Cited      []citedGroup
+	CitedTotal int
 	// Tabs is set on issue pages only: hydrate is issue-only.
 	Tabs tabs
 }
@@ -113,27 +112,29 @@ func (s *server) node(key string, art *core.Artifact) (artifactPage, error) {
 	if err != nil {
 		return artifactPage{}, err
 	}
+	return s.shell(key, art, body), nil
+}
+
+// shell is node with the body already rendered.
+func (s *server) shell(key string, art *core.Artifact, body template.HTML) artifactPage {
 	title, _ := art.FrontMatter["title"].(string)
 	if title == "" {
 		title = key
 	}
-	return artifactPage{Title: title, Key: key, Head: s.header(key, art.FrontMatter, art.Body), Body: body}, nil
+	return artifactPage{Title: title, Key: key, Head: s.header(key, art.FrontMatter, art.Body), Body: body}
 }
 
 func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, error) {
-	page, err := s.node(key, art)
+	pb, err := s.md.renderPage(art.Body, s.res)
 	if err != nil {
 		return artifactPage{}, err
 	}
+	page := s.shell(key, art, pb.HTML)
 	in, err := s.db.LinksTo(key)
 	if err != nil {
 		return artifactPage{}, fmt.Errorf("incoming links: %w", err)
 	}
-	out, err := s.db.LinksFrom(key)
-	if err != nil {
-		return artifactPage{}, fmt.Errorf("outgoing links: %w", err)
-	}
-	rail, err := s.rail(key, in)
+	cited, err := s.cited(key, in)
 	if err != nil {
 		return artifactPage{}, err
 	}
@@ -145,8 +146,11 @@ func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, er
 	page.Diagrams = diagramsOf(art.FrontMatter)
 	page.Crumbs = s.crumbs(key)
 	page.Props = s.props(typeOfKey(key), art.FrontMatter)
-	page.Rail = rail
-	page.Out = s.groups(out)
+	page.Outline, page.Links = pb.Outline, pb.Links
+	page.Cited = cited
+	for _, g := range cited {
+		page.CitedTotal += g.Count
+	}
 	return page, nil
 }
 
@@ -155,8 +159,9 @@ func typeOfKey(key string) string {
 	return t
 }
 
-// headerSlots are the typed slots the node header shows as links.
-var headerSlots = []string{"milestone", "product_design", "system_design", "related", "depends_on"}
+// headerSlots are the typed slots the state line shows as links. The spine
+// slots sit in the breadcrumb and the rest fold into "All properties".
+var headerSlots = []string{"depends_on"}
 
 // headerKeys are the frontmatter keys the header shows; props folds the rest.
 var headerKeys = map[string]bool{"type": true, "title": true, "status": true, "project": true, "updated": true, "description": true}
@@ -256,12 +261,12 @@ func slotOf(rows []index.LinkRow, slots ...string) string {
 	return ""
 }
 
-// railMax is how many links a rail group shows before "N more".
-const railMax = 8
+// citedMax is how many links a cited group shows before "N more".
+const citedMax = 8
 
-// rail groups incoming links by source type, one entry per distinct source,
+// cited groups incoming links by source type, one entry per distinct source,
 // types in name order, sources newest first. A type with no sources never appears.
-func (s *server) rail(key string, rows []index.LinkRow) ([]railGroup, error) {
+func (s *server) cited(key string, rows []index.LinkRow) ([]citedGroup, error) {
 	byType := map[string][]string{}
 	seen := map[string]bool{}
 	for _, r := range rows {
@@ -277,7 +282,7 @@ func (s *server) rail(key string, rows []index.LinkRow) ([]railGroup, error) {
 		types = append(types, t)
 	}
 	sort.Strings(types)
-	out := make([]railGroup, 0, len(types))
+	out := make([]citedGroup, 0, len(types))
 	for _, t := range types {
 		srcs := byType[t]
 		arts, err := s.db.ListByType(t, index.QueryFilters{})
@@ -294,8 +299,8 @@ func (s *server) rail(key string, rows []index.LinkRow) ([]railGroup, error) {
 			}
 			return srcs[a] < srcs[b]
 		})
-		g := railGroup{Type: t, Count: len(srcs)}
-		for _, src := range srcs[:min(len(srcs), railMax)] {
+		g := citedGroup{Type: t, Count: len(srcs)}
+		for _, src := range srcs[:min(len(srcs), citedMax)] {
 			g.Items = append(g.Items, s.res.resolve(src))
 		}
 		if g.More = len(srcs) - len(g.Items); g.More > 0 {
@@ -304,25 +309,4 @@ func (s *server) rail(key string, rows []index.LinkRow) ([]railGroup, error) {
 		out = append(out, g)
 	}
 	return out, nil
-}
-
-// groups folds outgoing link rows into relation groups, sorted by relation.
-func (s *server) groups(rows []index.LinkRow) []group {
-	byName := map[string]*group{}
-	var names []string
-	for _, r := range rows {
-		g, ok := byName[r.Relation]
-		if !ok {
-			g = &group{Relation: r.Relation}
-			byName[r.Relation] = g
-			names = append(names, r.Relation)
-		}
-		g.Items = append(g.Items, s.res.resolve(r.Target))
-	}
-	sort.Strings(names)
-	out := make([]group, 0, len(names))
-	for _, n := range names {
-		out = append(out, *byName[n])
-	}
-	return out
 }

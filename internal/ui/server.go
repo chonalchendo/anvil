@@ -40,7 +40,7 @@ func newServer(v *core.Vault, db *index.DB) (*server, error) {
 	if err != nil {
 		return nil, err
 	}
-	res := resolver{v: v}
+	res := resolver{v: v, db: db}
 	return &server{v: v, db: db, res: res, md: newMarkdown(res), pages: p, files: files}, nil
 }
 

@@ -23,9 +23,8 @@ func TestJudgeStrip_LearningShowsSetFieldsAndLeavesProps(t *testing.T) {
 		"title": "J", "confidence": "medium", "diataxis": "how-to", "tags": []any{"x"},
 	}, "b\n")
 	_, body := do(h, "GET", "/artifact/learning.judged")
-	i, j := strings.Index(body, `<header class="node">`), strings.Index(body, `</header>`)
-	if !strings.Contains(body[i:j], `class="judge"`) {
-		t.Fatal("judge strip missing from header")
+	if !strings.Contains(contentsOf(t, body), `class="judge"`) {
+		t.Fatal("judge fields missing from the contents column")
 	}
 	strip := judgeStrip(t, body)
 	for _, want := range []string{">confidence<", ">medium<", ">diataxis<", ">how-to<"} {

@@ -10,7 +10,7 @@ const comparePath = "/compare?a=product-design.anvil&b=decision.ui.0001-a-decisi
 const pane = `<article class="pane">`
 
 // Warrant: fails if /compare renders fewer or more than two panes, swaps the
-// a/b order, drops a pane's node header or body, or adds the rail.
+// a/b order, drops a pane's node header or body, or adds the contents column.
 func TestComparePage_TwoPanes(t *testing.T) {
 	h, _ := seed(t)
 	code, body := do(h, "GET", comparePath)
@@ -34,8 +34,8 @@ func TestComparePage_TwoPanes(t *testing.T) {
 	if !strings.Contains(body, "<kbd>j</kbd>") {
 		t.Error("compare must show the j/k key hints its sections respond to")
 	}
-	if strings.Contains(body, `class="rail"`) || !strings.Contains(body, `class="sidebar"`) {
-		t.Error("compare must keep the sidebar and render no rail")
+	if strings.Contains(body, `class="contents"`) || !strings.Contains(body, `class="sidebar"`) {
+		t.Error("compare must keep the sidebar and render no contents column")
 	}
 	_, swapped := do(h, "GET", "/compare?a=decision.ui.0001-a-decision&b=product-design.anvil")
 	if !strings.Contains(strings.Split(swapped, pane)[1], "A decision") {

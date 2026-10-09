@@ -4,6 +4,8 @@
 <div class="compare">
 {{range .Panes}}<article class="pane">
 {{template "nodeheader" .}}
+<p class="muted"><code class="key">{{.Key}}</code></p>
+{{with .Head.Judge}}{{template "judge" .}}{{end}}
 <section class="body">{{.Body}}</section>
 </article>
 {{end}}</div>
