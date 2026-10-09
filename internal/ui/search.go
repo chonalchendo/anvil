@@ -25,6 +25,7 @@ type searchPage struct {
 	Total    int
 	Groups   []searchGroup
 	Searched bool
+	Capped   bool
 }
 
 // search serves body hits from the index FTS, grouped by type in the order of
@@ -39,6 +40,7 @@ func (s *server) search(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		page.Searched, page.Total = true, len(hits)
+		page.Capped = page.Total == searchCap
 		at := map[string]int{}
 		for _, h := range hits {
 			i, ok := at[h.Type]

@@ -83,13 +83,14 @@ func (d *DB) ReplaceLearningFTS(id, tldr string) error {
 
 // artifactRowid keys an artifact_fts row to its artifacts row. An UNINDEXED id
 // column has no lookup, so a delete by id scans the table and a full reindex
-// goes quadratic. UpsertArtifact keeps the rowid stable.
+// goes quadratic. UpsertArtifact keeps the rowid stable. Call after
+// UpsertArtifact. No code runs VACUUM, which may renumber this implicit rowid.
 const artifactRowid = `(SELECT rowid FROM artifacts WHERE id = ?)`
 
 // ReplaceArtifactFTS replaces the FTS row for an artifact: it drops any prior
-// row and inserts the new content. An empty content string clears the row
-// without inserting (artifact contributes nothing to content search).
-func (d *DB) ReplaceArtifactFTS(id, typ, content string) error {
+// row and inserts the new content. head holds description and goal; text holds
+// title and body. Two empty strings clear the row without inserting.
+func (d *DB) ReplaceArtifactFTS(id, typ, head, text string) error {
 	tx, err := d.sql.Begin()
 	if err != nil {
 		return fmt.Errorf("begin: %w", err)
@@ -98,8 +99,8 @@ func (d *DB) ReplaceArtifactFTS(id, typ, content string) error {
 	if _, err := tx.Exec(`DELETE FROM artifact_fts WHERE rowid = `+artifactRowid, id); err != nil {
 		return fmt.Errorf("clear artifact fts %s: %w", id, err)
 	}
-	if content != "" {
-		if _, err := tx.Exec(`INSERT INTO artifact_fts(rowid, id, type, content) VALUES(`+artifactRowid+`, ?, ?, ?)`, id, id, typ, content); err != nil {
+	if head != "" || text != "" {
+		if _, err := tx.Exec(`INSERT INTO artifact_fts(rowid, id, type, head, text) VALUES(`+artifactRowid+`, ?, ?, ?, ?)`, id, id, typ, head, text); err != nil {
 			return fmt.Errorf("insert artifact fts %s: %w", id, err)
 		}
 	}

@@ -103,12 +103,13 @@ WHERE learning_fts MATCH ?`
 	return out, rs.Err()
 }
 
-// SearchArtifactContent returns issues and milestones whose description+goal
-// content matches the query, ranked by FTS5 relevance. Excludes excludeID so
-// the calling artifact (just saved) never reports itself as its own duplicate.
-// QueryFilters Status/Project narrow the result; Limit ≤ 0 returns all matches.
-// artifact_fts spans every type, so the query keeps to issues and milestones;
-// choosing between those two is the caller's job.
+// SearchArtifactContent returns issues and milestones whose description or goal
+// matches the query (the head column only, never title or body), ranked by FTS5
+// relevance. Excludes excludeID so the calling artifact (just saved) never
+// reports itself as its own duplicate. QueryFilters Status/Project narrow the
+// result; Limit ≤ 0 returns all matches. artifact_fts spans every type, so the
+// query keeps to issues and milestones; choosing between those two is the
+// caller's job.
 func (d *DB) SearchArtifactContent(query, excludeID string, f QueryFilters) ([]ArtifactRow, error) {
 	match := ftsMatchExpr(query)
 	if match == "" {
@@ -119,7 +120,7 @@ SELECT a.id, a.type, a.status, a.project, a.title, a.path, a.created, a.updated
 FROM artifact_fts
 JOIN artifacts a ON a.rowid = artifact_fts.rowid
 WHERE artifact_fts MATCH ? AND artifact_fts.type IN ('issue', 'milestone')`
-	args := []any{match}
+	args := []any{"head : (" + match + ")"}
 	if excludeID != "" {
 		q += " AND a.id != ?"
 		args = append(args, excludeID)
@@ -158,12 +159,12 @@ WHERE artifact_fts MATCH ? AND artifact_fts.type IN ('issue', 'milestone')`
 // each whitespace term is wrapped in double quotes (embedded quotes doubled),
 // joined by spaces (FTS5 implicit AND). Returns "" when no terms remain.
 func ftsMatchExpr(query string) string {
-	terms := strings.Fields(query)
-	if len(terms) == 0 {
-		return ""
-	}
-	for i, t := range terms {
-		terms[i] = `"` + strings.ReplaceAll(t, `"`, `""`) + `"`
+	var terms []string
+	for _, t := range strings.Fields(query) {
+		// A NUL byte makes FTS5 reject the whole expression.
+		if t = strings.ReplaceAll(t, "\x00", ""); t != "" {
+			terms = append(terms, `"`+strings.ReplaceAll(t, `"`, `""`)+`"`)
+		}
 	}
 	return strings.Join(terms, " ")
 }

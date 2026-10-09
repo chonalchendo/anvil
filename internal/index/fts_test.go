@@ -289,7 +289,7 @@ func TestIndexSearch(t *testing.T) {
 		if err := db.UpsertArtifact(ArtifactRow{ID: r.id, Type: r.typ, Status: "open", Path: "/" + r.id + ".md"}); err != nil {
 			t.Fatal(err)
 		}
-		if err := db.ReplaceArtifactFTS(r.id, r.typ, r.body); err != nil {
+		if err := db.ReplaceArtifactFTS(r.id, r.typ, "", r.body); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -316,5 +316,28 @@ func TestIndexSearch(t *testing.T) {
 	}
 	if len(dups) != 0 {
 		t.Errorf("dedup query returned non-issue/milestone rows: %+v", dups)
+	}
+}
+
+// Warrant: fails if the dedup query matches an issue by its title or body, or
+// stops matching it by description and goal, while Search finds all three.
+func TestSearchArtifactContent_HeadOnly(t *testing.T) {
+	db := openTestDB(t)
+	if err := db.UpsertArtifact(ArtifactRow{ID: "issue.p.1", Type: "issue", Status: "open", Project: "p", Path: "/i.md"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ReplaceArtifactFTS("issue.p.1", "issue", "gazelle migration", "okapi title wombat body"); err != nil {
+		t.Fatal(err)
+	}
+	for q, want := range map[string]int{"gazelle": 1, "okapi": 0, "wombat": 0} {
+		got, err := db.SearchArtifactContent(q, "", QueryFilters{})
+		if err != nil || len(got) != want {
+			t.Errorf("SearchArtifactContent(%q) = %d rows, %v; want %d", q, len(got), err, want)
+		}
+	}
+	for _, q := range []string{"gazelle", "okapi", "wombat"} {
+		if got, err := db.Search(q, 0); err != nil || len(got) != 1 {
+			t.Errorf("Search(%q) = %d hits, %v; want 1", q, len(got), err)
+		}
 	}
 }

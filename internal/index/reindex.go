@@ -274,18 +274,15 @@ func (d *DB) IndexLearningFTS(row ArtifactRow, body string) error {
 	return d.ReplaceLearningFTS(row.ID, TLDRSection(body))
 }
 
-// IndexArtifactFTS upserts an artifact's title, description, goal and body into
-// the FTS table for body search and content-aware near-duplicate detection. The
-// title, description and goal lead the content so a hit can rest on them alone
-// and the dedup query still matches an issue or milestone by them. Exported so the create-time index hook can keep
-// artifact_fts in lockstep with artifacts on each save.
+// IndexArtifactFTS indexes title, description, goal and body for /search and create's dedup, in two columns so dedup keeps matching description and goal only. Exported for the create-time index hook.
 func (d *DB) IndexArtifactFTS(row ArtifactRow, fm map[string]any, body string) error {
 	get := func(k string) string {
 		s, _ := fm[k].(string)
 		return strings.TrimSpace(s)
 	}
-	content := strings.TrimSpace(row.Title + " " + get("description") + " " + get("goal") + " " + body)
-	return d.ReplaceArtifactFTS(row.ID, row.Type, content)
+	head := strings.TrimSpace(get("description") + " " + get("goal"))
+	text := strings.TrimSpace(row.Title + " " + body)
+	return d.ReplaceArtifactFTS(row.ID, row.Type, head, text)
 }
 
 // purgeStaleRowFor drops the indexed row whose stored path equals path, used
