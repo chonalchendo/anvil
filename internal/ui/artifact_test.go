@@ -7,7 +7,7 @@ import (
 
 func TestNodeHeader_ShowsIdentityAndSlots(t *testing.T) {
 	h, _ := seed(t)
-	_, body := do(h, "GET", "/artifact/issue."+stackIssue)
+	_, body := do(h, "GET", "/artifact/"+stackIssue)
 	i := strings.Index(body, `<header class="node">`)
 	j := strings.Index(body, `</header>`)
 	if i < 0 || j < i {
@@ -23,7 +23,11 @@ func TestNodeHeader_ShowsIdentityAndSlots(t *testing.T) {
 
 func TestProps_FoldedClosedAndHeaderKeysExcluded(t *testing.T) {
 	h, _ := seed(t)
-	_, body := do(h, "GET", "/artifact/issue."+stackIssue)
+	_, body := do(h, "GET", "/artifact/"+stackIssue)
+	bodyAt, propsAt := strings.Index(body, `<section class="body">`), strings.Index(body, `<details class="props">`)
+	if bodyAt < 0 || propsAt < bodyAt {
+		t.Error("section.body must render before details.props")
+	}
 	_, props, ok := strings.Cut(body, `<details class="props">`)
 	props, _, ok2 := strings.Cut(props, "</details>")
 	if !ok || !ok2 {
