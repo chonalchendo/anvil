@@ -143,7 +143,7 @@ var (
 // sectionNode groups an H2 and the blocks up to the next H2 as a fold.
 type sectionNode struct{ ast.BaseBlock }
 
-func (n *sectionNode) Kind() ast.NodeKind          { return kindSection }
+func (n *sectionNode) Kind() ast.NodeKind         { return kindSection }
 func (n *sectionNode) Dump(src []byte, level int) { ast.DumpHelper(n, src, level, nil, nil) }
 
 // summaryNode holds the H2 and the item count of its section.
@@ -152,7 +152,7 @@ type summaryNode struct {
 	items int
 }
 
-func (n *summaryNode) Kind() ast.NodeKind          { return kindSummary }
+func (n *summaryNode) Kind() ast.NodeKind         { return kindSummary }
 func (n *summaryNode) Dump(src []byte, level int) { ast.DumpHelper(n, src, level, nil, nil) }
 
 type sectionRenderer struct{}
