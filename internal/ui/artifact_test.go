@@ -93,7 +93,7 @@ func TestRail_GroupsCountsCapsAndOmitsEmpty(t *testing.T) {
 func TestRail_NoIncomingRendersPlaceholderOnly(t *testing.T) {
 	h, _ := seed(t)
 	_, body := do(h, "GET", "/artifact/"+stackIssue)
-	if !strings.Contains(body, `<aside class="rail">`) || strings.Contains(body, `<section><h3>`) {
-		t.Error("rail should render empty without groups")
+	if !strings.Contains(body, `<aside class="rail">`) || strings.Contains(body, `<section><h3>`) || !strings.Contains(body, "Nothing links here.") {
+		t.Error("rail should render only the placeholder")
 	}
 }
