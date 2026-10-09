@@ -39,7 +39,7 @@ func TestSearchPage(t *testing.T) {
 // Warrant: fails if a hostile query (NUL byte, lone quote, trailing FTS operator) reaches FTS5 unsanitised and 500s.
 func TestSearchPage_HostileQueries(t *testing.T) {
 	h, _ := seed(t)
-	for _, q := range []string{"%00", "%22", "a%20OR", "%00%20%00", "NEAR(", "a*"} {
+	for _, q := range []string{"%00", "%22", "a%20OR", "%00%20%00", "NEAR(", "a*", strings.Repeat("a", 60<<10)} {
 		if code, _ := do(h, "GET", "/search?q="+q); code != 200 {
 			t.Errorf("/search?q=%s = %d, want 200", q, code)
 		}
