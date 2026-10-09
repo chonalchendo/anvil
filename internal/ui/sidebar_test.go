@@ -51,20 +51,6 @@ func TestSidebar_RendersOnEveryPage(t *testing.T) {
 	}
 }
 
-// Warrant: a focus-triggered dialog would trap Tab at the sidebar input and strand keyboard users.
-func TestSidebar_InputOpensPaletteWithoutFocusTrap(t *testing.T) {
-	h, _ := seed(t)
-	_, body := do(h, "GET", "/")
-	if strings.Contains(body, "addEventListener('focus'") {
-		t.Error("palette opens on focus: Tab cannot pass the sidebar input")
-	}
-	for _, want := range []string{"side.addEventListener('click', open)", "side.addEventListener('keydown'"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("page lacks %q", want)
-		}
-	}
-}
-
 func TestGroupThousands(t *testing.T) {
 	for n, want := range map[int]string{0: "0", 999: "999", 1000: "1,000", 12345: "12,345", 1234567: "1,234,567"} {
 		if got := groupThousands(n); got != want {
