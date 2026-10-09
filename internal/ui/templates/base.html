@@ -88,8 +88,10 @@
     var frame = c.querySelector('iframe');
     function sized() {
       var d = frame.contentDocument.documentElement;
-      c.nw = d.scrollWidth; c.nh = d.scrollHeight;
-      frame.style.width = c.nw + 'px'; frame.style.height = c.nh + 'px'; fit(c);
+      c.nw = d.scrollWidth;
+      frame.style.width = c.nw + 'px'; frame.style.height = '0px';
+      c.nh = d.scrollHeight;
+      frame.style.height = c.nh + 'px'; fit(c);
     }
     frame.addEventListener('load', sized);
     if (frame.contentDocument && frame.contentDocument.readyState === 'complete' && frame.contentDocument.documentElement.scrollWidth > 0) sized();
