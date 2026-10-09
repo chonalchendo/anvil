@@ -17,7 +17,7 @@ func TestNowBand(t *testing.T) {
 	writeArtifact(t, v, core.TypeThread, "p.0001-open", map[string]any{"title": "Open thread", "status": "open"}, "x\n")
 	writeArtifact(t, v, core.TypeThread, "p.0002-shut", map[string]any{"title": "Shut thread", "status": "closed"}, "x\n")
 	for i := 0; i < treeCap+2; i++ {
-		writeArtifact(t, v, core.TypeLearning, fmt.Sprintf("d%02d", i), map[string]any{"title": fmt.Sprintf("Draft %02d", i), "status": "draft"}, "x\n")
+		writeArtifact(t, v, core.TypeLearning, fmt.Sprintf("d%02d", i), map[string]any{"title": fmt.Sprintf("Draft %02d", i), "status": "draft", "updated": fmt.Sprintf("2026-10-%02d", 10+i)}, "x\n")
 	}
 	code, body := homeBody(t, v)
 	if code != 200 {
@@ -30,7 +30,7 @@ func TestNowBand(t *testing.T) {
 	band := body[start : start+strings.Index(body[start:], "</section>")]
 	for _, want := range []string{
 		`href="/artifact/milestone.p.live"`, `href="/artifact/milestone.p.next"`,
-		`href="/artifact/thread.p.0001-open"`, `href="/artifact/learning.d00"`,
+		`href="/artifact/thread.p.0001-open"`, `href="/artifact/learning.d09"`,
 		`2 more`, `href="/type/learning?status=draft"`, `Recently updated`,
 	} {
 		if !strings.Contains(band, want) {
@@ -41,6 +41,10 @@ func TestNowBand(t *testing.T) {
 		if strings.Contains(band, bad) {
 			t.Errorf("band lists %q", bad)
 		}
+	}
+	drafts := band[strings.Index(band, "Draft learnings"):strings.Index(band, "Recently updated")]
+	if !strings.Contains(drafts, "learning.d09") || strings.Contains(drafts, "learning.d00") {
+		t.Errorf("draft column is not newest-first (newest d09 must show, oldest d00 must not):\n%s", drafts)
 	}
 	if start > strings.Index(body, "<h1>Design spine</h1>") {
 		t.Error("band sits below the tree")
@@ -81,5 +85,21 @@ func TestNowBand_MilestoneMoreSpansStatuses(t *testing.T) {
 	band := nowBandBody(t, v)
 	if !strings.Contains(band, `href="/type/milestone">2 more`) {
 		t.Errorf("hidden rows span two statuses but more link is not unfiltered:\n%s", band)
+	}
+}
+
+// Warrant: fails if the cap slice shows more or fewer than treeCap rows when one row is hidden.
+func TestNowBand_CapPlusOneShowsOneMore(t *testing.T) {
+	v := &core.Vault{Root: t.TempDir()}
+	for i := 0; i < treeCap+1; i++ {
+		writeArtifact(t, v, core.TypeLearning, fmt.Sprintf("d%02d", i), map[string]any{"title": fmt.Sprintf("Draft %02d", i), "status": "draft", "updated": fmt.Sprintf("2026-10-%02d", 10+i)}, "x\n")
+	}
+	band := nowBandBody(t, v)
+	drafts := band[strings.Index(band, "Draft learnings"):strings.Index(band, "Recently updated")]
+	if got := strings.Count(drafts, `href="/artifact/learning.`); got != treeCap {
+		t.Errorf("draft column shows %d rows, want %d", got, treeCap)
+	}
+	if !strings.Contains(drafts, `>1 more</a>`) {
+		t.Errorf("draft column lacks the 1 more link:\n%s", drafts)
 	}
 }

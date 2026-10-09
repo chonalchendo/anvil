@@ -15,7 +15,6 @@ const recentLimit = 10
 type nowColumn struct {
 	Title    string
 	Count    int
-	NoCount  bool
 	Items    []node
 	More     int
 	MoreHref string
@@ -46,7 +45,7 @@ func (s *server) nowBand() (nowBand, error) {
 	if err != nil {
 		return nil, err
 	}
-	rc := nowColumn{Title: "Recently updated", NoCount: true}
+	rc := nowColumn{Title: "Recently updated"}
 	for _, r := range recent {
 		rc.Items = append(rc.Items, leaf(r))
 	}

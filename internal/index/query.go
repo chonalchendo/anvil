@@ -148,16 +148,7 @@ WHERE artifact_fts MATCH ? AND artifact_fts.type IN ('issue', 'milestone')`
 	if err != nil {
 		return nil, fmt.Errorf("search artifact content: %w", err)
 	}
-	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
-	var out []ArtifactRow
-	for rs.Next() {
-		var r ArtifactRow
-		if err := rs.Scan(&r.ID, &r.Type, &r.Status, &r.Project, &r.Title, &r.Path, &r.Created, &r.Updated); err != nil {
-			return nil, err
-		}
-		out = append(out, r)
-	}
-	return out, rs.Err()
+	return scanArtifactRows(rs)
 }
 
 // ftsMatchExpr turns a free-text query into a safe FTS5 MATCH expression:
@@ -238,16 +229,7 @@ func (d *DB) queryWithFilters(base string, f QueryFilters, args []any) ([]Artifa
 	if err != nil {
 		return nil, err
 	}
-	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
-	var out []ArtifactRow
-	for rs.Next() {
-		var r ArtifactRow
-		if err := rs.Scan(&r.ID, &r.Type, &r.Status, &r.Project, &r.Title, &r.Path, &r.Created, &r.Updated); err != nil {
-			return nil, err
-		}
-		out = append(out, r)
-	}
-	return out, rs.Err()
+	return scanArtifactRows(rs)
 }
 
 // RelatedRow is an artifact related to a seed, carrying the evidence for the
