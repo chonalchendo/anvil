@@ -125,3 +125,8 @@ footer.keys { position: fixed; bottom: 0; right: 0; left: var(--sidebar-w); disp
 .hits .snippet { margin: 2px 0 0; color: var(--text-2); font-size: 13px; overflow-wrap: anywhere; }
 .hits h2 .count { color: var(--muted); font: 12px var(--mono); }
 mark { background: var(--sel); color: var(--text); box-shadow: 0 0 0 1px var(--accent); border-radius: 2px; }
+
+.now { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.now h2 { font-size: 13px; color: var(--text-2); margin: 0 0 6px; }
+.now ul { list-style: none; padding: 0; margin: 0; }
+.now li { padding: 2px 0; }

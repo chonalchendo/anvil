@@ -66,7 +66,18 @@ func (s *server) home(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "page failed", http.StatusInternalServerError)
 		return
 	}
-	s.render(w, r, "home", trees)
+	band, err := s.nowBand()
+	if err != nil {
+		slog.Error("building now band", "err", err)
+		http.Error(w, "page failed", http.StatusInternalServerError)
+		return
+	}
+	s.render(w, r, "home", homePage{band, trees})
+}
+
+type homePage struct {
+	Now   nowBand
+	Trees []projectTree
 }
 
 // spineTrees reads only the index: rows for titles and statuses, link rows for
