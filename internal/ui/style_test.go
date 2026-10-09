@@ -97,7 +97,7 @@ func TestStatusGlyphCarriesHueClass(t *testing.T) {
 
 func TestHue_OpenIssueIsPlannedOpenThreadIsNot(t *testing.T) {
 	for _, c := range []struct{ typ, status, want string }{
-		{"issue", "open", " status-planned"},
+		{"issue", "open", "planned"},
 		{"thread", "open", ""},
 		{"issue", "in-progress", ""},
 	} {
@@ -110,7 +110,7 @@ func TestHue_OpenIssueIsPlannedOpenThreadIsNot(t *testing.T) {
 func TestCSS_ClosedAndPausedAreRetired(t *testing.T) {
 	css := cssSource(t)
 	for _, v := range []string{"closed", "paused"} {
-		re := regexp.MustCompile(`\.status-` + v + `\b[^{]*\{ color: var\(--status-retired\)`)
+		re := regexp.MustCompile(`\.status-` + v + `\b[^{]*\{ --hue: var\(--status-retired\)`)
 		if !re.MatchString(css) {
 			t.Errorf(".status-%s is not mapped to --status-retired", v)
 		}
