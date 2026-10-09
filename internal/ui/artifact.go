@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io/fs"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"slices"
@@ -21,15 +22,9 @@ type prop struct {
 	Values []link
 }
 
-// group is a run of outgoing links sharing a relation.
-type group struct {
-	Relation string
-	Items    []link
-}
-
-// railGroup is the cited-by rail's run of sources sharing one type. Count is
-// the total; Items keeps the first railMax, MoreHref reaches the rest.
-type railGroup struct {
+// citedGroup is the cited-by fold's run of sources sharing one type. Count is
+// the total; Items keeps the first citedMax, MoreHref reaches the rest.
+type citedGroup struct {
 	Type     string
 	Count    int
 	Items    []link
@@ -37,11 +32,15 @@ type railGroup struct {
 	MoreHref string
 }
 
-// header is the node header: the identity fields plus typed slots as links.
+// header is the node header: the identity fields, the judge fields and the
+// typed slots the state line needs.
 type header struct {
 	Type, Icon, Status, Glyph, Project, Updated, Description string
 	Slots                                                    []prop
 	Judge                                                    []prop
+	// Refs are the typed slots compare shows under each header; the artifact
+	// page climbs them in the breadcrumb and folds them into "All properties".
+	Refs []prop
 }
 
 type artifactPage struct {
@@ -51,10 +50,40 @@ type artifactPage struct {
 	Props      []prop
 	Body       template.HTML
 	Diagrams   []canvas
-	Rail       []railGroup
-	Out        []group
+	// Outline, Links and Cited fill the contents column; Links is the body's
+	// `## Links` section as a sentence.
+	Outline    []outlineItem
+	Links      template.HTML
+	Cited      []citedGroup
+	CitedTotal int
 	// Tabs is set on issue pages only: hydrate is issue-only.
 	Tabs tabs
+}
+
+// view is one request's server: its resolver and renderer read a single
+// id → row catalog, so no link costs an index query.
+type view struct {
+	*server
+	res resolver
+	md  markdown
+}
+
+// catalogAll is the row limit that reads the whole index.
+const catalogAll = math.MaxInt32
+
+func (s *server) view() (*view, error) {
+	// RecentlyUpdated omits sessions; the only other read, ListByType, costs a
+	// second query per page and a session is never a link target worth a title.
+	all, err := s.db.RecentlyUpdated(catalogAll)
+	if err != nil {
+		return nil, fmt.Errorf("reading catalog: %w", err)
+	}
+	rows := make(map[string]index.ArtifactRow, len(all))
+	for _, r := range all {
+		rows[r.ID] = r
+	}
+	res := resolver{v: s.v, rows: rows}
+	return &view{server: s, res: res, md: newMarkdown(res)}, nil
 }
 
 // spineSlots are the frontmatter slots a breadcrumb climbs, in preference order.
@@ -97,7 +126,13 @@ func (s *server) artifact(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "artifact unreadable", http.StatusInternalServerError)
 		return
 	}
-	page, err := s.buildArtifact(key, art)
+	vw, err := s.view()
+	if err != nil {
+		slog.Error("building artifact page", "key", key, "err", err)
+		http.Error(w, "page failed", http.StatusInternalServerError)
+		return
+	}
+	page, err := vw.buildArtifact(key, art)
 	if err != nil {
 		slog.Error("building artifact page", "key", key, "err", err)
 		http.Error(w, "page failed", http.StatusInternalServerError)
@@ -108,35 +143,41 @@ func (s *server) artifact(w http.ResponseWriter, r *http.Request) {
 
 // node fills the part of the page every view of one artifact shares: title,
 // key, header and rendered body.
-func (s *server) node(key string, art *core.Artifact) (artifactPage, error) {
+func (s *view) node(key string, art *core.Artifact) (artifactPage, error) {
 	body, err := s.md.renderSections(art.Body)
 	if err != nil {
 		return artifactPage{}, err
 	}
+	page := s.shell(key, art, body)
+	page.Crumbs = s.crumbs(key)
+	for _, n := range refSlots {
+		if v, ok := art.FrontMatter[n]; ok {
+			page.Head.Refs = append(page.Head.Refs, s.res.prop(n, v))
+		}
+	}
+	return page, nil
+}
+
+// shell is node with the body already rendered.
+func (s *view) shell(key string, art *core.Artifact, body template.HTML) artifactPage {
 	title, _ := art.FrontMatter["title"].(string)
 	if title == "" {
 		title = key
 	}
-	return artifactPage{Title: title, Key: key, Head: s.header(key, art.FrontMatter, art.Body), Body: body}, nil
+	return artifactPage{Title: title, Key: key, Head: s.header(key, art.FrontMatter, art.Body), Body: body}
 }
 
-func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, error) {
-	page, err := s.node(key, art)
+func (s *view) buildArtifact(key string, art *core.Artifact) (artifactPage, error) {
+	pb, err := s.md.renderPage(art.Body, s.res)
 	if err != nil {
 		return artifactPage{}, err
 	}
+	page := s.shell(key, art, pb.HTML)
 	in, err := s.db.LinksTo(key)
 	if err != nil {
 		return artifactPage{}, fmt.Errorf("incoming links: %w", err)
 	}
-	out, err := s.db.LinksFrom(key)
-	if err != nil {
-		return artifactPage{}, fmt.Errorf("outgoing links: %w", err)
-	}
-	rail, err := s.rail(key, in)
-	if err != nil {
-		return artifactPage{}, err
-	}
+	cited := s.cited(key, in)
 	var tb tabs
 	if typeOfKey(key) == string(core.TypeIssue) {
 		tb = issueTabs(key, "issue")
@@ -145,8 +186,14 @@ func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, er
 	page.Diagrams = diagramsOf(art.FrontMatter)
 	page.Crumbs = s.crumbs(key)
 	page.Props = s.props(typeOfKey(key), art.FrontMatter)
-	page.Rail = rail
-	page.Out = s.groups(out)
+	page.Outline, page.Links = pb.Outline, pb.Links
+	if n := len(page.Props); n > 0 {
+		page.Outline = append(page.Outline, outlineItem{N: len(page.Outline) + 1, Title: "All properties", ID: "props", Size: sizeOf(n, "field")})
+	}
+	page.Cited = cited
+	for _, g := range cited {
+		page.CitedTotal += g.Count
+	}
 	return page, nil
 }
 
@@ -155,21 +202,25 @@ func typeOfKey(key string) string {
 	return t
 }
 
-// headerSlots are the typed slots the node header shows as links.
-var headerSlots = []string{"milestone", "product_design", "system_design", "related", "depends_on"}
+// refSlots are the typed slots compare shows under each header.
+var refSlots = []string{"milestone", "product_design", "system_design", "related"}
+
+// headerSlots are the typed slots the state line shows as links. The spine
+// slots sit in the breadcrumb and the rest fold into "All properties".
+var headerSlots = []string{"depends_on"}
 
 // headerKeys are the frontmatter keys the header shows; props folds the rest.
 var headerKeys = map[string]bool{"type": true, "title": true, "status": true, "project": true, "updated": true, "description": true}
 
-func (s *server) header(key string, fm map[string]any, body string) header {
+func (s *view) header(key string, fm map[string]any, body string) header {
 	str := func(k string) string { v, _ := fm[k].(string); return v }
 	h := header{Type: typeOfKey(key), Status: str("status"), Project: str("project"), Updated: str("updated"), Description: str("description")}
 	h.Glyph = glyphs[h.Status]
 	h.Icon = typeIcons[h.Type]
-	h.Judge = s.judge(h.Type, fm, body)
+	h.Judge = s.res.judge(h.Type, fm, body)
 	for _, n := range headerSlots {
 		if v, ok := fm[n]; ok {
-			h.Slots = append(h.Slots, s.prop(n, v))
+			h.Slots = append(h.Slots, s.res.prop(n, v))
 		}
 	}
 	return h
@@ -177,7 +228,7 @@ func (s *server) header(key string, fm map[string]any, body string) header {
 
 // props lists the frontmatter the header does not show, in name order; a
 // `[[type.id]]` value becomes a link.
-func (s *server) props(typ string, fm map[string]any) []prop {
+func (s *view) props(typ string, fm map[string]any) []prop {
 	names := make([]string, 0, len(fm))
 	for n := range fm {
 		if !headerKeys[n] && !slices.Contains(headerSlots, n) && !slices.Contains(judgeKeys[typ], n) {
@@ -187,34 +238,34 @@ func (s *server) props(typ string, fm map[string]any) []prop {
 	sort.Strings(names)
 	out := make([]prop, 0, len(names))
 	for _, n := range names {
-		out = append(out, s.prop(n, fm[n]))
+		out = append(out, s.res.prop(n, fm[n]))
 	}
 	return out
 }
 
-func (s *server) prop(name string, v any) prop {
+func (r resolver) prop(name string, v any) prop {
 	p := prop{Name: name}
 	if list, ok := v.([]any); ok {
 		for _, e := range list {
-			p.Values = append(p.Values, s.slotValue(e))
+			p.Values = append(p.Values, r.slotValue(e))
 		}
 		return p
 	}
-	p.Values = []link{s.slotValue(v)}
+	p.Values = []link{r.slotValue(v)}
 	return p
 }
 
-func (s *server) slotValue(v any) link {
+func (r resolver) slotValue(v any) link {
 	str := fmt.Sprint(v)
 	if inner := core.UnwrapWikilink(str); inner != str {
-		return s.res.resolve(inner)
+		return r.resolve(inner)
 	}
 	return link{Text: str, Plain: true}
 }
 
 // crumbs climbs the spine slots from key through the index, nearest ancestor
 // last. The index already holds every parent edge, so no parent file is read.
-func (s *server) crumbs(key string) []link {
+func (s *view) crumbs(key string) []link {
 	var up []link
 	for range maxCrumbs {
 		next, ok := s.parent(key)
@@ -256,12 +307,12 @@ func slotOf(rows []index.LinkRow, slots ...string) string {
 	return ""
 }
 
-// railMax is how many links a rail group shows before "N more".
-const railMax = 8
+// citedMax is how many links a cited group shows before "N more".
+const citedMax = 8
 
-// rail groups incoming links by source type, one entry per distinct source,
+// cited groups incoming links by source type, one entry per distinct source,
 // types in name order, sources newest first. A type with no sources never appears.
-func (s *server) rail(key string, rows []index.LinkRow) ([]railGroup, error) {
+func (s *view) cited(key string, rows []index.LinkRow) []citedGroup {
 	byType := map[string][]string{}
 	seen := map[string]bool{}
 	for _, r := range rows {
@@ -277,52 +328,23 @@ func (s *server) rail(key string, rows []index.LinkRow) ([]railGroup, error) {
 		types = append(types, t)
 	}
 	sort.Strings(types)
-	out := make([]railGroup, 0, len(types))
+	out := make([]citedGroup, 0, len(types))
 	for _, t := range types {
 		srcs := byType[t]
-		arts, err := s.db.ListByType(t, index.QueryFilters{})
-		if err != nil {
-			return nil, fmt.Errorf("listing %s: %w", t, err)
-		}
-		updated := make(map[string]string, len(arts))
-		for _, r := range arts {
-			updated[r.ID] = r.Updated
-		}
 		sort.Slice(srcs, func(a, b int) bool {
-			if updated[srcs[a]] != updated[srcs[b]] {
-				return updated[srcs[a]] > updated[srcs[b]]
+			if ua, ub := s.res.rows[srcs[a]].Updated, s.res.rows[srcs[b]].Updated; ua != ub {
+				return ua > ub
 			}
 			return srcs[a] < srcs[b]
 		})
-		g := railGroup{Type: t, Count: len(srcs)}
-		for _, src := range srcs[:min(len(srcs), railMax)] {
+		g := citedGroup{Type: t, Count: len(srcs)}
+		for _, src := range srcs[:min(len(srcs), citedMax)] {
 			g.Items = append(g.Items, s.res.resolve(src))
 		}
 		if g.More = len(srcs) - len(g.Items); g.More > 0 {
 			g.MoreHref = "/type/" + url.PathEscape(t) + "?to=" + url.QueryEscape(key)
 		}
 		out = append(out, g)
-	}
-	return out, nil
-}
-
-// groups folds outgoing link rows into relation groups, sorted by relation.
-func (s *server) groups(rows []index.LinkRow) []group {
-	byName := map[string]*group{}
-	var names []string
-	for _, r := range rows {
-		g, ok := byName[r.Relation]
-		if !ok {
-			g = &group{Relation: r.Relation}
-			byName[r.Relation] = g
-			names = append(names, r.Relation)
-		}
-		g.Items = append(g.Items, s.res.resolve(r.Target))
-	}
-	sort.Strings(names)
-	out := make([]group, 0, len(names))
-	for _, n := range names {
-		out = append(out, *byName[n])
 	}
 	return out
 }

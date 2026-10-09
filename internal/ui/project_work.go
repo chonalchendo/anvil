@@ -89,6 +89,10 @@ func (s *server) fillLive(p *projectPage, live []index.ArtifactRow) error {
 	if len(live) == 0 {
 		return nil
 	}
+	vw, err := s.view()
+	if err != nil {
+		return err
+	}
 	issues, err := s.db.ListByType("issue", index.QueryFilters{Project: p.Name})
 	if err != nil {
 		return err
@@ -102,7 +106,7 @@ func (s *server) fillLive(p *projectPage, live []index.ArtifactRow) error {
 		if err != nil {
 			return err
 		}
-		f := flight{proseItem: proseItem{node: leaf(r), Updated: shortDate(r.Updated)}, Judge: s.judge("milestone", art.FrontMatter, art.Body), Acceptance: acceptance(art.Body)}
+		f := flight{proseItem: proseItem{node: leaf(r), Updated: shortDate(r.Updated)}, Judge: vw.res.judge("milestone", art.FrontMatter, art.Body), Acceptance: acceptance(art.Body)}
 		kids, err := s.milestoneIssues(r.ID, byID)
 		if err != nil {
 			return err

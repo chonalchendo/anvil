@@ -68,16 +68,15 @@ main { flex: 1; min-width: 0; padding: 24px 32px 56px; }
 .node-title { display: flex; align-items: center; gap: 10px; }
 .node-title h1 { margin: 0; }
 .ticon { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 5px; background: var(--raise); color: var(--text-2); font-size: 12px; }
-.node-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 6px; color: var(--muted); font-size: 12px; }
-.node-meta .status { margin-left: 0; }
 .deck { color: var(--text-2); margin: 8px 0; }
-.slots, .props dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 16px; }
-.slots { margin: 8px 0 0; }
+.state { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; margin: 8px 0 0; color: var(--text-2); }
+.state .status { margin-left: 0; }
+.props dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 16px; }
 .props { margin: 12px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
 .props summary { cursor: pointer; color: var(--text-2); }
 .props dl { margin: 8px 0 0; }
-.slots dt, .props dt { color: var(--muted); }
-.slots dd, .props dd { margin: 0; overflow-wrap: anywhere; }
+.props dt { color: var(--muted); }
+.props dd { margin: 0; overflow-wrap: anywhere; }
 .body table { border-collapse: collapse; }
 .body th, .body td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
 .body th { background: var(--raise); font-weight: 500; }
@@ -99,23 +98,25 @@ dialog li[aria-selected="true"] { background: var(--sel); box-shadow: 0 0 0 1px 
 .tree summary { cursor: pointer; padding: 2px 4px; border-radius: var(--radius); }
 .tree summary.group, .tree .group { color: var(--text-2); font-weight: 500; }
 /* Glyph and word share the hue; the accent is not a status. */
-.status { color: var(--status-retired); font-size: 12px; margin-left: 6px; white-space: nowrap; }
+.status { font-size: 12px; margin-left: 6px; white-space: nowrap; }
 .rows-table td { padding: 4px 8px 4px 0; }
 .rows-table .updated { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.status-open { color: var(--status-open); }
-.status-planned { color: var(--status-planned); }
-.status-in-progress, .status-escalated { color: var(--status-in-progress); }
-.status-done, .status-resolved, .status-accepted, .status-active, .status-verified, .status-promoted, .status-distilled, .status-archived, .status-merged { color: var(--status-done); }
-.status-draft, .status-proposed, .status-raw, .status-triaged { color: var(--status-draft); }
-.status-abandoned, .status-closed, .status-paused, .status-superseded, .status-retired, .status-deprecated, .status-stale, .status-rejected, .status-dropped, .status-retracted { color: var(--status-retired); }
-.status-not-met { color: var(--status-not-met); }
+.status-open, a.to-open { --hue: var(--status-open); }
+.status-planned, a.to-planned { --hue: var(--status-planned); }
+.status-in-progress, .status-escalated, a.to-in-progress, a.to-escalated { --hue: var(--status-in-progress); }
+.status-done, .status-resolved, .status-accepted, .status-active, .status-verified, .status-promoted, .status-distilled, .status-archived, .status-merged, a.to-done, a.to-resolved, a.to-accepted, a.to-active, a.to-verified, a.to-promoted, a.to-distilled, a.to-archived, a.to-merged { --hue: var(--status-done); }
+.status-draft, .status-proposed, .status-raw, .status-triaged, a.to-draft, a.to-proposed, a.to-raw, a.to-triaged { --hue: var(--status-draft); }
+.status-abandoned, .status-closed, .status-paused, .status-superseded, .status-retired, .status-deprecated, .status-stale, .status-rejected, .status-dropped, .status-retracted, a.to-abandoned, a.to-closed, a.to-paused, a.to-superseded, a.to-retired, a.to-deprecated, a.to-stale, a.to-rejected, a.to-dropped, a.to-retracted { --hue: var(--status-retired); }
+.status-not-met, a.to-not-met { --hue: var(--status-not-met); }
+.status { color: var(--hue, var(--status-retired)); }
+a[class^="to-"] { text-decoration-color: var(--hue); }
 .type-milestone, .type-issue { color: var(--type-work); }
 .type-decision { color: var(--type-decision); }
 .type-learning { color: var(--type-learning); }
 .type-thread { color: var(--type-thread); }
 .type-product-design, .type-system-design, .type-component-design, .type-convention { color: var(--type-design); }
 .bar { display: flex; color: var(--status-retired); height: 8px; gap: 2px; border-radius: 2px; overflow: hidden; }
-.bar i { display: block; min-width: 2px; background: currentColor; flex-grow: var(--n, 1); }
+.bar i { display: block; min-width: 2px; background: var(--hue, currentColor); flex-grow: var(--n, 1); }
 .body p, .body li, .deck { max-width: 84ch; }
 
 .tabs { display: flex; gap: 16px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
@@ -127,14 +128,6 @@ details.layer > .body { padding: 0 12px; }
 details.section > summary h2 { display: inline; margin: 0; font-size: 1em; }
 details.section > summary .count { float: right; color: var(--muted); }
 details.section > :not(summary) { margin-left: 12px; margin-right: 12px; }
-.with-rail { display: flex; gap: 32px; align-items: flex-start; }
-.node-col { flex: 1; min-width: 0; }
-.rail { flex: none; width: 240px; position: sticky; top: 24px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; }
-.rail h2 { margin: 0 0 6px; font-size: 11.5px; font-weight: 500; color: var(--muted); }
-.rail h3 { display: flex; align-items: center; margin: 10px 0 2px; font-size: 12px; font-weight: 500; color: var(--text-2); }
-.rail .count { margin-left: auto; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
-.rail ul { list-style: none; margin: 0; padding: 0; }
-.rail li { padding: 2px 0; overflow-wrap: anywhere; }
 .tree summary .count { margin-left: 8px; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
 .tree li.more > details > summary { color: var(--muted); }
 footer.keys { position: fixed; bottom: 0; right: 0; left: var(--sidebar-w); display: flex; gap: 16px; padding: 6px 32px; background: var(--panel); border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
@@ -224,3 +217,30 @@ main:has(.dashboard) { padding: 0; }
 .flight .issues .more { color: var(--muted); }
 .strip .comps { flex-basis: 100%; display: flex; flex-direction: column; gap: 4px; color: var(--text-2); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; border-bottom: 0; }
+
+main:has(.desk) { padding: 0; }
+.desk { display: grid; grid-template-columns: minmax(300px, 26%) minmax(0, 1fr); grid-template-areas: "contents node"; min-height: 100vh; }
+.contents { grid-area: contents; position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 28px 24px 56px; background: var(--panel); border-right: 1px solid var(--border); }
+.contents .crumbs { margin: 0 0 18px; }
+.contents h2 { margin: 18px 0 8px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
+.contents h2:first-child { margin-top: 0; }
+.contents h3 { margin: 10px 0 2px; font-size: 12px; font-weight: 500; }
+.contents h3 .count { margin-left: 6px; font: 12px var(--mono); color: var(--muted); }
+.contents ul { list-style: none; margin: 0; padding: 0; }
+.contents li { padding: 2px 0; overflow-wrap: anywhere; }
+.contents .key { margin: 12px 0 0; overflow-wrap: anywhere; }
+.outline { list-style: none; margin: 0; padding: 0; }
+.outline a { display: flex; gap: 10px; padding: 4px 0; color: var(--text-2); text-decoration: none; }
+.outline a:hover { color: var(--text); }
+.outline .n, .outline .c { color: var(--muted); font-variant-numeric: tabular-nums; }
+.outline .n { min-width: 2ch; }
+.outline .c { margin-left: auto; white-space: nowrap; }
+.contents .judge { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.contents .judge .jv { margin-right: 0; overflow-wrap: anywhere; }
+.contents .prose { margin: 0; padding-top: 12px; border-top: 1px solid var(--border); color: var(--text-2); }
+.contents details.cited { padding-top: 12px; border-top: 1px solid var(--border); }
+.contents details.cited > summary { cursor: pointer; color: var(--text-2); }
+.node-col { grid-area: node; padding: 28px 36px 56px; min-width: 0; }
+.node-col .body { max-width: 88ch; }
+.crumbs a { text-decoration-color: var(--muted); }
+.crumbs a:hover, a[class^="to-"]:hover { text-decoration-color: var(--text); }

@@ -23,9 +23,8 @@ func TestJudgeStrip_LearningShowsSetFieldsAndLeavesProps(t *testing.T) {
 		"title": "J", "confidence": "medium", "diataxis": "how-to", "tags": []any{"x"},
 	}, "b\n")
 	_, body := do(h, "GET", "/artifact/learning.judged")
-	i, j := strings.Index(body, `<header class="node">`), strings.Index(body, `</header>`)
-	if !strings.Contains(body[i:j], `class="judge"`) {
-		t.Fatal("judge strip missing from header")
+	if !strings.Contains(contentsOf(t, body), `class="judge"`) {
+		t.Fatal("judge fields missing from the contents column")
 	}
 	strip := judgeStrip(t, body)
 	for _, want := range []string{">confidence<", ">medium<", ">diataxis<", ">how-to<"} {
@@ -33,7 +32,7 @@ func TestJudgeStrip_LearningShowsSetFieldsAndLeavesProps(t *testing.T) {
 			t.Errorf("strip lacks %q", want)
 		}
 	}
-	_, props, _ := strings.Cut(body, `<details class="props">`)
+	_, props, _ := strings.Cut(body, `<details class="props"`)
 	if strings.Contains(props, "<dt>confidence</dt>") || strings.Contains(props, "<dt>diataxis</dt>") {
 		t.Error("judge keys still in All properties")
 	}
@@ -58,7 +57,7 @@ func TestJudgeStrip_OtherTypesGetNone(t *testing.T) {
 	if strings.Contains(body, `class="judge"`) {
 		t.Error("thread got a judge strip")
 	}
-	_, props, _ := strings.Cut(body, `<details class="props">`)
+	_, props, _ := strings.Cut(body, `<details class="props"`)
 	if !strings.Contains(props, "<dt>confidence</dt>") {
 		t.Error("non-judge type lost confidence from props")
 	}

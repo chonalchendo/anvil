@@ -17,11 +17,11 @@ type node struct {
 	Open                             bool
 }
 
-// hue returns the extra hue class for a status whose colour depends on the
-// type: an open issue is queued work (planned), an open thread stays open.
+// hue returns the hue name for a status whose colour depends on the type, else
+// empty: an open issue is queued work (planned), an open thread stays open.
 func hue(typ, status string) string {
 	if typ == string(core.TypeIssue) && status == "open" {
-		return " status-planned"
+		return "planned"
 	}
 	return ""
 }

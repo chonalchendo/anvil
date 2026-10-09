@@ -1,5 +1,5 @@
 {{define "title"}}{{.Page.Name}} · anvil{{end}}
-{{define "stat"}}<span class="status status-{{.Status}}{{hue .Type .Status}}">{{.Glyph}} {{.Status}}</span>{{end}}
+{{define "stat"}}<span class="status status-{{.Status}}{{with hue .Type .Status}} status-{{.}}{{end}}">{{.Glyph}} {{.Status}}</span>{{end}}
 {{define "lately"}}{{range .}}{{.Sep}}<a href="{{.Href}}">{{.Title}}</a> <span class="muted">({{.Updated}})</span>{{end}}{{end}}
 {{define "prose"}}{{range .}}<p>{{template "stat" .}}: {{template "lately" .Items}}.</p>{{end}}{{end}}
 {{define "content"}}{{with .Page}}<div class="dashboard">
@@ -8,8 +8,8 @@
   {{with .Deck}}<p class="deck">{{.}}</p>{{end}}
   <ul class="inv">{{range .Inventory}}
     <li><div class="head"><span class="count">{{.Count}}</span><a href="{{.Href}}">{{.Label}}</a></div>
-    <div class="bar">{{range .Segs}}<i class="status-{{.Status}}{{hue .Type .Status}}" style="--n:{{.N}}"></i>{{end}}</div>
-    <div class="tally">{{range .Statuses}}<span class="status status-{{.Status}}{{hue .Type .Status}}">{{.N}} {{.Status}}</span>{{end}}</div>
+    <div class="bar">{{range .Segs}}<i class="status-{{.Status}}{{with hue .Type .Status}} status-{{.}}{{end}}" style="--n:{{.N}}"></i>{{end}}</div>
+    <div class="tally">{{range .Statuses}}<span class="status status-{{.Status}}{{with hue .Type .Status}} status-{{.}}{{end}}">{{.N}} {{.Status}}</span>{{end}}</div>
     {{with .Parts}}<div class="tally parts">{{range .}}<a href="{{.Href}}">{{.Text}}</a>{{end}}</div>{{end}}</li>{{end}}
   </ul>
   <p class="shared">The <a href="/type/convention">{{$.Sidebar.Count "convention"}} conventions</a> are shared by every project.</p>

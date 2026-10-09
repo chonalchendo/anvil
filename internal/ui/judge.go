@@ -16,7 +16,7 @@ var judgeKeys = map[string][]string{
 
 // judge builds the judge strip: set frontmatter fields in judgeKeys order,
 // then a milestone's last Measured: line.
-func (s *server) judge(typ string, fm map[string]any, body string) []prop {
+func (r resolver) judge(typ string, fm map[string]any, body string) []prop {
 	keys, ok := judgeKeys[typ]
 	if !ok {
 		return nil
@@ -24,7 +24,7 @@ func (s *server) judge(typ string, fm map[string]any, body string) []prop {
 	var out []prop
 	for _, k := range keys {
 		if isSet(fm[k]) {
-			out = append(out, s.prop(k, fm[k]))
+			out = append(out, r.prop(k, fm[k]))
 		}
 	}
 	if typ == "milestone" {
