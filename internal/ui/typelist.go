@@ -3,6 +3,7 @@ package ui
 import (
 	"log/slog"
 	"net/http"
+	"slices"
 	"sort"
 
 	"github.com/chonalchendo/anvil/internal/core"
@@ -19,8 +20,8 @@ type statusGroup struct {
 }
 
 type typePage struct {
-	Type, Project, Status string
-	Groups                []statusGroup
+	Type, Project, Status, To string
+	Groups                    []statusGroup
 }
 
 // typeList lists one type from the index, grouped by status live-first, newest first within a group.
@@ -31,12 +32,19 @@ func (s *server) typeList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	page := typePage{Type: string(t), Project: q.Get("project"), Status: q.Get("status")}
+	page := typePage{Type: string(t), Project: q.Get("project"), Status: q.Get("status"), To: q.Get("to")}
 	rows, err := s.db.ListByType(page.Type, index.QueryFilters{Project: page.Project, Status: page.Status})
 	if err != nil {
 		slog.Error("listing type", "type", t, "err", err)
 		http.Error(w, "page failed", http.StatusInternalServerError)
 		return
+	}
+	if page.To != "" {
+		if rows, err = s.citing(rows, page.To); err != nil {
+			slog.Error("filtering by link target", "to", page.To, "err", err)
+			http.Error(w, "page failed", http.StatusInternalServerError)
+			return
+		}
 	}
 	sort.SliceStable(rows, func(a, b int) bool {
 		ra, rb := rank(liveOrder, rows[a].Status), rank(liveOrder, rows[b].Status)
@@ -59,4 +67,17 @@ func (s *server) typeList(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	s.render(w, r, "type", page)
+}
+
+// citing keeps the rows that link to target.
+func (s *server) citing(rows []index.ArtifactRow, target string) ([]index.ArtifactRow, error) {
+	in, err := s.db.LinksTo(target)
+	if err != nil {
+		return nil, err
+	}
+	from := make(map[string]bool, len(in))
+	for _, l := range in {
+		from[l.Source] = true
+	}
+	return slices.DeleteFunc(rows, func(r index.ArtifactRow) bool { return !from[r.ID] }), nil
 }

@@ -135,10 +135,10 @@ func TestArtifactPage_RawHTMLEscapedCommandIsCode(t *testing.T) {
 	}
 }
 
-func TestArtifactPage_HangingAndBreadcrumb(t *testing.T) {
+func TestArtifactPage_RailAndBreadcrumb(t *testing.T) {
 	h, _ := seed(t)
 	_, body := do(h, "GET", "/artifact/product-design.anvil")
-	if !strings.Contains(body, "Hanging off this node") || !strings.Contains(body, `href="/artifact/decision.ui.0001-a-decision"`) {
+	if !strings.Contains(body, `<aside class="rail">`) || !strings.Contains(body, `href="/artifact/decision.ui.0001-a-decision"`) {
 		t.Error("incoming link from the decision missing")
 	}
 	_, body = do(h, "GET", "/artifact/milestone.anvil.m1")
@@ -263,9 +263,9 @@ func TestTemplates_RenderOnFixtureData(t *testing.T) {
 	rec := httptest.NewRecorder()
 	p.render(rec, "artifact", sidebar{}, artifactPage{
 		Title: "T", Key: "k.x", Crumbs: []link{{Text: "c", Href: "/artifact/c"}},
-		Props:   []prop{{Name: "n", Values: []link{{Text: "v", Plain: true}}}},
-		Hanging: []group{{Relation: "r", SourceType: "s", Items: []link{{Text: "x"}}}},
-		Out:     []group{{Relation: "r", Items: []link{{Text: "y", Href: "/artifact/y"}}}},
+		Props: []prop{{Name: "n", Values: []link{{Text: "v", Plain: true}}}},
+		Rail:  []railGroup{{Type: "s", Count: 1, Items: []link{{Text: "x"}}}},
+		Out:   []group{{Relation: "r", Items: []link{{Text: "y", Href: "/artifact/y"}}}},
 	})
 	if rec.Code != 200 {
 		t.Fatalf("artifact template status = %d", rec.Code)
