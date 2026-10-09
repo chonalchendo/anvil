@@ -2,10 +2,15 @@
 {{define "content"}}{{with .Page}}
 {{if .Crumbs}}<nav class="crumbs" aria-label="Spine">{{range .Crumbs}}{{template "ref" .}}<span aria-hidden="true"> / </span>{{end}}<span>{{.Key}}</span></nav>{{end}}
 {{if .Tabs.Stack}}{{template "tabs" .Tabs}}{{end}}
-<header><h1>{{.Title}}</h1><code class="key">{{.Key}}</code></header>
-<section aria-label="Properties"><dl class="props">
+<header class="node">
+<div class="node-title"><span class="ticon" title="{{.Head.Type}}" aria-hidden="true">{{.Head.Icon}}</span><h1>{{.Title}}</h1></div>
+<div class="node-meta">{{if .Head.Status}}<span class="status {{.Head.Status}}">{{.Head.Glyph}} {{.Head.Status}}</span>{{end}}{{with .Head.Project}}<span>{{.}}</span>{{end}}{{with .Head.Updated}}<span>updated {{.}}</span>{{end}}<code class="key">{{.Key}}</code></div>
+{{with .Head.Description}}<p class="deck">{{.}}</p>{{end}}
+{{with .Head.Slots}}<dl class="slots">{{range .}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{template "ref" .}} {{end}}</dd>{{end}}</dl>{{end}}
+</header>
+<details class="props"><summary>All properties</summary><dl>
 {{range .Props}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{template "ref" .}} {{end}}</dd>{{end}}
-</dl></section>
+</dl></details>
 <section class="body">{{.Body}}</section>
 <section><h2>Hanging off this node</h2>
 {{range .Hanging}}<h3>{{.Relation}} <span class="muted">from {{.SourceType}}</span></h3><ul>{{range .Items}}<li>{{template "ref" .}}</li>{{end}}</ul>

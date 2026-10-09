@@ -52,9 +52,19 @@ kbd { display: inline-block; min-width: 20px; height: 20px; line-height: 20px; t
 
 main { flex: 1; max-width: 880px; padding: 24px 32px; }
 .crumbs { color: var(--muted); margin-bottom: 8px; }
-.props { display: grid; grid-template-columns: max-content 1fr; gap: 2px 16px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
-.props dt { color: var(--muted); }
-.props dd { margin: 0; overflow-wrap: anywhere; }
+.node-title { display: flex; align-items: center; gap: 10px; }
+.node-title h1 { margin: 0; }
+.ticon { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 5px; background: var(--raise); color: var(--text-2); font: 600 12px var(--mono); text-transform: uppercase; }
+.node-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 6px; color: var(--muted); font-size: 12px; }
+.node-meta .status { margin-left: 0; }
+.deck { color: var(--text-2); margin: 8px 0; }
+.slots, .props dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 16px; }
+.slots { margin: 8px 0 0; }
+.props { margin: 12px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+.props summary { cursor: pointer; color: var(--text-2); }
+.props dl { margin: 8px 0 0; }
+.slots dt, .props dt { color: var(--muted); }
+.slots dd, .props dd { margin: 0; overflow-wrap: anywhere; }
 .body table { border-collapse: collapse; }
 .body th, .body td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
 .body th { background: var(--raise); font-weight: 500; }
