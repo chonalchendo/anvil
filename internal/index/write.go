@@ -84,7 +84,9 @@ func (d *DB) ReplaceLearningFTS(id, tldr string) error {
 // artifactRowid keys an artifact_fts row to its artifacts row. An UNINDEXED id
 // column has no lookup, so a delete by id scans the table and a full reindex
 // goes quadratic. UpsertArtifact keeps the rowid stable. Call after
-// UpsertArtifact. No code runs VACUUM, which may renumber this implicit rowid.
+// UpsertArtifact. DeleteArtifact must purge artifact_fts before the artifacts
+// row: once that row is gone the subquery is NULL and the FTS row is orphaned.
+// No code runs VACUUM, which may renumber this implicit rowid.
 const artifactRowid = `(SELECT rowid FROM artifacts WHERE id = ?)`
 
 // ReplaceArtifactFTS replaces the FTS row for an artifact: it drops any prior

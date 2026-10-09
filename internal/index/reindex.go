@@ -274,7 +274,9 @@ func (d *DB) IndexLearningFTS(row ArtifactRow, body string) error {
 	return d.ReplaceLearningFTS(row.ID, TLDRSection(body))
 }
 
-// IndexArtifactFTS indexes title, description, goal and body for /search and create's dedup, in two columns so dedup keeps matching description and goal only. Exported for the create-time index hook.
+// IndexArtifactFTS indexes an artifact for /search and create's dedup in two
+// columns: head (description+goal, the only text dedup matches) and text
+// (title+body). Exported for the create-time index hook.
 func (d *DB) IndexArtifactFTS(row ArtifactRow, fm map[string]any, body string) error {
 	get := func(k string) string {
 		s, _ := fm[k].(string)
