@@ -130,3 +130,6 @@ mark { background: var(--sel); color: var(--text); box-shadow: 0 0 0 1px var(--a
 .now h2 { font-size: 13px; color: var(--text-2); margin: 0 0 6px; }
 .now ul { list-style: none; padding: 0; margin: 0; }
 .now li { padding: 2px 0; }
+.judge { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 8px 0 0; font-size: 12px; }
+.judge .jk { color: var(--muted); }
+.judge .jv { color: var(--text); margin-right: 8px; }
