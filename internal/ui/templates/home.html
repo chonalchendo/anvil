@@ -1,6 +1,6 @@
 {{define "title"}}Spine · anvil{{end}}
 {{define "row"}}{{if .Href}}<a href="{{.Href}}">{{.Title}}</a>{{if .Status}} <span class="status {{.Status}}">{{.Glyph}} {{.Status}}</span>{{end}}{{else}}<span class="group">{{.Title}}</span>{{end}}{{end}}
-{{define "node"}}<li>{{if .Kids}}<details{{if .Open}} open{{end}}><summary{{if not .Href}} class="group"{{end}}>{{template "row" .}}</summary><ul>{{range .Kids}}{{template "node" .}}{{end}}</ul></details>{{else}}{{template "row" .}}{{end}}</li>{{end}}
+{{define "node"}}<li>{{if .Kids}}<details{{if .Open}} open{{end}}><summary{{if not .Href}} class="group"{{end}}>{{template "row" .}}<span class="count">{{len .Kids}}</span></summary><ul>{{range .Shown}}{{template "node" .}}{{end}}{{with .Hidden}}<li class="more"><details><summary>{{len .}} more</summary><ul>{{range .}}{{template "node" .}}{{end}}</ul></details></li>{{end}}</ul></details>{{else}}{{template "row" .}}{{end}}</li>{{end}}
 {{define "content"}}<h1>Design spine</h1>
 {{range .Page}}<section aria-label="{{.Name}}"><h2>{{.Name}}</h2>
 <ul class="tree">{{range .Nodes}}{{template "node" .}}{{end}}</ul></section>

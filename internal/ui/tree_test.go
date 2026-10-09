@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -86,5 +87,66 @@ func TestTree_IssueOnlyProjectHasNoSection(t *testing.T) {
 	body, _ := treeVault(t)
 	if strings.Contains(body, "<h2>q</h2>") {
 		t.Fatalf("issue-only project rendered:\n%s", body)
+	}
+}
+
+// manyIssues seeds an in-progress milestone with n issues and returns the home body.
+func manyIssues(t *testing.T, n int) string {
+	t.Helper()
+	v := &core.Vault{Root: t.TempDir()}
+	writeArtifact(t, v, core.TypeProductDesign, "p", map[string]any{"project": "p", "title": "P product"}, "x\n")
+	writeArtifact(t, v, core.TypeMilestone, "milestone.p.big", map[string]any{"project": "p", "title": "Big ms", "status": "in-progress", "product_design": "[[product-design.p]]"}, "x\n")
+	for i := 0; i < n; i++ {
+		id := fmt.Sprintf("issue.p.%04d-i", i)
+		writeArtifact(t, v, core.TypeIssue, id, map[string]any{"project": "p", "title": fmt.Sprintf("Issue %d", i), "status": "open", "milestone": "[[milestone.p.big]]"}, "x\n")
+	}
+	db, err := index.Open(index.DBPath(v.Root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if _, err := db.Reindex(v.Root); err != nil {
+		t.Fatal(err)
+	}
+	h, err := Handler(v, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, body := do(h, "GET", "/")
+	return body
+}
+
+// Warrant: a group summary must show how many children it holds, so the count is the whole group not the shown rows.
+func TestTreeCount_SummaryCarriesGroupSize(t *testing.T) {
+	body := manyIssues(t, 10)
+	inOrder(t, body, "Milestones · in-progress", `<span class="count">1</span>`, "Big ms", `<span class="count">10</span>`)
+}
+
+// Warrant: past eight rows the rest must fold behind one "N more" row, with no row lost or repeated.
+func TestTreeMore_FoldsPastEight(t *testing.T) {
+	body := manyIssues(t, 10)
+	if got := strings.Count(body, `<li class="more">`); got != 1 {
+		t.Fatalf("more rows = %d, want 1", got)
+	}
+	inOrder(t, body, "issue.p.0007-i", `<li class="more">`, "2 more", "issue.p.0008-i", "issue.p.0009-i")
+	if strings.Count(body, "/artifact/issue.p.") != 10 {
+		t.Fatalf("issue rows lost or repeated:\n%s", body)
+	}
+	if strings.Contains(manyIssues(t, 8), `class="more"`) {
+		t.Fatal("a group of exactly eight folded")
+	}
+}
+
+// Warrant: every page must end with the key hint bar, listing only keys the page handles.
+func TestKeyHints_FooterOnEveryPage(t *testing.T) {
+	body := manyIssues(t, 1)
+	i := strings.Index(body, `<footer class="keys">`)
+	if i < 0 || strings.Index(body, "</main>") > i {
+		t.Fatalf("footer missing or before main:\n%s", body)
+	}
+	for _, k := range []string{">j<", ">k<", ">o<", ">⇧O<", ">⇧C<", ">⌘K<"} {
+		if !strings.Contains(body[i:], k) {
+			t.Errorf("hint bar lacks %s", k)
+		}
 	}
 }

@@ -16,6 +16,15 @@ type node struct {
 	Open                       bool
 }
 
+// treeCap is how many children a group shows before folding the rest behind "N more".
+const treeCap = 8
+
+// Shown returns the children listed directly under the group.
+func (n node) Shown() []node { return n.Kids[:min(len(n.Kids), treeCap)] }
+
+// Hidden returns the children folded behind the "N more" row.
+func (n node) Hidden() []node { return n.Kids[min(len(n.Kids), treeCap):] }
+
 type projectTree struct {
 	Name  string
 	Nodes []node
