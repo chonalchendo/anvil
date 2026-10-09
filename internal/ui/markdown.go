@@ -228,6 +228,11 @@ func foldSections(doc ast.Node, src []byte) {
 		}
 		c = next
 	}
+	countLines(secs, starts, src)
+}
+
+// countLines sets each section's non-blank line count, heading excluded.
+func countLines(secs []*sectionNode, starts []int, src []byte) {
 	for i, sec := range secs {
 		end := len(src)
 		if i+1 < len(secs) {
@@ -298,7 +303,7 @@ func (m markdown) renderPage(body string, res resolver) (pageBody, error) {
 	for c := doc.FirstChild(); c != nil; {
 		next := c.NextSibling()
 		if sec, ok := c.(*sectionNode); ok {
-			if sent := linksSentence(res, sec); sec.title == "Links" && sent != "" {
+			if sent := lifted(res, sec); sent != "" {
 				pb.Links = sent
 				doc.RemoveChild(doc, c)
 			} else {
@@ -310,6 +315,14 @@ func (m markdown) renderPage(body string, res resolver) (pageBody, error) {
 	var err error
 	pb.HTML, err = m.renderDoc(doc, src)
 	return pb, err
+}
+
+// lifted is the Links sentence when sec is a `## Links` section with wikilinks, else empty.
+func lifted(res resolver, sec *sectionNode) template.HTML {
+	if sec.title != "Links" {
+		return ""
+	}
+	return linksSentence(res, sec)
 }
 
 func sizeOf(lines int) string {

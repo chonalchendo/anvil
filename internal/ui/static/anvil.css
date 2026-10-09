@@ -219,7 +219,7 @@ main:has(.dashboard) { padding: 0; }
 
 main:has(.desk) { padding: 0; }
 .desk { display: grid; grid-template-columns: minmax(300px, 26%) minmax(0, 1fr); min-height: 100vh; }
-.contents { position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; padding: 28px 24px 56px; background: var(--panel); border-right: 1px solid var(--border); }
+.contents { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 28px 24px 56px; background: var(--panel); border-right: 1px solid var(--border); }
 .contents .crumbs { margin: 0 0 18px; }
 .contents h2 { margin: 18px 0 8px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
 .contents h2:first-child { margin-top: 0; }
