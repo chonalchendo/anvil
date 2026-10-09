@@ -3,7 +3,9 @@
 {{define "content"}}{{with .Page}}
 <div class="compare">
 {{range .Panes}}<article class="pane">
+{{template "crumbs" .}}
 {{template "nodeheader" .}}
+{{with .Head.Refs}}<p class="state">{{range .}}<span>{{.Name}} {{range .Values}}{{template "ref" .}} {{end}}</span>{{end}}</p>{{end}}
 <p class="muted"><code class="key">{{.Key}}</code></p>
 {{with .Head.Judge}}{{template "judge" .}}{{end}}
 <section class="body">{{.Body}}</section>

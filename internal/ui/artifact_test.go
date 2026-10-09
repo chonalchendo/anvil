@@ -49,11 +49,11 @@ func contentsOf(t *testing.T, body string) string {
 func TestProps_FoldedClosedAndHeaderKeysExcluded(t *testing.T) {
 	h, _ := seed(t)
 	_, body := do(h, "GET", "/artifact/"+stackIssue)
-	bodyAt, propsAt := strings.Index(body, `<section class="body">`), strings.Index(body, `<details class="props">`)
+	bodyAt, propsAt := strings.Index(body, `<section class="body">`), strings.Index(body, `<details class="props"`)
 	if bodyAt < 0 || propsAt < bodyAt {
 		t.Error("section.body must render before details.props")
 	}
-	_, props, ok := strings.Cut(body, `<details class="props">`)
+	_, props, ok := strings.Cut(body, `<details class="props"`)
 	props, _, ok2 := strings.Cut(props, "</details>")
 	if !ok || !ok2 {
 		t.Fatal("props block missing")
@@ -123,7 +123,7 @@ func TestArtifactPage_NoRailNoLinksOutAndNothingListedTwice(t *testing.T) {
 	h, v := seed(t)
 	writeArtifact(t, v, core.TypeMilestone, "milestone.anvil.cites", map[string]any{
 		"title": "Cites", "product_design": "[[product-design.anvil]]",
-	}, "## Why\n\nSee [[decision.ui.0001-a-decision]].\n\n## Links\n\n- [[decision.ui.0001-a-decision]] - the pick.\n- [[thread.anvil-design-docs.0002-x]] - the thread.\n")
+	}, "## Why\n\nSee [[decision.ui.0001-a-decision]].\n\n## Links\n\n- [[decision.ui.0001-a-decision]]\n- [[thread.anvil-design-docs.0002-x|the thread]]\n- [[decision.ui.0001-a-decision|again]]\n")
 	_, body := do(h, "GET", "/artifact/milestone.milestone.anvil.cites")
 	for _, no := range []string{`class="rail"`, "Links out", `<h2>Links</h2>\n<ul>`} {
 		if strings.Contains(body, no) {
@@ -138,7 +138,7 @@ func TestArtifactPage_NoRailNoLinksOutAndNothingListedTwice(t *testing.T) {
 		t.Errorf("decision links outside the properties and cited-by folds = %d, want 2 (body, Links sentence)", n)
 	}
 	contents := contentsOf(t, body)
-	for _, want := range []string{`<h2>On this page</h2>`, `href="#why"`, `<span class="c">1 line</span>`, `<p class="prose">decision <a href="/artifact/decision.ui.0001-a-decision">A decision</a> and thread <a href="/artifact/thread.anvil-design-docs.0002-x">A thread</a>.</p>`} {
+	for _, want := range []string{`<h2>On this page</h2>`, `href="#why"`, `<span class="c">1 line</span>`, `<p class="prose">decision <a href="/artifact/decision.ui.0001-a-decision">A decision</a> and thread <a href="/artifact/thread.anvil-design-docs.0002-x">the thread</a>.</p>`} {
 		if !strings.Contains(contents, want) {
 			t.Errorf("contents lacks %q", want)
 		}
@@ -165,9 +165,51 @@ func TestLinks_CarryTargetStatusHue(t *testing.T) {
 	writeArtifact(t, v, core.TypeIssue, "ui.0002-open", map[string]any{"title": "Open one", "status": "open"}, "x\n")
 	writeArtifact(t, v, core.TypeDecision, "ui.0003-cites", map[string]any{"title": "C"}, "See [[issue.ui.0002-open]] and [[product-design.anvil]].\n")
 	_, body := do(h, "GET", "/artifact/decision.ui.0003-cites")
-	for _, want := range []string{`<a href="/artifact/issue.ui.0002-open" class="to-planned">`, `<a href="/artifact/product-design.anvil">`} {
+	for _, want := range []string{`<a href="/artifact/issue.ui.0002-open" class="to-planned" title="open">Open one</a>`, `<a href="/artifact/product-design.anvil">`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page lacks %q", want)
 		}
+	}
+}
+
+// Warrant: a Links section with notes beside its links would lose them if lifted;
+// only a list of bare wikilinks becomes the sentence.
+func TestArtifactPage_LinksSectionWithNotesStaysInBody(t *testing.T) {
+	h, v := seed(t)
+	writeArtifact(t, v, core.TypeThread, "noted-links", map[string]any{"title": "N"}, "## Links\n\n- [[decision.ui.0001-a-decision]] - the pick.\n")
+	_, body := do(h, "GET", "/artifact/thread.noted-links")
+	if !strings.Contains(body, "the pick.") || strings.Contains(contentsOf(t, body), "<h2>Links</h2>") {
+		t.Error("a Links item with a note was lifted out of the body")
+	}
+}
+
+// Warrant: a body wikilink without an alias names its target by title; an alias wins.
+func TestBodyWikilink_ShowsTitleUnlessAliased(t *testing.T) {
+	h, v := seed(t)
+	writeArtifact(t, v, core.TypeThread, "titled", map[string]any{"title": "T"}, "See [[decision.ui.0001-a-decision]] and [[decision.ui.0001-a-decision|that one]].\n")
+	_, body := do(h, "GET", "/artifact/thread.titled")
+	for _, want := range []string{`>A decision</a>`, `>that one</a>`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page lacks %q", want)
+		}
+	}
+}
+
+// Warrant: the crumb is a type word that carries its title, led by the project; the
+// node column precedes the contents column in the DOM; the outline lists "All properties".
+func TestArtifactPage_CrumbsOutlineAndColumnOrder(t *testing.T) {
+	h, v := seed(t)
+	writeArtifact(t, v, core.TypeMilestone, "milestone.anvil.m2", map[string]any{
+		"title": "M2", "project": "anvil", "product_design": "[[product-design.anvil]]",
+	}, "## Why\n\nx\n")
+	_, body := do(h, "GET", "/artifact/milestone.milestone.anvil.m2")
+	contents := contentsOf(t, body)
+	for _, want := range []string{`<a href="/project/anvil">anvil</a>`, `<a href="/artifact/product-design.anvil" title="Anvil product">product design</a>`, `<a href="#props"><span class="n">2</span>All properties`} {
+		if !strings.Contains(contents, want) {
+			t.Errorf("contents lacks %q", want)
+		}
+	}
+	if strings.Index(body, `class="node-col"`) > strings.Index(body, `class="contents"`) {
+		t.Error("contents column precedes the node column in the DOM")
 	}
 }

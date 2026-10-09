@@ -137,13 +137,14 @@
 </script>
 </body>
 </html>
-{{define "ref"}}{{if .Href}}<a href="{{.Href}}"{{with .Hue}} class="to-{{.}}"{{end}}>{{.Text}}</a>{{else if .Plain}}<span>{{.Text}}</span>{{else}}<span class="unresolved">{{.Text}}</span>{{end}}{{end}}
+{{define "ref"}}{{if .Href}}<a href="{{.Href}}"{{if .Hue}} class="to-{{.Hue}}" title="{{.Status}}"{{end}}>{{.Text}}</a>{{else if .Plain}}<span>{{.Text}}</span>{{else}}<span class="unresolved">{{.Text}}</span>{{end}}{{end}}
+{{define "crumbs"}}{{if or .Crumbs .Head.Project}}<nav class="crumbs" aria-label="Spine">{{with .Head.Project}}<a href="/project/{{.}}">{{.}}</a><span aria-hidden="true"> › </span>{{end}}{{range .Crumbs}}{{if .Href}}<a href="{{.Href}}"{{with .Title}} title="{{.}}"{{end}}>{{.TypeWord}}</a>{{else}}<span class="unresolved">{{.Text}}</span>{{end}}<span aria-hidden="true"> › </span>{{end}}<span>{{.Head.Type}}</span></nav>{{end}}{{end}}
 {{define "tabs"}}<nav class="tabs" aria-label="Issue views"><a href="{{.Issue}}"{{if eq .Current "issue"}} aria-current="page"{{end}}>Issue</a><a href="{{.Stack}}"{{if eq .Current "stack"}} aria-current="page"{{end}}>Stack</a></nav>{{end}}
 {{define "judge"}}<div class="judge">{{range .}}<span class="jk">{{.Name}}</span><span class="jv">{{range .Values}}{{template "ref" .}} {{end}}</span>{{end}}</div>{{end}}
 {{define "nodeheader"}}<header class="node">
 <div class="node-title"><span class="ticon type-{{.Head.Type}}" title="{{.Head.Type}}" aria-hidden="true">{{.Head.Icon}}</span><h1>{{.Title}}</h1></div>
 {{with .Head.Description}}<p class="deck">{{.}}</p>{{end}}
-<p class="state">{{if .Head.Status}}<span class="status status-{{.Head.Status}}{{hue .Head.Type .Head.Status}}">{{.Head.Glyph}} {{.Head.Status}}</span>{{end}}{{with .Head.Project}}<span>{{.}}</span>{{end}}{{with .Head.Updated}}<span>updated {{.}}</span>{{end}}{{range .Head.Slots}}<span>{{.Name}} {{range .Values}}{{template "ref" .}} {{end}}</span>{{end}}</p>
+<p class="state">{{if .Head.Status}}<span class="status status-{{.Head.Status}}{{with hue .Head.Type .Head.Status}} status-{{.}}{{end}}">{{.Head.Glyph}} {{.Head.Status}}</span>{{end}}{{with .Head.Project}}<span>{{.}}</span>{{end}}{{with .Head.Updated}}<span>updated {{.}}</span>{{end}}{{range .Head.Slots}}<span>{{.Name}} {{range .Values}}{{template "ref" .}} {{end}}</span>{{end}}</p>
 </header>{{end}}
 {{define "canvas"}}<div class="canvas"{{if .Full}} data-full{{end}}>
 <div class="canvas-bar"><button type="button" data-act="fit">Fit</button><button type="button" data-act="actual">1:1</button><button type="button" data-act="full">Fullscreen</button>{{if not .Full}}<a href="/diagram/{{.Name}}">Open</a>{{end}}</div>

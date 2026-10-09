@@ -2,34 +2,47 @@ package ui
 
 import (
 	"cmp"
-	"html"
-	"html/template"
 	"net/url"
 	"strings"
 
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
-	"github.com/yuin/goldmark/ast"
 )
 
 // link is one typed wikilink after resolution. Href is empty when unresolved.
-// Plain marks ordinary text that is not a link at all. Type, Title and Hue
-// come from the index for a resolved link; Hue names the status colour class
-// the link's underline takes.
+// Plain marks ordinary text that is not a link at all. Aliased marks a Text
+// the author chose with `|alias`. Type, Title, Status and Hue come from the
+// index for a resolved link; Hue names the status colour class the link's
+// underline takes.
 type link struct {
-	Text  string
-	Href  string
-	Plain bool
-	Type  string
-	Title string
-	Hue   string
+	Text    string
+	Href    string
+	Plain   bool
+	Aliased bool
+	Type    string
+	Title   string
+	Status  string
+	Hue     string
 }
+
+// label is the text a body link shows: the author's alias, else the target's
+// title, else the raw target.
+func (l link) label() string {
+	if !l.Aliased && l.Title != "" {
+		return l.Title
+	}
+	return l.Text
+}
+
+func (l link) TypeWord() string { return strings.ReplaceAll(l.Type, "-", " ") }
 
 // resolver decides every typed link by artifact existence, never by file name,
 // so prefix-less types (product-design, decision, learning, thread) resolve.
+// lookup supplies a target's index row: one query per link on the server-wide
+// resolver, a map hit on a request's catalog.
 type resolver struct {
-	v  *core.Vault
-	db *index.DB
+	v      *core.Vault
+	lookup func(id string) (index.ArtifactRow, bool)
 }
 
 // resolve maps a wikilink target (`type.id`, optional `|alias` and `#anchor`)
@@ -37,12 +50,12 @@ type resolver struct {
 // raw text and an empty Href.
 func (r resolver) resolve(target string) link {
 	target = strings.TrimSpace(target)
-	name, label, hasLabel := strings.Cut(target, "|")
-	if !hasLabel {
+	name, label, aliased := strings.Cut(target, "|")
+	if !aliased {
 		label = name
 	}
 	name, _, _ = strings.Cut(name, "#")
-	l := link{Text: label}
+	l := link{Text: label, Aliased: aliased}
 	prefix, id, ok := strings.Cut(name, ".")
 	if !ok || id == "" {
 		return l
@@ -55,12 +68,9 @@ func (r resolver) resolve(target string) link {
 	l.Href = artifactHref(key)
 	l.Type = string(t)
 	// A target the index lacks keeps its link; only the status hue and title go.
-	if row, err := r.db.GetArtifact(key); err == nil {
-		l.Title = row.Title
-		l.Hue = strings.TrimPrefix(hue(l.Type, row.Status), " status-")
-		if l.Hue == "" {
-			l.Hue = row.Status
-		}
+	if row, ok := r.lookup(key); ok {
+		l.Title, l.Status = row.Title, row.Status
+		l.Hue = cmp.Or(hue(l.Type, row.Status), row.Status)
 	}
 	return l
 }
@@ -80,33 +90,4 @@ type tabs struct {
 
 func issueTabs(key, current string) tabs {
 	return tabs{Issue: artifactHref(key), Stack: stackHref(key), Current: current}
-}
-
-// linksSentence renders the distinct wikilinks under n as one sentence of
-// typed titles: "decision <a>…</a>, issue <a>…</a> and …". It is empty when n holds no wikilink.
-func linksSentence(res resolver, n ast.Node) template.HTML {
-	var parts []string
-	seen := map[string]bool{}
-	_ = ast.Walk(n, func(c ast.Node, entering bool) (ast.WalkStatus, error) {
-		w, ok := c.(*wikilinkNode)
-		if !entering || !ok || seen[w.target] {
-			return ast.WalkContinue, nil
-		}
-		seen[w.target] = true
-		l := res.resolve(w.target)
-		if l.Href == "" {
-			parts = append(parts, `<span class="unresolved">`+html.EscapeString(l.Text)+`</span>`)
-			return ast.WalkContinue, nil
-		}
-		title := cmp.Or(l.Title, l.Text)
-		parts = append(parts, strings.ReplaceAll(l.Type, "-", " ")+` <a href="`+html.EscapeString(l.Href)+`"`+hueAttr(l)+`>`+html.EscapeString(title)+`</a>`)
-		return ast.WalkContinue, nil
-	})
-	switch len(parts) {
-	case 0:
-		return ""
-	case 1:
-		return template.HTML(parts[0] + ".") //nolint:gosec // parts are escaped above
-	}
-	return template.HTML(strings.Join(parts[:len(parts)-1], ", ") + " and " + parts[len(parts)-1] + ".") //nolint:gosec // parts are escaped above
 }

@@ -102,7 +102,7 @@ func (s *server) fillLive(p *projectPage, live []index.ArtifactRow) error {
 		if err != nil {
 			return err
 		}
-		f := flight{proseItem: proseItem{node: leaf(r), Updated: shortDate(r.Updated)}, Judge: s.judge("milestone", art.FrontMatter, art.Body), Acceptance: acceptance(art.Body)}
+		f := flight{proseItem: proseItem{node: leaf(r), Updated: shortDate(r.Updated)}, Judge: s.res.judge("milestone", art.FrontMatter, art.Body), Acceptance: acceptance(art.Body)}
 		kids, err := s.milestoneIssues(r.ID, byID)
 		if err != nil {
 			return err

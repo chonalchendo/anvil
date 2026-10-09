@@ -15,6 +15,12 @@ type comparePage struct {
 // from the query, and a == b shows the same node twice.
 func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 	var page comparePage
+	vw, err := s.view()
+	if err != nil {
+		slog.Error("building compare view", "err", err)
+		http.Error(w, "page failed", http.StatusInternalServerError)
+		return
+	}
 	for i, name := range [2]string{"a", "b"} {
 		key, art, err := s.load(r.URL.Query().Get(name))
 		if errors.Is(err, errNotFound) {
@@ -26,7 +32,7 @@ func (s *server) compare(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "artifact unreadable", http.StatusInternalServerError)
 			return
 		}
-		page.Panes[i], err = s.node(key, art)
+		page.Panes[i], err = vw.node(key, art)
 		if err != nil {
 			slog.Error("building compare pane", "param", name, "key", key, "err", err)
 			http.Error(w, "page failed", http.StatusInternalServerError)

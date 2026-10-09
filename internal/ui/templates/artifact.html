@@ -2,8 +2,17 @@
 {{define "title"}}{{.Page.Title}} · anvil{{end}}
 {{define "content"}}{{with .Page}}
 <div class="desk">
+<div class="node-col">
+{{if .Tabs.Stack}}{{template "tabs" .Tabs}}{{end}}
+{{template "nodeheader" .}}
+{{range .Diagrams}}{{template "canvas" .}}
+{{end}}<section class="body">{{.Body}}</section>
+<details class="props" id="props"><summary>All properties</summary><dl>
+{{range .Props}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{template "ref" .}} {{end}}</dd>{{end}}
+</dl></details>
+</div>
 <section class="contents" aria-label="Contents">
-{{if .Crumbs}}<nav class="crumbs" aria-label="Spine">{{range .Crumbs}}{{template "ref" .}}<span aria-hidden="true"> › </span>{{end}}<span>{{.Head.Type}}</span></nav>{{end}}
+{{template "crumbs" .}}
 {{with .Outline}}<h2>On this page</h2>
 <ol class="outline">{{range .}}<li><a href="#{{.ID}}"><span class="n">{{.N}}</span>{{.Title}}<span class="c">{{.Size}}</span></a></li>{{end}}</ol>{{end}}
 {{with .Head.Judge}}<h2>Judge</h2>
@@ -17,13 +26,5 @@
 <ul>{{range .Items}}<li>{{template "ref" .}}</li>{{end}}{{if .More}}<li class="more"><a href="{{.MoreHref}}">{{.More}} more</a></li>{{end}}</ul>
 {{end}}</details>{{else}}<p class="muted">Nothing links here.</p>{{end}}
 </section>
-<div class="node-col">
-{{if .Tabs.Stack}}{{template "tabs" .Tabs}}{{end}}
-{{template "nodeheader" .}}
-{{range .Diagrams}}{{template "canvas" .}}
-{{end}}<section class="body">{{.Body}}</section>
-<details class="props"><summary>All properties</summary><dl>
-{{range .Props}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{template "ref" .}} {{end}}</dd>{{end}}
-</dl></details>
-</div></div>
+</div>
 {{end}}{{end}}
