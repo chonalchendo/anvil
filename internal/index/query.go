@@ -117,7 +117,7 @@ func (d *DB) SearchArtifactContent(query, excludeID string, f QueryFilters) ([]A
 	q := `
 SELECT a.id, a.type, a.status, a.project, a.title, a.path, a.created, a.updated
 FROM artifact_fts
-JOIN artifacts a ON a.id = artifact_fts.id
+JOIN artifacts a ON a.rowid = artifact_fts.rowid
 WHERE artifact_fts MATCH ? AND artifact_fts.type IN ('issue', 'milestone')`
 	args := []any{match}
 	if excludeID != "" {

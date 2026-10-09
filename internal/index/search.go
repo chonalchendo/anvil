@@ -21,7 +21,7 @@ func (d *DB) Search(q string, limit int) ([]SearchHit, error) {
 SELECT a.id, a.type, a.status, a.project, a.title, a.path, a.created, a.updated,
        snippet(artifact_fts, 2, char(2), char(3), '…', 24)
 FROM artifact_fts
-JOIN artifacts a ON a.id = artifact_fts.id
+JOIN artifacts a ON a.rowid = artifact_fts.rowid
 WHERE artifact_fts MATCH ?
 ORDER BY rank`
 	args := []any{match}

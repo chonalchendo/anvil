@@ -49,7 +49,7 @@ func (d *DB) DeleteArtifact(id string) error {
 	if _, err := tx.Exec(`DELETE FROM learning_fts WHERE id = ?`, id); err != nil {
 		return fmt.Errorf("delete learning fts for %s: %w", id, err)
 	}
-	if _, err := tx.Exec(`DELETE FROM artifact_fts WHERE id = ?`, id); err != nil {
+	if _, err := tx.Exec(`DELETE FROM artifact_fts WHERE rowid = `+artifactRowid, id); err != nil {
 		return fmt.Errorf("delete artifact fts for %s: %w", id, err)
 	}
 	if _, err := tx.Exec(`DELETE FROM tags WHERE artifact = ?`, id); err != nil {
@@ -81,6 +81,11 @@ func (d *DB) ReplaceLearningFTS(id, tldr string) error {
 	return tx.Commit()
 }
 
+// artifactRowid keys an artifact_fts row to its artifacts row. An UNINDEXED id
+// column has no lookup, so a delete by id scans the table and a full reindex
+// goes quadratic. UpsertArtifact keeps the rowid stable.
+const artifactRowid = `(SELECT rowid FROM artifacts WHERE id = ?)`
+
 // ReplaceArtifactFTS replaces the FTS row for an artifact: it drops any prior
 // row and inserts the new content. An empty content string clears the row
 // without inserting (artifact contributes nothing to content search).
@@ -90,11 +95,11 @@ func (d *DB) ReplaceArtifactFTS(id, typ, content string) error {
 		return fmt.Errorf("begin: %w", err)
 	}
 	defer tx.Rollback() //nolint:errcheck // rollback after successful commit returns ErrTxDone; error not actionable
-	if _, err := tx.Exec(`DELETE FROM artifact_fts WHERE id = ?`, id); err != nil {
+	if _, err := tx.Exec(`DELETE FROM artifact_fts WHERE rowid = `+artifactRowid, id); err != nil {
 		return fmt.Errorf("clear artifact fts %s: %w", id, err)
 	}
 	if content != "" {
-		if _, err := tx.Exec(`INSERT INTO artifact_fts(id, type, content) VALUES(?, ?, ?)`, id, typ, content); err != nil {
+		if _, err := tx.Exec(`INSERT INTO artifact_fts(rowid, id, type, content) VALUES(`+artifactRowid+`, ?, ?, ?)`, id, id, typ, content); err != nil {
 			return fmt.Errorf("insert artifact fts %s: %w", id, err)
 		}
 	}
