@@ -260,7 +260,7 @@ func TestTemplates_RenderOnFixtureData(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := httptest.NewRecorder()
-	p.render(rec, "artifact", artifactPage{
+	p.render(rec, "artifact", sidebar{}, artifactPage{
 		Title: "T", Key: "k.x", Crumbs: []link{{Text: "c", Href: "/artifact/c"}},
 		Props:   []prop{{Name: "n", Values: []link{{Text: "v", Plain: true}}}},
 		Hanging: []group{{Relation: "r", SourceType: "s", Items: []link{{Text: "x"}}}},
@@ -270,7 +270,7 @@ func TestTemplates_RenderOnFixtureData(t *testing.T) {
 		t.Fatalf("artifact template status = %d", rec.Code)
 	}
 	rec = httptest.NewRecorder()
-	p.render(rec, "home", nil)
+	p.render(rec, "home", sidebar{}, nil)
 	if rec.Code != 200 {
 		t.Fatalf("home template status = %d", rec.Code)
 	}

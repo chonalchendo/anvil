@@ -56,7 +56,7 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "page failed", http.StatusInternalServerError)
 		return
 	}
-	s.pages.render(w, "stack", page)
+	s.render(w, r, "stack", page)
 }
 
 func (s *server) buildStack(key string, h *hydrate.Hydration) (stackPage, error) {

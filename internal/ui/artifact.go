@@ -70,7 +70,7 @@ func (s *server) artifact(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "page failed", http.StatusInternalServerError)
 		return
 	}
-	s.pages.render(w, "artifact", page)
+	s.render(w, r, "artifact", page)
 }
 
 func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, error) {

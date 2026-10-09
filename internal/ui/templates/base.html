@@ -10,16 +10,21 @@
 <body>
 <aside class="sidebar">
   <a class="brand" href="/">anvil</a>
+  <label class="search"><input id="palette-q" type="search" readonly placeholder="Search or jump to…" aria-label="Search or jump to an artifact"><kbd>⌘K</kbd></label>
   <nav aria-label="Types">
-    {{range .Types}}<a href="/type/{{.}}">{{.}}</a>{{end}}
+    {{range .Sidebar.Groups}}<div class="group">{{.Name}}</div>
+    {{range .Types}}<a href="/type/{{.Type}}">{{.Label}}<span class="count">{{.Count}}</span></a>
+    {{end}}{{end}}
+    {{with .Sidebar.Projects}}<div class="group">Projects</div>
+    <ul class="projects">{{range .}}<li><a href="{{.Href}}">{{.Name}}</a></li>{{end}}</ul>{{end}}
   </nav>
-  <span class="hint"><kbd>⌘</kbd><kbd>K</kbd></span>
+  <div class="foot"><span>read-only</span>{{with .Sidebar.Port}}<span>:{{.}}</span>{{end}}</div>
 </aside>
 <main>{{block "content" .}}{{end}}</main>
-<dialog id="palette"><input id="palette-q" type="search" placeholder="Jump to…" aria-label="Jump to an artifact"><ul id="palette-list"></ul></dialog>
+<dialog id="palette"><input id="palette-dq" type="search" placeholder="Jump to…" aria-label="Jump to an artifact"><ul id="palette-list"></ul></dialog>
 <script>
 (function () {
-  var dlg = document.getElementById('palette'), q = document.getElementById('palette-q'),
+  var dlg = document.getElementById('palette'), q = document.getElementById('palette-dq'), side = document.getElementById('palette-q'),
       list = document.getElementById('palette-list'), entries = null, cur = 0;
   function show() {
     var s = q.value.toLowerCase(), n = 0;
@@ -36,9 +41,12 @@
     if (entries) return show();
     fetch('/palette').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (j) { entries = j; show(); }).catch(function () { /* entries stays unset: the next open retries */ });
   }
+  side.addEventListener('click', open);
+  side.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); } });
   q.addEventListener('input', function () { cur = 0; show(); });
   q.addEventListener('keydown', function (ev) {
     var items = list.children;
+    if (ev.key === 'Escape') { dlg.close(); return; }
     if (ev.key === 'ArrowDown' && cur < items.length - 1) cur++;
     else if (ev.key === 'ArrowUp' && cur > 0) cur--;
     else if (ev.key === 'Enter' && items[cur]) { location.href = '/artifact/' + encodeURIComponent(items[cur].dataset.key); return; }
