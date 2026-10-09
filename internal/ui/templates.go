@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"path"
 	"strings"
@@ -51,4 +52,15 @@ func (p pages) render(w http.ResponseWriter, name string, sb sidebar, data any) 
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(buf.Bytes())
+}
+
+// render builds the sidebar once per request, then renders the page.
+func (s *server) render(w http.ResponseWriter, r *http.Request, name string, data any) {
+	sb, err := s.sidebar(r)
+	if err != nil {
+		slog.Error("building sidebar", "err", err)
+		http.Error(w, "page failed", http.StatusInternalServerError)
+		return
+	}
+	s.pages.render(w, name, sb, data)
 }

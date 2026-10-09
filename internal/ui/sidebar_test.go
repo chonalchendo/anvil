@@ -27,9 +27,9 @@ func TestSidebar_CarriesGroupsCountsAndProjects(t *testing.T) {
 	sb := sidebarOf(t, body)
 	for _, want := range []string{
 		`id="palette-q"`, `>Design</div>`, `>Work</div>`, `>Knowledge</div>`, `>Capture</div>`,
-		`href="/type/decision">decision<span class="count">2</span>`,
-		`href="/type/thread">thread<span class="count">1</span>`,
-		`href="/type/session">session<span class="count">0</span>`,
+		`href="/type/decision">Decisions<span class="count">2</span>`,
+		`href="/type/thread">Threads<span class="count">1</span>`,
+		`href="/type/session">Sessions<span class="count">0</span>`,
 		`<ul class="projects">`, `href="/type/issue?project=a&#43;b%26c"`, `read-only`,
 	} {
 		if !strings.Contains(sb, want) {
@@ -47,6 +47,28 @@ func TestSidebar_RendersOnEveryPage(t *testing.T) {
 		_, body := do(h, "GET", p)
 		if !strings.Contains(sidebarOf(t, body), `class="group"`) {
 			t.Errorf("%s lacks the grouped sidebar", p)
+		}
+	}
+}
+
+// Warrant: a focus-triggered dialog would trap Tab at the sidebar input and strand keyboard users.
+func TestSidebar_InputOpensPaletteWithoutFocusTrap(t *testing.T) {
+	h, _ := seed(t)
+	_, body := do(h, "GET", "/")
+	if strings.Contains(body, "addEventListener('focus'") {
+		t.Error("palette opens on focus: Tab cannot pass the sidebar input")
+	}
+	for _, want := range []string{"side.addEventListener('click', open)", "side.addEventListener('keydown'"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page lacks %q", want)
+		}
+	}
+}
+
+func TestGroupThousands(t *testing.T) {
+	for n, want := range map[int]string{0: "0", 999: "999", 1000: "1,000", 12345: "12,345", 1234567: "1,234,567"} {
+		if got := groupThousands(n); got != want {
+			t.Errorf("groupThousands(%d) = %q, want %q", n, got, want)
 		}
 	}
 }

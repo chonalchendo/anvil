@@ -1,15 +1,16 @@
 package ui
 
 import (
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 )
 
 type sidebarType struct {
 	Type  string
-	Count int
+	Label string
+	Count string
 }
 
 type sidebarGroup struct {
@@ -26,26 +27,17 @@ type sidebar struct {
 	Port     string
 }
 
+type sidebarEntry struct{ typ, label string }
+
 // sidebarLayout groups every type by purpose, in display order.
 var sidebarLayout = []struct {
 	name  string
-	types []string
+	types []sidebarEntry
 }{
-	{"Design", []string{"product-design", "system-design", "component-design"}},
-	{"Work", []string{"milestone", "issue"}},
-	{"Knowledge", []string{"convention", "decision", "learning", "thread"}},
-	{"Capture", []string{"inbox", "session"}},
-}
-
-// render builds the sidebar once per request, then renders the page.
-func (s *server) render(w http.ResponseWriter, r *http.Request, name string, data any) {
-	sb, err := s.sidebar(r)
-	if err != nil {
-		slog.Error("building sidebar", "err", err)
-		http.Error(w, "page failed", http.StatusInternalServerError)
-		return
-	}
-	s.pages.render(w, name, sb, data)
+	{"Design", []sidebarEntry{{"product-design", "Product designs"}, {"system-design", "System designs"}, {"component-design", "Component designs"}}},
+	{"Work", []sidebarEntry{{"milestone", "Milestones"}, {"issue", "Issues"}}},
+	{"Knowledge", []sidebarEntry{{"convention", "Conventions"}, {"decision", "Decisions"}, {"learning", "Learnings"}, {"thread", "Threads"}}},
+	{"Capture", []sidebarEntry{{"inbox", "Inbox"}, {"session", "Sessions"}}},
 }
 
 func (s *server) sidebar(r *http.Request) (sidebar, error) {
@@ -61,7 +53,7 @@ func (s *server) sidebar(r *http.Request) (sidebar, error) {
 	for _, g := range sidebarLayout {
 		grp := sidebarGroup{Name: g.name}
 		for _, t := range g.types {
-			grp.Types = append(grp.Types, sidebarType{Type: t, Count: counts[t]})
+			grp.Types = append(grp.Types, sidebarType{Type: t.typ, Label: t.label, Count: groupThousands(counts[t.typ])})
 		}
 		sb.Groups = append(sb.Groups, grp)
 	}
@@ -73,4 +65,13 @@ func (s *server) sidebar(r *http.Request) (sidebar, error) {
 		sb.Port = port
 	}
 	return sb, nil
+}
+
+// groupThousands formats n with a comma between each group of three digits.
+func groupThousands(n int) string {
+	d := strconv.Itoa(n)
+	for i := len(d) - 3; i > 0; i -= 3 {
+		d = d[:i] + "," + d[i:]
+	}
+	return d
 }
