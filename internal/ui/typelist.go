@@ -32,10 +32,17 @@ type statusTab struct {
 
 type chip struct{ Label, Remove string }
 
+type projectChip struct {
+	Name, Href string
+	Current    bool
+}
+
 type typePage struct {
 	Type, Icon, Project, Status, To, Tag string
 	Tabs                                 []statusTab
 	Chips                                []chip
+	Projects                             []projectChip
+	AllHref                              string
 	Groups                               []statusGroup
 }
 
@@ -75,6 +82,9 @@ func (s *server) fillTypePage(page *typePage) error {
 	}
 	page.Tabs = statusTabs(page, rows)
 	page.Chips = chips(page)
+	if err := s.fillProjects(page); err != nil {
+		return err
+	}
 	if page.Status != "" {
 		rows = slices.DeleteFunc(rows, func(r index.ArtifactRow) bool { return r.Status != page.Status })
 	}
@@ -106,6 +116,19 @@ func (s *server) fillTypePage(page *typePage) error {
 		}
 		last.Rows = append(last.Rows, tr)
 	}
+	return nil
+}
+
+// fillProjects lists one chip per project, each keeping the other active filters; an empty project drops the filter.
+func (s *server) fillProjects(page *typePage) error {
+	projects, err := s.db.Projects()
+	if err != nil {
+		return err
+	}
+	for _, p := range projects {
+		page.Projects = append(page.Projects, projectChip{Name: p, Href: typeHref(page, "project", p), Current: p == page.Project})
+	}
+	page.AllHref = typeHref(page, "project", "")
 	return nil
 }
 
@@ -141,17 +164,20 @@ func statusTabs(page *typePage, rows []index.ArtifactRow) []statusTab {
 		return ra < rb || ra == rb && statuses[a] < statuses[b]
 	})
 	tabs := []statusTab{{Label: "All", Href: typeHref(page, "status", ""), Count: len(rows), Current: page.Status == ""}}
+	if page.Status != "" && n[page.Status] == 0 {
+		statuses = append(statuses, page.Status)
+	}
 	for _, st := range statuses {
 		tabs = append(tabs, statusTab{Label: st, Href: typeHref(page, "status", st), Count: n[st], Current: page.Status == st})
 	}
 	return tabs
 }
 
-// chips lists the active project, tag and link-target filters, each with a link that drops it.
+// chips lists the active tag and link-target filters, each with a link that drops it.
 func chips(page *typePage) []chip {
 	var out []chip
 	for _, c := range []struct{ key, label, val string }{
-		{"project", "project", page.Project}, {"tag", "tag", page.Tag}, {"to", "cites", page.To},
+		{"tag", "tag", page.Tag}, {"to", "cites", page.To},
 	} {
 		if c.val != "" {
 			out = append(out, chip{Label: c.label + " " + c.val, Remove: typeHref(page, c.key, "")})

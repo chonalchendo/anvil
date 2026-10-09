@@ -168,6 +168,12 @@ func TestTypeList_ToKeepsOnlyCitingArtifacts(t *testing.T) {
 
 func seedTyped(t *testing.T) http.Handler {
 	t.Helper()
+	h, _ := seedTypedVault(t)
+	return h
+}
+
+func seedTypedVault(t *testing.T) (http.Handler, *core.Vault) {
+	t.Helper()
 	h, v := seed(t)
 	writeArtifact(t, v, core.TypeDecision, "ui.0002-second", map[string]any{
 		"title": "Second one", "project": "anvil", "status": "accepted", "tags": []any{"domain/ui", "type/decision"},
@@ -182,7 +188,7 @@ func seedTyped(t *testing.T) http.Handler {
 	writeArtifact(t, v, core.TypeIssue, "anvil.0900-cites", map[string]any{
 		"title": "Cites", "project": "anvil", "related": []any{"[[decision.ui.0002-second]]"},
 	}, "x\n")
-	return h
+	return h, v
 }
 
 // Warrant: tab counts taken before the project filter, or hrefs dropping a filter, would mislead or break composition.
@@ -205,14 +211,42 @@ func TestTypeListTabs(t *testing.T) {
 	if strings.Contains(tabs, "other") {
 		t.Error("tabs leak the other project")
 	}
+	h, v := seedTypedVault(t)
+	writeArtifact(t, v, core.TypeDecision, "ui.0005-no-tag", map[string]any{
+		"title": "No tag", "project": "anvil", "status": "accepted", "tags": []any{"domain/ui"},
+		"related": []any{"[[product-design.anvil]]"},
+	}, "x\n")
+	writeArtifact(t, v, core.TypeDecision, "ui.0006-no-link", map[string]any{
+		"title": "No link", "project": "anvil", "status": "accepted", "tags": []any{"type/decision"},
+	}, "x\n")
 	_, body = do(h, "GET", "/type/decision?project=anvil&status=accepted&tag=type/decision&to=product-design.anvil")
-	if !strings.Contains(body, "decision.ui.0002-second") || strings.Contains(body, "decision.ui.0001-a-decision") {
-		t.Error("status, tag and to filters did not compose")
+	if !strings.Contains(body, "decision.ui.0002-second") {
+		t.Error("matching decision missing under the combined filter")
 	}
-	for _, want := range []string{"project anvil ×", "tag type/decision ×", "cites product-design.anvil ×", `aria-current="page">accepted`} {
-		if !strings.Contains(body, want) {
-			t.Errorf("composed page lacks %q", want)
+	for _, gone := range []string{"decision.ui.0001-a-decision", "decision.ui.0005-no-tag", "decision.ui.0006-no-link", "decision.ui.0003-third", "decision.ui.0004-fourth"} {
+		if strings.Contains(body, gone) {
+			t.Errorf("%s survived the combined filter", gone)
 		}
+	}
+	_, chipsHTML, _ := strings.Cut(body, `<div class="chips">`)
+	chipsHTML, _, _ = strings.Cut(chipsHTML, "</div>")
+	for _, want := range []string{
+		`href="/type/decision?project=anvil&amp;status=accepted&amp;to=product-design.anvil" title="Remove filter">tag type/decision ×`,
+		`href="/type/decision?project=anvil&amp;status=accepted&amp;tag=type%2Fdecision" title="Remove filter">cites product-design.anvil ×`,
+		`href="/type/decision?status=accepted&amp;tag=type%2Fdecision&amp;to=product-design.anvil">all</a>`,
+		`href="/type/decision?project=anvil&amp;status=accepted&amp;tag=type%2Fdecision&amp;to=product-design.anvil" aria-current="true">anvil</a>`,
+		`href="/type/decision?project=other&amp;status=accepted&amp;tag=type%2Fdecision&amp;to=product-design.anvil">other</a>`,
+	} {
+		if !strings.Contains(chipsHTML, want) {
+			t.Errorf("chips lack %q in\n%s", want, chipsHTML)
+		}
+	}
+	if !strings.Contains(body, `aria-current="page">accepted`) {
+		t.Error("accepted tab is not current")
+	}
+	_, body = do(h, "GET", "/type/decision?status=proposed&tag=domain/cli")
+	if !strings.Contains(body, `aria-current="page">proposed <span class="count">0</span>`) {
+		t.Errorf("empty active status lost its current tab:\n%s", body)
 	}
 	if _, body = do(h, "GET", "/type/decision?tag=domain/cli"); strings.Contains(body, "ui.0002-second") || !strings.Contains(body, "ui.0003-third") {
 		t.Error("tag filter did not discriminate")
@@ -255,8 +289,11 @@ func TestTypeIcons(t *testing.T) {
 	h, _ := seed(t)
 	_, page := do(h, "GET", decisionPath)
 	_, list := do(h, "GET", "/type/decision")
-	for name, body := range map[string]string{"header": page, "type list": list, "sidebar": sidebarOf(t, page)} {
-		if !strings.Contains(body, `>`+typeIcons["decision"]+`</span>`) {
+	icon := `>` + typeIcons["decision"] + `</span>`
+	header, _, _ := strings.Cut(strings.SplitN(page, `<header class="node">`, 2)[1], "</header>")
+	title, _, _ := strings.Cut(strings.SplitN(list, `<h1 class="node-title">`, 2)[1], "</h1>")
+	for name, region := range map[string]string{"header": header, "type list": title, "sidebar": sidebarOf(t, list)} {
+		if !strings.Contains(region, icon) {
 			t.Errorf("%s lacks the decision icon", name)
 		}
 	}
