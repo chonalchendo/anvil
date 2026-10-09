@@ -68,8 +68,10 @@ func TestTypeList_GroupsLiveFirstNewestFirst(t *testing.T) {
 		t.Error("older decision listed before newer in one group")
 	}
 	for _, c := range [][2]string{
-		{"ui.0012-live", "ui.0010-older"}, {"ui.0010-older", "ui.0014-gone"},
-		{"ui.0014-gone", "ui.0013-dead"}, {"ui.0013-dead", "ui.0015-odd"},
+		{"ui.0012-live", "ui.0010-older"},
+		{"ui.0010-older", "ui.0014-gone"},
+		{"ui.0014-gone", "ui.0013-dead"},
+		{"ui.0013-dead", "ui.0015-odd"},
 	} {
 		if at(c[0]) > at(c[1]) {
 			t.Errorf("%s should precede %s", c[0], c[1])
