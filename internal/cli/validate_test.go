@@ -790,3 +790,73 @@ func TestValidate_Sweep_MilestoneBodyShape_WarnsNotFails(t *testing.T) {
 		t.Errorf("output should carry severity warning, got: %s", out.String())
 	}
 }
+
+// writeDiagramSystemDesign plants a system design naming names (default "ghost")
+// and, when withFile, the ghost.html that resolves them.
+func writeDiagramSystemDesign(t *testing.T, vault string, withFile bool, names ...any) string {
+	t.Helper()
+	if len(names) == 0 {
+		names = []any{"ghost"}
+	}
+	if withFile {
+		dir := filepath.Join(vault, "_meta", "diagrams")
+		if err := os.MkdirAll(dir, 0o755); err != nil { //nolint:gosec // test fixture; 0755 matches vault convention
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "ghost.html"), []byte("<svg/>"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a := &core.Artifact{
+		Path: filepath.Join(vault, "06-system-designs", "foo.md"),
+		FrontMatter: map[string]any{
+			"type": "system-design", "title": "Foo", "description": "fixture",
+			"created": "2026-01-01", "updated": "2026-01-01", "status": "draft",
+			"project": "foo", "diagrams": names,
+		},
+		Body: "fixture body\n",
+	}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	return a.Path
+}
+
+// Warrant: validate that skips the file lookup passes a design whose diagram
+// does not exist, so the human view would render a hole.
+func TestValidateDiagrams_NamesMissingFileOnly(t *testing.T) {
+	for _, withFile := range []bool{false, true} {
+		vault := setupVault(t)
+		path := writeDiagramSystemDesign(t, vault, withFile)
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"validate", path})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		err := cmd.Execute()
+		if withFile && err != nil {
+			t.Errorf("file present: validate failed: %v\n%s", err, out.String())
+		}
+		if !withFile && (err == nil || !strings.Contains(out.String(), `diagram "ghost" has no file`)) {
+			t.Errorf("file missing: want diagram finding, err=%v\n%s", err, out.String())
+		}
+	}
+}
+
+// Warrant: validate that accepts a repeated diagram name lets a design list
+// one asset twice, so the human view renders it twice.
+func TestValidateDiagrams_RefusesDuplicateName(t *testing.T) {
+	vault := setupVault(t)
+	path := writeDiagramSystemDesign(t, vault, true, "ghost", "ghost")
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"validate", path})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Errorf("duplicate diagram name: want validate failure\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "field: diagrams") {
+		t.Errorf("output should name the diagrams field, got: %s", out.String())
+	}
+}

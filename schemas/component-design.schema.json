@@ -17,6 +17,7 @@
     "project":        { "type": "string", "minLength": 1 },
     "system_design":  { "type": "string", "minLength": 1 },
     "related":        { "type": "array", "items": { "type": "string" } },
+    "diagrams":       { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^[a-z0-9-]+$" } },
     "external_links": { "type": "array", "items": { "type": "string", "minLength": 1 } }
   },
   "additionalProperties": false
