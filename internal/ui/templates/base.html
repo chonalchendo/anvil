@@ -76,3 +76,4 @@
 </body>
 </html>
 {{define "ref"}}{{if .Href}}<a href="{{.Href}}">{{.Text}}</a>{{else if .Plain}}<span>{{.Text}}</span>{{else}}<span class="unresolved">{{.Text}}</span>{{end}}{{end}}
+{{define "tabs"}}<nav class="tabs" aria-label="Issue views"><a href="{{.Issue}}"{{if eq .Current "issue"}} aria-current="page"{{end}}>Issue</a><a href="{{.Stack}}"{{if eq .Current "stack"}} aria-current="page"{{end}}>Stack</a></nav>{{end}}

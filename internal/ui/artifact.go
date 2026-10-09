@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"sort"
 	"strings"
 
@@ -33,8 +32,8 @@ type artifactPage struct {
 	Body       template.HTML
 	Hanging    []group
 	Out        []group
-	// StackHref is set on issue pages only: hydrate is issue-only.
-	StackHref string
+	// Tabs is set on issue pages only: hydrate is issue-only.
+	Tabs tabs
 }
 
 // spineSlots are the frontmatter slots a breadcrumb climbs, in preference order.
@@ -91,19 +90,19 @@ func (s *server) buildArtifact(key string, art *core.Artifact) (artifactPage, er
 	if err != nil {
 		return artifactPage{}, fmt.Errorf("outgoing links: %w", err)
 	}
-	stack := ""
+	var tb tabs
 	if typeOfKey(key) == string(core.TypeIssue) {
-		stack = "/issue/" + url.PathEscape(key) + "/stack"
+		tb = issueTabs(key, "issue")
 	}
 	return artifactPage{
-		StackHref: stack,
-		Title:     title,
-		Key:       key,
-		Crumbs:    s.crumbs(key),
-		Props:     s.props(art.FrontMatter),
-		Body:      body,
-		Hanging:   s.groups(in, func(r index.LinkRow) (string, string) { return r.Source, typeOfKey(r.Source) }),
-		Out:       s.groups(out, func(r index.LinkRow) (string, string) { return r.Target, "" }),
+		Tabs:    tb,
+		Title:   title,
+		Key:     key,
+		Crumbs:  s.crumbs(key),
+		Props:   s.props(art.FrontMatter),
+		Body:    body,
+		Hanging: s.groups(in, func(r index.LinkRow) (string, string) { return r.Source, typeOfKey(r.Source) }),
+		Out:     s.groups(out, func(r index.LinkRow) (string, string) { return r.Target, "" }),
 	}, nil
 }
 

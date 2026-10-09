@@ -12,7 +12,7 @@ import (
 	"github.com/chonalchendo/anvil/internal/hydrate"
 )
 
-// layer is one hydrate node. Order, Size and Body mirror what the walk loads.
+// layer is one hydrate node; Size counts the body bytes the walk loads.
 type layer struct {
 	Type, Status, Glyph, Title, Size string
 	Ref                              link
@@ -21,6 +21,7 @@ type layer struct {
 
 type stackPage struct {
 	Title, Key string
+	Tabs       tabs
 	Total      string
 	Layers     []layer
 	Broken     []hydrate.BrokenEdge
@@ -59,7 +60,7 @@ func (s *server) stack(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) buildStack(key string, h *hydrate.Hydration) (stackPage, error) {
-	page := stackPage{Title: key, Key: key, Broken: h.Broken, Skipped: h.SkippedBodyLinks}
+	page := stackPage{Key: key, Tabs: issueTabs(key, "stack"), Broken: h.Broken, Skipped: h.SkippedBodyLinks}
 	total := 0
 	for _, n := range h.Nodes {
 		body, err := s.md.render(n.Body)
@@ -77,9 +78,7 @@ func (s *server) buildStack(key string, h *hydrate.Hydration) (stackPage, error)
 			Size: kb(len(n.Body)), Ref: link{Text: nk, Href: artifactHref(nk)}, Body: body,
 		})
 	}
-	if len(page.Layers) > 0 {
-		page.Title = page.Layers[0].Title
-	}
+	page.Title = page.Layers[0].Title
 	page.Total = kb(total)
 	return page, nil
 }

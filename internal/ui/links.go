@@ -47,3 +47,16 @@ func (r resolver) resolve(target string) link {
 func artifactHref(key string) string {
 	return "/artifact/" + url.PathEscape(key)
 }
+
+func stackHref(key string) string {
+	return "/issue/" + url.PathEscape(key) + "/stack"
+}
+
+// tabs is the issue-view switcher. A zero Stack means the page is not an issue.
+type tabs struct {
+	Issue, Stack, Current string
+}
+
+func issueTabs(key, current string) tabs {
+	return tabs{Issue: artifactHref(key), Stack: stackHref(key), Current: current}
+}
