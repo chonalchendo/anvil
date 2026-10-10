@@ -164,12 +164,10 @@ func topicsLede(topics, decisions, threads, proposed, open, listed, folded int) 
 		lede += " The other topic holds one decision and folds at the end."
 	case folded == 1:
 		lede += " It holds one decision and folds below."
+	case folded > 1 && listed == 0:
+		lede += " They hold one decision each and fold below."
 	case folded > 1:
-		other := ""
-		if listed > 0 {
-			other = "other "
-		}
-		lede += fmt.Sprintf(" The %s%s hold one decision each and fold at the end.", other, plural(folded, "topic", "topics"))
+		lede += fmt.Sprintf(" The other %s hold one decision each and fold at the end.", plural(folded, "topic", "topics"))
 	}
 	return lede + " " + noTopic
 }

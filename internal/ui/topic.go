@@ -373,6 +373,9 @@ func (s *server) stands(t *topic) (string, error) {
 		if desc == "" {
 			return "Open: " + th.Title, nil
 		}
+		if strings.HasSuffix(desc, "?") || strings.HasSuffix(desc, "!") {
+			return desc + " Open: " + th.Title, nil
+		}
 		return desc + "; open: " + th.Title, nil
 	}
 	if desc != "" {
