@@ -48,7 +48,7 @@ func TestScanSection(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			text, h2s, found := ScanSection(body, tt.want)
+			text, _, found := ScanSection(body, tt.want)
 			if found != tt.found || text != tt.text {
 				t.Errorf("ScanSection(%q) = %q, %v; want %q, %v", tt.want, text, found, tt.text, tt.found)
 			}
