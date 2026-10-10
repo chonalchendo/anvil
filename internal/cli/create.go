@@ -274,6 +274,12 @@ func newCreateCmd() *cobra.Command {
 			// path can never collide with an existing file — no drift check.
 			if !isTopicOrdinalType(t) {
 				if existing, err := core.LoadArtifact(path); err == nil {
+					if flagUpdate && !userAuthoredBody {
+						// No body flag: the template scaffold is not a caller
+						// intent, so it must neither count as drift nor replace
+						// the authored body.
+						body = existing.Body
+					}
 					drift := createDrift(t, fm, existing.FrontMatter, body, existing.Body)
 					if drift == "" {
 						return emitCreateResult(cmd, flagJSON, id, path, statusAlreadyExists, nil, nil, nil)
@@ -284,11 +290,6 @@ func newCreateCmd() *cobra.Command {
 					// --update path: keep every field the caller did not pass,
 					// then re-validate the merged fm + body before overwriting.
 					fm, changed := mergeUpdate(cmd, existing.FrontMatter, fm)
-					if !userAuthoredBody {
-						// No body flag: the body is the template scaffold,
-						// which must not replace the authored body.
-						body = existing.Body
-					}
 					if !sameBody(body, existing.Body) {
 						changed = append(changed, "body")
 					}

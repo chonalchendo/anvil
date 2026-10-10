@@ -2743,12 +2743,19 @@ func TestCreate_IdenticalRerun_NoOp(t *testing.T) {
 	body := "## Problem\nsame\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
 	base := []string{"create", "issue", "--title", "Rerun", "--description", "d", "--goal", "g", "--tags", "domain/dev-tools", "--allow-new-facet=domain", "--body", body}
 	path := createIssueGetPath(t, base...)
-	before, err := os.ReadFile(path) //nolint:gosec // test-controlled path
+	// Backdate `updated` so any rewrite shows as a byte change.
+	raw, err := os.ReadFile(path) //nolint:gosec // test-controlled path
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, extra := range [][]string{nil, {"--update"}} {
-		if _, _, err := runCmd(t, newRootCmd(), append(append([]string{}, base...), extra...)...); err != nil {
+	before := regexp.MustCompile(`(?m)^updated: .*$`).ReplaceAll(raw, []byte(`updated: "2026-01-01"`))
+	if err := os.WriteFile(path, before, 0o644); err != nil { //nolint:gosec // test-controlled path
+		t.Fatal(err)
+	}
+	noBody := base[:len(base)-2]
+	for _, run := range [][]string{base, append(append([]string{}, base...), "--update"), append(append([]string{}, noBody...), "--update")} {
+		extra := run
+		if _, _, err := runCmd(t, newRootCmd(), run...); err != nil {
 			t.Fatalf("identical re-run %v: %v", extra, err)
 		}
 		after, err := os.ReadFile(path) //nolint:gosec // test-controlled path
