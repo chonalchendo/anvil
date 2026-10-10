@@ -3,6 +3,9 @@ package cli
 import (
 	"bytes"
 	"fmt"
+	"maps"
+	"reflect"
+	"sort"
 	"text/template"
 	"time"
 
@@ -221,4 +224,35 @@ func normaliseDates(fm map[string]any) {
 			fm[k] = t.UTC().Format("2006-01-02")
 		}
 	}
+}
+
+// updateFlagKeys maps create flags to the frontmatter keys they set. Only
+// these keys overwrite an existing artifact on --update.
+var updateFlagKeys = map[string]string{
+	"title": "title", "description": "description", "goal": "goal",
+	"tags": "tags", "severity": "severity", "milestone": "milestone",
+	"acceptance": "acceptance", "scope": "scope", "kind": "kind",
+	"breaking": "breaking", "suggested-type": "suggested_type",
+	"suggested-project": "suggested_project",
+}
+
+// mergeUpdate returns existing with the caller-supplied flag fields from fm
+// laid over it, plus the sorted keys whose value changed. status, related
+// and every unsupplied field survive the rewrite.
+func mergeUpdate(cmd *cobra.Command, existing, fm map[string]any) (map[string]any, []string) {
+	merged := maps.Clone(existing)
+	for flag, key := range updateFlagKeys {
+		if v, ok := fm[key]; ok && cmd.Flags().Changed(flag) {
+			merged[key] = v
+		}
+	}
+	merged["updated"] = fm["updated"]
+	var changed []string
+	for k, v := range merged {
+		if k != "updated" && !reflect.DeepEqual(v, existing[k]) {
+			changed = append(changed, k)
+		}
+	}
+	sort.Strings(changed)
+	return merged, changed
 }

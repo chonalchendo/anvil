@@ -98,7 +98,7 @@ func newCreateCmd() *cobra.Command {
 			if cmd.Flags().Changed("project") && !t.SupportsProject() {
 				if t == core.TypeInbox {
 					if !cmd.Flags().Changed("suggested-project") {
-						flagSuggestedProject = flagProject
+						_ = cmd.Flags().Set("suggested-project", flagProject)
 					}
 					flagProject = ""
 				} else {
@@ -274,17 +274,24 @@ func newCreateCmd() *cobra.Command {
 			// path can never collide with an existing file — no drift check.
 			if !isTopicOrdinalType(t) {
 				if existing, err := core.LoadArtifact(path); err == nil {
+					if flagUpdate && !userAuthoredBody {
+						// No body flag: the template scaffold is not a caller
+						// intent, so it must neither count as drift nor replace
+						// the authored body.
+						body = existing.Body
+					}
 					drift := createDrift(t, fm, existing.FrontMatter, body, existing.Body)
 					if drift == "" {
-						return emitCreateResult(cmd, flagJSON, id, path, statusAlreadyExists, nil, nil)
+						return emitCreateResult(cmd, flagJSON, id, path, statusAlreadyExists, nil, nil, nil)
 					}
 					if !flagUpdate {
 						return formatDriftError(cmd, id, drift, fm, existing.FrontMatter, body, existing.Body)
 					}
-					// --update path: preserve `created`, then re-validate the new
-					// fm + body in one pass before overwriting.
-					if c, ok := existing.FrontMatter["created"]; ok {
-						fm["created"] = c
+					// --update path: keep every field the caller did not pass,
+					// then re-validate the merged fm + body before overwriting.
+					fm, changed := mergeUpdate(cmd, existing.FrontMatter, fm)
+					if !sameBody(body, existing.Body) {
+						changed = append(changed, "body")
 					}
 					findings, err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON, preValidationErrors...)
 					if err != nil {
@@ -305,7 +312,7 @@ func newCreateCmd() *cobra.Command {
 						}
 						return indexErr
 					}
-					return emitCreateResult(cmd, flagJSON, id, path, statusUpdated, nil, findings)
+					return emitCreateResult(cmd, flagJSON, id, path, statusUpdated, nil, findings, changed)
 				} else if !errors.Is(err, fs.ErrNotExist) {
 					return fmt.Errorf("checking %s: %w", path, err)
 				}
@@ -335,7 +342,7 @@ func newCreateCmd() *cobra.Command {
 			if !flagForceNew {
 				warnings = findNearDuplicates(v, t, project, id)
 			}
-			return emitCreateResult(cmd, flagJSON, id, path, statusCreated, warnings, findings)
+			return emitCreateResult(cmd, flagJSON, id, path, statusCreated, warnings, findings, nil)
 		},
 	}
 
@@ -356,7 +363,7 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagSource, "source", "claude-code", "session source ("+strings.Join(validSessionSources, "|")+")")
 	cmd.Flags().StringVar(&flagStartedAt, "started-at", "", "RFC3339 session start time (defaults to now)")
 	cmd.Flags().StringVar(&flagActiveThread, "active-thread", "", "active thread slug to record in related[]")
-	cmd.Flags().BoolVar(&flagUpdate, "update", false, "rewrite existing session artifact on drift")
+	cmd.Flags().BoolVar(&flagUpdate, "update", false, "on drift, rewrite the existing artifact: passed flags and body replace; status, related and other unpassed fields are kept")
 	cmd.Flags().StringSliceVar(&flagTags, "tags", nil, "comma-separated tag list (e.g. domain/dbt,activity/testing)")
 	cmd.Flags().StringSliceVar(&flagAllowNewFacet, "allow-new-facet", nil, "facet to suppress novelty gate for (repeatable: domain|activity|pattern)")
 	cmd.Flags().BoolVar(&flagForceNew, "force-new", false, "skip the near-duplicate similarity check")

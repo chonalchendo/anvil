@@ -19,12 +19,18 @@ const (
 	statusUpdated       createStatus = "updated"
 )
 
-func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status createStatus, warnings []string, findings []*errfmt.ValidationError) error {
+func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status createStatus, warnings []string, findings []*errfmt.ValidationError, changed []string) error {
 	if asJSON {
 		payload := map[string]any{
 			"id":     id,
 			"path":   path,
 			"status": string(status),
+		}
+		if status == statusUpdated {
+			if changed == nil {
+				changed = []string{}
+			}
+			payload["changed"] = changed
 		}
 		if ws := jsonWarnings(warnings, findings); len(ws) > 0 {
 			payload["warnings"] = ws
@@ -89,10 +95,16 @@ func createDrift(t core.Type, fm, existing map[string]any, body, existingBody st
 	if !tagsEqual(fm["tags"], existing["tags"]) {
 		return "tags"
 	}
-	if strings.TrimRight(body, "\n\t ") != strings.TrimRight(existingBody, "\n\t ") {
+	if !sameBody(body, existingBody) {
 		return "body"
 	}
 	return ""
+}
+
+// sameBody ignores surrounding whitespace: a saved body keeps a leading
+// newline the flag value lacks, and an identical re-run must be a no-op.
+func sameBody(a, b string) bool {
+	return strings.TrimSpace(a) == strings.TrimSpace(b)
 }
 
 func tagsEqual(a, b any) bool {

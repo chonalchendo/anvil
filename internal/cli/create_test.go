@@ -1894,7 +1894,18 @@ func TestCreate_Issue_BodyDrift_RefusedWithoutUpdate(t *testing.T) {
 	}
 
 	// With --update the existing numbered file is rewritten in place.
-	path2 := createIssueGetPath(t, append(append([]string{}, base...), "--body", withSections("different body"), "--update")...)
+	cmdU := newRootCmd()
+	cmdU.SetArgs(append(append([]string{}, base...), "--body", withSections("different body"), "--update", "--json"))
+	var outU bytes.Buffer
+	cmdU.SetOut(&outU)
+	if err := cmdU.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var respU map[string]any
+	if err := json.Unmarshal(outU.Bytes(), &respU); err != nil {
+		t.Fatal(err)
+	}
+	path2, _ := respU["path"].(string)
 	if path1 != path2 {
 		t.Errorf("--update should rewrite the same file; got %q then %q", path1, path2)
 	}
@@ -2635,5 +2646,203 @@ func TestCreateIssue_FromVaultCheckout_RefusesNamingProjectFlag(t *testing.T) {
 	_, _, err := runCmd(t, newRootCmd(), "create", "issue", "--title", "probe", "--description", "x")
 	if err == nil || !strings.Contains(err.Error(), "--project <slug>") || !strings.Contains(err.Error(), "vault checkout") {
 		t.Fatalf("err = %v, want vault-checkout refusal naming --project", err)
+	}
+}
+
+// --update keeps status, related and unsupplied fields, and the JSON envelope
+// names what changed (anvil.0372).
+func TestCreate_Update_KeepsStatusAndRelated(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	withSections := func(intro string) string {
+		return "## Problem\n" + intro + "\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
+	}
+	args := []string{
+		"create", "issue", "--title", "Keep edges", "--description", "d",
+		"--goal", "edges survive", "--tags", "domain/dev-tools", "--allow-new-facet=domain",
+	}
+	path := createIssueGetPath(t, append(append([]string{}, args...), "--body", withSections("old"), "--json")...)
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.FrontMatter["status"] = "in-progress"
+	a.FrontMatter["related"] = []any{"[[thread.x.y]]"}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{
+		"create", "issue", "--title", "Keep edges", "--description", "d",
+		"--goal", "edges survive", "--tags", "domain/dev-tools", "--allow-new-facet=domain",
+		"--body", withSections("new body"), "--update", "--json",
+	})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var resp struct {
+		Status  string   `json:"status"`
+		Changed []string `json:"changed"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Status != "updated" || len(resp.Changed) != 1 || resp.Changed[0] != "body" {
+		t.Errorf("envelope = %+v, want updated with changed=[body]", resp)
+	}
+	got, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.FrontMatter["status"] != "in-progress" {
+		t.Errorf("status = %v, want in-progress", got.FrontMatter["status"])
+	}
+	if rel, _ := got.FrontMatter["related"].([]any); len(rel) != 1 {
+		t.Errorf("related = %v, want kept", got.FrontMatter["related"])
+	}
+}
+
+// An unchanged body with a new --description reports only description
+// (anvil.0372): the marshalled body's leading newline is not a change.
+func TestCreate_Update_ChangedExcludesUnchangedBody(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	body := "## Problem\nsame\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
+	base := []string{"create", "issue", "--title", "Same body", "--goal", "g", "--tags", "domain/dev-tools", "--allow-new-facet=domain", "--body", body}
+	createIssueGetPath(t, append(append([]string{}, base...), "--description", "old")...)
+
+	stdout, _, err := runCmd(t, newRootCmd(), append(append([]string{}, base...), "--description", "new", "--update", "--json")...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resp struct {
+		Changed []string `json:"changed"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Changed) != 1 || resp.Changed[0] != "description" {
+		t.Errorf("changed = %v, want [description]", resp.Changed)
+	}
+}
+
+// An identical re-run is a no-op for both create and --update: exit 0, file
+// bytes (and so `updated`) untouched (anvil.0372, cli-tooling rule 6).
+func TestCreate_IdenticalRerun_NoOp(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	body := "## Problem\nsame\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
+	base := []string{"create", "issue", "--title", "Rerun", "--description", "d", "--goal", "g", "--tags", "domain/dev-tools", "--allow-new-facet=domain", "--body", body}
+	path := createIssueGetPath(t, base...)
+	// Backdate `updated` so any rewrite shows as a byte change.
+	raw, err := os.ReadFile(path) //nolint:gosec // test-controlled path
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := regexp.MustCompile(`(?m)^updated: .*$`).ReplaceAll(raw, []byte(`updated: "2026-01-01"`))
+	if err := os.WriteFile(path, before, 0o644); err != nil { //nolint:gosec // test-controlled path
+		t.Fatal(err)
+	}
+	noBody := base[:len(base)-2]
+	for _, run := range [][]string{base, append(append([]string{}, base...), "--update"), append(append([]string{}, noBody...), "--update")} {
+		extra := run
+		if _, _, err := runCmd(t, newRootCmd(), run...); err != nil {
+			t.Fatalf("identical re-run %v: %v", extra, err)
+		}
+		after, err := os.ReadFile(path) //nolint:gosec // test-controlled path
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(before, after) {
+			t.Errorf("identical re-run %v changed the file", extra)
+		}
+	}
+}
+
+// --update with no body flag keeps the authored body instead of resetting it
+// to the template scaffold (anvil.0372).
+func TestCreate_Update_NoBodyFlagKeepsBody(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	body := "## Problem\nauthored line\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
+	base := []string{"create", "issue", "--title", "Keep body", "--goal", "g", "--tags", "domain/dev-tools", "--allow-new-facet=domain"}
+	path := createIssueGetPath(t, append(append([]string{}, base...), "--description", "d1", "--body", body)...)
+
+	stdout, _, err := runCmd(t, newRootCmd(), append(append([]string{}, base...), "--description", "d2", "--update", "--json")...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resp struct {
+		Changed []string `json:"changed"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Changed) != 1 || resp.Changed[0] != "description" {
+		t.Errorf("changed = %v, want [description]", resp.Changed)
+	}
+	got, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got.Body, "authored line") {
+		t.Errorf("authored body lost: %q", got.Body)
+	}
+}
+
+// A passed flag whose key the type lacks must not write a nil into the
+// rewritten frontmatter (anvil.0372).
+func TestCreate_Update_FlagForAbsentKeyIsIgnored(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	if _, _, err := runCmd(t, newRootCmd(), "create", "product-design", "--title", "PD", "--description", "old"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := runCmd(t, newRootCmd(), "create", "product-design", "--title", "PD", "--description", "new", "--severity", "high", "--update"); err != nil {
+		t.Fatalf("update with --severity: %v", err)
+	}
+}
+
+// The inbox --project alias counts as a passed suggested-project flag, so
+// --update replaces the old value (anvil.0372).
+func TestCreate_Update_InboxProjectAliasApplies(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	args := []string{"create", "inbox", "--title", "alias probe", "--description", "d"}
+	if _, _, err := runCmd(t, newRootCmd(), append(append([]string{}, args...), "--project", "alpha")...); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := runCmd(t, newRootCmd(), append(append([]string{}, args...), "--project", "beta", "--update", "--json")...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resp struct {
+		Path    string   `json:"path"`
+		Changed []string `json:"changed"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &resp); err != nil {
+		t.Fatal(err)
+	}
+	a, err := core.LoadArtifact(resp.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.FrontMatter["suggested_project"] != "beta" {
+		t.Errorf("suggested_project = %v, want beta (changed=%v)", a.FrontMatter["suggested_project"], resp.Changed)
 	}
 }
