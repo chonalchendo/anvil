@@ -109,9 +109,9 @@ func createLongDescription() string {
 		"process group. Pass --skip-verify-predicates to opt out."
 }
 
-// sectionsForType returns the required body headings for the types that carry
-// a scaffold (learning, issue, milestone, component-design), or nil for the rest. Shared by the
-// no-body scaffold path and --show-template so the two can't drift.
+// sectionsForType returns the headings the no-body create scaffolds, or nil
+// for types without one. --show-template also prints the design types; see
+// runShowTemplate.
 func sectionsForType(t core.Type) []string {
 	switch t {
 	case core.TypeLearning:
@@ -129,12 +129,23 @@ func sectionsForType(t core.Type) []string {
 
 // runShowTemplate prints the required body skeleton and tag rules an author
 // needs before composing, then exits — moving create's section/facet checks
-// from a post-hoc rollback to an up-front affordance. Only learning, issue and
-// milestone carry a required-section template.
+// from a post-hoc rollback to an up-front affordance. Only learning, issue, milestone,
+// component-design, product-design and system-design carry a template.
 func runShowTemplate(cmd *cobra.Command, t core.Type) error {
-	sections := sectionsForType(t)
+	// The design types stay out of sectionsForType: the no-body create path
+	// must keep writing an empty design body (existing artifacts and drift
+	// checks rely on it).
+	var sections []string
+	switch t {
+	case core.TypeProductDesign:
+		sections = core.RequiredProductDesignSections
+	case core.TypeSystemDesign:
+		sections = core.RequiredSystemDesignSections
+	default:
+		sections = sectionsForType(t)
+	}
 	if sections == nil {
-		return fmt.Errorf("--show-template: no required body template for %s (learning, issue, milestone, component-design)", t)
+		return fmt.Errorf("--show-template: no required body template for %s (learning, issue, milestone, component-design, product-design, system-design)", t)
 	}
 	w := cmd.OutOrStdout()
 	fmt.Fprintln(w, core.ScaffoldSections(sections))
