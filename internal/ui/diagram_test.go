@@ -27,7 +27,7 @@ func TestDiagramPage_HoldsSandboxedCanvas(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("status = %d", code)
 	}
-	for _, want := range []string{`class="canvas"`, `<iframe sandbox="allow-same-origin" src="/diagram-src/anvil-two-loop"`, `data-full`, `<kbd>f</kbd> fit`} {
+	for _, want := range []string{`class="canvas"`, `<iframe sandbox="allow-same-origin" src="/diagram-src/anvil-two-loop"`, `data-full`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page lacks %s", want)
 		}
@@ -78,7 +78,7 @@ func TestDiagramRoutes_Refusals(t *testing.T) {
 func TestDiagramCanvas_OnDesignPageOnly(t *testing.T) {
 	h, _ := seed(t)
 	_, body := do(h, "GET", "/artifact/product-design.anvil")
-	for _, want := range []string{`class="canvas"`, `href="/diagram/anvil-two-loop"`, `<kbd>f</kbd> fit`, `<kbd>0</kbd> 1:1`} {
+	for _, want := range []string{`class="canvas"`, `href="/diagram/anvil-two-loop"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("design page lacks %s", want)
 		}
@@ -87,7 +87,7 @@ func TestDiagramCanvas_OnDesignPageOnly(t *testing.T) {
 		t.Error("canvas is not between the header and the body")
 	}
 	_, body = do(h, "GET", decisionPath)
-	for _, dead := range []string{`class="canvas"`, `<kbd>f</kbd>`, `<kbd>0</kbd>`} {
+	for _, dead := range []string{`class="canvas"`} {
 		if strings.Contains(body, dead) {
 			t.Errorf("decision page holds %s", dead)
 		}

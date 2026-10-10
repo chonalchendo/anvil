@@ -139,7 +139,7 @@ func TestArtifactPage_NoRailNoLinksOutAndNothingListedTwice(t *testing.T) {
 		t.Errorf("decision links outside the properties and cited-by folds = %d, want 2 (body, Links sentence)", n)
 	}
 	contents := contentsOf(t, body)
-	for _, want := range []string{`<h2>On this page</h2>`, `href="#why"`, `<span class="c">1 line</span>`, `<p class="prose">decision <a href="/artifact/decision.ui.0001-a-decision">A decision</a> and thread <a href="/artifact/thread.anvil-design-docs.0002-x">the thread</a>.</p>`} {
+	for _, want := range []string{`<h2>On this page</h2>`, `href="#why"`, `<p class="prose">decision <a href="/artifact/decision.ui.0001-a-decision">A decision</a> and thread <a href="/artifact/thread.anvil-design-docs.0002-x">the thread</a>.</p>`} {
 		if !strings.Contains(contents, want) {
 			t.Errorf("contents lacks %q", want)
 		}

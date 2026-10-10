@@ -17,36 +17,24 @@ func sidebarOf(t *testing.T, body string) string {
 	return body[a:b]
 }
 
-// Warrant: a count rendered from the wrong query or a missing group would leave a type unreachable or mislabelled.
-func TestSidebar_CarriesGroupsCountsAndProjects(t *testing.T) {
+// Warrant: fails if the sidebar regrows the type groups, counts or badge, or loses search or a project link.
+func TestSidebar_HoldsSearchKnowledgeAndProjectsOnly(t *testing.T) {
 	h, v := seed(t)
 	writeArtifact(t, v, core.TypeDecision, "ui.0002-second", map[string]any{
 		"title": "Second", "project": "a b&c",
 	}, "x\n")
-	_, body := do(h, "GET", "/artifact/product-design.anvil")
-	sb := sidebarOf(t, body)
-	for _, want := range []string{
-		`id="palette-q"`, `>Design</div>`, `>Work</div>`, `>Knowledge</div>`, `>Capture</div>`,
-		`href="/type/decision"><span class="ticon type-decision" aria-hidden="true">` + typeIcons["decision"] + `</span>Decisions<span class="count">2</span>`,
-		`href="/type/thread"><span class="ticon type-thread" aria-hidden="true">` + typeIcons["thread"] + `</span>Threads<span class="count">1</span>`,
-		`href="/type/session"><span class="ticon type-session" aria-hidden="true">` + typeIcons["session"] + `</span>Sessions<span class="count">0</span>`,
-		`<ul class="projects">`, `href="/project/a%20b&amp;c"`, `<details class="browse">`, `read-only`,
-	} {
-		if !strings.Contains(sb, want) {
-			t.Errorf("sidebar lacks %q in\n%s", want, sb)
-		}
-	}
-	if n := strings.Count(sb, `class="count"`); n != 11 {
-		t.Errorf("count spans = %d, want 11", n)
-	}
-}
-
-func TestSidebar_RendersOnEveryPage(t *testing.T) {
-	h, _ := seed(t)
 	for _, p := range []string{"/", "/type/decision", decisionPath, stackPath} {
 		_, body := do(h, "GET", p)
-		if !strings.Contains(sidebarOf(t, body), `class="group"`) {
-			t.Errorf("%s lacks the grouped sidebar", p)
+		sb := sidebarOf(t, body)
+		for _, want := range []string{`id="palette-q"`, `>Knowledge</a>`, `<ul class="projects">`, `href="/project/a%20b&amp;c"`} {
+			if !strings.Contains(sb, want) {
+				t.Errorf("%s: sidebar lacks %q in\n%s", p, want, sb)
+			}
+		}
+		for _, dead := range []string{`class="browse"`, `href="/type/`, `class="count"`, `read-only`} {
+			if strings.Contains(sb, dead) {
+				t.Errorf("%s: sidebar still holds %q", p, dead)
+			}
 		}
 	}
 }
@@ -59,19 +47,12 @@ func TestGroupThousands(t *testing.T) {
 	}
 }
 
-// Warrant: fails if a project loses its dashboard link, the current one is unmarked, or Browse opens by default.
-func TestSidebar_ProjectsFirstAndBrowseClosed(t *testing.T) {
+// Warrant: fails if a project loses its dashboard link or the current one is unmarked.
+func TestSidebar_CurrentProjectMarked(t *testing.T) {
 	h, _ := seed(t)
 	_, body := do(h, "GET", "/project/anvil")
-	sb := sidebarOf(t, body)
-	if !strings.Contains(sb, `<a href="/project/anvil" aria-current="page">anvil</a>`) {
+	if sb := sidebarOf(t, body); !strings.Contains(sb, `<a href="/project/anvil" aria-current="page">anvil</a>`) {
 		t.Errorf("current project is not marked:\n%s", sb)
-	}
-	if strings.Index(sb, `class="projects"`) > strings.Index(sb, `class="browse"`) {
-		t.Error("Projects must come before Browse")
-	}
-	if strings.Contains(sb, `<details class="browse" open`) {
-		t.Error("Browse opens by default")
 	}
 }
 

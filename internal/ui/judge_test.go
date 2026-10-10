@@ -27,14 +27,17 @@ func TestJudgeStrip_LearningShowsSetFieldsAndLeavesProps(t *testing.T) {
 		t.Fatal("judge fields missing from the contents column")
 	}
 	strip := judgeStrip(t, body)
-	for _, want := range []string{">confidence<", ">medium<", ">diataxis<", ">how-to<"} {
+	for _, want := range []string{">confidence<", ">medium<"} {
 		if !strings.Contains(strip, want) {
 			t.Errorf("strip lacks %q", want)
 		}
 	}
 	_, props, _ := strings.Cut(body, `<details class="props"`)
-	if strings.Contains(props, "<dt>confidence</dt>") || strings.Contains(props, "<dt>diataxis</dt>") {
-		t.Error("judge keys still in All properties")
+	if strings.Contains(props, "<dt>confidence</dt>") {
+		t.Error("judge key still in All properties")
+	}
+	if strings.Contains(strip, ">diataxis<") || !strings.Contains(props, "<dt>diataxis</dt>") {
+		t.Error("diataxis belongs in All properties, not the strip")
 	}
 	if !strings.Contains(props, "<dt>tags</dt>") {
 		t.Error("non-judge key left props")
@@ -63,7 +66,7 @@ func TestJudgeStrip_OtherTypesGetNone(t *testing.T) {
 	}
 }
 
-// The strip follows judgeKeys order: date, supersedes, superseded_by.
+// The strip follows judgeKeys order: supersedes, superseded_by.
 // A reorder of that slice must fail here, not pass on mere presence.
 func TestJudgeStrip_DecisionShowsEveryKeyAndNoMeasured(t *testing.T) {
 	h, v := seed(t)
@@ -74,14 +77,17 @@ func TestJudgeStrip_DecisionShowsEveryKeyAndNoMeasured(t *testing.T) {
 	}, "## Status\n\nMeasured: x\n")
 	_, body := do(h, "GET", "/artifact/decision.ui.0002-dated")
 	strip := judgeStrip(t, body)
-	for _, want := range []string{">date<", ">2026-10-09<", ">supersedes<", `href="/artifact/decision.ui.0001-a-decision"`, ">superseded_by<"} {
+	for _, want := range []string{">supersedes<", `href="/artifact/decision.ui.0001-a-decision"`, ">superseded_by<"} {
 		if !strings.Contains(strip, want) {
 			t.Errorf("strip lacks %q", want)
 		}
 	}
-	date, sup, supBy := strings.Index(strip, ">date<"), strings.Index(strip, ">supersedes<"), strings.Index(strip, ">superseded_by<")
-	if date >= sup || sup >= supBy {
-		t.Fatalf("strip order: date=%d supersedes=%d superseded_by=%d, want date < supersedes < superseded_by", date, sup, supBy)
+	if strings.Contains(strip, ">date<") {
+		t.Error("decision strip still shows date")
+	}
+	sup, supBy := strings.Index(strip, ">supersedes<"), strings.Index(strip, ">superseded_by<")
+	if sup >= supBy {
+		t.Fatalf("strip order: supersedes=%d superseded_by=%d, want supersedes first", sup, supBy)
 	}
 	if strings.Contains(strip, ">measured<") {
 		t.Error("decision got a Measured row")

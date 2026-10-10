@@ -8,11 +8,11 @@ import (
 const sectionBody = "intro\n\n## One\n\n- a\n- b\n\n```\n## not a heading\n```\n\n## Two\n\ntext\n\n### Sub\n"
 
 func TestSection_WrapsEachH2(t *testing.T) {
-	out, err := newMarkdown(resolver{}).renderSections(sectionBody)
+	out, err := newMarkdown(resolver{}).renderPage(sectionBody, resolver{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := string(out)
+	got := string(out.HTML)
 	if n := strings.Count(got, `<details class="section"`); n != 2 {
 		t.Fatalf("sections = %d, want 2:\n%s", n, got)
 	}
@@ -45,11 +45,11 @@ func TestFold_StackStaysFlatAndArtifactFolds(t *testing.T) {
 }
 
 func TestSection_H1ClosesOpenSection(t *testing.T) {
-	out, err := newMarkdown(resolver{}).renderSections("## One\n\ntext\n\n# Top\n\nafter\n")
+	out, err := newMarkdown(resolver{}).renderPage("## One\n\ntext\n\n# Top\n\nafter\n", resolver{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := string(out)
+	got := string(out.HTML)
 	if n := strings.Count(got, `<details class="section"`); n != 1 {
 		t.Fatalf("sections = %d, want 1:\n%s", n, got)
 	}
@@ -61,14 +61,11 @@ func TestSection_H1ClosesOpenSection(t *testing.T) {
 // Warrant: an empty `##` has no title line; reading it unguarded panics the handler.
 func TestSection_EmptyHeadingRendersWithoutPanic(t *testing.T) {
 	md := newMarkdown(resolver{})
-	if _, err := md.renderSections("##\n\nx\n"); err != nil {
-		t.Fatal(err)
-	}
 	pb, err := md.renderPage("##\n\nx\n\n## Two\n\ny\n", resolver{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(pb.Outline) != 1 || pb.Outline[0].Title != "Two" || pb.Outline[0].N != 1 || pb.Outline[0].Size != "1 line" {
+	if len(pb.Outline) != 1 || pb.Outline[0].Title != "Two" || pb.Outline[0].N != 1 {
 		t.Errorf("outline = %+v", pb.Outline)
 	}
 }

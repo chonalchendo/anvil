@@ -17,17 +17,8 @@
     {{with .Sidebar.Projects}}<div class="group">Projects</div>
     <ul class="projects">{{range .}}<li><a href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{.Name}}</a></li>{{end}}</ul>{{end}}
   </nav>
-  <details class="browse"><summary class="label">Browse</summary>
-  <nav aria-label="Types">
-    {{range .Sidebar.Groups}}<div class="group">{{.Name}}</div>
-    {{range .Types}}<a href="/type/{{.Type}}"><span class="ticon type-{{.Type}}" aria-hidden="true">{{.Icon}}</span>{{.Label}}<span class="count">{{.Count}}</span></a>
-    {{end}}{{end}}
-  </nav>
-  </details>
-  <div class="foot"><span>read-only</span>{{with .Sidebar.Port}}<span>:{{.}}</span>{{end}}</div>
 </aside>
 <main>{{block "content" .}}{{end}}</main>
-<footer class="keys">{{block "keys" .}}<span><kbd>⌘K</kbd> jump</span>{{end}}</footer>
 <dialog id="palette"><input id="palette-dq" type="search" placeholder="Jump to…" aria-label="Jump to an artifact"><ul id="palette-list" aria-live="polite"></ul></dialog>
 <script>
 (function () {

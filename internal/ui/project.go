@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ type proseItem struct {
 
 type projectPage struct {
 	Name, Deck    string
+	Conventions   string
 	Counts        []proseItem
 	Milestones    milestonesPanel
 	Done          []doneRow
@@ -58,6 +60,11 @@ func (s *server) project(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) buildProject(name string, counts map[string]map[string]int) (projectPage, error) {
 	page := projectPage{Name: name, LearnedDrafts: counts["learning"]["draft"]}
+	all, err := s.db.CountByType()
+	if err != nil {
+		return page, err
+	}
+	page.Conventions = groupThousands(all["convention"])
 	threads, err := s.projectThreads(name)
 	if err != nil {
 		return page, err
@@ -158,4 +165,13 @@ func sumCounts(m map[string]int) int {
 		t += n
 	}
 	return t
+}
+
+// groupThousands formats n with a comma between each group of three digits.
+func groupThousands(n int) string {
+	d := strconv.Itoa(n)
+	for i := len(d) - 3; i > 0; i -= 3 {
+		d = d[:i] + "," + d[i:]
+	}
+	return d
 }

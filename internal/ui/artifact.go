@@ -40,9 +40,6 @@ type header struct {
 	Type, Icon, Status, Glyph, Project, Updated, Description string
 	Slots                                                    []prop
 	Judge                                                    []prop
-	// Refs are the typed slots compare shows under each header; the artifact
-	// page climbs them in the breadcrumb and folds them into "All properties".
-	Refs []prop
 }
 
 type artifactPage struct {
@@ -145,38 +142,16 @@ func (s *server) artifact(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, "artifact", page)
 }
 
-// node fills the part of the page every view of one artifact shares: title,
-// key, header and rendered body.
-func (s *view) node(key string, art *core.Artifact) (artifactPage, error) {
-	body, err := s.md.renderSections(art.Body)
-	if err != nil {
-		return artifactPage{}, err
-	}
-	page := s.shell(key, art, body)
-	page.Crumbs = s.crumbs(key, page.Head.Project)
-	for _, n := range refSlots {
-		if v, ok := art.FrontMatter[n]; ok {
-			page.Head.Refs = append(page.Head.Refs, s.res.prop(n, v))
-		}
-	}
-	return page, nil
-}
-
-// shell is node with the body already rendered.
-func (s *view) shell(key string, art *core.Artifact, body template.HTML) artifactPage {
-	title, _ := art.FrontMatter["title"].(string)
-	if title == "" {
-		title = key
-	}
-	return artifactPage{Title: title, Key: key, Head: s.header(key, art.FrontMatter, art.Body), Body: body}
-}
-
 func (s *view) buildArtifact(key string, art *core.Artifact) (artifactPage, error) {
 	pb, err := s.md.renderPage(art.Body, s.res)
 	if err != nil {
 		return artifactPage{}, err
 	}
-	page := s.shell(key, art, pb.HTML)
+	title, _ := art.FrontMatter["title"].(string)
+	if title == "" {
+		title = key
+	}
+	page := artifactPage{Title: title, Key: key, Head: s.header(key, art.FrontMatter, art.Body), Body: pb.HTML}
 	in, err := s.db.LinksTo(key)
 	if err != nil {
 		return artifactPage{}, fmt.Errorf("incoming links: %w", err)
@@ -196,8 +171,8 @@ func (s *view) buildArtifact(key string, art *core.Artifact) (artifactPage, erro
 	}
 	page.Props = s.props(typeOfKey(key), art.FrontMatter)
 	page.Outline, page.Links = pb.Outline, pb.Links
-	if n := len(page.Props); n > 0 {
-		page.Outline = append(page.Outline, outlineItem{N: len(page.Outline) + 1, Title: "All properties", ID: "props", Size: sizeOf(n, "field")})
+	if len(page.Props) > 0 {
+		page.Outline = append(page.Outline, outlineItem{N: len(page.Outline) + 1, Title: "All properties", ID: "props"})
 	}
 	page.Cited = cited
 	for _, g := range cited {
@@ -210,9 +185,6 @@ func typeOfKey(key string) string {
 	t, _, _ := strings.Cut(key, ".")
 	return t
 }
-
-// refSlots are the typed slots compare shows under each header.
-var refSlots = []string{"milestone", "product_design", "system_design", "related"}
 
 // headerSlots are the typed slots the state line shows as links. The spine
 // slots sit in the breadcrumb and the rest fold into "All properties".

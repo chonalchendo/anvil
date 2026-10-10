@@ -161,11 +161,10 @@ var (
 )
 
 // sectionNode groups an H2 and the blocks up to the next H2 or H1 as a fold.
-// id anchors the outline; title and lines feed it.
+// id and title feed the outline.
 type sectionNode struct {
 	ast.BaseBlock
 	id, title string
-	lines     int
 	titled    bool
 }
 
@@ -207,25 +206,19 @@ func renderSummary(w util.BufWriter, _ []byte, _ ast.Node, entering bool) (ast.W
 // into a sectionNode.
 func foldSections(doc ast.Node, src []byte) {
 	var sec *sectionNode
-	var secs []*sectionNode
-	var starts []int
 	ids := map[string]int{}
 	for c := doc.FirstChild(); c != nil; {
 		next := c.NextSibling()
 		if h, ok := c.(*ast.Heading); ok && h.Level == 1 {
 			sec = nil
 		} else if ok && h.Level == 2 {
-			// An empty `##` has no line segment: it has no title, and its
-			// section is counted from the block after it.
-			title, start, titled := "", len(src), h.Lines().Len() > 0
+			// An empty `##` has no line segment, hence no title.
+			title, titled := "", h.Lines().Len() > 0
 			if titled {
 				seg := h.Lines().At(0)
-				title, start = strings.ReplaceAll(string(seg.Value(src)), "`", ""), seg.Start
-			} else if n := firstLine(next); n >= 0 {
-				start = n
+				title = strings.ReplaceAll(string(seg.Value(src)), "`", "")
 			}
 			sec = &sectionNode{title: title, id: slug(title, ids), titled: titled}
-			secs, starts = append(secs, sec), append(starts, start)
 			sum := &summaryNode{}
 			doc.InsertBefore(doc, c, sec)
 			doc.RemoveChild(doc, c)
@@ -236,41 +229,6 @@ func foldSections(doc ast.Node, src []byte) {
 			sec.AppendChild(sec, c)
 		}
 		c = next
-	}
-	countLines(secs, starts, src)
-}
-
-// firstLine is the source offset where n's first line starts, or -1 when n or
-// its descendants hold no line.
-func firstLine(n ast.Node) int {
-	at := -1
-	if n != nil {
-		_ = ast.Walk(n, func(c ast.Node, entering bool) (ast.WalkStatus, error) {
-			if !entering || c.Type() != ast.TypeBlock || c.Lines().Len() == 0 {
-				return ast.WalkContinue, nil
-			}
-			at = c.Lines().At(0).Start
-			return ast.WalkStop, nil
-		})
-	}
-	return at
-}
-
-// countLines sets each section's non-blank line count, heading excluded.
-func countLines(secs []*sectionNode, starts []int, src []byte) {
-	for i, sec := range secs {
-		end := len(src)
-		if i+1 < len(secs) {
-			end = max(starts[i], bytes.LastIndexByte(src[:starts[i+1]], '\n')+1)
-		}
-		for l := range bytes.SplitSeq(src[starts[i]:end], []byte("\n")) {
-			if len(bytes.TrimSpace(l)) > 0 {
-				sec.lines++
-			}
-		}
-		if sec.titled {
-			sec.lines-- // the heading line
-		}
 	}
 }
 
@@ -289,14 +247,6 @@ func slug(title string, seen map[string]int) string {
 
 var nonAlnum = regexp.MustCompile(`[^a-z0-9]+`)
 
-// renderSections is render with each H2 section folded as a details element.
-func (m markdown) renderSections(body string) (template.HTML, error) {
-	src := []byte(body)
-	doc := m.md.Parser().Parse(text.NewReader(src))
-	foldSections(doc, src)
-	return m.renderDoc(doc, src)
-}
-
 func (m markdown) renderDoc(doc ast.Node, src []byte) (template.HTML, error) {
 	var buf bytes.Buffer
 	if err := m.md.Renderer().Render(&buf, src, doc); err != nil {
@@ -307,9 +257,9 @@ func (m markdown) renderDoc(doc ast.Node, src []byte) (template.HTML, error) {
 
 // outlineItem is one H2 of the contents column.
 type outlineItem struct {
-	N        int
-	Title    string
-	ID, Size string
+	N     int
+	Title string
+	ID    string
 }
 
 // pageBody is an artifact body split for the page: the sections, their
@@ -334,7 +284,7 @@ func (m markdown) renderPage(body string, res resolver) (pageBody, error) {
 				pb.Links = sent
 				doc.RemoveChild(doc, c)
 			} else {
-				pb.Outline = append(pb.Outline, outlineItem{N: len(pb.Outline) + 1, Title: sec.title, ID: sec.id, Size: sizeOf(sec.lines, "line")})
+				pb.Outline = append(pb.Outline, outlineItem{N: len(pb.Outline) + 1, Title: sec.title, ID: sec.id})
 			}
 		}
 		c = next
@@ -402,11 +352,4 @@ func linksSentence(res resolver, targets []string) template.HTML {
 		return template.HTML(strings.Join(parts, "") + ".") //nolint:gosec // parts are escaped by linkHTML
 	}
 	return template.HTML(strings.Join(parts[:last], ", ") + " and " + parts[last] + ".") //nolint:gosec // parts are escaped by linkHTML
-}
-
-func sizeOf(n int, unit string) string {
-	if n == 1 {
-		return "1 " + unit
-	}
-	return strconv.Itoa(n) + " " + unit + "s"
 }
