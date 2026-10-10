@@ -124,9 +124,9 @@
 </script>
 </body>
 </html>
-{{define "crumbs"}}{{if or .Crumbs .Head.Project}}<nav class="crumbs" aria-label="Spine">{{with .Head.Project}}<a href="/project/{{.}}">{{.}}</a><span aria-hidden="true"> › </span>{{end}}{{range .Crumbs}}{{if .Href}}<a href="{{.Href}}"{{with .Title}} title="{{.}}"{{end}}>{{.TypeWord}}</a>{{else}}<span class="unresolved">{{.Text}}</span>{{end}}<span aria-hidden="true"> › </span>{{end}}<span>{{.Head.Type}}</span></nav>{{end}}{{end}}
+{{define "crumbs"}}{{if or .Crumbs .Head.Project}}<nav class="crumbs" aria-label="Breadcrumb">{{with .Head.Project}}<a href="/project/{{.}}" translate="no">{{.}}</a>{{end}}{{range .Crumbs}}<span aria-hidden="true"> › </span>{{anchor .}}{{end}}</nav>{{end}}{{end}}
 {{define "tabs"}}<nav class="tabs" aria-label="Issue views"><a href="{{.Issue}}"{{if eq .Current "issue"}} aria-current="page"{{end}}>Issue</a><a href="{{.Stack}}"{{if eq .Current "stack"}} aria-current="page"{{end}}>Stack</a></nav>{{end}}
-{{define "judge"}}<div class="judge">{{range .}}<span class="jk">{{.Name}}</span><span class="jv">{{range .Values}}{{anchor .}} {{end}}</span>{{end}}</div>{{end}}
+{{define "judge"}}<div class="judge">{{range .}}<span class="jk">{{.Name}}</span><span class="jv">{{range .Values}}{{anchor .}} {{end}}{{range .Rich}}{{if .Href}}<a href="{{.Href}}" translate="no">{{.Text}}</a>{{else if .ISO}}<time datetime="{{.ISO}}">{{.Text}}</time>{{else}}<span{{with .Class}} class="{{.}}"{{end}}{{with .Title}} title="{{.}}"{{end}}>{{.Text}}</span>{{end}} {{end}}</span>{{end}}</div>{{end}}
 {{define "nodeheader"}}<header class="node">
 <div class="node-title"><span class="ticon type-{{.Head.Type}}" title="{{.Head.Type}}" aria-hidden="true">{{.Head.Icon}}</span><h1>{{.Title}}</h1></div>
 {{with .Head.Description}}<p class="deck">{{.}}</p>{{end}}
@@ -136,3 +136,8 @@
 <div class="canvas-bar"><button type="button" data-act="fit">Fit</button><button type="button" data-act="actual">1:1</button><button type="button" data-act="full">Fullscreen</button>{{if not .Full}}<a href="/diagram/{{.Name}}">Open</a>{{end}}</div>
 <div class="stage"><iframe sandbox="allow-same-origin"{{if .Lazy}} loading="lazy"{{end}} src="/diagram-src/{{.Name}}" title="{{.Name}}" tabindex="-1"></iframe></div>
 </div>{{end}}
+{{define "issuetable"}}<table class="iss"><colgroup><col><col class="w-st"><col class="w-v"><col class="w-pr"><col class="w-r"><col class="w-tk"><col class="w-u"><col class="w-o"></colgroup>
+    <thead><tr><th scope="col">Issue</th><th scope="col">Status</th><th scope="col">Verdict</th><th scope="col">PR</th><th scope="col" class="n">Rounds</th><th scope="col" class="n">Tokens</th><th scope="col" class="n">Updated</th><th scope="col">Owner</th></tr></thead>
+    <tbody>{{range .}}<tr><td class="issue"><span class="ord" translate="no">{{.Ord}}</span><a href="{{.Href}}" class="to-{{.Status}}">{{.Title}}</a></td><td>{{template "stat" .}}</td><td>{{template "dash" .Verdict}}</td><td>{{if .PRHref}}<a href="{{.PRHref}}" translate="no">{{.PR}}</a>{{else}}{{template "dash" ""}}{{end}}</td><td class="n">{{template "dash" .Rounds}}</td><td class="n">{{template "dash" .Tokens}}</td><td class="n">{{if .Updated}}<time datetime="{{.UpdatedISO}}">{{.Updated}}</time>{{else}}{{template "dash" ""}}{{end}}</td><td class="own" translate="no">{{template "dash" .Owner}}</td></tr>{{end}}</tbody></table>{{end}}
+{{define "stat"}}<span class="status status-{{.Status}}{{with hue .Type .Status}} status-{{.}}{{end}}">{{.Glyph}} {{.Status}}</span>{{end}}
+{{define "dash"}}{{if .}}{{.}}{{else}}<span class="none" aria-label="none">—</span>{{end}}{{end}}

@@ -215,9 +215,9 @@ table.iss { width: calc(100% - 34px); margin: 0 0 14px 34px; border-collapse: co
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; border-bottom: 0; }
 
 main:has(.desk) { padding: 0; }
-.desk { display: grid; grid-template-columns: minmax(300px, 26%) minmax(0, 1fr); grid-template-areas: "contents node"; min-height: 100vh; }
-.contents { grid-area: contents; position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 28px 24px 56px; background: var(--panel); border-right: 1px solid var(--border); }
-.contents .crumbs { margin: 0 0 18px; }
+.desk { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 22vw, 400px); grid-template-areas: "node contents"; min-height: 100vh; }
+.contents { grid-area: contents; position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 28px 24px 56px; background: var(--panel); border-left: 1px solid var(--border); }
+.node-col .crumbs { margin: 0 0 14px; }
 .contents h2 { margin: 18px 0 8px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
 .contents h2:first-child { margin-top: 0; }
 .contents h3 { margin: 10px 0 2px; font-size: 12px; font-weight: 500; }
@@ -231,7 +231,7 @@ main:has(.desk) { padding: 0; }
 .outline .n, .outline .c { color: var(--muted); font-variant-numeric: tabular-nums; }
 .outline .n { min-width: 2ch; }
 .outline .c { margin-left: auto; white-space: nowrap; }
-.contents .judge { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.contents .judge { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; }
 .contents .judge .jv { margin-right: 0; overflow-wrap: anywhere; }
 .contents .prose { margin: 0; padding-top: 12px; border-top: 1px solid var(--border); color: var(--text-2); }
 .contents details.cited { padding-top: 12px; border-top: 1px solid var(--border); }
@@ -282,3 +282,7 @@ main:has(.knowledge), main:has(.topic) { padding: 36px 48px 64px; }
 .rows .route { grid-column: 2 / -1; color: var(--text-2); }
 .sub { margin: 14px 0 4px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
 .none-yet { margin: 0; padding: 6px 0 4px; color: var(--muted); }
+.judge .sha { font-family: var(--mono); font-size: 12px; }
+.issues { margin-top: 28px; }
+.issues h2 { margin: 0 0 10px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
+.issues table.iss { width: 100%; margin-left: 0; }

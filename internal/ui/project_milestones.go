@@ -157,15 +157,29 @@ func (s *server) issueRows(rows []index.ArtifactRow) ([]issueRow, error) {
 		}
 		links, _ := fm["external_links"].([]any)
 		for _, l := range links {
-			if u, _ := l.(string); strings.Contains(u, "/pull/") {
-				num, _, _ := strings.Cut(u[strings.Index(u, "/pull/")+len("/pull/"):], "/")
-				row.PRHref, row.PR = u, "#"+num
-				break
+			if u, _ := l.(string); u != "" {
+				if n, ok := prNumber(u); ok {
+					row.PRHref, row.PR = u, "#"+n
+					break
+				}
 			}
 		}
 		out = append(out, row)
 	}
 	return out, nil
+}
+
+// milestoneIssues lists every issue of a milestone, newest first, for its page.
+func (s *view) milestoneIssues(key, project string) ([]issueRow, error) {
+	issues, err := s.db.ListByType("issue", index.QueryFilters{Project: project})
+	if err != nil {
+		return nil, err
+	}
+	members, err := s.milestoneMembers(project, issues, []index.ArtifactRow{s.res.rows[key]})
+	if err != nil {
+		return nil, err
+	}
+	return s.issueRows(members[key])
 }
 
 // unplaced returns the not-done issues under no not-done milestone, as the last fold: under
@@ -260,4 +274,9 @@ func statusCount(ns []statusN, status string) int {
 		}
 	}
 	return 0
+}
+
+// milestoneKey expands a bare milestone slug to its index key, as milestoneMembers does.
+func milestoneKey(project, slot string) string {
+	return "milestone." + project + "." + strings.TrimPrefix(slot, "milestone.")
 }
