@@ -19,7 +19,7 @@ const (
 	statusUpdated       createStatus = "updated"
 )
 
-func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status createStatus, warnings []string, findings []*errfmt.ValidationError, changed []string) error {
+func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status createStatus, warnings []string, findings []*errfmt.ValidationError, changed []string, snap snapshotResult) error {
 	if asJSON {
 		payload := map[string]any{
 			"id":     id,
@@ -31,8 +31,15 @@ func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status c
 				changed = []string{}
 			}
 			payload["changed"] = changed
+			if snap.SHA != "" {
+				payload["snapshot"] = snap.SHA
+			}
 		}
-		if ws := jsonWarnings(warnings, findings); len(ws) > 0 {
+		ws := jsonWarnings(warnings, findings)
+		if snap.Warning != "" {
+			ws = append(ws, map[string]string{"kind": "snapshot", "got": snap.Warning})
+		}
+		if len(ws) > 0 {
 			payload["warnings"] = ws
 		}
 		out, _ := json.Marshal(payload)
@@ -49,6 +56,12 @@ func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status c
 		fmt.Fprintln(cmd.OutOrStdout(), "already_exists: "+path)
 	case statusUpdated:
 		fmt.Fprintln(cmd.OutOrStdout(), "updated: "+path)
+		if snap.SHA != "" {
+			fmt.Fprintln(cmd.OutOrStdout(), "snapshot: "+snap.SHA)
+		}
+		if snap.Warning != "" {
+			fmt.Fprintln(cmd.ErrOrStderr(), "warning: "+snap.Warning)
+		}
 	}
 	for _, w := range warnings {
 		fmt.Fprintln(cmd.ErrOrStderr(), "warning: similar artifact exists: "+w+" (pass --force-new to skip)")

@@ -276,7 +276,7 @@ func newCreateCmd() *cobra.Command {
 					}
 					drift := createDrift(t, fm, existing.FrontMatter, body, existing.Body)
 					if drift == "" {
-						return emitCreateResult(cmd, flagJSON, id, path, statusAlreadyExists, nil, nil, nil)
+						return emitCreateResult(cmd, flagJSON, id, path, statusAlreadyExists, nil, nil, nil, snapshotResult{})
 					}
 					if !flagUpdate {
 						return formatDriftError(cmd, id, drift, fm, existing.FrontMatter, body, existing.Body)
@@ -291,10 +291,7 @@ func newCreateCmd() *cobra.Command {
 					if err != nil {
 						return err
 					}
-					snap, err := snapshotArtifact(v.Root, path, id)
-					if err != nil {
-						return err
-					}
+					snap := snapshotArtifact(v.Root, path, string(t)+"."+id)
 					originalBytes, rerr := os.ReadFile(path) //nolint:gosec // path is test-controlled or application-managed; not user input
 					if rerr != nil {
 						return fmt.Errorf("reading existing artifact for rollback: %w", rerr)
@@ -310,7 +307,7 @@ func newCreateCmd() *cobra.Command {
 						}
 						return indexErr
 					}
-					return emitUpdatedResult(cmd, flagJSON, id, path, findings, changed, snap)
+					return emitCreateResult(cmd, flagJSON, id, path, statusUpdated, nil, findings, changed, snap)
 				} else if !errors.Is(err, fs.ErrNotExist) {
 					return fmt.Errorf("checking %s: %w", path, err)
 				}
@@ -340,7 +337,7 @@ func newCreateCmd() *cobra.Command {
 			if !flagForceNew {
 				warnings = findNearDuplicates(v, t, project, id)
 			}
-			return emitCreateResult(cmd, flagJSON, id, path, statusCreated, warnings, findings, nil)
+			return emitCreateResult(cmd, flagJSON, id, path, statusCreated, warnings, findings, nil, snapshotResult{})
 		},
 	}
 
