@@ -184,7 +184,7 @@ func TestOutcomeMilestone(t *testing.T) {
 	if err := jsonUnmarshal(t, strings.TrimSpace(out), &got); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
-	want := milestoneOutcome{Issues: 4, OnePRNoRescope: 1, FirstPass: 1, Escalations: 2, Reopens: 1, Rescopes: 1, Amendments: 2}
+	want := milestoneOutcome{Issues: 4, OnePRNoRescope: 1, FirstPass: 1, Escalations: 2, Reopens: 1, Rescopes: 1, Amendments: 2, Escaped: 1}
 	if got.Outcome != want {
 		t.Fatalf("outcome = %+v, want %+v", got.Outcome, want)
 	}
@@ -192,7 +192,7 @@ func TestOutcomeMilestone(t *testing.T) {
 		t.Fatalf("issue rows mismatch: %+v", got.Issues)
 	}
 	text := execCmdJSON(t, "milestone", "status", "demo.m1")
-	if !strings.Contains(text, "Outcome: 1/4 one-PR-no-rescope, 1 first-pass, 2 escalations, 1 reopens, 1 rescopes, 2 amendments\n") {
+	if !strings.Contains(text, "Outcome: 1/4 one-PR-no-rescope, 1 first-pass, 2 escalations, 1 reopens, 1 rescopes, 2 amendments, 1 escaped\n") {
 		t.Fatalf("text missing Outcome line:\n%s", text)
 	}
 }

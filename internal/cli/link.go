@@ -79,9 +79,9 @@ Query output (--json) carries each edge's target as its <type>.<id> wikilink key
 				return fmt.Errorf("write form requires 4 args: source-type source-id target-type target-id")
 			}
 			switch relation {
-			case "related", "depends_on", "blocks":
+			case "related", "depends_on", "blocks", "fixes":
 			default:
-				return fmt.Errorf("--relation must be related, depends_on, or blocks (got %q)", relation)
+				return fmt.Errorf("--relation must be related, depends_on, blocks, or fixes (got %q)", relation)
 			}
 			src, err := core.ParseType(args[0])
 			if err != nil {
@@ -126,7 +126,7 @@ Query output (--json) carries each edge's target as its <type>.<id> wikilink key
 	cmd.Flags().StringVar(&fromID, "from", "", "list outgoing edges from this artifact id")
 	cmd.Flags().StringVar(&toID, "to", "", "list incoming edges to this artifact id")
 	cmd.Flags().StringVar(&externalURI, "external", "", "append a free-form URI (commit sha, PR url, doc link) to source.external_links")
-	cmd.Flags().StringVar(&relation, "relation", "related", "edge slot for the 4-arg write form: related (default), depends_on, or blocks")
+	cmd.Flags().StringVar(&relation, "relation", "related", "edge slot for the 4-arg write form: related (default), depends_on, blocks, or fixes (issue→issue)")
 	cmd.Flags().BoolVar(&unresolved, "unresolved", false, "list edges whose target is not in the vault")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON output")
 	return cmd
