@@ -87,7 +87,7 @@ func (s *server) buildProject(name string, counts map[string]map[string]int) (pr
 	if err != nil {
 		return page, err
 	}
-	if err := s.fillMilestones(&page, ms, issues, members); err != nil {
+	if err := s.fillMilestones(&page, ms, issues, members, page.Designs.Product); err != nil {
 		return page, err
 	}
 	if err := s.fillDone(&page, counts, members); err != nil {

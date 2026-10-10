@@ -46,7 +46,7 @@ var ordRe = regexp.MustCompile(`\.(\d+)[.-]`)
 
 // fillMilestones builds the panel from one milestone read, one issue read and a frontmatter
 // read of each not-done issue.
-func (s *server) fillMilestones(p *projectPage, ms, issues []index.ArtifactRow, members map[string][]index.ArtifactRow) error {
+func (s *server) fillMilestones(p *projectPage, ms, issues []index.ArtifactRow, members map[string][]index.ArtifactRow, product []node) error {
 	placed := map[string]bool{}
 	var folds []msFold
 	for _, m := range ms {
@@ -72,7 +72,7 @@ func (s *server) fillMilestones(p *projectPage, ms, issues []index.ArtifactRow, 
 	if err != nil {
 		return err
 	}
-	p.Milestones = milestonePanelOf(folds, none, p.Designs.Product)
+	p.Milestones = milestonePanelOf(folds, none, product)
 	return nil
 }
 

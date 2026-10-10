@@ -182,3 +182,25 @@ func TestTokens(t *testing.T) {
 		}
 	}
 }
+
+// Warrant: fails if the nothing-planned inset drops the product design's #milestones link, or the lead
+// omits "No milestone is in progress without live work." when every in-progress milestone holds live work.
+func TestProject_InsetLinksProductDesign(t *testing.T) {
+	h, v := seed(t)
+	writeArtifact(t, v, core.TypeProductDesign, "anvil", map[string]any{"title": "Anvil product", "project": "anvil"}, "x\n")
+	writeArtifact(t, v, core.TypeIssue, stackIssue, map[string]any{"title": "Thing", "status": "resolved", "project": "anvil"}, "x\n")
+	body, _ := projectBody(t, h)
+	if !strings.Contains(body, `No milestone is in flight or planned. The product design lists the next candidates under <a href="/artifact/product-design.anvil#milestones">Milestones</a>.`) {
+		t.Errorf("inset lacks the product design link:\n%s", body)
+	}
+}
+
+func TestProject_NoBareInProgressMilestone(t *testing.T) {
+	h, v := seed(t)
+	writeArtifact(t, v, core.TypeMilestone, "milestone.anvil.live", map[string]any{"title": "Live one", "status": "in-progress", "project": "anvil"}, "x\n")
+	writeArtifact(t, v, core.TypeIssue, stackIssue, map[string]any{"title": "Thing", "status": "in-progress", "project": "anvil", "milestone": "[[milestone.anvil.live]]"}, "x\n")
+	body, _ := projectBody(t, h)
+	if !strings.Contains(body, "No milestone is in progress without live work.") {
+		t.Errorf("lead lacks the no-bare-tier sentence:\n%s", body)
+	}
+}
