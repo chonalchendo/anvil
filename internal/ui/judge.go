@@ -6,9 +6,8 @@ import (
 	"strings"
 )
 
-// judgeKeys are the frontmatter fields a reader judges a node by, per type.
-// Only these types get a strip; the keys leave "All properties". An issue's list is the one
-// source of the names issueJudge reads, so the strip and the skip cannot drift.
+// The issue strip's frontmatter field names. judgeKeys lists them, so the strip and the skip
+// from "All properties" cannot drift.
 const (
 	kVerdict = "verified_verdict"
 	kCommit  = "verified_commit"
@@ -19,6 +18,9 @@ const (
 	kFiles   = "cost_files"
 )
 
+// judgeKeys are the frontmatter fields a reader judges a node by, per type. Only these types
+// get a strip; the keys leave "All properties". An issue's external_links is not listed: the
+// strip shows its pull URLs only, and judgedValue splits them out.
 var judgeKeys = map[string][]string{
 	"learning":  {"confidence", "diataxis"},
 	"decision":  {"date", "supersedes", "superseded_by"},
@@ -103,9 +105,12 @@ func issueJudge(fm map[string]any) []prop {
 	return out
 }
 
-// otherLinks returns an issue's external_links that are not pull URLs; the strip shows the
-// pull URLs, so "All properties" keeps the rest.
-func otherLinks(v any) []any {
+// judgedValue returns the part of a property that "All properties" still shows. An issue's
+// external_links loses its pull URLs to the strip; ok is false when nothing remains.
+func judgedValue(typ, name string, v any) (any, bool) {
+	if typ != "issue" || name != "external_links" {
+		return v, true
+	}
 	var out []any
 	list, _ := v.([]any)
 	for _, l := range list {
@@ -116,7 +121,7 @@ func otherLinks(v any) []any {
 		}
 		out = append(out, l)
 	}
-	return out
+	return out, isSet(out)
 }
 
 // groupDigits writes n with comma thousands separators: 23,313,576.

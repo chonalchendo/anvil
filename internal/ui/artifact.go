@@ -247,11 +247,9 @@ func (s *view) props(typ string, fm map[string]any) []prop {
 	sort.Strings(names)
 	out := make([]prop, 0, len(names))
 	for _, n := range names {
-		v := fm[n]
-		if typ == "issue" && n == "external_links" {
-			if v = otherLinks(v); !isSet(v) {
-				continue
-			}
+		v, ok := judgedValue(typ, n, fm[n])
+		if !ok {
+			continue
 		}
 		out = append(out, s.res.prop(n, v))
 	}
