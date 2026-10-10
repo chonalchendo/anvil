@@ -362,7 +362,7 @@ func (s *server) stands(t *topic) (string, error) {
 			return "", err
 		}
 		desc, _ = art.FrontMatter["description"].(string)
-		desc = strings.TrimSuffix(strings.TrimSpace(desc), ".")
+		desc = strings.TrimSpace(desc)
 	}
 	threads := slices.Clone(t.Threads)
 	slices.SortStableFunc(threads, byNewest)

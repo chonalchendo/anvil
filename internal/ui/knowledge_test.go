@@ -78,7 +78,7 @@ func TestKnowledge_ReplacesHome(t *testing.T) {
 func TestKnowledge_TopicRows(t *testing.T) {
 	_, body := do(topicVault(t), "GET", "/")
 	list, _, _ := strings.Cut(body, `<details class="other">`)
-	inOrder(t, list, `href="/topic/alpha"`, "Newest alpha line; open: Is it so", "2 accepted", "1 superseded", "1 open", "thread", `href="/topic/gamma"`, "Gamma a")
+	inOrder(t, list, `href="/topic/alpha"`, "Newest alpha line. Open: Is it so", "2 accepted", "1 superseded", "1 open", "thread", `href="/topic/gamma"`, "Gamma a")
 	if strings.Contains(list, "Superseded line.") || strings.Contains(list, `href="/topic/beta"`) {
 		t.Errorf("rows hold a superseded line or a folded topic:\n%s", list)
 	}

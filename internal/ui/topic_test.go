@@ -104,11 +104,13 @@ func TestTopic_Stands(t *testing.T) {
 	writeArtifact(t, v, core.TypeThread, "q.0001-open", map[string]any{"title": "Still asking", "status": "open", "updated": "2026-10-02"}, "x\n")
 	writeArtifact(t, v, core.TypeDecision, "bang.0001-a", map[string]any{"title": "T", "status": "accepted", "updated": "2026-10-01", "description": "Stop it!"}, "x\n")
 	writeArtifact(t, v, core.TypeThread, "bang.0001-open", map[string]any{"title": "Still going", "status": "open", "updated": "2026-10-02"}, "x\n")
+	writeArtifact(t, v, core.TypeDecision, "dots.0001-a", map[string]any{"title": "T", "status": "accepted", "updated": "2026-10-01", "description": "Wait..."}, "x\n")
+	writeArtifact(t, v, core.TypeThread, "dots.0001-open", map[string]any{"title": "Dots open", "status": "open", "updated": "2026-10-02"}, "x\n")
 	_, body := do(serve(t, v), "GET", "/")
 	if strings.Contains(body, "?; open") || strings.Contains(body, "!; open") {
 		t.Errorf("terminal description joined with a semicolon:\n%s", body)
 	}
-	for _, want := range []string{`<p class="syn">Is it so? Open: Still asking</p>`, `<p class="syn">Stop it! Open: Still going</p>`, `<p class="syn">Why this?</p>`, `<p class="syn">Open: Why so</p>`, `<p class="syn">Plain line.</p>`, `<p class="syn">Nothing current; newest: Why dead?</p>`} {
+	for _, want := range []string{`<p class="syn">Is it so? Open: Still asking</p>`, `<p class="syn">Stop it! Open: Still going</p>`, `<p class="syn">Wait... Open: Dots open</p>`, `<p class="syn">Why this?</p>`, `<p class="syn">Open: Why so</p>`, `<p class="syn">Plain line.</p>`, `<p class="syn">Nothing current; newest: Why dead?</p>`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("knowledge page lacks %q:\n%s", want, body)
 		}
@@ -121,8 +123,13 @@ func TestTopic_Stands(t *testing.T) {
 // Warrant: fails if a topic's learnings or inbox lists stop rendering as an unordered list, or its threads stop rendering ordered.
 func TestTopic_ListKinds(t *testing.T) {
 	_, body := do(topicVault(t), "GET", "/topic/alpha")
-	if !strings.Contains(body, `<ul class="rows">`) || !strings.Contains(body, `<ol class="rows">`) || strings.Contains(body, `<span class="ord" translate="no"></span>`) {
-		t.Errorf("newest-first lists wrong:\n%s", body)
+	_, thr, _ := strings.Cut(body, `id="thr"`)
+	thr, lrn, _ := strings.Cut(thr, `id="lrn"`)
+	lrn, inb, _ := strings.Cut(lrn, `id="inb"`)
+	for _, c := range []struct{ name, panel, want string }{{"threads", thr, `<ol class="rows">`}, {"learnings", lrn, `<ul class="rows">`}, {"inbox", inb, `<ul class="rows">`}} {
+		if !strings.Contains(c.panel, c.want) || strings.Contains(c.panel, `<span class="ord" translate="no"></span>`) {
+			t.Errorf("%s panel lacks %s:\n%s", c.name, c.want, c.panel)
+		}
 	}
 }
 
