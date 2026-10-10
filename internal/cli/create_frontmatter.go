@@ -256,3 +256,20 @@ func mergeUpdate(cmd *cobra.Command, existing, fm map[string]any) (map[string]an
 	sort.Strings(changed)
 	return merged, changed
 }
+
+// approvedScopeRefusal returns the refusal when --update would change the
+// goal or acceptance of an approved milestone. Only the amend path may reopen
+// that scope, so the amendment count sees every scope change.
+func approvedScopeRefusal(t core.Type, existing map[string]any, changed []string, id string) *errfmt.ValidationError {
+	if t != core.TypeMilestone || existing["approved"] == nil {
+		return nil
+	}
+	for _, k := range changed {
+		if k == "goal" || k == "acceptance" {
+			return errfmt.NewValidationError("update_approved_milestone_scope", "", k, "").
+				WithExpected("goal and acceptance of an approved milestone change only through amend").
+				WithFix(fmt.Sprintf("run `anvil transition milestone %s planned`, then `create milestone --update`, then re-approve", id))
+		}
+	}
+	return nil
+}
