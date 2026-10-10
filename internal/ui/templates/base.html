@@ -17,17 +17,8 @@
     {{with .Sidebar.Projects}}<div class="group">Projects</div>
     <ul class="projects">{{range .}}<li><a href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{.Name}}</a></li>{{end}}</ul>{{end}}
   </nav>
-  <details class="browse"><summary class="label">Browse</summary>
-  <nav aria-label="Types">
-    {{range .Sidebar.Groups}}<div class="group">{{.Name}}</div>
-    {{range .Types}}<a href="/type/{{.Type}}"><span class="ticon type-{{.Type}}" aria-hidden="true">{{.Icon}}</span>{{.Label}}<span class="count">{{.Count}}</span></a>
-    {{end}}{{end}}
-  </nav>
-  </details>
-  <div class="foot"><span>read-only</span>{{with .Sidebar.Port}}<span>:{{.}}</span>{{end}}</div>
 </aside>
 <main>{{block "content" .}}{{end}}</main>
-<footer class="keys">{{block "keys" .}}<span><kbd>⌘K</kbd> jump</span>{{end}}</footer>
 <dialog id="palette"><input id="palette-dq" type="search" placeholder="Jump to…" aria-label="Jump to an artifact"><ul id="palette-list" aria-live="polite"></ul></dialog>
 <script>
 (function () {
@@ -131,14 +122,7 @@
 </script>
 </body>
 </html>
-{{define "crumbs"}}{{if or .Crumbs .Head.Project}}<nav class="crumbs" aria-label="Breadcrumb">{{with .Head.Project}}<a href="/project/{{.}}" translate="no">{{.}}</a>{{end}}{{range .Crumbs}}<span aria-hidden="true"> › </span>{{anchor .}}{{end}}</nav>{{end}}{{end}}
 {{define "tabs"}}<nav class="tabs" aria-label="Issue views"><a href="{{.Issue}}"{{if eq .Current "issue"}} aria-current="page"{{end}}>Issue</a><a href="{{.Stack}}"{{if eq .Current "stack"}} aria-current="page"{{end}}>Stack</a></nav>{{end}}
-{{define "judge"}}<div class="judge">{{range .}}<span class="jk">{{.Name}}</span><span class="jv">{{range .Values}}{{anchor .}} {{end}}{{range .Rich}}{{if .Href}}<a href="{{.Href}}" translate="no">{{.Text}}</a>{{else if .ISO}}<time datetime="{{.ISO}}">{{.Text}}</time>{{else if eq .Class "sha"}}<code class="sha" translate="no">{{.Text}}</code>{{else}}<span{{with .Class}} class="{{.}}"{{end}}{{with .Title}} title="{{.}}"{{end}}>{{.Text}}</span>{{end}}{{.Tail}} {{end}}</span>{{end}}</div>{{end}}
-{{define "nodeheader"}}<header class="node">
-<div class="node-title"><span class="ticon type-{{.Head.Type}}" title="{{.Head.Type}}" aria-hidden="true">{{.Head.Icon}}</span><h1>{{.Title}}</h1></div>
-{{with .Head.Description}}<p class="deck">{{.}}</p>{{end}}
-<p class="state">{{if .Head.Status}}<span class="status status-{{.Head.Status}}{{with hue .Head.Type .Head.Status}} status-{{.}}{{end}}">{{.Head.Glyph}} {{.Head.Status}}</span>{{end}}{{with .Head.Project}}<span>{{.}}</span>{{end}}{{with .Head.Updated}}<span>updated {{.}}</span>{{end}}{{range .Head.Slots}}<span>{{.Name}} {{range .Values}}{{anchor .}} {{end}}</span>{{end}}</p>
-</header>{{end}}
 {{define "canvas"}}<div class="canvas"{{if .Full}} data-full{{end}}>
 <div class="canvas-bar"><button type="button" data-act="fit">Fit</button><button type="button" data-act="actual">1:1</button><button type="button" data-act="full">Fullscreen</button>{{if not .Full}}<a href="/diagram/{{.Name}}">Open</a>{{end}}</div>
 <div class="stage"><iframe sandbox="allow-same-origin"{{if .Lazy}} loading="lazy"{{end}} src="/diagram-src/{{.Name}}" title="{{.Name}}" tabindex="-1"></iframe></div>

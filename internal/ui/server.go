@@ -52,7 +52,6 @@ func Handler(v *core.Vault, db *index.DB) (http.Handler, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /{$}", s.fresh(s.knowledge))
 	mux.HandleFunc("GET /artifact/{key}", s.fresh(s.artifact))
-	mux.HandleFunc("GET /compare", s.fresh(s.compare))
 	mux.HandleFunc("GET /diagram/{name}", s.diagram)
 	mux.HandleFunc("GET /diagram-src/{name}", s.diagramSrc)
 	mux.HandleFunc("GET /issue/{id}/stack", s.fresh(s.stack))

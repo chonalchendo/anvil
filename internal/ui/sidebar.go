@@ -1,22 +1,9 @@
 package ui
 
 import (
-	"net"
 	"net/http"
-	"strconv"
 	"strings"
 )
-
-type sidebarType struct {
-	Type, Icon string
-	Label      string
-	Count      string
-}
-
-type sidebarGroup struct {
-	Name  string
-	Types []sidebarType
-}
 
 type projectLink struct {
 	Name, Href string
@@ -25,43 +12,12 @@ type projectLink struct {
 
 // sidebar is the nav data every page renders; it comes from the index only.
 type sidebar struct {
-	Groups   []sidebarGroup
 	Projects []projectLink
-	Port     string
 	// Knowledge is the Knowledge link's aria-current value: "page" on the knowledge page, "true" on a topic page, else empty.
 	Knowledge string
 }
 
-// Count returns the sidebar's formatted count for typ.
-func (sb sidebar) Count(typ string) string {
-	for _, g := range sb.Groups {
-		for _, t := range g.Types {
-			if t.Type == typ {
-				return t.Count
-			}
-		}
-	}
-	return "0"
-}
-
-type sidebarEntry struct{ typ, label string }
-
-// sidebarLayout groups every type by purpose, in display order.
-var sidebarLayout = []struct {
-	name  string
-	types []sidebarEntry
-}{
-	{"Design", []sidebarEntry{{"product-design", "Product designs"}, {"system-design", "System designs"}, {"component-design", "Component designs"}}},
-	{"Work", []sidebarEntry{{"milestone", "Milestones"}, {"issue", "Issues"}}},
-	{"Knowledge", []sidebarEntry{{"convention", "Conventions"}, {"decision", "Decisions"}, {"learning", "Learnings"}, {"thread", "Threads"}}},
-	{"Capture", []sidebarEntry{{"inbox", "Inbox"}, {"session", "Sessions"}}},
-}
-
 func (s *server) sidebar(r *http.Request) (sidebar, error) {
-	counts, err := s.db.CountByType()
-	if err != nil {
-		return sidebar{}, err
-	}
 	projects, err := s.db.Projects()
 	if err != nil {
 		return sidebar{}, err
@@ -73,28 +29,8 @@ func (s *server) sidebar(r *http.Request) (sidebar, error) {
 	case strings.HasPrefix(r.URL.Path, "/topic/"):
 		sb.Knowledge = "true"
 	}
-	for _, g := range sidebarLayout {
-		grp := sidebarGroup{Name: g.name}
-		for _, t := range g.types {
-			grp.Types = append(grp.Types, sidebarType{Type: t.typ, Icon: typeIcons[t.typ], Label: t.label, Count: groupThousands(counts[t.typ])})
-		}
-		sb.Groups = append(sb.Groups, grp)
-	}
 	for _, p := range projects {
 		sb.Projects = append(sb.Projects, projectLink{Name: p, Href: projectHref(p), Current: p == r.PathValue("slug")})
 	}
-	// The port comes from the request so Handler needs no listener knowledge.
-	if _, port, err := net.SplitHostPort(r.Host); err == nil {
-		sb.Port = port
-	}
 	return sb, nil
-}
-
-// groupThousands formats n with a comma between each group of three digits.
-func groupThousands(n int) string {
-	d := strconv.Itoa(n)
-	for i := len(d) - 3; i > 0; i -= 3 {
-		d = d[:i] + "," + d[i:]
-	}
-	return d
 }

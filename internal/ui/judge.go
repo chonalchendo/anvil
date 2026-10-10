@@ -22,8 +22,8 @@ const (
 // get a strip; the keys leave "All properties". An issue's external_links is not listed: the
 // strip shows its pull URLs only, and judgedValue splits them out.
 var judgeKeys = map[string][]string{
-	"learning":  {"confidence", "diataxis"},
-	"decision":  {"date", "supersedes", "superseded_by"},
+	"learning":  {"confidence"},
+	"decision":  {"supersedes", "superseded_by"},
 	"milestone": {"approved", "done"},
 	"issue":     {kVerdict, kCommit, kAt, kRounds, kTokens, kDiff, kFiles},
 }

@@ -6,7 +6,7 @@
 <header class="head">
   <h1>{{.Name}}</h1>
   {{with .Deck}}<p class="deck">{{.}}</p>{{end}}
-  <p class="counts">{{.Name}} holds {{template "lately-links" .Counts}}{{if .Counts}}; {{end}}<a href="/type/convention">{{$.Sidebar.Count "convention"}} conventions</a> are shared by every project.</p>
+  <p class="counts">{{.Name}} holds {{template "lately-links" .Counts}}{{if .Counts}}; {{end}}<a href="/type/convention">{{.Conventions}}</a> {{.ConventionsVerb}} shared by every project.</p>
 </header>
 {{with .Milestones}}<section class="milestones" aria-labelledby="ms-h">
   <h2 id="ms-h">Milestones</h2>

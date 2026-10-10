@@ -13,11 +13,7 @@ import (
 
 type typeRow struct {
 	Href, ID, Title, Status, Glyph, Updated string
-	Tags                                    []tagLink
-	Backlinks                               int
 }
-
-type tagLink struct{ Name, Href string }
 
 type statusGroup struct {
 	Status string
@@ -49,7 +45,8 @@ type typePage struct {
 // typeList lists one type from the index, grouped by status live-first, newest first within a group.
 func (s *server) typeList(w http.ResponseWriter, r *http.Request) {
 	t, err := core.ParseType(r.PathValue("type"))
-	if err != nil {
+	// Sessions stay indexed but have no reader job, so their list is a 404.
+	if err != nil || t == core.TypeSession {
 		http.NotFound(w, r)
 		return
 	}
@@ -68,11 +65,11 @@ func (s *server) fillTypePage(page *typePage) error {
 	if err != nil {
 		return err
 	}
-	tags, err := s.db.TagsByType(page.Type)
-	if err != nil {
-		return err
-	}
 	if page.Tag != "" {
+		tags, err := s.db.TagsByType(page.Type)
+		if err != nil {
+			return err
+		}
 		rows = slices.DeleteFunc(rows, func(r index.ArtifactRow) bool { return !slices.Contains(tags[r.ID], page.Tag) })
 	}
 	if page.To != "" {
@@ -91,10 +88,6 @@ func (s *server) fillTypePage(page *typePage) error {
 	if page.Status != "" {
 		rows = slices.DeleteFunc(rows, func(r index.ArtifactRow) bool { return r.Status != page.Status })
 	}
-	back, err := s.db.BacklinkCounts(page.Type)
-	if err != nil {
-		return err
-	}
 	sort.SliceStable(rows, func(a, b int) bool {
 		ra, rb := rank(liveOrder, rows[a].Status), rank(liveOrder, rows[b].Status)
 		if ra != rb {
@@ -110,14 +103,10 @@ func (s *server) fillTypePage(page *typePage) error {
 			page.Groups = append(page.Groups, statusGroup{Status: row.Status})
 		}
 		last := &page.Groups[len(page.Groups)-1]
-		tr := typeRow{
+		last.Rows = append(last.Rows, typeRow{
 			Href: artifactHref(row.ID), ID: row.ID, Title: row.Title, Status: row.Status,
-			Glyph: glyphs[row.Status], Updated: row.Updated, Backlinks: back[row.ID],
-		}
-		for _, tag := range tags[row.ID] {
-			tr.Tags = append(tr.Tags, tagLink{Name: tag, Href: typeHref(page, "tag", tag)})
-		}
-		last.Rows = append(last.Rows, tr)
+			Glyph: glyphs[row.Status], Updated: row.Updated,
+		})
 	}
 	return nil
 }

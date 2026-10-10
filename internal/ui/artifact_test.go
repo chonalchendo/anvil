@@ -109,6 +109,18 @@ func TestCited_GroupsCountsCapsAndOmitsEmpty(t *testing.T) {
 	}
 }
 
+// Warrant: the session list is gone, so a session citer must neither group nor link to /type/session.
+func TestCited_SkipsSessionSources(t *testing.T) {
+	h, v := seed(t)
+	for i := 1; i <= 10; i++ {
+		writeArtifact(t, v, core.TypeSession, fmt.Sprintf("s-%d", i), map[string]any{"title": "S", "related": []any{"[[product-design.anvil]]"}}, "x\n")
+	}
+	_, body := do(h, "GET", "/artifact/product-design.anvil")
+	if strings.Contains(body, "/type/session") || strings.Contains(contentsOf(t, body), "<h3>session") {
+		t.Error("cited-by renders a session group or link")
+	}
+}
+
 // Warrant: a page with no incoming links must not render an empty fold.
 func TestCited_NoIncomingRendersPlaceholderOnly(t *testing.T) {
 	h, _ := seed(t)
@@ -139,7 +151,7 @@ func TestArtifactPage_NoRailNoLinksOutAndNothingListedTwice(t *testing.T) {
 		t.Errorf("decision links outside the properties and cited-by folds = %d, want 2 (body, Links sentence)", n)
 	}
 	contents := contentsOf(t, body)
-	for _, want := range []string{`<h2>On this page</h2>`, `href="#why"`, `<span class="c">1 line</span>`, `<p class="prose">decision <a href="/artifact/decision.ui.0001-a-decision">A decision</a> and thread <a href="/artifact/thread.anvil-design-docs.0002-x">the thread</a>.</p>`} {
+	for _, want := range []string{`<h2>On this page</h2>`, `href="#why"`, `<p class="prose">decision <a href="/artifact/decision.ui.0001-a-decision">A decision</a> and thread <a href="/artifact/thread.anvil-design-docs.0002-x">the thread</a>.</p>`} {
 		if !strings.Contains(contents, want) {
 			t.Errorf("contents lacks %q", want)
 		}

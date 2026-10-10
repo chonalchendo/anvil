@@ -104,8 +104,6 @@ func TestTypeList_GlyphsForOtherTypes(t *testing.T) {
 		status string
 	}{
 		{core.TypeInbox, "triaged"},
-		{core.TypeSession, "distilled"},
-		{core.TypeSession, "archived"},
 		{core.TypeSweep, "merged"},
 	}
 	for i, c := range cases {
@@ -228,7 +226,7 @@ func TestTypeListTabs(t *testing.T) {
 	}
 }
 
-// Warrant: a column bound to the wrong source would show a wrong id, tag or backlink count.
+// Warrant: a column bound to the wrong source would show a wrong id; the tags and links-in columns stay gone.
 func TestTypeListColumns(t *testing.T) {
 	h := seedTyped(t)
 	_, body := do(h, "GET", "/type/decision")
@@ -236,15 +234,16 @@ func TestTypeListColumns(t *testing.T) {
 	row, _, _ := strings.Cut(body[strings.LastIndex(body[:at], "<tr>"):], "</tr>")
 	for _, want := range []string{
 		`<td class="status">`, `<td class="id"><a href="/artifact/decision.ui.0002-second">decision.ui.0002-second</a></td>`,
-		`<td class="title">Second one</td>`, `<td class="tags">`, `>domain/ui</a>`, `href="/type/decision?tag=domain%2Fui"`,
-		`<td class="backlinks">1</td>`, `<td class="updated">`,
+		`<td class="title">Second one</td>`, `<td class="updated">`,
 	} {
 		if !strings.Contains(row, want) {
 			t.Errorf("row lacks %q in\n%s", want, row)
 		}
 	}
-	if !strings.Contains(body, `<footer class="keys">`) {
-		t.Error("type list lost the key hint bar")
+	for _, dead := range []string{`<td class="tags"`, `<td class="backlinks"`, `<th>tags</th>`, `<th>links in</th>`} {
+		if strings.Contains(body, dead) {
+			t.Errorf("type list still holds %q", dead)
+		}
 	}
 }
 
@@ -267,7 +266,7 @@ func TestTypeIcons(t *testing.T) {
 	icon := `>` + typeIcons["decision"] + `</span>`
 	header, _, _ := strings.Cut(strings.SplitN(page, `<header class="node">`, 2)[1], "</header>")
 	title, _, _ := strings.Cut(strings.SplitN(list, `<h1 class="node-title">`, 2)[1], "</h1>")
-	for name, region := range map[string]string{"header": header, "type list": title, "sidebar": sidebarOf(t, list)} {
+	for name, region := range map[string]string{"header": header, "type list": title} {
 		if !strings.Contains(region, icon) {
 			t.Errorf("%s lacks the decision icon", name)
 		}

@@ -39,25 +39,6 @@ func (d *DB) Projects() ([]string, error) {
 	return out, rs.Err()
 }
 
-// BacklinkCounts returns, for each artifact of typ with inbound links, how many distinct artifacts link to it.
-func (d *DB) BacklinkCounts(typ string) (map[string]int, error) {
-	rs, err := d.sql.Query(`SELECT l.target, COUNT(DISTINCT l.source) FROM links l JOIN artifacts a ON a.id = l.target WHERE a.type = ? GROUP BY l.target`, typ)
-	if err != nil {
-		return nil, fmt.Errorf("backlink counts: %w", err)
-	}
-	defer rs.Close() //nolint:errcheck // close in defer; error not actionable
-	out := map[string]int{}
-	for rs.Next() {
-		var id string
-		var n int
-		if err := rs.Scan(&id, &n); err != nil {
-			return nil, err
-		}
-		out[id] = n
-	}
-	return out, rs.Err()
-}
-
 // TagsByType returns each tagged artifact of typ with its tags, sorted.
 func (d *DB) TagsByType(typ string) (map[string][]string, error) {
 	rs, err := d.sql.Query(`SELECT t.artifact, t.tag FROM tags t JOIN artifacts a ON a.id = t.artifact WHERE a.type = ? ORDER BY t.artifact, t.tag`, typ)

@@ -159,7 +159,7 @@ func TestArtifactPage_NotFound(t *testing.T) {
 
 func TestRoutes_PostReturns405(t *testing.T) {
 	h, _ := seed(t)
-	for _, p := range []string{"/", decisionPath, stackPath, "/type/decision", "/topic/ui", "/palette", "/search?q=x", "/compare?a=product-design.anvil&b=decision.ui.0001-a-decision", "/diagram/anvil-two-loop", "/diagram-src/anvil-two-loop", "/static/anvil.css"} {
+	for _, p := range []string{"/", decisionPath, stackPath, "/type/decision", "/topic/ui", "/palette", "/search?q=x", "/diagram/anvil-two-loop", "/diagram-src/anvil-two-loop", "/static/anvil.css"} {
 		for _, m := range []string{"POST", "PUT", "DELETE", "PATCH"} {
 			if code, _ := do(h, m, p); code != 405 {
 				t.Errorf("%s %s = %d, want 405", m, p, code)
@@ -174,7 +174,7 @@ func TestRoutes_PostReturns405(t *testing.T) {
 func TestHome_DarkShell(t *testing.T) {
 	h, _ := seed(t)
 	_, body := do(h, "GET", "/")
-	for _, want := range []string{`<html lang="en" style="color-scheme: dark">`, `href="/type/convention"`, `href="/type/inbox"`, `href="/"`} {
+	for _, want := range []string{`<html lang="en" style="color-scheme: dark">`, `href="/"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("home lacks %s", want)
 		}
@@ -225,7 +225,7 @@ func TestServe_RefusesNonLoopback(t *testing.T) {
 func TestRequestsDoNotWriteVault(t *testing.T) {
 	h, v := seed(t)
 	before := hashTree(t, v.Root)
-	for _, p := range []string{"/", decisionPath, stackPath, "/artifact/milestone.anvil.m1", "/type/decision", "/topic/ui", "/palette", "/search?q=x", "/compare?a=product-design.anvil&b=decision.ui.0001-a-decision", "/diagram/anvil-two-loop", "/diagram-src/anvil-two-loop", "/static/anvil.css"} {
+	for _, p := range []string{"/", decisionPath, stackPath, "/artifact/milestone.anvil.m1", "/type/decision", "/topic/ui", "/palette", "/search?q=x", "/diagram/anvil-two-loop", "/diagram-src/anvil-two-loop", "/static/anvil.css"} {
 		do(h, "GET", p)
 		do(h, "POST", p)
 	}
@@ -306,37 +306,25 @@ func inOrder(t *testing.T, body string, parts ...string) {
 	}
 }
 
-// Warrant: the hint bar must list only the keys its page handles, so a dead key never shows.
-func TestKeyHints_PerPage(t *testing.T) {
+// Warrant: fails if a page regrows the hint bar, the Browse fold or the read-only badge.
+func TestChrome_NoHintBarBrowseOrBadge(t *testing.T) {
 	h, _ := seed(t)
-	jk := []string{">j<", ">k<", ">o<", ">⇧O<", ">⇧C<"}
-	arrows := []string{">↑<", ">↓<", ">←<", ">→<"}
-	cases := []struct {
-		path       string
-		want, dead []string
-	}{
-		{"/", []string{">⌘K<"}, append(append([]string{}, jk...), arrows...)},
-		{"/type/decision", []string{">⌘K<"}, append(append([]string{}, jk...), arrows...)},
-		{decisionPath, append([]string{">⌘K<"}, jk...), arrows},
-		{stackPath, append([]string{">⌘K<"}, jk...), arrows},
+	for _, p := range []string{"/", "/type/decision", decisionPath, stackPath, "/project/anvil"} {
+		_, body := do(h, "GET", p)
+		for _, dead := range []string{`<footer`, `class="browse"`, `read-only`, `aria-label="Types"`} {
+			if strings.Contains(body, dead) {
+				t.Errorf("%s still holds %q", p, dead)
+			}
+		}
 	}
-	for _, c := range cases {
-		_, body := do(h, "GET", c.path)
-		i := strings.Index(body, `<footer class="keys">`)
-		if i < 0 || strings.Index(body, "</main>") > i {
-			t.Errorf("%s: footer missing or before main", c.path)
-			continue
-		}
-		bar := body[i : i+strings.Index(body[i:], "</footer>")]
-		for _, k := range c.want {
-			if !strings.Contains(bar, k) {
-				t.Errorf("%s: hint bar lacks %s", c.path, k)
-			}
-		}
-		for _, k := range c.dead {
-			if strings.Contains(bar, k) {
-				t.Errorf("%s: hint bar lists dead key %s", c.path, k)
-			}
+}
+
+// Warrant: fails if /compare or the session list answers again.
+func TestRoutes_CompareAndSessionListAre404(t *testing.T) {
+	h, _ := seed(t)
+	for _, p := range []string{"/compare?a=product-design.anvil&b=decision.ui.0001-a-decision", "/type/session"} {
+		if code, _ := do(h, "GET", p); code != 404 {
+			t.Errorf("GET %s = %d, want 404", p, code)
 		}
 	}
 }
