@@ -80,52 +80,22 @@ func newAppendCmd() *cobra.Command {
 				return fmt.Errorf("no content to append; pass --body or --body-file")
 			}
 
-			// Retry safety: an agent re-running an append whose response was
-			// lost must not duplicate the section. The stored body ends with
-			// exactly the addition after a successful run, so a suffix match
-			// is the already-applied signal — no write, no updated bump.
-			if strings.HasSuffix(a.Body, addition) {
+			res, err := appendBodyCore(cmd, v, t, path, id, a, addition)
+			if err != nil {
+				return err
+			}
+			if res.status == "unchanged" {
 				return emitAppendResult(cmd, flagJSON, appendResult{
 					ID: id, Path: path, Status: "unchanged",
 				})
 			}
-
-			newBody := joinBodySection(a.Body, addition)
-			failures := staticBodyFailures(cmd, v, t, path, a.FrontMatter, newBody)
-			var introduced []*errfmt.ValidationError
-			if len(failures) > 0 {
-				introduced = markPreexisting(failures, staticBodyFailures(cmd, v, t, path, a.FrontMatter, a.Body))
-			}
-			// An append never edits existing content, so only blocking findings
-			// it introduced refuse. Warnings and pre-existing errors ride out
-			// with the success result instead of dropping the section.
-			if hasBlockingFailure(introduced) {
-				return emitValidationErrors(cmd, flagJSON, failures)
-			}
-
-			a.Body = newBody
-			a.FrontMatter["updated"] = time.Now().UTC().Format("2006-01-02")
-			// yaml.v3 loads YYYY-MM-DD scalars as time.Time and would re-emit
-			// them as full timestamps; append rewrites frontmatter it didn't
-			// author, so normalise before marshalling.
-			normaliseDates(a.FrontMatter)
-			content, err := a.Marshal()
-			if err != nil {
-				return fmt.Errorf("marshalling %s: %w", id, err)
-			}
-			// atomicSwap, not a truncating write: the file holds content this
-			// command didn't author, and an interrupted rewrite must never be
-			// able to destroy it.
-			if err := atomicSwap(path, path, content); err != nil {
-				return fmt.Errorf("saving artifact: %w", err)
-			}
-			if err := indexAfterSave(v, a); err != nil {
-				return fmt.Errorf("indexing %s: %w", id, err)
+			if res.blocked {
+				return emitValidationErrors(cmd, flagJSON, res.failures)
 			}
 
 			return emitAppendResult(cmd, flagJSON, appendResult{
 				ID: id, Path: path, Updated: a.FrontMatter["updated"].(string), Status: "appended",
-				findings: failures,
+				findings: res.failures,
 			})
 		},
 	}
@@ -134,6 +104,57 @@ func newAppendCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagBodyFile, "body-file", "", "read section content to append from a file")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON envelope")
 	return cmd
+}
+
+type appendCoreResult struct {
+	status   string // "appended" or "unchanged"
+	blocked  bool
+	failures []*errfmt.ValidationError
+}
+
+// appendBodyCore is the write path anvil append and anvil verify --replay
+// share: the retry-safety no-op, the introduced-failure validation, the
+// `updated` bump and the atomic swap. A blocked result writes nothing.
+func appendBodyCore(cmd *cobra.Command, v *core.Vault, t core.Type, path, id string, a *core.Artifact, addition string) (appendCoreResult, error) {
+	// Retry safety: an agent re-running an append whose response was
+	// lost must not duplicate the section. The stored body ends with
+	// exactly the addition after a successful run, so a suffix match
+	// is the already-applied signal — no write, no updated bump.
+	if strings.HasSuffix(a.Body, addition) {
+		return appendCoreResult{status: "unchanged"}, nil
+	}
+	newBody := joinBodySection(a.Body, addition)
+	failures := staticBodyFailures(cmd, v, t, path, a.FrontMatter, newBody)
+	var introduced []*errfmt.ValidationError
+	if len(failures) > 0 {
+		introduced = markPreexisting(failures, staticBodyFailures(cmd, v, t, path, a.FrontMatter, a.Body))
+	}
+	// An append never edits existing content, so only blocking findings
+	// it introduced refuse. Warnings and pre-existing errors ride out
+	// with the success result instead of dropping the section.
+	if hasBlockingFailure(introduced) {
+		return appendCoreResult{blocked: true, failures: failures}, nil
+	}
+	a.Body = newBody
+	a.FrontMatter["updated"] = time.Now().UTC().Format("2006-01-02")
+	// yaml.v3 loads YYYY-MM-DD scalars as time.Time and would re-emit
+	// them as full timestamps; append rewrites frontmatter it didn't
+	// author, so normalise before marshalling.
+	normaliseDates(a.FrontMatter)
+	content, err := a.Marshal()
+	if err != nil {
+		return appendCoreResult{}, fmt.Errorf("marshalling %s: %w", id, err)
+	}
+	// atomicSwap, not a truncating write: the file holds content this
+	// command didn't author, and an interrupted rewrite must never be
+	// able to destroy it.
+	if err := atomicSwap(path, path, content); err != nil {
+		return appendCoreResult{}, fmt.Errorf("saving artifact: %w", err)
+	}
+	if err := indexAfterSave(v, a); err != nil {
+		return appendCoreResult{}, fmt.Errorf("indexing %s: %w", id, err)
+	}
+	return appendCoreResult{status: "appended", failures: failures}, nil
 }
 
 // joinBodySection appends addition to existing, separated by exactly one

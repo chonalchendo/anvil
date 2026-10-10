@@ -40,17 +40,20 @@ type verifyRecord struct {
 }
 
 func newVerifyCmd() *cobra.Command {
-	var flagJSON, flagAccept bool
+	var flagJSON, flagAccept, flagReplay bool
 	var flagAt string
+	var flagTokens int
 	cmd := &cobra.Command{
 		Use:   "verify <issue-id>",
 		Short: "Run an issue's Verification blocks (here, or at a commit with --at) and record the verdict",
 		Long: "Run every Direct and Indirect block of the issue's `## Verification` in the current directory " +
 			"and stamp verified_verdict, verified_commit and verified_at on the issue, pass or fail. " +
 			"--at <sha> runs the blocks on a fresh detached checkout of that commit instead and stamps the record at it, so untracked files and local builds cannot turn a red block green. " +
-			"Refuses with verification_changed when the section differs from the claim's verification_lock, unless --accept-change. A red Indirect block marked `# anvil:post-land` is deferred, not failed. Exits non-zero unless the verdict is pass.",
+			"Refuses with verification_changed when the section differs from the claim's verification_lock, unless --accept-change. A red Indirect block marked `# anvil:post-land` is deferred, not failed. Exits non-zero unless the verdict is pass. " +
+			"--replay --tokens <n> grades a replay instead: run it inside the worktree anvil replay cut, it stamps no verdict and appends a ## Replay section to the issue; it does not combine with --at or --accept-change.",
 		Example: "  anvil verify issue.anvil.0314.anvil-verify-records-the-verdict --json | jq -r .verdict\n" +
-			"  anvil verify <issue> --at $(gh pr view <n> --json headRefOid -q .headRefOid) --json",
+			"  anvil verify <issue> --at $(gh pr view <n> --json headRefOid -q .headRefOid) --json\n" +
+			"  anvil verify <issue> --replay --tokens 48000 --json",
 		Args: namedArgs("anvil verify <issue-id>", []string{"<issue-id>"}, 1, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			v, err := core.ResolveVault()
@@ -65,8 +68,16 @@ func newVerifyCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := checkVerificationLock(a, id, flagAccept); err != nil {
+			if flagReplay != cmd.Flags().Changed("tokens") || (flagReplay && (flagAt != "" || flagAccept)) {
+				return printAndReturn(cmd, errfmt.NewStructured("verify_replay_flags").
+					Set("message", "--replay needs --tokens <n>, and --tokens needs --replay; --replay does not combine with --at or --accept-change").
+					Set("fix_hint", "run anvil verify "+id+" --replay --tokens <n> alone, from the worktree anvil replay cut"))
+			}
+			if err := checkVerificationLock(a, id, flagAccept, flagReplay); err != nil {
 				return printAndReturn(cmd, err)
+			}
+			if flagReplay {
+				return verifyReplay(cmd, v, a, path, id, args[0], flagTokens, flagJSON)
 			}
 			var rec verifyRecord
 			if flagAt != "" {
@@ -106,21 +117,27 @@ func newVerifyCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&flagAccept, "accept-change", false, "re-lock a Verification section edited after the claim, then run (the human's flag)")
 	cmd.Flags().StringVar(&flagAt, "at", "", "run the blocks on a fresh detached checkout of this commit and stamp it")
+	cmd.Flags().BoolVar(&flagReplay, "replay", false, "grade a replay: run the blocks here, stamp nothing, append a ## Replay section to the issue")
+	cmd.Flags().IntVar(&flagTokens, "tokens", 0, "tokens the replay spent (with --replay)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "print the verdict record as one JSON line on stdout")
 	return cmd
 }
 
 // checkVerificationLock refuses before any block runs when the section differs
 // from the claim's lock. No lock means the issue predates the rule.
-func checkVerificationLock(a *core.Artifact, id string, accept bool) error {
+func checkVerificationLock(a *core.Artifact, id string, accept, replay bool) error {
 	lock, _ := a.FrontMatter["verification_lock"].(string)
 	if accept || lock == "" || lock == core.VerificationLock(a.Body) {
 		return nil
 	}
+	hint := "review the change, then run anvil verify " + id + " --accept-change"
+	if replay {
+		hint = "a replay grades only the locked section; restore the ## Verification section the claim locked"
+	}
 	return errfmt.NewStructured("verification_changed").
 		Set("issue", id).
 		Set("message", id+": the ## Verification section changed after the claim").
-		Set("fix_hint", "review the change, then run anvil verify "+id+" --accept-change")
+		Set("fix_hint", hint)
 }
 
 func loadIssueForVerify(path, id, arg string) (*core.Artifact, error) {

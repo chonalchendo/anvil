@@ -109,6 +109,7 @@ func newRootCmd() *cobra.Command {
 		newRefreshCmd(),
 		newVerifyCmd(),
 		newCostCmd(),
+		newReplayCmd(),
 	)
 	return cmd
 }
