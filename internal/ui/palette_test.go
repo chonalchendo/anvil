@@ -76,7 +76,7 @@ func TestPalette_ListsTopicsAndDropsSessions(t *testing.T) {
 	}
 }
 
-// Warrant: a button without aria-haspopup or a list without aria-live breaks the mockup's rules.
+// Warrant: a button without aria-haspopup or a result count without a status role breaks the mockup's rules.
 func TestPalette_OpenerAndList(t *testing.T) {
 	h, _ := seed(t)
 	_, body := do(h, "GET", "/")
@@ -86,11 +86,12 @@ func TestPalette_OpenerAndList(t *testing.T) {
 			t.Errorf("opener %q lacks %s", button, attr)
 		}
 	}
-	ul := regexp.MustCompile(`<ul\b[^>]*id="palette-list"[^>]*>|<ul\b[^>]*aria-live[^>]*>`).FindString(body)
-	for _, attr := range []string{`id="palette-list"`, `aria-live="polite"`} {
-		if !strings.Contains(ul, attr) {
-			t.Errorf("list %q lacks %s", ul, attr)
-		}
+	ul := regexp.MustCompile(`<ul\b[^>]*id="palette-list"[^>]*>`).FindString(body)
+	if !strings.Contains(ul, `role="listbox"`) || strings.Contains(ul, "aria-live") {
+		t.Errorf("list %q lacks role=listbox or still holds aria-live", ul)
+	}
+	if !regexp.MustCompile(`<p\b[^>]*id="palette-status"[^>]*role="status"`).MatchString(body) {
+		t.Error("page lacks the palette-status role=status node")
 	}
 }
 

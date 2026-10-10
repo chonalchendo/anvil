@@ -12,7 +12,7 @@ import (
 	"github.com/chonalchendo/anvil/internal/index"
 )
 
-// lately caps the prose bands: the newest decisions, learnings and open threads.
+// lately caps the open threads named in the Threads band.
 const lately = 5
 
 // proseItem is a node with the short date it was last updated, for the prose bands.

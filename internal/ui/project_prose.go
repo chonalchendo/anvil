@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"net/url"
 	"slices"
 	"strconv"
 
@@ -13,10 +14,11 @@ const (
 	scanCap     = 40 // newest drafts read for their confidence
 )
 
-// clause is one clause of a prose band: a lead, an optional date, then linked titles.
+// clause is one clause of a prose band: a lead, an optional date, linked titles, an optional more-link.
 type clause struct {
 	Lead, Date, ISO string
 	Items           []proseItem
+	More, MoreHref  string // a closing "; N more" link
 }
 
 type paragraph []clause
@@ -69,6 +71,8 @@ func titles(rows []index.ArtifactRow, n int, dated bool) []proseItem {
 }
 
 // decidedProse names the proposals that wait on the human, then the last accepted decisions.
+// With more proposals than headCap it names the newest headCap, then the next headCap older
+// ones, and links the rest.
 func (s *server) decidedProse(project string, counts map[string]map[string]int) ([]paragraph, error) {
 	rows, err := s.newestRows("decision", project, counts)
 	if err != nil || len(rows) == 0 {
@@ -76,14 +80,19 @@ func (s *server) decidedProse(project string, counts map[string]map[string]int) 
 	}
 	waiting := withStatus(rows, "proposed")
 	out := []paragraph{{{Lead: "No proposal waits on you"}}}
-	if n := len(waiting); n > 0 {
+	switch n := len(waiting); {
+	case n > 0 && n <= headCap:
 		out[0] = paragraph{{Lead: plural(n, "proposal", "proposals") + " " + pluralWord(n, "waits", "wait") + " on you:", Items: titles(waiting, headCap, true)}}
-		if rest := waiting[min(n, headCap):]; len(rest) > 0 {
-			lead := plural(len(rest), "older one has", "older ones have") + " waited:"
-			if len(rest) > headCap {
-				lead = plural(len(rest), "older one has", "older ones have") + " waited, the newest " + strconv.Itoa(headCap) + ":"
-			}
-			out[0] = append(out[0], clause{Lead: lead, Items: titles(rest, headCap, true)})
+	case n > headCap:
+		older := waiting[headCap:]
+		c := clause{Lead: "Older:", Items: titles(older, headCap, true)}
+		if more := len(older) - headCap; more > 0 {
+			c.More, c.MoreHref = strconv.Itoa(more)+" more", "/type/decision?project="+url.QueryEscape(project)+"&status=proposed"
+		}
+		out[0] = paragraph{
+			{Lead: plural(n, "proposal", "proposals") + " wait on you"},
+			{Lead: "Newest:", Items: titles(waiting, headCap, true)},
+			c,
 		}
 	}
 	if accepted := withStatus(rows, "accepted"); len(accepted) > 0 {
@@ -92,42 +101,56 @@ func (s *server) decidedProse(project string, counts map[string]map[string]int) 
 	return out, nil
 }
 
-// learnedProse counts drafts and verified learnings, then names the newest drafts at their
-// confidence, the high-confidence drafts that wait for a check, and the newest verified ones.
+// learnedProse counts drafts and verified learnings, then names the newest drafts, the
+// high-confidence drafts that wait for a check, and the newest verified ones.
 func (s *server) learnedProse(project string, counts map[string]map[string]int) ([]paragraph, error) {
 	rows, err := s.newestRows("learning", project, counts)
 	if err != nil || len(rows) == 0 {
 		return nil, err
 	}
 	drafts, verified := withStatus(rows, "draft"), withStatus(rows, "verified")
+	verifiedText := "none verified"
+	if len(verified) > 0 {
+		verifiedText = strconv.Itoa(len(verified)) + " verified"
+	}
 	head := clause{
-		Lead: plural(len(drafts), "draft", "drafts") + " and " + strconv.Itoa(len(verified)) + " verified, last updated",
+		Lead: plural(len(drafts), "draft", "drafts") + " and " + verifiedText + "; nothing new since",
 		Date: shortDate(rows[0].Updated), ISO: day(rows[0].Updated),
 	}
 	out := []paragraph{{head}}
 	var newest, held []index.ArtifactRow
-	notes := map[string]string{}
+	conf := map[string]string{}
 	for _, r := range drafts[:min(len(drafts), scanCap)] {
+		if len(newest) == headCap && len(held) == headCap {
+			break
+		}
 		_, art, err := s.load(r.ID)
 		if err != nil {
 			return nil, err
 		}
-		conf, _ := art.FrontMatter["confidence"].(string)
-		if len(newest) < headCap {
+		c, _ := art.FrontMatter["confidence"].(string)
+		switch {
+		case len(newest) < headCap:
 			newest = append(newest, r)
-			notes[r.ID] = "at " + conf + " confidence"
-		}
-		if conf == "high" && len(held) < headCap {
+			conf[r.ID] = c
+		case c == "high" && len(held) < headCap:
 			held = append(held, r)
 		}
 	}
 	var second paragraph
 	if len(newest) > 0 {
 		items := titles(newest, headCap, false)
-		for i := range items {
-			items[i].Note = notes[newest[i].ID]
+		lead := "Newest drafts:"
+		if shared := conf[newest[0].ID]; shared != "" && sameConfidence(newest, conf) {
+			lead = "Newest, " + pluralWord(len(newest), "", "both ") + "at " + shared + " confidence:"
+		} else {
+			for i := range items {
+				if c := conf[newest[i].ID]; c != "" {
+					items[i].Note = "at " + c + " confidence"
+				}
+			}
 		}
-		second = append(second, clause{Lead: "Newest drafts:", Items: items})
+		second = append(second, clause{Lead: lead, Items: items})
 	}
 	if len(held) > 0 {
 		second = append(second, clause{Lead: "Held at high confidence, unverified:", Items: titles(held, headCap, false)})
@@ -139,4 +162,13 @@ func (s *server) learnedProse(project string, counts map[string]map[string]int) 
 		out = append(out, second)
 	}
 	return out, nil
+}
+
+func sameConfidence(rows []index.ArtifactRow, conf map[string]string) bool {
+	for _, r := range rows {
+		if conf[r.ID] != conf[rows[0].ID] {
+			return false
+		}
+	}
+	return true
 }

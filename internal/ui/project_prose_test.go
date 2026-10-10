@@ -23,7 +23,7 @@ func TestProse_DecidedAndLearnedReadAsSentences(t *testing.T) {
 			"title": fmt.Sprintf("Decision %d", i+1), "status": st, "project": "anvil", "updated": fmt.Sprintf("2026-10-0%d", i+1),
 		}, "x\n")
 	}
-	for i, c := range []string{"low", "high", "medium"} {
+	for i, c := range []string{"high", "low", "high", "medium"} {
 		writeArtifact(t, v, core.TypeLearning, fmt.Sprintf("anvil-l%d", i), map[string]any{
 			"title": fmt.Sprintf("Learning %d", i), "status": "draft", "project": "anvil", "confidence": c, "updated": fmt.Sprintf("2026-10-0%d", i+1),
 		}, "x\n")
@@ -32,20 +32,23 @@ func TestProse_DecidedAndLearnedReadAsSentences(t *testing.T) {
 	body, _ := projectBody(t, h)
 	decided, learned := section(body, "decided"), section(body, "learned")
 	for _, want := range []string{
-		"3 proposals wait on you:", `<a href="/artifact/decision.anvil.0003-d" class="to-proposed">Decision 3</a> (<time datetime="2026-10-03">3 Oct</time>)`,
-		"1 older one has waited:", "Accepted last:", `class="to-accepted">Decision 4</a>`,
+		"3 proposals wait on you. Newest:", `<a href="/artifact/decision.anvil.0003-d" class="to-proposed">Decision 3</a> (<time datetime="2026-10-03">3 Oct</time>)`,
+		"Older:", "Accepted last:", `class="to-accepted">Decision 4</a>`,
 	} {
 		if !strings.Contains(decided, want) {
 			t.Errorf("decided band lacks %q in\n%s", want, decided)
 		}
 	}
 	for _, want := range []string{
-		"3 drafts and 1 verified, last updated <time datetime=\"2026-10-03\">3 Oct</time>.",
+		"4 drafts and 1 verified; nothing new since <time datetime=\"2026-10-04\">4 Oct</time>.",
 		"Newest drafts:", "at medium confidence", "Held at high confidence, unverified:", "Verified:", ">Checked</a>",
 	} {
 		if !strings.Contains(learned, want) {
 			t.Errorf("learned band lacks %q in\n%s", want, learned)
 		}
+	}
+	if n := strings.Count(learned, `>Learning 2</a>`); n != 1 {
+		t.Errorf("the newest high-confidence draft is linked %d times, want 1", n)
 	}
 	for name, band := range map[string]string{"decided": decided, "learned": learned} {
 		if strings.Contains(band, "<ul") || strings.Contains(band, "<li") {
@@ -54,11 +57,41 @@ func TestProse_DecidedAndLearnedReadAsSentences(t *testing.T) {
 	}
 }
 
+// Warrant: fails if the Decided band's counts and names disagree, or its overflow link or the Learned band's shared confidence slip.
+func TestProse_OverflowAndSharedConfidence(t *testing.T) {
+	h, v := seed(t)
+	for i := 1; i <= 7; i++ {
+		writeArtifact(t, v, core.TypeDecision, fmt.Sprintf("anvil.%04d-d", i), map[string]any{
+			"title": fmt.Sprintf("Decision %d", i), "status": "proposed", "project": "anvil", "updated": fmt.Sprintf("2026-10-0%d", i),
+		}, "x\n")
+	}
+	for i := 0; i < 2; i++ {
+		writeArtifact(t, v, core.TypeLearning, fmt.Sprintf("anvil-l%d", i), map[string]any{
+			"title": fmt.Sprintf("Learning %d", i), "status": "draft", "project": "anvil", "confidence": "low", "updated": fmt.Sprintf("2026-10-0%d", i+1),
+		}, "x\n")
+	}
+	body, _ := projectBody(t, h)
+	decided, learned := section(body, "decided"), section(body, "learned")
+	for _, want := range []string{"7 proposals wait on you.", "Newest:", "Older:", `; <a href="/type/decision?project=anvil&amp;status=proposed">3 more</a>.`} {
+		if !strings.Contains(decided, want) {
+			t.Errorf("decided band lacks %q in\n%s", want, decided)
+		}
+	}
+	for _, want := range []string{"2 drafts and none verified; nothing new since", "Newest, both at low confidence:"} {
+		if !strings.Contains(learned, want) {
+			t.Errorf("learned band lacks %q in\n%s", want, learned)
+		}
+	}
+	if strings.Contains(learned, "at low confidence</") || strings.Contains(learned, ") at low") {
+		t.Errorf("shared confidence is repeated per title in\n%s", learned)
+	}
+}
+
 // Warrant: fails if a page drops the skip link or the palette stops naming its selected row to a screen reader.
 func TestBase_SkipLinkAndComboboxPalette(t *testing.T) {
 	h, _ := seed(t)
 	_, body := do(h, "GET", "/project/anvil")
-	for _, want := range []string{`<a class="skip" href="#main">`, `<main id="main">`, `role="combobox"`, `aria-controls="palette-list"`, `aria-activedescendant`, `role="listbox"`, `e.key === e.title ? e.key`} {
+	for _, want := range []string{`<a class="skip" href="#main">`, `<main id="main">`, `role="combobox"`, `aria-controls="palette-list"`, `aria-activedescendant`, `role="listbox"`, `aria-expanded="false"`, `id="palette-status"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page lacks %q", want)
 		}

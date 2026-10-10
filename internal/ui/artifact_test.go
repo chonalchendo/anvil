@@ -138,7 +138,7 @@ func TestArtifactPage_NoRailNoLinksOutAndNothingListedTwice(t *testing.T) {
 		"title": "Cites", "product_design": "[[product-design.anvil]]",
 	}, "## Why\n\nSee [[decision.ui.0001-a-decision]].\n\n## Links\n\n- [[decision.ui.0001-a-decision]]\n- [[thread.anvil-design-docs.0002-x|the thread]]\n- [[decision.ui.0001-a-decision|again]]\n")
 	_, body := do(h, "GET", "/artifact/milestone.milestone.anvil.cites")
-	for _, no := range []string{`class="rail"`, "Links out", `<h2>Links</h2>\n<ul>`} {
+	for _, no := range []string{`class="rail"`, "Links out", `<h2 class="lbl">Links</h2>\n<ul>`} {
 		if strings.Contains(body, no) {
 			t.Errorf("page still holds %q", no)
 		}
@@ -151,7 +151,7 @@ func TestArtifactPage_NoRailNoLinksOutAndNothingListedTwice(t *testing.T) {
 		t.Errorf("decision links outside the properties and cited-by folds = %d, want 2 (body, Links sentence)", n)
 	}
 	contents := contentsOf(t, body)
-	for _, want := range []string{`<h2>On this page</h2>`, `href="#why"`, `<p class="prose">decision <a href="/artifact/decision.ui.0001-a-decision">A decision</a> and thread <a href="/artifact/thread.anvil-design-docs.0002-x">the thread</a>.</p>`} {
+	for _, want := range []string{`<h2 class="lbl">On this page</h2>`, `href="#why"`, `<p class="prose">decision <a href="/artifact/decision.ui.0001-a-decision">A decision</a> and thread <a href="/artifact/thread.anvil-design-docs.0002-x">the thread</a>.</p>`} {
 		if !strings.Contains(contents, want) {
 			t.Errorf("contents lacks %q", want)
 		}
@@ -166,7 +166,7 @@ func TestArtifactPage_LinksSectionWithoutWikilinksStaysInBody(t *testing.T) {
 	h, v := seed(t)
 	writeArtifact(t, v, core.TypeThread, "plain-links", map[string]any{"title": "P"}, "## Links\n\nNone yet.\n")
 	_, body := do(h, "GET", "/artifact/thread.plain-links")
-	if !strings.Contains(body, "None yet.") || strings.Contains(contentsOf(t, body), "<h2>Links</h2>") {
+	if !strings.Contains(body, "None yet.") || strings.Contains(contentsOf(t, body), `<h2 class="lbl">Links</h2>`) {
 		t.Error("prose-only Links section was lifted out of the body")
 	}
 }
@@ -191,7 +191,7 @@ func TestArtifactPage_LinksSectionWithNotesStaysInBody(t *testing.T) {
 	h, v := seed(t)
 	writeArtifact(t, v, core.TypeThread, "noted-links", map[string]any{"title": "N"}, "## Links\n\n- [[decision.ui.0001-a-decision]] - the pick.\n")
 	_, body := do(h, "GET", "/artifact/thread.noted-links")
-	if !strings.Contains(body, "the pick.") || strings.Contains(contentsOf(t, body), "<h2>Links</h2>") {
+	if !strings.Contains(body, "the pick.") || strings.Contains(contentsOf(t, body), `<h2 class="lbl">Links</h2>`) {
 		t.Error("a Links item with a note was lifted out of the body")
 	}
 }

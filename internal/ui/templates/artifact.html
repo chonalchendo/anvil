@@ -11,21 +11,21 @@
 </header>
 {{range .Diagrams}}{{template "canvas" .}}
 {{end}}<section class="body">{{.Body}}</section>
-{{if eq .Head.Type "milestone"}}<section class="issues" aria-labelledby="iss-h"><h2 id="iss-h">Issues</h2>
+{{if eq .Head.Type "milestone"}}<section class="issues" aria-labelledby="iss-h"><h2 class="lbl" id="iss-h">Issues</h2>
 {{if .Issues}}{{template "issuetable" .Issues}}{{else}}<p class="muted">No issues.</p>{{end}}</section>{{end}}
 <details class="props" id="props"><summary>All properties</summary><dl>
 {{range .Props}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{anchor .}} {{end}}</dd>{{end}}
 </dl></details>
 </div>
 <section class="contents" aria-label="Contents">
-{{with .Head.Judge}}<h2>Judge</h2>
+{{with .Head.Judge}}<h2 class="lbl">Judge</h2>
 <div class="judge">{{range .}}<span class="jk">{{.Name}}</span><span class="jv">{{range .Values}}{{anchor .}} {{end}}{{range .Rich}}{{if .Href}}<a href="{{.Href}}" translate="no">{{.Text}}</a>{{else if .ISO}}<time datetime="{{.ISO}}">{{.Text}}</time>{{else if eq .Class "sha"}}<code class="sha" translate="no">{{.Text}}</code>{{else}}<span{{with .Class}} class="{{.}}"{{end}}{{with .Title}} title="{{.}}"{{end}}>{{.Text}}</span>{{end}}{{.Tail}} {{end}}</span>{{end}}</div>{{end}}
 <p class="key"><code translate="no">{{.Key}}</code></p>
-{{with .Outline}}<h2>On this page</h2>
+{{with .Outline}}<h2 class="lbl">On this page</h2>
 <ol class="outline">{{range .}}<li><a href="#{{.ID}}"><span class="n">{{.N}}</span>{{.Title}}</a></li>{{end}}</ol>{{end}}
-{{with .Links}}<h2>Links</h2>
+{{with .Links}}<h2 class="lbl">Links</h2>
 <p class="prose">{{.}}</p>{{end}}
-<h2>Cited by</h2>
+<h2 class="lbl">Cited by</h2>
 {{if .Cited}}<details class="cited"><summary>{{.CitedTotal}} {{if eq .CitedTotal 1}}artifact{{else}}artifacts{{end}}</summary>
 {{range .Cited}}<h3>{{.Type}} <span class="count">{{.Count}}</span></h3>
 <ul>{{range .Items}}<li>{{anchor .}}</li>{{end}}{{if .More}}<li class="more"><a href="{{.MoreHref}}">{{.More}} more</a></li>{{end}}</ul>

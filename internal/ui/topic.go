@@ -23,6 +23,7 @@ type topicItem struct {
 
 type topicPage struct {
 	Slug, Lead               string
+	Moved, MovedISO          string
 	DecisionsAll, ThreadsAll string
 	Decisions, Threads       []topicItem
 	Linked, Tagged, Inbox    []topicItem
@@ -55,7 +56,7 @@ func (s *server) topic(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) buildTopic(t *topic) (topicPage, error) {
 	page := topicPage{
-		Slug: t.Slug, Lead: topicLead(t),
+		Slug: t.Slug, Lead: topicLead(t), Moved: shortDate(t.Moved), MovedISO: day(t.Moved),
 		DecisionsAll: "/type/decision?topic=" + url.QueryEscape(t.Slug), ThreadsAll: "/type/thread?topic=" + url.QueryEscape(t.Slug),
 	}
 	var err error
@@ -91,7 +92,7 @@ func (s *server) buildTopic(t *topic) (topicPage, error) {
 	return page, nil
 }
 
-// topicLead composes the counts and last-moved sentence.
+// topicLead composes the counts sentence up to the last-moved date, which the template wraps in <time>.
 func topicLead(t *topic) string {
 	var parts []string
 	for _, g := range []struct {
@@ -104,7 +105,7 @@ func topicLead(t *topic) string {
 			parts = append(parts, fmt.Sprintf("%s (%s)", plural(g.n, g.one, g.many), tallyText(tally(g.rows))))
 		}
 	}
-	return strings.Join(parts, " and ") + ". Last moved " + shortDate(t.Moved) + "."
+	return strings.Join(parts, " and ") + ". Last moved"
 }
 
 // topicItems lists rows in ordinal order; withDesc reads each description from the file.

@@ -2,20 +2,20 @@
 {{define "when"}}{{if .UpdatedISO}}<time datetime="{{.UpdatedISO}}">{{.Updated}}</time>{{else}}{{.Updated}}{{end}}{{end}}
 {{define "lately"}}{{range .}}{{.Sep}}<a href="{{.Href}}"{{with .Status}} class="to-{{.}}"{{end}}>{{.Title}}</a>{{with .Note}} {{.}}{{end}}{{if .Updated}} ({{template "when" .}}){{end}}{{end}}{{end}}
 {{define "lately-links"}}{{range .}}{{.Sep}}<a href="{{.Href}}">{{.Title}}</a>{{end}}{{end}}
-{{define "prose"}}{{range .}}<p>{{range $i, $c := .}}{{if $i}} {{end}}{{$c.Lead}}{{if $c.Date}} <time datetime="{{$c.ISO}}">{{$c.Date}}</time>{{end}}{{if $c.Items}} {{template "lately" $c.Items}}{{end}}.{{end}}</p>
+{{define "prose"}}{{range .}}<p>{{range $i, $c := .}}{{if $i}} {{end}}{{$c.Lead}}{{if $c.Date}} <time datetime="{{$c.ISO}}">{{$c.Date}}</time>{{end}}{{if $c.Items}} {{template "lately" $c.Items}}{{end}}{{if $c.More}}; <a href="{{$c.MoreHref}}">{{$c.More}}</a>{{end}}.{{end}}</p>
 {{end}}{{end}}
 {{define "content"}}{{with .Page}}<div class="dashboard">
 <header class="head">
   <h1 translate="no">{{.Name}}</h1>
   {{with .Deck}}<p class="deck">{{.}}</p>{{end}}
-  <p class="counts">{{.Name}} holds {{template "lately-links" .Counts}}{{if .Counts}}; {{end}}<a href="/type/convention">{{.Conventions}}</a> {{.ConventionsVerb}} shared by every project.</p>
+  <p class="counts"><span translate="no">{{.Name}}</span> holds {{template "lately-links" .Counts}}{{if .Counts}}; {{end}}<a href="/type/convention">{{.Conventions}}</a> {{.ConventionsVerb}} shared by every project.</p>
 </header>
 {{with .Milestones}}<section class="milestones" aria-labelledby="ms-h">
-  <h2 id="ms-h">Milestones</h2>
-  <p class="lede">{{.Lead}}</p>
+  <h2 class="lbl" id="ms-h">Milestones</h2>
+  <p class="lede">{{.Lead}}{{if .LeadDate}} <time datetime="{{.LeadISO}}">{{.LeadDate}}</time>{{end}}{{.LeadTail}}</p>
   {{if .Folds}}<div class="ms-head" aria-hidden="true"><span>Milestone</span><span>Status</span><span class="sp2">Approved</span><span class="sp2">Measured</span><span class="n">Resolved</span><span class="c">Not done</span></div>{{end}}
   {{range .Folds}}<details class="ms{{if .Live}} live{{end}}"{{if .Open}} open{{end}}>
-    <summary><span class="t">{{if .Href}}<a href="{{.Href}}" class="to-{{.Status}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</span>{{if .Href}}<span>{{template "stat" .}}</span><span class="sp2">{{with .Approved}}{{.}}{{else}}<span class="none">not approved</span>{{end}}</span><span class="sp2">{{with .Measured}}{{.}}{{else}}<span class="none">not measured</span>{{end}}</span><span class="n">{{if .Total}}{{.Resolved}} of {{.Total}}{{else}}<span class="none" aria-label="none">—</span>{{end}}</span>{{else}}<span></span><span class="sp2"></span><span class="sp2"></span><span></span>{{end}}<span class="c">{{range .NotDone}}{{.Sep}}<span class="status status-{{.Status}}{{with hue "issue" .Status}} status-{{.}}{{end}}">{{.N}} {{.Label}}</span>{{else}}<span class="none">no issues yet</span>{{end}}</span></summary>
+    <summary><span class="t">{{if .Href}}<a href="{{.Href}}" class="to-{{.Status}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</span>{{if .Href}}<span>{{template "stat" .}}</span><span class="sp2">{{if .Approved}}<time datetime="{{.ApprovedISO}}">{{.Approved}}</time>{{else}}<span class="none">not approved</span>{{end}}</span><span class="sp2">{{if .Measured}}<time datetime="{{.MeasuredISO}}">{{.Measured}}</time>{{else}}<span class="none">not measured</span>{{end}}</span><span class="n">{{if .Total}}{{.Resolved}} of {{.Total}}{{else}}<span class="none" aria-label="none">—</span>{{end}}</span>{{else}}<span></span><span class="sp2"></span><span class="sp2"></span><span></span>{{end}}<span class="c">{{range .NotDone}}{{.Sep}}<span class="status status-{{.Status}}{{with hue "issue" .Status}} status-{{.}}{{end}}">{{.N}} {{.Label}}</span>{{else}}<span class="none">no issues yet</span>{{end}}</span></summary>
     {{if .Issues}}{{template "issuetable" .Issues}}
     {{else if .Href}}<p class="empty-fold">No open issue.</p>{{end}}
     {{if .Abandoned}}<p class="fold-note">{{.Abandoned}} abandoned, not counted in the {{.Total}}.</p>{{end}}
@@ -23,11 +23,11 @@
   {{if .Nothing}}<div class="empty"><p>{{.Inset}}</p></div>{{end}}
 </section>{{end}}
 <section class="work" aria-label="Work">
-  {{with .Done}}<div class="band"><h2>Recently done</h2>
+  {{with .Done}}<div class="band"><h2 class="lbl">Recently done</h2>
     <ul class="done-list">{{range .}}<li><span class="status status-done" aria-hidden="true">✓</span><a href="{{.Href}}" class="to-done">{{.Title}}</a><span class="meta">{{.Resolved}} of {{.Total}}, {{template "when" .}}{{with .SHA}}, <code translate="no">{{.}}</code>{{end}}</span></li>{{end}}</ul>
   </div>{{end}}
 
-  {{with .Designs}}{{if or .Canvases .Product .System .Comps}}<div class="band"><h2>Designs</h2>
+  {{with .Designs}}{{if or .Canvases .Product .System .Comps}}<div class="band"><h2 class="lbl">Designs</h2>
     <div class="strip">{{range .Canvases}}<figure><div class="thumb">{{template "canvas" .}}<a class="cover" href="/diagram/{{.Name}}" aria-label="Open diagram {{.Name}}"></a></div><figcaption><code translate="no">{{.Name}}</code>{{with .Note}} {{.}}{{end}}</figcaption></figure>{{end}}
     <div class="comps">
       {{with .Product}}<span>Product: {{range $i, $c := .}}{{if $i}}, {{end}}<a href="{{$c.Href}}">{{$c.Title}}</a>{{end}}</span>{{end}}

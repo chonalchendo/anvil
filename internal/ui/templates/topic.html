@@ -7,7 +7,7 @@
 <header class="head">
   <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Knowledge</a><span aria-hidden="true"> › </span><span aria-current="page" translate="no">{{.Slug}}</span></nav>
   <h1 translate="no">{{.Slug}}</h1>
-  <p class="deck">{{.Lead}}</p>
+  <p class="deck">{{.Lead}} <time datetime="{{.MovedISO}}">{{.Moved}}</time>.</p>
 </header>
 <section class="panel" aria-labelledby="dec">
   <h2 class="lbl" id="dec">Decisions <small>in order{{if .Decisions}} · <a href="{{.DecisionsAll}}">All {{len .Decisions}}</a>{{end}}</small></h2>
