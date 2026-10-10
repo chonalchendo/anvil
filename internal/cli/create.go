@@ -371,7 +371,7 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "milestone slug or wikilink to assign (issue only)")
 	cmd.Flags().StringArrayVar(&flagAcceptance, "acceptance", nil, "acceptance criterion to add (repeatable; issue, milestone)")
 	cmd.Flags().StringVar(&flagKind, "kind", "", "component design kind (registered label, required — register via `anvil component-design kinds add`) or milestone kind (scoped, the default)")
-	cmd.Flags().BoolVar(&flagShowTemplate, "show-template", false, "print the required body skeleton + tag rules for <type> and exit (learning, issue)")
+	cmd.Flags().BoolVar(&flagShowTemplate, "show-template", false, "print the required body skeleton + tag rules for <type> and exit (learning, issue, milestone, component-design, product-design, system-design)")
 	cmd.Flags().BoolVar(&flagSkipVerifyPredicates, "skip-verify-predicates", false, skipVerifyPredicatesFlagUsage)
 
 	return cmd
