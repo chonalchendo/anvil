@@ -38,12 +38,12 @@ type projectChip struct {
 }
 
 type typePage struct {
-	Type, Icon, Project, Status, To, Tag string
-	Tabs                                 []statusTab
-	Chips                                []chip
-	Projects                             []projectChip
-	AllHref                              string
-	Groups                               []statusGroup
+	Type, Icon, Project, Status, To, Tag, Topic string
+	Tabs                                        []statusTab
+	Chips                                       []chip
+	Projects                                    []projectChip
+	AllHref                                     string
+	Groups                                      []statusGroup
 }
 
 // typeList lists one type from the index, grouped by status live-first, newest first within a group.
@@ -54,7 +54,7 @@ func (s *server) typeList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	page := typePage{Type: string(t), Icon: typeIcons[string(t)], Project: q.Get("project"), Status: q.Get("status"), To: q.Get("to"), Tag: q.Get("tag")}
+	page := typePage{Type: string(t), Icon: typeIcons[string(t)], Project: q.Get("project"), Status: q.Get("status"), To: q.Get("to"), Tag: q.Get("tag"), Topic: q.Get("topic")}
 	if err := s.fillTypePage(&page); err != nil {
 		slog.Error("building type list", "type", t, "err", err)
 		http.Error(w, "page failed", http.StatusInternalServerError)
@@ -79,6 +79,9 @@ func (s *server) fillTypePage(page *typePage) error {
 		if rows, err = s.citing(rows, page.To); err != nil {
 			return err
 		}
+	}
+	if page.Topic != "" {
+		rows = slices.DeleteFunc(rows, func(r index.ArtifactRow) bool { return topicOf(r.ID) != page.Topic })
 	}
 	page.Tabs = statusTabs(page, rows)
 	page.Chips = chips(page)
@@ -135,7 +138,7 @@ func (s *server) fillProjects(page *typePage) error {
 // typeHref returns the type-list URL for page's filters with key set to val ("" drops it).
 func typeHref(page *typePage, key, val string) string {
 	v := url.Values{}
-	for k, cur := range map[string]string{"project": page.Project, "status": page.Status, "to": page.To, "tag": page.Tag} {
+	for k, cur := range map[string]string{"project": page.Project, "status": page.Status, "to": page.To, "tag": page.Tag, "topic": page.Topic} {
 		if k == key {
 			cur = val
 		}
@@ -177,7 +180,7 @@ func statusTabs(page *typePage, rows []index.ArtifactRow) []statusTab {
 func chips(page *typePage) []chip {
 	var out []chip
 	for _, c := range []struct{ key, label, val string }{
-		{"tag", "tag", page.Tag}, {"to", "cites", page.To},
+		{"tag", "tag", page.Tag}, {"to", "cites", page.To}, {"topic", "topic", page.Topic},
 	} {
 		if c.val != "" {
 			out = append(out, chip{Label: c.label + " " + c.val, Remove: typeHref(page, c.key, "")})

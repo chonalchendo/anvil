@@ -271,9 +271,14 @@ func TestTemplates_RenderOnFixtureData(t *testing.T) {
 		t.Fatalf("artifact template status = %d", rec.Code)
 	}
 	rec = httptest.NewRecorder()
-	p.render(rec, "home", sidebar{}, homePage{})
+	p.render(rec, "knowledge", sidebar{}, knowledgePage{})
 	if rec.Code != 200 {
-		t.Fatalf("home template status = %d", rec.Code)
+		t.Fatalf("knowledge template status = %d", rec.Code)
+	}
+	rec = httptest.NewRecorder()
+	p.render(rec, "topic", sidebar{}, topicPage{})
+	if rec.Code != 200 {
+		t.Fatalf("topic template status = %d", rec.Code)
 	}
 }
 

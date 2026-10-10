@@ -12,6 +12,7 @@
 <aside class="sidebar">
   <a class="brand" href="/">anvil</a>
   <label class="search"><input id="palette-q" type="search" readonly placeholder="Search or jump to…" aria-label="Search or jump to an artifact"><kbd>⌘K</kbd></label>
+  <nav aria-label="Knowledge"><a href="/"{{if .Sidebar.Knowledge}} aria-current="page"{{end}}>Knowledge</a></nav>
   <nav aria-label="Projects">
     {{with .Sidebar.Projects}}<div class="group">Projects</div>
     <ul class="projects">{{range .}}<li><a href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{.Name}}</a></li>{{end}}</ul>{{end}}

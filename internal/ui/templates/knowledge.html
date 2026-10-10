@@ -1,0 +1,20 @@
+{{define "title"}}Knowledge · anvil{{end}}
+{{define "tally"}}{{range $i, $n := .}}{{if $i}}, {{end}}<span class="status status-{{$n.Status}}">{{$n.N}} {{$n.Label}}</span>{{end}}{{end}}
+{{define "content"}}{{with .Page}}<div class="knowledge">
+<header class="head">
+  <h1>Knowledge</h1>
+  <p class="deck">What the vault has decided, learned and asked across every project, and what waits on you.</p>
+  <p class="counts">Across every project: {{range .Counts}}{{.Sep}}<a href="{{.Href}}">{{.Title}}</a>{{end}}.</p>
+</header>
+<section class="panel" aria-labelledby="topics">
+  <h2 class="lbl" id="topics">Topics</h2>
+  <p class="lede">{{.TopicsLede}}</p>
+  <div class="topic-head" aria-hidden="true"><span>Topic</span><span>Where it stands</span><span>Decisions and threads</span><span class="r">Last moved</span></div>
+  <ul class="topics">{{range .Topics}}<li><a class="tname to-{{.Status}}" href="{{.Href}}" translate="no">{{.Slug}}</a><p class="syn">{{.Stands}}</p><p class="tc">{{template "tally" .Decisions}}{{if and .Decisions .Threads}}; {{end}}{{template "tally" .Threads}}{{if .Threads}} {{.ThreadsWord}}{{end}}</p><span class="meta"><time datetime="{{.MovedISO}}">{{.Moved}}</time></span></li>{{end}}</ul>
+  {{with .Other}}<details class="other"><summary>Other topics, {{len .}}: one decision each, no thread</summary><ul class="other-list">{{range .}}<li><a href="{{.Href}}" translate="no" class="to-{{.Status}}">{{.Slug}}</a> <span class="status status-{{.Status}}">{{.Status}}</span> <span class="meta"><time datetime="{{.MovedISO}}">{{.Moved}}</time></span></li>{{end}}</ul></details>{{end}}
+</section>
+<section class="panel k" aria-labelledby="inbox">
+  <div><h2 class="lbl" id="inbox">Routed inbox</h2><p class="lede">{{.RoutedLede}}</p></div>
+  <ul class="k-list">{{range .Routed}}<li><a href="{{.Href}}" class="to-{{.Status}}">{{.Title}}</a><span class="meta"><time datetime="{{.MovedISO}}">{{.Moved}}</time></span><span class="route">Route: {{.Route}}</span></li>{{else}}<li class="none">No raw note carries a route.</li>{{end}}</ul>
+</section>
+</div>{{end}}{{end}}

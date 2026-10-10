@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 type sidebarType struct {
@@ -28,6 +29,8 @@ type sidebar struct {
 	Groups   []sidebarGroup
 	Projects []projectLink
 	Port     string
+	// Knowledge marks the Knowledge link current on the knowledge and topic pages.
+	Knowledge bool
 }
 
 // Count returns the sidebar's formatted count for typ.
@@ -64,7 +67,7 @@ func (s *server) sidebar(r *http.Request) (sidebar, error) {
 	if err != nil {
 		return sidebar{}, err
 	}
-	sb := sidebar{}
+	sb := sidebar{Knowledge: r.URL.Path == "/" || strings.HasPrefix(r.URL.Path, "/topic/")}
 	for _, g := range sidebarLayout {
 		grp := sidebarGroup{Name: g.name}
 		for _, t := range g.types {
