@@ -170,7 +170,7 @@ func (s *server) issueRows(rows []index.ArtifactRow) ([]issueRow, error) {
 }
 
 // milestoneIssues lists every issue of a milestone, newest first, for its page. in is the
-// page's incoming links; the bare-slot links cost one more read.
+// page's incoming links; links in the bare slot form cost one more read.
 func (s *view) milestoneIssues(key, project string, in []index.LinkRow) ([]issueRow, error) {
 	bare, err := s.db.LinksTo(milestoneSlot(project, key))
 	if err != nil {
