@@ -281,10 +281,12 @@ func newCreateCmd() *cobra.Command {
 					if !flagUpdate {
 						return formatDriftError(cmd, id, drift, fm, existing.FrontMatter, body, existing.Body)
 					}
-					// --update path: preserve `created`, then re-validate the new
-					// fm + body in one pass before overwriting.
-					if c, ok := existing.FrontMatter["created"]; ok {
-						fm["created"] = c
+					// --update path: keep every field the caller did not pass,
+					// then re-validate the merged fm + body before overwriting.
+					fm["updated"] = created
+					fm, changed := mergeUpdate(cmd, existing.FrontMatter, fm)
+					if body != existing.Body {
+						changed = append(changed, "body")
 					}
 					findings, err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON, preValidationErrors...)
 					if err != nil {
@@ -305,7 +307,7 @@ func newCreateCmd() *cobra.Command {
 						}
 						return indexErr
 					}
-					return emitCreateResult(cmd, flagJSON, id, path, statusUpdated, nil, findings)
+					return emitUpdateResult(cmd, flagJSON, id, path, changed, findings)
 				} else if !errors.Is(err, fs.ErrNotExist) {
 					return fmt.Errorf("checking %s: %w", path, err)
 				}

@@ -1894,7 +1894,18 @@ func TestCreate_Issue_BodyDrift_RefusedWithoutUpdate(t *testing.T) {
 	}
 
 	// With --update the existing numbered file is rewritten in place.
-	path2 := createIssueGetPath(t, append(append([]string{}, base...), "--body", withSections("different body"), "--update")...)
+	cmdU := newRootCmd()
+	cmdU.SetArgs(append(append([]string{}, base...), "--body", withSections("different body"), "--update", "--json"))
+	var outU bytes.Buffer
+	cmdU.SetOut(&outU)
+	if err := cmdU.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var respU map[string]any
+	if err := json.Unmarshal(outU.Bytes(), &respU); err != nil {
+		t.Fatal(err)
+	}
+	path2, _ := respU["path"].(string)
 	if path1 != path2 {
 		t.Errorf("--update should rewrite the same file; got %q then %q", path1, path2)
 	}
@@ -2635,5 +2646,59 @@ func TestCreateIssue_FromVaultCheckout_RefusesNamingProjectFlag(t *testing.T) {
 	_, _, err := runCmd(t, newRootCmd(), "create", "issue", "--title", "probe", "--description", "x")
 	if err == nil || !strings.Contains(err.Error(), "--project <slug>") || !strings.Contains(err.Error(), "vault checkout") {
 		t.Fatalf("err = %v, want vault-checkout refusal naming --project", err)
+	}
+}
+
+// --update keeps status, related and unsupplied fields, and the JSON envelope
+// names what changed (anvil.0372).
+func TestCreate_Update_KeepsStatusAndRelated(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	withSections := func(intro string) string {
+		return "## Problem\n" + intro + "\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
+	}
+	args := []string{"create", "issue", "--title", "Keep edges", "--description", "d",
+		"--goal", "edges survive", "--tags", "domain/dev-tools", "--allow-new-facet=domain"}
+	path := createIssueGetPath(t, append(append([]string{}, args...), "--body", withSections("old"), "--json")...)
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.FrontMatter["status"] = "in-progress"
+	a.FrontMatter["related"] = []any{"[[thread.x.y]]"}
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"create", "issue", "--title", "Keep edges", "--description", "d",
+		"--goal", "edges survive", "--tags", "domain/dev-tools", "--allow-new-facet=domain",
+		"--body", withSections("new body"), "--update", "--json"})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var resp struct {
+		Status  string   `json:"status"`
+		Changed []string `json:"changed"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Status != "updated" || len(resp.Changed) != 1 || resp.Changed[0] != "body" {
+		t.Errorf("envelope = %+v, want updated with changed=[body]", resp)
+	}
+	got, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.FrontMatter["status"] != "in-progress" {
+		t.Errorf("status = %v, want in-progress", got.FrontMatter["status"])
+	}
+	if rel, _ := got.FrontMatter["related"].([]any); len(rel) != 1 {
+		t.Errorf("related = %v, want kept", got.FrontMatter["related"])
 	}
 }
