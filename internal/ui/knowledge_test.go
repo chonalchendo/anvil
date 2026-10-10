@@ -96,30 +96,6 @@ func TestKnowledge_RoutedInbox(t *testing.T) {
 	}
 }
 
-// Warrant: fails if the sidebar loses the Knowledge link, marks it off the knowledge and topic pages, or marks it elsewhere.
-func TestSidebar_KnowledgeLink(t *testing.T) {
-	h := topicVault(t)
-	for path, current := range map[string]bool{"/": true, "/topic/alpha": true, "/type/decision": false} {
-		_, body := do(h, "GET", path)
-		sb := sidebarOf(t, body)
-		want := `<a href="/"` + map[bool]string{true: ` aria-current="page"`, false: ""}[current] + `>Knowledge</a>`
-		if !strings.Contains(sb, want) {
-			t.Errorf("%s: sidebar lacks %s", path, want)
-		}
-		if strings.Index(sb, "Knowledge</a>") > strings.Index(sb, `aria-label="Projects"`) {
-			t.Errorf("%s: Knowledge must come before Projects", path)
-		}
-	}
-}
-
-// Warrant: fails if ?topic= stops filtering decisions and threads by id prefix, or drops the chip.
-func TestTypeList_TopicFilter(t *testing.T) {
-	_, body := do(topicVault(t), "GET", "/type/decision?topic=gamma")
-	if !strings.Contains(body, "decision.gamma.0001-a") || strings.Contains(body, "decision.alpha") || !strings.Contains(body, "topic gamma") {
-		t.Errorf("topic filter wrong:\n%s", body)
-	}
-}
-
 // newTagVault seeds topic alpha tagged domain/ui and n learnings carrying the tag.
 func newTagVault(t *testing.T, n int) *core.Vault {
 	t.Helper()

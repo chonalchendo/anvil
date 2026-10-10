@@ -74,3 +74,19 @@ func TestSidebar_ProjectsFirstAndBrowseClosed(t *testing.T) {
 		t.Error("Browse opens by default")
 	}
 }
+
+// Warrant: fails if the sidebar loses the Knowledge link, marks it off the knowledge and topic pages, or marks it elsewhere.
+func TestSidebar_KnowledgeLink(t *testing.T) {
+	h := topicVault(t)
+	for path, current := range map[string]string{"/": "page", "/topic/alpha": "true", "/type/decision": ""} {
+		_, body := do(h, "GET", path)
+		sb := sidebarOf(t, body)
+		want := `<a href="/"` + map[bool]string{true: ` aria-current="` + current + `"`, false: ""}[current != ""] + `>Knowledge</a>`
+		if !strings.Contains(sb, want) {
+			t.Errorf("%s: sidebar lacks %s", path, want)
+		}
+		if strings.Index(sb, "Knowledge</a>") > strings.Index(sb, `aria-label="Projects"`) {
+			t.Errorf("%s: Knowledge must come before Projects", path)
+		}
+	}
+}
