@@ -284,7 +284,12 @@ func newCreateCmd() *cobra.Command {
 					// --update path: keep every field the caller did not pass,
 					// then re-validate the merged fm + body before overwriting.
 					fm, changed := mergeUpdate(cmd, existing.FrontMatter, fm)
-					if strings.TrimSpace(body) != strings.TrimSpace(existing.Body) {
+					if !userAuthoredBody {
+						// No body flag: the body is the template scaffold,
+						// which must not replace the authored body.
+						body = existing.Body
+					}
+					if !sameBody(body, existing.Body) {
 						changed = append(changed, "body")
 					}
 					findings, err := validateBeforeCreate(cmd, v, t, path, fm, body, userAuthoredBody, flagAllowNewFacet, flagJSON, preValidationErrors...)

@@ -2733,6 +2733,67 @@ func TestCreate_Update_ChangedExcludesUnchangedBody(t *testing.T) {
 	}
 }
 
+// An identical re-run is a no-op for both create and --update: exit 0, file
+// bytes (and so `updated`) untouched (anvil.0372, cli-tooling rule 6).
+func TestCreate_IdenticalRerun_NoOp(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	body := "## Problem\nsame\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
+	base := []string{"create", "issue", "--title", "Rerun", "--description", "d", "--goal", "g", "--tags", "domain/dev-tools", "--allow-new-facet=domain", "--body", body}
+	path := createIssueGetPath(t, base...)
+	before, err := os.ReadFile(path) //nolint:gosec // test-controlled path
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, extra := range [][]string{nil, {"--update"}} {
+		if _, _, err := runCmd(t, newRootCmd(), append(append([]string{}, base...), extra...)...); err != nil {
+			t.Fatalf("identical re-run %v: %v", extra, err)
+		}
+		after, err := os.ReadFile(path) //nolint:gosec // test-controlled path
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(before, after) {
+			t.Errorf("identical re-run %v changed the file", extra)
+		}
+	}
+}
+
+// --update with no body flag keeps the authored body instead of resetting it
+// to the template scaffold (anvil.0372).
+func TestCreate_Update_NoBodyFlagKeepsBody(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	body := "## Problem\nauthored line\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
+	base := []string{"create", "issue", "--title", "Keep body", "--goal", "g", "--tags", "domain/dev-tools", "--allow-new-facet=domain"}
+	path := createIssueGetPath(t, append(append([]string{}, base...), "--description", "d1", "--body", body)...)
+
+	stdout, _, err := runCmd(t, newRootCmd(), append(append([]string{}, base...), "--description", "d2", "--update", "--json")...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resp struct {
+		Changed []string `json:"changed"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Changed) != 1 || resp.Changed[0] != "description" {
+		t.Errorf("changed = %v, want [description]", resp.Changed)
+	}
+	got, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got.Body, "authored line") {
+		t.Errorf("authored body lost: %q", got.Body)
+	}
+}
+
 // A passed flag whose key the type lacks must not write a nil into the
 // rewritten frontmatter (anvil.0372).
 func TestCreate_Update_FlagForAbsentKeyIsIgnored(t *testing.T) {

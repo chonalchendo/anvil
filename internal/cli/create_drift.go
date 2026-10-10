@@ -95,10 +95,16 @@ func createDrift(t core.Type, fm, existing map[string]any, body, existingBody st
 	if !tagsEqual(fm["tags"], existing["tags"]) {
 		return "tags"
 	}
-	if strings.TrimRight(body, "\n\t ") != strings.TrimRight(existingBody, "\n\t ") {
+	if !sameBody(body, existingBody) {
 		return "body"
 	}
 	return ""
+}
+
+// sameBody ignores surrounding whitespace: a saved body keeps a leading
+// newline the flag value lacks, and an identical re-run must be a no-op.
+func sameBody(a, b string) bool {
+	return strings.TrimSpace(a) == strings.TrimSpace(b)
 }
 
 func tagsEqual(a, b any) bool {
