@@ -27,12 +27,15 @@ const maxGoalChars = 120
 // description cap applies to all spine types; the issue path also collects its
 // goal-length overage so the author sees every violation in one rejection
 // rather than one per resubmit.
-func checkFieldCaps(t core.Type, description, goal string) error {
+func checkFieldCaps(t core.Type, description, goal string, asJSON bool) error {
 	if t == core.TypeSession {
 		return nil
 	}
 	var capErrs []error
 	if n := utf8.RuneCountInString(description); n > maxDescriptionChars {
+		if asJSON {
+			return capEnvelope("description_too_long", n, maxDescriptionChars)
+		}
 		capErrs = append(capErrs, fmt.Errorf(
 			"--description too long: %d chars (max %d); description is spine index/preview text, not docs — re-summarise to fit the cap rather than raise it",
 			n, maxDescriptionChars,
@@ -40,6 +43,9 @@ func checkFieldCaps(t core.Type, description, goal string) error {
 	}
 	if (t == core.TypeIssue || t == core.TypeMilestone) && strings.TrimSpace(goal) != "" {
 		if n := utf8.RuneCountInString(goal); n > maxGoalChars {
+			if asJSON {
+				return capEnvelope("goal_too_long", n, maxGoalChars)
+			}
 			capErrs = append(capErrs, fmt.Errorf(
 				"--goal too long: %d chars (max %d); goal is a one-sentence predicate, not docs — tighten it",
 				n, maxGoalChars,
@@ -47,6 +53,12 @@ func checkFieldCaps(t core.Type, description, goal string) error {
 		}
 	}
 	return errors.Join(capErrs...)
+}
+
+// capEnvelope is the --json refusal for a capped field; it reuses the
+// Structured shape so the last stdout line parses as {"code":...,"got":N,"max":M}.
+func capEnvelope(code string, got, max int) *errfmt.Structured {
+	return errfmt.NewStructured(code).Set("got", got).Set("max", max)
 }
 
 // collectPreValidationErrors applies the per-type required-flag checks, two

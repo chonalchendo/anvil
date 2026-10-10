@@ -123,7 +123,11 @@ func newCreateCmd() *cobra.Command {
 			if !noTitleRequired && flagTitle == "" {
 				titleErr = fmt.Errorf("--title is required for %s", t)
 			}
-			if err := errors.Join(titleErr, checkFieldCaps(t, flagDescription, flagGoal)); err != nil {
+			if err := errors.Join(titleErr, checkFieldCaps(t, flagDescription, flagGoal, flagJSON)); err != nil {
+				var capErr *errfmt.Structured
+				if flagJSON && errors.As(err, &capErr) {
+					return printAndReturn(cmd, capErr)
+				}
 				return err
 			}
 
