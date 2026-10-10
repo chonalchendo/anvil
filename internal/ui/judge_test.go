@@ -36,8 +36,8 @@ func TestJudgeStrip_LearningShowsSetFieldsAndLeavesProps(t *testing.T) {
 	if strings.Contains(props, "<dt>confidence</dt>") {
 		t.Error("judge key still in All properties")
 	}
-	if strings.Contains(strip, ">diataxis<") || !strings.Contains(props, "<dt>diataxis</dt>") {
-		t.Error("diataxis belongs in All properties, not the strip")
+	if strings.Contains(body, ">diataxis<") {
+		t.Error("diataxis is printed on the page")
 	}
 	if !strings.Contains(props, "<dt>tags</dt>") {
 		t.Error("non-judge key left props")
@@ -82,8 +82,8 @@ func TestJudgeStrip_DecisionShowsEveryKeyAndNoMeasured(t *testing.T) {
 			t.Errorf("strip lacks %q", want)
 		}
 	}
-	if strings.Contains(strip, ">date<") {
-		t.Error("decision strip still shows date")
+	if strings.Contains(body, ">date<") {
+		t.Error("decision page still prints date")
 	}
 	sup, supBy := strings.Index(strip, ">supersedes<"), strings.Index(strip, ">superseded_by<")
 	if sup >= supBy {

@@ -207,12 +207,16 @@ func (s *view) header(key string, fm map[string]any, body string) header {
 	return h
 }
 
+// unshownKeys are frontmatter fields no reader job needs: neither the judge strip
+// nor "All properties" prints them (decision anvil-human-view.0004).
+var unshownKeys = map[string][]string{"learning": {"diataxis"}, "decision": {"date"}}
+
 // props lists the frontmatter the header does not show, in name order; a
 // `[[type.id]]` value becomes a link.
 func (s *view) props(typ string, fm map[string]any) []prop {
 	names := make([]string, 0, len(fm))
 	for n := range fm {
-		if !headerKeys[n] && !slices.Contains(headerSlots, n) && !slices.Contains(judgeKeys[typ], n) {
+		if !headerKeys[n] && !slices.Contains(headerSlots, n) && !slices.Contains(judgeKeys[typ], n) && !slices.Contains(unshownKeys[typ], n) {
 			names = append(names, n)
 		}
 	}
