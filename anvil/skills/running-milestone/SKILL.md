@@ -130,13 +130,14 @@ An unattended orchestrator does not distil. It lists `Harvest candidates:` in th
 Milestone <id>: <N> issues resolved of <M>
   <issue-id> → <PR url> [ready | landed | escalated: <reason>] <rounds>r <diff>l <files>f <tokens>t
 Cost: <rounds>r <diff>l <files>f <tokens>t across <costed> of <issues> issues
+Outcome: <one_pr_no_rescope>/<issues> one PR, no re-scope; <escalations> escalations, <reopens> reopens, <amendments> amendments
 Finish line: <green | red: <failing check>>
 Exit: <none | 1 | 2 | 3> <reason>
 To land each ready PR:
   anvil transition issue <id> resolved --land-pr <n>
 ```
 
-The report reads each issue's cost from `issues[].cost` and the total from `cost_total`. Print `—` when `cost` is null.
+The report reads each issue's cost from `issues[].cost` and the total from `cost_total`. Print `—` when `cost` is null. The report reads the Outcome line from `.outcome`.
 
 ## What NOT to do
 

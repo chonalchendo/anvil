@@ -333,7 +333,9 @@ func newTransitionCmd() *cobra.Command {
 					a.Body += "\n"
 				}
 				a.Body += audit
-				bumpOutcome(a, "outcome_reopens")
+				if t == core.TypeIssue || t == core.TypeMilestone {
+					bumpOutcome(a, "outcome_reopens")
+				}
 				if t == core.TypeMilestone {
 					delete(a.FrontMatter, "done")
 				}

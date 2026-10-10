@@ -168,6 +168,7 @@ func TestOutcomeMilestone(t *testing.T) {
 	seed("demo.a", "resolved", map[string]any{"outcome_first_verdict": "pass", "external_links": []any{pr1}})
 	seed("demo.b", "resolved", map[string]any{"outcome_first_verdict": "fail", "outcome_rescopes": 1, "outcome_reopens": 1, "external_links": []any{pr1}})
 	seed("demo.c", "resolved", map[string]any{"outcome_escalations": 2, "external_links": []any{pr1, pr2}})
+	seed("demo.e", "open", map[string]any{"external_links": []any{pr1}})
 	seed("demo.d", "abandoned", map[string]any{"outcome_escalations": 5, "outcome_first_verdict": "pass"})
 	execCmd(t, "reindex")
 
@@ -183,15 +184,45 @@ func TestOutcomeMilestone(t *testing.T) {
 	if err := jsonUnmarshal(t, strings.TrimSpace(out), &got); err != nil {
 		t.Fatalf("json: %v\nout: %s", err, out)
 	}
-	want := milestoneOutcome{Issues: 3, OnePRNoRescope: 1, FirstPass: 1, Escalations: 2, Reopens: 1, Rescopes: 1, Amendments: 2}
+	want := milestoneOutcome{Issues: 4, OnePRNoRescope: 1, FirstPass: 1, Escalations: 2, Reopens: 1, Rescopes: 1, Amendments: 2}
 	if got.Outcome != want {
 		t.Fatalf("outcome = %+v, want %+v", got.Outcome, want)
 	}
-	if len(got.Issues) != 4 || got.Issues[0].OutcomeFirstVerdict == nil || got.Issues[1].OutcomeEscalations != nil {
+	if len(got.Issues) != 5 || got.Issues[0].OutcomeFirstVerdict == nil || got.Issues[1].OutcomeEscalations != nil {
 		t.Fatalf("issue rows mismatch: %+v", got.Issues)
 	}
 	text := execCmdJSON(t, "milestone", "status", "demo.m1")
-	if !strings.Contains(text, "Outcome: 1/3 one-PR-no-rescope, 1 first-pass, 2 escalations, 1 reopens, 1 rescopes, 2 amendments\n") {
+	if !strings.Contains(text, "Outcome: 1/4 one-PR-no-rescope, 1 first-pass, 2 escalations, 1 reopens, 1 rescopes, 2 amendments\n") {
 		t.Fatalf("text missing Outcome line:\n%s", text)
+	}
+}
+
+// Only issues and milestones carry outcome fields; their schemas reject the key
+// on every other type, so a reverse move there must leave it unwritten.
+func TestOutcomeReopenSkipsConvention(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	writeFixtureTyped(t, vault, "35-conventions", "convention", "convention.demo")
+	path := filepath.Join(vault, "35-conventions", "convention.demo.md")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.FrontMatter["status"] = "deprecated"
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	execCmd(t, "reindex")
+	execCmd(t, "transition", "convention", "convention.demo", "active", "--reason", "revived")
+	a, err = core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := a.FrontMatter["status"]; got != "active" {
+		t.Fatalf("status = %v, want active", got)
+	}
+	if _, set := a.FrontMatter["outcome_reopens"]; set {
+		t.Fatalf("outcome_reopens written on a convention: %v", a.FrontMatter["outcome_reopens"])
 	}
 }

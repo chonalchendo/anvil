@@ -25,14 +25,14 @@ type issueOutcome struct {
 
 func issueOutcomeFrom(fm map[string]any) issueOutcome {
 	var o issueOutcome
-	for k, dst := range map[string]**int{
-		"outcome_escalations": &o.Escalations,
-		"outcome_reopens":     &o.Reopens,
-		"outcome_rescopes":    &o.Rescopes,
-	} {
-		if n, ok := fm[k].(int); ok {
-			*dst = &n
-		}
+	if n, ok := fm["outcome_escalations"].(int); ok {
+		o.Escalations = &n
+	}
+	if n, ok := fm["outcome_reopens"].(int); ok {
+		o.Reopens = &n
+	}
+	if n, ok := fm["outcome_rescopes"].(int); ok {
+		o.Rescopes = &n
 	}
 	if s, ok := fm["outcome_first_verdict"].(string); ok {
 		o.FirstVerdict = &s
@@ -71,13 +71,14 @@ func sumOutcome(rows []milestoneIssueRow, ms map[string]any) milestoneOutcome {
 		if r.Status == "resolved" && r.prLinks <= 1 && (r.Rescopes == nil || *r.Rescopes == 0) {
 			o.OnePRNoRescope++
 		}
-		for _, p := range []struct {
-			src *int
-			dst *int
-		}{{r.Escalations, &o.Escalations}, {r.Reopens, &o.Reopens}, {r.Rescopes, &o.Rescopes}} {
-			if p.src != nil {
-				*p.dst += *p.src
-			}
+		if r.Escalations != nil {
+			o.Escalations += *r.Escalations
+		}
+		if r.Reopens != nil {
+			o.Reopens += *r.Reopens
+		}
+		if r.Rescopes != nil {
+			o.Rescopes += *r.Rescopes
 		}
 	}
 	return o
