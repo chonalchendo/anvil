@@ -2,7 +2,6 @@ package cli
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"maps"
 	"reflect"
@@ -243,8 +242,8 @@ var updateFlagKeys = map[string]string{
 func mergeUpdate(cmd *cobra.Command, existing, fm map[string]any) (map[string]any, []string) {
 	merged := maps.Clone(existing)
 	for flag, key := range updateFlagKeys {
-		if cmd.Flags().Changed(flag) {
-			merged[key] = fm[key]
+		if v, ok := fm[key]; ok && cmd.Flags().Changed(flag) {
+			merged[key] = v
 		}
 	}
 	merged["updated"] = fm["updated"]
@@ -256,22 +255,4 @@ func mergeUpdate(cmd *cobra.Command, existing, fm map[string]any) (map[string]an
 	}
 	sort.Strings(changed)
 	return merged, changed
-}
-
-// emitUpdateResult reports an --update rewrite; the JSON envelope adds the
-// changed field names.
-func emitUpdateResult(cmd *cobra.Command, asJSON bool, id, path string, changed []string, findings []*errfmt.ValidationError) error {
-	if !asJSON {
-		return emitCreateResult(cmd, false, id, path, statusUpdated, nil, findings)
-	}
-	if changed == nil {
-		changed = []string{}
-	}
-	payload := map[string]any{"id": id, "path": path, "status": string(statusUpdated), "changed": changed}
-	if ws := jsonWarnings(nil, findings); len(ws) > 0 {
-		payload["warnings"] = ws
-	}
-	out, _ := json.Marshal(payload)
-	fmt.Fprintln(cmd.OutOrStdout(), string(out))
-	return nil
 }

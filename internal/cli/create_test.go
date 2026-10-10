@@ -2706,3 +2706,75 @@ func TestCreate_Update_KeepsStatusAndRelated(t *testing.T) {
 		t.Errorf("related = %v, want kept", got.FrontMatter["related"])
 	}
 }
+
+// An unchanged body with a new --description reports only description
+// (anvil.0372): the marshalled body's leading newline is not a change.
+func TestCreate_Update_ChangedExcludesUnchangedBody(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	body := "## Problem\nsame\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
+	base := []string{"create", "issue", "--title", "Same body", "--goal", "g", "--tags", "domain/dev-tools", "--allow-new-facet=domain", "--body", body}
+	createIssueGetPath(t, append(append([]string{}, base...), "--description", "old")...)
+
+	stdout, _, err := runCmd(t, newRootCmd(), append(append([]string{}, base...), "--description", "new", "--update", "--json")...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resp struct {
+		Changed []string `json:"changed"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Changed) != 1 || resp.Changed[0] != "description" {
+		t.Errorf("changed = %v, want [description]", resp.Changed)
+	}
+}
+
+// A passed flag whose key the type lacks must not write a nil into the
+// rewritten frontmatter (anvil.0372).
+func TestCreate_Update_FlagForAbsentKeyIsIgnored(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	if _, _, err := runCmd(t, newRootCmd(), "create", "product-design", "--title", "PD", "--description", "old"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := runCmd(t, newRootCmd(), "create", "product-design", "--title", "PD", "--description", "new", "--severity", "high", "--update"); err != nil {
+		t.Fatalf("update with --severity: %v", err)
+	}
+}
+
+// The inbox --project alias counts as a passed suggested-project flag, so
+// --update replaces the old value (anvil.0372).
+func TestCreate_Update_InboxProjectAliasApplies(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	args := []string{"create", "inbox", "--title", "alias probe", "--description", "d"}
+	if _, _, err := runCmd(t, newRootCmd(), append(append([]string{}, args...), "--project", "alpha")...); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := runCmd(t, newRootCmd(), append(append([]string{}, args...), "--project", "beta", "--update", "--json")...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resp struct {
+		Path    string   `json:"path"`
+		Changed []string `json:"changed"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &resp); err != nil {
+		t.Fatal(err)
+	}
+	a, err := core.LoadArtifact(resp.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.FrontMatter["suggested_project"] != "beta" {
+		t.Errorf("suggested_project = %v, want beta (changed=%v)", a.FrontMatter["suggested_project"], resp.Changed)
+	}
+}

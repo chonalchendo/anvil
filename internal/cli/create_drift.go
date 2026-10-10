@@ -19,12 +19,18 @@ const (
 	statusUpdated       createStatus = "updated"
 )
 
-func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status createStatus, warnings []string, findings []*errfmt.ValidationError) error {
+func emitCreateResult(cmd *cobra.Command, asJSON bool, id, path string, status createStatus, warnings []string, findings []*errfmt.ValidationError, changed []string) error {
 	if asJSON {
 		payload := map[string]any{
 			"id":     id,
 			"path":   path,
 			"status": string(status),
+		}
+		if status == statusUpdated {
+			if changed == nil {
+				changed = []string{}
+			}
+			payload["changed"] = changed
 		}
 		if ws := jsonWarnings(warnings, findings); len(ws) > 0 {
 			payload["warnings"] = ws
