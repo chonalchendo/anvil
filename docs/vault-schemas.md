@@ -106,6 +106,8 @@ authorized_by: ["[[decision...]]"]
 acceptance: ["criterion", ...]
 approved: <date>           # stamped by transition milestone in-progress; cleared on amend
 done: <date>               # stamped by transition milestone done; cleared on reopen
+outcome_amendments: <int>  # +1 per amend (in-progress -> planned); absent until the first
+outcome_reopens: <int>     # +1 per reverse move from done; absent until the first
 ```
 
 `transition milestone <id> in-progress` from `planned` is the approval gate. A milestone must carry the `**Design change**` and `**Components changed**` labels (`milestone_gate_*` codes), and no raw inbox item may link it (`inbox_unread`).

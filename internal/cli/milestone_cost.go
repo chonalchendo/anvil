@@ -21,6 +21,7 @@ type milestoneIssueRow struct {
 	ID     string      `json:"id"`
 	Status string      `json:"status"`
 	Cost   *costFields `json:"cost"`
+	issueOutcome
 }
 
 type milestoneCostTotal struct {
@@ -52,7 +53,7 @@ func milestoneCostRows(v *core.Vault, ms string) ([]milestoneIssueRow, milestone
 			continue
 		}
 		status, _ := a.FrontMatter["status"].(string)
-		rows = append(rows, milestoneIssueRow{ID: listIDFor(core.TypeIssue, p), Status: status, Cost: costFromFrontMatter(a.FrontMatter)})
+		rows = append(rows, milestoneIssueRow{ID: listIDFor(core.TypeIssue, p), Status: status, Cost: costFromFrontMatter(a.FrontMatter), issueOutcome: issueOutcomeFrom(a.FrontMatter)})
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].ID < rows[j].ID })
 	total.Issues = len(rows)

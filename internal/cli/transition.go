@@ -333,7 +333,7 @@ func newTransitionCmd() *cobra.Command {
 					a.Body += "\n"
 				}
 				a.Body += audit
-				if t == core.TypeIssue {
+				if t == core.TypeIssue || t == core.TypeMilestone {
 					bumpOutcome(a, "outcome_reopens")
 				}
 				if t == core.TypeMilestone {
@@ -345,6 +345,7 @@ func newTransitionCmd() *cobra.Command {
 			// gate runs again. No --reason: the edge stays forward.
 			if t == core.TypeMilestone && from == "in-progress" && to == "planned" {
 				delete(a.FrontMatter, "approved")
+				bumpOutcome(a, "outcome_amendments")
 				if !strings.HasSuffix(a.Body, "\n") {
 					a.Body += "\n"
 				}
