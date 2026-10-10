@@ -9,7 +9,9 @@ import (
 
 // stampIssueGate records the vault evidence fleet status reads: when an issue
 // was claimed, and why it escalated. Leaving escalated clears the reason so a
-// re-queued issue does not carry a stale one.
+// re-queued issue does not carry a stale one. Each entry to escalated also bumps
+// outcome_escalations: the reason is cleared on exit, so the count is the only
+// record that an issue escalated at all.
 func stampIssueGate(a *core.Artifact, to, reason string, now time.Time) {
 	switch to {
 	case "in-progress":
@@ -22,6 +24,7 @@ func stampIssueGate(a *core.Artifact, to, reason string, now time.Time) {
 		}
 	case "escalated":
 		a.FrontMatter["escalation_reason"] = reason
+		bumpOutcome(a, "outcome_escalations")
 	default:
 		delete(a.FrontMatter, "escalation_reason")
 	}

@@ -181,6 +181,10 @@ verification_lock: <hex sha256>  # set on every → in-progress over the `## Ver
 verified_verdict: pass | fail  # set by `anvil verify` on every run
 verified_commit: <sha>       # HEAD the run saw, `-dirty` suffix on an unclean tree; empty outside git
 verified_at: <RFC3339>       # when that run started
+outcome_escalations: <int>   # +1 per transition to escalated; absent until the first
+outcome_reopens: <int>       # +1 per reverse move to open (resolved/abandoned -> open); escalated -> open does not count
+outcome_rescopes: <int>      # +1 when `anvil verify --accept-change` changes the lock
+outcome_first_verdict: pass | fail  # first `anvil verify` after the first claim; never overwritten
 cost_rounds: <int>        # review rounds; set by `--land-pr` at land
 cost_diff: <int>          # diff lines changed; set by `--land-pr` at land
 cost_files: <int>         # files changed; set by `--land-pr` at land
