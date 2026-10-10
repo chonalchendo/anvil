@@ -91,7 +91,7 @@ dialog input { width: 100%; padding: 6px 8px; background: var(--bg); color: var(
 dialog ul { list-style: none; padding: 0; margin: 8px 0 0; max-height: 50vh; overflow-y: auto; }
 dialog li { border-radius: var(--radius); font-family: var(--mono); font-size: 12px; }
 dialog li a { display: block; padding: 4px 8px; color: inherit; text-decoration: none; }
-dialog li[aria-selected="true"] { background: var(--sel); box-shadow: 0 0 0 1px var(--accent); }
+dialog li a[aria-current="true"] { background: var(--sel); box-shadow: 0 0 0 1px var(--accent); }
 
 /* Glyph and word share the hue; the accent is not a status. */
 .status { font-size: 12px; margin-left: 6px; white-space: nowrap; }

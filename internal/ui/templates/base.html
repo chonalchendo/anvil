@@ -36,7 +36,7 @@
   function row(text, href, on) {
     var li = document.createElement('li'), a = document.createElement('a');
     a.textContent = text; a.href = href; a.tabIndex = -1; li.appendChild(a);
-    if (on) li.setAttribute('aria-selected', 'true');
+    if (on) a.setAttribute('aria-current', 'true');
     list.appendChild(li);
   }
   function show() {
@@ -49,6 +49,8 @@
     if (entries && q.value.trim()) {
       row('Search bodies for \u201c' + q.value.trim() + '\u201d', '/search?q=' + encodeURIComponent(q.value.trim()), n === cur);
     }
+    var sel = list.querySelector('[aria-current]');
+    if (sel) sel.scrollIntoView({block: 'nearest'});
   }
   function open() {
     dlg.showModal(); q.value = ''; cur = 0;
