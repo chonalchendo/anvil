@@ -103,7 +103,7 @@ func (s *server) buildKnowledge() (knowledgePage, error) {
 	if page.Routed, err = s.routedInbox(raw); err != nil {
 		return knowledgePage{}, err
 	}
-	page.RoutedLede = fmt.Sprintf("%d of %s %s a route, newest first.", len(page.Routed), plural(len(raw), "raw note", "raw notes"), pluralWord(len(raw), "carries", "carry"))
+	page.RoutedLede = fmt.Sprintf("%d of %s %s a route, newest first.", len(page.Routed), plural(len(raw), "raw note", "raw notes"), pluralWord(len(page.Routed), "carries", "carry"))
 	return page, nil
 }
 
@@ -125,9 +125,7 @@ func (t *topic) status() string {
 	if d, ok := t.newestLive(); ok {
 		return d.Status
 	}
-	rows := slices.Concat(t.Decisions, t.Threads)
-	slices.SortStableFunc(rows, byNewest)
-	return rows[0].Status
+	return t.newest().Status
 }
 
 // sortedTopics orders topics by last movement, newest first.
@@ -146,12 +144,22 @@ func sortedTopics(m map[string]*topic) []*topic {
 }
 
 func topicsLede(topics, decisions, threads, proposed, open, listed, folded int) string {
-	return fmt.Sprintf("%s, read from the ids of %s and %s; %s proposed and %s open. "+
-		"The %s with a thread or more than one decision %s below, newest movement first; the other %d %s one decision each and fold at the end. "+
-		"Learnings and inbox notes carry no topic.",
+	lede := fmt.Sprintf("%s, read from the ids of %s and %s; %s proposed and %s open.",
 		plural(topics, "topic", "topics"), plural(decisions, "decision", "decisions"), plural(threads, "thread", "threads"),
-		plural(proposed, "decision is", "decisions are"), plural(open, "thread", "threads"),
-		plural(listed, "topic", "topics"), pluralWord(listed, "is", "are"), folded, pluralWord(folded, "holds", "hold"))
+		plural(proposed, "decision is", "decisions are"), plural(open, "thread", "threads"))
+	if listed > 0 {
+		lede += fmt.Sprintf(" The %s with a thread or more than one decision %s below, newest movement first.",
+			plural(listed, "topic", "topics"), pluralWord(listed, "is", "are"))
+	}
+	if folded > 0 {
+		other := ""
+		if listed > 0 {
+			other = "other "
+		}
+		lede += fmt.Sprintf(" The %s%s %s one decision each and %s at the end.",
+			other, plural(folded, "topic", "topics"), pluralWord(folded, "holds", "hold"), pluralWord(folded, "folds", "fold"))
+	}
+	return lede + " Learnings and inbox notes carry no topic."
 }
 
 // routedInbox lists the raw inbox notes with a `## Route` section, newest first. The FTS index prefilters on the word;

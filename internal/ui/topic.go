@@ -378,7 +378,20 @@ func (s *server) stands(t *topic) (string, error) {
 	if desc != "" {
 		return desc + ".", nil
 	}
+	return "Nothing current; newest: " + sentence(t.newest().Title), nil
+}
+
+// sentence closes text with a full stop unless it already ends in terminal punctuation.
+func sentence(text string) string {
+	if strings.HasSuffix(text, ".") || strings.HasSuffix(text, "?") || strings.HasSuffix(text, "!") {
+		return text
+	}
+	return text + "."
+}
+
+// newest is the topic's newest row across decisions and threads.
+func (t *topic) newest() index.ArtifactRow {
 	rows := slices.Concat(t.Decisions, t.Threads)
 	slices.SortStableFunc(rows, byNewest)
-	return "Nothing current; newest: " + rows[0].Title + ".", nil
+	return rows[0]
 }

@@ -97,8 +97,12 @@ func TestTopic_Stands(t *testing.T) {
 	writeArtifact(t, v, core.TypeThread, "dec.0001-q", map[string]any{"title": "Dec Q", "status": "resolved", "updated": "2026-10-01"}, "x\n")
 	writeArtifact(t, v, core.TypeDecision, "dead.0001-a", map[string]any{"title": "Old call", "status": "superseded", "updated": "2026-10-03", "description": "Gone."}, "x\n")
 	writeArtifact(t, v, core.TypeThread, "dead.0001-q", map[string]any{"title": "Shut", "status": "resolved", "updated": "2026-10-02"}, "x\n")
+	writeArtifact(t, v, core.TypeThread, "dead.0002-q", map[string]any{"title": "Why dead?", "status": "resolved", "updated": "2026-10-04"}, "x\n")
 	_, body := do(serve(t, v), "GET", "/")
-	for _, want := range []string{`<p class="syn">Open: Why so</p>`, `<p class="syn">Plain line.</p>`, `<p class="syn">Nothing current; newest: Old call.</p>`} {
+	if strings.Contains(body, "?.") {
+		t.Error("question title gained a full stop")
+	}
+	for _, want := range []string{`<p class="syn">Open: Why so</p>`, `<p class="syn">Plain line.</p>`, `<p class="syn">Nothing current; newest: Why dead?</p>`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("knowledge page lacks %q:\n%s", want, body)
 		}
@@ -119,7 +123,7 @@ func TestTopic_NoTagNoComma(t *testing.T) {
 // Warrant: fails if the Routed lede loses the raw-note total, or an Other-only vault renders the column head over an empty list.
 func TestKnowledge_LedeAndOtherOnly(t *testing.T) {
 	_, body := do(topicVault(t), "GET", "/")
-	if !strings.Contains(body, "1 of 4 raw notes carry a route, newest first.") {
+	if !strings.Contains(body, "1 of 4 raw notes carries a route, newest first.") {
 		t.Errorf("routed lede wrong:\n%s", body)
 	}
 	v := &core.Vault{Root: t.TempDir()}
@@ -127,6 +131,9 @@ func TestKnowledge_LedeAndOtherOnly(t *testing.T) {
 	_, body = do(serve(t, v), "GET", "/")
 	if strings.Contains(body, `class="topic-head"`) || strings.Contains(body, "No decision or thread carries a topic yet.") || !strings.Contains(body, `class="other"`) {
 		t.Errorf("other-only page wrong:\n%s", body)
+	}
+	if strings.Contains(body, " below,") || !strings.Contains(body, "The 1 topic holds one decision each and folds at the end.") {
+		t.Errorf("no-listed lede wrong:\n%s", body)
 	}
 	_, body = do(serve(t, &core.Vault{Root: t.TempDir()}), "GET", "/")
 	if !strings.Contains(body, "No decision or thread carries a topic yet.") {
