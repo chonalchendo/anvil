@@ -19,14 +19,16 @@ import (
 
 func newReplayCmd() *cobra.Command {
 	var flagWorktree string
-	var flagJSON bool
+	var flagJSON, flagRemove bool
 	cmd := &cobra.Command{
 		Use:   "replay <issue-id>",
 		Short: "Cut a worktree at the base a resolved issue's merged PR started from",
 		Long: "Cut a worktree on a replay/<slug> branch at the first parent of the merge commit of the resolved issue's merged PR, " +
-			"and print its path. Changes no frontmatter. Grade the replay from inside it with anvil verify <issue-id> --replay --tokens <n>.",
-		Example: "  anvil replay issue.anvil.0387.create-update-refuses-to-change-an --worktree /tmp/replay",
-		Args:    namedArgs("anvil replay <issue-id>", []string{"<issue-id>"}, 1, 1),
+			"and print its path. Changes no frontmatter. Grade the replay from inside it with anvil verify <issue-id> --replay --tokens <n>. " +
+			"--remove deletes the replay worktree and its branch.",
+		Example: "  anvil replay issue.anvil.0387.create-update-refuses-to-change-an --worktree /tmp/replay\n" +
+			"  anvil replay issue.anvil.0387.create-update-refuses-to-change-an --remove",
+		Args: namedArgs("anvil replay <issue-id>", []string{"<issue-id>"}, 1, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			v, err := core.ResolveVault()
 			if err != nil {
@@ -39,6 +41,22 @@ func newReplayCmd() *cobra.Command {
 			a, err := loadIssueForVerify(path, id, args[0])
 			if err != nil {
 				return err
+			}
+			if flagRemove {
+				if flagWorktree != "" {
+					return fmt.Errorf("--remove finds the worktree by its branch; drop --worktree")
+				}
+				wt, err := removeReplay(a, id)
+				if err != nil {
+					return printAndReturn(cmd, err)
+				}
+				if flagJSON {
+					b, _ := json.Marshal(map[string]string{"removed": wt})
+					fmt.Fprintln(cmd.OutOrStdout(), string(b))
+					return nil
+				}
+				fmt.Fprintln(cmd.OutOrStdout(), "removed "+wt)
+				return nil
 			}
 			wt, base, err := cutReplayWorktree(cmd, a, id, flagWorktree)
 			if err != nil {
@@ -54,7 +72,8 @@ func newReplayCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&flagWorktree, "worktree", "", "worktree path (default: beside the conventional path, as replay-<slug>)")
-	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON: {worktree, base}")
+	cmd.Flags().BoolVar(&flagRemove, "remove", false, "remove the replay worktree and its replay/<slug> branch")
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON: {worktree, base}, or {removed} with --remove")
 	return cmd
 }
 
@@ -68,14 +87,18 @@ func ghPRViewByURLReal(url, fields string) ([]byte, error) {
 	}
 	out, err := exec.Command("gh", "pr", "view", url, "--json", fields).Output() //nolint:gosec // url is an external_links entry, one argv element
 	if err != nil {
-		// Like ghPRListReal: any exec failure means GitHub cannot be asked now.
-		return nil, errGhUnavailable
+		var ee *exec.ExitError
+		if errors.As(err, &ee) && len(ee.Stderr) > 0 {
+			return nil, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(ee.Stderr)))
+		}
+		return nil, err
 	}
 	return out, nil
 }
 
-// replayBase is the first parent of the merge commit of the issue's merged PR.
-func replayBase(a *core.Artifact, id, repoDir, rerun string) (string, error) {
+// replayPRURL is the issue's PR url. It needs no network, so a refusal here
+// comes before any fetch.
+func replayPRURL(a *core.Artifact, id string) (string, error) {
 	if s, _ := a.FrontMatter["status"].(string); s != "resolved" {
 		return "", errfmt.NewStructured("replay_not_resolved").Set("issue", id).
 			Set("message", id+" is "+s+"; only a resolved issue replays").
@@ -88,12 +111,18 @@ func replayBase(a *core.Artifact, id, repoDir, rerun string) (string, error) {
 			prURL = url
 		}
 	}
-	noPR := func(why, hint string) error {
-		return errfmt.NewStructured("replay_no_merged_pr").Set("issue", id).Set("message", why).Set("fix_hint", hint)
-	}
 	if prURL == "" {
-		return "", noPR(id+" has no PR url in external_links", "an issue that landed without a PR cannot replay")
+		return "", noMergedPR(id, id+" has no PR url in external_links", "an issue that landed without a PR cannot replay")
 	}
+	return prURL, nil
+}
+
+func noMergedPR(id, why, hint string) error {
+	return errfmt.NewStructured("replay_no_merged_pr").Set("issue", id).Set("message", why).Set("fix_hint", hint)
+}
+
+// replayBase is the first parent of the merge commit of the issue's merged PR.
+func replayBase(id, prURL, repoDir, rerun string) (string, error) {
 	raw, err := ghPRViewByURLFn(prURL, "state,mergeCommit")
 	var view struct {
 		State       string `json:"state"`
@@ -103,17 +132,19 @@ func replayBase(a *core.Artifact, id, repoDir, rerun string) (string, error) {
 	}
 	if errors.Is(err, errGhUnavailable) {
 		return "", errfmt.NewStructured("replay_gh_unavailable").Set("issue", id).
-			Set("message", "gh is missing, unauthenticated or has no remote; the PR state cannot be read").
+			Set("message", "gh is not installed; the PR state cannot be read").
 			Set("fix_hint", "install and authenticate gh, then re-run "+rerun)
 	}
-	if err == nil {
-		err = json.Unmarshal(raw, &view)
-	}
 	if err != nil {
-		return "", noPR(fmt.Sprintf("gh pr view %s failed: %v", prURL, err), "check gh auth status and the url in external_links, then re-run "+rerun)
+		return "", errfmt.NewStructured("replay_gh_failed").Set("issue", id).Set("url", prURL).
+			Set("message", fmt.Sprintf("gh pr view %s failed: %v", prURL, err)).
+			Set("fix_hint", "check gh auth status and the url in external_links, then re-run "+rerun)
+	}
+	if err := json.Unmarshal(raw, &view); err != nil {
+		return "", noMergedPR(id, fmt.Sprintf("gh pr view %s returned unreadable JSON: %v", prURL, err), "re-run "+rerun)
 	}
 	if view.State != "MERGED" || view.MergeCommit.Oid == "" {
-		return "", noPR(fmt.Sprintf("%s is %s, not merged", prURL, view.State), "replay needs a merged PR; land it first")
+		return "", noMergedPR(id, fmt.Sprintf("%s is %s, not merged", prURL, view.State), "replay needs a merged PR; land it first")
 	}
 	base, err := gitRevParseFn(repoDir, view.MergeCommit.Oid+"^1")
 	if err != nil {
@@ -133,10 +164,14 @@ func cutReplayWorktree(cmd *cobra.Command, a *core.Artifact, id, override string
 		return "", "", errfmt.NewStructured("cut_worktree_repo_unresolved").Set("project", project).Set("error", err.Error()).
 			Set("fix_hint", "run anvil replay from a project whose repo anvil can resolve")
 	}
+	prURL, err := replayPRURL(a, id)
+	if err != nil {
+		return "", "", err
+	}
 	if ferr := gitFetchOriginFn(repoDir); ferr != nil {
 		fmt.Fprintf(cmd.ErrOrStderr(), "warning: git fetch origin failed (%v); using local objects\n", ferr)
 	}
-	base, err := replayBase(a, id, repoDir, "anvil replay "+id)
+	base, err := replayBase(id, prURL, repoDir, "anvil replay "+id)
 	if err != nil {
 		return "", "", err
 	}
@@ -155,7 +190,8 @@ func cutReplayWorktree(cmd *cobra.Command, a *core.Artifact, id, override string
 	if wts, _ := gitWorktreeListFn(repoDir); wts != nil {
 		if live, ok := wts[branch]; ok {
 			return "", "", errfmt.NewStructured("replay_worktree_exists").Set("issue", id).Set("path", live.path).
-				Set("fix_hint", "remove it with git worktree remove "+live.path+", then re-run anvil replay "+id)
+				Set("message", id+" already has a replay worktree at "+live.path).
+				Set("fix_hint", "remove it with anvil replay "+id+" --remove, then re-run anvil replay "+id)
 		}
 	}
 	// A replay branch outlives its removed worktree and holds nothing worth keeping.
@@ -179,13 +215,13 @@ func cutReplayWorktree(cmd *cobra.Command, a *core.Artifact, id, override string
 // buildSha7 is the build stamp's sha, "-dirty" kept, "unknown" when the stamp carries none.
 func buildSha7() string {
 	if m := versionSha7.FindStringSubmatch(resolveVersion()); m != nil {
-		return m[1]
+		return m[1] + m[2]
 	}
 	return "unknown"
 }
 
 // versionSha7 matches the dev-<sha7>[-dirty] stamp the build injects.
-var versionSha7 = regexp.MustCompile(`(?:^|-)([0-9a-f]{7}(?:-dirty)?)$`)
+var versionSha7 = regexp.MustCompile(`^dev-([0-9a-f]{7})[0-9a-f]*(-dirty)?$`)
 
 // replayDiff counts the changed lines and files between base and HEAD. Binary
 // files count as a file and no lines. Uncommitted work is not counted.
@@ -277,7 +313,11 @@ func verifyReplay(cmd *cobra.Command, v *core.Vault, a *core.Artifact, path, id,
 		return fail(errfmt.NewStructured("cut_worktree_repo_unresolved").Set("error", err.Error()).
 			Set("fix_hint", "run anvil verify --replay for a project whose repo anvil can resolve"))
 	}
-	base, err := replayBase(a, id, repoDir, "anvil verify "+id+" --replay --tokens "+strconv.Itoa(tokens))
+	prURL, err := replayPRURL(a, id)
+	if err != nil {
+		return fail(err)
+	}
+	base, err := replayBase(id, prURL, repoDir, "anvil verify "+id+" --replay --tokens "+strconv.Itoa(tokens))
 	if err != nil {
 		return fail(err)
 	}
@@ -296,4 +336,39 @@ func verifyReplay(cmd *cobra.Command, v *core.Vault, a *core.Artifact, path, id,
 		return fmt.Errorf("replay verification %s: %d of %d check(s) failed", rec.Verdict, len(rec.Failed), rec.Checks)
 	}
 	return nil
+}
+
+// removeReplay removes the replay worktree and its replay/<slug> branch. A
+// replay worktree holds hook-written files, so the removal is forced.
+func removeReplay(a *core.Artifact, id string) (string, error) {
+	project := projectFromArtifact(a, id)
+	repoDir, err := resolveProjectRepoFn(project)
+	if err != nil {
+		return "", errfmt.NewStructured("cut_worktree_repo_unresolved").Set("project", project).Set("error", err.Error()).
+			Set("fix_hint", "run anvil replay --remove from a project whose repo anvil can resolve")
+	}
+	branch := "replay/" + slugFromIssueID(id)
+	wts, _ := gitWorktreeListFn(repoDir)
+	live, hasWT := wts[branch]
+	if !hasWT && !gitLocalBranchExistsFn(repoDir, branch) {
+		return "", errfmt.NewStructured("replay_nothing_to_remove").Set("issue", id).
+			Set("message", "no replay worktree or "+branch+" branch exists for "+id).
+			Set("fix_hint", "cut one with anvil replay "+id)
+	}
+	if hasWT {
+		if err := gitWorktreeRemoveForceFn(repoDir, live.path); err != nil {
+			return "", errfmt.NewStructured("replay_remove_failed").Set("issue", id).Set("path", live.path).Set("error", err.Error()).
+				Set("fix_hint", "fix the git error in error, then re-run anvil replay "+id+" --remove")
+		}
+	}
+	if gitLocalBranchExistsFn(repoDir, branch) {
+		if err := gitDeleteLocalBranchFn(repoDir, branch); err != nil {
+			return "", errfmt.NewStructured("replay_remove_failed").Set("issue", id).Set("branch", branch).Set("error", err.Error()).
+				Set("fix_hint", "fix the git error in error, then re-run anvil replay "+id+" --remove")
+		}
+	}
+	if hasWT {
+		return live.path, nil
+	}
+	return branch, nil
 }

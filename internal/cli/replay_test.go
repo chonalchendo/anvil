@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -193,7 +194,7 @@ func TestReplayRefusesLiveWorktreeAndMissingGh(t *testing.T) {
 	}
 	out, stderr, err := runCmd(t, newReplayCmd(), id, "--worktree", filepath.Join(t.TempDir(), "wt2"))
 	got := out + stderr + errString(err)
-	for _, want := range []string{"replay_worktree_exists", "git worktree remove"} {
+	for _, want := range []string{"replay_worktree_exists", "--remove", "message"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("live worktree: missing %q in %q", want, got)
 		}
@@ -299,10 +300,10 @@ func errString(err error) string {
 }
 
 func TestReplayVersionSha7Pattern(t *testing.T) {
-	for in, want := range map[string]string{"dev-23b326f-dirty": "23b326f-dirty", "dev-23b326f": "23b326f", "v0.0.0-20240101000000-abcdef123456": ""} {
+	for in, want := range map[string]string{"dev-23b326f-dirty": "23b326f-dirty", "dev-23b326f": "23b326f", "dev-571dba3e-dirty": "571dba3-dirty", "v0.0.0-20240101000000-abcdef123456": ""} {
 		got := ""
 		if m := versionSha7.FindStringSubmatch(in); m != nil {
-			got = m[1]
+			got = m[1] + m[2]
 		}
 		if got != want {
 			t.Errorf("%s: got %q, want %q", in, got, want)
@@ -341,5 +342,85 @@ func TestReplaySectionFailedLineOmitsPredicateText(t *testing.T) {
 	}, 0, 0, 5, nil)
 	if !strings.Contains(sec, "- failed: Direct#1 (exit 3)") || strings.Contains(sec, "SECRET") {
 		t.Errorf("section = %s", sec)
+	}
+}
+
+func TestReplayRemoveDeletesWorktreeAndBranch(t *testing.T) {
+	_, repo, _, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
+	wt := filepath.Join(t.TempDir(), "wt")
+	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt); err != nil {
+		t.Fatal(err)
+	}
+	real, err := filepath.EvalSymlinks(wt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := runCmd(t, newReplayCmd(), id, "--remove", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]string
+	if err := json.Unmarshal([]byte(out), &got); err != nil || got["removed"] != real {
+		t.Errorf("json = %q (%v), want removed %s", out, err, real)
+	}
+	if _, err := os.Stat(wt); !os.IsNotExist(err) {
+		t.Errorf("worktree still exists: %v", err)
+	}
+	if gitIn(t, repo, "branch", "--list", "replay/*") != "" {
+		t.Errorf("replay branch left behind")
+	}
+}
+
+func TestReplayRemoveRemovesBranchWithoutWorktree(t *testing.T) {
+	_, repo, _, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
+	wt := filepath.Join(t.TempDir(), "wt")
+	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, repo, "worktree", "remove", "--force", wt)
+	if _, _, err := runCmd(t, newReplayCmd(), id, "--remove"); err != nil {
+		t.Fatal(err)
+	}
+	if gitIn(t, repo, "branch", "--list", "replay/*") != "" {
+		t.Errorf("replay branch left behind")
+	}
+}
+
+func TestReplayRemoveRefusesWhenNoneExists(t *testing.T) {
+	_, _, _, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
+	out, stderr, err := runCmd(t, newReplayCmd(), id, "--remove")
+	got := out + stderr + errString(err)
+	if err == nil || !strings.Contains(got, "replay_nothing_to_remove") {
+		t.Errorf("want replay_nothing_to_remove, got err=%v %q", err, got)
+	}
+}
+
+func TestReplayRemoveRejectsWorktreeFlag(t *testing.T) {
+	_, _, _, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
+	if _, _, err := runCmd(t, newReplayCmd(), id, "--remove", "--worktree", "/tmp/x"); err == nil {
+		t.Error("want an error for --remove with --worktree")
+	}
+}
+
+func TestReplayRefusalNeedsNoNetwork(t *testing.T) {
+	_, _, _, id := replayFixture(t, "open", []any{"https://github.com/o/r/pull/7"})
+	gitFetchOriginFn = func(string) error { t.Error("fetch ran before the status refusal"); return nil }
+	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", filepath.Join(t.TempDir(), "wt")); err == nil {
+		t.Error("want a not-resolved refusal")
+	}
+}
+
+func TestReplayGhFailureCarriesStderrAndURL(t *testing.T) {
+	_, _, _, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
+	ghPRViewByURLFn = func(string, string) ([]byte, error) { return nil, errors.New("exit status 1: HTTP 404") }
+	out, stderr, err := runCmd(t, newReplayCmd(), id, "--worktree", filepath.Join(t.TempDir(), "wt"))
+	got := out + stderr + errString(err)
+	for _, want := range []string{"replay_gh_failed", "HTTP 404", "https://github.com/o/r/pull/7", "check gh auth status and the url in external_links"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in %q", want, got)
+		}
+	}
+	if strings.Contains(got, "replay_gh_unavailable") {
+		t.Errorf("gh failure reported as unavailable: %q", got)
 	}
 }
