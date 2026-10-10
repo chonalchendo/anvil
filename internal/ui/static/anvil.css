@@ -51,9 +51,8 @@ pre code { background: none; padding: 0; }
 .sidebar nav { display: flex; flex-direction: column; gap: 2px; }
 .sidebar nav a { display: flex; padding: 4px 8px; border-radius: var(--radius); color: var(--text-2); text-decoration: none; }
 .sidebar nav a:hover, .sidebar nav a[aria-current="page"] { background: var(--sel); color: var(--text); }
-.sidebar .search { display: flex; align-items: center; gap: 8px; padding: 0 6px 0 8px; background: var(--bg); border-radius: var(--radius); box-shadow: 0 0 0 1px var(--border); cursor: pointer; }
-.sidebar .search input { flex: 1; min-width: 0; height: 28px; padding: 0; background: none; border: 0; color: var(--text); font: inherit; cursor: pointer; }
-.sidebar .search input::placeholder { color: var(--muted); }
+.sidebar .search { display: flex; align-items: center; gap: 8px; padding: 0 6px 0 8px; background: var(--bg); border-radius: var(--radius); box-shadow: 0 0 0 1px var(--border); cursor: pointer; border: 0; height: 28px; color: var(--muted); font: inherit; text-align: left; }
+.sidebar .search span { flex: 1; min-width: 0; }
 .sidebar .search kbd { margin: 0; }
 .sidebar .group { padding: 10px 8px 2px; font-size: 11.5px; font-weight: 500; color: var(--muted); }
 .sidebar .count { margin-left: auto; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }

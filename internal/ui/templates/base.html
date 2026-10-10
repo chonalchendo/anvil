@@ -11,7 +11,7 @@
 <body>
 <aside class="sidebar">
   <a class="brand" href="/">anvil</a>
-  <label class="search"><input id="palette-q" type="search" readonly placeholder="Search or jump to…" aria-label="Search or jump to an artifact"><kbd>⌘K</kbd></label>
+  <button type="button" class="search" id="palette-q" aria-haspopup="dialog" aria-label="Search or jump to an artifact"><span>Search or jump to…</span><kbd>⌘K</kbd></button>
   <nav aria-label="Knowledge"><a href="/"{{with .Sidebar.Knowledge}} aria-current="{{.}}"{{end}}>Knowledge</a></nav>
   <nav aria-label="Projects">
     {{with .Sidebar.Projects}}<div class="group">Projects</div>
@@ -28,7 +28,7 @@
 </aside>
 <main>{{block "content" .}}{{end}}</main>
 <footer class="keys">{{block "keys" .}}<span><kbd>⌘K</kbd> jump</span>{{end}}</footer>
-<dialog id="palette"><input id="palette-dq" type="search" placeholder="Jump to…" aria-label="Jump to an artifact"><ul id="palette-list"></ul></dialog>
+<dialog id="palette"><input id="palette-dq" type="search" placeholder="Jump to…" aria-label="Jump to an artifact"><ul id="palette-list" aria-live="polite"></ul></dialog>
 <script>
 (function () {
   var dlg = document.getElementById('palette'), q = document.getElementById('palette-dq'), side = document.getElementById('palette-q'),
@@ -38,13 +38,13 @@
     list.textContent = '';
     (entries || []).forEach(function (e) {
       if (n >= 30 || (e.key + ' ' + e.title).toLowerCase().indexOf(s) < 0) return;
-      var li = document.createElement('li'); li.textContent = e.key + '  ' + e.title; li.dataset.key = e.key;
+      var li = document.createElement('li'); li.textContent = e.key + '  ' + e.title; li.dataset.href = e.href;
       if (n === cur) li.setAttribute('aria-selected', 'true');
       list.appendChild(li); n++;
     });
-    if (n === 0 && entries && q.value.trim()) {
+    if (entries && q.value.trim()) {
       var f = document.createElement('li'); f.textContent = 'Search bodies for \u201c' + q.value.trim() + '\u201d';
-      f.dataset.href = '/search?q=' + encodeURIComponent(q.value.trim()); f.setAttribute('aria-selected', 'true');
+      f.dataset.href = '/search?q=' + encodeURIComponent(q.value.trim()); if (n === cur) f.setAttribute('aria-selected', 'true');
       list.appendChild(f);
     }
   }
@@ -61,7 +61,7 @@
     if (ev.key === 'Escape') { dlg.close(); return; }
     if (ev.key === 'ArrowDown' && cur < items.length - 1) cur++;
     else if (ev.key === 'ArrowUp' && cur > 0) cur--;
-    else if (ev.key === 'Enter' && items[cur]) { location.href = items[cur].dataset.href || '/artifact/' + encodeURIComponent(items[cur].dataset.key); return; }
+    else if (ev.key === 'Enter' && items[cur]) { location.href = items[cur].dataset.href; return; }
     else return;
     ev.preventDefault(); show();
   });
