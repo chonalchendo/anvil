@@ -40,8 +40,9 @@ type verifyRecord struct {
 }
 
 func newVerifyCmd() *cobra.Command {
-	var flagJSON, flagAccept bool
+	var flagJSON, flagAccept, flagReplay bool
 	var flagAt string
+	var flagTokens int
 	cmd := &cobra.Command{
 		Use:   "verify <issue-id>",
 		Short: "Run an issue's Verification blocks (here, or at a commit with --at) and record the verdict",
@@ -64,6 +65,13 @@ func newVerifyCmd() *cobra.Command {
 			a, err := loadIssueForVerify(path, id, args[0])
 			if err != nil {
 				return err
+			}
+			if flagReplay != cmd.Flags().Changed("tokens") || (flagReplay && flagAt != "") {
+				return printAndReturn(cmd, errfmt.NewStructured("verify_replay_flags").
+					Set("message", "--replay needs --tokens <n>, and --tokens needs --replay; --replay does not combine with --at"))
+			}
+			if flagReplay {
+				return verifyReplay(cmd, v, path, id, args[0], a.Body, flagTokens, flagJSON)
 			}
 			if err := checkVerificationLock(a, id, flagAccept); err != nil {
 				return printAndReturn(cmd, err)
@@ -106,6 +114,8 @@ func newVerifyCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&flagAccept, "accept-change", false, "re-lock a Verification section edited after the claim, then run (the human's flag)")
 	cmd.Flags().StringVar(&flagAt, "at", "", "run the blocks on a fresh detached checkout of this commit and stamp it")
+	cmd.Flags().BoolVar(&flagReplay, "replay", false, "grade a replay: run the blocks here, stamp nothing, append a ## Replay section to the issue")
+	cmd.Flags().IntVar(&flagTokens, "tokens", 0, "tokens the replay spent (with --replay)")
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "print the verdict record as one JSON line on stdout")
 	return cmd
 }
