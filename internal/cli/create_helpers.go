@@ -92,7 +92,7 @@ func createLongDescription() string {
 		"the write. Running 'anvil validate <path>' afterward is unnecessary.\n\n" +
 		"Warnings: advisory findings never fail create. Under --json they ride the " +
 		"success envelope's `warnings` array (similar-artifact entries first: " +
-		"{kind:\"similar\", id}; then {kind:\"validation\", code, got}); in text mode " +
+		"{kind:\"similar\", id}; then {kind:\"validation\", code, got}; then {kind:\"snapshot\", got} on --update when no snapshot was taken; a taken snapshot sets \"snapshot\": <sha>); in text mode " +
 		"they print to stderr.\n\n" +
 		"EXECUTES CODE (issues only): for an issue body, create runs every " +
 		"`### Direct` / `### Indirect` bash block in the `## Verification` section " +
