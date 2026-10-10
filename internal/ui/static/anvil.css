@@ -52,6 +52,7 @@ pre code { background: none; padding: 0; }
 .sidebar nav a { display: flex; padding: 4px 8px; border-radius: var(--radius); color: var(--text-2); text-decoration: none; }
 .sidebar nav a:hover, .sidebar nav a[aria-current="page"] { background: var(--sel); color: var(--text); }
 .sidebar .search { display: flex; align-items: center; gap: 8px; padding: 0 6px 0 8px; background: var(--bg); border-radius: var(--radius); box-shadow: 0 0 0 1px var(--border); cursor: pointer; border: 0; height: 28px; color: var(--muted); font: inherit; text-align: left; }
+.sidebar .search:focus-visible { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
 .sidebar .search span { flex: 1; min-width: 0; }
 .sidebar .search kbd { margin: 0; }
 .sidebar .group { padding: 10px 8px 2px; font-size: 11.5px; font-weight: 500; color: var(--muted); }
@@ -88,7 +89,8 @@ dialog { background: var(--raise); color: var(--text); border: 0; border-radius:
 dialog::backdrop { background: var(--bg); opacity: 0.8; }
 dialog input { width: 100%; padding: 6px 8px; background: var(--bg); color: var(--text); border: 0; border-radius: var(--radius); box-shadow: 0 0 0 1px var(--border); font: inherit; }
 dialog ul { list-style: none; padding: 0; margin: 8px 0 0; max-height: 50vh; overflow-y: auto; }
-dialog li { padding: 4px 8px; border-radius: var(--radius); font-family: var(--mono); font-size: 12px; }
+dialog li { border-radius: var(--radius); font-family: var(--mono); font-size: 12px; }
+dialog li a { display: block; padding: 4px 8px; color: inherit; text-decoration: none; }
 dialog li[aria-selected="true"] { background: var(--sel); box-shadow: 0 0 0 1px var(--accent); }
 
 /* Glyph and word share the hue; the accent is not a status. */

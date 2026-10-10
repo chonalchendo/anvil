@@ -33,19 +33,21 @@
 (function () {
   var dlg = document.getElementById('palette'), q = document.getElementById('palette-dq'), side = document.getElementById('palette-q'),
       list = document.getElementById('palette-list'), entries = null, cur = 0;
+  function row(text, href, on) {
+    var li = document.createElement('li'), a = document.createElement('a');
+    a.textContent = text; a.href = href; a.tabIndex = -1; li.appendChild(a);
+    if (on) li.setAttribute('aria-selected', 'true');
+    list.appendChild(li);
+  }
   function show() {
     var s = q.value.toLowerCase(), n = 0;
     list.textContent = '';
     (entries || []).forEach(function (e) {
       if (n >= 30 || (e.key + ' ' + e.title).toLowerCase().indexOf(s) < 0) return;
-      var li = document.createElement('li'); li.textContent = e.key + '  ' + e.title; li.dataset.href = e.href;
-      if (n === cur) li.setAttribute('aria-selected', 'true');
-      list.appendChild(li); n++;
+      row(e.key + '  ' + e.title, e.href, n === cur); n++;
     });
     if (entries && q.value.trim()) {
-      var f = document.createElement('li'); f.textContent = 'Search bodies for \u201c' + q.value.trim() + '\u201d';
-      f.dataset.href = '/search?q=' + encodeURIComponent(q.value.trim()); if (n === cur) f.setAttribute('aria-selected', 'true');
-      list.appendChild(f);
+      row('Search bodies for \u201c' + q.value.trim() + '\u201d', '/search?q=' + encodeURIComponent(q.value.trim()), n === cur);
     }
   }
   function open() {
@@ -54,14 +56,13 @@
     fetch('/palette').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (j) { entries = j; show(); }).catch(function () { /* entries stays unset: the next open retries */ });
   }
   side.addEventListener('click', open);
-  side.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); } });
   q.addEventListener('input', function () { cur = 0; show(); });
   q.addEventListener('keydown', function (ev) {
     var items = list.children;
     if (ev.key === 'Escape') { dlg.close(); return; }
     if (ev.key === 'ArrowDown' && cur < items.length - 1) cur++;
     else if (ev.key === 'ArrowUp' && cur > 0) cur--;
-    else if (ev.key === 'Enter' && items[cur]) { location.href = items[cur].dataset.href; return; }
+    else if (ev.key === 'Enter' && items[cur]) { items[cur].firstChild.click(); return; }
     else return;
     ev.preventDefault(); show();
   });
