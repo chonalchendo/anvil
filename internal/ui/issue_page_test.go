@@ -95,7 +95,7 @@ func TestIssueCrumbs_ProjectThenMilestoneTitle(t *testing.T) {
 }
 
 // Warrant: a milestone page lists the issues that name it, bare slugs included, in the
-// dashboard's issue table, and not the issues of another milestone.
+// dashboard's issue table, and not the issues of another milestone or ones that only relate to it.
 func TestMilestonePage_ListsItsIssues(t *testing.T) {
 	h, v := seed(t)
 	writeArtifact(t, v, core.TypeMilestone, "milestone.anvil.m2", map[string]any{"title": "M2", "project": "anvil"}, "x\n")
@@ -103,6 +103,7 @@ func TestMilestonePage_ListsItsIssues(t *testing.T) {
 	writeJudged(t, v, "anvil.0503.full", map[string]any{"updated": "2026-10-01"})
 	writeJudged(t, v, "anvil.0504.bare", map[string]any{"milestone": "[[milestone.m2]]", "updated": "2026-10-05"})
 	writeJudged(t, v, "anvil.0505.other", map[string]any{"milestone": "[[milestone.anvil.m3]]"})
+	writeJudged(t, v, "anvil.0506.related", map[string]any{"milestone": "[[milestone.anvil.m3]]", "related": []any{"[[milestone.anvil.m2]]"}})
 	_, body := do(h, "GET", "/artifact/milestone.milestone.anvil.m2")
 	_, table, ok := strings.Cut(body, `<table class="iss"`)
 	if !ok {
@@ -115,6 +116,9 @@ func TestMilestonePage_ListsItsIssues(t *testing.T) {
 	}
 	if strings.Contains(table, "0505") {
 		t.Error("another milestone's issue listed")
+	}
+	if strings.Contains(table, "0506") {
+		t.Error("an issue linking the milestone only through related listed")
 	}
 }
 
@@ -153,5 +157,20 @@ func TestIssueProps_KeepNonPullExternalLinks(t *testing.T) {
 	props, _, _ = strings.Cut(props, "</details>")
 	if !strings.Contains(props, "example.com/doc") || strings.Contains(props, "pull/9") {
 		t.Errorf("props should hold the non-pull link only: %s", props)
+	}
+}
+
+// Warrant: milestoneSlots is the inverse of milestoneKey; a slot it returns that expands to
+// another key would leave the milestone page missing issues.
+func TestMilestoneSlots_RoundTripThroughKey(t *testing.T) {
+	key := "milestone.anvil.m2"
+	slots := milestoneSlots("anvil", key)
+	if len(slots) == 0 {
+		t.Fatal("no slots")
+	}
+	for _, s := range slots {
+		if got := milestoneKey("anvil", s); got != key {
+			t.Errorf("milestoneKey(%q) = %q, want %q", s, got, key)
+		}
 	}
 }

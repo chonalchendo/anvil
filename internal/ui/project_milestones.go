@@ -172,8 +172,7 @@ func (s *server) issueRows(rows []index.ArtifactRow) ([]issueRow, error) {
 // milestoneIssues lists every issue of a milestone, newest first, for its page. in is the
 // page's incoming links; the bare-slug links cost one more read.
 func (s *view) milestoneIssues(key, project string, in []index.LinkRow) ([]issueRow, error) {
-	slug := strings.TrimPrefix(key, "milestone."+project+".")
-	bare, err := s.db.LinksToAny([]string{slug, "milestone." + slug})
+	bare, err := s.db.LinksToAny(milestoneSlots(project, key))
 	if err != nil {
 		return nil, err
 	}

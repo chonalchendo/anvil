@@ -43,3 +43,10 @@ func milestoneKey(project, slot string) string {
 	}
 	return "milestone." + project + "." + slug
 }
+
+// milestoneSlots is the inverse of milestoneKey: the slot spellings that expand to key, bare
+// slug first. The milestone page reads them from the index.
+func milestoneSlots(project, key string) []string {
+	slug := strings.TrimPrefix(key, "milestone."+project+".")
+	return []string{slug, "milestone." + slug}
+}
