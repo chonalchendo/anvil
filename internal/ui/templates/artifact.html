@@ -14,7 +14,7 @@
 {{if eq .Head.Type "milestone"}}<section class="issues" aria-labelledby="iss-h"><h2 class="lbl" id="iss-h">Issues</h2>
 {{if .Issues}}{{template "issuetable" .Issues}}{{else}}<p class="muted">No issues.</p>{{end}}</section>{{end}}
 <details class="props" id="props"><summary>All properties</summary><dl>
-{{range .Props}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{anchor .}} {{end}}</dd>{{end}}
+{{range .Props}}<dt>{{.Name}}</dt><dd>{{range .Values}}{{anchor .}} {{end}}{{range .Rich}}<time datetime="{{.ISO}}">{{.Text}}</time> {{end}}</dd>{{end}}
 </dl></details>
 </div>
 <section class="contents" aria-label="Contents">

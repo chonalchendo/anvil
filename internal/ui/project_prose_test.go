@@ -47,6 +47,10 @@ func TestProse_DecidedAndLearnedReadAsSentences(t *testing.T) {
 			t.Errorf("learned band lacks %q in\n%s", want, learned)
 		}
 	}
+	first, rest, _ := strings.Cut(learned, "</p>")
+	if !strings.Contains(first, "Newest drafts:") || !strings.Contains(rest, "Held at high confidence") || strings.Contains(rest, "Newest drafts:") {
+		t.Errorf("Newest clause must close paragraph one and Held open paragraph two in\n%s", learned)
+	}
 	if n := strings.Count(learned, `>Learning 2</a>`); n != 1 {
 		t.Errorf("the newest high-confidence draft is linked %d times, want 1", n)
 	}

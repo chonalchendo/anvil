@@ -150,7 +150,7 @@ func (s *server) learnedProse(project string, counts map[string]map[string]int) 
 				}
 			}
 		}
-		second = append(second, clause{Lead: lead, Items: items})
+		out[0] = append(out[0], clause{Lead: lead, Items: items})
 	}
 	if len(held) > 0 {
 		second = append(second, clause{Lead: "Held at high confidence, unverified:", Items: titles(held, headCap, false)})

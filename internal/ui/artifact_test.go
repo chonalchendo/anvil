@@ -244,3 +244,16 @@ func crumbsOf(t *testing.T, body string) string {
 	}
 	return crumbs
 }
+
+// Warrant: a bare date in All properties breaks the one-date-shape rule the judge strip keeps.
+func TestResolverProp_DateShapedValueBecomesTime(t *testing.T) {
+	for _, v := range []string{"2026-10-05", "2026-10-05T09:30:00Z"} {
+		p := resolver{}.prop("approved", v)
+		if len(p.Values) != 0 || len(p.Rich) != 1 || p.Rich[0].ISO != v {
+			t.Errorf("prop(%q) = %+v, want one Rich part with ISO %q", v, p, v)
+		}
+	}
+	if p := (resolver{}).prop("note", "2026-10-5 sometime"); len(p.Rich) != 0 || len(p.Values) != 1 {
+		t.Errorf("non-date value must stay a plain value, got %+v", p)
+	}
+}

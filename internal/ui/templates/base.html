@@ -51,7 +51,7 @@
       row('', 'Search bodies for \u201c' + q.value.trim() + '\u201d', '/search?q=' + encodeURIComponent(q.value.trim()), n === cur);
     }
     q.setAttribute('aria-expanded', list.children.length > 0 ? 'true' : 'false');
-    status.textContent = plural(list.children.length);
+    status.textContent = plural(n);
     var sel = list.querySelector('[aria-current]');
     if (sel) sel.scrollIntoView({block: 'nearest'});
   }
@@ -60,6 +60,7 @@
     if (entries) return show();
     fetch('/palette').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (j) { entries = j; show(); }).catch(function () { /* entries stays unset: the next open retries */ });
   }
+  dlg.addEventListener('close', function () { q.setAttribute('aria-expanded', 'false'); });
   side.addEventListener('click', open);
   q.addEventListener('input', function () { cur = 0; show(); });
   q.addEventListener('keydown', function (ev) {

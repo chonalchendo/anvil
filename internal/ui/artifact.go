@@ -12,6 +12,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
@@ -240,8 +241,21 @@ func (r resolver) prop(name string, v any) prop {
 		}
 		return p
 	}
+	if str, ok := v.(string); ok && isDateShaped(str) {
+		p.Rich = []part{{Text: str, ISO: str}}
+		return p
+	}
 	p.Values = []link{r.slotValue(v)}
 	return p
+}
+
+// isDateShaped reports a YYYY-MM-DD day or an RFC3339 timestamp, both valid as a datetime attribute.
+func isDateShaped(s string) bool {
+	if _, err := time.Parse(time.DateOnly, s); err == nil {
+		return true
+	}
+	_, err := time.Parse(time.RFC3339, s)
+	return err == nil
 }
 
 func (r resolver) slotValue(v any) link {
