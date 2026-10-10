@@ -256,3 +256,38 @@ func mergeUpdate(cmd *cobra.Command, existing, fm map[string]any) (map[string]an
 	sort.Strings(changed)
 	return merged, changed
 }
+
+// approvedScopeRefusal returns the refusal when --update would change the
+// goal or acceptance of an approved milestone that has left planned. This
+// guards the --update path only; `anvil set` bypasses it. A planned milestone
+// always updates, so a done -> planned reverse move (which keeps `approved`)
+// is never trapped.
+func approvedScopeRefusal(t core.Type, existing map[string]any, changed []string, id string) *errfmt.Structured {
+	if t != core.TypeMilestone || existing["approved"] == nil {
+		return nil
+	}
+	status, _ := existing["status"].(string)
+	if status == "planned" {
+		return nil
+	}
+	for _, k := range changed {
+		if k == "goal" || k == "acceptance" {
+			tr, err := core.LookupTransition(t, status, "planned")
+			var hint string
+			if err != nil {
+				hint = fmt.Sprintf("milestone is %s and has no move to planned; create a new milestone", status)
+			} else {
+				hint = fmt.Sprintf("anvil transition milestone %s planned", id)
+				if tr.Reverse {
+					hint += ` --reason "<why>"`
+				}
+				hint += fmt.Sprintf(", then anvil create milestone --update ..., then anvil transition milestone %s in-progress", id)
+			}
+			return errfmt.NewStructured("update_approved_milestone_scope").
+				Set("id", id).
+				Set("field", k).
+				Set("fix_hint", hint)
+		}
+	}
+	return nil
+}

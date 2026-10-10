@@ -284,6 +284,9 @@ func newCreateCmd() *cobra.Command {
 					// --update path: keep every field the caller did not pass,
 					// then re-validate the merged fm + body before overwriting.
 					fm, changed := mergeUpdate(cmd, existing.FrontMatter, fm)
+					if ve := approvedScopeRefusal(t, existing.FrontMatter, changed, id); ve != nil {
+						return printAndReturn(cmd, ve)
+					}
 					if !sameBody(body, existing.Body) {
 						changed = append(changed, "body")
 					}
