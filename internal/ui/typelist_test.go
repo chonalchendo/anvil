@@ -207,8 +207,8 @@ func TestTypeListTabs(t *testing.T) {
 		`href="/type/decision?project=anvil&amp;status=accepted&amp;to=product-design.anvil" title="Remove filter">tag type/decision ×`,
 		`href="/type/decision?project=anvil&amp;status=accepted&amp;tag=type%2Fdecision" title="Remove filter">cites product-design.anvil ×`,
 		`href="/type/decision?status=accepted&amp;tag=type%2Fdecision&amp;to=product-design.anvil">all</a>`,
-		`href="/type/decision?project=anvil&amp;status=accepted&amp;tag=type%2Fdecision&amp;to=product-design.anvil" aria-current="true">anvil</a>`,
-		`href="/type/decision?project=other&amp;status=accepted&amp;tag=type%2Fdecision&amp;to=product-design.anvil">other</a>`,
+		`href="/type/decision?project=anvil&amp;status=accepted&amp;tag=type%2Fdecision&amp;to=product-design.anvil" aria-current="true" translate="no">anvil</a>`,
+		`href="/type/decision?project=other&amp;status=accepted&amp;tag=type%2Fdecision&amp;to=product-design.anvil" translate="no">other</a>`,
 	} {
 		if !strings.Contains(chipsHTML, want) {
 			t.Errorf("chips lack %q in\n%s", want, chipsHTML)
@@ -230,10 +230,10 @@ func TestTypeListTabs(t *testing.T) {
 func TestTypeListColumns(t *testing.T) {
 	h := seedTyped(t)
 	_, body := do(h, "GET", "/type/decision")
-	at := strings.Index(body, `decision.ui.0002-second">`)
+	at := strings.Index(body, `decision.ui.0002-second"`)
 	row, _, _ := strings.Cut(body[strings.LastIndex(body[:at], "<tr>"):], "</tr>")
 	for _, want := range []string{
-		`<td class="status">`, `<td class="id"><a href="/artifact/decision.ui.0002-second">decision.ui.0002-second</a></td>`,
+		`<td class="status">`, `<td class="id"><a href="/artifact/decision.ui.0002-second" translate="no">decision.ui.0002-second</a></td>`,
 		`<td class="title">Second one</td>`, `<td class="updated">`,
 	} {
 		if !strings.Contains(row, want) {

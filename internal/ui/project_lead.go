@@ -68,7 +68,8 @@ func milestonePanelOf(folds []msFold, none *msFold, product []node) milestonesPa
 	pn.Nothing = ip == 0 && bare == 0 && live == 0
 	oc := countOpen(folds, none)
 
-	var b strings.Builder
+	var b, tail strings.Builder
+	w := &b // moves to tail once the date is written, so the template can wrap the date in <time>
 	if len(folds) == 0 {
 		b.WriteString("No milestone is planned or in progress.")
 	} else {
@@ -87,15 +88,19 @@ func milestonePanelOf(folds []msFold, none *msFold, product []node) milestonesPa
 		case live > 1:
 			fmt.Fprintf(&b, " The %d holding live work open first:", live)
 		}
-		fmt.Fprintf(&b, " %s, last updated %s%s.", plural(ip, "issue is in progress", "issues are in progress"), shortDate(stamp), ago(stamp))
+		fmt.Fprintf(&b, " %s, last updated", plural(ip, "issue is in progress", "issues are in progress"))
+		pn.LeadDate, pn.LeadISO = shortDate(stamp), day(stamp)
+		w = &tail
+		w.WriteString(ago(stamp) + ".")
 	}
 	if byStatus["in-progress"] > 0 && bare == 0 {
-		b.WriteString(" No milestone is in progress without live work.")
+		w.WriteString(" No milestone is in progress without live work.")
 	}
 	if oc.all() > 0 {
-		b.WriteString(" " + openWhere(oc) + ".")
+		w.WriteString(" " + openWhere(oc) + ".")
 	}
 	pn.Lead = strings.TrimSpace(b.String())
+	pn.LeadTail = tail.String()
 	if pn.Nothing {
 		pn.Inset = insetOf(oc, product)
 	}

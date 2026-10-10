@@ -24,23 +24,25 @@ type statusN struct {
 // msFold is one milestone with its issues, or the "No milestone" group.
 type msFold struct {
 	node
-	Open               bool
-	Approved, Measured string
-	Resolved, Total    int
-	Abandoned          int
-	NotDone            []statusN
-	Issues             []issueRow
-	Live               bool
-	activity, stamp    string
+	Open                  bool
+	Approved, ApprovedISO string
+	Measured, MeasuredISO string
+	Resolved, Total       int
+	Abandoned             int
+	NotDone               []statusN
+	Issues                []issueRow
+	Live                  bool
+	activity, stamp       string
 }
 
 // milestonesPanel is the dashboard's lead panel: not-done milestones, live work first.
 // Nothing is set when no issue or milestone is in progress; the template then writes the empty-state inset.
 type milestonesPanel struct {
-	Lead    string
-	Folds   []msFold
-	Nothing bool
-	Inset   template.HTML
+	Lead                        string
+	LeadDate, LeadISO, LeadTail string
+	Folds                       []msFold
+	Nothing                     bool
+	Inset                       template.HTML
 }
 
 var ordRe = regexp.MustCompile(`\.(\d+)[.-]`)
@@ -92,8 +94,10 @@ func (s *server) newFold(m index.ArtifactRow, members []index.ArtifactRow) (msFo
 	if err != nil {
 		return msFold{}, err
 	}
-	f := msFold{node: leaf(m), Measured: measuredDate(art.Body)}
-	f.Approved = shortDate(fmString(art.FrontMatter["approved"]))
+	f := msFold{node: leaf(m), MeasuredISO: measuredDay(art.Body)}
+	f.Measured = shortDate(f.MeasuredISO)
+	f.ApprovedISO = day(fmString(art.FrontMatter["approved"]))
+	f.Approved = shortDate(f.ApprovedISO)
 	counts := map[string]int{}
 	var open []index.ArtifactRow
 	for _, i := range members {
@@ -213,11 +217,12 @@ func (s *server) unplaced(issues []index.ArtifactRow, placed map[string]bool) (*
 	return f, err
 }
 
-// measuredDate returns the date of a milestone's last Measured line as a short date, or "".
-func measuredDate(body string) string {
+// measuredDay returns the ISO date of a milestone's last Measured line, or "".
+func measuredDay(body string) string {
 	date, _, _ := strings.Cut(lastMeasured(body), ",")
-	if d := shortDate(strings.TrimSpace(date)); d != strings.TrimSpace(date) {
-		return d
+	date = strings.TrimSpace(date)
+	if shortDate(date) != date {
+		return day(date)
 	}
 	return ""
 }

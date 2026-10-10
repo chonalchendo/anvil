@@ -22,7 +22,7 @@ func TestTopic_Status(t *testing.T) {
 func TestTopic_DecisionsAndThreads(t *testing.T) {
 	_, body := do(topicVault(t), "GET", "/topic/alpha")
 	inOrder(t, body, `<nav class="crumbs"`, `href="/">Knowledge</a>`, `<h1 translate="no">alpha</h1>`,
-		"3 decisions (2 accepted, 1 superseded) and 1 thread (1 open). Last moved 9 Oct.",
+		"3 decisions (2 accepted, 1 superseded) and 1 thread (1 open). Last moved <time datetime=\"2026-10-09\">9 Oct</time>.",
 		"Decisions", `href="/type/decision?topic=alpha">All 3`,
 		"0001", "Old alpha line.", "0002", "Newest alpha line.", "0003", "Superseded line.",
 		"Threads", `href="/type/thread?topic=alpha">All 1`, "Is it so", "Learnings", "Raw inbox")

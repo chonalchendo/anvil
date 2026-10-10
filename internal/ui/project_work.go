@@ -49,7 +49,7 @@ func (s *server) fillDone(p *projectPage, counts map[string]map[string]int, memb
 				total++
 			}
 		}
-		p.Done = append(p.Done, doneRow{proseItem{node: leaf(r), Updated: shortDate(r.Updated)}, resolved, total, measuredSHA(art.Body)})
+		p.Done = append(p.Done, doneRow{proseOf(r), resolved, total, measuredSHA(art.Body)})
 	}
 	return nil
 }
@@ -131,48 +131,6 @@ func measuredSHA(body string) string {
 		return m[1]
 	}
 	return ""
-}
-
-// proseGroup is one status and the nodes holding it, written as one sentence.
-type proseGroup struct {
-	Type, Status, Glyph string
-	Items               []proseItem
-}
-
-// fillLately fills the Decided and Learned bands from the newest decisions and learnings.
-func (s *server) fillLately(p *projectPage, counts map[string]map[string]int) error {
-	var err error
-	if p.Decided, err = s.newestGroups("decision", p.Name, counts); err != nil {
-		return err
-	}
-	p.Learned, err = s.newestGroups("learning", p.Name, counts)
-	return err
-}
-
-// newestGroups returns the lately newest rows of typ, grouped by status in liveOrder, newest first within a group.
-func (s *server) newestGroups(typ, project string, counts map[string]map[string]int) ([]proseGroup, error) {
-	if len(counts[typ]) == 0 {
-		return nil, nil
-	}
-	rows, err := s.db.ListByType(typ, index.QueryFilters{Project: project})
-	if err != nil {
-		return nil, err
-	}
-	slices.SortStableFunc(rows, byNewest)
-	rows = rows[:min(len(rows), lately)]
-	slices.SortStableFunc(rows, func(a, b index.ArtifactRow) int { return rank(liveOrder, a.Status) - rank(liveOrder, b.Status) })
-	var out []proseGroup
-	for _, r := range rows {
-		if len(out) == 0 || out[len(out)-1].Status != r.Status {
-			out = append(out, proseGroup{Type: r.Type, Status: r.Status, Glyph: glyphs[r.Status]})
-		}
-		g := &out[len(out)-1]
-		g.Items = append(g.Items, proseItem{node: leaf(r), Updated: shortDate(r.Updated)})
-	}
-	for _, g := range out {
-		joinProse(g.Items)
-	}
-	return out, nil
 }
 
 // joinProse sets each item's Sep so the items read as "a, b and c".
