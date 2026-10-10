@@ -100,7 +100,7 @@ func TestCreate_UpdateApprovedMilestone_RefusesScopeChange(t *testing.T) {
 		t.Errorf("description = %v, want updated", field("description"))
 	}
 
-	// A planned milestone updates goal as before.
+	// Without approved, goal still updates.
 	setApproved(false)
 	if out, err := update("demo passes twice", "true", "fixture rewritten again"); err != nil {
 		t.Fatalf("goal update on planned milestone: %v\n%s", err, out)
@@ -124,5 +124,37 @@ func TestCreate_UpdateApprovedMilestone_RefusesScopeChange(t *testing.T) {
 	}
 	if field("goal") != "demo passes thrice" {
 		t.Errorf("goal = %v, want updated", field("goal"))
+	}
+
+	// Done and abandoned milestones keep `approved`; the hint depends on the move to planned.
+	for _, tc := range []struct {
+		status string
+		want   []string
+		not    string
+	}{
+		{"done", []string{"planned --reason", "in-progress"}, ""},
+		{"abandoned", []string{"has no move to planned", "create a new milestone"}, "transition milestone"},
+	} {
+		a, err := core.LoadArtifact(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a.FrontMatter["approved"] = "2026-10-10"
+		a.FrontMatter["status"] = tc.status
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+		out, err := update("demo passes four", "true", "fixture "+tc.status)
+		if err == nil {
+			t.Fatalf("%s: want refusal, got success: %s", tc.status, out)
+		}
+		for _, w := range tc.want {
+			if !strings.Contains(out, w) {
+				t.Errorf("%s refusal lacks %q: %s", tc.status, w, out)
+			}
+		}
+		if tc.not != "" && strings.Contains(out, tc.not) {
+			t.Errorf("%s refusal must not contain %q: %s", tc.status, tc.not, out)
+		}
 	}
 }

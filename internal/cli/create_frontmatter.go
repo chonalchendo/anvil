@@ -272,14 +272,21 @@ func approvedScopeRefusal(t core.Type, existing map[string]any, changed []string
 	}
 	for _, k := range changed {
 		if k == "goal" || k == "acceptance" {
-			hint := fmt.Sprintf("anvil transition milestone %s planned", id)
-			if tr, err := core.LookupTransition(t, status, "planned"); err == nil && tr.Reverse {
-				hint += ` --reason "<why>"`
+			tr, err := core.LookupTransition(t, status, "planned")
+			var hint string
+			if err != nil {
+				hint = fmt.Sprintf("milestone is %s and has no move to planned; create a new milestone", status)
+			} else {
+				hint = fmt.Sprintf("anvil transition milestone %s planned", id)
+				if tr.Reverse {
+					hint += ` --reason "<why>"`
+				}
+				hint += fmt.Sprintf(", then anvil create milestone --update ..., then anvil transition milestone %s in-progress", id)
 			}
 			return errfmt.NewStructured("update_approved_milestone_scope").
 				Set("id", id).
 				Set("field", k).
-				Set("fix_hint", hint+", then `create milestone --update`, then re-approve")
+				Set("fix_hint", hint)
 		}
 	}
 	return nil
