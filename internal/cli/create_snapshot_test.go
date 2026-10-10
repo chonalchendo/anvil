@@ -46,7 +46,7 @@ func runSnapshotUpdate(t *testing.T, body string) snapshotEnvelope {
 
 func vaultGit(t *testing.T, root string, args ...string) string {
 	t.Helper()
-	c := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@t"}, args...)...)
+	c := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@t"}, args...)...) //nolint:gosec // G204: test-only fixed git args
 	c.Dir = root
 	out, err := c.CombinedOutput()
 	if err != nil {
@@ -60,7 +60,7 @@ func TestCreate_UpdateSnapshot_CommitsOnlyTheArtifact(t *testing.T) {
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Chdir(repo)
 	vaultGit(t, root, "init", "-q")
-	if err := os.WriteFile(filepath.Join(root, "seed.md"), []byte("seed"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "seed.md"), []byte("seed"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	vaultGit(t, root, "add", "-A")
@@ -68,7 +68,7 @@ func TestCreate_UpdateSnapshot_CommitsOnlyTheArtifact(t *testing.T) {
 
 	path := createIssueGetPath(t, snapshotIssueArgs(snapshotBody("old-marker"))...)
 	other := filepath.Join(root, "other.md")
-	if err := os.WriteFile(other, []byte("unrelated"), 0o644); err != nil {
+	if err := os.WriteFile(other, []byte("unrelated"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

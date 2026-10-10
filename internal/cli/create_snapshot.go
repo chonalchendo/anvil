@@ -24,7 +24,8 @@ type snapshotResult struct {
 // --update overwrites it. The pathspec is that one file, so the user's other
 // uncommitted vault files are never swept in.
 func snapshotArtifact(root, path, id string) (snapshotResult, error) {
-	if out, err := gitOutput(root, "rev-parse", "--is-inside-work-tree"); err != nil || strings.TrimSpace(out) != "true" {
+	out, gitErr := gitOutput(root, "rev-parse", "--is-inside-work-tree")
+	if notRepo := gitErr != nil || strings.TrimSpace(out) != "true"; notRepo {
 		return snapshotResult{Warning: "vault is not a git repo; prior state not snapshotted"}, nil
 	}
 	rel, err := filepath.Rel(root, path)
