@@ -183,8 +183,7 @@ func TestTokens(t *testing.T) {
 	}
 }
 
-// Warrant: fails if the nothing-planned inset drops the product design's #milestones link, or the lead
-// omits "No milestone is in progress without live work." when every in-progress milestone holds live work.
+// Warrant: fails if the nothing-planned inset drops the product design's #milestones link.
 func TestProject_InsetLinksProductDesign(t *testing.T) {
 	h, v := seed(t)
 	writeArtifact(t, v, core.TypeProductDesign, "anvil", map[string]any{"title": "Anvil product", "project": "anvil"}, "x\n")
@@ -195,6 +194,7 @@ func TestProject_InsetLinksProductDesign(t *testing.T) {
 	}
 }
 
+// Warrant: fails if the lead omits "No milestone is in progress without live work." when every in-progress milestone holds live work.
 func TestProject_NoBareInProgressMilestone(t *testing.T) {
 	h, v := seed(t)
 	writeArtifact(t, v, core.TypeMilestone, "milestone.anvil.live", map[string]any{"title": "Live one", "status": "in-progress", "project": "anvil"}, "x\n")
