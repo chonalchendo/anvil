@@ -103,7 +103,7 @@ func (s *server) buildKnowledge() (knowledgePage, error) {
 	if page.Routed, err = s.routedInbox(raw); err != nil {
 		return knowledgePage{}, err
 	}
-	page.RoutedLede = plural(len(page.Routed), "raw note carries", "raw notes carry") + " a route, newest first."
+	page.RoutedLede = fmt.Sprintf("%d of %s %s a route, newest first.", len(page.Routed), plural(len(raw), "raw note", "raw notes"), pluralWord(len(raw), "carries", "carry"))
 	return page, nil
 }
 
