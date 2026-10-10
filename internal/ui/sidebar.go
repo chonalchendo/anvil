@@ -3,7 +3,6 @@ package ui
 import (
 	"net"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 )
@@ -82,7 +81,7 @@ func (s *server) sidebar(r *http.Request) (sidebar, error) {
 		sb.Groups = append(sb.Groups, grp)
 	}
 	for _, p := range projects {
-		sb.Projects = append(sb.Projects, projectLink{Name: p, Href: "/project/" + url.PathEscape(p), Current: p == r.PathValue("slug")})
+		sb.Projects = append(sb.Projects, projectLink{Name: p, Href: projectHref(p), Current: p == r.PathValue("slug")})
 	}
 	// The port comes from the request so Handler needs no listener knowledge.
 	if _, port, err := net.SplitHostPort(r.Host); err == nil {

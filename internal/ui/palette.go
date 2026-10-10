@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"slices"
 	"strings"
 
@@ -50,13 +49,13 @@ func (s *server) buildPalette() ([]paletteEntry, error) {
 		return nil, err
 	}
 	for _, p := range projects {
-		out = append(out, paletteEntry{Key: p, Type: "project", Title: p, Href: "/project/" + url.PathEscape(p)})
+		out = append(out, paletteEntry{Key: p, Type: "project", Title: p, Href: projectHref(p)})
 	}
 	topics, err := s.readTopics()
 	if err != nil {
 		return nil, err
 	}
-	for _, t := range topics {
+	for _, t := range sortedTopics(topics) {
 		out = append(out, paletteEntry{Key: t.Slug, Type: "topic", Title: t.Slug, Href: topicHref(t.Slug), moved: t.Moved})
 	}
 	for _, t := range core.AllTypes {
@@ -68,7 +67,7 @@ func (s *server) buildPalette() ([]paletteEntry, error) {
 			return nil, err
 		}
 		for _, r := range rows {
-			out = append(out, paletteEntry{Key: r.ID, Type: r.Type, Title: r.Title, Status: r.Status, Href: "/artifact/" + url.PathEscape(r.ID), moved: r.Updated})
+			out = append(out, paletteEntry{Key: r.ID, Type: r.Type, Title: r.Title, Status: r.Status, Href: artifactHref(r.ID), moved: r.Updated})
 		}
 	}
 	slices.SortStableFunc(out, func(a, b paletteEntry) int {
