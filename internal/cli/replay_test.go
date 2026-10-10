@@ -335,8 +335,10 @@ func TestReplayJSONAndRerunHints(t *testing.T) {
 
 func TestReplaySectionFailedLineOmitsPredicateText(t *testing.T) {
 	exit := 3
-	sec := replaySection(verifyRecord{Commit: "abc", Verdict: "fail", Checks: 1,
-		Failed: []verifyFailure{{Check: "Direct#1", Exit: &exit, Preview: "SECRET-predicate"}}}, 0, 0, 5, nil)
+	sec := replaySection(verifyRecord{
+		Commit: "abc", Verdict: "fail", Checks: 1,
+		Failed: []verifyFailure{{Check: "Direct#1", Exit: &exit, Preview: "SECRET-predicate"}},
+	}, 0, 0, 5, nil)
 	if !strings.Contains(sec, "- failed: Direct#1 (exit 3)") || strings.Contains(sec, "SECRET") {
 		t.Errorf("section = %s", sec)
 	}
