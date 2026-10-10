@@ -283,7 +283,6 @@ main:has(.knowledge), main:has(.topic) { padding: 36px 48px 64px; }
 .rows .route { grid-column: 2 / -1; color: var(--text-2); }
 .sub { margin: 14px 0 4px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
 .none-yet { margin: 0; padding: 6px 0 4px; color: var(--muted); }
-.judge .sha { font-family: var(--mono); font-size: 12px; }
 .judge code.sha { background: none; padding: 0; }
 .issues { margin-top: 28px; }
 .issues h2 { margin: 0 0 10px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); }

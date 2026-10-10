@@ -136,7 +136,6 @@ func TestMilestonePage_EmptyState(t *testing.T) {
 // written. Fails if the expansion double-prefixes a key that already names a project.
 func TestMilestoneKey_ExpandsOnlyBareSlots(t *testing.T) {
 	for slot, want := range map[string]string{
-		"m2":                "milestone.anvil.m2",
 		"milestone.m2":      "milestone.anvil.m2",
 		"milestone.anvil.x": "milestone.anvil.x",
 	} {
@@ -160,17 +159,11 @@ func TestIssueProps_KeepNonPullExternalLinks(t *testing.T) {
 	}
 }
 
-// Warrant: milestoneSlots is the inverse of milestoneKey; a slot it returns that expands to
+// Warrant: milestoneSlot is the inverse of milestoneKey; a slot it returns that expands to
 // another key would leave the milestone page missing issues.
-func TestMilestoneSlots_RoundTripThroughKey(t *testing.T) {
+func TestMilestoneSlot_RoundTripThroughKey(t *testing.T) {
 	key := "milestone.anvil.m2"
-	slots := milestoneSlots("anvil", key)
-	if len(slots) == 0 {
-		t.Fatal("no slots")
-	}
-	for _, s := range slots {
-		if got := milestoneKey("anvil", s); got != key {
-			t.Errorf("milestoneKey(%q) = %q, want %q", s, got, key)
-		}
+	if got := milestoneKey("anvil", milestoneSlot("anvil", key)); got != key {
+		t.Errorf("milestoneKey(milestoneSlot) = %q, want %q", got, key)
 	}
 }
