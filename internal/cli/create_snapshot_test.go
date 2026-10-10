@@ -202,7 +202,7 @@ func TestCreate_UpdateSnapshot_FailureKeepsUsersStagedEdit(t *testing.T) {
 		t.Fatal(err)
 	}
 	staged := string(raw) + "\nUSER-STAGED-EDIT\n"
-	if err := os.WriteFile(path, []byte(staged), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(staged), 0o600); err != nil { //nolint:gosec // test-only path from createIssueGetPath
 		t.Fatal(err)
 	}
 	vaultGit(t, root, "add", "--", rel)
