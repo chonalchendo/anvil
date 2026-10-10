@@ -9,7 +9,7 @@ import (
 
 // milestoneMembers maps a milestone id to the issues whose milestone slot names it, in full or
 // as the bare slug without the project prefix. It owns membership for the dashboard folds, the
-// lead counts, Recently done and the spine tree. An issue with no slot, or a slot naming no
+// lead counts, and Recently done. An issue with no slot, or a slot naming no
 // listed milestone, is in no entry.
 func (s *server) milestoneMembers(project string, issues, milestones []index.ArtifactRow) (map[string][]index.ArtifactRow, error) {
 	known := map[string]bool{}

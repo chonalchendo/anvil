@@ -7,11 +7,9 @@ import (
 	"github.com/chonalchendo/anvil/internal/index"
 )
 
-// node is one linked artifact row: its href, title and status mark. Open is read by the
-// dashboard folds, which embed node.
+// node is one linked artifact row: its href, title and status mark.
 type node struct {
 	Href, Title, Type, Status, Glyph string
-	Open                             bool
 }
 
 // hue returns the hue name for a status whose colour depends on the type, else
@@ -22,9 +20,6 @@ func hue(typ, status string) string {
 	}
 	return ""
 }
-
-// milestoneOrder lists the milestone status groups shown, in order.
-var milestoneOrder = []string{"in-progress", "planned", "done", "abandoned"}
 
 // liveOrder ranks statuses live-first, for issue lists and type lists; unknown statuses sort last.
 var liveOrder = []string{
