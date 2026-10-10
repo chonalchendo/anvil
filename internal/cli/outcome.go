@@ -60,7 +60,7 @@ type milestoneOutcome struct {
 }
 
 // sumOutcome counts an issue as escaped when it was reopened or is the target of
-// a fixes link; fixed is the set of fixes-link targets read from the index.
+// a fixes link (only a resolved issue's PR can have been escaped); fixed is the set of fixes-link targets read from the index.
 func sumOutcome(rows []milestoneIssueRow, ms map[string]any, fixed map[string]bool) milestoneOutcome {
 	var o milestoneOutcome
 	o.Amendments, _ = ms["outcome_amendments"].(int)
@@ -75,7 +75,7 @@ func sumOutcome(rows []milestoneIssueRow, ms map[string]any, fixed map[string]bo
 		if r.Status == "resolved" && r.prLinks <= 1 && (r.Rescopes == nil || *r.Rescopes == 0) {
 			o.OnePRNoRescope++
 		}
-		if (r.Reopens != nil && *r.Reopens > 0) || fixed[r.ID] {
+		if (r.Reopens != nil && *r.Reopens > 0) || (fixed[r.ID] && r.Status == "resolved") {
 			o.Escaped++
 		}
 		if r.Escalations != nil {

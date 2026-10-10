@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
 )
@@ -91,6 +92,12 @@ Query output (--json) carries each edge's target as its <type>.<id> wikilink key
 			if err != nil {
 				return fmt.Errorf("target type: %w", err)
 			}
+			if relation == "fixes" && (src != core.TypeIssue || tgt != core.TypeIssue) {
+				return printAndReturn(cmd, errfmt.NewStructured("link_fixes_issue_only").
+					Set("source_type", string(src)).
+					Set("target_type", string(tgt)).
+					Set("fix_hint", "--relation fixes links an issue to the issue it fixes; use related for other pairs"))
+			}
 			v, err := core.ResolveVault()
 			if err != nil {
 				return fmt.Errorf("resolving vault: %w", err)
@@ -108,6 +115,11 @@ Query output (--json) carries each edge's target as its <type>.<id> wikilink key
 			tgtID, err = resolveLinkTarget(v, tgt, tgtID)
 			if err != nil {
 				return err
+			}
+			if relation == "fixes" && core.WikilinkTarget(src, srcID) == core.WikilinkTarget(tgt, tgtID) {
+				return printAndReturn(cmd, errfmt.NewStructured("link_fixes_self").
+					Set("id", srcID).
+					Set("fix_hint", "link the fix issue to the other issue whose defect it fixes"))
 			}
 			if err := core.AppendLink(v, src, srcID, tgt, tgtID, relation); err != nil {
 				return err
