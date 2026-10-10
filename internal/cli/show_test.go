@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -1123,5 +1124,51 @@ func TestShow_Section(t *testing.T) {
 	_, err = run("## Nope")
 	if err == nil || !strings.Contains(err.Error(), "## One") || !strings.Contains(err.Error(), "## Two") || strings.Contains(err.Error(), "not a heading") {
 		t.Errorf("unknown heading error = %v", err)
+	}
+}
+
+func TestShow_SectionEdgeCases(t *testing.T) {
+	vault := setupVault(t)
+	path := writeFixtureIssue(t, vault, "foo", "sec2", "Sec2 issue")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Body = "## One\n\n### OnlyH3\n\ndeep\n\n~~~\n## tilde\n~~~\n\n````\n```\n## inner\n```\n````\n\n## Two\n\nbeta\n"
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	run := func(args ...string) (string, error) {
+		cmd := newRootCmd()
+		cmd.SetArgs(append([]string{"show", "issue", "foo.sec2"}, args...))
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		err := cmd.Execute()
+		return out.String(), err
+	}
+
+	if got, err := run("--section", "### OnlyH3"); err != nil || !strings.HasPrefix(got, "### OnlyH3\n") || !strings.Contains(got, "## tilde") || !strings.Contains(got, "## inner") || strings.Contains(got, "beta") {
+		t.Errorf("deeper level / fences: err=%v out=%q", err, got)
+	}
+	_, err = run("--section", "OnlyH3")
+	if !errors.Is(err, ErrSectionNotFound) || !strings.Contains(err.Error(), "## One") || !strings.Contains(err.Error(), "## Two") || strings.Contains(err.Error(), "tilde") || strings.Contains(err.Error(), "inner") {
+		t.Errorf("H3-only bare name error = %v", err)
+	}
+	got, err := run("--section", "Two", "--json")
+	var env map[string]string
+	if err != nil || json.Unmarshal([]byte(got), &env) != nil || env["heading"] != "## Two" || !strings.Contains(env["section"], "beta") || env["id"] == "" {
+		t.Errorf("json: err=%v out=%q", err, got)
+	}
+	if _, err := run("--section", "Two", "--validate"); err == nil {
+		t.Error("--section with --validate should be rejected")
+	}
+
+	a.Body = "just prose\n"
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run("--section", "One"); !errors.Is(err, ErrSectionNotFound) || !strings.Contains(err.Error(), "no H2 headings") {
+		t.Errorf("no-H2 body error = %v", err)
 	}
 }

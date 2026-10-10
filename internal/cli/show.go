@@ -36,12 +36,15 @@ func newShowCmd() *cobra.Command {
 		Use:     "show <type> <id>",
 		Short:   "Display a vault artifact (body included by default for bounded types: inbox, decision, issue, sweep; pass --no-body to suppress or --body to opt in). Also accepts type=skill to print a bundled SKILL.md body.",
 		Args:    namedArgs("anvil show <type> <id>", []string{"<type>", "<id>"}, 2, 2),
-		Example: "  anvil show issue issue-42\n  anvil show issue issue-42 --no-body\n  anvil show issue issue-42 --json\n  anvil show issue issue-42 --links component-design --body\n  anvil show skill capturing-inbox",
+		Example: "  anvil show issue issue-42\n  anvil show issue issue-42 --no-body\n  anvil show issue issue-42 --json\n  anvil show issue issue-42 --links component-design --body\n  anvil show issue issue-42 --section Approach\n  anvil show skill capturing-inbox",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Skills are bundled, not vault artifacts — short-circuit before
 			// ParseType so `anvil show skill <name>` reads from the embedded
 			// skill bundle rather than failing with "unknown type".
 			if args[0] == "skill" {
+				if flagSection != "" {
+					return fmt.Errorf("--section is not supported for skills")
+				}
 				return runShowSkill(cmd, args[1])
 			}
 			t, err := core.ParseType(args[0])
@@ -71,7 +74,7 @@ func newShowCmd() *cobra.Command {
 				includeBody = false
 			}
 			if flagSection != "" {
-				return runShowSection(cmd, v, t, args[1], rawID, flagSection)
+				return runShowSection(cmd, v, t, args[1], rawID, flagSection, flagJSON)
 			}
 			if flagValidate {
 				return runShowValidate(cmd, v, t, args[1], flagJSON)
@@ -93,7 +96,11 @@ func newShowCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagValidate, "validate", false, "validate artifact (schema + wikilinks)")
 	cmd.Flags().BoolVar(&flagNoIncoming, "no-incoming", false, "suppress the Incoming links section (artifacts whose related[]/etc. point at this one)")
 	cmd.Flags().StringVar(&flagLinks, "links", "", "print wikilink targets of the given type (one per line; --json emits a JSON array; add --body to expand each target's body)")
-	cmd.Flags().StringVar(&flagSection, "section", "", "print only the named section (e.g. \"## Approach\"); an unknown heading lists the available ones")
+	cmd.Flags().StringVar(&flagSection, "section", "", "print only the named section: a bare name means \"## <name>\", \"### X\" selects a deeper level; an unknown heading lists the H2s; not for skills; excludes --validate and --links")
+	cmd.MarkFlagsMutuallyExclusive("section", "validate")
+	cmd.MarkFlagsMutuallyExclusive("section", "links")
+	cmd.MarkFlagsMutuallyExclusive("section", "body")
+	cmd.MarkFlagsMutuallyExclusive("section", "no-body")
 	return cmd
 }
 
@@ -398,10 +405,10 @@ func emitFrontMatterText(cmd *cobra.Command, fm map[string]any) {
 	fmt.Fprintln(w, "---")
 }
 
-// runShowSection prints one section: its heading line through the line before
-// the next heading of the same or shallower level. Fenced lines never count as
-// headings. A bare name like "Approach" is read as an H2.
-func runShowSection(cmd *cobra.Command, v *core.Vault, t core.Type, basename, rawID, want string) error {
+// runShowSection prints one section via core.ScanSection. A bare name like
+// "Approach" is read as an H2; "### X" selects a deeper level. With --json it
+// emits {"id","heading","section"}.
+func runShowSection(cmd *cobra.Command, v *core.Vault, t core.Type, basename, rawID, want string, asJSON bool) error {
 	a, err := core.LoadArtifact(resolveArtifactPath(v.Root, t, basename))
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -410,47 +417,23 @@ func runShowSection(cmd *cobra.Command, v *core.Vault, t core.Type, basename, ra
 		return fmt.Errorf("loading artifact: %w", err)
 	}
 	want = strings.TrimSpace(want)
-	if !strings.HasPrefix(want, "#") {
-		want = "## " + want
+	text, h2s, ok := core.ScanSection(a.Body, want)
+	if !ok {
+		id := core.CanonicalID(t, basename)
+		if len(h2s) == 0 {
+			return fmt.Errorf("%w: %q in %s (the body has no H2 headings)", ErrSectionNotFound, want, id)
+		}
+		return fmt.Errorf("%w: %q in %s; available:\n%s\ntry: anvil show %s %s --section %q", ErrSectionNotFound, want, id, strings.Join(h2s, "\n"), t, id, h2s[0])
 	}
-	lines := strings.Split(a.Body, "\n")
-	var headings []string
-	start, level, inFence := -1, 0, false
-	for i, line := range lines {
-		if strings.HasPrefix(strings.TrimSpace(line), "```") {
-			inFence = !inFence
-			continue
+	if asJSON {
+		heading, _, _ := strings.Cut(text, "\n")
+		enc, err := json.MarshalIndent(map[string]string{"id": core.CanonicalID(t, basename), "heading": heading, "section": text}, "", "  ")
+		if err != nil {
+			return err
 		}
-		l := headingLevel(line)
-		if inFence || l == 0 {
-			continue
-		}
-		if start >= 0 {
-			if l <= level {
-				fmt.Fprintln(cmd.OutOrStdout(), strings.TrimRight(strings.Join(lines[start:i], "\n"), "\n"))
-				return nil
-			}
-			continue
-		}
-		if l == 2 {
-			headings = append(headings, strings.TrimSpace(line))
-		}
-		if strings.TrimSpace(line) == want {
-			start, level = i, l
-		}
-	}
-	if start >= 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), strings.TrimRight(strings.Join(lines[start:], "\n"), "\n"))
+		fmt.Fprintln(cmd.OutOrStdout(), string(enc))
 		return nil
 	}
-	return fmt.Errorf("section %q not found; available:\n%s", want, strings.Join(headings, "\n"))
-}
-
-// headingLevel returns the ATX heading level of line, or 0 if it is not one.
-func headingLevel(line string) int {
-	n := len(line) - len(strings.TrimLeft(line, "#"))
-	if n == 0 || n > 6 || len(line) == n || line[n] != ' ' {
-		return 0
-	}
-	return n
+	fmt.Fprintln(cmd.OutOrStdout(), text)
+	return nil
 }

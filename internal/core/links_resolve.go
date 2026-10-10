@@ -112,51 +112,6 @@ func BodyWikilinkTargetsOfType(body string, t Type) []string {
 	return out
 }
 
-// sectionEndRe matches any H2 line, which terminates a Section scan — shared
-// by every heading this function is called with.
-var sectionEndRe = regexp.MustCompile(`^##[ \t]`)
-
-// Section returns the body text between a `## <heading>` line and the next H2
-// heading (or EOF), scanned line-by-line with fenced code blocks skipped so a
-// heading or terminator quoted inside a code sample neither opens nor closes
-// the section. Returns "" when the heading is absent. A second occurrence of
-// the same heading is not special-cased: sectionEndRe terminates the first
-// section there like any other H2, since a duplicate heading is malformed
-// input (RequiredIssueSections rejects it), not a section to extend.
-// Shared by index.TLDRSection (`## TL;DR`, scanned as-is so a fenced example
-// inside the digest survives verbatim) and BodyLinksSectionTargets
-// (`## Links`, called on StripFencedBlocks(body) so an illustrative wikilink
-// inside a code sample is excluded from the section text itself, not just
-// from heading detection — the two callers deliberately differ here).
-func Section(body, heading string) string {
-	headingRe := regexp.MustCompile(`^##[ \t]+` + regexp.QuoteMeta(heading) + `[ \t\r]*$`)
-	lines := strings.Split(body, "\n")
-	start := -1
-	inFence := false
-	for i, line := range lines {
-		if strings.HasPrefix(line, "```") {
-			inFence = !inFence
-			continue
-		}
-		if inFence {
-			continue
-		}
-		if start < 0 {
-			if headingRe.MatchString(line) {
-				start = i + 1
-			}
-			continue
-		}
-		if sectionEndRe.MatchString(line) {
-			return strings.TrimSpace(strings.Join(lines[start:i], "\n"))
-		}
-	}
-	if start < 0 {
-		return ""
-	}
-	return strings.TrimSpace(strings.Join(lines[start:], "\n"))
-}
-
 // governingBodyLinkTypes is the closed set of types a body `## Links`
 // wikilink may resolve to and still enter hydrate's box. Only types that
 // ground an implementation qualify. `decision` is included: an ADR is the
