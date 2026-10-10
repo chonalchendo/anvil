@@ -130,7 +130,7 @@ An unattended orchestrator does not distil. It lists `Harvest candidates:` in th
 Milestone <id>: <N> issues resolved of <M>
   <issue-id> → <PR url> [ready | landed | escalated: <reason>] <rounds>r <diff>l <files>f <tokens>t
 Cost: <rounds>r <diff>l <files>f <tokens>t across <costed> of <issues> issues
-Outcome: <one_pr_no_rescope>/<issues> one PR, no re-scope; <escalations> escalations, <reopens> reopens, <amendments> amendments
+Outcome: <one_pr_no_rescope>/<issues> one PR, no re-scope; <escalations> escalations, <reopens> reopens, <amendments> amendments, <escaped> escaped
 Finish line: <green | red: <failing check>>
 Exit: <none | 1 | 2 | 3> <reason>
 To land each ready PR:

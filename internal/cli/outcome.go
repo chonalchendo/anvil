@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/chonalchendo/anvil/internal/core"
+	"github.com/chonalchendo/anvil/internal/index"
 )
 
 // bumpOutcome adds one to an outcome counter. An absent counter reads as 0, so
@@ -55,9 +56,12 @@ type milestoneOutcome struct {
 	Reopens        int `json:"reopens"`
 	Rescopes       int `json:"rescopes"`
 	Amendments     int `json:"amendments"`
+	Escaped        int `json:"escaped"`
 }
 
-func sumOutcome(rows []milestoneIssueRow, ms map[string]any) milestoneOutcome {
+// sumOutcome counts an issue escaped when it was reopened, or when it is resolved
+// and in fixed (fixes-link targets read from the index): only a landed PR can escape.
+func sumOutcome(rows []milestoneIssueRow, ms map[string]any, fixed map[string]bool) milestoneOutcome {
 	var o milestoneOutcome
 	o.Amendments, _ = ms["outcome_amendments"].(int)
 	for _, r := range rows {
@@ -70,6 +74,9 @@ func sumOutcome(rows []milestoneIssueRow, ms map[string]any) milestoneOutcome {
 		}
 		if r.Status == "resolved" && r.prLinks <= 1 && (r.Rescopes == nil || *r.Rescopes == 0) {
 			o.OnePRNoRescope++
+		}
+		if (r.Reopens != nil && *r.Reopens > 0) || (fixed[r.ID] && r.Status == "resolved") {
+			o.Escaped++
 		}
 		if r.Escalations != nil {
 			o.Escalations += *r.Escalations
@@ -85,6 +92,25 @@ func sumOutcome(rows []milestoneIssueRow, ms map[string]any) milestoneOutcome {
 }
 
 func (o milestoneOutcome) line() string {
-	return fmt.Sprintf("Outcome: %d/%d one-PR-no-rescope, %d first-pass, %d escalations, %d reopens, %d rescopes, %d amendments",
-		o.OnePRNoRescope, o.Issues, o.FirstPass, o.Escalations, o.Reopens, o.Rescopes, o.Amendments)
+	return fmt.Sprintf("Outcome: %d/%d one-PR-no-rescope, %d first-pass, %d escalations, %d reopens, %d rescopes, %d amendments, %d escaped",
+		o.OnePRNoRescope, o.Issues, o.FirstPass, o.Escalations, o.Reopens, o.Rescopes, o.Amendments, o.Escaped)
+}
+
+// fixesTargets returns the ids among rows that any issue links with fixes.
+func fixesTargets(db *index.DB, rows []milestoneIssueRow) (map[string]bool, error) {
+	ids := make([]string, len(rows))
+	for i, r := range rows {
+		ids[i] = r.ID
+	}
+	links, err := db.LinksToAny(ids)
+	if err != nil {
+		return nil, err
+	}
+	fixed := map[string]bool{}
+	for _, l := range links {
+		if l.Relation == "fixes" {
+			fixed[l.Target] = true
+		}
+	}
+	return fixed, nil
 }

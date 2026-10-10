@@ -140,6 +140,7 @@ Link the governing context a worker loads at issue-start (`completing-issue` Pha
 - **Component design(s)** — `anvil list component-design --json`; for each whose scope matches: `anvil link issue <issue-id> component-design <component-design-id>`.
 - **System-design** — `anvil list system-design --json`; match on `project` equality: `anvil link issue <issue-id> system-design <project>`. This is the issue's governing spine edge that `completing-issue` walks to hydrate its box; make a missing link an explicit decision (attach it, or state "no design governs this slice") — never a silent skip. Don't invent a link to satisfy the check.
 - **Dependencies** — one edge per issue the Sequencing line names: `anvil link issue <issue-id> issue <prereq-id> --relation depends_on` / `--relation blocks`. `anvil list issue --ready` reads only these typed edges — prose ordering is invisible to it.
+- **Escaped defect** — a fix for a defect that escaped a resolved issue's PR also records `anvil link issue <issue-id> issue <escaped-issue-id> --relation fixes`.
 - **Reproduction anchor** — bug kind only; shape lives in `references/bug.md`. Author one whenever a command can capture the failure; skipping it is a stated decision, never a silent default.
 
 **REQUIRED REFERENCE:** Use skills/writing-issue/references/terminal-states.md for the `anvil transition` state machine and the three completion exits (issue created, decision/rejected, paused).

@@ -40,7 +40,7 @@ func StripFencedBlocks(body string) string {
 // hydrate's spine walk likewise ignores them (LinkTargetsOfType only matches
 // a value that is entirely a wikilink).
 var linkSlotFields = map[string]struct{}{
-	"related": {}, "depends_on": {}, "blocks": {}, "milestone": {},
+	"related": {}, "depends_on": {}, "blocks": {}, "fixes": {}, "milestone": {},
 	"issue": {}, "product_design": {}, "system_design": {},
 	"supersedes": {}, "superseded_by": {}, "promoted_to": {}, "authorized_by": {},
 }

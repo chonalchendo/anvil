@@ -6,7 +6,7 @@ import (
 
 // AppendLink appends a wikilink to (tgt, tgtID) onto the source artifact's
 // named edge array (field) — "related" for associative links, or the typed
-// dependency slots "depends_on"/"blocks". Idempotent per field. The remaining
+// dependency slots "depends_on"/"blocks"/"fixes". Idempotent per field. The remaining
 // structural slots (issue.milestone, milestone.product_design,
 // milestone.system_design) are written via `anvil set`, not `link`.
 func AppendLink(v *Vault, src Type, srcID string, tgt Type, tgtID, field string) error {
