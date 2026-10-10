@@ -124,8 +124,6 @@ func countLink(href string, n int, one, many string) proseItem {
 
 func topicHref(slug string) string { return "/topic/" + url.PathEscape(slug) }
 
-func projectHref(slug string) string { return "/project/" + url.PathEscape(slug) }
-
 // status is the status that colours the topic name: the newest live decision's, else the newest row's.
 func (t *topic) status() string {
 	if d, ok := t.newestLive(); ok {
