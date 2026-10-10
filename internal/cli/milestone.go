@@ -79,6 +79,7 @@ func newMilestoneStatusCmd() *cobra.Command {
 					open++
 				}
 			}
+			outcome := sumOutcome(rows, m.FrontMatter)
 			done := scanErr == nil && open == 0 && len(unmetCriteria(acceptance)) == 0
 
 			if flagJSON {
@@ -90,23 +91,26 @@ func newMilestoneStatusCmd() *cobra.Command {
 					Acceptance []acceptanceResult  `json:"acceptance"`
 					Issues     []milestoneIssueRow `json:"issues"`
 					CostTotal  milestoneCostTotal  `json:"cost_total"`
-				}{st, done, acceptance, rows, total})
+					Outcome    milestoneOutcome    `json:"outcome"`
+				}{st, done, acceptance, rows, total, outcome})
 			}
-			cmd.Printf("%s\t%d/%d resolved\tdone=%t\n", st.Milestone, st.Resolved, st.Total, done)
+			out := cmd.OutOrStdout() // data, not diagnostics: must survive 2>/dev/null
+			fmt.Fprintf(out, "%s\t%d/%d resolved\tdone=%t\n", st.Milestone, st.Resolved, st.Total, done)
 			for i, r := range acceptance {
 				verdict := "met"
 				if !r.Met {
 					verdict = "not met"
 				}
-				cmd.Printf("AC %d\t%s\t%s\t%s\n", i+1, verdict, r.detail(), tableCell(r.Criterion))
+				fmt.Fprintf(out, "AC %d\t%s\t%s\t%s\n", i+1, verdict, r.detail(), tableCell(r.Criterion))
 			}
 			for _, r := range rows {
-				cmd.Println(r.line())
+				fmt.Fprintln(out, r.line())
 			}
+			fmt.Fprintln(out, outcome.line())
 			return nil
 		},
 	}
 
-	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit status, acceptance and cost rows as JSON")
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit status, acceptance, cost rows and outcome as JSON")
 	return cmd
 }
