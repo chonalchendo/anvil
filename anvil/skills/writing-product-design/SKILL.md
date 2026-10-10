@@ -1,6 +1,6 @@
 ---
 name: writing-product-design
-description: "Use when starting a NEW project — vision, users, success, scope, milestones. Greenfield only. Not for system design (writing-system-design) or individual issues (writing-issue)."
+description: "Use when starting a NEW project — vision, users, success, scope, milestones. Greenfield, or re-authoring an existing product design in place. Not for system design (writing-system-design) or individual issues (writing-issue)."
 license: MIT
 allowed-tools: [Read, Edit, Write]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -20,7 +20,7 @@ metadata:
 
 # Writing Product Design
 
-A workflow for authoring a project's product-design artifact — the top of Anvil's design-driven hierarchy. Greenfield only.
+A workflow for authoring a project's product-design artifact — the top of Anvil's design-driven hierarchy. Greenfield, or a re-author in place.
 
 **Frontmatter is the universal spine** (`type, title, description, created, updated, status, project, tags, aliases, related, external_links`). Every output of this skill is body prose under named sections; the schema rejects anything else (`additionalProperties: false`).
 
@@ -28,6 +28,7 @@ A workflow for authoring a project's product-design artifact — the top of Anvi
 
 - Starting a new project; need the vision artifact before milestones or code.
 - User signals defining the product (not how to build it).
+- Re-authoring an existing PD after a pivot: save with `anvil create product-design ... --update`, which keeps status, `related` and unsupplied fields.
 
 ## When not to use
 

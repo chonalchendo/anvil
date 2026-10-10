@@ -98,7 +98,9 @@ Linking: `writing-milestone` Phase 4 rewrites the bullet to the shaped form and 
 
 If unavailable, collect titles + summaries inline as plain bullets.
 
-**Gate:** breakdown confirmed.
+**Deferral:** a redesign may not scope milestones until the system and component designs exist. Then write one sentence under `## Milestones`: "Milestones deferred until system and component designs exist." Add no placeholder candidates.
+
+**Gate:** breakdown confirmed, or deferral stated.
 
 ### Phase 6 — Serialize & save
 
