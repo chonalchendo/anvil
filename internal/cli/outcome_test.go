@@ -39,21 +39,30 @@ func TestOutcomeIssue(t *testing.T) {
 	}
 
 	// A verdict before the first claim is not the first verdict.
-	runVerify(t, vault, id)
+	_, _, _ = runVerify(t, vault, id) // red verdict returns an error; the record is what matters
 	if v := load()["outcome_first_verdict"]; v != nil {
 		t.Fatalf("first verdict set before claim: %v", v)
 	}
 
 	edit(func(a *core.Artifact) { stampIssueGate(a, "in-progress", "", time.Now()) })
-	runVerify(t, vault, id)
+	_, _, _ = runVerify(t, vault, id) // red verdict returns an error; the record is what matters
 	edit(func(a *core.Artifact) {
 		a.Body = strings.Replace(a.Body, "false", "true", 1)
 		stampIssueGate(a, "in-progress", "", time.Now())
 	})
-	runVerify(t, vault, id)
+	_, _, _ = runVerify(t, vault, id) // red verdict returns an error; the record is what matters
 	fm := load()
 	if fm["verified_verdict"] != "pass" || fm["outcome_first_verdict"] != "fail" {
 		t.Fatalf("verdict=%v first=%v, want pass/fail", fm["verified_verdict"], fm["outcome_first_verdict"])
+	}
+
+	// Re-scope: an --accept-change with no lock change is not a re-scope.
+	t.Setenv("ANVIL_VAULT", vault)
+	if _, _, err := runCmd(t, newVerifyCmd(), id, "--accept-change", "--json"); err != nil {
+		t.Fatal(err)
+	}
+	if load()["outcome_rescopes"] != nil {
+		t.Fatal("rescope counted without a lock change")
 	}
 
 	// Escalation: counted, and the count survives leaving escalated.
@@ -67,6 +76,11 @@ func TestOutcomeIssue(t *testing.T) {
 	}
 
 	// Reopen: only a reverse move counts; escalated -> open does not.
+	execCmd(t, "reindex")
+	execCmd(t, "transition", "issue", id, "open", "--reason", "unblocked")
+	if n := load()["outcome_reopens"]; n != nil {
+		t.Fatalf("outcome_reopens = %v after escalated -> open, want unset", n)
+	}
 	edit(func(a *core.Artifact) { a.FrontMatter["status"] = "resolved" })
 	execCmd(t, "reindex")
 	execCmd(t, "transition", "issue", id, "open", "--reason", "regressed")
@@ -74,11 +88,7 @@ func TestOutcomeIssue(t *testing.T) {
 		t.Fatalf("outcome_reopens = %v, want 1", n)
 	}
 
-	// Re-scope: counted only when --accept-change changes the lock.
-	runVerify(t, vault, id)
-	if load()["outcome_rescopes"] != nil {
-		t.Fatal("rescope counted without a lock change")
-	}
+	// Re-scope: counted when --accept-change changes the lock.
 	edit(func(a *core.Artifact) {
 		a.Body = strings.Replace(a.Body, "```bash\ntrue\n```\n\n### Indirect", "```bash\ntrue; true\n```\n\n### Indirect", 1)
 	})
