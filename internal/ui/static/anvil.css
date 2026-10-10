@@ -164,7 +164,8 @@ main:has(.dashboard) { padding: 36px 48px 64px; }
 .dashboard .deck { margin: 6px 0 0; max-width: 72ch; font-size: 16px; line-height: 1.45; }
 .counts { margin: 10px 0 26px; max-width: 110ch; color: var(--muted); }
 .counts a { color: var(--text-2); }
-.milestones { --w-st: 112px; --w-v: 64px; --w-pr: 64px; --w-r: 60px; --w-tk: 64px; --w-u: 92px; --w-o: 176px; padding: 26px 0 28px; border-top: 1px solid var(--border); }
+.milestones, table.iss { --w-st: 112px; --w-v: 64px; --w-pr: 64px; --w-r: 60px; --w-tk: 64px; --w-u: 92px; --w-o: 176px; }
+.milestones { padding: 26px 0 28px; border-top: 1px solid var(--border); }
 .milestones h2 { margin: 0 0 6px; font-size: 16px; font-weight: 400; line-height: 1.3; color: var(--text-2); }
 .lede { max-width: 84ch; margin: 0 0 14px; color: var(--text-2); }
 .ms-head, .ms > summary { display: grid; grid-template-columns: minmax(0, 1fr) var(--w-st) var(--w-v) var(--w-pr) var(--w-r) var(--w-tk) var(--w-u) var(--w-o); align-items: baseline; }
@@ -215,9 +216,9 @@ table.iss { width: calc(100% - 34px); margin: 0 0 14px 34px; border-collapse: co
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; border-bottom: 0; }
 
 main:has(.desk) { padding: 0; }
-.desk { display: grid; grid-template-columns: minmax(300px, 26%) minmax(0, 1fr); grid-template-areas: "contents node"; min-height: 100vh; }
-.contents { grid-area: contents; position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 28px 24px 56px; background: var(--panel); border-right: 1px solid var(--border); }
-.contents .crumbs { margin: 0 0 18px; }
+.desk { display: grid; grid-template-columns: minmax(0, 1fr) clamp(300px, 22vw, 400px); grid-template-areas: "node contents"; min-height: 100vh; }
+.contents { grid-area: contents; position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 28px 24px 56px; background: var(--panel); border-left: 1px solid var(--border); }
+.node-col .crumbs { margin: 0 0 14px; }
 .contents h2 { margin: 18px 0 8px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
 .contents h2:first-child { margin-top: 0; }
 .contents h3 { margin: 10px 0 2px; font-size: 12px; font-weight: 500; }
@@ -231,7 +232,7 @@ main:has(.desk) { padding: 0; }
 .outline .n, .outline .c { color: var(--muted); font-variant-numeric: tabular-nums; }
 .outline .n { min-width: 2ch; }
 .outline .c { margin-left: auto; white-space: nowrap; }
-.contents .judge { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.contents .judge { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; }
 .contents .judge .jv { margin-right: 0; overflow-wrap: anywhere; }
 .contents .prose { margin: 0; padding-top: 12px; border-top: 1px solid var(--border); color: var(--text-2); }
 .contents details.cited { padding-top: 12px; border-top: 1px solid var(--border); }
@@ -282,3 +283,7 @@ main:has(.knowledge), main:has(.topic) { padding: 36px 48px 64px; }
 .rows .route { grid-column: 2 / -1; color: var(--text-2); }
 .sub { margin: 14px 0 4px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
 .none-yet { margin: 0; padding: 6px 0 4px; color: var(--muted); }
+.judge code.sha { background: none; padding: 0; }
+.issues { margin-top: 28px; }
+.issues h2 { margin: 0 0 10px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
+.issues table.iss { width: 100%; margin-left: 0; --w-o: 112px; --w-u: 72px; }

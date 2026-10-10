@@ -17,9 +17,11 @@ import (
 	"github.com/chonalchendo/anvil/internal/index"
 )
 
+// prop is a named value list. Rich carries judge fragments a link cannot.
 type prop struct {
 	Name   string
 	Values []link
+	Rich   []part
 }
 
 // citedGroup is the cited-by fold's run of sources sharing one type. Count is
@@ -56,6 +58,8 @@ type artifactPage struct {
 	Links      template.HTML
 	Cited      []citedGroup
 	CitedTotal int
+	// Issues is set on milestone pages only: the milestone's issue table.
+	Issues []issueRow
 	// Tabs is set on issue pages only: hydrate is issue-only.
 	Tabs tabs
 }
@@ -149,7 +153,7 @@ func (s *view) node(key string, art *core.Artifact) (artifactPage, error) {
 		return artifactPage{}, err
 	}
 	page := s.shell(key, art, body)
-	page.Crumbs = s.crumbs(key)
+	page.Crumbs = s.crumbs(key, page.Head.Project)
 	for _, n := range refSlots {
 		if v, ok := art.FrontMatter[n]; ok {
 			page.Head.Refs = append(page.Head.Refs, s.res.prop(n, v))
@@ -184,7 +188,12 @@ func (s *view) buildArtifact(key string, art *core.Artifact) (artifactPage, erro
 	}
 	page.Tabs = tb
 	page.Diagrams = diagramsOf(art.FrontMatter)
-	page.Crumbs = s.crumbs(key)
+	page.Crumbs = s.crumbs(key, page.Head.Project)
+	if page.Head.Type == string(core.TypeMilestone) {
+		if page.Issues, err = s.milestoneIssues(key, page.Head.Project, in); err != nil {
+			return artifactPage{}, fmt.Errorf("milestone issues: %w", err)
+		}
+	}
 	page.Props = s.props(typeOfKey(key), art.FrontMatter)
 	page.Outline, page.Links = pb.Outline, pb.Links
 	if n := len(page.Props); n > 0 {
@@ -238,7 +247,11 @@ func (s *view) props(typ string, fm map[string]any) []prop {
 	sort.Strings(names)
 	out := make([]prop, 0, len(names))
 	for _, n := range names {
-		out = append(out, s.res.prop(n, fm[n]))
+		v, ok := judgedValue(typ, n, fm[n])
+		if !ok {
+			continue
+		}
+		out = append(out, s.res.prop(n, v))
 	}
 	return out
 }
@@ -265,16 +278,22 @@ func (r resolver) slotValue(v any) link {
 
 // crumbs climbs the spine slots from key through the index, nearest ancestor
 // last. The index already holds every parent edge, so no parent file is read.
-func (s *view) crumbs(key string) []link {
+// An issue climbs one step, to its milestone.
+func (s *view) crumbs(key, project string) []link {
 	var up []link
 	for range maxCrumbs {
 		next, ok := s.parent(key)
 		if !ok {
 			break
 		}
+		if typeOfKey(key) == string(core.TypeIssue) {
+			if _, known := s.res.rows[next]; !known {
+				next = milestoneKey(project, next)
+			}
+		}
 		l := s.res.resolve(next)
 		up = append(up, l)
-		if l.Href == "" {
+		if l.Href == "" || typeOfKey(key) == string(core.TypeIssue) {
 			break
 		}
 		key = next

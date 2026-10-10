@@ -1,8 +1,6 @@
 {{define "title"}}{{.Page.Name}} · anvil{{end}}
-{{define "stat"}}<span class="status status-{{.Status}}{{with hue .Type .Status}} status-{{.}}{{end}}">{{.Glyph}} {{.Status}}</span>{{end}}
 {{define "lately"}}{{range .}}{{.Sep}}<a href="{{.Href}}">{{.Title}}</a> <span class="muted">({{.Updated}})</span>{{end}}{{end}}
 {{define "lately-links"}}{{range .}}{{.Sep}}<a href="{{.Href}}">{{.Title}}</a>{{end}}{{end}}
-{{define "dash"}}{{if .}}{{.}}{{else}}<span class="none" aria-label="none">—</span>{{end}}{{end}}
 {{define "prose"}}{{range .}}<p>{{template "stat" .}}: {{template "lately" .Items}}.</p>{{end}}{{end}}
 {{define "content"}}{{with .Page}}<div class="dashboard">
 <header class="head">
@@ -16,9 +14,7 @@
   {{if .Folds}}<div class="ms-head" aria-hidden="true"><span>Milestone</span><span>Status</span><span class="sp2">Approved</span><span class="sp2">Measured</span><span class="n">Resolved</span><span class="c">Not done</span></div>{{end}}
   {{range .Folds}}<details class="ms{{if .Live}} live{{end}}"{{if .Open}} open{{end}}>
     <summary><span class="t">{{if .Href}}<a href="{{.Href}}" class="to-{{.Status}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</span>{{if .Href}}<span>{{template "stat" .}}</span><span class="sp2">{{with .Approved}}{{.}}{{else}}<span class="none">not approved</span>{{end}}</span><span class="sp2">{{with .Measured}}{{.}}{{else}}<span class="none">not measured</span>{{end}}</span><span class="n">{{if .Total}}{{.Resolved}} of {{.Total}}{{else}}<span class="none" aria-label="none">—</span>{{end}}</span>{{else}}<span></span><span class="sp2"></span><span class="sp2"></span><span></span>{{end}}<span class="c">{{range .NotDone}}{{.Sep}}<span class="status status-{{.Status}}{{with hue "issue" .Status}} status-{{.}}{{end}}">{{.N}} {{.Label}}</span>{{else}}<span class="none">no issues yet</span>{{end}}</span></summary>
-    {{if .Issues}}<table class="iss"><colgroup><col><col class="w-st"><col class="w-v"><col class="w-pr"><col class="w-r"><col class="w-tk"><col class="w-u"><col class="w-o"></colgroup>
-    <thead><tr><th scope="col">Issue</th><th scope="col">Status</th><th scope="col">Verdict</th><th scope="col">PR</th><th scope="col" class="n">Rounds</th><th scope="col" class="n">Tokens</th><th scope="col" class="n">Updated</th><th scope="col">Owner</th></tr></thead>
-    <tbody>{{range .Issues}}<tr><td class="issue"><span class="ord" translate="no">{{.Ord}}</span><a href="{{.Href}}" class="to-{{.Status}}">{{.Title}}</a></td><td>{{template "stat" .}}</td><td>{{template "dash" .Verdict}}</td><td>{{if .PRHref}}<a href="{{.PRHref}}" translate="no">{{.PR}}</a>{{else}}{{template "dash" ""}}{{end}}</td><td class="n">{{template "dash" .Rounds}}</td><td class="n">{{template "dash" .Tokens}}</td><td class="n">{{if .Updated}}<time datetime="{{.UpdatedISO}}">{{.Updated}}</time>{{else}}{{template "dash" ""}}{{end}}</td><td class="own" translate="no">{{template "dash" .Owner}}</td></tr>{{end}}</tbody></table>
+    {{if .Issues}}{{template "issuetable" .Issues}}
     {{else if .Href}}<p class="empty-fold">No open issue.</p>{{end}}
     {{if .Abandoned}}<p class="fold-note">{{.Abandoned}} abandoned, not counted in the {{.Total}}.</p>{{end}}
   </details>{{end}}

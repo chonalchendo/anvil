@@ -157,15 +157,36 @@ func (s *server) issueRows(rows []index.ArtifactRow) ([]issueRow, error) {
 		}
 		links, _ := fm["external_links"].([]any)
 		for _, l := range links {
-			if u, _ := l.(string); strings.Contains(u, "/pull/") {
-				num, _, _ := strings.Cut(u[strings.Index(u, "/pull/")+len("/pull/"):], "/")
-				row.PRHref, row.PR = u, "#"+num
-				break
+			if u, _ := l.(string); u != "" {
+				if n, ok := prNumber(u); ok {
+					row.PRHref, row.PR = u, "#"+n
+					break
+				}
 			}
 		}
 		out = append(out, row)
 	}
 	return out, nil
+}
+
+// milestoneIssues lists every issue of a milestone, newest first, for its page. in is the
+// page's incoming links; links in the bare slot form cost one more read.
+func (s *view) milestoneIssues(key, project string, in []index.LinkRow) ([]issueRow, error) {
+	bare, err := s.db.LinksTo(milestoneSlot(project, key))
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var rows []index.ArtifactRow
+	for _, l := range append(in, bare...) {
+		r, ok := s.res.rows[l.Source]
+		if l.Relation != "milestone" || !ok || r.Type != "issue" || r.Project != project || seen[r.ID] {
+			continue
+		}
+		seen[r.ID] = true
+		rows = append(rows, r)
+	}
+	return s.issueRows(rows)
 }
 
 // unplaced returns the not-done issues under no not-done milestone, as the last fold: under

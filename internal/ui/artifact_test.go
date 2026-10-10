@@ -29,10 +29,11 @@ func TestNodeHeader_ShowsIdentityAndSlots(t *testing.T) {
 		}
 	}
 	contents := contentsOf(t, body)
-	for _, want := range []string{`<code>` + stackIssue + `</code>`, `href="/artifact/milestone.anvil.m1"`} {
-		if !strings.Contains(contents, want) {
-			t.Errorf("contents lacks %q", want)
-		}
+	if !strings.Contains(contents, `<code translate="no">`+stackIssue+`</code>`) {
+		t.Error("contents lacks the key")
+	}
+	if !strings.Contains(crumbsOf(t, body), `href="/artifact/milestone.anvil.m1"`) {
+		t.Error("crumbs lack the milestone")
 	}
 }
 
@@ -195,21 +196,39 @@ func TestBodyWikilink_ShowsTitleUnlessAliased(t *testing.T) {
 	}
 }
 
-// Warrant: the crumb is a type word that carries its title, led by the project; the
-// node column precedes the contents column in the DOM; the outline lists "All properties".
+// Warrant: the crumb names its target's title, never the type word, and sits in the node
+// column; the node column precedes the contents column in the DOM; the outline lists
+// "All properties".
 func TestArtifactPage_CrumbsOutlineAndColumnOrder(t *testing.T) {
 	h, v := seed(t)
 	writeArtifact(t, v, core.TypeMilestone, "milestone.anvil.m2", map[string]any{
 		"title": "M2", "project": "anvil", "product_design": "[[product-design.anvil]]",
 	}, "## Why\n\nx\n")
 	_, body := do(h, "GET", "/artifact/milestone.milestone.anvil.m2")
-	contents := contentsOf(t, body)
-	for _, want := range []string{`<a href="/project/anvil">anvil</a>`, `<a href="/artifact/product-design.anvil" title="Anvil product">product design</a>`, `<a href="#props"><span class="n">2</span>All properties`} {
-		if !strings.Contains(contents, want) {
-			t.Errorf("contents lacks %q", want)
+	crumbs := crumbsOf(t, body)
+	for _, want := range []string{`<a href="/project/anvil" translate="no">anvil</a>`, `>Anvil product</a>`} {
+		if !strings.Contains(crumbs, want) {
+			t.Errorf("crumbs lack %q", want)
 		}
 	}
-	if strings.Index(body, `class="node-col"`) > strings.Index(body, `class="contents"`) {
-		t.Error("contents column precedes the node column in the DOM")
+	if strings.Contains(crumbs, "product design") || strings.Contains(crumbs, ">milestone<") {
+		t.Errorf("crumbs name a type word: %s", crumbs)
 	}
+	if !strings.Contains(contentsOf(t, body), `<a href="#props"><span class="n">2</span>All properties`) {
+		t.Error("outline lacks All properties")
+	}
+	nodeAt, contentsAt := strings.Index(body, `class="node-col"`), strings.Index(body, `class="contents"`)
+	if nodeAt > contentsAt || strings.Index(body, `class="crumbs"`) > contentsAt {
+		t.Error("node column, with its crumbs, must precede the contents column in the DOM")
+	}
+}
+
+func crumbsOf(t *testing.T, body string) string {
+	t.Helper()
+	_, rest, ok := strings.Cut(body, `<nav class="crumbs"`)
+	crumbs, _, ok2 := strings.Cut(rest, "</nav>")
+	if !ok || !ok2 {
+		t.Fatal("crumbs missing")
+	}
+	return crumbs
 }

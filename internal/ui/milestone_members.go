@@ -24,11 +24,28 @@ func (s *server) milestoneMembers(project string, issues, milestones []index.Art
 		}
 		id := slotOf(links, "milestone")
 		if !known[id] {
-			id = "milestone." + project + "." + strings.TrimPrefix(id, "milestone.")
+			id = milestoneKey(project, id)
 		}
 		if known[id] {
 			out[id] = append(out[id], i)
 		}
 	}
 	return out, nil
+}
+
+// milestoneKey expands a milestone slot with no project segment (`milestone.slug`)
+// to its index key. A slot that already carries a project is returned as is, so a dangling
+// full key stays dangling. It is the one owner of the bare-slug rule.
+func milestoneKey(project, slot string) string {
+	slug := strings.TrimPrefix(slot, "milestone.")
+	if strings.Contains(slug, ".") {
+		return slot
+	}
+	return "milestone." + project + "." + slug
+}
+
+// milestoneSlot is the inverse of milestoneKey: the one slot spelling that expands to key.
+// The milestone page reads its links from the index.
+func milestoneSlot(project, key string) string {
+	return "milestone." + strings.TrimPrefix(key, "milestone."+project+".")
 }
