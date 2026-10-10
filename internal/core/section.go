@@ -17,6 +17,9 @@ func fenceOpen(line string) (byte, int) {
 	if n < 3 {
 		return 0, 0
 	}
+	if c == '`' && strings.Contains(trimmed[n:], "`") {
+		return 0, 0
+	}
 	return c, n
 }
 
