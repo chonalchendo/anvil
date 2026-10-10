@@ -1,8 +1,8 @@
 package core
 
 // RequiredProductDesignSections is the section order writing-product-design
-// Phase 6 prescribes. Validate does not enforce it; it feeds scaffold and
-// --show-template only.
+// Phase 6 prescribes. Validate does not enforce it; only --show-template
+// prints it. The no-body create keeps an empty design body.
 var RequiredProductDesignSections = []string{
 	"## TL;DR",
 	"## What we're building",

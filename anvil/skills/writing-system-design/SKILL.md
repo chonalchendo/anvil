@@ -74,7 +74,7 @@ Fold non-stale, high-confidence findings into components (Phase 4), invariants (
 
 ## Required sections
 
-The body has these sections, in order: `## TL;DR`, `## Context and scope`, `## Non-goals`, `## Constraints and quality goals` (tech choices live here), `## Components` (table: component, responsibility, component-design link), `## Runtime flow` (target only; mark each step shipped or target), `## System invariants`, `## Decisions` (links), `## Open questions`. Optional, after Open questions: `## Solution strategy` (10 lines or fewer, plus decision links) and `## Risks`.
+The body has the required sections in order (`anvil create system-design --show-template` prints the headings). Notes: tech choices live under constraints and quality goals; Components is a table (component, responsibility, component-design link); Runtime flow is target only, marking each step shipped or target; Decisions holds links. Optional, after Open questions: `## Solution strategy` (10 lines or fewer, plus decision links) and `## Risks`.
 
 ## Quick reference
 

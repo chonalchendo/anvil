@@ -107,10 +107,10 @@ If unavailable, collect titles + summaries inline as plain bullets.
    - Required frontmatter: `type, title, description, created, status, project`.
    - Optional frontmatter: `updated, tags, aliases, related, external_links`.
    - **No other frontmatter fields** — schema is `additionalProperties: false`. If you wrote `goals:`, `risks:`, `milestones:`, `target_users:`, `revisions:` as frontmatter arrays, move them to body sections.
-   - Body has these sections in order: `## TL;DR` / What we're building / Who it's for / Why it matters / Approach / `## Goals and how we measure them` / Constraints & appetite / What's deliberately out of scope / Risks, rabbit holes, open questions / Milestones.
+   - Body has the required sections in order (`anvil create product-design --show-template` prints the headings).
    - No worker instructions or pointers to repo docs anywhere in the body.
    - Each top-level `- ` bullet under Milestones carries `Why now:` and `Components:`. Bullets are plain text until their milestone exists.
-3. Write the body (no frontmatter) to a temp file. Save with `anvil create product-design --project <slug> --title "…" --description "…" --body-file <file>`. Create validates frontmatter, sections and wikilinks, and rolls back on failure. It writes `status: draft`, so then run `anvil transition product-design <slug> active`.
+3. Write the body (no frontmatter) to a temp file. Save with `anvil create product-design --project <slug> --title "…" --description "…" --body-file <file>`. Create validates frontmatter and wikilinks, and rolls back on failure. It does not check body sections. It writes `status: draft`, so then run `anvil transition product-design <slug> active`.
 4. Read it back with `anvil show product-design <slug> --body` for the cold read.
 
 **Gate:** user reads the artifact cold. Capture the project's vision? Fix and re-show if not.
