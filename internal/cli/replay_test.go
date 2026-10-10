@@ -16,13 +16,13 @@ func replayFixture(t *testing.T, status string, links []any) (vault, repo, base,
 	vault = setupVault(t)
 	repo = t.TempDir()
 	gitIn(t, repo, "init", "-q")
-	if err := os.WriteFile(filepath.Join(repo, "a.txt"), []byte("a\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, "a.txt"), []byte("a\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	gitIn(t, repo, "add", ".")
 	gitIn(t, repo, "commit", "-qm", "base")
 	base = gitIn(t, repo, "rev-parse", "HEAD")
-	if err := os.WriteFile(filepath.Join(repo, "b.txt"), []byte("b\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(repo, "b.txt"), []byte("b\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	gitIn(t, repo, "add", ".")
@@ -121,7 +121,7 @@ func TestReplayVerifyAppendsSectionAndKeepsLandedRecord(t *testing.T) {
 	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(wt, "c.txt"), []byte("1\n2\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(wt, "c.txt"), []byte("1\n2\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	gitIn(t, wt, "add", ".")
