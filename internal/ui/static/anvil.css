@@ -61,7 +61,7 @@ pre code { background: none; padding: 0; }
 .sidebar .projects a:hover { background: var(--sel); color: var(--text); }
 kbd { display: inline-block; min-width: 20px; height: 20px; line-height: 20px; text-align: center; margin-right: 2px; border-radius: 4px; box-shadow: 0 0 0 1px var(--border); font-family: var(--sans); color: var(--text-2); }
 
-main { flex: 1; min-width: 0; padding: 24px 32px 56px; }
+main { flex: 1; min-width: 0; padding: 24px 32px; }
 .crumbs { color: var(--muted); margin-bottom: 8px; }
 .node-title { display: flex; align-items: center; gap: 10px; }
 .node-title h1 { margin: 0; }

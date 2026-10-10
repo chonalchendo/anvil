@@ -31,18 +31,10 @@ func TestSidebar_HoldsSearchKnowledgeAndProjectsOnly(t *testing.T) {
 				t.Errorf("%s: sidebar lacks %q in\n%s", p, want, sb)
 			}
 		}
-		for _, dead := range []string{`class="browse"`, `href="/type/`, `class="count"`, `read-only`} {
+		for _, dead := range []string{`href="/type/`, `class="count"`} {
 			if strings.Contains(sb, dead) {
 				t.Errorf("%s: sidebar still holds %q", p, dead)
 			}
-		}
-	}
-}
-
-func TestGroupThousands(t *testing.T) {
-	for n, want := range map[int]string{0: "0", 999: "999", 1000: "1,000", 12345: "12,345", 1234567: "1,234,567"} {
-		if got := groupThousands(n); got != want {
-			t.Errorf("groupThousands(%d) = %q, want %q", n, got, want)
 		}
 	}
 }

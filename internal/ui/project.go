@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -64,7 +63,7 @@ func (s *server) buildProject(name string, counts map[string]map[string]int) (pr
 	if err != nil {
 		return page, err
 	}
-	page.Conventions = groupThousands(all["convention"])
+	page.Conventions = plural(all["convention"], "convention", "conventions")
 	threads, err := s.projectThreads(name)
 	if err != nil {
 		return page, err
@@ -165,13 +164,4 @@ func sumCounts(m map[string]int) int {
 		t += n
 	}
 	return t
-}
-
-// groupThousands formats n with a comma between each group of three digits.
-func groupThousands(n int) string {
-	d := strconv.Itoa(n)
-	for i := len(d) - 3; i > 0; i -= 3 {
-		d = d[:i] + "," + d[i:]
-	}
-	return d
 }

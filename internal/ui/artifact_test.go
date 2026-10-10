@@ -109,6 +109,18 @@ func TestCited_GroupsCountsCapsAndOmitsEmpty(t *testing.T) {
 	}
 }
 
+// Warrant: session pages are gone, so a session citer must neither group nor link to /type/session.
+func TestCited_SkipsSessionSources(t *testing.T) {
+	h, v := seed(t)
+	for i := 1; i <= 10; i++ {
+		writeArtifact(t, v, core.TypeSession, fmt.Sprintf("s-%d", i), map[string]any{"title": "S", "related": []any{"[[product-design.anvil]]"}}, "x\n")
+	}
+	_, body := do(h, "GET", "/artifact/product-design.anvil")
+	if strings.Contains(body, "/type/session") || strings.Contains(contentsOf(t, body), "<h3>session") {
+		t.Error("cited-by renders a session group or link")
+	}
+}
+
 // Warrant: a page with no incoming links must not render an empty fold.
 func TestCited_NoIncomingRendersPlaceholderOnly(t *testing.T) {
 	h, _ := seed(t)

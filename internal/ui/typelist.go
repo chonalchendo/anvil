@@ -65,11 +65,11 @@ func (s *server) fillTypePage(page *typePage) error {
 	if err != nil {
 		return err
 	}
-	tags, err := s.db.TagsByType(page.Type)
-	if err != nil {
-		return err
-	}
 	if page.Tag != "" {
+		tags, err := s.db.TagsByType(page.Type)
+		if err != nil {
+			return err
+		}
 		rows = slices.DeleteFunc(rows, func(r index.ArtifactRow) bool { return !slices.Contains(tags[r.ID], page.Tag) })
 	}
 	if page.To != "" {

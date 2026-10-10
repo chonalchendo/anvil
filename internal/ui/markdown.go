@@ -247,14 +247,6 @@ func slug(title string, seen map[string]int) string {
 
 var nonAlnum = regexp.MustCompile(`[^a-z0-9]+`)
 
-func (m markdown) renderDoc(doc ast.Node, src []byte) (template.HTML, error) {
-	var buf bytes.Buffer
-	if err := m.md.Renderer().Render(&buf, src, doc); err != nil {
-		return "", err
-	}
-	return template.HTML(buf.String()), nil //nolint:gosec // raw HTML is off; see render
-}
-
 // outlineItem is one H2 of the contents column.
 type outlineItem struct {
 	N     int
@@ -289,9 +281,12 @@ func (m markdown) renderPage(body string, res resolver) (pageBody, error) {
 		}
 		c = next
 	}
-	var err error
-	pb.HTML, err = m.renderDoc(doc, src)
-	return pb, err
+	var buf bytes.Buffer
+	if err := m.md.Renderer().Render(&buf, src, doc); err != nil {
+		return pb, err
+	}
+	pb.HTML = template.HTML(buf.String()) //nolint:gosec // raw HTML is off; see render
+	return pb, nil
 }
 
 // lifted is the Links sentence when sec is a `## Links` section of bare

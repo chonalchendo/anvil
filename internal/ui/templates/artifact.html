@@ -2,9 +2,13 @@
 {{define "content"}}{{with .Page}}
 <div class="desk">
 <div class="node-col">
-{{template "crumbs" .}}
+{{if or .Crumbs .Head.Project}}<nav class="crumbs" aria-label="Breadcrumb">{{with .Head.Project}}<a href="/project/{{.}}" translate="no">{{.}}</a>{{end}}{{range .Crumbs}}<span aria-hidden="true"> › </span>{{anchor .}}{{end}}</nav>{{end}}
 {{if .Tabs.Stack}}{{template "tabs" .Tabs}}{{end}}
-{{template "nodeheader" .}}
+<header class="node">
+<div class="node-title"><span class="ticon type-{{.Head.Type}}" title="{{.Head.Type}}" aria-hidden="true">{{.Head.Icon}}</span><h1>{{.Title}}</h1></div>
+{{with .Head.Description}}<p class="deck">{{.}}</p>{{end}}
+<p class="state">{{if .Head.Status}}<span class="status status-{{.Head.Status}}{{with hue .Head.Type .Head.Status}} status-{{.}}{{end}}">{{.Head.Glyph}} {{.Head.Status}}</span>{{end}}{{with .Head.Project}}<span>{{.}}</span>{{end}}{{with .Head.Updated}}<span>updated {{.}}</span>{{end}}{{range .Head.Slots}}<span>{{.Name}} {{range .Values}}{{anchor .}} {{end}}</span>{{end}}</p>
+</header>
 {{range .Diagrams}}{{template "canvas" .}}
 {{end}}<section class="body">{{.Body}}</section>
 {{if eq .Head.Type "milestone"}}<section class="issues" aria-labelledby="iss-h"><h2 id="iss-h">Issues</h2>
@@ -15,7 +19,7 @@
 </div>
 <section class="contents" aria-label="Contents">
 {{with .Head.Judge}}<h2>Judge</h2>
-{{template "judge" .}}{{end}}
+<div class="judge">{{range .}}<span class="jk">{{.Name}}</span><span class="jv">{{range .Values}}{{anchor .}} {{end}}{{range .Rich}}{{if .Href}}<a href="{{.Href}}" translate="no">{{.Text}}</a>{{else if .ISO}}<time datetime="{{.ISO}}">{{.Text}}</time>{{else if eq .Class "sha"}}<code class="sha" translate="no">{{.Text}}</code>{{else}}<span{{with .Class}} class="{{.}}"{{end}}{{with .Title}} title="{{.}}"{{end}}>{{.Text}}</span>{{end}}{{.Tail}} {{end}}</span>{{end}}</div>{{end}}
 <p class="key"><code translate="no">{{.Key}}</code></p>
 {{with .Outline}}<h2>On this page</h2>
 <ol class="outline">{{range .}}<li><a href="#{{.ID}}"><span class="n">{{.N}}</span>{{.Title}}</a></li>{{end}}</ol>{{end}}

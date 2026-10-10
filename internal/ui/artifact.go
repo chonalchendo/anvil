@@ -316,6 +316,9 @@ func (s *view) cited(key string, rows []index.LinkRow) []citedGroup {
 		}
 		seen[r.Source] = true
 		t := typeOfKey(r.Source)
+		if t == string(core.TypeSession) {
+			continue // no session page exists, so a link to one would 404
+		}
 		byType[t] = append(byType[t], r.Source)
 	}
 	types := make([]string, 0, len(byType))
