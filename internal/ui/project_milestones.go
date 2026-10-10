@@ -367,7 +367,9 @@ func milestonePanelOf(folds []msFold, none *msFold) milestonesPanel {
 		if bare == 0 {
 			b.WriteString(" No milestone is in progress without live work.")
 		}
-		fmt.Fprintf(&b, " %d open issues sit under the %d, and %d under none.", pn.OpenUnder, len(folds), pn.OpenNone)
+		if pn.OpenAll > 0 {
+			fmt.Fprintf(&b, " %d open issues sit under the %d, and %d under none.", pn.OpenUnder, len(folds), pn.OpenNone)
+		}
 	}
 	pn.Lead = strings.TrimSpace(b.String())
 	return pn
