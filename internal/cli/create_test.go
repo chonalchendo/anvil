@@ -148,6 +148,71 @@ func TestCreate_TitleAndCapViolations_ReportedTogether(t *testing.T) {
 	}
 }
 
+// lastJSONViolations runs create and returns the violations of the last
+// stdout line's schema_invalid envelope, keyed by code.
+func lastJSONViolations(t *testing.T, args ...string) map[string]map[string]any {
+	t.Helper()
+	var out bytes.Buffer
+	cmd := newRootCmd()
+	cmd.SetArgs(args)
+	cmd.SetOut(&out)
+	cmd.SetErr(&bytes.Buffer{})
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected a refusal")
+	}
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	var env struct {
+		Error      string           `json:"error"`
+		Violations []map[string]any `json:"violations"`
+	}
+	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &env); err != nil {
+		t.Fatalf("last stdout line is not JSON: %q: %v", out.String(), err)
+	}
+	if env.Error != "schema_invalid" {
+		t.Errorf("error = %q, want schema_invalid", env.Error)
+	}
+	byCode := map[string]map[string]any{}
+	for _, v := range env.Violations {
+		byCode[v["code"].(string)] = v
+	}
+	return byCode
+}
+
+func TestCreate_AllCappedFieldViolations_ReportedTogether_JSON(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	got := lastJSONViolations(t, "create", "issue", "--title", "T", "--json",
+		"--description", strings.Repeat("x", 130), "--goal", strings.Repeat("y", 130))
+	for code, field := range map[string]string{"description_too_long": "description", "goal_too_long": "goal"} {
+		v, ok := got[code]
+		if !ok {
+			t.Fatalf("missing %s violation: %v", code, got)
+		}
+		if v["field"] != field || v["got"] != float64(130) || v["max"] != float64(120) {
+			t.Errorf("%s = %v", code, v)
+		}
+	}
+}
+
+func TestCreate_TitleAndCapViolations_ReportedTogether_JSON(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	got := lastJSONViolations(t, "create", "issue", "--json",
+		"--description", strings.Repeat("x", 130), "--goal", strings.Repeat("y", 130))
+	if v, ok := got["missing_required"]; !ok || v["field"] != "title" {
+		t.Errorf("missing title violation: %v", got)
+	}
+	for _, code := range []string{"description_too_long", "goal_too_long"} {
+		if _, ok := got[code]; !ok {
+			t.Errorf("missing %s violation: %v", code, got)
+		}
+	}
+}
+
 func TestCreate_Issue_WritesValidFile(t *testing.T) {
 	setupVault(t)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")

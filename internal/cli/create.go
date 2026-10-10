@@ -109,22 +109,16 @@ func newCreateCmd() *cobra.Command {
 				}
 			}
 
-			// Title-presence and field-cap checks form the pre-resolution tier:
-			// both are computable without a vault, so they fast-fail ahead of
+			// Title presence and field caps need no vault, so they fail fast before
 			// vault/project resolution (a missing project must not mask a cap
-			// overage — see TestCreate_NonIssueCappedField_ChecksBeforeProjectResolution).
-			// errors.Join keeps the tier single-pass: a missing --title no longer
-			// short-circuits ahead of a simultaneous --description/--goal cap
-			// overage, so the author sees every pre-resolution violation at once.
-			var titleErr error
-			// Session and design types don't derive their ID from the title, so
-			// --title is optional for them. All other types require it.
+			// overage). preResolutionRefusal reports every violation in one
+			// rejection, as text or as the --json envelope. Session and design types
+			// do not derive their ID from the title, so --title is optional for them.
 			noTitleRequired := t == core.TypeSession || t == core.TypeProductDesign || t == core.TypeSystemDesign
-			if !noTitleRequired && flagTitle == "" {
-				titleErr = fmt.Errorf("--title is required for %s", t)
-			}
-			if err := errors.Join(titleErr, checkFieldCaps(t, flagDescription, flagGoal)); err != nil {
-				return err
+			missingTitle := !noTitleRequired && flagTitle == ""
+			capViolations := checkFieldCaps(t, flagDescription, flagGoal)
+			if missingTitle || len(capViolations) > 0 {
+				return preResolutionRefusal(cmd, flagJSON, t, missingTitle, capViolations)
 			}
 
 			v, err := core.ResolveVault()

@@ -99,14 +99,16 @@ func printValidationErrors(cmd *cobra.Command, errs []*errfmt.ValidationError) {
 // printValidationErrorsJSON emits the stable schema-invalid envelope to stdout
 // for `--json` callers of create/set/promote. Shape:
 //
-//	{"error":"schema_invalid","violations":[<ValidationError>...]}
+//	{"error":"schema_invalid","violations":[<ValidationError | capViolation>...]}
+//
+// `*_too_long` capViolation rows carry int `got` and `max` and no `path`.
 //
 // The envelope is an object (not a bare array) so it is distinguishable from
 // success envelopes — agents dispatch on the top-level `error` key, then walk
 // `violations[]` to correct fields without a non-JSON debug round-trip.
-func printValidationErrorsJSON(cmd *cobra.Command, errs []*errfmt.ValidationError) {
+func printValidationErrorsJSON[T any](cmd *cobra.Command, errs []T) {
 	if errs == nil {
-		errs = []*errfmt.ValidationError{}
+		errs = []T{}
 	}
 	payload := map[string]any{
 		"error":      "schema_invalid",
@@ -119,6 +121,13 @@ func printValidationErrorsJSON(cmd *cobra.Command, errs []*errfmt.ValidationErro
 	fmt.Fprintln(cmd.OutOrStdout(), string(b))
 }
 
+// emitValidationErrorsJSON owns the envelope-plus-error pairing: it writes the
+// envelope and returns ErrSchemaInvalid wrapped so fang skips its stderr box.
+func emitValidationErrorsJSON[T any](cmd *cobra.Command, errs []T) error {
+	printValidationErrorsJSON(cmd, errs)
+	return jsonRendered{ErrSchemaInvalid}
+}
+
 // emitValidationErrors is the dispatch helper: JSON envelope when asJSON, the
 // human-readable block otherwise. Centralised so create/set/promote agree on
 // the contract for both axes. It returns the paired ErrSchemaInvalid —
@@ -126,8 +135,7 @@ func printValidationErrorsJSON(cmd *cobra.Command, errs []*errfmt.ValidationErro
 // emit the envelope without also suppressing fang's stderr box.
 func emitValidationErrors(cmd *cobra.Command, asJSON bool, errs []*errfmt.ValidationError) error {
 	if asJSON {
-		printValidationErrorsJSON(cmd, errs)
-		return jsonRendered{ErrSchemaInvalid}
+		return emitValidationErrorsJSON(cmd, errs)
 	}
 	printValidationErrors(cmd, errs)
 	return ErrSchemaInvalid
