@@ -2659,8 +2659,10 @@ func TestCreate_Update_KeepsStatusAndRelated(t *testing.T) {
 	withSections := func(intro string) string {
 		return "## Problem\n" + intro + "\n## Acceptance criteria\n- ok\n## Non-goals\n- none\n## Verification\n\n### Direct\njust test\n\n### Indirect\nsmoke\n\n## Links\n- none"
 	}
-	args := []string{"create", "issue", "--title", "Keep edges", "--description", "d",
-		"--goal", "edges survive", "--tags", "domain/dev-tools", "--allow-new-facet=domain"}
+	args := []string{
+		"create", "issue", "--title", "Keep edges", "--description", "d",
+		"--goal", "edges survive", "--tags", "domain/dev-tools", "--allow-new-facet=domain",
+	}
 	path := createIssueGetPath(t, append(append([]string{}, args...), "--body", withSections("old"), "--json")...)
 	a, err := core.LoadArtifact(path)
 	if err != nil {
@@ -2673,9 +2675,11 @@ func TestCreate_Update_KeepsStatusAndRelated(t *testing.T) {
 	}
 
 	cmd := newRootCmd()
-	cmd.SetArgs([]string{"create", "issue", "--title", "Keep edges", "--description", "d",
+	cmd.SetArgs([]string{
+		"create", "issue", "--title", "Keep edges", "--description", "d",
 		"--goal", "edges survive", "--tags", "domain/dev-tools", "--allow-new-facet=domain",
-		"--body", withSections("new body"), "--update", "--json"})
+		"--body", withSections("new body"), "--update", "--json",
+	})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	if err := cmd.Execute(); err != nil {
