@@ -21,7 +21,7 @@
   <p class="lede">Learnings carry no topic. This list shows first the learnings whose <code translate="no">related</code> links one of the topic’s decisions or threads, then the matches on its domain tag.</p>
   <h3 class="sub">Linked to this topic</h3>
   {{if .Linked}}{{template "rows" .Linked}}{{else}}<p class="none-yet">None linked yet.</p>{{end}}
-  <h3 class="sub">By domain tag,{{range $i, $t := .Tags}}{{if $i}},{{end}} <code translate="no">{{$t}}</code>{{end}}</h3>
+  <h3 class="sub">By domain tag{{range $i, $t := .Tags}}{{if $i}},{{else}},{{end}} <code translate="no">{{$t}}</code>{{end}}</h3>
   {{if .Tagged}}{{template "rows" .Tagged}}{{with .TaggedMore}}<p class="none-yet">{{if $.Page.TaggedMoreHref}}<a href="{{$.Page.TaggedMoreHref}}">{{.}} more</a>{{else}}{{.}} more{{end}}</p>{{end}}{{else if .Tags}}<p class="none-yet">No other learning shares these tags.</p>{{else}}<p class="none-yet">The topic’s decisions and threads carry no domain tag.</p>{{end}}
 </section>
 <section class="panel" aria-labelledby="inb">

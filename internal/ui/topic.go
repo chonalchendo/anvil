@@ -136,26 +136,28 @@ func plainItems(rows []index.ArtifactRow) []topicItem {
 }
 
 // splitCiting splits the learnings and raw inbox notes that link a member by their rows in the lists in hand,
-// one LinksTo per member.
+// with one index read for the incoming edges.
 func (s *server) splitCiting(members, learnings, raw []index.ArtifactRow) (linked, cited []index.ArtifactRow, err error) {
 	byID := map[string]index.ArtifactRow{}
 	for _, r := range slices.Concat(learnings, raw) {
 		byID[r.ID] = r
 	}
-	for _, m := range members {
-		in, err := s.db.LinksTo(m.ID)
-		if err != nil {
-			return nil, nil, err
-		}
-		for _, l := range in {
-			row, ok := byID[l.Source]
-			switch {
-			case !ok:
-			case row.Type == "learning":
-				linked = append(linked, row)
-			default:
-				cited = append(cited, row)
-			}
+	ids := make([]string, len(members))
+	for i, m := range members {
+		ids[i] = m.ID
+	}
+	in, err := s.db.LinksToAny(ids)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, l := range in {
+		row, ok := byID[l.Source]
+		switch {
+		case !ok:
+		case row.Type == "learning":
+			linked = append(linked, row)
+		default:
+			cited = append(cited, row)
 		}
 	}
 	return dedupe(linked), dedupe(cited), nil
@@ -351,15 +353,16 @@ func (t *topic) newestLive() (index.ArtifactRow, bool) {
 }
 
 // stands composes the where-it-stands line: the newest live decision's description, then the newest open thread.
+// With neither, it names the topic's newest row.
 func (s *server) stands(t *topic) (string, error) {
-	var out string
+	var desc string
 	if d, ok := t.newestLive(); ok {
 		_, art, err := s.load(d.ID)
 		if err != nil {
 			return "", err
 		}
-		desc, _ := art.FrontMatter["description"].(string)
-		out = strings.TrimSuffix(strings.TrimSpace(desc), ".")
+		desc, _ = art.FrontMatter["description"].(string)
+		desc = strings.TrimSuffix(strings.TrimSpace(desc), ".")
 	}
 	threads := slices.Clone(t.Threads)
 	slices.SortStableFunc(threads, byNewest)
@@ -367,10 +370,15 @@ func (s *server) stands(t *topic) (string, error) {
 		if th.Status != "open" {
 			continue
 		}
-		if out == "" {
-			return "open: " + th.Title, nil
+		if desc == "" {
+			return "Open: " + th.Title, nil
 		}
-		return out + "; open: " + th.Title, nil
+		return desc + "; open: " + th.Title, nil
 	}
-	return out, nil
+	if desc != "" {
+		return desc + ".", nil
+	}
+	rows := slices.Concat(t.Decisions, t.Threads)
+	slices.SortStableFunc(rows, byNewest)
+	return "Nothing current; newest: " + rows[0].Title + ".", nil
 }

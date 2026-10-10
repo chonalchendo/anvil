@@ -45,11 +45,11 @@ func TestTopic_Learnings(t *testing.T) {
 	}
 }
 
-// Warrant: fails if a raw note naming the slug is missed, a note not naming it appears, or the page lists a non-raw note.
+// Warrant: fails if a raw note naming the slug or linking a member by related is missed, a note not naming it appears, or the page lists a non-raw note.
 func TestTopic_RawInbox(t *testing.T) {
 	_, body := do(topicVault(t), "GET", "/topic/alpha")
 	_, inbox, _ := strings.Cut(body, `id="inb"`)
-	if !strings.Contains(inbox, "Cites alpha") || strings.Contains(inbox, "Plain note") || strings.Contains(inbox, "Routed note") {
+	if !strings.Contains(inbox, "Cites alpha") || !strings.Contains(inbox, "Links by related") || strings.Contains(inbox, "Plain note") || strings.Contains(inbox, "Routed note") {
 		t.Errorf("inbox panel wrong:\n%s", inbox)
 	}
 }
@@ -85,5 +85,51 @@ func TestTopic_TagCapManyTags(t *testing.T) {
 	_, body := do(serve(t, v), "GET", "/topic/alpha")
 	if !strings.Contains(body, ">2 more<") || strings.Contains(body, "2 more</a>") {
 		t.Errorf("N more should be plain text:\n%s", body)
+	}
+}
+
+// Warrant: fails if a thread-only topic loses the capitalised "Open: " lead, a decision-only topic loses its full stop, or a topic with nothing current renders an empty line.
+func TestTopic_Stands(t *testing.T) {
+	v := &core.Vault{Root: t.TempDir()}
+	writeArtifact(t, v, core.TypeThread, "solo.0001-q", map[string]any{"title": "Why so", "status": "open", "updated": "2026-10-02"}, "x\n")
+	writeArtifact(t, v, core.TypeThread, "solo.0002-r", map[string]any{"title": "Done one", "status": "resolved", "updated": "2026-10-01"}, "x\n")
+	writeArtifact(t, v, core.TypeDecision, "dec.0001-a", map[string]any{"title": "Dec A", "status": "accepted", "updated": "2026-10-01", "description": "Plain line."}, "x\n")
+	writeArtifact(t, v, core.TypeThread, "dec.0001-q", map[string]any{"title": "Dec Q", "status": "resolved", "updated": "2026-10-01"}, "x\n")
+	writeArtifact(t, v, core.TypeDecision, "dead.0001-a", map[string]any{"title": "Old call", "status": "superseded", "updated": "2026-10-03", "description": "Gone."}, "x\n")
+	writeArtifact(t, v, core.TypeThread, "dead.0001-q", map[string]any{"title": "Shut", "status": "resolved", "updated": "2026-10-02"}, "x\n")
+	_, body := do(serve(t, v), "GET", "/")
+	for _, want := range []string{`<p class="syn">Open: Why so</p>`, `<p class="syn">Plain line.</p>`, `<p class="syn">Nothing current; newest: Old call.</p>`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("knowledge page lacks %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, `<p class="syn"></p>`) {
+		t.Error("empty where-it-stands line")
+	}
+}
+
+// Warrant: fails if a topic without a domain tag renders a comma after "By domain tag".
+func TestTopic_NoTagNoComma(t *testing.T) {
+	_, body := do(topicVault(t), "GET", "/topic/gamma")
+	if strings.Contains(body, "By domain tag,") || !strings.Contains(body, "By domain tag</h3>") {
+		t.Errorf("tag heading wrong:\n%s", body)
+	}
+}
+
+// Warrant: fails if the Routed lede loses the raw-note total, or an Other-only vault renders the column head over an empty list.
+func TestKnowledge_LedeAndOtherOnly(t *testing.T) {
+	_, body := do(topicVault(t), "GET", "/")
+	if !strings.Contains(body, "1 of 4 raw notes carry a route, newest first.") {
+		t.Errorf("routed lede wrong:\n%s", body)
+	}
+	v := &core.Vault{Root: t.TempDir()}
+	writeArtifact(t, v, core.TypeDecision, "lone.0001-a", map[string]any{"title": "Lone", "status": "accepted", "updated": "2026-10-01", "description": "x"}, "x\n")
+	_, body = do(serve(t, v), "GET", "/")
+	if strings.Contains(body, `class="topic-head"`) || strings.Contains(body, "No decision or thread carries a topic yet.") || !strings.Contains(body, `class="other"`) {
+		t.Errorf("other-only page wrong:\n%s", body)
+	}
+	_, body = do(serve(t, &core.Vault{Root: t.TempDir()}), "GET", "/")
+	if !strings.Contains(body, "No decision or thread carries a topic yet.") {
+		t.Error("empty vault lacks the none-yet line")
 	}
 }

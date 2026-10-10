@@ -49,6 +49,7 @@ func topicVault(t *testing.T) http.Handler {
 	writeArtifact(t, v, core.TypeInbox, "2026-10-09-routed", map[string]any{"title": "Routed note", "status": "raw", "updated": "2026-10-09"}, "Body.\n\n## Route\n\nA later milestone.\n\nSecond line.\n")
 	writeArtifact(t, v, core.TypeInbox, "2026-10-08-plain", map[string]any{"title": "Plain note", "status": "raw", "updated": "2026-10-08"}, "Mentions the route of a thing only.\n")
 	writeArtifact(t, v, core.TypeInbox, "2026-10-07-cites", map[string]any{"title": "Cites alpha", "status": "raw", "updated": "2026-10-07"}, "The alpha topic matters.\n")
+	writeArtifact(t, v, core.TypeInbox, "2026-10-06-linked", map[string]any{"title": "Links by related", "status": "raw", "updated": "2026-10-06", "related": []any{"[[decision.alpha.0002-second]]"}}, "No topic name here.\n")
 	return serve(t, v)
 }
 
@@ -60,7 +61,7 @@ func TestKnowledge_ReplacesHome(t *testing.T) {
 	}
 	for _, want := range []string{
 		`<div class="knowledge">`, `<h1>Knowledge</h1>`, `href="/type/decision">6 decisions`, `href="/type/learning">3 learnings`,
-		`href="/type/thread">1 thread<`, `href="/type/inbox?status=raw">3 raw inbox notes`,
+		`href="/type/thread">1 thread<`, `href="/type/inbox?status=raw">4 raw inbox notes`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("knowledge page lacks %q", want)
