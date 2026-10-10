@@ -20,16 +20,23 @@ type snapshotResult struct {
 // uncommitted vault files are never swept in. A snapshot is a safety net, not
 // a gate: every failure restores the file's index entry and becomes a warning.
 func snapshotArtifact(root, path, ref string) snapshotResult {
-	if st, err := core.VaultGitState(root); err != nil || st.NotRepo {
+	st, err := core.VaultGitState(root)
+	if err != nil {
+		return snapshotResult{Warning: fmt.Sprintf("prior state not snapshotted: %v", err)}
+	}
+	if st.NotRepo {
 		return snapshotResult{Warning: "vault is not a git repo; prior state not snapshotted"}
 	}
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
 		return snapshotResult{Warning: fmt.Sprintf("prior state not snapshotted: %v", err)}
 	}
+	// Recorded before `git add` so a failed snapshot restores the user's own
+	// staged edit, not HEAD's version.
+	entry, _ := gitOutput(root, "--literal-pathspecs", "ls-files", "-s", "--", rel)
 	sha, err := commitFile(root, rel, ref)
 	if err != nil {
-		restoreIndexEntry(root, rel)
+		restoreIndexEntry(root, rel, entry)
 		return snapshotResult{Warning: fmt.Sprintf("prior state not snapshotted: %v", err)}
 	}
 	return snapshotResult{SHA: sha}
@@ -55,13 +62,13 @@ func commitFile(root, rel, ref string) (string, error) {
 	return strings.TrimSpace(sha), nil
 }
 
-// restoreIndexEntry undoes the snapshot's `git add` so a failed snapshot
-// leaves the index as it found it for this path. Best effort: the caller
+// restoreIndexEntry puts the path's index entry back to the recorded
+// `ls-files -s` line, or drops it when there was none. Best effort: the caller
 // already reports the original failure.
-func restoreIndexEntry(root, rel string) {
-	if gitRun(root, "--literal-pathspecs", "cat-file", "-e", "HEAD:"+rel) == nil {
-		_ = gitRun(root, "--literal-pathspecs", "reset", "-q", "--", rel)
+func restoreIndexEntry(root, rel, entry string) {
+	if entry == "" {
+		_ = gitRun(root, "--literal-pathspecs", "rm", "--cached", "-q", "--ignore-unmatch", "--", rel)
 		return
 	}
-	_ = gitRun(root, "--literal-pathspecs", "rm", "--cached", "-q", "--ignore-unmatch", "--", rel)
+	_ = gitRunStdin(root, entry, "update-index", "--index-info")
 }

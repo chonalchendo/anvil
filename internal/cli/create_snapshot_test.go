@@ -186,3 +186,36 @@ func TestCreate_UpdateSnapshot_NoOpTakesNone(t *testing.T) {
 		t.Errorf("no-op changed vault git state:\n%s\nvs\n%s", before, after)
 	}
 }
+
+func TestCreate_UpdateSnapshot_FailureKeepsUsersStagedEdit(t *testing.T) {
+	root := setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+	initVaultRepo(t, root)
+	path := createIssueGetPath(t, snapshotIssueArgs(snapshotBody("old"))...)
+	rel, _ := filepath.Rel(root, path)
+	vaultGit(t, root, "add", "--", rel)
+	vaultGit(t, root, "commit", "-qm", "track")
+
+	raw, err := os.ReadFile(path) //nolint:gosec // G304: test path
+	if err != nil {
+		t.Fatal(err)
+	}
+	staged := string(raw) + "\nUSER-STAGED-EDIT\n"
+	if err := os.WriteFile(path, []byte(staged), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	vaultGit(t, root, "add", "--", rel)
+
+	vaultGit(t, root, "config", "--unset", "user.email")
+	vaultGit(t, root, "config", "--unset", "user.name")
+	vaultGit(t, root, "config", "user.useConfigOnly", "true")
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_SYSTEM", os.DevNull)
+	t.Setenv("EMAIL", "")
+
+	runSnapshotUpdate(t, snapshotBody("new"))
+	if got := vaultGit(t, root, "show", ":"+rel); got != staged {
+		t.Errorf("staged content lost after failed snapshot:\n%s", got)
+	}
+}
