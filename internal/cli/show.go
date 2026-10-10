@@ -29,18 +29,22 @@ func newShowCmd() *cobra.Command {
 		flagValidate   bool
 		flagNoIncoming bool
 		flagLinks      string
+		flagSection    string
 	)
 
 	cmd := &cobra.Command{
 		Use:     "show <type> <id>",
 		Short:   "Display a vault artifact (body included by default for bounded types: inbox, decision, issue, sweep; pass --no-body to suppress or --body to opt in). Also accepts type=skill to print a bundled SKILL.md body.",
 		Args:    namedArgs("anvil show <type> <id>", []string{"<type>", "<id>"}, 2, 2),
-		Example: "  anvil show issue issue-42\n  anvil show issue issue-42 --no-body\n  anvil show issue issue-42 --json\n  anvil show issue issue-42 --links component-design --body\n  anvil show skill capturing-inbox",
+		Example: "  anvil show issue issue-42\n  anvil show issue issue-42 --no-body\n  anvil show issue issue-42 --json\n  anvil show issue issue-42 --links component-design --body\n  anvil show issue issue-42 --section Approach\n  anvil show skill capturing-inbox",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Skills are bundled, not vault artifacts — short-circuit before
 			// ParseType so `anvil show skill <name>` reads from the embedded
 			// skill bundle rather than failing with "unknown type".
 			if args[0] == "skill" {
+				if flagSection != "" {
+					return fmt.Errorf("--section is not supported for skills")
+				}
 				return runShowSkill(cmd, args[1])
 			}
 			t, err := core.ParseType(args[0])
@@ -69,6 +73,9 @@ func newShowCmd() *cobra.Command {
 			if flagNoBody {
 				includeBody = false
 			}
+			if flagSection != "" {
+				return runShowSection(cmd, v, t, args[1], rawID, flagSection, flagJSON)
+			}
 			if flagValidate {
 				return runShowValidate(cmd, v, t, args[1], flagJSON)
 			}
@@ -89,6 +96,12 @@ func newShowCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagValidate, "validate", false, "validate artifact (schema + wikilinks)")
 	cmd.Flags().BoolVar(&flagNoIncoming, "no-incoming", false, "suppress the Incoming links section (artifacts whose related[]/etc. point at this one)")
 	cmd.Flags().StringVar(&flagLinks, "links", "", "print wikilink targets of the given type (one per line; --json emits a JSON array; add --body to expand each target's body)")
+	cmd.Flags().StringVar(&flagSection, "section", "", "print only the named section: a bare name means \"## <name>\", \"### X\" selects a deeper level; an unknown heading lists the H2s; not for skills; excludes --validate, --links, --body, --no-body and --no-incoming")
+	cmd.MarkFlagsMutuallyExclusive("section", "validate")
+	cmd.MarkFlagsMutuallyExclusive("section", "links")
+	cmd.MarkFlagsMutuallyExclusive("section", "body")
+	cmd.MarkFlagsMutuallyExclusive("section", "no-body")
+	cmd.MarkFlagsMutuallyExclusive("section", "no-incoming")
 	return cmd
 }
 
