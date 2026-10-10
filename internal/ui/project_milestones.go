@@ -2,23 +2,23 @@ package ui
 
 import (
 	"fmt"
+	"html/template"
 	"regexp"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/chonalchendo/anvil/internal/index"
 )
 
 // issueRow is one not-done issue in a milestone fold. Empty fields render as a dash.
 type issueRow struct {
-	Ord, Verdict, PR, PRHref, Rounds, Tokens, Updated, Owner string
+	Ord, Verdict, PR, PRHref, Rounds, Tokens, Updated, UpdatedISO, Owner string
 	node
 }
 
 type statusN struct {
-	Status, Sep string
-	N           int
+	Status, Label, Sep string
+	N                  int
 }
 
 // msFold is one milestone with its issues, or the "No milestone" group.
@@ -36,17 +36,16 @@ type msFold struct {
 // milestonesPanel is the dashboard's lead panel: not-done milestones, live work first.
 // Nothing is set when no issue or milestone is in progress; the template then writes the empty-state inset.
 type milestonesPanel struct {
-	Lead                                  string
-	Folds                                 []msFold
-	Nothing                               bool
-	OpenAll, OpenUnder, OpenNone, Planned int
-	Most                                  *node
+	Lead    string
+	Folds   []msFold
+	Nothing bool
+	Inset   template.HTML
 }
 
 var ordRe = regexp.MustCompile(`\.(\d+)[.-]`)
 
 // fillMilestones builds the panel from one milestone read, one issue read and a frontmatter
-// read of each not-done issue.
+// read of each not-done issue. It records the project's milestone membership on p for fillDone.
 func (s *server) fillMilestones(p *projectPage, _ map[string]map[string]int) error {
 	ms, err := s.db.ListByType("milestone", index.QueryFilters{Project: p.Name})
 	if err != nil {
@@ -56,13 +55,8 @@ func (s *server) fillMilestones(p *projectPage, _ map[string]map[string]int) err
 	if err != nil {
 		return err
 	}
-	byID := map[string]index.ArtifactRow{}
-	for _, i := range issues {
-		byID[i.ID] = i
-	}
-	known := map[string]bool{}
-	for _, m := range ms {
-		known[m.ID] = true
+	if p.members, err = s.milestoneMembers(p.Name, issues, ms); err != nil {
+		return err
 	}
 	placed := map[string]bool{}
 	var folds []msFold
@@ -70,15 +64,11 @@ func (s *server) fillMilestones(p *projectPage, _ map[string]map[string]int) err
 		if m.Status != "in-progress" && m.Status != "planned" {
 			continue
 		}
-		members, err := s.memberIssues(m.ID, p.Name, byID)
+		f, err := s.newFold(m, p.members[m.ID])
 		if err != nil {
 			return err
 		}
-		f, err := s.newFold(m, members)
-		if err != nil {
-			return err
-		}
-		for _, i := range members {
+		for _, i := range p.members[m.ID] {
 			placed[i.ID] = true
 		}
 		folds = append(folds, f)
@@ -89,11 +79,12 @@ func (s *server) fillMilestones(p *projectPage, _ map[string]map[string]int) err
 		}
 		return strings.Compare(b.activity, a.activity)
 	})
-	none, err := s.unplaced(issues, placed, known, p.Name)
+	none, err := s.unplaced(issues, placed)
 	if err != nil {
 		return err
 	}
 	p.Milestones = milestonePanelOf(folds, none)
+	p.Milestones.Inset = insetOf(p.Milestones, folds, none, p.Designs.Product)
 	return nil
 }
 
@@ -107,26 +98,6 @@ func foldTier(f msFold) int {
 	return 2
 }
 
-// memberIssues returns the issues whose milestone slot names ms, in full or as the bare slug
-// without the project prefix.
-func (s *server) memberIssues(ms, project string, byID map[string]index.ArtifactRow) ([]index.ArtifactRow, error) {
-	var out []index.ArtifactRow
-	seen := map[string]bool{}
-	for _, target := range []string{ms, "milestone." + strings.TrimPrefix(ms, "milestone."+project+".")} {
-		in, err := s.db.LinksTo(target)
-		if err != nil {
-			return nil, fmt.Errorf("links to %s: %w", target, err)
-		}
-		for _, l := range in {
-			if i, ok := byID[l.Source]; ok && l.Relation == "milestone" && !seen[i.ID] {
-				seen[i.ID] = true
-				out = append(out, i)
-			}
-		}
-	}
-	return out, nil
-}
-
 func (s *server) newFold(m index.ArtifactRow, members []index.ArtifactRow) (msFold, error) {
 	_, art, err := s.load(m.ID)
 	if err != nil {
@@ -137,7 +108,6 @@ func (s *server) newFold(m index.ArtifactRow, members []index.ArtifactRow) (msFo
 	counts := map[string]int{}
 	var open []index.ArtifactRow
 	for _, i := range members {
-		f.activity = max(f.activity, i.Updated)
 		switch i.Status {
 		case "resolved":
 			f.Resolved++
@@ -146,6 +116,7 @@ func (s *server) newFold(m index.ArtifactRow, members []index.ArtifactRow) (msFo
 			f.Abandoned++
 		default:
 			f.Total++
+			f.activity = max(f.activity, i.Updated)
 			counts[i.Status]++
 			open = append(open, i)
 		}
@@ -162,7 +133,7 @@ func (s *server) newFold(m index.ArtifactRow, members []index.ArtifactRow) (msFo
 func notDone(counts map[string]int) []statusN {
 	var out []statusN
 	for st, n := range counts {
-		out = append(out, statusN{Status: st, N: n})
+		out = append(out, statusN{Status: st, Label: strings.ReplaceAll(st, "-", " "), N: n})
 	}
 	slices.SortFunc(out, func(a, b statusN) int { return rank(liveOrder, a.Status) - rank(liveOrder, b.Status) })
 	for i := range out {
@@ -184,12 +155,13 @@ func (s *server) issueRows(rows []index.ArtifactRow) ([]issueRow, error) {
 		}
 		fm := art.FrontMatter
 		row := issueRow{
-			node:    leaf(r),
-			Verdict: fmString(fm["verified_verdict"]),
-			Rounds:  count(fm["cost_rounds"]),
-			Tokens:  tokens(fm["cost_tokens"]),
-			Updated: shortDate(r.Updated),
-			Owner:   fmString(fm["owner"]),
+			node:       leaf(r),
+			Verdict:    fmString(fm["verified_verdict"]),
+			Rounds:     count(fm["cost_rounds"]),
+			Tokens:     tokens(fm["cost_tokens"]),
+			Updated:    shortDate(r.Updated),
+			UpdatedISO: r.Updated[:min(len(r.Updated), 10)],
+			Owner:      fmString(fm["owner"]),
 		}
 		if m := ordRe.FindStringSubmatch(r.ID); m != nil {
 			row.Ord = m[1]
@@ -197,7 +169,8 @@ func (s *server) issueRows(rows []index.ArtifactRow) ([]issueRow, error) {
 		links, _ := fm["external_links"].([]any)
 		for _, l := range links {
 			if u, _ := l.(string); strings.Contains(u, "/pull/") {
-				row.PRHref, row.PR = u, "#"+u[strings.LastIndex(u, "/")+1:]
+				num, _, _ := strings.Cut(u[strings.Index(u, "/pull/")+len("/pull/"):], "/")
+				row.PRHref, row.PR = u, "#"+num
 				break
 			}
 		}
@@ -206,27 +179,19 @@ func (s *server) issueRows(rows []index.ArtifactRow) ([]issueRow, error) {
 	return out, nil
 }
 
-// unplaced returns the not-done issues under no milestone, as the "No milestone" fold.
-func (s *server) unplaced(issues []index.ArtifactRow, placed, known map[string]bool, project string) (*msFold, error) {
+// unplaced returns the not-done issues under no not-done milestone, as the last fold: under
+// no milestone, or under a done one.
+func (s *server) unplaced(issues []index.ArtifactRow, placed map[string]bool) (*msFold, error) {
 	var rows []index.ArtifactRow
 	for _, i := range issues {
-		if i.Status == "resolved" || i.Status == "abandoned" || placed[i.ID] {
-			continue
+		if i.Status != "resolved" && i.Status != "abandoned" && !placed[i.ID] {
+			rows = append(rows, i)
 		}
-		_, art, err := s.load(i.ID)
-		if err != nil {
-			return nil, err
-		}
-		slot := strings.Trim(fmString(art.FrontMatter["milestone"]), "[]")
-		if known[slot] || known["milestone."+project+"."+strings.TrimPrefix(slot, "milestone.")] {
-			continue
-		}
-		rows = append(rows, i)
 	}
 	if len(rows) == 0 {
 		return nil, nil
 	}
-	f := &msFold{node: node{Title: "No milestone"}}
+	f := &msFold{node: node{Title: "No open milestone"}}
 	counts := map[string]int{}
 	for _, i := range rows {
 		counts[i.Status]++
@@ -306,108 +271,4 @@ func statusCount(ns []statusN, status string) int {
 		}
 	}
 	return 0
-}
-
-// milestonePanelOf builds the panel and its lead sentence from the sorted folds and the "No milestone" fold.
-func milestonePanelOf(folds []msFold, none *msFold) milestonesPanel {
-	pn := milestonesPanel{Folds: folds, Nothing: true}
-	byStatus := map[string]int{}
-	var live, bare, ip, most int
-	var stamp string
-	for i, f := range folds {
-		byStatus[f.Status]++
-		pn.OpenUnder += statusCount(f.NotDone, "open")
-		if f.Status != "in-progress" {
-			pn.Planned++
-		} else if !f.Live {
-			bare++
-		}
-		if f.Live {
-			live++
-		}
-		if n := sumStatus(f.NotDone); n > most {
-			most, pn.Most = n, &folds[i].node
-		}
-	}
-	for _, f := range append(slices.Clone(folds), noneOrEmpty(none)) {
-		if n := statusCount(f.NotDone, "in-progress"); n > 0 {
-			ip += n
-			stamp = max(stamp, f.stamp)
-		}
-	}
-	if none != nil {
-		pn.OpenNone = statusCount(none.NotDone, "open")
-		pn.Folds = append(pn.Folds, *none)
-	}
-	pn.OpenAll = pn.OpenUnder + pn.OpenNone
-	pn.Nothing = ip == 0 && bare == 0 && live == 0
-
-	var b strings.Builder
-	if len(folds) == 0 {
-		b.WriteString("No milestone is planned or in progress.")
-	} else {
-		var parts []string
-		for _, st := range milestoneOrder {
-			if n := byStatus[st]; n > 0 {
-				parts = append(parts, fmt.Sprintf("%d %s", n, strings.ReplaceAll(st, "-", " ")))
-			}
-		}
-		fmt.Fprintf(&b, "%s not done: %s.", plural(len(folds), "milestone is", "milestones are"), strings.Join(parts, " and "))
-	}
-	if ip > 0 {
-		switch {
-		case live == 1:
-			b.WriteString(" The milestone holding live work opens first:")
-		case live > 1:
-			fmt.Fprintf(&b, " The %d holding live work open first:", live)
-		}
-		fmt.Fprintf(&b, " %s, last updated %s%s.", plural(ip, "issue is in progress", "issues are in progress"), shortDate(stamp), ago(stamp))
-	}
-	if len(folds) > 0 {
-		if bare == 0 {
-			b.WriteString(" No milestone is in progress without live work.")
-		}
-		if pn.OpenAll > 0 {
-			fmt.Fprintf(&b, " %d open issues sit under the %d, and %d under none.", pn.OpenUnder, len(folds), pn.OpenNone)
-		}
-	}
-	pn.Lead = strings.TrimSpace(b.String())
-	return pn
-}
-
-func noneOrEmpty(f *msFold) msFold {
-	if f == nil {
-		return msFold{}
-	}
-	return *f
-}
-
-func sumStatus(ns []statusN) int {
-	t := 0
-	for _, n := range ns {
-		t += n.N
-	}
-	return t
-}
-
-func plural(n int, one, many string) string {
-	if n == 1 {
-		return "1 " + one
-	}
-	return fmt.Sprintf("%d %s", n, many)
-}
-
-// ago writes ", N days ago" for a date at least a day old, else "".
-func ago(date string) string {
-	if len(date) < 10 {
-		return ""
-	}
-	t, err := time.Parse(time.DateOnly, date[:10])
-	if err != nil {
-		return ""
-	}
-	if d := int(time.Since(t).Hours() / 24); d >= 1 {
-		return ", " + plural(d, "day", "days") + " ago"
-	}
-	return ""
 }

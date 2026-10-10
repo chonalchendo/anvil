@@ -37,11 +37,13 @@ func seedProject(t *testing.T) (string, int) {
 	writeArtifact(t, v, core.TypeIssue, "anvil.0030-bare-slug", map[string]any{
 		"title": "Bare slug", "status": "in-progress", "project": "anvil", "milestone": "[[milestone.planned-new]]", "updated": "2026-10-05",
 		"verified_verdict": "pass", "cost_rounds": 2, "cost_tokens": 23300000, "owner": "a-worker",
-		"external_links": []any{"https://github.com/o/r/pull/486"},
+		"external_links": []any{"https://github.com/o/r/pull/486/files"},
 	}, "x\n")
 	writeArtifact(t, v, core.TypeIssue, "anvil.0031-dropped", map[string]any{"title": "Dropped", "status": "abandoned", "project": "anvil", "milestone": "[[milestone.anvil.planned-new]]"}, "x\n")
 	writeArtifact(t, v, core.TypeIssue, "anvil.0032-shipped", map[string]any{"title": "Shipped", "status": "resolved", "project": "anvil", "milestone": "[[milestone.anvil.planned-new]]"}, "x\n")
 	writeArtifact(t, v, core.TypeIssue, "anvil.0040-homeless", map[string]any{"title": "Homeless", "status": "open", "project": "anvil"}, "x\n")
+	writeArtifact(t, v, core.TypeIssue, "anvil.0021-stranded", map[string]any{"title": "Stranded", "status": "open", "project": "anvil", "milestone": "[[milestone.anvil.shipped]]"}, "x\n")
+	writeArtifact(t, v, core.TypeMilestone, "milestone.anvil.shipped", map[string]any{"title": "Shipped one", "status": "done", "project": "anvil", "updated": "2026-09-01"}, "x\n")
 	writeArtifact(t, v, core.TypeIssue, "anvil.0020-old-issue", map[string]any{
 		"title": "Old issue", "status": "resolved", "project": "anvil", "milestone": "[[milestone.anvil.old]]",
 	}, "x\n")
@@ -128,18 +130,22 @@ func TestDiagramNote(t *testing.T) {
 func TestProject_MilestoneFolds(t *testing.T) {
 	body, _ := seedProject(t)
 	for _, want := range []string{
-		`<details class="ms live" open>`, `<details class="ms">`, `>No milestone<`,
+		`<details class="ms live" open>`, `<details class="ms">`, `>No open milestone<`,
 		`<a href="/artifact/milestone.anvil.planned-new" class="to-planned">Planned new</a>`,
 		`1 of 2</span>`, `1 abandoned, not counted in the 2.`,
-		`>0030</span>`, `pass`, `<a href="https://github.com/o/r/pull/486">#486</a>`, `>2</td>`, `>23.3M</td>`, `a-worker`, `5 Oct`,
+		`>0030</span>`, `pass`, `<a href="https://github.com/o/r/pull/486/files" translate="no">#486</a>`, `>2</td>`, `>23.3M</td>`, `a-worker`, `5 Oct`,
 		`href="/artifact/issue.anvil.0040-homeless"`, `href="/artifact/milestone.anvil.planned-quiet"`, `No open issue.`,
-		`3 milestones are not done: 1 in progress and 2 planned.`, `11 open issues sit under the 3, and 1 under none.`,
+		`3 milestones are not done: 1 in progress and 2 planned.`, `11 open issues sit under the 3 milestones, and 2 under none or a done milestone.`,
+		`href="/artifact/issue.anvil.0021-stranded"`, `<time datetime="2026-10-05">5 Oct</time>`, `translate="no">a-worker`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("folds lack %q", want)
 		}
 	}
-	order := []string{"Planned new", "Live one", "Planned quiet", ">No milestone<"}
+	if strings.Contains(body, `class="empty"`) {
+		t.Error("the empty-state inset shows while work is in progress")
+	}
+	order := []string{"Planned new", "Live one", "Planned quiet", ">No open milestone<"}
 	last := -1
 	for _, title := range order {
 		i := strings.Index(body, title)
@@ -158,7 +164,7 @@ func TestProject_EmptyState(t *testing.T) {
 	// The seeded in-progress stack issue sits under no project milestone, so close it out of the picture.
 	writeArtifact(t, v, core.TypeIssue, stackIssue, map[string]any{"title": "Thing", "status": "resolved", "project": "anvil", "milestone": "[[milestone.anvil.next]]"}, "x\n")
 	body, _ := projectBody(t, h)
-	if !strings.Contains(body, `Nothing is in progress. 1 issues are open: 1 under the 1 planned milestones`) || !strings.Contains(body, `Next one</a> holds the most`) {
+	if !strings.Contains(body, `Nothing is in progress. 1 issue is open: 1 under the 1 planned milestone;`) || !strings.Contains(body, `Next one</a> holds the most`) {
 		t.Errorf("empty state lacks the open-issue sentence:\n%s", body)
 	}
 }

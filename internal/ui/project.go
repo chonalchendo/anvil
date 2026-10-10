@@ -32,6 +32,8 @@ type projectPage struct {
 	Learned       []proseGroup
 	LearnedDrafts int
 	OpenThreads   []proseItem
+	// members is the project's milestone membership, set by fillMilestones for fillDone.
+	members map[string][]index.ArtifactRow
 }
 
 // project serves one project's dashboard; a project with no artifacts is a 404.

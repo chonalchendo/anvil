@@ -35,17 +35,21 @@ func (s *server) fillDone(p *projectPage, counts map[string]map[string]int) erro
 	}
 	slices.SortStableFunc(ms, byNewest)
 	ms = ms[:min(len(ms), doneCap)]
-	issueCounts, err := s.db.MilestoneIssueCounts(p.Name)
-	if err != nil {
-		return err
-	}
 	for _, r := range ms {
 		_, art, err := s.load(r.ID)
 		if err != nil {
 			return err
 		}
-		c := issueCounts[r.ID]
-		p.Done = append(p.Done, doneRow{proseItem{node: leaf(r), Updated: shortDate(r.Updated)}, c.Resolved, c.Total, measuredSHA(art.Body)})
+		var resolved, total int
+		for _, i := range p.members[r.ID] {
+			if i.Status == "resolved" {
+				resolved++
+			}
+			if i.Status != "abandoned" {
+				total++
+			}
+		}
+		p.Done = append(p.Done, doneRow{proseItem{node: leaf(r), Updated: shortDate(r.Updated)}, resolved, total, measuredSHA(art.Body)})
 	}
 	return nil
 }

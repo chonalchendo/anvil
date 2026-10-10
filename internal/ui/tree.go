@@ -110,9 +110,9 @@ func (s *server) spineTrees() ([]projectTree, error) {
 	if err != nil {
 		return nil, err
 	}
-	issues := map[string]index.ArtifactRow{}
+	issues := map[string][]index.ArtifactRow{}
 	for _, r := range issueRows {
-		issues[r.ID] = r
+		issues[r.Project] = append(issues[r.Project], r)
 	}
 	names := make([]string, 0, len(byProject))
 	for n := range byProject {
@@ -121,7 +121,7 @@ func (s *server) spineTrees() ([]projectTree, error) {
 	sort.Strings(names)
 	out := make([]projectTree, 0, len(names))
 	for _, n := range names {
-		nodes, err := s.projectNodes(byProject[n], issues)
+		nodes, err := s.projectNodes(n, byProject[n], issues[n])
 		if err != nil {
 			return nil, err
 		}
@@ -130,8 +130,9 @@ func (s *server) spineTrees() ([]projectTree, error) {
 	return out, nil
 }
 
-func (s *server) projectNodes(rows map[string][]index.ArtifactRow, issues map[string]index.ArtifactRow) ([]node, error) {
+func (s *server) projectNodes(project string, rows map[string][]index.ArtifactRow, issues []index.ArtifactRow) ([]node, error) {
 	var nodes, unlinked []node
+	var members map[string][]index.ArtifactRow
 	for _, r := range rows["product-design"] {
 		nodes = append(nodes, leaf(r))
 	}
@@ -167,11 +168,13 @@ func (s *server) projectNodes(rows map[string][]index.ArtifactRow, issues map[st
 	for _, r := range rows["milestone"] {
 		n := leaf(r)
 		if r.Status == "in-progress" {
-			kids, err := s.milestoneIssues(r.ID, issues)
-			if err != nil {
-				return nil, err
+			if members == nil {
+				var err error
+				if members, err = s.milestoneMembers(project, issues, rows["milestone"]); err != nil {
+					return nil, err
+				}
 			}
-			n.Kids, n.Open = kids, true
+			n.Kids, n.Open = memberNodes(members[r.ID]), true
 		}
 		out, err := s.db.LinksFrom(r.ID)
 		if err != nil {
@@ -196,17 +199,11 @@ func leaf(r index.ArtifactRow) node {
 	return node{Href: artifactHref(r.ID), Title: r.Title, Type: r.Type, Status: r.Status, Glyph: glyphs[r.Status]}
 }
 
-// milestoneIssues lists every issue whose milestone slot names ms, in status order.
-func (s *server) milestoneIssues(ms string, issues map[string]index.ArtifactRow) ([]node, error) {
-	in, err := s.db.LinksTo(ms)
-	if err != nil {
-		return nil, fmt.Errorf("links to %s: %w", ms, err)
-	}
+// memberNodes lists a milestone's issues as nodes, in status order.
+func memberNodes(issues []index.ArtifactRow) []node {
 	var out []node
-	for _, l := range in {
-		if i, ok := issues[l.Source]; ok && l.Relation == "milestone" {
-			out = append(out, leaf(i))
-		}
+	for _, i := range issues {
+		out = append(out, leaf(i))
 	}
 	sort.Slice(out, func(a, b int) bool {
 		ra, rb := rank(liveOrder, out[a].Status), rank(liveOrder, out[b].Status)
@@ -215,7 +212,7 @@ func (s *server) milestoneIssues(ms string, issues map[string]index.ArtifactRow)
 		}
 		return out[a].Href < out[b].Href
 	})
-	return out, nil
+	return out
 }
 
 func rank(order []string, st string) int {

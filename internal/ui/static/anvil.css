@@ -188,6 +188,7 @@ main:has(.dashboard) { padding: 36px 48px 64px; }
 .ms > summary::-webkit-details-marker { display: none; }
 .ms > summary::before { content: "›"; position: absolute; left: 14px; top: 9px; color: var(--muted); transition: transform .12s ease; }
 .ms[open] > summary::before { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .ms > summary::before { transition: none; } }
 .ms > summary:hover::before { color: var(--text); }
 .ms > summary .t a { font-weight: 500; }
 .ms.live { box-shadow: inset 2px 0 0 var(--accent); }
