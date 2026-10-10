@@ -66,7 +66,11 @@
     else if (ev.key === 'ArrowUp' && cur > 0) cur--;
     else if (ev.key === 'Enter' && items[cur]) { items[cur].firstChild.click(); return; }
     else return;
-    ev.preventDefault(); show();
+    ev.preventDefault();
+    var prev = list.querySelector('[aria-current]');
+    if (prev) prev.removeAttribute('aria-current');
+    var a = items[cur].firstChild;
+    a.setAttribute('aria-current', 'true'); a.scrollIntoView({block: 'nearest'});
   });
   var layers = function () { return Array.prototype.slice.call(document.querySelectorAll('details.layer, details.section')); }, at = -1;
   function focusLayer(i) { var l = layers(); if (!l.length) return; at = Math.max(0, Math.min(l.length - 1, i)); l[at].querySelector('summary').focus(); }
