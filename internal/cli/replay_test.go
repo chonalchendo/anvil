@@ -30,11 +30,11 @@ func replayFixture(t *testing.T, status string, links []any) (vault, repo, base,
 	merge := gitIn(t, repo, "rev-parse", "HEAD")
 	gitIn(t, repo, "update-ref", "refs/remotes/origin/HEAD", merge)
 
-	prevRepo, prevView, prevFetch := resolveProjectRepoFn, ghPRViewJSONFn, gitFetchOriginFn
-	t.Cleanup(func() { resolveProjectRepoFn, ghPRViewJSONFn, gitFetchOriginFn = prevRepo, prevView, prevFetch })
+	prevRepo, prevView, prevFetch := resolveProjectRepoFn, ghPRViewByURLFn, gitFetchOriginFn
+	t.Cleanup(func() { resolveProjectRepoFn, ghPRViewByURLFn, gitFetchOriginFn = prevRepo, prevView, prevFetch })
 	resolveProjectRepoFn = func(string) (string, error) { return repo, nil }
 	gitFetchOriginFn = func(string) error { return nil }
-	ghPRViewJSONFn = func(int, string) ([]byte, error) {
+	ghPRViewByURLFn = func(string, string) ([]byte, error) {
 		return []byte(`{"state":"MERGED","mergeCommit":{"oid":"` + merge + `"}}`), nil
 	}
 
@@ -108,7 +108,7 @@ func TestReplayRefusals(t *testing.T) {
 
 func TestReplayRefusesUnmergedPR(t *testing.T) {
 	_, _, _, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
-	ghPRViewJSONFn = func(int, string) ([]byte, error) { return []byte(`{"state":"OPEN","mergeCommit":null}`), nil }
+	ghPRViewByURLFn = func(string, string) ([]byte, error) { return []byte(`{"state":"OPEN","mergeCommit":null}`), nil }
 	out, stderr, err := runCmd(t, newReplayCmd(), id, "--worktree", filepath.Join(t.TempDir(), "wt"))
 	if err == nil || !strings.Contains(out+stderr+err.Error(), "replay_no_merged_pr") {
 		t.Errorf("err = %v, out = %q", err, out)
@@ -125,6 +125,8 @@ func TestReplayVerifyAppendsSectionAndKeepsLandedRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 	gitIn(t, wt, "add", ".")
+	gitIn(t, wt, "commit", "-qm", "work")
+	commit := gitIn(t, wt, "rev-parse", "HEAD")
 	t.Chdir(wt)
 	path := filepath.Join(vault, "70-issues", id+".md")
 	before, _ := core.LoadArtifact(path)
@@ -145,7 +147,7 @@ func TestReplayVerifyAppendsSectionAndKeepsLandedRecord(t *testing.T) {
 		t.Fatalf("no Replay section:\n%s", after.Body)
 	}
 	sec := after.Body[i:]
-	for _, want := range []string{"verdict: pass (2 checks)", "replay: diff 2, files 1, tokens 123", "landed: diff 40, files 3, tokens 900"} {
+	for _, want := range []string{"verdict: pass (2 checks)", "replay: diff 2, files 1, tokens 123", "landed: diff 40, files 3, tokens 900", "commit: " + commit} {
 		if !strings.Contains(sec, want) {
 			t.Errorf("section missing %q:\n%s", want, sec)
 		}
@@ -162,17 +164,144 @@ func TestReplayVerifyFlagPairing(t *testing.T) {
 	}
 }
 
-func TestReplayReusesBranchOfRemovedWorktree(t *testing.T) {
+func TestReplayRecutsStaleBranchAtBase(t *testing.T) {
 	_, repo, base, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
 	wt := filepath.Join(t.TempDir(), "wt")
 	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(wt, "c.txt"), []byte("c\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, wt, "add", ".")
+	gitIn(t, wt, "commit", "-qm", "work")
 	gitIn(t, repo, "worktree", "remove", "--force", wt)
 	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt); err != nil {
 		t.Fatalf("second replay: %v", err)
 	}
 	if got := gitIn(t, wt, "rev-parse", "HEAD"); got != base {
 		t.Errorf("HEAD = %s, want %s", got, base)
+	}
+}
+
+func TestReplayRefusesLiveWorktreeAndMissingGh(t *testing.T) {
+	_, _, _, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
+	wt := filepath.Join(t.TempDir(), "wt")
+	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt); err != nil {
+		t.Fatal(err)
+	}
+	out, stderr, err := runCmd(t, newReplayCmd(), id, "--worktree", filepath.Join(t.TempDir(), "wt2"))
+	got := out + stderr + errString(err)
+	for _, want := range []string{"replay_worktree_exists", "git worktree remove"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("live worktree: missing %q in %q", want, got)
+		}
+	}
+	_, _, _, id2 := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
+	ghPRViewByURLFn = func(string, string) ([]byte, error) { return nil, errGhUnavailable }
+	out, stderr, err = runCmd(t, newReplayCmd(), id2, "--worktree", filepath.Join(t.TempDir(), "wt3"))
+	got = out + stderr + errString(err)
+	for _, want := range []string{"replay_gh_unavailable", "fix_hint"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("gh missing: missing %q in %q", want, got)
+		}
+	}
+}
+
+func TestReplayPassesFullPRURLToGh(t *testing.T) {
+	_, _, _, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
+	var seen string
+	inner := ghPRViewByURLFn
+	ghPRViewByURLFn = func(u, f string) ([]byte, error) { seen = u; return inner(u, f) }
+	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", filepath.Join(t.TempDir(), "wt")); err != nil {
+		t.Fatal(err)
+	}
+	if seen != "https://github.com/o/r/pull/7" {
+		t.Errorf("gh saw %q", seen)
+	}
+}
+
+func TestReplayVerifyRefusesOutsideReplayWorktree(t *testing.T) {
+	_, repo, _, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
+	t.Chdir(repo)
+	out, stderr, err := runCmd(t, newVerifyCmd(), id, "--replay", "--tokens", "5", "--json")
+	got := out + stderr + errString(err)
+	for _, want := range []string{"replay_not_replay_worktree", "anvil replay " + id} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in %q", want, got)
+		}
+	}
+	if !strings.HasPrefix(strings.TrimSpace(out), "{") {
+		t.Errorf("--json printed no envelope: %q", out)
+	}
+}
+
+func TestReplayVerifyHonoursLockAndRefusesAcceptAndAt(t *testing.T) {
+	vault, _, _, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
+	path := filepath.Join(vault, "70-issues", id+".md")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.FrontMatter["verification_lock"] = "stale-lock"
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	wt := filepath.Join(t.TempDir(), "wt")
+	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(wt)
+	_, stderr, err := runCmd(t, newVerifyCmd(), id, "--replay", "--tokens", "5")
+	if err == nil || !strings.Contains(stderr+err.Error(), "verification_changed") {
+		t.Errorf("lock: err = %v, stderr = %q", err, stderr)
+	}
+	for _, extra := range [][]string{{"--accept-change"}, {"--at", "HEAD"}} {
+		_, stderr, err := runCmd(t, newVerifyCmd(), append([]string{id, "--replay", "--tokens", "5"}, extra...)...)
+		if err == nil || !strings.Contains(stderr+err.Error(), "verify_replay_flags") {
+			t.Errorf("%v: err = %v, stderr = %q", extra, err, stderr)
+		}
+	}
+	after, _ := core.LoadArtifact(path)
+	if strings.Contains(after.Body, "## Replay") {
+		t.Error("a refused replay wrote a section")
+	}
+}
+
+func TestReplayVerifyNotesDirtyTree(t *testing.T) {
+	vault, _, _, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
+	wt := filepath.Join(t.TempDir(), "wt")
+	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wt, "d.txt"), []byte("x\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(wt)
+	if _, _, err := runCmd(t, newVerifyCmd(), id, "--replay", "--tokens", "5"); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := core.LoadArtifact(filepath.Join(vault, "70-issues", id+".md"))
+	if !strings.Contains(a.Body, "- dirty:") || !strings.Contains(a.Body, "replay: diff 0, files 0") {
+		t.Errorf("dirty tree not noted or counted:\n%s", a.Body)
+	}
+}
+
+func errString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+func TestReplayVersionSha7Pattern(t *testing.T) {
+	for in, want := range map[string]string{"dev-23b326f-dirty": "23b326f", "dev-23b326f": "23b326f", "v0.0.0-20240101000000-abcdef123456": ""} {
+		got := ""
+		if m := versionSha7.FindStringSubmatch(in); m != nil {
+			got = m[1]
+		}
+		if got != want {
+			t.Errorf("%s: got %q, want %q", in, got, want)
+		}
 	}
 }

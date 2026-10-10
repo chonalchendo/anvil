@@ -49,9 +49,11 @@ func newVerifyCmd() *cobra.Command {
 		Long: "Run every Direct and Indirect block of the issue's `## Verification` in the current directory " +
 			"and stamp verified_verdict, verified_commit and verified_at on the issue, pass or fail. " +
 			"--at <sha> runs the blocks on a fresh detached checkout of that commit instead and stamps the record at it, so untracked files and local builds cannot turn a red block green. " +
-			"Refuses with verification_changed when the section differs from the claim's verification_lock, unless --accept-change. A red Indirect block marked `# anvil:post-land` is deferred, not failed. Exits non-zero unless the verdict is pass.",
+			"Refuses with verification_changed when the section differs from the claim's verification_lock, unless --accept-change. A red Indirect block marked `# anvil:post-land` is deferred, not failed. Exits non-zero unless the verdict is pass. " +
+			"--replay --tokens <n> grades a replay instead: run it inside the worktree anvil replay cut, it stamps no verdict and appends a ## Replay section to the issue; it does not combine with --at or --accept-change.",
 		Example: "  anvil verify issue.anvil.0314.anvil-verify-records-the-verdict --json | jq -r .verdict\n" +
-			"  anvil verify <issue> --at $(gh pr view <n> --json headRefOid -q .headRefOid) --json",
+			"  anvil verify <issue> --at $(gh pr view <n> --json headRefOid -q .headRefOid) --json\n" +
+			"  anvil verify <issue> --replay --tokens 48000 --json",
 		Args: namedArgs("anvil verify <issue-id>", []string{"<issue-id>"}, 1, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			v, err := core.ResolveVault()
@@ -66,15 +68,16 @@ func newVerifyCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if flagReplay != cmd.Flags().Changed("tokens") || (flagReplay && flagAt != "") {
+			if flagReplay != cmd.Flags().Changed("tokens") || (flagReplay && (flagAt != "" || flagAccept)) {
 				return printAndReturn(cmd, errfmt.NewStructured("verify_replay_flags").
-					Set("message", "--replay needs --tokens <n>, and --tokens needs --replay; --replay does not combine with --at"))
-			}
-			if flagReplay {
-				return verifyReplay(cmd, v, path, id, args[0], a.Body, flagTokens, flagJSON)
+					Set("message", "--replay needs --tokens <n>, and --tokens needs --replay; --replay does not combine with --at or --accept-change").
+					Set("fix_hint", "run anvil verify "+id+" --replay --tokens <n> alone, from the worktree anvil replay cut"))
 			}
 			if err := checkVerificationLock(a, id, flagAccept); err != nil {
 				return printAndReturn(cmd, err)
+			}
+			if flagReplay {
+				return verifyReplay(cmd, v, a, path, id, args[0], flagTokens, flagJSON)
 			}
 			var rec verifyRecord
 			if flagAt != "" {
