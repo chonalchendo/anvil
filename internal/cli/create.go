@@ -276,7 +276,7 @@ func newCreateCmd() *cobra.Command {
 					}
 					drift := createDrift(t, fm, existing.FrontMatter, body, existing.Body)
 					if drift == "" {
-						return emitCreateResult(cmd, flagJSON, id, path, statusAlreadyExists, nil, nil, nil, snapshotResult{})
+						return emitCreateResult(cmd, flagJSON, id, path, statusAlreadyExists, nil, nil, nil)
 					}
 					if !flagUpdate {
 						return formatDriftError(cmd, id, drift, fm, existing.FrontMatter, body, existing.Body)
@@ -310,7 +310,7 @@ func newCreateCmd() *cobra.Command {
 						}
 						return indexErr
 					}
-					return emitCreateResult(cmd, flagJSON, id, path, statusUpdated, nil, findings, changed, snap)
+					return emitUpdatedResult(cmd, flagJSON, id, path, findings, changed, snap)
 				} else if !errors.Is(err, fs.ErrNotExist) {
 					return fmt.Errorf("checking %s: %w", path, err)
 				}
@@ -340,7 +340,7 @@ func newCreateCmd() *cobra.Command {
 			if !flagForceNew {
 				warnings = findNearDuplicates(v, t, project, id)
 			}
-			return emitCreateResult(cmd, flagJSON, id, path, statusCreated, warnings, findings, nil, snapshotResult{})
+			return emitCreateResult(cmd, flagJSON, id, path, statusCreated, warnings, findings, nil)
 		},
 	}
 
