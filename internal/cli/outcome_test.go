@@ -50,7 +50,9 @@ func TestOutcomeIssue(t *testing.T) {
 		a.Body = strings.Replace(a.Body, "false", "true", 1)
 		stampIssueGate(a, "in-progress", "", time.Now())
 	})
-	_, _, _ = runVerify(t, vault, id) // red verdict returns an error; the record is what matters
+	if _, _, err := runVerify(t, vault, id); err != nil {
+		t.Fatal(err)
+	}
 	fm := load()
 	if fm["verified_verdict"] != "pass" || fm["outcome_first_verdict"] != "fail" {
 		t.Fatalf("verdict=%v first=%v, want pass/fail", fm["verified_verdict"], fm["outcome_first_verdict"])
@@ -70,6 +72,7 @@ func TestOutcomeIssue(t *testing.T) {
 		stampIssueGate(a, "escalated", "blocked", time.Now())
 		stampIssueGate(a, "open", "", time.Now())
 		stampIssueGate(a, "escalated", "blocked again", time.Now())
+		a.FrontMatter["status"] = "escalated"
 	})
 	if n := load()["outcome_escalations"]; n != 2 {
 		t.Fatalf("outcome_escalations = %v, want 2", n)
