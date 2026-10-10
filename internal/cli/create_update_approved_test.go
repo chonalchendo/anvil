@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -9,7 +10,8 @@ import (
 )
 
 func TestCreate_UpdateApprovedMilestone_RefusesScopeChange(t *testing.T) {
-	setupVault(t)
+	root := setupVault(t)
+	initVaultRepo(t, root)
 	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
 	t.Chdir(repo)
 
@@ -29,6 +31,7 @@ func TestCreate_UpdateApprovedMilestone_RefusesScopeChange(t *testing.T) {
 		}
 		if on {
 			a.FrontMatter["approved"] = "2026-10-10"
+			a.FrontMatter["status"] = "in-progress"
 		} else {
 			delete(a.FrontMatter, "approved")
 		}
@@ -52,6 +55,17 @@ func TestCreate_UpdateApprovedMilestone_RefusesScopeChange(t *testing.T) {
 	}
 
 	setApproved(true)
+	commits := func() string { return strings.TrimSpace(vaultGit(t, root, "rev-list", "--count", "HEAD")) }
+	beforeCommits := commits()
+	readBytes := func() string {
+		t.Helper()
+		b, err := os.ReadFile(path) //nolint:gosec // G304: test-controlled temp path
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	beforeBytes := readBytes()
 	for name, args := range map[string][3]string{
 		"goal":       {"demo passes twice", "true", "fixture edited"},
 		"acceptance": {"demo passes", "false", "fixture edited"},
@@ -60,8 +74,14 @@ func TestCreate_UpdateApprovedMilestone_RefusesScopeChange(t *testing.T) {
 		if err == nil {
 			t.Fatalf("%s change on approved milestone: want refusal, got success: %s", name, out)
 		}
-		if !strings.Contains(out, "update_approved_milestone_scope") || !strings.Contains(out, "transition milestone") {
+		if !strings.Contains(out, "update_approved_milestone_scope") || !strings.Contains(out, "transition milestone") || !strings.Contains(out, "planned") || strings.Contains(out, "schema_invalid") {
 			t.Errorf("%s refusal envelope lacks code or fix: %s", name, out)
+		}
+		if got := commits(); got != beforeCommits {
+			t.Errorf("%s refusal committed a snapshot: %s -> %s", name, beforeCommits, got)
+		}
+		if readBytes() != beforeBytes {
+			t.Errorf("%s refusal changed file bytes", name)
 		}
 	}
 	if field("goal") != "demo passes" || fmt.Sprint(field("acceptance")) != "[true]" {
@@ -86,6 +106,23 @@ func TestCreate_UpdateApprovedMilestone_RefusesScopeChange(t *testing.T) {
 		t.Fatalf("goal update on planned milestone: %v\n%s", err, out)
 	}
 	if field("goal") != "demo passes twice" {
+		t.Errorf("goal = %v, want updated", field("goal"))
+	}
+
+	// A done -> planned reverse move keeps `approved`; the milestone must still update.
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.FrontMatter["approved"] = "2026-10-10"
+	a.FrontMatter["status"] = "planned"
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := update("demo passes thrice", "true", "fixture rewritten thrice"); err != nil {
+		t.Fatalf("goal update on approved planned milestone: %v\n%s", err, out)
+	}
+	if field("goal") != "demo passes thrice" {
 		t.Errorf("goal = %v, want updated", field("goal"))
 	}
 }

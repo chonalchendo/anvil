@@ -285,7 +285,7 @@ func newCreateCmd() *cobra.Command {
 					// then re-validate the merged fm + body before overwriting.
 					fm, changed := mergeUpdate(cmd, existing.FrontMatter, fm)
 					if ve := approvedScopeRefusal(t, existing.FrontMatter, changed, id); ve != nil {
-						return emitValidationErrors(cmd, flagJSON, []*errfmt.ValidationError{ve})
+						return printAndReturn(cmd, ve)
 					}
 					if !sameBody(body, existing.Body) {
 						changed = append(changed, "body")

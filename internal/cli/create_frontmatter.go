@@ -258,17 +258,28 @@ func mergeUpdate(cmd *cobra.Command, existing, fm map[string]any) (map[string]an
 }
 
 // approvedScopeRefusal returns the refusal when --update would change the
-// goal or acceptance of an approved milestone. Only the amend path may reopen
-// that scope, so the amendment count sees every scope change.
-func approvedScopeRefusal(t core.Type, existing map[string]any, changed []string, id string) *errfmt.ValidationError {
+// goal or acceptance of an approved milestone that has left planned. This
+// guards the --update path only; `anvil set` bypasses it. A planned milestone
+// always updates, so a done -> planned reverse move (which keeps `approved`)
+// is never trapped.
+func approvedScopeRefusal(t core.Type, existing map[string]any, changed []string, id string) *errfmt.Structured {
 	if t != core.TypeMilestone || existing["approved"] == nil {
+		return nil
+	}
+	status, _ := existing["status"].(string)
+	if status == "planned" {
 		return nil
 	}
 	for _, k := range changed {
 		if k == "goal" || k == "acceptance" {
-			return errfmt.NewValidationError("update_approved_milestone_scope", "", k, "").
-				WithExpected("goal and acceptance of an approved milestone change only through amend").
-				WithFix(fmt.Sprintf("run `anvil transition milestone %s planned`, then `create milestone --update`, then re-approve", id))
+			hint := fmt.Sprintf("anvil transition milestone %s planned", id)
+			if tr, err := core.LookupTransition(t, status, "planned"); err == nil && tr.Reverse {
+				hint += ` --reason "<why>"`
+			}
+			return errfmt.NewStructured("update_approved_milestone_scope").
+				Set("id", id).
+				Set("field", k).
+				Set("fix_hint", hint+", then `create milestone --update`, then re-approve")
 		}
 	}
 	return nil
