@@ -276,7 +276,7 @@ main:has(.knowledge), main:has(.topic) { padding: 36px 48px 64px; }
 .seq li, .rows li { display: grid; grid-template-columns: 52px minmax(0, 2fr) minmax(0, 3fr) 120px 64px; gap: 2px 20px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--border); }
 .seq li:first-child, .rows li:first-child { border-top: 0; }
 .seq a, .rows a { font-weight: 500; }
-.rows li > a { grid-column: span 2; }
+.rows li > a { grid-column: 2 / span 2; }
 .seq .one { margin: 0; color: var(--text-2); }
 .seq .meta, .rows .meta { text-align: right; }
 .rows .route { grid-column: 2 / -1; color: var(--text-2); }
