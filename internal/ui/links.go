@@ -78,6 +78,8 @@ func artifactHref(key string) string {
 	return "/artifact/" + url.PathEscape(key)
 }
 
+func projectHref(slug string) string { return "/project/" + url.PathEscape(slug) }
+
 func stackHref(key string) string {
 	return "/issue/" + url.PathEscape(key) + "/stack"
 }
