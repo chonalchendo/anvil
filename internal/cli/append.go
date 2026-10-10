@@ -80,7 +80,7 @@ func newAppendCmd() *cobra.Command {
 				return fmt.Errorf("no content to append; pass --body or --body-file")
 			}
 
-			res, err := appendBodyCore(cmd, v, t, path, a, addition)
+			res, err := appendBodyCore(cmd, v, t, path, id, a, addition)
 			if err != nil {
 				return err
 			}
@@ -115,7 +115,7 @@ type appendCoreResult struct {
 // appendBodyCore is the write path anvil append and anvil verify --replay
 // share: the retry-safety no-op, the introduced-failure validation, the
 // `updated` bump and the atomic swap. A blocked result writes nothing.
-func appendBodyCore(cmd *cobra.Command, v *core.Vault, t core.Type, path string, a *core.Artifact, addition string) (appendCoreResult, error) {
+func appendBodyCore(cmd *cobra.Command, v *core.Vault, t core.Type, path, id string, a *core.Artifact, addition string) (appendCoreResult, error) {
 	// Retry safety: an agent re-running an append whose response was
 	// lost must not duplicate the section. The stored body ends with
 	// exactly the addition after a successful run, so a suffix match
@@ -143,7 +143,7 @@ func appendBodyCore(cmd *cobra.Command, v *core.Vault, t core.Type, path string,
 	normaliseDates(a.FrontMatter)
 	content, err := a.Marshal()
 	if err != nil {
-		return appendCoreResult{}, fmt.Errorf("marshalling %s: %w", path, err)
+		return appendCoreResult{}, fmt.Errorf("marshalling %s: %w", id, err)
 	}
 	// atomicSwap, not a truncating write: the file holds content this
 	// command didn't author, and an interrupted rewrite must never be
@@ -152,7 +152,7 @@ func appendBodyCore(cmd *cobra.Command, v *core.Vault, t core.Type, path string,
 		return appendCoreResult{}, fmt.Errorf("saving artifact: %w", err)
 	}
 	if err := indexAfterSave(v, a); err != nil {
-		return appendCoreResult{}, fmt.Errorf("indexing %s: %w", path, err)
+		return appendCoreResult{}, fmt.Errorf("indexing %s: %w", id, err)
 	}
 	return appendCoreResult{status: "appended", failures: failures}, nil
 }

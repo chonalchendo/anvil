@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -256,6 +257,9 @@ func TestReplayVerifyHonoursLockAndRefusesAcceptAndAt(t *testing.T) {
 	if err == nil || !strings.Contains(stderr+err.Error(), "verification_changed") {
 		t.Errorf("lock: err = %v, stderr = %q", err, stderr)
 	}
+	if strings.Contains(stderr+err.Error(), "--accept-change") || !strings.Contains(stderr+err.Error(), "restore the ## Verification section") {
+		t.Errorf("replay lock hint must not offer --accept-change: %q", stderr+err.Error())
+	}
 	for _, extra := range [][]string{{"--accept-change"}, {"--at", "HEAD"}} {
 		_, stderr, err := runCmd(t, newVerifyCmd(), append([]string{id, "--replay", "--tokens", "5"}, extra...)...)
 		if err == nil || !strings.Contains(stderr+err.Error(), "verify_replay_flags") {
@@ -295,7 +299,7 @@ func errString(err error) string {
 }
 
 func TestReplayVersionSha7Pattern(t *testing.T) {
-	for in, want := range map[string]string{"dev-23b326f-dirty": "23b326f", "dev-23b326f": "23b326f", "v0.0.0-20240101000000-abcdef123456": ""} {
+	for in, want := range map[string]string{"dev-23b326f-dirty": "23b326f-dirty", "dev-23b326f": "23b326f", "v0.0.0-20240101000000-abcdef123456": ""} {
 		got := ""
 		if m := versionSha7.FindStringSubmatch(in); m != nil {
 			got = m[1]
@@ -303,5 +307,37 @@ func TestReplayVersionSha7Pattern(t *testing.T) {
 		if got != want {
 			t.Errorf("%s: got %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestReplayJSONAndRerunHints(t *testing.T) {
+	_, _, base, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
+	wt := filepath.Join(t.TempDir(), "wt")
+	out, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt, "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]string
+	if err := json.Unmarshal([]byte(out), &got); err != nil || got["worktree"] != wt || got["base"] != base {
+		t.Errorf("json = %q (%v), want worktree %s base %s", out, err, wt, base)
+	}
+	ghPRViewByURLFn = func(string, string) ([]byte, error) { return nil, errGhUnavailable }
+	_, stderr, err := runCmd(t, newReplayCmd(), id, "--worktree", filepath.Join(t.TempDir(), "w2"))
+	if h := stderr + errString(err); !strings.Contains(h, "re-run anvil replay "+id) {
+		t.Errorf("replay hint: %q", h)
+	}
+	t.Chdir(wt)
+	_, stderr, err = runCmd(t, newVerifyCmd(), id, "--replay", "--tokens", "5")
+	if h := stderr + errString(err); !strings.Contains(h, "re-run anvil verify "+id+" --replay --tokens 5") {
+		t.Errorf("verify hint: %q", h)
+	}
+}
+
+func TestReplaySectionFailedLineOmitsPredicateText(t *testing.T) {
+	exit := 3
+	sec := replaySection(verifyRecord{Commit: "abc", Verdict: "fail", Checks: 1,
+		Failed: []verifyFailure{{Check: "Direct#1", Exit: &exit, Preview: "SECRET-predicate"}}}, 0, 0, 5, nil)
+	if !strings.Contains(sec, "- failed: Direct#1 (exit 3)") || strings.Contains(sec, "SECRET") {
+		t.Errorf("section = %s", sec)
 	}
 }

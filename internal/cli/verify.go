@@ -73,7 +73,7 @@ func newVerifyCmd() *cobra.Command {
 					Set("message", "--replay needs --tokens <n>, and --tokens needs --replay; --replay does not combine with --at or --accept-change").
 					Set("fix_hint", "run anvil verify "+id+" --replay --tokens <n> alone, from the worktree anvil replay cut"))
 			}
-			if err := checkVerificationLock(a, id, flagAccept); err != nil {
+			if err := checkVerificationLock(a, id, flagAccept, flagReplay); err != nil {
 				return printAndReturn(cmd, err)
 			}
 			if flagReplay {
@@ -125,15 +125,19 @@ func newVerifyCmd() *cobra.Command {
 
 // checkVerificationLock refuses before any block runs when the section differs
 // from the claim's lock. No lock means the issue predates the rule.
-func checkVerificationLock(a *core.Artifact, id string, accept bool) error {
+func checkVerificationLock(a *core.Artifact, id string, accept, replay bool) error {
 	lock, _ := a.FrontMatter["verification_lock"].(string)
 	if accept || lock == "" || lock == core.VerificationLock(a.Body) {
 		return nil
 	}
+	hint := "review the change, then run anvil verify " + id + " --accept-change"
+	if replay {
+		hint = "a replay grades only the locked section; restore the ## Verification section the claim locked"
+	}
 	return errfmt.NewStructured("verification_changed").
 		Set("issue", id).
 		Set("message", id+": the ## Verification section changed after the claim").
-		Set("fix_hint", "review the change, then run anvil verify "+id+" --accept-change")
+		Set("fix_hint", hint)
 }
 
 func loadIssueForVerify(path, id, arg string) (*core.Artifact, error) {
