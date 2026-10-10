@@ -7,12 +7,23 @@ import (
 )
 
 // judgeKeys are the frontmatter fields a reader judges a node by, per type.
-// Only these types get a strip; the keys leave "All properties".
+// Only these types get a strip; the keys leave "All properties". An issue's list is the one
+// source of the names issueJudge reads, so the strip and the skip cannot drift.
+const (
+	kVerdict = "verified_verdict"
+	kCommit  = "verified_commit"
+	kAt      = "verified_at"
+	kRounds  = "cost_rounds"
+	kTokens  = "cost_tokens"
+	kDiff    = "cost_diff"
+	kFiles   = "cost_files"
+)
+
 var judgeKeys = map[string][]string{
 	"learning":  {"confidence", "diataxis"},
 	"decision":  {"date", "supersedes", "superseded_by"},
 	"milestone": {"approved", "done"},
-	"issue":     {"verified_verdict", "verified_commit", "verified_at", "external_links", "cost_rounds", "cost_tokens", "cost_diff", "cost_files"},
+	"issue":     {kVerdict, kCommit, kAt, kRounds, kTokens, kDiff, kFiles},
 }
 
 // judge builds the judge strip: set frontmatter fields in judgeKeys order,
@@ -42,23 +53,23 @@ func (r resolver) judge(typ string, fm map[string]any, body string) []prop {
 // part is one fragment of a judge value that a plain link cannot carry: a
 // status span, a PR link, a <time>, or text with a title.
 type part struct {
-	Text, Href, Class, Title, ISO string
+	Text, Href, Class, Title, ISO, Tail string
 }
 
 // issueJudge builds an issue's strip from frontmatter only; a missing field
 // adds no row.
 func issueJudge(fm map[string]any) []prop {
 	var out []prop
-	if v := fmString(fm["verified_verdict"]); v != "" {
+	if v := fmString(fm[kVerdict]); v != "" {
 		class, glyph := "status status-done", "✓"
 		if v != "pass" {
 			class, glyph = "status status-escalated", "▲"
 		}
 		ps := []part{{Text: glyph + " " + v, Class: class}}
-		if c := fmString(fm["verified_commit"]); c != "" {
-			ps = append(ps, part{Text: "at"}, part{Text: c[:min(len(c), 7)], Class: "sha"})
+		if c := fmString(fm[kCommit]); c != "" {
+			ps = append(ps, part{Text: "at"}, part{Text: c[:min(len(c), 7)], Class: "sha", Tail: ","})
 		}
-		if at := fmString(fm["verified_at"]); at != "" {
+		if at := fmString(fm[kAt]); at != "" {
 			ps = append(ps, part{Text: shortDate(at), ISO: at})
 		}
 		out = append(out, prop{Name: "Verdict", Rich: ps})
@@ -75,19 +86,35 @@ func issueJudge(fm map[string]any) []prop {
 	if len(prs) > 0 {
 		out = append(out, prop{Name: "PR", Rich: prs})
 	}
-	if n := count(fm["cost_rounds"]); n != "" {
+	if n := count(fm[kRounds]); n != "" {
 		out = append(out, prop{Name: "Rounds", Values: []link{{Text: n, Plain: true}}})
 	}
-	if t := tokens(fm["cost_tokens"]); t != "" {
-		exact, _ := num(fm["cost_tokens"])
+	if t := tokens(fm[kTokens]); t != "" {
+		exact, _ := num(fm[kTokens])
 		out = append(out, prop{Name: "Tokens", Rich: []part{{Text: t, Title: groupDigits(int64(exact))}}})
 	}
-	if d := count(fm["cost_diff"]); d != "" {
+	if d := count(fm[kDiff]); d != "" {
 		change := d + " lines"
-		if f := count(fm["cost_files"]); f != "" {
+		if f := count(fm[kFiles]); f != "" {
 			change += " in " + f + " files"
 		}
 		out = append(out, prop{Name: "Change", Values: []link{{Text: change, Plain: true}}})
+	}
+	return out
+}
+
+// otherLinks returns an issue's external_links that are not pull URLs; the strip shows the
+// pull URLs, so "All properties" keeps the rest.
+func otherLinks(v any) []any {
+	var out []any
+	list, _ := v.([]any)
+	for _, l := range list {
+		if u, _ := l.(string); u != "" {
+			if _, ok := prNumber(u); ok {
+				continue
+			}
+		}
+		out = append(out, l)
 	}
 	return out
 }

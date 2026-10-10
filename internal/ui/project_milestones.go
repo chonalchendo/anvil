@@ -169,17 +169,25 @@ func (s *server) issueRows(rows []index.ArtifactRow) ([]issueRow, error) {
 	return out, nil
 }
 
-// milestoneIssues lists every issue of a milestone, newest first, for its page.
-func (s *view) milestoneIssues(key, project string) ([]issueRow, error) {
-	issues, err := s.db.ListByType("issue", index.QueryFilters{Project: project})
+// milestoneIssues lists every issue of a milestone, newest first, for its page. in is the
+// page's incoming links; the bare-slug links cost one more read.
+func (s *view) milestoneIssues(key, project string, in []index.LinkRow) ([]issueRow, error) {
+	slug := strings.TrimPrefix(key, "milestone."+project+".")
+	bare, err := s.db.LinksToAny([]string{slug, "milestone." + slug})
 	if err != nil {
 		return nil, err
 	}
-	members, err := s.milestoneMembers(project, issues, []index.ArtifactRow{s.res.rows[key]})
-	if err != nil {
-		return nil, err
+	seen := map[string]bool{}
+	var rows []index.ArtifactRow
+	for _, l := range append(in, bare...) {
+		r, ok := s.res.rows[l.Source]
+		if l.Relation != "milestone" || !ok || r.Type != "issue" || r.Project != project || seen[r.ID] {
+			continue
+		}
+		seen[r.ID] = true
+		rows = append(rows, r)
 	}
-	return s.issueRows(members[key])
+	return s.issueRows(rows)
 }
 
 // unplaced returns the not-done issues under no not-done milestone, as the last fold: under
@@ -274,9 +282,4 @@ func statusCount(ns []statusN, status string) int {
 		}
 	}
 	return 0
-}
-
-// milestoneKey expands a bare milestone slug to its index key, as milestoneMembers does.
-func milestoneKey(project, slot string) string {
-	return "milestone." + project + "." + strings.TrimPrefix(slot, "milestone.")
 }

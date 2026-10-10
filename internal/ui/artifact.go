@@ -190,7 +190,7 @@ func (s *view) buildArtifact(key string, art *core.Artifact) (artifactPage, erro
 	page.Diagrams = diagramsOf(art.FrontMatter)
 	page.Crumbs = s.crumbs(key, page.Head.Project)
 	if page.Head.Type == string(core.TypeMilestone) {
-		if page.Issues, err = s.milestoneIssues(key, page.Head.Project); err != nil {
+		if page.Issues, err = s.milestoneIssues(key, page.Head.Project, in); err != nil {
 			return artifactPage{}, fmt.Errorf("milestone issues: %w", err)
 		}
 	}
@@ -247,7 +247,13 @@ func (s *view) props(typ string, fm map[string]any) []prop {
 	sort.Strings(names)
 	out := make([]prop, 0, len(names))
 	for _, n := range names {
-		out = append(out, s.res.prop(n, fm[n]))
+		v := fm[n]
+		if typ == "issue" && n == "external_links" {
+			if v = otherLinks(v); !isSet(v) {
+				continue
+			}
+		}
+		out = append(out, s.res.prop(n, v))
 	}
 	return out
 }

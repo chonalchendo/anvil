@@ -30,7 +30,7 @@ func TestIssueJudge_ShowsEveryFieldInOrder(t *testing.T) {
 	strip := judgeStrip(t, body)
 	var last int
 	for _, want := range []string{
-		">Verdict<", `class="status status-done">✓ pass<`, `class="sha">66806c9<`, `<time datetime="2026-10-09T23:16:52Z">9 Oct</time>`,
+		">Verdict<", `class="status status-done">✓ pass<`, `class="sha" translate="no">66806c9</code>, <time`, `<time datetime="2026-10-09T23:16:52Z">9 Oct</time>`,
 		">PR<", `href="https://github.com/o/r/pull/515" translate="no">#515<`,
 		">Rounds<", ">3<", ">Tokens<", `title="23,313,576">23.3M<`, ">Change<", ">861 lines in 25 files<",
 	} {
@@ -44,10 +44,13 @@ func TestIssueJudge_ShowsEveryFieldInOrder(t *testing.T) {
 		t.Error("a non-pull link showed as a PR")
 	}
 	_, props, _ := strings.Cut(body, `<details class="props"`)
-	for _, k := range []string{"verified_verdict", "external_links", "cost_tokens", "cost_files"} {
+	for _, k := range []string{"verified_verdict", "cost_tokens", "cost_files"} {
 		if strings.Contains(props, "<dt>"+k+"</dt>") {
 			t.Errorf("%s still in All properties", k)
 		}
+	}
+	if !strings.Contains(props, "<dt>external_links</dt>") {
+		t.Error("non-pull external link left All properties")
 	}
 	if !strings.Contains(props, "<dt>tags</dt>") {
 		t.Error("non-judge key left props")
@@ -120,7 +123,35 @@ func TestMilestonePage_EmptyState(t *testing.T) {
 	h, v := seed(t)
 	writeArtifact(t, v, core.TypeMilestone, "milestone.anvil.m4", map[string]any{"title": "M4", "project": "anvil"}, "x\n")
 	_, body := do(h, "GET", "/artifact/milestone.milestone.anvil.m4")
-	if strings.Contains(body, `<table class="iss"`) || !strings.Contains(body, "No issues yet.") {
+	if strings.Contains(body, `<table class="iss"`) || !strings.Contains(body, "No issues.") {
 		t.Error("empty milestone should show the empty state only")
+	}
+}
+
+// Warrant: a bare-slug milestone slot expands to its project; a dangling full key stays as
+// written. Fails if the expansion double-prefixes a key that already names a project.
+func TestMilestoneKey_ExpandsOnlyBareSlots(t *testing.T) {
+	for slot, want := range map[string]string{
+		"m2":                "milestone.anvil.m2",
+		"milestone.m2":      "milestone.anvil.m2",
+		"milestone.anvil.x": "milestone.anvil.x",
+	} {
+		if got := milestoneKey("anvil", slot); got != want {
+			t.Errorf("milestoneKey(%q) = %q, want %q", slot, got, want)
+		}
+	}
+}
+
+// Warrant: non-pull external links stay in "All properties" while pull URLs move to the strip.
+func TestIssueProps_KeepNonPullExternalLinks(t *testing.T) {
+	h, v := seed(t)
+	writeJudged(t, v, "anvil.0506.links", map[string]any{"external_links": []any{
+		"https://github.com/o/r/pull/9", "https://example.com/doc",
+	}})
+	_, body := do(h, "GET", "/artifact/issue.anvil.0506.links")
+	_, props, _ := strings.Cut(body, `<details class="props"`)
+	props, _, _ = strings.Cut(props, "</details>")
+	if !strings.Contains(props, "example.com/doc") || strings.Contains(props, "pull/9") {
+		t.Errorf("props should hold the non-pull link only: %s", props)
 	}
 }

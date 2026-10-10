@@ -29,7 +29,7 @@ func TestNodeHeader_ShowsIdentityAndSlots(t *testing.T) {
 		}
 	}
 	contents := contentsOf(t, body)
-	if !strings.Contains(contents, `<code>`+stackIssue+`</code>`) {
+	if !strings.Contains(contents, `<code translate="no">`+stackIssue+`</code>`) {
 		t.Error("contents lacks the key")
 	}
 	if !strings.Contains(crumbsOf(t, body), `href="/artifact/milestone.anvil.m1"`) {

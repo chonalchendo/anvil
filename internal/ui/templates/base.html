@@ -126,7 +126,7 @@
 </html>
 {{define "crumbs"}}{{if or .Crumbs .Head.Project}}<nav class="crumbs" aria-label="Breadcrumb">{{with .Head.Project}}<a href="/project/{{.}}" translate="no">{{.}}</a>{{end}}{{range .Crumbs}}<span aria-hidden="true"> › </span>{{anchor .}}{{end}}</nav>{{end}}{{end}}
 {{define "tabs"}}<nav class="tabs" aria-label="Issue views"><a href="{{.Issue}}"{{if eq .Current "issue"}} aria-current="page"{{end}}>Issue</a><a href="{{.Stack}}"{{if eq .Current "stack"}} aria-current="page"{{end}}>Stack</a></nav>{{end}}
-{{define "judge"}}<div class="judge">{{range .}}<span class="jk">{{.Name}}</span><span class="jv">{{range .Values}}{{anchor .}} {{end}}{{range .Rich}}{{if .Href}}<a href="{{.Href}}" translate="no">{{.Text}}</a>{{else if .ISO}}<time datetime="{{.ISO}}">{{.Text}}</time>{{else}}<span{{with .Class}} class="{{.}}"{{end}}{{with .Title}} title="{{.}}"{{end}}>{{.Text}}</span>{{end}} {{end}}</span>{{end}}</div>{{end}}
+{{define "judge"}}<div class="judge">{{range .}}<span class="jk">{{.Name}}</span><span class="jv">{{range .Values}}{{anchor .}} {{end}}{{range .Rich}}{{if .Href}}<a href="{{.Href}}" translate="no">{{.Text}}</a>{{else if .ISO}}<time datetime="{{.ISO}}">{{.Text}}</time>{{else if eq .Class "sha"}}<code class="sha" translate="no">{{.Text}}</code>{{else}}<span{{with .Class}} class="{{.}}"{{end}}{{with .Title}} title="{{.}}"{{end}}>{{.Text}}</span>{{end}}{{.Tail}} {{end}}</span>{{end}}</div>{{end}}
 {{define "nodeheader"}}<header class="node">
 <div class="node-title"><span class="ticon type-{{.Head.Type}}" title="{{.Head.Type}}" aria-hidden="true">{{.Head.Icon}}</span><h1>{{.Title}}</h1></div>
 {{with .Head.Description}}<p class="deck">{{.}}</p>{{end}}
