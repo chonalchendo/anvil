@@ -133,6 +133,17 @@ Never `anvil verify --accept-change` or `anvil set issue <id> verification_lock|
 
 Never a GitHub closing keyword (`close/closes/closed/fix/fixes/fixed/resolve/resolves/resolved` + `#<number>`) in a PR body — a repo's PR and issue number spaces can share one counter, so it can silently auto-close an unrelated PR at merge time. Cite the full issue id instead.
 
+## Replay mode
+
+The dispatch starts `Replay:` when the orchestrator replays a resolved issue to measure the skills and agents. This section then overrides the contract above. Ignore the claim, PR-opened, escalate and PR-url rules.
+
+- Do not claim, transition, push, open a PR or call `gh`.
+- Read the issue only with `anvil show issue <issue-id> --section <name>`, for `Problem`, `Non-goals`, `Verification` and `Links`. Never read `Review findings` or `Replay`. Never read the `external_links` field or the whole body.
+- Do not read git history past `HEAD`. Run no `git log`, `git show` or `git diff` against any other commit, branch or remote.
+- Work in the dispatched worktree. Run `anvil verify <issue-id> --json` and fix until it reads `pass`, with the same 5-cycle limit.
+- Commit the work on the replay branch. Do not switch branches.
+- Your LAST LINE, alone, is the commit sha (`git rev-parse HEAD`) or `Blocker: <one line>`. Do not escalate.
+
 ## Escalate a blocker (mandatory)
 
 Before your final `Blocker:` return line, escalate the issue so the vault records the reason:
