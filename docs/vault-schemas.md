@@ -193,6 +193,7 @@ cost_files: <int>         # files changed; set by `--land-pr` at land
 cost_tokens: <int>        # tokens spent; set by `--land-pr` at land
 review_head: <sha>        # PR head the clean review round covered; set by `--land-pr` at the merge
 acceptance: ["criterion", ...]   # optional prose checklist; the binary gate is ## Verification
+fixes: ["[[issue.<project>.<slug>]]", ...]  # issues whose escaped defect this one fixes; written by `anvil link issue <b> issue <a> --relation fixes`; `milestone status` counts each resolved target as escaped
 ```
 
 `goal:` is required and gated at claim time: `anvil transition issue <id> in-progress` refuses unless it is set (backfill-on-claim for the pre-`goal` back-catalogue; `--force` bypasses). `acceptance[]` is optional — its two former jobs now belong to `goal:` (terminal predicate) and `## Verification` (test-list).

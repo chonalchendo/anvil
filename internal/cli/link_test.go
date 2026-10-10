@@ -570,3 +570,35 @@ func TestLinkQueryAndIndex_BareDesignID(t *testing.T) {
 	// The related-artifacts seed takes the same bare shape.
 	execCmd(t, "index", "acme", "--json")
 }
+
+func TestLink_FixesRefusals(t *testing.T) {
+	vault := setupVault(t)
+	writeFixtureIssue(t, vault, "foo", "a", "Fix A")
+	writeFixtureIssue(t, vault, "foo", "b", "Escaped B")
+	writeFixtureComponentDesign(t, vault, "foo", "cd")
+
+	cases := []struct {
+		name string
+		args []string
+		code string
+	}{
+		{"non-issue target", []string{"link", "issue", "foo.a", "component-design", "foo.cd", "--relation", "fixes", "--json"}, "link_fixes_issue_only"},
+		{"non-issue source", []string{"link", "component-design", "foo.cd", "issue", "foo.b", "--relation", "fixes", "--json"}, "link_fixes_issue_only"},
+		{"self link", []string{"link", "issue", "foo.a", "issue", "foo.a", "--relation", "fixes", "--json"}, "link_fixes_self"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := newRootCmd()
+			cmd.SetArgs(tc.args)
+			var buf bytes.Buffer
+			cmd.SetOut(&buf)
+			cmd.SetErr(&buf)
+			if err := cmd.Execute(); err == nil {
+				t.Fatalf("expected refusal, got: %s", buf.String())
+			}
+			if !strings.Contains(buf.String(), tc.code) || !strings.Contains(buf.String(), "fix_hint") {
+				t.Fatalf("want code %s with fix_hint, got: %s", tc.code, buf.String())
+			}
+		})
+	}
+}

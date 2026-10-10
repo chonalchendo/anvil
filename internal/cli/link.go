@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 	"github.com/chonalchendo/anvil/internal/index"
 )
@@ -79,9 +80,9 @@ Query output (--json) carries each edge's target as its <type>.<id> wikilink key
 				return fmt.Errorf("write form requires 4 args: source-type source-id target-type target-id")
 			}
 			switch relation {
-			case "related", "depends_on", "blocks":
+			case "related", "depends_on", "blocks", "fixes":
 			default:
-				return fmt.Errorf("--relation must be related, depends_on, or blocks (got %q)", relation)
+				return fmt.Errorf("--relation must be related, depends_on, blocks, or fixes (got %q)", relation)
 			}
 			src, err := core.ParseType(args[0])
 			if err != nil {
@@ -90,6 +91,12 @@ Query output (--json) carries each edge's target as its <type>.<id> wikilink key
 			tgt, err := core.ParseType(args[2])
 			if err != nil {
 				return fmt.Errorf("target type: %w", err)
+			}
+			if relation == "fixes" && (src != core.TypeIssue || tgt != core.TypeIssue) {
+				return printAndReturn(cmd, errfmt.NewStructured("link_fixes_issue_only").
+					Set("source_type", string(src)).
+					Set("target_type", string(tgt)).
+					Set("fix_hint", "--relation fixes links an issue to the issue it fixes; use related for other pairs"))
 			}
 			v, err := core.ResolveVault()
 			if err != nil {
@@ -109,6 +116,11 @@ Query output (--json) carries each edge's target as its <type>.<id> wikilink key
 			if err != nil {
 				return err
 			}
+			if relation == "fixes" && core.WikilinkTarget(src, srcID) == core.WikilinkTarget(tgt, tgtID) {
+				return printAndReturn(cmd, errfmt.NewStructured("link_fixes_self").
+					Set("id", srcID).
+					Set("fix_hint", "link the fix issue to the other issue whose defect it fixes"))
+			}
 			if err := core.AppendLink(v, src, srcID, tgt, tgtID, relation); err != nil {
 				return err
 			}
@@ -126,7 +138,7 @@ Query output (--json) carries each edge's target as its <type>.<id> wikilink key
 	cmd.Flags().StringVar(&fromID, "from", "", "list outgoing edges from this artifact id")
 	cmd.Flags().StringVar(&toID, "to", "", "list incoming edges to this artifact id")
 	cmd.Flags().StringVar(&externalURI, "external", "", "append a free-form URI (commit sha, PR url, doc link) to source.external_links")
-	cmd.Flags().StringVar(&relation, "relation", "related", "edge slot for the 4-arg write form: related (default), depends_on, or blocks")
+	cmd.Flags().StringVar(&relation, "relation", "related", "edge slot for the 4-arg write form: related (default), depends_on, blocks, or fixes (issue→issue)")
 	cmd.Flags().BoolVar(&unresolved, "unresolved", false, "list edges whose target is not in the vault")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "emit JSON output")
 	return cmd

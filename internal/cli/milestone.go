@@ -79,7 +79,11 @@ func newMilestoneStatusCmd() *cobra.Command {
 					open++
 				}
 			}
-			outcome := sumOutcome(rows, m.FrontMatter)
+			fixed, err := fixesTargets(db, rows)
+			if err != nil {
+				return err
+			}
+			outcome := sumOutcome(rows, m.FrontMatter, fixed)
 			done := scanErr == nil && open == 0 && len(unmetCriteria(acceptance)) == 0
 
 			if flagJSON {
