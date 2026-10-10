@@ -373,7 +373,7 @@ func (s *server) stands(t *topic) (string, error) {
 		if desc == "" {
 			return "Open: " + th.Title, nil
 		}
-		if strings.HasSuffix(desc, "?") || strings.HasSuffix(desc, "!") {
+		if terminal(desc) {
 			return desc + " Open: " + th.Title, nil
 		}
 		return desc + "; open: " + th.Title, nil
@@ -386,10 +386,15 @@ func (s *server) stands(t *topic) (string, error) {
 
 // sentence closes text with a full stop unless it already ends in terminal punctuation.
 func sentence(text string) string {
-	if strings.HasSuffix(text, ".") || strings.HasSuffix(text, "?") || strings.HasSuffix(text, "!") {
+	if terminal(text) {
 		return text
 	}
 	return text + "."
+}
+
+// terminal reports whether text ends in sentence-closing punctuation.
+func terminal(text string) bool {
+	return strings.HasSuffix(text, ".") || strings.HasSuffix(text, "?") || strings.HasSuffix(text, "!")
 }
 
 // newest is the topic's newest row across decisions and threads.

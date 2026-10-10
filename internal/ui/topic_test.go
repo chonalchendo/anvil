@@ -88,7 +88,7 @@ func TestTopic_TagCapManyTags(t *testing.T) {
 	}
 }
 
-// Warrant: fails if a decision whose description ends in "?" gains a full stop, a thread-only topic loses the capitalised "Open: " lead, a decision-only topic loses its full stop, or a topic with nothing current renders an empty line.
+// Warrant: fails if a decision whose description ends in "?" or "!" gains a full stop or joins its open thread with a semicolon, a thread-only topic loses the capitalised "Open: " lead, a decision-only topic loses its full stop, or a topic with nothing current renders an empty line.
 func TestTopic_Stands(t *testing.T) {
 	v := &core.Vault{Root: t.TempDir()}
 	writeArtifact(t, v, core.TypeThread, "solo.0001-q", map[string]any{"title": "Why so", "status": "open", "updated": "2026-10-02"}, "x\n")
@@ -100,14 +100,29 @@ func TestTopic_Stands(t *testing.T) {
 	writeArtifact(t, v, core.TypeThread, "dead.0002-q", map[string]any{"title": "Why dead?", "status": "resolved", "updated": "2026-10-04"}, "x\n")
 	writeArtifact(t, v, core.TypeDecision, "ask.0001-a", map[string]any{"title": "Ask", "status": "accepted", "updated": "2026-10-05", "description": "Why this?"}, "x\n")
 	writeArtifact(t, v, core.TypeThread, "ask.0001-q", map[string]any{"title": "Ask Q", "status": "resolved", "updated": "2026-10-05"}, "x\n")
+	writeArtifact(t, v, core.TypeDecision, "q.0001-a", map[string]any{"title": "T", "status": "accepted", "updated": "2026-10-01", "description": "Is it so?"}, "x\n")
+	writeArtifact(t, v, core.TypeThread, "q.0001-open", map[string]any{"title": "Still asking", "status": "open", "updated": "2026-10-02"}, "x\n")
+	writeArtifact(t, v, core.TypeDecision, "bang.0001-a", map[string]any{"title": "T", "status": "accepted", "updated": "2026-10-01", "description": "Stop it!"}, "x\n")
+	writeArtifact(t, v, core.TypeThread, "bang.0001-open", map[string]any{"title": "Still going", "status": "open", "updated": "2026-10-02"}, "x\n")
 	_, body := do(serve(t, v), "GET", "/")
-	for _, want := range []string{`<p class="syn">Why this?</p>`, `<p class="syn">Open: Why so</p>`, `<p class="syn">Plain line.</p>`, `<p class="syn">Nothing current; newest: Why dead?</p>`} {
+	if strings.Contains(body, "?; open") || strings.Contains(body, "!; open") {
+		t.Errorf("terminal description joined with a semicolon:\n%s", body)
+	}
+	for _, want := range []string{`<p class="syn">Is it so? Open: Still asking</p>`, `<p class="syn">Stop it! Open: Still going</p>`, `<p class="syn">Why this?</p>`, `<p class="syn">Open: Why so</p>`, `<p class="syn">Plain line.</p>`, `<p class="syn">Nothing current; newest: Why dead?</p>`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("knowledge page lacks %q:\n%s", want, body)
 		}
 	}
 	if strings.Contains(body, `<p class="syn"></p>`) {
 		t.Error("empty where-it-stands line")
+	}
+}
+
+// Warrant: fails if a topic's learnings or inbox lists stop rendering as an unordered list, or its threads stop rendering ordered.
+func TestTopic_ListKinds(t *testing.T) {
+	_, body := do(topicVault(t), "GET", "/topic/alpha")
+	if !strings.Contains(body, `<ul class="rows">`) || !strings.Contains(body, `<ol class="rows">`) || strings.Contains(body, `<span class="ord" translate="no"></span>`) {
+		t.Errorf("newest-first lists wrong:\n%s", body)
 	}
 }
 

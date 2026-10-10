@@ -129,8 +129,8 @@ func TestKnowledge_LedeAndOtherOnly(t *testing.T) {
 	}
 }
 
-// Warrant: fails if several folded topics with no listed topic stop saying "fold below", or a description ending in a question mark joins its open thread with "?;".
-func TestKnowledge_ManyFoldedAndQuestionStands(t *testing.T) {
+// Warrant: fails if several folded topics with no listed topic stop saying "fold below".
+func TestKnowledge_ManyFoldedLede(t *testing.T) {
 	v := &core.Vault{Root: t.TempDir()}
 	for _, id := range []string{"one.0001-a", "two.0001-b"} {
 		writeArtifact(t, v, core.TypeDecision, id, map[string]any{"title": "T", "status": "accepted", "updated": "2026-10-01", "description": "x"}, "x\n")
@@ -138,12 +138,5 @@ func TestKnowledge_ManyFoldedAndQuestionStands(t *testing.T) {
 	_, body := do(serve(t, v), "GET", "/")
 	if !strings.Contains(body, "They hold one decision each and fold below.") {
 		t.Errorf("several-folded lede wrong:\n%s", body)
-	}
-	v = &core.Vault{Root: t.TempDir()}
-	writeArtifact(t, v, core.TypeDecision, "q.0001-a", map[string]any{"title": "T", "status": "accepted", "updated": "2026-10-01", "description": "Is it so?"}, "x\n")
-	writeArtifact(t, v, core.TypeThread, "q.0001-open", map[string]any{"title": "Still asking", "status": "open", "updated": "2026-10-02"}, "x\n")
-	_, body = do(serve(t, v), "GET", "/")
-	if !strings.Contains(body, "Is it so? Open: Still asking") || strings.Contains(body, "?; open") {
-		t.Errorf("question stands line wrong:\n%s", body)
 	}
 }
