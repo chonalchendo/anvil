@@ -32,6 +32,16 @@ func seedProject(t *testing.T) (string, int) {
 			"title": "More", "status": "open", "project": "anvil", "milestone": "[[milestone.anvil.live]]",
 		}, "x\n")
 	}
+	writeArtifact(t, v, core.TypeMilestone, "milestone.anvil.planned-new", map[string]any{"title": "Planned new", "status": "planned", "project": "anvil"}, "x\n")
+	writeArtifact(t, v, core.TypeMilestone, "milestone.anvil.planned-quiet", map[string]any{"title": "Planned quiet", "status": "planned", "project": "anvil"}, "x\n")
+	writeArtifact(t, v, core.TypeIssue, "anvil.0030-bare-slug", map[string]any{
+		"title": "Bare slug", "status": "in-progress", "project": "anvil", "milestone": "[[milestone.planned-new]]", "updated": "2026-10-05",
+		"verified_verdict": "pass", "cost_rounds": 2, "cost_tokens": 23300000, "owner": "a-worker",
+		"external_links": []any{"https://github.com/o/r/pull/486"},
+	}, "x\n")
+	writeArtifact(t, v, core.TypeIssue, "anvil.0031-dropped", map[string]any{"title": "Dropped", "status": "abandoned", "project": "anvil", "milestone": "[[milestone.anvil.planned-new]]"}, "x\n")
+	writeArtifact(t, v, core.TypeIssue, "anvil.0032-shipped", map[string]any{"title": "Shipped", "status": "resolved", "project": "anvil", "milestone": "[[milestone.anvil.planned-new]]"}, "x\n")
+	writeArtifact(t, v, core.TypeIssue, "anvil.0040-homeless", map[string]any{"title": "Homeless", "status": "open", "project": "anvil"}, "x\n")
 	writeArtifact(t, v, core.TypeIssue, "anvil.0020-old-issue", map[string]any{
 		"title": "Old issue", "status": "resolved", "project": "anvil", "milestone": "[[milestone.anvil.old]]",
 	}, "x\n")
@@ -52,30 +62,27 @@ func TestProject_Dashboard(t *testing.T) {
 		t.Fatalf("GET /project/anvil = %d", code)
 	}
 	for _, want := range []string{
-		`<div class="dashboard">`, `class="inventory"`, `class="work"`,
+		`<div class="dashboard">`, `class="milestones"`, `class="work"`,
 		`href="/artifact/milestone.anvil.live"`, `href="/artifact/milestone.anvil.old"`,
 		`href="/artifact/system-design.anvil"`, `href="/artifact/product-design.anvil"`,
 		`href="/diagram/anvil-two-loop"`, `href="/artifact/issue.anvil.0001-live-issue"`,
 		`href="/artifact/decision.anvil.0009-late"`, `href="/type/issue?project=anvil"`,
-		`<code>deadbee</code>`, `class="judge"`, `A deck line`, `status-not-met`,
-		`0 of 11 issues resolved`, `class="bar"`, `style="--n:1"`,
-		`<i class="status-open status-planned"`, `<code>/project/anvil</code> dashboard`,
-		`href="/type/issue?project=anvil"`, `href="/type/issue?to=milestone.anvil.live&amp;status=open"`, `3 more`,
+		`<code>deadbee</code>`, `A deck line`, `loading="lazy"`,
 		`href="/artifact/thread.anvil-design-docs.0001-ours"`, `href="/artifact/thread.anvil.0002-also-ours"`,
 		`Still open:`, `(7 Oct)`, `(8 Oct)`, `1 of 1, 1 Oct`, `<code>anvil-two-loop</code> The state lives in the vault.`,
-		`href="/type/thread"`, `>2 open</span>`, `loading="lazy"`,
+		`href="/type/thread"`, `>3 threads</a>`, `9 Oct`, `not approved`, `not measured`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("dashboard lacks %q", want)
 		}
 	}
-	for _, bad := range []string{"Foreign thread", "Mentat thread", "barClass", "2026-10-08"} {
+	for _, bad := range []string{"Foreign thread", "Mentat thread", "2026-10-08"} {
 		if strings.Contains(body, bad) {
 			t.Errorf("dashboard holds %q", bad)
 		}
 	}
-	if strings.Count(body, `class="inv"`) != 1 || strings.Count(body, ">designs</a>") != 1 {
-		t.Error("designs are not one inventory row")
+	if strings.Contains(body, `class="inventory"`) || strings.Contains(body, `class="bar"`) {
+		t.Error("the inventory column is back")
 	}
 	if strings.Contains(body, "ZgotmplZ") {
 		t.Error("template escaper rejected a value")
@@ -89,13 +96,6 @@ func TestProject_UnknownIs404(t *testing.T) {
 	}
 	if code, _ := do(h, "POST", "/project/anvil"); code != 405 {
 		t.Errorf("POST /project/anvil = %d, want 405", code)
-	}
-}
-
-func TestAcceptance(t *testing.T) {
-	got := acceptance("## Other\n\n| 9 | x | met | y |\n\n## Status\n\n| # | AC | Met | Measured |\n|---|---|---|---|\n| 1 | `a | b` | not met | 404 |\n")
-	if len(got) != 1 || got[0].Text != "<code>a | b</code>" || got[0].Met != "not met" || got[0].Class != "status-not-met" || got[0].Measured != "404" {
-		t.Errorf("acceptance = %+v", got)
 	}
 }
 
@@ -123,21 +123,50 @@ func TestDiagramNote(t *testing.T) {
 	}
 }
 
-// Warrant: fails if "N more" filters by status when the hidden issues differ, or drops the filter when they agree.
-func TestProject_MoreHrefStatusFilter(t *testing.T) {
-	h, v := seed(t)
-	writeArtifact(t, v, core.TypeMilestone, "milestone.anvil.mixed", map[string]any{"title": "Mixed", "status": "in-progress", "project": "anvil"}, "x\n")
-	for i := 1; i <= treeCap+2; i++ {
-		status := "in-progress"
-		if i == treeCap+2 {
-			status = "open"
+// Warrant: fails if live work under a planned milestone is hidden, a bare-slug issue lands in the wrong fold,
+// the counts count abandoned issues, or an issue row drops its verdict, PR, rounds or tokens.
+func TestProject_MilestoneFolds(t *testing.T) {
+	body, _ := seedProject(t)
+	for _, want := range []string{
+		`<details class="ms live" open>`, `<details class="ms">`, `>No milestone<`,
+		`<a href="/artifact/milestone.anvil.planned-new" class="to-planned">Planned new</a>`,
+		`1 of 2</span>`, `1 abandoned, not counted in the 2.`,
+		`>0030</span>`, `pass`, `<a href="https://github.com/o/r/pull/486">#486</a>`, `>2</td>`, `>23.3M</td>`, `a-worker`, `5 Oct`,
+		`href="/artifact/issue.anvil.0040-homeless"`, `href="/artifact/milestone.anvil.planned-quiet"`, `No open issue.`,
+		`3 milestones are not done: 1 in progress and 2 planned.`, `11 open issues sit under the 3, and 1 under none.`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("folds lack %q", want)
 		}
-		writeArtifact(t, v, core.TypeIssue, fmt.Sprintf("anvil.%04d-mixed-%d", i, i), map[string]any{
-			"title": "Mixed", "status": status, "project": "anvil", "milestone": "[[milestone.anvil.mixed]]",
-		}, "x\n")
 	}
+	order := []string{"Planned new", "Live one", "Planned quiet", ">No milestone<"}
+	last := -1
+	for _, title := range order {
+		i := strings.Index(body, title)
+		if i < last {
+			t.Errorf("%q is out of order", title)
+		}
+		last = i
+	}
+}
+
+// Warrant: fails if the empty-state inset shows while work is in progress, or says nothing when nothing is.
+func TestProject_EmptyState(t *testing.T) {
+	h, v := seed(t)
+	writeArtifact(t, v, core.TypeMilestone, "milestone.anvil.next", map[string]any{"title": "Next one", "status": "planned", "project": "anvil"}, "x\n")
+	writeArtifact(t, v, core.TypeIssue, "anvil.0050-queued", map[string]any{"title": "Queued", "status": "open", "project": "anvil", "milestone": "[[milestone.anvil.next]]"}, "x\n")
+	// The seeded in-progress stack issue sits under no project milestone, so close it out of the picture.
+	writeArtifact(t, v, core.TypeIssue, stackIssue, map[string]any{"title": "Thing", "status": "resolved", "project": "anvil", "milestone": "[[milestone.anvil.next]]"}, "x\n")
 	body, _ := projectBody(t, h)
-	if !strings.Contains(body, `href="/type/issue?to=milestone.anvil.mixed"`) || strings.Contains(body, "milestone.anvil.mixed&amp;status") {
-		t.Error("mixed hidden statuses must not filter the More link")
+	if !strings.Contains(body, `Nothing is in progress. 1 issues are open: 1 under the 1 planned milestones`) || !strings.Contains(body, `Next one</a> holds the most`) {
+		t.Errorf("empty state lacks the open-issue sentence:\n%s", body)
+	}
+}
+
+func TestTokens(t *testing.T) {
+	for in, want := range map[any]string{23300000: "23.3M", 12400: "12.4k", 840: "840", "x": "", nil: ""} {
+		if got := tokens(in); got != want {
+			t.Errorf("tokens(%v) = %q, want %q", in, got, want)
+		}
 	}
 }
