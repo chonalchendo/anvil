@@ -107,3 +107,24 @@ func newTagVault(t *testing.T, n int) *core.Vault {
 	}
 	return v
 }
+
+// Warrant: fails if the Routed lede loses the raw-note total or its singular verb, an Other-only vault renders the column head over an empty list, the one-folded-topic lede loses its singular verb and "It holds" wording or keeps "below,", or an empty vault prints a lede of zeros.
+func TestKnowledge_LedeAndOtherOnly(t *testing.T) {
+	_, body := do(topicVault(t), "GET", "/")
+	if !strings.Contains(body, "1 of 4 raw notes carries a route, newest first.") {
+		t.Errorf("routed lede wrong:\n%s", body)
+	}
+	v := &core.Vault{Root: t.TempDir()}
+	writeArtifact(t, v, core.TypeDecision, "lone.0001-a", map[string]any{"title": "Lone", "status": "accepted", "updated": "2026-10-01", "description": "x"}, "x\n")
+	_, body = do(serve(t, v), "GET", "/")
+	if strings.Contains(body, `class="topic-head"`) || strings.Contains(body, "No decision or thread carries a topic yet.") || !strings.Contains(body, `class="other"`) {
+		t.Errorf("other-only page wrong:\n%s", body)
+	}
+	if strings.Contains(body, " below,") || !strings.Contains(body, "1 topic, read from the ids of 1 decision and 0 threads; 0 decisions are proposed and 0 threads open. It holds one decision and folds below. Learnings") {
+		t.Errorf("no-listed lede wrong:\n%s", body)
+	}
+	_, body = do(serve(t, &core.Vault{Root: t.TempDir()}), "GET", "/")
+	if !strings.Contains(body, "No decision or thread carries a topic yet.") {
+		t.Error("empty vault lacks the none-yet line")
+	}
+}

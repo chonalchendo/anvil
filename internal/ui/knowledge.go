@@ -103,7 +103,11 @@ func (s *server) buildKnowledge() (knowledgePage, error) {
 	if page.Routed, err = s.routedInbox(raw); err != nil {
 		return knowledgePage{}, err
 	}
-	page.RoutedLede = fmt.Sprintf("%d of %s %s a route, newest first.", len(page.Routed), plural(len(raw), "raw note", "raw notes"), pluralWord(len(page.Routed), "carries", "carry"))
+	page.RoutedLede = fmt.Sprintf("%d of %s %s a route", len(page.Routed), plural(len(raw), "raw note", "raw notes"), pluralWord(len(page.Routed), "carries", "carry"))
+	if len(page.Routed) > 0 {
+		page.RoutedLede += ", newest first"
+	}
+	page.RoutedLede += "."
 	return page, nil
 }
 
@@ -144,6 +148,10 @@ func sortedTopics(m map[string]*topic) []*topic {
 }
 
 func topicsLede(topics, decisions, threads, proposed, open, listed, folded int) string {
+	const noTopic = "Learnings and inbox notes carry no topic."
+	if topics == 0 {
+		return noTopic
+	}
 	lede := fmt.Sprintf("%s, read from the ids of %s and %s; %s proposed and %s open.",
 		plural(topics, "topic", "topics"), plural(decisions, "decision", "decisions"), plural(threads, "thread", "threads"),
 		plural(proposed, "decision is", "decisions are"), plural(open, "thread", "threads"))
@@ -151,15 +159,19 @@ func topicsLede(topics, decisions, threads, proposed, open, listed, folded int) 
 		lede += fmt.Sprintf(" The %s with a thread or more than one decision %s below, newest movement first.",
 			plural(listed, "topic", "topics"), pluralWord(listed, "is", "are"))
 	}
-	if folded > 0 {
+	switch {
+	case folded == 1 && listed > 0:
+		lede += " The other topic holds one decision and folds at the end."
+	case folded == 1:
+		lede += " It holds one decision and folds below."
+	case folded > 1:
 		other := ""
 		if listed > 0 {
 			other = "other "
 		}
-		lede += fmt.Sprintf(" The %s%s %s one decision each and %s at the end.",
-			other, plural(folded, "topic", "topics"), pluralWord(folded, "holds", "hold"), pluralWord(folded, "folds", "fold"))
+		lede += fmt.Sprintf(" The %s%s hold one decision each and fold at the end.", other, plural(folded, "topic", "topics"))
 	}
-	return lede + " Learnings and inbox notes carry no topic."
+	return lede + " " + noTopic
 }
 
 // routedInbox lists the raw inbox notes with a `## Route` section, newest first. The FTS index prefilters on the word;

@@ -376,7 +376,7 @@ func (s *server) stands(t *topic) (string, error) {
 		return desc + "; open: " + th.Title, nil
 	}
 	if desc != "" {
-		return desc + ".", nil
+		return sentence(desc), nil
 	}
 	return "Nothing current; newest: " + sentence(t.newest().Title), nil
 }
