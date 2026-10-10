@@ -126,7 +126,9 @@ An unattended orchestrator does not distil. It lists `Harvest candidates:` in th
 
 ## Phase 8b — Replay (optional)
 
-Run `anvil replay` after the harvest, only when the milestone's merged PRs changed a skill or an agent. Replay a set of resolved issues with a fair worker. Report each result beside the issue's landed cost. The orchestrator decides; nothing triggers it. The steps are in `skills/running-milestone/references/replay.md`: read it before the first replay.
+Run `anvil replay` after the harvest, only when the milestone's merged PRs changed a skill or an agent. Replay a set of resolved issues with a fair worker. Report each result beside the issue's landed cost. The orchestrator decides; nothing triggers it.
+
+**REQUIRED REFERENCE:** Use skills/running-milestone/references/replay.md before the first replay.
 
 ## Report
 

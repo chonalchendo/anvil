@@ -4,7 +4,7 @@ A replay re-runs a resolved issue from the base its PR started on. The result sh
 
 ## The set
 
-Pick resolved issues that have a merged PR and a stamped cost. Take five by default. Skip an issue with no cost record: it has nothing to compare.
+Find candidates with `anvil list issue --status resolved --json`. Keep rows with `cost_tokens` and a pull url in `external_links`. Take five by default. Skip an issue with no cost record: it has nothing to compare.
 
 ## The loop
 
@@ -17,7 +17,7 @@ For each issue, one at a time:
 
    Give no PR url, no review text and no learnings about this issue. The worker returns a commit sha as its last line.
 3. Read the worker's token total, then from inside `<worktree>` run `anvil verify <id> --replay --tokens <n>`. It appends a Replay section to the issue and changes no landed field.
-4. `anvil replay <id> --remove` removes the worktree and its branch. Run it also after a failed or halted replay.
+4. `anvil replay <id> --remove` removes the worktree and its branch. Run it also after a failed or halted replay. After a failed cut, `replay_nothing_to_remove` is expected.
 
 Run `anvil replay` and `anvil verify --replay` yourself. Never run `git worktree remove`.
 

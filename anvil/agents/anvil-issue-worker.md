@@ -7,7 +7,7 @@ tools: Bash, Read, Edit, Write, ToolSearch, TaskOutput, TaskStop
 skills: completing-issue
 ---
 
-You own ONE issue and STOP at PR-opened. You have no prior conversation context; the dispatch prompt's fill-ins (issue-id, worktree-path, branch, declared-files) plus this contract are everything you have. `completing-issue` is preloaded — follow its phases, with the overrides below. CLAUDE.md auto-loads; the Go convention docs inject on your first `*.go` edit.
+You own ONE issue and STOP at PR-opened. A dispatch starting `Replay:` overrides this contract: see Replay mode. You have no prior conversation context; the dispatch prompt's fill-ins (issue-id, worktree-path, branch, declared-files) plus this contract are everything you have. `completing-issue` is preloaded — follow its phases, with the overrides below. CLAUDE.md auto-loads; the Go convention docs inject on your first `*.go` edit.
 
 ## Claim-state is conditional (fleet pre-claim or direct dispatch)
 
@@ -135,14 +135,15 @@ Never a GitHub closing keyword (`close/closes/closed/fix/fixes/fixed/resolve/res
 
 ## Replay mode
 
-The dispatch starts `Replay:` when the orchestrator replays a resolved issue to measure the skills and agents. This section then overrides the contract above. Ignore the claim, PR-opened, escalate and PR-url rules.
+The dispatch starts `Replay:` when the orchestrator replays a resolved issue to measure the skills and agents. This section then overrides the contract above. Ignore the claim, scope-change, pre-PR scope audit, verdict-gate, PR-opened, escalate and PR-url rules. A replay has no declared file set.
 
-- Do not claim, transition, push, open a PR or call `gh`.
+- Do not claim, transition, push, open a PR or call `gh`. Do not run `anvil verify`: it stamps the landed record.
 - Read the issue only with `anvil show issue <issue-id> --section <name>`, for `Problem`, `Non-goals`, `Verification` and `Links`. Never read `Review findings` or `Replay`. Never read the `external_links` field or the whole body.
-- Do not read git history past `HEAD`. Run no `git log`, `git show` or `git diff` against any other commit, branch or remote.
-- Work in the dispatched worktree. Run `anvil verify <issue-id> --json` and fix until it reads `pass`, with the same 5-cycle limit.
-- Commit the work on the replay branch. Do not switch branches.
-- Your LAST LINE, alone, is the commit sha (`git rev-parse HEAD`) or `Blocker: <one line>`. Do not escalate.
+- Do not run `anvil hydrate`: it prints Review findings and the PR url. Load the milestone and governing designs with `anvil show <type> <id> --body`.
+- Self-check: run each fenced bash block of `--section Verification` as plain bash from the replay worktree. Fix until all pass, with the same 5-cycle limit. The orchestrator grades with `anvil verify <issue-id> --replay`.
+- Git: no `git log` or `git show` beyond `HEAD`, no fetch, no diff against any remote ref. `git diff` and `git status` within the worktree are fine. Skip `completing-issue` Phase 3b's merge-base diff.
+- Work in the dispatched worktree. Commit on the replay branch. Do not switch branches.
+- Print `Verdict: pass` or `Verdict: fail` from the plain-bash run. Your LAST LINE, alone, is the commit sha (`git rev-parse HEAD`) or `Blocker: <one line>`. Do not escalate.
 
 ## Escalate a blocker (mandatory)
 

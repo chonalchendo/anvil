@@ -351,7 +351,7 @@ func TestReplayRemoveDeletesWorktreeAndBranch(t *testing.T) {
 	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt); err != nil {
 		t.Fatal(err)
 	}
-	real, err := filepath.EvalSymlinks(wt)
+	resolved, err := filepath.EvalSymlinks(wt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -360,8 +360,8 @@ func TestReplayRemoveDeletesWorktreeAndBranch(t *testing.T) {
 		t.Fatal(err)
 	}
 	var got map[string]string
-	if err := json.Unmarshal([]byte(out), &got); err != nil || got["removed"] != real {
-		t.Errorf("json = %q (%v), want removed %s", out, err, real)
+	if err := json.Unmarshal([]byte(out), &got); err != nil || got["worktree"] != resolved || got["branch"] == "" {
+		t.Errorf("json = %q (%v), want worktree %s", out, err, resolved)
 	}
 	if _, err := os.Stat(wt); !os.IsNotExist(err) {
 		t.Errorf("worktree still exists: %v", err)
@@ -397,8 +397,9 @@ func TestReplayRemoveRefusesWhenNoneExists(t *testing.T) {
 
 func TestReplayRemoveRejectsWorktreeFlag(t *testing.T) {
 	_, _, _, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
-	if _, _, err := runCmd(t, newReplayCmd(), id, "--remove", "--worktree", "/tmp/x"); err == nil {
-		t.Error("want an error for --remove with --worktree")
+	out, _, err := runCmd(t, newReplayCmd(), id, "--remove", "--worktree", "/tmp/x", "--json")
+	if err == nil || !strings.Contains(out+errString(err), "replay_remove_flags") {
+		t.Errorf("want replay_remove_flags, got %q (%v)", out, err)
 	}
 }
 
@@ -422,5 +423,18 @@ func TestReplayGhFailureCarriesStderrAndURL(t *testing.T) {
 	}
 	if strings.Contains(got, "replay_gh_unavailable") {
 		t.Errorf("gh failure reported as unavailable: %q", got)
+	}
+}
+
+func TestGhPRViewByURLRealCarriesStderr(t *testing.T) {
+	dir := t.TempDir()
+	script := "#!/bin/sh\necho 'HTTP 404: not found' >&2\nexit 1\n"
+	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o700); err != nil { //nolint:gosec // test stub must be executable
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	_, err := ghPRViewByURLReal("https://github.com/o/r/pull/7", "state")
+	if err == nil || !strings.Contains(err.Error(), "HTTP 404: not found") {
+		t.Errorf("err = %v, want gh stderr carried", err)
 	}
 }

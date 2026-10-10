@@ -44,16 +44,21 @@ func newReplayCmd() *cobra.Command {
 			}
 			if flagRemove {
 				if flagWorktree != "" {
-					return fmt.Errorf("--remove finds the worktree by its branch; drop --worktree")
+					return printAndReturn(cmd, errfmt.NewStructured("replay_remove_flags").Set("issue", id).
+						Set("message", "--remove finds the worktree by its branch; --worktree has no meaning with it").
+						Set("fix_hint", "drop --worktree: anvil replay "+id+" --remove"))
 				}
-				wt, err := removeReplay(a, id)
+				wt, branch, err := removeReplay(a, id)
 				if err != nil {
 					return printAndReturn(cmd, err)
 				}
 				if flagJSON {
-					b, _ := json.Marshal(map[string]string{"removed": wt})
+					b, _ := json.Marshal(map[string]string{"worktree": wt, "branch": branch})
 					fmt.Fprintln(cmd.OutOrStdout(), string(b))
 					return nil
+				}
+				if wt == "" {
+					wt = branch
 				}
 				fmt.Fprintln(cmd.OutOrStdout(), "removed "+wt)
 				return nil
@@ -73,7 +78,7 @@ func newReplayCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&flagWorktree, "worktree", "", "worktree path (default: beside the conventional path, as replay-<slug>)")
 	cmd.Flags().BoolVar(&flagRemove, "remove", false, "remove the replay worktree and its replay/<slug> branch")
-	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON: {worktree, base}, or {removed} with --remove")
+	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit JSON: {worktree, base}, or {worktree, branch} with --remove (worktree is empty when only the branch was left)")
 	return cmd
 }
 
@@ -207,7 +212,7 @@ func cutReplayWorktree(cmd *cobra.Command, a *core.Artifact, id, override string
 	}
 	if err := provisionCheckout(repoDir, wt); err != nil {
 		return "", "", errfmt.NewStructured("replay_provision_failed").Set("path", wt).Set("error", err.Error()).
-			Set("fix_hint", "fix the carry list or worktree hook named in error, remove "+wt+" with git worktree remove, then re-run anvil replay "+id)
+			Set("fix_hint", "fix the carry list or worktree hook named in error, run anvil replay "+id+" --remove, then re-run anvil replay "+id)
 	}
 	return wt, base, nil
 }
@@ -340,35 +345,32 @@ func verifyReplay(cmd *cobra.Command, v *core.Vault, a *core.Artifact, path, id,
 
 // removeReplay removes the replay worktree and its replay/<slug> branch. A
 // replay worktree holds hook-written files, so the removal is forced.
-func removeReplay(a *core.Artifact, id string) (string, error) {
+func removeReplay(a *core.Artifact, id string) (wt, branch string, err error) {
 	project := projectFromArtifact(a, id)
 	repoDir, err := resolveProjectRepoFn(project)
 	if err != nil {
-		return "", errfmt.NewStructured("cut_worktree_repo_unresolved").Set("project", project).Set("error", err.Error()).
+		return "", "", errfmt.NewStructured("cut_worktree_repo_unresolved").Set("project", project).Set("error", err.Error()).
 			Set("fix_hint", "run anvil replay --remove from a project whose repo anvil can resolve")
 	}
-	branch := "replay/" + slugFromIssueID(id)
+	branch = "replay/" + slugFromIssueID(id)
 	wts, _ := gitWorktreeListFn(repoDir)
 	live, hasWT := wts[branch]
 	if !hasWT && !gitLocalBranchExistsFn(repoDir, branch) {
-		return "", errfmt.NewStructured("replay_nothing_to_remove").Set("issue", id).
+		return "", "", errfmt.NewStructured("replay_nothing_to_remove").Set("issue", id).
 			Set("message", "no replay worktree or "+branch+" branch exists for "+id).
 			Set("fix_hint", "cut one with anvil replay "+id)
 	}
 	if hasWT {
 		if err := gitWorktreeRemoveForceFn(repoDir, live.path); err != nil {
-			return "", errfmt.NewStructured("replay_remove_failed").Set("issue", id).Set("path", live.path).Set("error", err.Error()).
+			return "", "", errfmt.NewStructured("replay_remove_failed").Set("issue", id).Set("path", live.path).Set("error", err.Error()).
 				Set("fix_hint", "fix the git error in error, then re-run anvil replay "+id+" --remove")
 		}
 	}
 	if gitLocalBranchExistsFn(repoDir, branch) {
 		if err := gitDeleteLocalBranchFn(repoDir, branch); err != nil {
-			return "", errfmt.NewStructured("replay_remove_failed").Set("issue", id).Set("branch", branch).Set("error", err.Error()).
+			return "", "", errfmt.NewStructured("replay_remove_failed").Set("issue", id).Set("branch", branch).Set("error", err.Error()).
 				Set("fix_hint", "fix the git error in error, then re-run anvil replay "+id+" --remove")
 		}
 	}
-	if hasWT {
-		return live.path, nil
-	}
-	return branch, nil
+	return live.path, branch, nil
 }
