@@ -32,8 +32,6 @@ type projectPage struct {
 	Learned       []proseGroup
 	LearnedDrafts int
 	OpenThreads   []proseItem
-	// members is the project's milestone membership, set by fillMilestones for fillDone.
-	members map[string][]index.ArtifactRow
 }
 
 // project serves one project's dashboard; a project with no artifacts is a 404.
@@ -74,12 +72,28 @@ func (s *server) buildProject(name string, counts map[string]map[string]int) (pr
 	}
 	joinProse(page.OpenThreads)
 	page.Counts = countParts(name, counts)
-	for _, build := range []func(*projectPage, map[string]map[string]int) error{s.fillDesigns, s.fillMilestones, s.fillDone, s.fillLately} {
-		if err := build(&page, counts); err != nil {
-			return page, err
-		}
+	if err := s.fillDesigns(&page, counts); err != nil {
+		return page, err
 	}
-	return page, nil
+	ms, err := s.db.ListByType("milestone", index.QueryFilters{Project: name})
+	if err != nil {
+		return page, err
+	}
+	issues, err := s.db.ListByType("issue", index.QueryFilters{Project: name})
+	if err != nil {
+		return page, err
+	}
+	members, err := s.milestoneMembers(name, issues, ms)
+	if err != nil {
+		return page, err
+	}
+	if err := s.fillMilestones(&page, ms, issues, members); err != nil {
+		return page, err
+	}
+	if err := s.fillDone(&page, counts, members); err != nil {
+		return page, err
+	}
+	return page, s.fillLately(&page, counts)
 }
 
 // projectThreads returns the project's threads, newest first. A thread belongs to a project

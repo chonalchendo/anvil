@@ -25,7 +25,7 @@ type designs struct {
 }
 
 // fillDone fills the newest done milestones.
-func (s *server) fillDone(p *projectPage, counts map[string]map[string]int) error {
+func (s *server) fillDone(p *projectPage, counts map[string]map[string]int, members map[string][]index.ArtifactRow) error {
 	if counts["milestone"]["done"] == 0 {
 		return nil
 	}
@@ -41,7 +41,7 @@ func (s *server) fillDone(p *projectPage, counts map[string]map[string]int) erro
 			return err
 		}
 		var resolved, total int
-		for _, i := range p.members[r.ID] {
+		for _, i := range members[r.ID] {
 			if i.Status == "resolved" {
 				resolved++
 			}

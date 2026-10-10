@@ -132,7 +132,6 @@ func (s *server) spineTrees() ([]projectTree, error) {
 
 func (s *server) projectNodes(project string, rows map[string][]index.ArtifactRow, issues []index.ArtifactRow) ([]node, error) {
 	var nodes, unlinked []node
-	var members map[string][]index.ArtifactRow
 	for _, r := range rows["product-design"] {
 		nodes = append(nodes, leaf(r))
 	}
@@ -164,16 +163,14 @@ func (s *server) projectNodes(project string, rows map[string][]index.ArtifactRo
 	for _, k := range dangling {
 		unlinked = append(unlinked, comps[k]...)
 	}
+	members, err := s.milestoneMembers(project, issues, rows["milestone"])
+	if err != nil {
+		return nil, err
+	}
 	byStatus := map[string][]node{}
 	for _, r := range rows["milestone"] {
 		n := leaf(r)
 		if r.Status == "in-progress" {
-			if members == nil {
-				var err error
-				if members, err = s.milestoneMembers(project, issues, rows["milestone"]); err != nil {
-					return nil, err
-				}
-			}
 			n.Kids, n.Open = memberNodes(members[r.ID]), true
 		}
 		out, err := s.db.LinksFrom(r.ID)

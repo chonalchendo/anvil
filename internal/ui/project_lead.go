@@ -37,7 +37,7 @@ func countOpen(folds []msFold, none *msFold) openCounts {
 }
 
 // milestonePanelOf builds the panel and its lead sentence from the sorted folds and the last fold.
-func milestonePanelOf(folds []msFold, none *msFold) milestonesPanel {
+func milestonePanelOf(folds []msFold, none *msFold, product []node) milestonesPanel {
 	pn := milestonesPanel{Folds: folds}
 	byStatus := map[string]int{}
 	var live, bare, ip int
@@ -86,13 +86,16 @@ func milestonePanelOf(folds []msFold, none *msFold) milestonesPanel {
 		}
 		fmt.Fprintf(&b, " %s, last updated %s%s.", plural(ip, "issue is in progress", "issues are in progress"), shortDate(stamp), ago(stamp))
 	}
-	if len(folds) > 0 && bare == 0 {
+	if byStatus["in-progress"] > 0 && bare == 0 {
 		b.WriteString(" No milestone is in progress without live work.")
 	}
 	if oc.all() > 0 {
 		b.WriteString(" " + openWhere(oc) + ".")
 	}
 	pn.Lead = strings.TrimSpace(b.String())
+	if pn.Nothing {
+		pn.Inset = insetOf(oc, product)
+	}
 	return pn
 }
 
@@ -111,11 +114,7 @@ func openWhere(c openCounts) string {
 
 // insetOf writes the empty-state inset shown when no work is in progress. The titles and
 // hrefs are escaped; the markup is built here so the plural and the clauses stay in one place.
-func insetOf(pn milestonesPanel, folds []msFold, none *msFold, product []node) template.HTML {
-	if !pn.Nothing {
-		return ""
-	}
-	oc := countOpen(folds, none)
+func insetOf(oc openCounts, product []node) template.HTML {
 	if oc.Planned == 0 && oc.all() == 0 {
 		out := "No milestone is in flight or planned."
 		if len(product) > 0 {

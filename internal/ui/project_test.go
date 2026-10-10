@@ -47,6 +47,9 @@ func seedProject(t *testing.T) (string, int) {
 	writeArtifact(t, v, core.TypeIssue, "anvil.0020-old-issue", map[string]any{
 		"title": "Old issue", "status": "resolved", "project": "anvil", "milestone": "[[milestone.anvil.old]]",
 	}, "x\n")
+	writeArtifact(t, v, core.TypeIssue, "anvil.0022-old-dropped", map[string]any{
+		"title": "Old dropped", "status": "abandoned", "project": "anvil", "milestone": "[[milestone.anvil.old]]",
+	}, "x\n")
 	writeArtifact(t, v, core.TypeDecision, "anvil.0009-late", map[string]any{"title": "Late decision", "status": "accepted", "project": "anvil", "updated": "2026-10-08"}, "x\n")
 	return projectBody(t, h)
 }
@@ -164,6 +167,9 @@ func TestProject_EmptyState(t *testing.T) {
 	// The seeded in-progress stack issue sits under no project milestone, so close it out of the picture.
 	writeArtifact(t, v, core.TypeIssue, stackIssue, map[string]any{"title": "Thing", "status": "resolved", "project": "anvil", "milestone": "[[milestone.anvil.next]]"}, "x\n")
 	body, _ := projectBody(t, h)
+	if strings.Contains(body, "without live work") {
+		t.Error("the lead names a bare tier with no in-progress milestone")
+	}
 	if !strings.Contains(body, `Nothing is in progress. 1 issue is open: 1 under the 1 planned milestone;`) || !strings.Contains(body, `Next one</a> holds the most`) {
 		t.Errorf("empty state lacks the open-issue sentence:\n%s", body)
 	}

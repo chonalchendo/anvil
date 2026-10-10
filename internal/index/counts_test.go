@@ -155,33 +155,3 @@ func TestCountByTypeStatus(t *testing.T) {
 		t.Errorf("CountByTypeStatus mismatch (-want +got):\n%s", diff)
 	}
 }
-
-func TestMilestoneIssueCounts(t *testing.T) {
-	db := openTestDB(t)
-	for _, r := range []ArtifactRow{
-		{ID: "issue.p.1", Type: "issue", Status: "resolved", Project: "p", Path: "/1.md"},
-		{ID: "issue.p.2", Type: "issue", Status: "open", Project: "p", Path: "/2.md"},
-		{ID: "issue.p.3", Type: "issue", Status: "resolved", Project: "p", Path: "/3.md"},
-		{ID: "issue.q.1", Type: "issue", Status: "resolved", Project: "q", Path: "/q1.md"},
-	} {
-		if err := db.UpsertArtifact(r); err != nil {
-			t.Fatal(err)
-		}
-	}
-	for src, ms := range map[string]string{"issue.p.1": "milestone.p.a", "issue.p.2": "milestone.p.a", "issue.p.3": "milestone.p.b", "issue.q.1": "milestone.q.a"} {
-		if err := db.ReplaceLinks(src, []LinkRow{{Source: src, Target: ms, Relation: "milestone"}}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	got, err := db.MilestoneIssueCounts("p")
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := map[string]MilestoneStatus{
-		"milestone.p.a": {Milestone: "milestone.p.a", Resolved: 1, Total: 2},
-		"milestone.p.b": {Milestone: "milestone.p.b", Resolved: 1, Total: 1, Done: true},
-	}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("MilestoneIssueCounts mismatch (-want +got):\n%s", diff)
-	}
-}

@@ -45,30 +45,19 @@ type milestonesPanel struct {
 var ordRe = regexp.MustCompile(`\.(\d+)[.-]`)
 
 // fillMilestones builds the panel from one milestone read, one issue read and a frontmatter
-// read of each not-done issue. It records the project's milestone membership on p for fillDone.
-func (s *server) fillMilestones(p *projectPage, _ map[string]map[string]int) error {
-	ms, err := s.db.ListByType("milestone", index.QueryFilters{Project: p.Name})
-	if err != nil {
-		return err
-	}
-	issues, err := s.db.ListByType("issue", index.QueryFilters{Project: p.Name})
-	if err != nil {
-		return err
-	}
-	if p.members, err = s.milestoneMembers(p.Name, issues, ms); err != nil {
-		return err
-	}
+// read of each not-done issue.
+func (s *server) fillMilestones(p *projectPage, ms, issues []index.ArtifactRow, members map[string][]index.ArtifactRow) error {
 	placed := map[string]bool{}
 	var folds []msFold
 	for _, m := range ms {
 		if m.Status != "in-progress" && m.Status != "planned" {
 			continue
 		}
-		f, err := s.newFold(m, p.members[m.ID])
+		f, err := s.newFold(m, members[m.ID])
 		if err != nil {
 			return err
 		}
-		for _, i := range p.members[m.ID] {
+		for _, i := range members[m.ID] {
 			placed[i.ID] = true
 		}
 		folds = append(folds, f)
@@ -83,8 +72,7 @@ func (s *server) fillMilestones(p *projectPage, _ map[string]map[string]int) err
 	if err != nil {
 		return err
 	}
-	p.Milestones = milestonePanelOf(folds, none)
-	p.Milestones.Inset = insetOf(p.Milestones, folds, none, p.Designs.Product)
+	p.Milestones = milestonePanelOf(folds, none, p.Designs.Product)
 	return nil
 }
 
