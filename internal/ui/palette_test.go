@@ -80,7 +80,7 @@ func TestPalette_ListsTopicsAndDropsSessions(t *testing.T) {
 func TestPalette_OpenerAndList(t *testing.T) {
 	h, _ := seed(t)
 	_, body := do(h, "GET", "/")
-	button := regexp.MustCompile(`<button\b[^>]*>`).FindString(body)
+	button := regexp.MustCompile(`<button\b[^>]*\bid="palette-q"[^>]*>`).FindString(body)
 	for _, attr := range []string{`type="button"`, `id="palette-q"`, `aria-haspopup="dialog"`} {
 		if !strings.Contains(button, attr) {
 			t.Errorf("opener %q lacks %s", button, attr)
