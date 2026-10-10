@@ -317,7 +317,7 @@ func (s *view) cited(key string, rows []index.LinkRow) []citedGroup {
 		seen[r.Source] = true
 		t := typeOfKey(r.Source)
 		if t == string(core.TypeSession) {
-			continue // no session page exists, so a link to one would 404
+			continue // sessions have no list page (decision anvil-human-view.0004), so "N more" would 404
 		}
 		byType[t] = append(byType[t], r.Source)
 	}

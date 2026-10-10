@@ -23,16 +23,17 @@ type proseItem struct {
 }
 
 type projectPage struct {
-	Name, Deck    string
-	Conventions   string
-	Counts        []proseItem
-	Milestones    milestonesPanel
-	Done          []doneRow
-	Designs       designs
-	Decided       []proseGroup
-	Learned       []proseGroup
-	LearnedDrafts int
-	OpenThreads   []proseItem
+	Name, Deck      string
+	Conventions     string
+	ConventionsVerb string
+	Counts          []proseItem
+	Milestones      milestonesPanel
+	Done            []doneRow
+	Designs         designs
+	Decided         []proseGroup
+	Learned         []proseGroup
+	LearnedDrafts   int
+	OpenThreads     []proseItem
 }
 
 // project serves one project's dashboard; a project with no artifacts is a 404.
@@ -64,6 +65,7 @@ func (s *server) buildProject(name string, counts map[string]map[string]int) (pr
 		return page, err
 	}
 	page.Conventions = plural(all["convention"], "convention", "conventions")
+	page.ConventionsVerb = pluralWord(all["convention"], "is", "are")
 	threads, err := s.projectThreads(name)
 	if err != nil {
 		return page, err

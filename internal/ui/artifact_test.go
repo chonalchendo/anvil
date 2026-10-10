@@ -109,7 +109,7 @@ func TestCited_GroupsCountsCapsAndOmitsEmpty(t *testing.T) {
 	}
 }
 
-// Warrant: session pages are gone, so a session citer must neither group nor link to /type/session.
+// Warrant: the session list is gone, so a session citer must neither group nor link to /type/session.
 func TestCited_SkipsSessionSources(t *testing.T) {
 	h, v := seed(t)
 	for i := 1; i <= 10; i++ {
