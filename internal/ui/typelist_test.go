@@ -298,3 +298,11 @@ func TestTypeIcons(t *testing.T) {
 		}
 	}
 }
+
+// Warrant: fails if ?topic= stops filtering decisions and threads by id prefix, or drops the chip.
+func TestTypeList_TopicFilter(t *testing.T) {
+	_, body := do(topicVault(t), "GET", "/type/decision?topic=gamma")
+	if !strings.Contains(body, "decision.gamma.0001-a") || strings.Contains(body, "decision.alpha") || !strings.Contains(body, "topic gamma") {
+		t.Errorf("topic filter wrong:\n%s", body)
+	}
+}

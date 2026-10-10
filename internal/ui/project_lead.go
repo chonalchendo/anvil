@@ -9,6 +9,9 @@ import (
 	"time"
 )
 
+// milestoneOrder lists the milestone status groups shown, in order.
+var milestoneOrder = []string{"in-progress", "planned", "done", "abandoned"}
+
 // openCounts is the open-issue tally behind the lead sentence and the empty-state inset.
 type openCounts struct {
 	// Under is open issues in the not-done milestones; None is open issues in the last fold.

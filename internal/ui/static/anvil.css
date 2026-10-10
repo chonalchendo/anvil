@@ -92,11 +92,6 @@ dialog ul { list-style: none; padding: 0; margin: 8px 0 0; max-height: 50vh; ove
 dialog li { padding: 4px 8px; border-radius: var(--radius); font-family: var(--mono); font-size: 12px; }
 dialog li[aria-selected="true"] { background: var(--sel); box-shadow: 0 0 0 1px var(--accent); }
 
-.tree, .tree ul { list-style: none; padding-left: 0; margin: 0; }
-.tree ul { padding-left: 18px; border-left: 1px solid var(--border); margin-left: 6px; }
-.tree li { padding: 2px 0; }
-.tree summary { cursor: pointer; padding: 2px 4px; border-radius: var(--radius); }
-.tree summary.group, .tree .group { color: var(--text-2); font-weight: 500; }
 /* Glyph and word share the hue; the accent is not a status. */
 .status { font-size: 12px; margin-left: 6px; white-space: nowrap; }
 .rows-table td { padding: 4px 8px 4px 0; }
@@ -128,8 +123,6 @@ details.layer > .body { padding: 0 12px; }
 details.section > summary h2 { display: inline; margin: 0; font-size: 1em; }
 details.section > summary .count { float: right; color: var(--muted); }
 details.section > :not(summary) { margin-left: 12px; margin-right: 12px; }
-.tree summary .count { margin-left: 8px; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
-.tree li.more > details > summary { color: var(--muted); }
 footer.keys { position: fixed; bottom: 0; right: 0; left: var(--sidebar-w); display: flex; gap: 16px; padding: 6px 32px; background: var(--panel); border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
 .sidebar nav a .ticon { width: 18px; height: 18px; margin-right: 8px; font-size: 11px; }
 .tabs .count { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -147,10 +140,6 @@ footer.keys { position: fixed; bottom: 0; right: 0; left: var(--sidebar-w); disp
 .hits h2 .count { color: var(--muted); font: 12px var(--mono); }
 mark { background: var(--sel); color: var(--text); box-shadow: 0 0 0 1px var(--accent); border-radius: 2px; }
 
-.now { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
-.now h2 { font-size: 13px; color: var(--text-2); margin: 0 0 6px; }
-.now ul { list-style: none; padding: 0; margin: 0; }
-.now li { padding: 2px 0; }
 .judge { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 8px 0 0; font-size: 12px; }
 .judge .jk { color: var(--muted); }
 .judge .jv { color: var(--text); margin-right: 8px; }
@@ -167,6 +156,7 @@ main:has(.canvas[data-full]) { height: 100vh; display: flex; flex-direction: col
 
 .sidebar details.browse > summary { padding: 4px 8px; border-radius: var(--radius); color: var(--text-2); cursor: pointer; }
 .sidebar details.browse > summary:hover { background: var(--sel); color: var(--text); }
+.sidebar nav[aria-label="Knowledge"] a[aria-current] { background: none; box-shadow: inset 2px 0 0 var(--accent); color: var(--text); font-weight: 500; }
 .sidebar .projects a[aria-current="page"] { background: none; box-shadow: inset 2px 0 0 var(--accent); color: var(--text); font-weight: 500; }
 
 main:has(.dashboard) { padding: 36px 48px 64px; }
@@ -250,3 +240,45 @@ main:has(.desk) { padding: 0; }
 .node-col .body { max-width: 88ch; }
 .crumbs a { text-decoration-color: var(--muted); }
 .crumbs a:hover, a[class^="to-"]:hover { text-decoration-color: var(--text); }
+
+main:has(.knowledge), main:has(.topic) { padding: 36px 48px 64px; }
+.knowledge h1, .topic h1 { margin: 0; font-size: 28px; line-height: 1.2; }
+.knowledge .deck, .topic .deck { margin: 6px 0 0; max-width: 72ch; font-size: 16px; line-height: 1.45; }
+.knowledge .head, .topic .head { padding-bottom: 26px; }
+.knowledge .panel, .topic .panel { padding: 26px 0 28px; border-top: 1px solid var(--border); }
+.knowledge .lbl, .topic .lbl { margin: 0 0 6px; font-size: 16px; font-weight: 400; line-height: 1.3; color: var(--text-2); }
+.lbl small { font-size: 13px; color: var(--muted); }
+.knowledge :is(h1, h2, h3), .topic :is(h1, h2, h3) { text-wrap: balance; }
+.knowledge [id], .topic [id] { scroll-margin-top: 24px; }
+.topic .crumbs { margin-bottom: 12px; }
+.topic .crumbs a { color: var(--text-2); }
+.topic-head, .topics li { display: grid; grid-template-columns: 210px minmax(0, 1fr) 250px 64px; gap: 0 24px; align-items: baseline; }
+.topic-head { padding-bottom: 8px; font-size: 11px; color: var(--muted); }
+.topic-head .r, .topics .meta { text-align: right; }
+.topics, .other-list, .k-list, .seq, .rows { list-style: none; margin: 0; padding: 0; }
+.topics li { padding: 9px 0; border-top: 1px solid var(--border); content-visibility: auto; contain-intrinsic-size: auto 44px; }
+.tname { font-weight: 500; overflow-wrap: anywhere; }
+.syn { margin: 0; color: var(--text-2); }
+.tc { margin: 0; color: var(--muted); }
+.tc .status, .other-list .status, .seq .status, .rows .status { margin-left: 0; font-size: inherit; }
+.meta { color: var(--muted); font-variant-numeric: tabular-nums; }
+.other { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.other summary { cursor: pointer; color: var(--text-2); }
+.other-list { columns: 3 240px; column-gap: 32px; margin-top: 10px; }
+.other-list li { padding: 3px 0; break-inside: avoid; content-visibility: auto; contain-intrinsic-size: auto 24px; }
+.k { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: 0 48px; }
+.k .lede { margin: 0; }
+.k-list li { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 2px 20px; padding: 7px 0; border-top: 1px solid var(--border); content-visibility: auto; contain-intrinsic-size: auto 52px; }
+.k-list li:first-child { border-top: 0; padding-top: 0; }
+.k-list a { font-weight: 500; }
+.k-list .meta { text-align: right; white-space: nowrap; }
+.k-list .route { grid-column: 1 / -1; color: var(--text-2); }
+.seq li, .rows li { display: grid; grid-template-columns: 52px minmax(0, 2fr) minmax(0, 3fr) 120px 64px; gap: 2px 20px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--border); }
+.seq li:first-child, .rows li:first-child { border-top: 0; }
+.seq a, .rows a { font-weight: 500; }
+.rows li > a { grid-column: 2 / span 2; }
+.seq .one { margin: 0; color: var(--text-2); }
+.seq .meta, .rows .meta { text-align: right; }
+.rows .route { grid-column: 2 / -1; color: var(--text-2); }
+.sub { margin: 14px 0 4px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
+.none-yet { margin: 0; padding: 6px 0 4px; color: var(--muted); }

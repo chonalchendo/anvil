@@ -159,7 +159,7 @@ func TestArtifactPage_NotFound(t *testing.T) {
 
 func TestRoutes_PostReturns405(t *testing.T) {
 	h, _ := seed(t)
-	for _, p := range []string{"/", decisionPath, stackPath, "/type/decision", "/palette", "/search?q=x", "/compare?a=product-design.anvil&b=decision.ui.0001-a-decision", "/diagram/anvil-two-loop", "/diagram-src/anvil-two-loop", "/static/anvil.css"} {
+	for _, p := range []string{"/", decisionPath, stackPath, "/type/decision", "/topic/ui", "/palette", "/search?q=x", "/compare?a=product-design.anvil&b=decision.ui.0001-a-decision", "/diagram/anvil-two-loop", "/diagram-src/anvil-two-loop", "/static/anvil.css"} {
 		for _, m := range []string{"POST", "PUT", "DELETE", "PATCH"} {
 			if code, _ := do(h, m, p); code != 405 {
 				t.Errorf("%s %s = %d, want 405", m, p, code)
@@ -225,7 +225,7 @@ func TestServe_RefusesNonLoopback(t *testing.T) {
 func TestRequestsDoNotWriteVault(t *testing.T) {
 	h, v := seed(t)
 	before := hashTree(t, v.Root)
-	for _, p := range []string{"/", decisionPath, stackPath, "/artifact/milestone.anvil.m1", "/type/decision", "/palette", "/search?q=x", "/compare?a=product-design.anvil&b=decision.ui.0001-a-decision", "/diagram/anvil-two-loop", "/diagram-src/anvil-two-loop", "/static/anvil.css"} {
+	for _, p := range []string{"/", decisionPath, stackPath, "/artifact/milestone.anvil.m1", "/type/decision", "/topic/ui", "/palette", "/search?q=x", "/compare?a=product-design.anvil&b=decision.ui.0001-a-decision", "/diagram/anvil-two-loop", "/diagram-src/anvil-two-loop", "/static/anvil.css"} {
 		do(h, "GET", p)
 		do(h, "POST", p)
 	}
@@ -271,9 +271,14 @@ func TestTemplates_RenderOnFixtureData(t *testing.T) {
 		t.Fatalf("artifact template status = %d", rec.Code)
 	}
 	rec = httptest.NewRecorder()
-	p.render(rec, "home", sidebar{}, homePage{})
+	p.render(rec, "knowledge", sidebar{}, knowledgePage{})
 	if rec.Code != 200 {
-		t.Fatalf("home template status = %d", rec.Code)
+		t.Fatalf("knowledge template status = %d", rec.Code)
+	}
+	rec = httptest.NewRecorder()
+	p.render(rec, "topic", sidebar{}, topicPage{})
+	if rec.Code != 200 {
+		t.Fatalf("topic template status = %d", rec.Code)
 	}
 }
 
@@ -285,6 +290,53 @@ func TestPackage_DoesNotImportCLI(t *testing.T) {
 	for _, dep := range strings.Fields(string(out)) {
 		if strings.Contains(dep, "/internal/cli") {
 			t.Errorf("internal/ui depends on %s", dep)
+		}
+	}
+}
+
+func inOrder(t *testing.T, body string, parts ...string) {
+	t.Helper()
+	at := 0
+	for _, p := range parts {
+		i := strings.Index(body[at:], p)
+		if i < 0 {
+			t.Fatalf("%q missing or out of order in:\n%s", p, body)
+		}
+		at += i + len(p)
+	}
+}
+
+// Warrant: the hint bar must list only the keys its page handles, so a dead key never shows.
+func TestKeyHints_PerPage(t *testing.T) {
+	h, _ := seed(t)
+	jk := []string{">j<", ">k<", ">o<", ">⇧O<", ">⇧C<"}
+	arrows := []string{">↑<", ">↓<", ">←<", ">→<"}
+	cases := []struct {
+		path       string
+		want, dead []string
+	}{
+		{"/", []string{">⌘K<"}, append(append([]string{}, jk...), arrows...)},
+		{"/type/decision", []string{">⌘K<"}, append(append([]string{}, jk...), arrows...)},
+		{decisionPath, append([]string{">⌘K<"}, jk...), arrows},
+		{stackPath, append([]string{">⌘K<"}, jk...), arrows},
+	}
+	for _, c := range cases {
+		_, body := do(h, "GET", c.path)
+		i := strings.Index(body, `<footer class="keys">`)
+		if i < 0 || strings.Index(body, "</main>") > i {
+			t.Errorf("%s: footer missing or before main", c.path)
+			continue
+		}
+		bar := body[i : i+strings.Index(body[i:], "</footer>")]
+		for _, k := range c.want {
+			if !strings.Contains(bar, k) {
+				t.Errorf("%s: hint bar lacks %s", c.path, k)
+			}
+		}
+		for _, k := range c.dead {
+			if strings.Contains(bar, k) {
+				t.Errorf("%s: hint bar lists dead key %s", c.path, k)
+			}
 		}
 	}
 }

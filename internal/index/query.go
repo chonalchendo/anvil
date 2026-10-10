@@ -430,6 +430,18 @@ func (d *DB) LinksTo(target string) ([]LinkRow, error) {
 	return d.linkQuery(`SELECT source, target, relation, anchor FROM links WHERE target = ? ORDER BY source, relation`, target)
 }
 
+// LinksToAny returns incoming edges to any of the targets, in one read.
+func (d *DB) LinksToAny(targets []string) ([]LinkRow, error) {
+	if len(targets) == 0 {
+		return nil, nil
+	}
+	args := make([]any, len(targets))
+	for i, t := range targets {
+		args[i] = t
+	}
+	return d.linkQuery(`SELECT source, target, relation, anchor FROM links WHERE target IN (`+strings.TrimSuffix(strings.Repeat("?,", len(targets)), ",")+`) ORDER BY source, target, relation`, args...)
+}
+
 // LinksUnresolved returns edges whose target has no row in artifacts.
 func (d *DB) LinksUnresolved() ([]LinkRow, error) {
 	return d.linkQuery(`SELECT l.source, l.target, l.relation, l.anchor FROM links l LEFT JOIN artifacts a ON a.id = l.target WHERE a.id IS NULL ORDER BY l.source, l.target`)

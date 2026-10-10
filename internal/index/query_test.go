@@ -261,6 +261,31 @@ func TestLinksFromAndTo(t *testing.T) {
 	}
 }
 
+func TestLinksToAny(t *testing.T) {
+	db := openTestDB(t)
+	for _, id := range []string{"a", "b"} {
+		if err := db.UpsertArtifact(ArtifactRow{ID: id, Type: "issue", Path: "/" + id + ".md"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := db.ReplaceLinks("a", []LinkRow{{Source: "a", Target: "t1", Relation: "related"}, {Source: "a", Target: "t3", Relation: "related"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ReplaceLinks("b", []LinkRow{{Source: "b", Target: "t2", Relation: "related"}}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := db.LinksToAny([]string{"t1", "t2"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Source != "a" || got[1].Source != "b" {
+		t.Fatalf("LinksToAny: %v", got)
+	}
+	if none, err := db.LinksToAny(nil); err != nil || len(none) != 0 {
+		t.Fatalf("empty targets: %v, %v", none, err)
+	}
+}
+
 func TestLinksUnresolved(t *testing.T) {
 	db := openTestDB(t)
 	must := func(err error) {

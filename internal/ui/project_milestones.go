@@ -24,6 +24,7 @@ type statusN struct {
 // msFold is one milestone with its issues, or the "No milestone" group.
 type msFold struct {
 	node
+	Open               bool
 	Approved, Measured string
 	Resolved, Total    int
 	Abandoned          int
