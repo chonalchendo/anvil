@@ -1,7 +1,7 @@
 package core
 
-// RequiredProductDesignSections is the section order writing-product-design
-// Phase 6 prescribes. Validate does not enforce it; only --show-template
+// RequiredProductDesignSections owns the product-design section order; writing-product-design points here via --show-template.
+// Validate does not enforce it; only --show-template
 // prints it. The no-body create keeps an empty design body.
 var RequiredProductDesignSections = []string{
 	"## TL;DR",
@@ -16,8 +16,7 @@ var RequiredProductDesignSections = []string{
 	"## Milestones",
 }
 
-// RequiredSystemDesignSections is the section order writing-system-design
-// "Required sections" prescribes. Validate does not enforce it.
+// RequiredSystemDesignSections owns the system-design section order; writing-system-design points here via --show-template. Validate does not enforce it.
 var RequiredSystemDesignSections = []string{
 	"## TL;DR",
 	"## Context and scope",
