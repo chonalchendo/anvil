@@ -111,8 +111,7 @@ func preResolutionRefusal(cmd *cobra.Command, asJSON bool, t core.Type, missingT
 		for _, c := range caps {
 			vs = append(vs, c)
 		}
-		printValidationErrorsJSON(cmd, vs)
-		return jsonRendered{ErrSchemaInvalid}
+		return emitValidationErrorsJSON(cmd, vs)
 	}
 	var errs []error
 	if missingTitle {
