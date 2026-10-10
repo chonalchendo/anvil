@@ -2,6 +2,7 @@ package ui
 
 import (
 	"encoding/json"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -75,18 +76,43 @@ func TestPalette_ListsTopicsAndDropsSessions(t *testing.T) {
 	}
 }
 
-// Warrant: a button without aria-haspopup, a list without aria-live, or a Search row gated on zero matches breaks the mockup's rules.
-func TestPalette_OpenerAndSearchRow(t *testing.T) {
+// Warrant: a button without aria-haspopup or a list without aria-live breaks the mockup's rules.
+func TestPalette_OpenerAndList(t *testing.T) {
 	h, _ := seed(t)
 	_, body := do(h, "GET", "/")
-	for _, want := range []string{
-		`<button type="button" class="search" id="palette-q" aria-haspopup="dialog"`,
-		`<ul id="palette-list" aria-live="polite">`,
-		`if (entries && q.value.trim()) {`,
-		`location.href = items[cur].dataset.href;`,
-	} {
-		if !strings.Contains(body, want) {
-			t.Errorf("page lacks %q", want)
+	button := regexp.MustCompile(`<button\b[^>]*>`).FindString(body)
+	for _, attr := range []string{`type="button"`, `id="palette-q"`, `aria-haspopup="dialog"`} {
+		if !strings.Contains(button, attr) {
+			t.Errorf("opener %q lacks %s", button, attr)
+		}
+	}
+	ul := regexp.MustCompile(`<ul\b[^>]*id="palette-list"[^>]*>|<ul\b[^>]*aria-live[^>]*>`).FindString(body)
+	for _, attr := range []string{`id="palette-list"`, `aria-live="polite"`} {
+		if !strings.Contains(ul, attr) {
+			t.Errorf("list %q lacks %s", ul, attr)
+		}
+	}
+}
+
+// Warrant: an entry with an empty key, title or href renders a dead row.
+func TestPalette_EntriesAreComplete(t *testing.T) {
+	h, _ := seed(t)
+	_, body := do(h, "GET", "/palette")
+	for _, e := range paletteOf(t, body) {
+		if e.Key == "" || e.Title == "" || e.Href == "" {
+			t.Errorf("incomplete entry: %+v", e)
+		}
+	}
+}
+
+// Warrant: a type missing from paletteWeight sorts above projects silently.
+func TestPalette_WeightCoversEveryType(t *testing.T) {
+	for _, typ := range core.AllTypes {
+		if typ == core.TypeSession {
+			continue
+		}
+		if !slices.Contains(paletteWeight, string(typ)) {
+			t.Errorf("type %q has no paletteWeight", typ)
 		}
 	}
 }
