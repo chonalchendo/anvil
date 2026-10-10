@@ -106,7 +106,7 @@ After each landing, fast-forward the parent checkout to the base branch tip (`gi
 A landed issue with a null cost landed before the stamp shipped, or the land skipped it. Report it. Never stamp a cost by hand.
 
 - Open criteria remain: return to Phase 1.
-- The finish line is green: harvest learnings (Phase 8), then stop at the acceptance gate.
+- The finish line is green: harvest learnings (Phase 8), replay if Phase 8b applies, then stop at the acceptance gate.
 
 Do not run `anvil transition milestone <id> done`. Report the green finish line and let the human accept.
 
@@ -123,6 +123,12 @@ Each exit is a halt that returns to the human with a reason. There is one escala
 Run this after the human's landings. Collect gotchas, confirmed approaches and dead ends from the landed PRs only. Flag any cross-PR breakage on the base branch. Fire `distilling-learning` in attended autonomous mode. Distil only when you can name the future failure the learning prevents. Most milestones yield one or none.
 
 An unattended orchestrator does not distil. It lists `Harvest candidates:` in the report and stops.
+
+## Phase 8b — Replay (optional)
+
+Run `anvil replay` after the harvest, only when the milestone's merged PRs changed a skill or an agent. Replay a set of resolved issues with a fair worker. Report each result beside the issue's landed cost. The orchestrator decides; nothing triggers it.
+
+**REQUIRED REFERENCE:** Use skills/running-milestone/references/replay.md before the first replay.
 
 ## Report
 
