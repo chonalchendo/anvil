@@ -18,7 +18,7 @@ func TestNodeHeader_ShowsIdentityAndSlots(t *testing.T) {
 		t.Fatal("node header missing")
 	}
 	head := body[i:j]
-	for _, want := range []string{"<h1>Thing</h1>", `class="status status-in-progress"`, "●", "in-progress", `<p class="deck">Deck line</p>`, `<p class="state">`, "updated 2026-10-09"} {
+	for _, want := range []string{"<h1>Thing</h1>", `class="status status-in-progress"`, "●", "in-progress", `<p class="deck">Deck line</p>`, `<p class="state">`, `updated <time datetime="2026-10-09">2026-10-09</time>`} {
 		if !strings.Contains(head, want) {
 			t.Errorf("header lacks %q", want)
 		}

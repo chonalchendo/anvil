@@ -7,7 +7,7 @@
 <header class="node">
 <div class="node-title"><span class="ticon type-{{.Head.Type}}" title="{{.Head.Type}}" aria-hidden="true">{{.Head.Icon}}</span><h1>{{.Title}}</h1></div>
 {{with .Head.Description}}<p class="deck">{{.}}</p>{{end}}
-<p class="state">{{if .Head.Status}}<span class="status status-{{.Head.Status}}{{with hue .Head.Type .Head.Status}} status-{{.}}{{end}}">{{.Head.Glyph}} {{.Head.Status}}</span>{{end}}{{with .Head.Project}}<span>{{.}}</span>{{end}}{{with .Head.Updated}}<span>updated {{.}}</span>{{end}}{{range .Head.Slots}}<span>{{.Name}} {{range .Values}}{{anchor .}} {{end}}</span>{{end}}</p>
+<p class="state">{{if .Head.Status}}<span class="status status-{{.Head.Status}}{{with hue .Head.Type .Head.Status}} status-{{.}}{{end}}">{{.Head.Glyph}} {{.Head.Status}}</span>{{end}}{{with .Head.Project}}<span translate="no">{{.}}</span>{{end}}{{with .Head.Updated}}<span>updated <time datetime="{{.}}">{{.}}</time></span>{{end}}{{range .Head.Slots}}<span>{{.Name}} {{range .Values}}{{anchor .}} {{end}}</span>{{end}}</p>
 </header>
 {{range .Diagrams}}{{template "canvas" .}}
 {{end}}<section class="body">{{.Body}}</section>

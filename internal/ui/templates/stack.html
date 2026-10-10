@@ -1,7 +1,7 @@
 {{define "title"}}Stack · {{.Page.Title}} · anvil{{end}}
 {{define "content"}}{{with .Page}}
 {{template "tabs" .Tabs}}
-<header><h1>{{.Title}}</h1><code class="key">{{.Key}}</code> <span class="muted">{{len .Layers}} layers · {{.Total}}</span></header>
+<header><h1>{{.Title}}</h1><code class="key" translate="no">{{.Key}}</code> <span class="muted">{{len .Layers}} layers · {{.Total}}</span></header>
 {{range .Layers}}<details class="layer"><summary><span class="muted">{{.Type}}</span> {{anchor .Ref}} {{.Title}} <span class="status status-{{.Status}}{{with hue .Type .Status}} status-{{.}}{{end}}">{{.Glyph}} {{.Status}}</span> <span class="muted size">{{.Size}}</span></summary>
 <section class="body">{{.Body}}</section></details>
 {{end}}

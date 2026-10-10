@@ -9,33 +9,36 @@
 <link rel="stylesheet" href="{{asset "anvil.css"}}">
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
 <aside class="sidebar">
   <a class="brand" href="/">anvil</a>
   <button type="button" class="search" id="palette-q" aria-haspopup="dialog" aria-label="Search or jump to an artifact"><span>Search or jump to…</span><kbd>⌘K</kbd></button>
   <nav aria-label="Knowledge"><a href="/"{{with .Sidebar.Knowledge}} aria-current="{{.}}"{{end}}>Knowledge</a></nav>
   <nav aria-label="Projects">
     {{with .Sidebar.Projects}}<div class="group">Projects</div>
-    <ul class="projects">{{range .}}<li><a href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{.Name}}</a></li>{{end}}</ul>{{end}}
+    <ul class="projects">{{range .}}<li><a href="{{.Href}}"{{if .Current}} aria-current="page"{{end}} translate="no">{{.Name}}</a></li>{{end}}</ul>{{end}}
   </nav>
 </aside>
-<main>{{block "content" .}}{{end}}</main>
-<dialog id="palette"><input id="palette-dq" type="search" placeholder="Jump to…" aria-label="Jump to an artifact"><ul id="palette-list" aria-live="polite"></ul></dialog>
+<main id="main">{{block "content" .}}{{end}}</main>
+<dialog id="palette" aria-label="Search or jump to"><input id="palette-dq" type="search" role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="palette-list" aria-activedescendant="" placeholder="Jump to…" aria-label="Jump to an artifact"><ul id="palette-list" role="listbox" aria-label="Results" aria-live="polite"></ul></dialog>
 <script>
 (function () {
   var dlg = document.getElementById('palette'), q = document.getElementById('palette-dq'), side = document.getElementById('palette-q'),
       list = document.getElementById('palette-list'), entries = null, cur = 0;
+  function mark(a) { a.setAttribute('aria-current', 'true'); q.setAttribute('aria-activedescendant', a.id); }
   function row(text, href, on) {
     var li = document.createElement('li'), a = document.createElement('a');
-    a.textContent = text; a.href = href; a.tabIndex = -1; li.appendChild(a);
-    if (on) a.setAttribute('aria-current', 'true');
+    a.textContent = text; a.href = href; a.tabIndex = -1; a.id = 'palette-r' + list.children.length; a.setAttribute('role', 'option'); a.translate = false;
+    li.setAttribute('role', 'presentation'); li.appendChild(a);
     list.appendChild(li);
+    if (on) mark(a);
   }
   function show() {
     var s = q.value.toLowerCase(), n = 0;
-    list.textContent = '';
+    list.textContent = ''; q.setAttribute('aria-activedescendant', '');
     (entries || []).forEach(function (e) {
       if (n >= 30 || (e.key + ' ' + e.title).toLowerCase().indexOf(s) < 0) return;
-      row(e.key + '  ' + e.title, e.href, n === cur); n++;
+      row(e.key === e.title ? e.key : e.key + '  ' + e.title, e.href, n === cur); n++;
     });
     if (entries && q.value.trim()) {
       row('Search bodies for \u201c' + q.value.trim() + '\u201d', '/search?q=' + encodeURIComponent(q.value.trim()), n === cur);
@@ -61,7 +64,7 @@
     var prev = list.querySelector('[aria-current]');
     if (prev) prev.removeAttribute('aria-current');
     var a = items[cur].firstChild;
-    a.setAttribute('aria-current', 'true'); a.scrollIntoView({block: 'nearest'});
+    mark(a); a.scrollIntoView({block: 'nearest'});
   });
   var layers = function () { return Array.prototype.slice.call(document.querySelectorAll('details.layer, details.section')); }, at = -1;
   function focusLayer(i) { var l = layers(); if (!l.length) return; at = Math.max(0, Math.min(l.length - 1, i)); l[at].querySelector('summary').focus(); }

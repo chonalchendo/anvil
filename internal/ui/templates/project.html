@@ -1,10 +1,12 @@
 {{define "title"}}{{.Page.Name}} · anvil{{end}}
-{{define "lately"}}{{range .}}{{.Sep}}<a href="{{.Href}}">{{.Title}}</a> <span class="muted">({{.Updated}})</span>{{end}}{{end}}
+{{define "when"}}{{if .UpdatedISO}}<time datetime="{{.UpdatedISO}}">{{.Updated}}</time>{{else}}{{.Updated}}{{end}}{{end}}
+{{define "lately"}}{{range .}}{{.Sep}}<a href="{{.Href}}"{{with .Status}} class="to-{{.}}"{{end}}>{{.Title}}</a>{{with .Note}} {{.}}{{end}}{{if .Updated}} ({{template "when" .}}){{end}}{{end}}{{end}}
 {{define "lately-links"}}{{range .}}{{.Sep}}<a href="{{.Href}}">{{.Title}}</a>{{end}}{{end}}
-{{define "prose"}}{{range .}}<p>{{template "stat" .}}: {{template "lately" .Items}}.</p>{{end}}{{end}}
+{{define "prose"}}{{range .}}<p>{{range $i, $c := .}}{{if $i}} {{end}}{{$c.Lead}}{{if $c.Date}} <time datetime="{{$c.ISO}}">{{$c.Date}}</time>{{end}}{{if $c.Items}} {{template "lately" $c.Items}}{{end}}.{{end}}</p>
+{{end}}{{end}}
 {{define "content"}}{{with .Page}}<div class="dashboard">
 <header class="head">
-  <h1>{{.Name}}</h1>
+  <h1 translate="no">{{.Name}}</h1>
   {{with .Deck}}<p class="deck">{{.}}</p>{{end}}
   <p class="counts">{{.Name}} holds {{template "lately-links" .Counts}}{{if .Counts}}; {{end}}<a href="/type/convention">{{.Conventions}}</a> {{.ConventionsVerb}} shared by every project.</p>
 </header>
@@ -22,11 +24,11 @@
 </section>{{end}}
 <section class="work" aria-label="Work">
   {{with .Done}}<div class="band"><h2>Recently done</h2>
-    <ul class="done-list">{{range .}}<li><span class="status status-done" aria-hidden="true">✓</span><a href="{{.Href}}">{{.Title}}</a><span class="meta">{{.Resolved}} of {{.Total}}, {{.Updated}}{{with .SHA}}, <code>{{.}}</code>{{end}}</span></li>{{end}}</ul>
+    <ul class="done-list">{{range .}}<li><span class="status status-done" aria-hidden="true">✓</span><a href="{{.Href}}" class="to-done">{{.Title}}</a><span class="meta">{{.Resolved}} of {{.Total}}, {{template "when" .}}{{with .SHA}}, <code translate="no">{{.}}</code>{{end}}</span></li>{{end}}</ul>
   </div>{{end}}
 
   {{with .Designs}}{{if or .Canvases .Product .System .Comps}}<div class="band"><h2>Designs</h2>
-    <div class="strip">{{range .Canvases}}<figure><div class="thumb">{{template "canvas" .}}<a class="cover" href="/diagram/{{.Name}}" aria-label="Open diagram {{.Name}}"></a></div><figcaption><code>{{.Name}}</code>{{with .Note}} {{.}}{{end}}</figcaption></figure>{{end}}
+    <div class="strip">{{range .Canvases}}<figure><div class="thumb">{{template "canvas" .}}<a class="cover" href="/diagram/{{.Name}}" aria-label="Open diagram {{.Name}}"></a></div><figcaption><code translate="no">{{.Name}}</code>{{with .Note}} {{.}}{{end}}</figcaption></figure>{{end}}
     <div class="comps">
       {{with .Product}}<span>Product: {{range $i, $c := .}}{{if $i}}, {{end}}<a href="{{$c.Href}}">{{$c.Title}}</a>{{end}}</span>{{end}}
       {{with .System}}<span>System: {{range $i, $c := .}}{{if $i}}, {{end}}<a href="{{$c.Href}}">{{$c.Title}}</a>{{end}}</span>{{end}}
@@ -35,11 +37,18 @@
   </div>{{end}}{{end}}
 
   <div class="band two">
-    <div><h2>Decided lately</h2>{{with .Decided}}{{template "prose" .}}{{else}}<p class="muted">No decision yet.</p>{{end}}</div>
-    <div><h2>Learned lately</h2>
-      {{if or .Learned .LearnedDrafts}}{{if .LearnedDrafts}}<p>{{.LearnedDrafts}} drafts in all.</p>{{end}}{{template "prose" .Learned}}{{else}}<p class="muted">No learning yet.</p>{{end}}
-      {{with .OpenThreads}}<p>Still open: {{template "lately" .}}.</p>{{end}}
-    </div>
+    <section class="prose" aria-labelledby="decided">
+      <h2 class="lbl" id="decided">Decided lately</h2>
+      {{with .Decided}}{{template "prose" .}}{{else}}<p class="muted">No decision yet.</p>{{end}}
+    </section>
+    <section class="prose" aria-labelledby="learned">
+      <h2 class="lbl" id="learned">Learned lately</h2>
+      {{with .Learned}}{{template "prose" .}}{{else}}<p class="muted">No learning yet.</p>{{end}}
+    </section>
   </div>
+  {{with .OpenThreads}}<section class="prose band" aria-labelledby="threads">
+    <h2 class="lbl" id="threads">Threads</h2>
+    <p>Still open: {{template "lately" .}}.</p>
+  </section>{{end}}
 </section>
 </div>{{end}}{{end}}

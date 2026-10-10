@@ -43,7 +43,7 @@ func TestSidebar_HoldsSearchKnowledgeAndProjectsOnly(t *testing.T) {
 func TestSidebar_CurrentProjectMarked(t *testing.T) {
 	h, _ := seed(t)
 	_, body := do(h, "GET", "/project/anvil")
-	if sb := sidebarOf(t, body); !strings.Contains(sb, `<a href="/project/anvil" aria-current="page">anvil</a>`) {
+	if sb := sidebarOf(t, body); !strings.Contains(sb, `<a href="/project/anvil" aria-current="page" translate="no">anvil</a>`) {
 		t.Errorf("current project is not marked:\n%s", sb)
 	}
 }

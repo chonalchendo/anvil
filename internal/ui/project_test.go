@@ -72,16 +72,16 @@ func TestProject_Dashboard(t *testing.T) {
 		`href="/artifact/system-design.anvil"`, `href="/artifact/product-design.anvil"`,
 		`href="/diagram/anvil-two-loop"`, `href="/artifact/issue.anvil.0001-live-issue"`,
 		`href="/artifact/decision.anvil.0009-late"`, `href="/type/issue?project=anvil"`,
-		`<code>deadbee</code>`, `A deck line`, `loading="lazy"`,
+		`<code translate="no">deadbee</code>`, `A deck line`, `loading="lazy"`,
 		`href="/artifact/thread.anvil-design-docs.0001-ours"`, `href="/artifact/thread.anvil.0002-also-ours"`,
-		`Still open:`, `(7 Oct)`, `(8 Oct)`, `1 of 1, 1 Oct`, `<code>anvil-two-loop</code> The state lives in the vault.`,
+		`Still open:`, `(<time datetime="2026-10-07">7 Oct</time>)`, `(<time datetime="2026-10-08">8 Oct</time>)`, `1 of 1, <time datetime="2026-10-01">1 Oct</time>`, `<code translate="no">anvil-two-loop</code> The state lives in the vault.`,
 		`href="/type/thread"`, `>3 threads</a>`, `9 Oct`, `not approved`, `not measured`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("dashboard lacks %q", want)
 		}
 	}
-	for _, bad := range []string{"Foreign thread", "Mentat thread", "2026-10-08"} {
+	for _, bad := range []string{"Foreign thread", "Mentat thread", ">2026-10-08<"} {
 		if strings.Contains(body, bad) {
 			t.Errorf("dashboard holds %q", bad)
 		}

@@ -17,9 +17,14 @@ const lately = 5
 
 // proseItem is a node with the short date it was last updated, for the prose bands.
 // Sep is the text that joins it to the item before it in a sentence.
+// Note follows the title; an empty Updated prints no date.
 type proseItem struct {
 	node
-	Updated, Sep string
+	Updated, UpdatedISO, Sep, Note string
+}
+
+func proseOf(r index.ArtifactRow) proseItem {
+	return proseItem{node: leaf(r), Updated: shortDate(r.Updated), UpdatedISO: day(r.Updated)}
 }
 
 type projectPage struct {
@@ -30,9 +35,8 @@ type projectPage struct {
 	Milestones      milestonesPanel
 	Done            []doneRow
 	Designs         designs
-	Decided         []proseGroup
-	Learned         []proseGroup
-	LearnedDrafts   int
+	Decided         []paragraph
+	Learned         []paragraph
 	OpenThreads     []proseItem
 }
 
@@ -59,7 +63,7 @@ func (s *server) project(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) buildProject(name string, counts map[string]map[string]int) (projectPage, error) {
-	page := projectPage{Name: name, LearnedDrafts: counts["learning"]["draft"]}
+	page := projectPage{Name: name}
 	all, err := s.db.CountByType()
 	if err != nil {
 		return page, err
@@ -75,7 +79,7 @@ func (s *server) buildProject(name string, counts map[string]map[string]int) (pr
 	for _, t := range threads {
 		counts["thread"][t.Status]++
 		if t.Status == "open" && len(page.OpenThreads) < lately {
-			page.OpenThreads = append(page.OpenThreads, proseItem{node: leaf(t), Updated: shortDate(t.Updated)})
+			page.OpenThreads = append(page.OpenThreads, proseOf(t))
 		}
 	}
 	joinProse(page.OpenThreads)
