@@ -9,8 +9,8 @@
 <section class="panel" aria-labelledby="topics">
   <h2 class="lbl" id="topics">Topics</h2>
   <p class="lede">{{.TopicsLede}}</p>
-  <div class="topic-head" aria-hidden="true"><span>Topic</span><span>Where it stands</span><span>Decisions and threads</span><span class="r">Last moved</span></div>
-  <ul class="topics">{{range .Topics}}<li><a class="tname to-{{.Status}}" href="{{.Href}}" translate="no">{{.Slug}}</a><p class="syn">{{.Stands}}</p><p class="tc">{{template "tally" .Decisions}}{{if and .Decisions .Threads}}; {{end}}{{template "tally" .Threads}}{{if .Threads}} {{.ThreadsWord}}{{end}}</p><span class="meta"><time datetime="{{.MovedISO}}">{{.Moved}}</time></span></li>{{end}}</ul>
+  {{if or .Topics .Other}}<div class="topic-head" aria-hidden="true"><span>Topic</span><span>Where it stands</span><span>Decisions and threads</span><span class="r">Last moved</span></div>
+  <ul class="topics">{{range .Topics}}<li><a class="tname to-{{.Status}}" href="{{.Href}}" translate="no">{{.Slug}}</a><p class="syn">{{.Stands}}</p><p class="tc">{{template "tally" .Decisions}}{{if and .Decisions .Threads}}; {{end}}{{template "tally" .Threads}}{{if .Threads}} {{.ThreadsWord}}{{end}}</p><span class="meta"><time datetime="{{.MovedISO}}">{{.Moved}}</time></span></li>{{end}}</ul>{{else}}<p class="none-yet">No decision or thread carries a topic yet.</p>{{end}}
   {{with .Other}}<details class="other"><summary>Other topics, {{len .}}: one decision each, no thread</summary><ul class="other-list">{{range .}}<li><a href="{{.Href}}" translate="no" class="to-{{.Status}}">{{.Slug}}</a> <span class="status status-{{.Status}}">{{.Status}}</span> <span class="meta"><time datetime="{{.MovedISO}}">{{.Moved}}</time></span></li>{{end}}</ul></details>{{end}}
 </section>
 <section class="panel k" aria-labelledby="inbox">

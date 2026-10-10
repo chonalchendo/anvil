@@ -18,7 +18,7 @@ const tagCap = 8
 // topicItem is one decision, thread, learning or inbox row on the topic page.
 type topicItem struct {
 	node
-	Ord, Description, Moved, MovedISO string
+	Ord, Description, Moved, MovedISO, Route string
 }
 
 type topicPage struct {
@@ -66,7 +66,15 @@ func (s *server) buildTopic(t *topic) (topicPage, error) {
 		return page, err
 	}
 	members := slices.Concat(t.Decisions, t.Threads)
-	linked, err := s.citingRows(members, "learning.")
+	learnings, err := s.db.ListByType("learning", index.QueryFilters{})
+	if err != nil {
+		return page, err
+	}
+	raw, err := s.db.ListByType("inbox", index.QueryFilters{Status: "raw"})
+	if err != nil {
+		return page, err
+	}
+	linked, cited, err := s.splitCiting(members, learnings, raw)
 	if err != nil {
 		return page, err
 	}
@@ -74,24 +82,12 @@ func (s *server) buildTopic(t *topic) (topicPage, error) {
 	if page.Tags, err = s.domainTags(members); err != nil {
 		return page, err
 	}
-	if err := s.fillTagged(&page, linked); err != nil {
+	if page.Tagged, page.TaggedMore, page.TaggedMoreHref, err = s.taggedLearnings(page.Tags, learnings, linked); err != nil {
 		return page, err
 	}
-	cited, err := s.citingRows(members, "inbox.")
-	if err != nil {
+	if page.Inbox, err = s.topicInbox(t.Slug, cited); err != nil {
 		return page, err
 	}
-	mentions, err := s.db.Search(t.Slug, 0)
-	if err != nil {
-		return page, err
-	}
-	for _, h := range mentions {
-		if h.Type == "inbox" {
-			cited = append(cited, h.ArtifactRow)
-		}
-	}
-	cited = slices.DeleteFunc(cited, func(r index.ArtifactRow) bool { return r.Status != "raw" })
-	page.Inbox = plainItems(dedupe(cited))
 	return page, nil
 }
 
@@ -139,26 +135,72 @@ func plainItems(rows []index.ArtifactRow) []topicItem {
 	return out
 }
 
-// citingRows returns the artifacts whose id starts with prefix and that link one of members.
-func (s *server) citingRows(members []index.ArtifactRow, prefix string) ([]index.ArtifactRow, error) {
-	var out []index.ArtifactRow
+// splitCiting splits the learnings and raw inbox notes that link a member by their rows in the lists in hand,
+// one LinksTo per member.
+func (s *server) splitCiting(members, learnings, raw []index.ArtifactRow) (linked, cited []index.ArtifactRow, err error) {
+	byID := map[string]index.ArtifactRow{}
+	for _, r := range slices.Concat(learnings, raw) {
+		byID[r.ID] = r
+	}
 	for _, m := range members {
 		in, err := s.db.LinksTo(m.ID)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, l := range in {
-			if !strings.HasPrefix(l.Source, prefix) {
-				continue
+			row, ok := byID[l.Source]
+			switch {
+			case !ok:
+			case row.Type == "learning":
+				linked = append(linked, row)
+			default:
+				cited = append(cited, row)
 			}
-			row, err := s.db.GetArtifact(l.Source)
-			if err != nil {
-				return nil, err
-			}
-			out = append(out, row)
 		}
 	}
-	return dedupe(out), nil
+	return dedupe(linked), dedupe(cited), nil
+}
+
+// topicInbox lists the raw notes that link a member or name the slug as a whole word, newest first, with their Route.
+// The FTS prefilter finds candidates; only their files are read to confirm the word. A "/" joins a word to a path
+// segment, so internal/cli/x does not name the topic cli.
+func (s *server) topicInbox(slug string, cited []index.ArtifactRow) ([]topicItem, error) {
+	hits, err := s.db.Search(slug, 0)
+	if err != nil {
+		return nil, err
+	}
+	word := regexp.MustCompile(`(?i)(?:^|[^\w/-])` + regexp.QuoteMeta(slug) + `(?:$|[^\w/-])`)
+	routes := map[string]string{}
+	rows := slices.Clone(cited)
+	for _, r := range cited {
+		_, art, err := s.load(r.ID)
+		if err != nil {
+			return nil, err
+		}
+		routes[r.ID] = routeOf(art.Body)
+	}
+	for _, h := range hits {
+		if h.Type != "inbox" || h.Status != "raw" {
+			continue
+		}
+		if _, ok := routes[h.ID]; ok {
+			continue
+		}
+		_, art, err := s.load(h.ID)
+		if err != nil {
+			return nil, err
+		}
+		if word.MatchString(h.Title + "\n" + art.Body) {
+			rows = append(rows, h.ArtifactRow)
+			routes[h.ID] = routeOf(art.Body)
+		}
+	}
+	slices.SortStableFunc(rows, byNewest)
+	items := plainItems(rows)
+	for i, r := range rows {
+		items[i].Route = routes[r.ID]
+	}
+	return items, nil
 }
 
 func dedupe(rows []index.ArtifactRow) []index.ArtifactRow {
@@ -197,34 +239,29 @@ func (s *server) domainTags(members []index.ArtifactRow) ([]string, error) {
 	return out, nil
 }
 
-// fillTagged lists up to tagCap learnings that share a domain tag with the topic and are not already linked.
-func (s *server) fillTagged(page *topicPage, linked []index.ArtifactRow) error {
-	if len(page.Tags) == 0 {
-		return nil
-	}
-	rows, err := s.db.ListByType("learning", index.QueryFilters{})
-	if err != nil {
-		return err
+// taggedLearnings lists up to tagCap learnings that share a domain tag with the topic and are not already linked.
+// The "N more" link needs one tag: with several, no single tag filter lists them.
+func (s *server) taggedLearnings(domainTags []string, learnings, linked []index.ArtifactRow) (items []topicItem, more int, href string, err error) {
+	if len(domainTags) == 0 {
+		return nil, 0, "", nil
 	}
 	tags, err := s.db.TagsByType("learning")
 	if err != nil {
-		return err
+		return nil, 0, "", err
 	}
 	skip := map[string]bool{}
 	for _, l := range linked {
 		skip[l.ID] = true
 	}
-	rows = slices.DeleteFunc(rows, func(r index.ArtifactRow) bool {
-		return skip[r.ID] || !slices.ContainsFunc(tags[r.ID], func(tag string) bool { return slices.Contains(page.Tags, tag) })
+	rows := slices.DeleteFunc(slices.Clone(learnings), func(r index.ArtifactRow) bool {
+		return skip[r.ID] || !slices.ContainsFunc(tags[r.ID], func(tag string) bool { return slices.Contains(domainTags, tag) })
 	})
 	all := plainItems(rows)
-	page.Tagged = all[:min(len(all), tagCap)]
-	page.TaggedMore = len(all) - len(page.Tagged)
-	page.TaggedMoreHref = "/type/learning"
-	if len(page.Tags) == 1 {
-		page.TaggedMoreHref += "?tag=" + url.QueryEscape(page.Tags[0])
+	items = all[:min(len(all), tagCap)]
+	if len(domainTags) == 1 {
+		href = "/type/learning?tag=" + url.QueryEscape(domainTags[0])
 	}
-	return nil
+	return items, len(all) - len(items), href, nil
 }
 
 // topicIDRe splits a thread or decision id into its topic and ordinal; the index has no topic column.
@@ -331,7 +368,7 @@ func (s *server) stands(t *topic) (string, error) {
 			continue
 		}
 		if out == "" {
-			return "Open: " + th.Title, nil
+			return "open: " + th.Title, nil
 		}
 		return out + "; open: " + th.Title, nil
 	}

@@ -3,6 +3,8 @@ package ui
 import (
 	"strings"
 	"testing"
+
+	"github.com/chonalchendo/anvil/internal/core"
 )
 
 // Warrant: fails if an unknown slug stops being a 404 or a known one stops rendering the reading page.
@@ -61,5 +63,27 @@ func TestTopic_TagCap(t *testing.T) {
 	}
 	if !strings.Contains(body, `href="/type/learning?tag=domain%2Fui">3 more`) {
 		t.Errorf("missing N more link:\n%s", body)
+	}
+}
+
+// Warrant: fails if a path segment or a longer hyphenated word counts as naming the slug, or a real mention is missed.
+func TestTopic_RawInboxWholeWord(t *testing.T) {
+	v := newTagVault(t, 0)
+	writeArtifact(t, v, core.TypeInbox, "2026-10-01-path", map[string]any{"title": "Path note", "status": "raw"}, "See internal/alpha/x.go and alpha-beta.\n")
+	writeArtifact(t, v, core.TypeInbox, "2026-10-02-word", map[string]any{"title": "Word note", "status": "raw"}, "The alpha. topic moved.\n")
+	_, body := do(serve(t, v), "GET", "/topic/alpha")
+	_, inbox, _ := strings.Cut(body, `id="inb"`)
+	if strings.Contains(inbox, "Path note") || !strings.Contains(inbox, "Word note") {
+		t.Errorf("whole-word match wrong:\n%s", inbox)
+	}
+}
+
+// Warrant: fails if "N more" links an unfiltered learning list when the topic carries more than one domain tag.
+func TestTopic_TagCapManyTags(t *testing.T) {
+	v := newTagVault(t, tagCap+2)
+	writeArtifact(t, v, core.TypeThread, "alpha.0001-q", map[string]any{"title": "Q", "status": "open", "tags": []any{"domain/db"}}, "x\n")
+	_, body := do(serve(t, v), "GET", "/topic/alpha")
+	if !strings.Contains(body, ">2 more<") || strings.Contains(body, "2 more</a>") {
+		t.Errorf("N more should be plain text:\n%s", body)
 	}
 }

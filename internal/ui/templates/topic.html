@@ -1,7 +1,7 @@
 {{define "title"}}{{.Page.Slug}} · anvil{{end}}
 {{define "stat"}}<span class="status status-{{.Status}}">{{.Glyph}} {{.Status}}</span>{{end}}
 {{define "when"}}<span class="meta"><time datetime="{{.MovedISO}}">{{.Moved}}</time></span>{{end}}
-{{define "rows"}}<ol class="rows">{{range .}}<li><span class="ord" translate="no">{{.Ord}}</span><a href="{{.Href}}" class="to-{{.Status}}">{{.Title}}</a>{{template "stat" .}}{{template "when" .}}</li>{{end}}</ol>{{end}}
+{{define "rows"}}<ol class="rows">{{range .}}<li><span class="ord" translate="no">{{.Ord}}</span><a href="{{.Href}}" class="to-{{.Status}}">{{.Title}}</a>{{template "stat" .}}{{template "when" .}}{{with .Route}}<span class="route">Route: {{.}}</span>{{end}}</li>{{end}}</ol>{{end}}
 {{define "content"}}{{with .Page}}<div class="topic">
 <header class="head">
   <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Knowledge</a><span aria-hidden="true"> › </span><span aria-current="page" translate="no">{{.Slug}}</span></nav>
@@ -18,14 +18,15 @@
 </section>
 <section class="panel" aria-labelledby="lrn">
   <h2 class="lbl" id="lrn">Learnings</h2>
-  <p class="lede">Learnings carry no topic. The first group is the learnings that link one of the topic’s decisions or threads. The second is the matches on its domain tags.</p>
+  <p class="lede">Learnings carry no topic. This list shows first the learnings whose <code translate="no">related</code> links one of the topic’s decisions or threads, then the matches on its domain tag.</p>
   <h3 class="sub">Linked to this topic</h3>
   {{if .Linked}}{{template "rows" .Linked}}{{else}}<p class="none-yet">None linked yet.</p>{{end}}
-  <h3 class="sub">By domain tag{{range $i, $t := .Tags}}{{if $i}},{{end}} <code translate="no">{{$t}}</code>{{end}}</h3>
-  {{if .Tagged}}{{template "rows" .Tagged}}{{with .TaggedMore}}<p class="none-yet"><a href="{{$.Page.TaggedMoreHref}}">{{.}} more</a></p>{{end}}{{else if .Tags}}<p class="none-yet">No other learning shares these tags.</p>{{else}}<p class="none-yet">The topic’s decisions and threads carry no domain tag.</p>{{end}}
+  <h3 class="sub">By domain tag,{{range $i, $t := .Tags}}{{if $i}},{{end}} <code translate="no">{{$t}}</code>{{end}}</h3>
+  {{if .Tagged}}{{template "rows" .Tagged}}{{with .TaggedMore}}<p class="none-yet">{{if $.Page.TaggedMoreHref}}<a href="{{$.Page.TaggedMoreHref}}">{{.}} more</a>{{else}}{{.}} more{{end}}</p>{{end}}{{else if .Tags}}<p class="none-yet">No other learning shares these tags.</p>{{else}}<p class="none-yet">The topic’s decisions and threads carry no domain tag.</p>{{end}}
 </section>
 <section class="panel" aria-labelledby="inb">
   <h2 class="lbl" id="inb">Raw inbox <small>citing this topic</small></h2>
+  <p class="lede">Routes name milestones and components, not topics. These raw notes link one of the topic’s decisions or threads, or name the topic in their text.</p>
   {{if .Inbox}}{{template "rows" .Inbox}}{{else}}<p class="none-yet">No raw inbox note cites this topic.</p>{{end}}
 </section>
 </div>{{end}}{{end}}

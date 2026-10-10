@@ -71,8 +71,10 @@ func (s *server) buildKnowledge() (knowledgePage, error) {
 	}}
 	joinProse(page.Counts)
 
-	var proposed, open int
+	var decisions, threads, proposed, open int
 	for _, t := range sortedTopics(topics) {
+		decisions += len(t.Decisions)
+		threads += len(t.Threads)
 		for _, d := range t.Decisions {
 			if d.Status == "proposed" {
 				proposed++
@@ -93,15 +95,15 @@ func (s *server) buildKnowledge() (knowledgePage, error) {
 			return knowledgePage{}, err
 		}
 		page.Topics = append(page.Topics, topicRow{
-			Slug: t.Slug, Href: topicHref(t.Slug), Status: t.hue(), ThreadsWord: pluralWord(len(t.Threads), "thread", "threads"), Stands: stands,
+			Slug: t.Slug, Href: topicHref(t.Slug), Status: t.status(), ThreadsWord: pluralWord(len(t.Threads), "thread", "threads"), Stands: stands,
 			Moved: shortDate(t.Moved), MovedISO: t.Moved, Decisions: tally(t.Decisions), Threads: tally(t.Threads),
 		})
 	}
-	page.TopicsLede = topicsLede(len(topics), counts["decision"], counts["thread"], proposed, open, len(page.Topics), len(page.Other))
+	page.TopicsLede = topicsLede(len(topics), decisions, threads, proposed, open, len(page.Topics), len(page.Other))
 	if page.Routed, err = s.routedInbox(raw); err != nil {
 		return knowledgePage{}, err
 	}
-	page.RoutedLede = plural(len(page.Routed), "raw note carries", "raw notes carry") + " a route, newest first. Learnings and inbox notes carry no topic."
+	page.RoutedLede = plural(len(page.Routed), "raw note carries", "raw notes carry") + " a route, newest first."
 	return page, nil
 }
 
@@ -118,8 +120,8 @@ func countLink(href string, n int, one, many string) proseItem {
 
 func topicHref(slug string) string { return "/topic/" + url.PathEscape(slug) }
 
-// hue is the status that colours the topic name: the newest live decision's, else the newest row's.
-func (t *topic) hue() string {
+// status is the status that colours the topic name: the newest live decision's, else the newest row's.
+func (t *topic) status() string {
 	if d, ok := t.newestLive(); ok {
 		return d.Status
 	}
@@ -144,9 +146,12 @@ func sortedTopics(m map[string]*topic) []*topic {
 }
 
 func topicsLede(topics, decisions, threads, proposed, open, listed, folded int) string {
-	return fmt.Sprintf("%s, read from the ids of %s and %s; %d proposed decisions and %d open threads. "+
-		"The %d with a thread or more than one decision are below, newest movement first. The other %d hold one decision each and fold at the end.",
-		plural(topics, "topic", "topics"), plural(decisions, "decision", "decisions"), plural(threads, "thread", "threads"), proposed, open, listed, folded)
+	return fmt.Sprintf("%s, read from the ids of %s and %s; %s proposed and %s open. "+
+		"The %s with a thread or more than one decision %s below, newest movement first; the other %d %s one decision each and fold at the end. "+
+		"Learnings and inbox notes carry no topic.",
+		plural(topics, "topic", "topics"), plural(decisions, "decision", "decisions"), plural(threads, "thread", "threads"),
+		plural(proposed, "decision is", "decisions are"), plural(open, "thread", "threads"),
+		plural(listed, "topic", "topics"), pluralWord(listed, "is", "are"), folded, pluralWord(folded, "holds", "hold"))
 }
 
 // routedInbox lists the raw inbox notes with a `## Route` section, newest first. The FTS index prefilters on the word;
@@ -173,14 +178,21 @@ func (s *server) routedInbox(raw []index.ArtifactRow) ([]routedRow, error) {
 		if err != nil {
 			return nil, err
 		}
-		route, _, _ := strings.Cut(core.Section(art.Body, "Route"), "\n")
-		if route = strings.TrimSpace(route); route == "" {
+		route := routeOf(art.Body)
+		if route == "" {
 			continue
-		}
-		if rs := []rune(route); len(rs) > routeCap {
-			route = string(rs[:routeCap-1]) + "…"
 		}
 		out = append(out, routedRow{node: leaf(r), Moved: shortDate(r.Updated), MovedISO: day(r.Updated), Route: route})
 	}
 	return out, nil
+}
+
+// routeOf is the first line of a note's `## Route` section, without markdown backticks, capped at routeCap.
+func routeOf(body string) string {
+	route, _, _ := strings.Cut(core.Section(body, "Route"), "\n")
+	route = strings.TrimSpace(strings.ReplaceAll(route, "`", ""))
+	if rs := []rune(route); len(rs) > routeCap {
+		route = string(rs[:routeCap-1]) + "…"
+	}
+	return route
 }
