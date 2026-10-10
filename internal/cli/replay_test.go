@@ -16,11 +16,15 @@ func replayFixture(t *testing.T, status string, links []any) (vault, repo, base,
 	vault = setupVault(t)
 	repo = t.TempDir()
 	gitIn(t, repo, "init", "-q")
-	os.WriteFile(filepath.Join(repo, "a.txt"), []byte("a\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(repo, "a.txt"), []byte("a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	gitIn(t, repo, "add", ".")
 	gitIn(t, repo, "commit", "-qm", "base")
 	base = gitIn(t, repo, "rev-parse", "HEAD")
-	os.WriteFile(filepath.Join(repo, "b.txt"), []byte("b\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(repo, "b.txt"), []byte("b\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	gitIn(t, repo, "add", ".")
 	gitIn(t, repo, "commit", "-qm", "merge")
 	merge := gitIn(t, repo, "rev-parse", "HEAD")
@@ -56,7 +60,8 @@ func replayFixture(t *testing.T, status string, links []any) (vault, repo, base,
 
 func TestReplayCutsWorktreeAtMergeParent(t *testing.T) {
 	vault, _, base, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
-	before, _ := os.ReadFile(filepath.Join(vault, "70-issues", id+".md"))
+	before, _ := os.ReadFile( //nolint:gosec // test path
+		filepath.Join(vault, "70-issues", id+".md"))
 	wt := filepath.Join(t.TempDir(), "wt")
 	out, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt)
 	if err != nil {
@@ -71,7 +76,8 @@ func TestReplayCutsWorktreeAtMergeParent(t *testing.T) {
 	if got := gitIn(t, wt, "branch", "--show-current"); got != "replay/0001.ok" {
 		t.Errorf("branch = %q", got)
 	}
-	after, _ := os.ReadFile(filepath.Join(vault, "70-issues", id+".md"))
+	after, _ := os.ReadFile( //nolint:gosec // test path
+		filepath.Join(vault, "70-issues", id+".md"))
 	if string(before) != string(after) {
 		t.Error("replay changed the issue file")
 	}
@@ -115,7 +121,9 @@ func TestReplayVerifyAppendsSectionAndKeepsLandedRecord(t *testing.T) {
 	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt); err != nil {
 		t.Fatal(err)
 	}
-	os.WriteFile(filepath.Join(wt, "c.txt"), []byte("1\n2\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(wt, "c.txt"), []byte("1\n2\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	gitIn(t, wt, "add", ".")
 	t.Chdir(wt)
 	path := filepath.Join(vault, "70-issues", id+".md")

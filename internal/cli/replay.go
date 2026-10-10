@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -56,7 +57,7 @@ func replayBase(a *core.Artifact, id, repoDir string) (string, error) {
 	for _, raw := range links {
 		if url, ok := raw.(string); ok {
 			if m := prURLNumber.FindStringSubmatch(url); m != nil {
-				fmt.Sscan(m[1], &num)
+				num, _ = strconv.Atoi(m[1])
 			}
 		}
 	}
