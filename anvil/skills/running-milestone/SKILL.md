@@ -106,7 +106,7 @@ After each landing, fast-forward the parent checkout to the base branch tip (`gi
 A landed issue with a null cost landed before the stamp shipped, or the land skipped it. Report it. Never stamp a cost by hand.
 
 - Open criteria remain: return to Phase 1.
-- The finish line is green: harvest learnings (Phase 8), then stop at the acceptance gate.
+- The finish line is green: harvest learnings (Phase 8), replay if Phase 8b applies, then stop at the acceptance gate.
 
 Do not run `anvil transition milestone <id> done`. Report the green finish line and let the human accept.
 

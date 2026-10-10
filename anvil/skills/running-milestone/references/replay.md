@@ -4,7 +4,13 @@ A replay re-runs a resolved issue from the base its PR started on. The result sh
 
 ## The set
 
-Find candidates with `anvil list issue --status resolved --json`. Keep rows with `cost_tokens` and a pull url in `external_links`. Take five by default. Skip an issue with no cost record: it has nothing to compare.
+Find candidates with `anvil list issue --status resolved --json --limit 50`. Keep each id where this passes:
+
+```bash
+anvil show issue <id> --json --no-body | jq -e '.cost_tokens and ((.external_links // []) | any(test("/pull/")))'
+```
+
+Take five by default. Skip an issue with no cost record: it has nothing to compare.
 
 ## The loop
 
@@ -17,7 +23,7 @@ For each issue, one at a time:
 
    Give no PR url, no review text and no learnings about this issue. The worker returns a commit sha as its last line.
 3. Read the worker's token total, then from inside `<worktree>` run `anvil verify <id> --replay --tokens <n>`. It appends a Replay section to the issue and changes no landed field.
-4. `anvil replay <id> --remove` removes the worktree and its branch. Run it also after a failed or halted replay. After a failed cut, `replay_nothing_to_remove` is expected.
+4. `anvil replay <id> --remove` removes the worktree and its branch. Run it also after a failed or halted replay.
 
 Run `anvil replay` and `anvil verify --replay` yourself. Never run `git worktree remove`.
 
@@ -28,6 +34,8 @@ A red replay does not count until you triage it. Read the failed check first.
 - Environment drift (a tool, a path or a network call changed since the landing): record it and drop the replay from the comparison.
 - A worker that could not follow a skill or an agent rule: this is a finding. Name the rule.
 - A verification predicate that never fit the code: this is an issue-authoring finding.
+
+The worker reads today's designs. A design edited after the issue's `claimed_at` may hold the landed answer: flag such a replay in the report.
 
 ## Report
 

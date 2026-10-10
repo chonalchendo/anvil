@@ -69,8 +69,8 @@ func TestReplayCutsWorktreeAtMergeParent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.TrimSpace(out) != wt {
-		t.Errorf("stdout = %q, want %q", out, wt)
+	if want, _ := filepath.EvalSymlinks(wt); strings.TrimSpace(out) != want {
+		t.Errorf("stdout = %q, want %q", out, want)
 	}
 	if got := gitIn(t, wt, "rev-parse", "HEAD"); got != base {
 		t.Errorf("worktree HEAD = %s, want merge parent %s", got, base)
@@ -319,8 +319,9 @@ func TestReplayJSONAndRerunHints(t *testing.T) {
 		t.Fatal(err)
 	}
 	var got map[string]string
-	if err := json.Unmarshal([]byte(out), &got); err != nil || got["worktree"] != wt || got["base"] != base {
-		t.Errorf("json = %q (%v), want worktree %s base %s", out, err, wt, base)
+	want, _ := filepath.EvalSymlinks(wt)
+	if err := json.Unmarshal([]byte(out), &got); err != nil || got["worktree"] != want || got["base"] != base {
+		t.Errorf("json = %q (%v), want worktree %s base %s", out, err, want, base)
 	}
 	ghPRViewByURLFn = func(string, string) ([]byte, error) { return nil, errGhUnavailable }
 	_, stderr, err := runCmd(t, newReplayCmd(), id, "--worktree", filepath.Join(t.TempDir(), "w2"))
@@ -348,13 +349,16 @@ func TestReplaySectionFailedLineOmitsPredicateText(t *testing.T) {
 func TestReplayRemoveDeletesWorktreeAndBranch(t *testing.T) {
 	_, repo, _, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
 	wt := filepath.Join(t.TempDir(), "wt")
-	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt); err != nil {
-		t.Fatal(err)
-	}
-	resolved, err := filepath.EvalSymlinks(wt)
+	cut, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt)
 	if err != nil {
 		t.Fatal(err)
 	}
+	resolved := strings.TrimSpace(cut)
+	if err := os.WriteFile(filepath.Join(wt, "c.txt"), []byte("c\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, wt, "add", ".")
+	gitIn(t, wt, "commit", "-qm", "replay work")
 	out, _, err := runCmd(t, newReplayCmd(), id, "--remove", "--json")
 	if err != nil {
 		t.Fatal(err)
@@ -386,12 +390,13 @@ func TestReplayRemoveRemovesBranchWithoutWorktree(t *testing.T) {
 	}
 }
 
-func TestReplayRemoveRefusesWhenNoneExists(t *testing.T) {
+func TestReplayRemoveWithNothingIsIdempotent(t *testing.T) {
 	_, _, _, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
-	out, stderr, err := runCmd(t, newReplayCmd(), id, "--remove")
-	got := out + stderr + errString(err)
-	if err == nil || !strings.Contains(got, "replay_nothing_to_remove") {
-		t.Errorf("want replay_nothing_to_remove, got err=%v %q", err, got)
+	for i := 0; i < 2; i++ {
+		out, _, err := runCmd(t, newReplayCmd(), id, "--remove", "--json")
+		if err != nil || strings.TrimSpace(out) != `{"branch":"","worktree":""}` {
+			t.Errorf("run %d: out=%q err=%v", i, out, err)
+		}
 	}
 }
 
@@ -408,6 +413,16 @@ func TestReplayRefusalNeedsNoNetwork(t *testing.T) {
 	gitFetchOriginFn = func(string) error { t.Error("fetch ran before the status refusal"); return nil }
 	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", filepath.Join(t.TempDir(), "wt")); err == nil {
 		t.Error("want a not-resolved refusal")
+	}
+}
+
+func TestReplayUnparseableGhOutputIsGhFailed(t *testing.T) {
+	_, _, _, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
+	ghPRViewByURLFn = func(string, string) ([]byte, error) { return []byte("not json"), nil }
+	out, stderr, err := runCmd(t, newReplayCmd(), id, "--worktree", filepath.Join(t.TempDir(), "wt"))
+	got := out + stderr + errString(err)
+	if !strings.Contains(got, "replay_gh_failed") || !strings.Contains(got, "https://github.com/o/r/pull/7") || strings.Contains(got, "replay_no_merged_pr") {
+		t.Errorf("got %q", got)
 	}
 }
 
