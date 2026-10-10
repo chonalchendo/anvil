@@ -124,8 +124,15 @@ func cutReplayWorktree(cmd *cobra.Command, a *core.Artifact, id, override string
 	if err != nil {
 		return "", err
 	}
-	if err := gitWorktreeAddFn(repoDir, wt, "replay/"+slug, base); err != nil {
-		return "", errfmt.NewStructured("cut_worktree_failed").Set("path", wt).Set("branch", "replay/"+slug).Set("error", err.Error())
+	// A replay branch outlives its removed worktree and holds nothing worth keeping.
+	branch := "replay/" + slug
+	if gitLocalBranchExistsFn(repoDir, branch) {
+		if err := gitDeleteLocalBranchFn(repoDir, branch); err != nil {
+			return "", errfmt.NewStructured("cut_worktree_failed").Set("branch", branch).Set("error", err.Error())
+		}
+	}
+	if err := gitWorktreeAddFn(repoDir, wt, branch, base); err != nil {
+		return "", errfmt.NewStructured("cut_worktree_failed").Set("path", wt).Set("branch", branch).Set("error", err.Error())
 	}
 	if err := copyCarryFiles(repoDir, wt, carry); err != nil {
 		return "", err

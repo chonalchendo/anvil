@@ -161,3 +161,18 @@ func TestReplayVerifyFlagPairing(t *testing.T) {
 		}
 	}
 }
+
+func TestReplayReusesBranchOfRemovedWorktree(t *testing.T) {
+	_, repo, base, id := replayFixture(t, "resolved", []any{"https://github.com/o/r/pull/7"})
+	wt := filepath.Join(t.TempDir(), "wt")
+	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, repo, "worktree", "remove", "--force", wt)
+	if _, _, err := runCmd(t, newReplayCmd(), id, "--worktree", wt); err != nil {
+		t.Fatalf("second replay: %v", err)
+	}
+	if got := gitIn(t, wt, "rev-parse", "HEAD"); got != base {
+		t.Errorf("HEAD = %s, want %s", got, base)
+	}
+}
