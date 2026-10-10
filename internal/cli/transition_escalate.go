@@ -22,7 +22,15 @@ func stampIssueGate(a *core.Artifact, to, reason string, now time.Time) {
 		}
 	case "escalated":
 		a.FrontMatter["escalation_reason"] = reason
+		bumpOutcome(a, "outcome_escalations")
 	default:
 		delete(a.FrontMatter, "escalation_reason")
 	}
+}
+
+// bumpOutcome adds one to an outcome counter. An absent counter reads as 0, so
+// nothing is written until the first event.
+func bumpOutcome(a *core.Artifact, key string) {
+	n, _ := a.FrontMatter[key].(int)
+	a.FrontMatter[key] = n + 1
 }

@@ -143,7 +143,15 @@ func stampVerification(v *core.Vault, path, id, arg string, rec verifyRecord, lo
 		return err
 	}
 	if lock != "" {
+		if old, _ := a.FrontMatter["verification_lock"].(string); old != lock {
+			bumpOutcome(a, "outcome_rescopes")
+		}
 		a.FrontMatter["verification_lock"] = lock
+	}
+	// The first verdict after the first claim is the outcome record; later runs
+	// overwrite verified_verdict but not this.
+	if _, claimed := a.FrontMatter["claimed_at"]; claimed && a.FrontMatter["outcome_first_verdict"] == nil {
+		a.FrontMatter["outcome_first_verdict"] = rec.Verdict
 	}
 	a.FrontMatter["verified_verdict"] = rec.Verdict
 	a.FrontMatter["verified_commit"] = rec.Commit
