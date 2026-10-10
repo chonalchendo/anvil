@@ -12,7 +12,7 @@ Say up front: workers do not load this doc. Write it for the human. Do not put w
 
 ### Phase 2 — Problem & users
 
-Elicit from conversation; there is no source doc.
+Elicit from conversation; there is no source doc; a re-author reads only the PD it replaces.
 
 Draft body sections:
 - **Why it matters** — leads with the one-sentence problem (2–4 short paragraphs).
@@ -94,11 +94,11 @@ Each candidate is one top-level plain bullet (`<slug> — one-line summary`) wit
 
 Linking: `writing-milestone` Phase 4 rewrites the bullet to the shaped form and adds the `related` edge.
 
+**Deferral:** a redesign may not scope milestones until the system and component designs exist. Then write one sentence under `## Milestones`: "Milestones deferred until system and component designs exist." Add no placeholder candidates, and skip `writing-milestone`.
+
 **REQUIRED SUB-SKILL:** `writing-milestone` (a.k.a. `defining-milestone`).
 
 If unavailable, collect titles + summaries inline as plain bullets.
-
-**Deferral:** a redesign may not scope milestones until the system and component designs exist. Then write one sentence under `## Milestones`: "Milestones deferred until system and component designs exist." Add no placeholder candidates.
 
 **Gate:** breakdown confirmed, or deferral stated.
 
@@ -112,7 +112,7 @@ If unavailable, collect titles + summaries inline as plain bullets.
    - Body has the required sections in order (`anvil create product-design --show-template` prints the headings).
    - No worker instructions or pointers to repo docs anywhere in the body.
    - Each top-level `- ` bullet under Milestones carries `Why now:` and `Components:`. Bullets are plain text until their milestone exists.
-3. Write the body (no frontmatter) to a temp file. Save with `anvil create product-design --project <slug> --title "…" --description "…" --body-file <file>`. Create validates frontmatter and wikilinks, and rolls back on failure. It does not check body sections. It writes `status: draft`, so then run `anvil transition product-design <slug> active`.
+3. Write the body (no frontmatter) to a temp file. Save with `anvil create product-design --project <slug> --title "…" --description "…" --body-file <file>`. Create validates frontmatter and wikilinks, and rolls back on failure. It does not check body sections. It writes `status: draft`, so then run `anvil transition product-design <slug> active`. Re-authoring an existing PD: add `--update`; it keeps status and `related`, so skip the transition.
 4. Read it back with `anvil show product-design <slug> --body` for the cold read.
 
 **Gate:** user reads the artifact cold. Capture the project's vision? Fix and re-show if not.

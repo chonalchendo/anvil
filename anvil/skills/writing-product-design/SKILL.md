@@ -1,6 +1,6 @@
 ---
 name: writing-product-design
-description: "Use when starting a NEW project — vision, users, success, scope, milestones. Greenfield, or re-authoring an existing product design in place. Not for system design (writing-system-design) or individual issues (writing-issue)."
+description: "Use when starting a NEW project or re-authoring its product design after a pivot — vision, users, success, scope, milestones. Not for system design (writing-system-design) or individual issues (writing-issue)."
 license: MIT
 allowed-tools: [Read, Edit, Write]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -28,7 +28,7 @@ A workflow for authoring a project's product-design artifact — the top of Anvi
 
 - Starting a new project; need the vision artifact before milestones or code.
 - User signals defining the product (not how to build it).
-- Re-authoring an existing PD after a pivot: save with `anvil create product-design ... --update`, which keeps status, `related` and unsupplied fields.
+- Re-authoring an existing PD after a pivot.
 
 ## When not to use
 
@@ -40,7 +40,7 @@ A workflow for authoring a project's product-design artifact — the top of Anvi
 
 ## Saving
 
-Save with `anvil create product-design --project <slug> --title … --body-file <file>`; read it back with `anvil show product-design <slug> --body`. The design lives in the vault, never in the project's source repo. Surface this at Phase 1 so the user can flag any can't-commit-anywhere constraint up front.
+Save with `anvil create product-design --project <slug> --title … --body-file <file>`; read it back with `anvil show product-design <slug> --body`. To re-author an existing PD, add `--update`: it keeps status, `related` and unsupplied fields. The design lives in the vault, never in the project's source repo. Surface this at Phase 1 so the user can flag any can't-commit-anywhere constraint up front.
 
 ## The phases
 
@@ -62,13 +62,13 @@ The per-phase procedure — drafting instructions, voice checks, gate criteria �
 | 3.5 Approach | Fat-marker sketch (3–7) | Body | Altitude check |
 | 4 Goals and measures / constraints / out-of-scope | Three sections | Body | **Load-bearing** |
 | 4.5 Risks & rabbit holes | 3–7 bullets | Body | User confirms |
-| 5 Milestones | Open candidates: why now + components | Body + `related` | User confirms |
+| 5 Milestones | Open candidates: why now + components | Body + `related`, or one deferral sentence | User confirms |
 | 6 Serialize & save | `## TL;DR` first, frontmatter, validate | Body + frontmatter | Cold read |
 
 ## Common mistakes
 
 - **Stuffing prose into frontmatter.** Schema is `additionalProperties: false`; only universals + `related` are accepted. Goals, measures, constraints, risks, milestones, target users — all body sections.
-- **Drafting from a source doc.** Greenfield: there is no source. If you find yourself reading "lines X–Y of file Y", stop — that's brownfield carving.
+- **Drafting from a source doc.** Greenfield: there is no source; a re-author reads only the PD it replaces. If you find yourself reading "lines X–Y of file Y", stop — that's brownfield carving.
 - **Conflating *what* with *how*.** Implementation strategy, packaging, subprocess choices belong in `system-design.md`.
 - **Goals without measures.** "Users are happy" is not a measure. Blend quantitative and qualitative; tie each qualitative measure to how you check it.
 - **Skipping the past-pain prompt in Phase 4.** Old-tool failure modes are the most concrete measures.
