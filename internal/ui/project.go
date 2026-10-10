@@ -15,28 +15,6 @@ import (
 // lately caps the prose bands: the newest decisions, learnings and open threads.
 const lately = 5
 
-type invSeg struct {
-	Type, Status string
-	N            int
-}
-
-type invStatus struct {
-	Type, Status, Glyph string
-	N                   int
-}
-
-type invPart struct{ Text, Href string }
-
-// invRow is one inventory line: a type's count, stacked status bar and per-status counts.
-// Parts is the per-type tally of a merged row.
-type invRow struct {
-	Label, Href string
-	Count       int
-	Segs        []invSeg
-	Statuses    []invStatus
-	Parts       []invPart
-}
-
 // proseItem is a node with the short date it was last updated, for the prose bands.
 // Sep is the text that joins it to the item before it in a sentence.
 type proseItem struct {
@@ -46,8 +24,8 @@ type proseItem struct {
 
 type projectPage struct {
 	Name, Deck    string
-	Inventory     []invRow
-	Flight        []flight
+	Counts        []proseItem
+	Milestones    milestonesPanel
 	Done          []doneRow
 	Designs       designs
 	Decided       []proseGroup
@@ -93,13 +71,29 @@ func (s *server) buildProject(name string, counts map[string]map[string]int) (pr
 		}
 	}
 	joinProse(page.OpenThreads)
-	page.Inventory = inventory(name, counts)
-	for _, build := range []func(*projectPage, map[string]map[string]int) error{s.fillDesigns, s.fillFlight, s.fillLately} {
-		if err := build(&page, counts); err != nil {
-			return page, err
-		}
+	page.Counts = countParts(name, counts)
+	if err := s.fillDesigns(&page, counts); err != nil {
+		return page, err
 	}
-	return page, nil
+	ms, err := s.db.ListByType("milestone", index.QueryFilters{Project: name})
+	if err != nil {
+		return page, err
+	}
+	issues, err := s.db.ListByType("issue", index.QueryFilters{Project: name})
+	if err != nil {
+		return page, err
+	}
+	members, err := s.milestoneMembers(name, issues, ms)
+	if err != nil {
+		return page, err
+	}
+	if err := s.fillMilestones(&page, ms, issues, members, page.Designs.Product); err != nil {
+		return page, err
+	}
+	if err := s.fillDone(&page, counts, members); err != nil {
+		return page, err
+	}
+	return page, s.fillLately(&page, counts)
 }
 
 // projectThreads returns the project's threads, newest first. A thread belongs to a project
@@ -120,62 +114,32 @@ func (s *server) projectThreads(project string) ([]index.ArtifactRow, error) {
 	return out, nil
 }
 
-// inventory builds one row per type the project holds, the three design types merged into one;
-// conventions are shared and sessions are not state.
-func inventory(project string, counts map[string]map[string]int) []invRow {
-	var rows []invRow
-	for _, g := range sidebarLayout {
-		merged := map[string]int{}
-		var parts []invPart
-		for _, t := range g.types {
-			byStatus := counts[t.typ]
-			if len(byStatus) == 0 || t.typ == "convention" || t.typ == "session" {
-				continue
-			}
-			href := "/type/" + t.typ + "?project=" + url.QueryEscape(project)
-			if t.typ == "thread" {
-				href = "/type/thread"
-			}
-			if g.name != "Design" {
-				rows = append(rows, invRowOf(t.typ, strings.ToLower(t.label), href, byStatus))
-				continue
-			}
-			n := 0
-			for st, c := range byStatus {
-				merged[st] += c
-				n += c
-			}
-			label, _ := strings.CutSuffix(strings.ToLower(t.label), " designs")
-			parts = append(parts, invPart{Text: groupThousands(n) + " " + label, Href: href})
-		}
-		if len(parts) > 0 {
-			row := invRowOf("design", "designs", parts[0].Href, merged)
-			row.Parts = parts
-			rows = append(rows, row)
+// countParts lists the project's artifact counts as links to the typed lists, the three design
+// types merged; conventions are shared and sessions are not state.
+func countParts(project string, counts map[string]map[string]int) []proseItem {
+	var out []proseItem
+	add := func(n int, one, typ string) {
+		if n > 0 {
+			out = append(out, proseItem{node: node{Href: "/type/" + typ + "?project=" + url.QueryEscape(project), Title: plural(n, one, one+"s")}})
 		}
 	}
-	return rows
-}
-
-func invRowOf(typ, label, href string, byStatus map[string]int) invRow {
-	row := invRow{Label: label, Href: href}
-	statuses := make([]string, 0, len(byStatus))
-	for st := range byStatus {
-		statuses = append(statuses, st)
-	}
-	slices.SortFunc(statuses, func(a, b string) int {
-		if d := rank(liveOrder, a) - rank(liveOrder, b); d != 0 {
-			return d
+	var designs int
+	first := ""
+	for _, t := range []string{"product-design", "system-design", "component-design"} {
+		n := sumCounts(counts[t])
+		if designs += n; n > 0 && first == "" {
+			first = t
 		}
-		return strings.Compare(a, b)
-	})
-	for _, st := range statuses {
-		n := byStatus[st]
-		row.Count += n
-		row.Segs = append(row.Segs, invSeg{Type: typ, Status: st, N: n})
-		row.Statuses = append(row.Statuses, invStatus{Type: typ, Status: st, Glyph: glyphs[st], N: n})
 	}
-	return row
+	add(designs, "design", first)
+	for _, t := range []struct{ typ, label string }{{"milestone", "milestone"}, {"issue", "issue"}, {"decision", "decision"}, {"learning", "learning"}} {
+		add(sumCounts(counts[t.typ]), t.label, t.typ)
+	}
+	if n := sumCounts(counts["thread"]); n > 0 {
+		out = append(out, proseItem{node: node{Href: "/type/thread", Title: plural(n, "thread", "threads")}})
+	}
+	joinProse(out)
+	return out
 }
 
 // shortDate turns "2026-10-09" or a timestamp into "9 Oct"; anything else passes through.
@@ -186,4 +150,12 @@ func shortDate(s string) string {
 		}
 	}
 	return s
+}
+
+func sumCounts(m map[string]int) int {
+	t := 0
+	for _, n := range m {
+		t += n
+	}
+	return t
 }

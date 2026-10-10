@@ -169,37 +169,44 @@ main:has(.canvas[data-full]) { height: 100vh; display: flex; flex-direction: col
 .sidebar details.browse > summary:hover { background: var(--sel); color: var(--text); }
 .sidebar .projects a[aria-current="page"] { background: none; box-shadow: inset 2px 0 0 var(--accent); color: var(--text); font-weight: 500; }
 
-main:has(.dashboard) { padding: 0; }
-.dashboard { display: grid; grid-template-columns: 360px minmax(0, 1fr); min-height: 100vh; }
-.inventory { background: var(--panel); border-right: 1px solid var(--border); padding: 28px 24px 56px; }
-.inventory h1 { font-size: 23px; margin-bottom: 4px; }
-.inventory .deck { margin: 0 0 22px; }
-.inv { list-style: none; margin: 0; padding: 0; }
-.inv li { padding: 12px 0; border-top: 1px solid var(--border); }
-.inv .head { display: flex; align-items: baseline; gap: 10px; }
-.inv .count { min-width: 3.2ch; text-align: right; font-size: 23px; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
-.inv .head a { text-decoration: none; }
-.inv .head a:hover { text-decoration: underline; }
-.inv .bar { margin: 8px 0 6px; }
-.inv .tally { display: flex; flex-wrap: wrap; gap: 2px 12px; }
-.inv .tally .status { margin-left: 0; }
-.inv .tally.parts a { color: var(--muted); text-decoration: none; }
-.inv .tally.parts a:hover { color: var(--text); text-decoration: underline; }
-.inventory .shared { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); }
-.work { padding: 28px 36px 56px; min-width: 0; }
+main:has(.dashboard) { padding: 36px 48px 64px; }
+.dashboard h1 { margin: 0; font-size: 28px; line-height: 1.2; }
+.dashboard .deck { margin: 6px 0 0; max-width: 72ch; font-size: 16px; line-height: 1.45; }
+.counts { margin: 10px 0 26px; max-width: 110ch; color: var(--muted); }
+.counts a { color: var(--text-2); }
+.milestones { --w-st: 112px; --w-v: 64px; --w-pr: 64px; --w-r: 60px; --w-tk: 64px; --w-u: 92px; --w-o: 176px; padding: 26px 0 28px; border-top: 1px solid var(--border); }
+.milestones h2 { margin: 0 0 6px; font-size: 16px; font-weight: 400; line-height: 1.3; color: var(--text-2); }
+.lede { max-width: 84ch; margin: 0 0 14px; color: var(--text-2); }
+.ms-head, .ms > summary { display: grid; grid-template-columns: minmax(0, 1fr) var(--w-st) var(--w-v) var(--w-pr) var(--w-r) var(--w-tk) var(--w-u) var(--w-o); align-items: baseline; }
+.ms-head > span, .ms > summary > span { padding-right: 14px; }
+.ms-head > span:last-child, .ms > summary > span:last-child { padding-right: 0; }
+.ms-head .sp2, .ms > summary .sp2 { grid-column: span 2; }
+.ms-head { padding: 0 0 8px 34px; font-size: 11px; color: var(--muted); }
+.ms-head .n, .ms .n, .iss .n { text-align: right; font-variant-numeric: tabular-nums; }
+.ms { border-top: 1px solid var(--border); }
+.ms > summary { position: relative; padding: 10px 0 10px 34px; list-style: none; cursor: pointer; }
+.ms > summary::-webkit-details-marker { display: none; }
+.ms > summary::before { content: "›"; position: absolute; left: 14px; top: 9px; color: var(--muted); transition: transform .12s ease; }
+.ms[open] > summary::before { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .ms > summary::before { transition: none; } }
+.ms > summary:hover::before { color: var(--text); }
+.ms > summary .t a { font-weight: 500; }
+.ms.live { box-shadow: inset 2px 0 0 var(--accent); }
+.ms .status { margin-left: 0; font-size: inherit; }
+.none { color: var(--muted); }
+table.iss { width: calc(100% - 34px); margin: 0 0 14px 34px; border-collapse: collapse; table-layout: fixed; }
+.iss th { padding: 0 14px 6px 0; font-size: 11px; font-weight: 400; color: var(--muted); text-align: left; white-space: nowrap; }
+.iss td { padding: 6px 14px 6px 0; vertical-align: baseline; }
+.iss th:last-child, .iss td:last-child { padding-right: 0; }
+.iss .status { margin-left: 0; }
+.iss .w-st { width: var(--w-st); } .iss .w-v { width: var(--w-v); } .iss .w-pr { width: var(--w-pr); } .iss .w-r { width: var(--w-r); } .iss .w-tk { width: var(--w-tk); } .iss .w-u { width: var(--w-u); } .iss .w-o { width: var(--w-o); }
+.iss .own { color: var(--muted); white-space: nowrap; }
+.ord { margin-right: 8px; font: 12px var(--mono); color: var(--muted); }
+.empty-fold { margin: 0 0 14px 34px; color: var(--muted); }
+.fold-note { margin: -6px 0 14px 34px; font-size: 11px; color: var(--muted); }
+.empty { max-width: 110ch; margin-top: 16px; padding: 10px 14px; border-radius: var(--radius); background: var(--panel); color: var(--text-2); }
 .work h2 { margin: 0 0 10px; font-size: 11px; font-weight: 500; letter-spacing: 0; color: var(--muted); }
-.work h2.first { color: var(--accent); }
-.flight { padding-bottom: 24px; border-bottom: 1px solid var(--border); }
-.flight h3 { margin: 0 0 6px; font-size: 23px; line-height: 1.25; color: var(--text); }
-.flight h3 a { text-decoration: none; }
-.flight h3 a:hover { text-decoration: underline; }
-.flight .line { margin: 0 0 8px; color: var(--text-2); }
-.flight .line .status { margin-left: 0; }
-.ac { width: 100%; max-width: 100ch; margin-top: 14px; border-collapse: collapse; }
-.ac th { padding: 6px 12px 6px 0; border-bottom: 1px solid var(--border); font-weight: 500; text-align: left; color: var(--muted); }
-.ac td { padding: 7px 12px 7px 0; border-bottom: 1px solid var(--raise); vertical-align: top; overflow-wrap: anywhere; }
-.ac td.n { width: 2ch; color: var(--muted); }
-.flight .issues { margin: 14px 0 0; padding: 0; list-style: none; max-width: 100ch; }
+.work { min-width: 0; }
 .band { padding: 22px 0; border-bottom: 1px solid var(--border); }
 .band p { max-width: 80ch; margin: 0 0 8px; color: var(--text-2); }
 .done-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px 28px; max-width: 120ch; margin: 0; padding: 0; list-style: none; }
@@ -214,7 +221,6 @@ main:has(.dashboard) { padding: 0; }
 .thumb .cover { position: absolute; inset: 0; z-index: 2; }
 .strip figcaption { margin-top: 5px; color: var(--muted); }
 .strip figure:hover figcaption { color: var(--text-2); }
-.flight .issues .more { color: var(--muted); }
 .strip .comps { flex-basis: 100%; display: flex; flex-direction: column; gap: 4px; color: var(--text-2); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; border-bottom: 0; }
 

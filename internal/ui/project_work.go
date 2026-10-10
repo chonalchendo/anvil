@@ -1,9 +1,6 @@
 package ui
 
 import (
-	"html"
-	"html/template"
-	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -13,23 +10,6 @@ import (
 
 // doneCap is how many done milestones the Recently done band lists.
 const doneCap = 6
-
-// acRow is one row of a milestone's Status acceptance table.
-type acRow struct {
-	N, Met, Class, Glyph string
-	Text, Measured       template.HTML
-}
-
-type flight struct {
-	proseItem
-	Judge      []prop
-	Acceptance []acRow
-	Issues     []node
-	More       int
-	MoreHref   string
-	Resolved   int
-	Total      int
-}
 
 type doneRow struct {
 	proseItem
@@ -44,95 +24,32 @@ type designs struct {
 	Comps    []node
 }
 
-// fillFlight fills the in-progress milestones whole and the newest done ones.
-func (s *server) fillFlight(p *projectPage, counts map[string]map[string]int) error {
-	if len(counts["milestone"]) == 0 {
+// fillDone fills the newest done milestones.
+func (s *server) fillDone(p *projectPage, counts map[string]map[string]int, members map[string][]index.ArtifactRow) error {
+	if counts["milestone"]["done"] == 0 {
 		return nil
 	}
-	ms, err := s.db.ListByType("milestone", index.QueryFilters{Project: p.Name})
+	ms, err := s.db.ListByType("milestone", index.QueryFilters{Project: p.Name, Status: "done"})
 	if err != nil {
 		return err
 	}
-	var live, done []index.ArtifactRow
+	slices.SortStableFunc(ms, byNewest)
+	ms = ms[:min(len(ms), doneCap)]
 	for _, r := range ms {
-		switch r.Status {
-		case "in-progress":
-			live = append(live, r)
-		case "done":
-			done = append(done, r)
-		}
-	}
-	slices.SortStableFunc(done, byNewest)
-	done = done[:min(len(done), doneCap)]
-	if err := s.fillLive(p, live); err != nil {
-		return err
-	}
-	if len(done) == 0 {
-		return nil
-	}
-	issueCounts, err := s.db.MilestoneIssueCounts(p.Name)
-	if err != nil {
-		return err
-	}
-	for _, r := range done {
 		_, art, err := s.load(r.ID)
 		if err != nil {
 			return err
 		}
-		c := issueCounts[r.ID]
-		p.Done = append(p.Done, doneRow{proseItem{node: leaf(r), Updated: shortDate(r.Updated)}, c.Resolved, c.Total, measuredSHA(art.Body)})
-	}
-	return nil
-}
-
-func (s *server) fillLive(p *projectPage, live []index.ArtifactRow) error {
-	if len(live) == 0 {
-		return nil
-	}
-	vw, err := s.view()
-	if err != nil {
-		return err
-	}
-	issues, err := s.db.ListByType("issue", index.QueryFilters{Project: p.Name})
-	if err != nil {
-		return err
-	}
-	byID := map[string]index.ArtifactRow{}
-	for _, i := range issues {
-		byID[i.ID] = i
-	}
-	for _, r := range live {
-		_, art, err := s.load(r.ID)
-		if err != nil {
-			return err
-		}
-		f := flight{proseItem: proseItem{node: leaf(r), Updated: shortDate(r.Updated)}, Judge: vw.res.judge("milestone", art.FrontMatter, art.Body), Acceptance: acceptance(art.Body)}
-		kids, err := s.milestoneIssues(r.ID, byID)
-		if err != nil {
-			return err
-		}
-		f.Total = len(kids)
-		var hidden []node
-		for _, k := range kids {
-			switch k.Status {
-			case "resolved":
-				f.Resolved++
-			case "abandoned":
-			default:
-				if len(f.Issues) < treeCap {
-					f.Issues = append(f.Issues, k)
-				} else {
-					hidden = append(hidden, k)
-				}
+		var resolved, total int
+		for _, i := range members[r.ID] {
+			if i.Status == "resolved" {
+				resolved++
+			}
+			if i.Status != "abandoned" {
+				total++
 			}
 		}
-		if f.More = len(hidden); f.More > 0 {
-			f.MoreHref = "/type/issue?to=" + url.QueryEscape(r.ID)
-			if !slices.ContainsFunc(hidden, func(k node) bool { return k.Status != hidden[0].Status }) {
-				f.MoreHref += "&status=" + url.QueryEscape(hidden[0].Status)
-			}
-		}
-		p.Flight = append(p.Flight, f)
+		p.Done = append(p.Done, doneRow{proseItem{node: leaf(r), Updated: shortDate(r.Updated)}, resolved, total, measuredSHA(art.Body)})
 	}
 	return nil
 }
@@ -214,53 +131,6 @@ func measuredSHA(body string) string {
 		return m[1]
 	}
 	return ""
-}
-
-// acceptance parses the Status section's table. Cells are read from the right
-// because an acceptance cell may hold a command with a pipe.
-func acceptance(body string) []acRow {
-	var out []acRow
-	for line := range statusLines(body) {
-		if !strings.HasPrefix(line, "|") {
-			continue
-		}
-		cells := strings.Split(strings.Trim(strings.TrimSpace(line), "|"), "|")
-		if len(cells) < 4 {
-			continue
-		}
-		n := strings.TrimSpace(cells[0])
-		if n == "" || strings.Trim(n, "0123456789") != "" {
-			continue
-		}
-		met := strings.TrimSpace(cells[len(cells)-2])
-		row := acRow{
-			N:        n,
-			Text:     inlineCode(strings.Join(cells[1:len(cells)-2], "|")),
-			Measured: inlineCode(cells[len(cells)-1]),
-			Met:      met,
-		}
-		switch met {
-		case "met":
-			row.Class, row.Glyph = "status-done", "✓"
-		case "not met":
-			row.Class, row.Glyph = "status-not-met", "✕"
-		}
-		out = append(out, row)
-	}
-	return out
-}
-
-// inlineCode escapes s and wraps each backtick span in <code>.
-func inlineCode(s string) template.HTML {
-	var b strings.Builder
-	for i, seg := range strings.Split(strings.TrimSpace(s), "`") {
-		if i%2 == 1 {
-			b.WriteString("<code>" + html.EscapeString(seg) + "</code>")
-		} else {
-			b.WriteString(html.EscapeString(seg))
-		}
-	}
-	return template.HTML(b.String()) //nolint:gosec // every segment is escaped above
 }
 
 // proseGroup is one status and the nodes holding it, written as one sentence.

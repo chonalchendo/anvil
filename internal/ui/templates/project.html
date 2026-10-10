@@ -1,31 +1,30 @@
 {{define "title"}}{{.Page.Name}} · anvil{{end}}
 {{define "stat"}}<span class="status status-{{.Status}}{{with hue .Type .Status}} status-{{.}}{{end}}">{{.Glyph}} {{.Status}}</span>{{end}}
 {{define "lately"}}{{range .}}{{.Sep}}<a href="{{.Href}}">{{.Title}}</a> <span class="muted">({{.Updated}})</span>{{end}}{{end}}
+{{define "lately-links"}}{{range .}}{{.Sep}}<a href="{{.Href}}">{{.Title}}</a>{{end}}{{end}}
+{{define "dash"}}{{if .}}{{.}}{{else}}<span class="none" aria-label="none">—</span>{{end}}{{end}}
 {{define "prose"}}{{range .}}<p>{{template "stat" .}}: {{template "lately" .Items}}.</p>{{end}}{{end}}
 {{define "content"}}{{with .Page}}<div class="dashboard">
-<section class="inventory" aria-label="Inventory">
+<header class="head">
   <h1>{{.Name}}</h1>
   {{with .Deck}}<p class="deck">{{.}}</p>{{end}}
-  <ul class="inv">{{range .Inventory}}
-    <li><div class="head"><span class="count">{{.Count}}</span><a href="{{.Href}}">{{.Label}}</a></div>
-    <div class="bar">{{range .Segs}}<i class="status-{{.Status}}{{with hue .Type .Status}} status-{{.}}{{end}}" style="--n:{{.N}}"></i>{{end}}</div>
-    <div class="tally">{{range .Statuses}}<span class="status status-{{.Status}}{{with hue .Type .Status}} status-{{.}}{{end}}">{{.N}} {{.Status}}</span>{{end}}</div>
-    {{with .Parts}}<div class="tally parts">{{range .}}<a href="{{.Href}}">{{.Text}}</a>{{end}}</div>{{end}}</li>{{end}}
-  </ul>
-  <p class="shared">The <a href="/type/convention">{{$.Sidebar.Count "convention"}} conventions</a> are shared by every project.</p>
-</section>
+  <p class="counts">{{.Name}} holds {{template "lately-links" .Counts}}{{if .Counts}}; {{end}}<a href="/type/convention">{{$.Sidebar.Count "convention"}} conventions</a> are shared by every project.</p>
+</header>
+{{with .Milestones}}<section class="milestones" aria-labelledby="ms-h">
+  <h2 id="ms-h">Milestones</h2>
+  <p class="lede">{{.Lead}}</p>
+  {{if .Folds}}<div class="ms-head" aria-hidden="true"><span>Milestone</span><span>Status</span><span class="sp2">Approved</span><span class="sp2">Measured</span><span class="n">Resolved</span><span class="c">Not done</span></div>{{end}}
+  {{range .Folds}}<details class="ms{{if .Live}} live{{end}}"{{if .Open}} open{{end}}>
+    <summary><span class="t">{{if .Href}}<a href="{{.Href}}" class="to-{{.Status}}">{{.Title}}</a>{{else}}{{.Title}}{{end}}</span>{{if .Href}}<span>{{template "stat" .}}</span><span class="sp2">{{with .Approved}}{{.}}{{else}}<span class="none">not approved</span>{{end}}</span><span class="sp2">{{with .Measured}}{{.}}{{else}}<span class="none">not measured</span>{{end}}</span><span class="n">{{if .Total}}{{.Resolved}} of {{.Total}}{{else}}<span class="none" aria-label="none">—</span>{{end}}</span>{{else}}<span></span><span class="sp2"></span><span class="sp2"></span><span></span>{{end}}<span class="c">{{range .NotDone}}{{.Sep}}<span class="status status-{{.Status}}{{with hue "issue" .Status}} status-{{.}}{{end}}">{{.N}} {{.Label}}</span>{{else}}<span class="none">no issues yet</span>{{end}}</span></summary>
+    {{if .Issues}}<table class="iss"><colgroup><col><col class="w-st"><col class="w-v"><col class="w-pr"><col class="w-r"><col class="w-tk"><col class="w-u"><col class="w-o"></colgroup>
+    <thead><tr><th scope="col">Issue</th><th scope="col">Status</th><th scope="col">Verdict</th><th scope="col">PR</th><th scope="col" class="n">Rounds</th><th scope="col" class="n">Tokens</th><th scope="col" class="n">Updated</th><th scope="col">Owner</th></tr></thead>
+    <tbody>{{range .Issues}}<tr><td class="issue"><span class="ord" translate="no">{{.Ord}}</span><a href="{{.Href}}" class="to-{{.Status}}">{{.Title}}</a></td><td>{{template "stat" .}}</td><td>{{template "dash" .Verdict}}</td><td>{{if .PRHref}}<a href="{{.PRHref}}" translate="no">{{.PR}}</a>{{else}}{{template "dash" ""}}{{end}}</td><td class="n">{{template "dash" .Rounds}}</td><td class="n">{{template "dash" .Tokens}}</td><td class="n">{{if .Updated}}<time datetime="{{.UpdatedISO}}">{{.Updated}}</time>{{else}}{{template "dash" ""}}{{end}}</td><td class="own" translate="no">{{template "dash" .Owner}}</td></tr>{{end}}</tbody></table>
+    {{else if .Href}}<p class="empty-fold">No open issue.</p>{{end}}
+    {{if .Abandoned}}<p class="fold-note">{{.Abandoned}} abandoned, not counted in the {{.Total}}.</p>{{end}}
+  </details>{{end}}
+  {{if .Nothing}}<div class="empty"><p>{{.Inset}}</p></div>{{end}}
+</section>{{end}}
 <section class="work" aria-label="Work">
-  <h2 class="first">In flight</h2>
-  {{range .Flight}}<div class="flight">
-    <h3><a href="{{.Href}}">{{.Title}}</a></h3>
-    <p class="line">{{template "stat" .}}{{if .Total}}, {{.Resolved}} of {{.Total}} issues resolved{{end}}</p>
-    {{with .Judge}}{{template "judge" .}}{{end}}
-    {{with .Acceptance}}<table class="ac"><thead><tr><th>#</th><th>Acceptance</th><th>Met</th><th>Measured</th></tr></thead><tbody>
-      {{range .}}<tr><td class="n">{{.N}}</td><td>{{.Text}}</td><td>{{if .Class}}<span class="status {{.Class}}">{{.Glyph}} {{.Met}}</span>{{else}}{{.Met}}{{end}}</td><td>{{.Measured}}</td></tr>{{end}}
-    </tbody></table>{{end}}
-    {{if .Issues}}<ul class="issues">{{range .Issues}}<li><a href="{{.Href}}">{{.Title}}</a> {{template "stat" .}}</li>{{end}}{{if .More}}<li class="more"><a href="{{.MoreHref}}">{{.More}} more</a></li>{{end}}</ul>{{end}}
-  </div>{{else}}<p class="muted">No milestone in flight.</p>{{end}}
-
   {{with .Done}}<div class="band"><h2>Recently done</h2>
     <ul class="done-list">{{range .}}<li><span class="status status-done" aria-hidden="true">✓</span><a href="{{.Href}}">{{.Title}}</a><span class="meta">{{.Resolved}} of {{.Total}}, {{.Updated}}{{with .SHA}}, <code>{{.}}</code>{{end}}</span></li>{{end}}</ul>
   </div>{{end}}
