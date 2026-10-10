@@ -29,6 +29,7 @@ func newShowCmd() *cobra.Command {
 		flagValidate   bool
 		flagNoIncoming bool
 		flagLinks      string
+		flagSection    string
 	)
 
 	cmd := &cobra.Command{
@@ -69,6 +70,9 @@ func newShowCmd() *cobra.Command {
 			if flagNoBody {
 				includeBody = false
 			}
+			if flagSection != "" {
+				return runShowSection(cmd, v, t, args[1], rawID, flagSection)
+			}
 			if flagValidate {
 				return runShowValidate(cmd, v, t, args[1], flagJSON)
 			}
@@ -89,6 +93,7 @@ func newShowCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&flagValidate, "validate", false, "validate artifact (schema + wikilinks)")
 	cmd.Flags().BoolVar(&flagNoIncoming, "no-incoming", false, "suppress the Incoming links section (artifacts whose related[]/etc. point at this one)")
 	cmd.Flags().StringVar(&flagLinks, "links", "", "print wikilink targets of the given type (one per line; --json emits a JSON array; add --body to expand each target's body)")
+	cmd.Flags().StringVar(&flagSection, "section", "", "print only the named section (e.g. \"## Approach\"); an unknown heading lists the available ones")
 	return cmd
 }
 
@@ -391,4 +396,61 @@ func emitFrontMatterText(cmd *cobra.Command, fm map[string]any) {
 	enc, _ := json.MarshalIndent(fm, "", "  ")
 	fmt.Fprintln(w, string(enc))
 	fmt.Fprintln(w, "---")
+}
+
+// runShowSection prints one section: its heading line through the line before
+// the next heading of the same or shallower level. Fenced lines never count as
+// headings. A bare name like "Approach" is read as an H2.
+func runShowSection(cmd *cobra.Command, v *core.Vault, t core.Type, basename, rawID, want string) error {
+	a, err := core.LoadArtifact(resolveArtifactPath(v.Root, t, basename))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return notFoundErr(core.CanonicalID(t, basename), rawID)
+		}
+		return fmt.Errorf("loading artifact: %w", err)
+	}
+	want = strings.TrimSpace(want)
+	if !strings.HasPrefix(want, "#") {
+		want = "## " + want
+	}
+	lines := strings.Split(a.Body, "\n")
+	var headings []string
+	start, level, inFence := -1, 0, false
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+			inFence = !inFence
+			continue
+		}
+		l := headingLevel(line)
+		if inFence || l == 0 {
+			continue
+		}
+		if start >= 0 {
+			if l <= level {
+				fmt.Fprintln(cmd.OutOrStdout(), strings.TrimRight(strings.Join(lines[start:i], "\n"), "\n"))
+				return nil
+			}
+			continue
+		}
+		if l == 2 {
+			headings = append(headings, strings.TrimSpace(line))
+		}
+		if strings.TrimSpace(line) == want {
+			start, level = i, l
+		}
+	}
+	if start >= 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), strings.TrimRight(strings.Join(lines[start:], "\n"), "\n"))
+		return nil
+	}
+	return fmt.Errorf("section %q not found; available:\n%s", want, strings.Join(headings, "\n"))
+}
+
+// headingLevel returns the ATX heading level of line, or 0 if it is not one.
+func headingLevel(line string) int {
+	n := len(line) - len(strings.TrimLeft(line, "#"))
+	if n == 0 || n > 6 || len(line) == n || line[n] != ' ' {
+		return 0
+	}
+	return n
 }

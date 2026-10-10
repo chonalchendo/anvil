@@ -1087,3 +1087,41 @@ func TestShow_TypePrefixedFilename(t *testing.T) {
 		t.Errorf("link --to issue.demo.0001.probe should return the edge, got:\n%s", to)
 	}
 }
+
+func TestShow_Section(t *testing.T) {
+	vault := setupVault(t)
+	path := writeFixtureIssue(t, vault, "foo", "sec", "Sec issue")
+	a, err := core.LoadArtifact(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Body = "## One\n\nalpha\n\n```\n## not a heading\n```\n\n### Sub\n\nsub text\n\n## Two\n\nbeta\n"
+	if err := a.Save(); err != nil {
+		t.Fatal(err)
+	}
+
+	run := func(section string) (string, error) {
+		cmd := newRootCmd()
+		cmd.SetArgs([]string{"show", "issue", "foo.sec", "--section", section})
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		err := cmd.Execute()
+		return out.String(), err
+	}
+
+	got, err := run("## One")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(got, "## One\n") || strings.Contains(got, "beta") || !strings.Contains(got, "sub text") || !strings.Contains(got, "## not a heading") {
+		t.Errorf("unexpected section output:\n%s", got)
+	}
+	if got, err = run("Two"); err != nil || strings.TrimSpace(got) != "## Two\n\nbeta" {
+		t.Errorf("last section: err=%v out=%q", err, got)
+	}
+	_, err = run("## Nope")
+	if err == nil || !strings.Contains(err.Error(), "## One") || !strings.Contains(err.Error(), "## Two") || strings.Contains(err.Error(), "not a heading") {
+		t.Errorf("unknown heading error = %v", err)
+	}
+}
