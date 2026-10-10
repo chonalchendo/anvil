@@ -116,19 +116,13 @@ func newCreateCmd() *cobra.Command {
 			// errors.Join keeps the tier single-pass: a missing --title no longer
 			// short-circuits ahead of a simultaneous --description/--goal cap
 			// overage, so the author sees every pre-resolution violation at once.
-			var titleErr error
 			// Session and design types don't derive their ID from the title, so
 			// --title is optional for them. All other types require it.
 			noTitleRequired := t == core.TypeSession || t == core.TypeProductDesign || t == core.TypeSystemDesign
-			if !noTitleRequired && flagTitle == "" {
-				titleErr = fmt.Errorf("--title is required for %s", t)
-			}
-			if err := errors.Join(titleErr, checkFieldCaps(t, flagDescription, flagGoal, flagJSON)); err != nil {
-				var capErr *errfmt.Structured
-				if flagJSON && errors.As(err, &capErr) {
-					return printAndReturn(cmd, capErr)
-				}
-				return err
+			missingTitle := !noTitleRequired && flagTitle == ""
+			capViolations := checkFieldCaps(t, flagDescription, flagGoal)
+			if missingTitle || len(capViolations) > 0 {
+				return preResolutionRefusal(cmd, flagJSON, t, missingTitle, capViolations)
 			}
 
 			v, err := core.ResolveVault()

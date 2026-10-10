@@ -104,9 +104,9 @@ func printValidationErrors(cmd *cobra.Command, errs []*errfmt.ValidationError) {
 // The envelope is an object (not a bare array) so it is distinguishable from
 // success envelopes — agents dispatch on the top-level `error` key, then walk
 // `violations[]` to correct fields without a non-JSON debug round-trip.
-func printValidationErrorsJSON(cmd *cobra.Command, errs []*errfmt.ValidationError) {
+func printValidationErrorsJSON[T any](cmd *cobra.Command, errs []T) {
 	if errs == nil {
-		errs = []*errfmt.ValidationError{}
+		errs = []T{}
 	}
 	payload := map[string]any{
 		"error":      "schema_invalid",
