@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
@@ -63,4 +64,32 @@ func unmetCriteria(rs []acceptanceResult) []string {
 		}
 	}
 	return unmet
+}
+
+// milestoneAt names the ref a `milestone status --at` run measured and the
+// commit it resolved to.
+type milestoneAt struct {
+	Ref    string `json:"ref"`
+	Commit string `json:"commit"`
+}
+
+// runAcceptanceAt runs acceptance on a detached checkout of ref in the project
+// repo, so team mode can measure a stack top. It returns the resolved commit.
+// The checkout is removed after.
+func runAcceptanceAt(cmd *cobra.Command, m *core.Artifact, id string, fl finishLine, ref string) ([]acceptanceResult, string, error) {
+	if fl.Dir == "" {
+		cause := "the milestone has no project"
+		if fl.Err != nil {
+			cause = fl.Err.Error()
+		}
+		return nil, "", errfmt.NewStructured("milestone_status_at_no_repo").
+			Set("message", "--at needs the project repo, which did not resolve for "+id+": "+cause).
+			Set("fix_hint", "set the milestone project to one with a resolvable repo, then re-run anvil milestone status "+id+" --at "+ref)
+	}
+	dir, commit, cleanup, err := checkoutAt(cmd.ErrOrStderr(), fl.Dir, ref, "anvil milestone status "+id+" --at "+ref)
+	if err != nil {
+		return nil, "", err
+	}
+	defer cleanup()
+	return runAcceptance(cmd, m, dir), commit, nil
 }
