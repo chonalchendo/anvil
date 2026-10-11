@@ -13,14 +13,14 @@ Use this when the project's `CLAUDE.md` or `AGENTS.md` says `Merge approval: tea
 
 ## Link the PRs
 
-Run `gh stack` only in the project repo, from the parent checkout. After the PRs exist, track the stack locally once, bottom to top. `gh stack rebase` and `gh stack sync` exit 2 without it.
+Run `gh stack` in the project repo. After the PRs exist, track the stack locally once, bottom to top. `gh stack rebase` and `gh stack sync` exit 2 without it.
 
 ```bash
 gh stack init --base <trunk> <branch-bottom> ... <branch-top>
 gh stack link <pr-bottom> <pr-next> ... <pr-top>
 ```
 
-`gh stack link` corrects PR bases to the chain. Add `--base <trunk>` when the trunk is not the default branch. After a later layer opens, add its branch to the stack (`gh stack add <branch>` from the top branch, or run `init` again) and run `link` again with all PRs; it only adds.
+`gh stack link` corrects PR bases to the chain. Add `--base <trunk>` when the trunk is not the default branch. After a later layer opens, add its branch to the stack (run `gh stack add <branch>` from the current top layer's worktree) and run `link` again with all PRs; it only adds.
 
 ## Per layer
 
@@ -42,13 +42,13 @@ Report the stack: the PR list bottom to top, each verdict and review result. Sto
 ## Teammate change request
 
 1. Dispatch `anvil-pr-responder` into layer k's worktree with the request.
-2. Restack the layers above: `gh stack rebase --upstack <branch-k>`. Resolve conflicts with `gh stack rebase --continue`. Then run `gh stack push`. `gh stack sync` also pushes, but only its own rebase.
+2. Restack the layers above: `gh stack rebase --upstack <branch-k>`. Resolve conflicts with `gh stack rebase --continue`. Then run `gh stack push` from the top layer's worktree. `gh stack sync` also pushes, but only its own rebase.
 3. Re-run the verdict gate on layer k and on each layer above it. A review whose layer patch did not change stays fresh. Re-fire `reviewing-pr` only on a layer whose patch changed.
 4. Report "stack complete" again.
 
 ## Land
 
-Before the land, check that the base branch has not moved past the stack. If it has, run `gh stack rebase`, then `gh stack push`, then repeat the per-layer gates. A push can dismiss the teammate's approvals when branch protection dismisses stale approvals. Tell the human, so the teammate approves again.
+Before the land, check that the base branch has not moved past the stack. If it has, run `gh stack rebase <branch-top>`, then `gh stack push` from the top layer's worktree, then repeat the per-layer gates. A push can dismiss the teammate's approvals when branch protection dismisses stale approvals. Tell the human, so the teammate approves again.
 
 After the teammate approves, the human approves the land. Run from the parent checkout:
 
