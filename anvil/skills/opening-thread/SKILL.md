@@ -79,7 +79,7 @@ anvil create thread --title "<question>" --topic <topic> --tags domain/<d>,activ
 # capture id + path from JSON; id is <topic>.<NNNN>-<slug>
 ```
 
-`--topic` is required either way — the ordinal is allocated per topic. A new thread needs one `domain/` and one `activity/` tag.
+`--topic` is required either way — the ordinal is allocated per topic. A new thread needs one `domain/` and one `activity/` tag. Add `--allow-new-facet <facet>` for a new tag value.
 
 ---
 

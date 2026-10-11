@@ -62,7 +62,7 @@ Decisive → skip to Phase 2. Fuzzy → continue to Phase 1. No artifact or chat
 
 Goal: a one-sentence shared understanding of what is being proposed, so Phase 3's pressure-test stress-tests the user's idea, not your interpretation. Restate it in one sentence, ask "did I get this right?", one clarifying question at a time (multiple-choice preferred), stop only on explicit confirmation ("sure, whatever" doesn't count). Output: a `Problem` sentence and a `Proposal` sentence held in chat for Phase 4.
 
-If convergence leaves the issue's shape unknown, that is a key decision: **REQUIRED SUB-SKILL:** Use opening-thread.
+If convergence leaves the issue's shape unknown, that is a key decision: **REQUIRED SUB-SKILL:** Use opening-thread, and stop here until the thread closes.
 
 ## Phase 2 — Milestone-fit gate (always; Iron Law)
 
