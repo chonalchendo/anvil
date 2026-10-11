@@ -917,3 +917,19 @@ func TestTransition_EscalateThenRequeue_ClearsReasonAndStampsClaim(t *testing.T)
 		t.Errorf("claimed_at not stamped on re-claim")
 	}
 }
+
+// A decision minted with `create decision --thread` records the edge on the
+// decision, not the thread; closing that thread must not warn.
+func TestTransition_Thread_Closed_SilentWithDecisionThreadSlot(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	id := mkThread(t, "ducklake", "Which catalog backend")
+	execCmd(t, "create", "decision", "--title", "Use Postgres catalog", "--thread", id,
+		"--description", "d", "--tags", "domain/dev-tools,activity/research",
+		"--allow-new-facet=domain", "--allow-new-facet=activity")
+
+	if out := execCmd(t, "transition", "thread", id, "closed"); strings.Contains(out, "no decision or learning link") {
+		t.Errorf("unexpected warning when a decision names the thread: %q", out)
+	}
+}

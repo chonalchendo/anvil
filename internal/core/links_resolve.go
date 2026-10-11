@@ -43,6 +43,7 @@ var linkSlotFields = map[string]struct{}{
 	"related": {}, "depends_on": {}, "blocks": {}, "fixes": {}, "milestone": {},
 	"issue": {}, "product_design": {}, "system_design": {},
 	"supersedes": {}, "superseded_by": {}, "promoted_to": {}, "authorized_by": {},
+	"thread": {},
 }
 
 // ResolveLinks walks fm's declared link slots (linkSlotFields) and returns

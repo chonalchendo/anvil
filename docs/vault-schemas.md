@@ -221,7 +221,10 @@ status: proposed | rejected | accepted | deprecated | superseded
 date: <iso-date>
 supersedes: ["[[decision...]]"]
 superseded_by: "[[decision...]]" | null
+thread: "[[thread.<topic>.<NNNN>-<slug>]]"   # optional; the thread that settled it
 ```
+
+`anvil create decision --thread <id>` sets `thread` (bare or `thread.`-prefixed id), takes `--topic` from the thread id when omitted, and refuses an unresolved thread before any write.
 
 Body absorbs: decision-makers, consulted, informed, evidence. Filenames keep the MADR `nnnn-` numeric prefix in the slug: `30-decisions/<project>.<NNNN>-<slug>.md`.
 
@@ -258,7 +261,7 @@ Filenames carry a topic-scoped ordinal, as decisions do: `60-threads/<topic>.<NN
 
 Tags: required `domain/<x>` and `activity/<x>`; `pattern/<x>` optional.
 
-**Legal transitions:** see `internal/core/transitions.go`. `closed` warns (never blocks) when the thread carries no outbound decision or learning link — see the `opening-thread` skill's closing verdict.
+**Legal transitions:** see `internal/core/transitions.go`. `closed` warns (never blocks) when no decision or learning is linked: none in the thread's body or `related`, and no decision whose `thread` slot names it — see the `opening-thread` skill's closing verdict.
 
 ### `sweep`
 
