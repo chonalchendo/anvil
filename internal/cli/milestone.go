@@ -29,13 +29,15 @@ func newMilestoneCmd() *cobra.Command {
 // or not met.
 func newMilestoneStatusCmd() *cobra.Command {
 	var flagJSON bool
+	var flagAt string
 
 	cmd := &cobra.Command{
 		Use:   "status <milestone-id>",
 		Short: "Report a milestone's issue counts, per-issue cost and acceptance predicates",
 		Args:  cobra.ExactArgs(1),
 		Example: `  anvil milestone status anvil.<slug>
-  anvil milestone status anvil.<slug> --json`,
+  anvil milestone status anvil.<slug> --json
+  anvil milestone status anvil.<slug> --at <ref>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			v, err := core.ResolveVault()
 			if err != nil {
@@ -64,11 +66,19 @@ func newMilestoneStatusCmd() *cobra.Command {
 				return err
 			}
 			fl := checkFinishLine(projectFromArtifact(m, args[0]))
-			warnBaseUnchecked(cmd, fl)
-			if fl.off() {
-				cmd.PrintErrln("warning: HEAD " + fl.Head + " is not the default branch tip " + fl.Base + "; `transition milestone done` refuses here")
+			var acceptance []acceptanceResult
+			if flagAt != "" {
+				acceptance, err = runAcceptanceAt(cmd, m, args[0], fl.Dir, flagAt)
+				if err != nil {
+					return err
+				}
+			} else {
+				warnBaseUnchecked(cmd, fl)
+				if fl.off() {
+					cmd.PrintErrln("warning: HEAD " + fl.Head + " is not the default branch tip " + fl.Base + "; `transition milestone done` refuses here")
+				}
+				acceptance = runAcceptance(cmd, m, fl.Dir)
 			}
-			acceptance := runAcceptance(cmd, m, fl.Dir)
 			rows, total, scanErr := milestoneCostRows(v, strings.TrimPrefix(args[0], "milestone."))
 			if scanErr != nil {
 				cmd.PrintErrln("warning: issue scan failed: " + scanErr.Error())
@@ -116,5 +126,6 @@ func newMilestoneStatusCmd() *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&flagJSON, "json", false, "emit status, acceptance, cost rows and outcome as JSON")
+	cmd.Flags().StringVar(&flagAt, "at", "", "run acceptance on a fresh detached checkout of this ref")
 	return cmd
 }

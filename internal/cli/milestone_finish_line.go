@@ -64,3 +64,17 @@ func unmetCriteria(rs []acceptanceResult) []string {
 	}
 	return unmet
 }
+
+// runAcceptanceAt runs acceptance on a detached checkout of ref in the project
+// repo, so team mode can measure a stack top. The checkout is removed after.
+func runAcceptanceAt(cmd *cobra.Command, m *core.Artifact, id, repo, ref string) ([]acceptanceResult, error) {
+	if repo == "" {
+		return nil, fmt.Errorf("--at needs the project repo, which did not resolve for %s", id)
+	}
+	dir, _, cleanup, err := checkoutAt(cmd.ErrOrStderr(), id, repo, ref)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+	return runAcceptance(cmd, m, dir), nil
+}
