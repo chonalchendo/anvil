@@ -10,7 +10,7 @@ import (
 
 // stubGhPRList swaps ghPRListFn for the duration of a test. fn receives the
 // branch passed to gh and returns (url, error).
-func stubGhPRList(t *testing.T, fn func(branch string) (string, error)) {
+func stubGhPRList(t *testing.T, fn func(branch, _ string) (string, error)) {
 	t.Helper()
 	prev := ghPRListFn
 	ghPRListFn = fn
@@ -29,7 +29,7 @@ func TestTransitionResolvedRefusesWhenOpenPR(t *testing.T) {
 
 	wantPRURL := "https://github.com/acme/demo/pull/42"
 	var queried []string
-	stubGhPRList(t, func(branch string) (string, error) {
+	stubGhPRList(t, func(branch, _ string) (string, error) {
 		queried = append(queried, branch)
 		if branch == "anvil/foo" {
 			return wantPRURL, nil
@@ -80,7 +80,7 @@ func TestTransitionResolvedForceOverridesAndLogsAudit(t *testing.T) {
 	createDemoIssue(t)
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
-	stubGhPRList(t, func(_ string) (string, error) {
+	stubGhPRList(t, func(_, _ string) (string, error) {
 		return "https://github.com/acme/demo/pull/99", nil
 	})
 
@@ -111,7 +111,7 @@ func TestTransitionResolvedSucceedsWhenNoOpenPR(t *testing.T) {
 	createDemoIssue(t)
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
-	stubGhPRList(t, func(_ string) (string, error) {
+	stubGhPRList(t, func(_, _ string) (string, error) {
 		return "", nil
 	})
 
@@ -135,7 +135,7 @@ func TestTransitionResolvedGhMissingDowngradesToWarning(t *testing.T) {
 	createDemoIssue(t)
 	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
 
-	stubGhPRList(t, func(_ string) (string, error) {
+	stubGhPRList(t, func(_, _ string) (string, error) {
 		return "", errGhUnavailable
 	})
 
