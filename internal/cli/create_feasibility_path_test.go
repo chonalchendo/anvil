@@ -18,6 +18,15 @@ func TestRunnerPutsRunDirBinFirst(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	other := filepath.Join(t.TempDir(), "bin")
+	if err := os.Mkdir(other, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(other, "fakebuild"), []byte("#!/bin/sh\n"), 0o755); err != nil { //nolint:gosec // test fixture must be executable
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", other+string(os.PathListSeparator)+os.Getenv("PATH"))
+
 	r := runFeasibilityBlock("command -v fakebuild", dir, 0)
 	if r.runErr != nil || r.exit != 0 {
 		t.Fatalf("block failed: %+v", r)

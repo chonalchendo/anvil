@@ -285,7 +285,7 @@ func runVerification(errW io.Writer, body, dir string) (verifyRecord, error) {
 				rec.Failed = append(rec.Failed, f)
 				continue
 			}
-			fmt.Fprintln(errW, "anvil: running verification "+check+" in this environment (your privileges, cwd and environment; not sandboxed)")
+			fmt.Fprintln(errW, "anvil: running verification "+check+" in this environment "+runnerEnvNote)
 			// No timeout: Direct is typically the repo's whole suite, which the
 			// create gate's cap would fail as red.
 			r := runFeasibilityBlock(block, dir, 0)

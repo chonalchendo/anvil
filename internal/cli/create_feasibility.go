@@ -125,7 +125,7 @@ func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.Validat
 					WithFix(nonGatingNegationFix))
 				continue
 			}
-			cmd.PrintErrln("anvil: running " + name + " in this environment (your privileges, cwd and environment; not sandboxed; run dir's bin/ first on PATH)")
+			cmd.PrintErrln("anvil: running " + name + " in this environment " + runnerEnvNote)
 			r := runFeasibilityBlock(block, "", feasibilityTimeout)
 			r.lastLine, r.redText, r.earlyRed = blockLines(block, r.redLine)
 			if r.timedOut && label == "Direct" {
@@ -214,6 +214,9 @@ func (r blockRun) failure() (why string, failed bool) {
 	}
 	return "", false
 }
+
+// runnerEnvNote is the stderr notice every runFeasibilityBlock caller prints.
+const runnerEnvNote = "(your privileges, cwd and environment; not sandboxed; run dir's bin/ first on PATH)"
 
 // runFeasibilityBlock runs a single Verification block's lines as one bash
 // script in dir ("" = the process cwd) and reports what it observed. timeout 0
