@@ -114,6 +114,8 @@ Do not run `anvil transition milestone <id> done`. Report the green finish line 
 
 Each exit is a halt that returns to the human with a reason. There is one escalation path: the milestone gate.
 
+The human's choice at Exit 1 or 2 (amend, cut scope, abandon) is a key decision: **REQUIRED SUB-SKILL:** Use opening-thread before acting on it.
+
 1. **Issue escalated.** A worker blocker or the round limit. Run `anvil transition issue <id> escalated --reason "<reason>"` if the issue is still `in-progress`. Offer: amend, cut scope or abandon.
 2. **Milestone wrong.** The issues show the end goal, finish line or design change is wrong. Propose `anvil transition milestone <id> planned` and the amendment. Do not edit the milestone yourself.
 3. **Issue limit reached.** The milestone body names the limit. If the next wave would pass it, propose `anvil transition milestone <id> planned` with a re-scope, then stop.

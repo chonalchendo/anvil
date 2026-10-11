@@ -44,6 +44,8 @@ Save with `anvil create product-design --project <slug> --title … --body-file 
 
 ## The phases
 
+A design change or recorded choice is a key decision: **REQUIRED SUB-SKILL:** Use opening-thread before authoring it.
+
 Six phases plus two half-phases, each with an explicit user gate — gates are the load-bearing part, not optional checkpoints. Each is an iteration loop; expect 1–2 reframes per phase. Phases 3 and 4 are load-bearing: Phase 5 derives milestones from them. The reader is the human. Workers do not load this doc.
 
 The per-phase procedure — drafting instructions, voice checks, gate criteria — lives in the reference below. The quick-reference table is the phase index; load the reference before drafting Phase 1.

@@ -30,6 +30,8 @@ Workflow for creating or updating a component design: the per-component referenc
 
 Decide before Phase 1. If uncertain, run `anvil list component-design`.
 
+A design change or recorded choice is a key decision: **REQUIRED SUB-SKILL:** Use opening-thread before authoring it.
+
 ## Component design skeleton (both modes)
 
 `create` and `validate` reject a body missing any core heading, in order: `## Does`, `## Does not`, `## Interfaces`, `## Invariants`, `## Verification`.

@@ -36,7 +36,7 @@ The system design is explanation plus reference (Diátaxis): Solution strategy e
 - Vision, users, scope → `writing-product-design`.
 - One milestone in detail → `writing-milestone`.
 - Implementation tasks → `writing-issue`.
-- Documenting a *single* architectural choice (e.g., "JWT vs sessions") → that's a decision, record it with `anvil create decision --title "<the choice>" --topic <topic> --description "<one line>" --tags domain/<d>,activity/system-design --body-file <f> --json` (`<f>` holds `## Context`, `## Decision`, `## Rationale`, `## Consequences`, `## Links`; add `--allow-new-facet <facet>` for a new tag value).
+- Documenting a *single* architectural choice (e.g., "JWT vs sessions") → that's a decision: fire opening-thread, then record it with `anvil create decision --title "<the choice>" --thread <thread-id> --description "<one line>" --tags domain/<d>,activity/system-design --body-file <f> --json` (`<f>` holds `## Context`, `## Decision`, `## Rationale`, `## Consequences`, `## Links`; add `--allow-new-facet <facet>` for a new tag value).
 
 ## Output path
 
@@ -45,6 +45,8 @@ Read the product design with `anvil show product-design <project> --body`. Save 
 Surface the save command at Phase 1 so the user can flag any constraint up front.
 
 ## The phases
+
+A design change or recorded choice is a key decision: **REQUIRED SUB-SKILL:** Use opening-thread before authoring it.
 
 Eleven phases, each with an explicit user gate — don't skip the gates. Phases 1, 4, and 7 are load-bearing: Phase 1 enforces the product-design dependency, Phase 4 derives components from product-design goals (the candidate-to-component map lives in the product design's Milestones list, not here), Phase 7 produces the invariants that downstream planning and review check against.
 

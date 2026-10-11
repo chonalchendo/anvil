@@ -1,6 +1,6 @@
 ---
 name: opening-thread
-description: "Use when the user explicitly commits to research now. Triggers: 'let's research X', 'open a thread on X', 'promote inbox <id> to a thread'. Not for passive captures (use capturing-inbox) or project-tied research with an existing issue."
+description: "Use at a key decision (design change, convention, escalation, issue of unknown shape) or when the user commits to research now. Triggers: 'let's research X', 'open a thread on X', 'promote inbox <id>'. Not for passive captures (capturing-inbox)."
 license: MIT
 allowed-tools: [Bash, Read, Edit]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -24,6 +24,7 @@ Workflow for opening a research thread — the live workspace for cross-session 
 
 ## When this skill runs
 
+- A key decision arises: a design change, a convention, an escalation or an issue of unknown shape. Every key decision starts with a thread, and the decision cites it.
 - The user explicitly commits to research now.
 - A passive inbox entry is being promoted to a thread.
 - A milestone may exist but the work is research, not project-bound.
@@ -31,7 +32,7 @@ Workflow for opening a research thread — the live workspace for cross-session 
 ## When not to use
 
 - The user is dumping a thought without committing → `capturing-inbox`.
-- Project-tied research with an existing issue → research happens in issue-execution context.
+- Project-tied research with an existing issue that is not a key decision → issue-execution context.
 - The thread already exists and the user is resuming → no skill needed; sessions auto-bind to active thread.
 
 ---
@@ -74,11 +75,11 @@ anvil promote <inbox-id> --as thread --topic <topic>
 **B. Greenfield:**
 
 ```bash
-anvil create thread --title "<question>" --topic <topic> --json
+anvil create thread --title "<question>" --topic <topic> --tags domain/<d>,activity/<a> --json
 # capture id + path from JSON; id is <topic>.<NNNN>-<slug>
 ```
 
-`--topic` is required either way — the ordinal is allocated per topic.
+`--topic` is required either way — the ordinal is allocated per topic. A new thread needs one `domain/` and one `activity/` tag. Add `--allow-new-facet <facet>` for a new tag value.
 
 ---
 
@@ -121,11 +122,10 @@ Fix any schema errors reported. Re-run until clean.
 
 A thread is a workspace, not an output. Before closing one, rule on where its conclusion goes — the answer must outlive the file. Pick exactly one:
 
-- **Decision** — the thread settled a standing choice (a rule, a default, a rejected option). Mint it **under the thread's own topic** so the two sort together and the topic reads as one arc, link it, then close:
+- **Decision** — the thread settled a standing choice (a rule, a default, a rejected option). Mint it with `--thread`, which takes the topic from the thread and records the thread on the decision, then close:
 
   ```bash
-  anvil create decision --title "<the choice>" --topic <same-topic-as-the-thread> --json
-  anvil link thread <thread-id> decision <decision-id>
+  anvil create decision --title "<the choice>" --thread <thread-id> --description "<one line>" --tags domain/<d>,activity/<a> --json
   anvil transition thread <thread-id> closed
   ```
 
@@ -137,7 +137,7 @@ A thread is a workspace, not an output. Before closing one, rule on where its co
   anvil transition thread <thread-id> closed
   ```
 
-`anvil transition thread <id> closed` warns when the thread carries no outbound decision or learning link. It never blocks — the third verdict is legitimate — but treat the warning as the prompt to confirm you *chose* it rather than skipped the ruling.
+`anvil transition thread <id> closed` warns when no decision or learning is linked: none in the thread's body or `related`, and no decision whose `thread` slot names it. It never blocks — the third verdict is legitimate — but treat the warning as the prompt to confirm you *chose* it rather than skipped the ruling.
 
 Project work surfaced mid-thread routes to `writing-issue` and is not a closing verdict: the thread stays open as parallel context.
 
