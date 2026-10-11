@@ -22,10 +22,6 @@ Both paths land you in Phase 1 with a claimed issue and a worktree — the rest 
 
 Drive `completing-issue` to an opened PR, then HALT. Do NOT invoke `responding-to-pr-review`. Do NOT poll, monitor, or wait on CI or CodeRabbit. The moment `gh pr create` returns a url, emit it and terminate — the human runs review separately. This stop-at-PR-opened rule is the whole point: the fleet's review-respond polling loop is where one-off workers hang.
 
-## Stacked base (optional `Base:` fill-in)
-
-When the dispatch names a `Base:` branch, the PR is one layer of a stack. Open it with `gh pr create --base <branch>`. Without a `Base:`, open it against the default branch.
-
 ## Verdict is data, not prose (mandatory)
 
 Your account of verification is not evidence — the verb's verdict is. `anvil verify <issue-id> --json` prints exactly one line of JSON on **stdout** (`{"verdict":"pass|fail","checks":N,"failed":[…],"deferred":[…],"commit":…,"ran_at":…}`; `deferred` = red `# anvil:post-land` Indirect blocks, does not fail the verdict) and its human summary on stderr. It also stamps the result on the issue. Gate on that line mechanically:
@@ -113,7 +109,7 @@ cat "$audit_err" >&2
 [ "$audit" = "scope: clean" ] || { printf 'Blocker: scope-change out-of-scope files:\n%s\n' "$audit"; exit 1; }
 ```
 
-The audit does not trust `$changed` alone: it also derives the branch's changed set itself against a freshly fetched origin/HEAD and unions it with `--changed`, so a stale local merge-base cannot under-report.
+The audit does not trust `$changed` alone: it also derives the branch's changed set itself against a freshly fetched origin/HEAD and unions it with `--changed`, so a stale local merge-base cannot under-report. When the dispatch names a `Base:` branch, diff against `origin/<base>` instead of `origin/master` and add `--base <base>` to `anvil fleet scope-audit`.
 
 ## Checkpoint-commit WIP (survive mid-task death)
 

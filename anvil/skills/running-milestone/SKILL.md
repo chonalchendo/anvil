@@ -9,7 +9,7 @@ Your job is to run one in-progress milestone to its finish line. You derive a fe
 
 ## Iron Law
 
-**The human owns the merge button and the milestone gates. Never call `gh pr merge` or `git worktree remove`. Never call `anvil transition issue <id> abandoned`. Run `resolved` only after the human approves that PR.** This binds your subagents too. A subagent that breaks it is a halt. Surface it.
+**The human owns the merge button and the milestone gates. Never call `gh pr merge` or `git worktree remove`. Never call `anvil transition issue <id> abandoned`. Run `resolved` only after the human approves that PR (team mode: that stack).** This binds your subagents too. A subagent that breaks it is a halt. Surface it.
 
 ## Phase 0 — Read the state
 
@@ -22,7 +22,7 @@ anvil fleet status --json
 anvil list issue --ready --milestone <project>.<slug> --json
 ```
 
-`milestone status` runs the acceptance predicates in the project's main checkout with your privileges. Run it only on the base branch tip.
+`milestone status` runs the acceptance predicates in the project's main checkout with your privileges. Run it only on the base branch tip. In team mode pass `--at <top-branch>`.
 
 The milestone must be `in-progress`. If it is `planned`, halt: the human approves the milestone gate first.
 
@@ -46,7 +46,7 @@ Take the ready issues from `anvil list issue --ready --milestone <project>.<slug
 
 **Never stack.** Never base a dependent issue on its predecessor's branch. `--land-pr` deletes that branch and closes the dependent PR for good. Land the predecessor, then cut the dependent from the base branch tip.
 
-**Team mode.** In `Merge approval: team`, the issues run as one stack and land with `--land-stack`. Stop at "stack complete". **REQUIRED REFERENCE:** Use skills/running-milestone/references/team-mode.md instead of "Never stack", Phase 6 and the land line of the Report.
+**Team mode.** In `Merge approval: team`, the issues run as one stack and land with `--land-stack`. Stop at "stack complete". **REQUIRED REFERENCE:** Use skills/running-milestone/references/team-mode.md instead of "Never stack", Phase 3 parallel dispatch, Phase 6, Phase 7's after-each-landing loop and the land line of the Report.
 
 ## Phase 2b — Retrieve learnings once
 
@@ -151,7 +151,7 @@ The report reads each issue's cost from `issues[].cost` and the total from `cost
 
 ## What NOT to do
 
-- Do not land a PR without the human's approval of that PR. A blanket "merge on green" is not approval.
+- Do not land a PR without the human's approval of that PR (team mode: of that stack). A blanket "merge on green" is not approval.
 - Do not derive the whole milestone at once.
 - Do not re-dispatch a `Blocker:` return.
 - Do not write code or edit the milestone body.
