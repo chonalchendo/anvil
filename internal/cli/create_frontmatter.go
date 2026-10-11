@@ -236,13 +236,30 @@ var updateFlagKeys = map[string]string{
 	"suggested-project": "suggested_project",
 }
 
+// passedFlagValue returns the value a passed flag sets in fm. An empty
+// --severity or --milestone counts as not passed: the template fills their
+// default, which is not caller intent. Empty --goal and --kind are already
+// absent from fm. createDrift and mergeUpdate both read this one rule.
+func passedFlagValue(cmd *cobra.Command, flag, key string, fm map[string]any) (any, bool) {
+	v, ok := fm[key]
+	if !ok || !cmd.Flags().Changed(flag) {
+		return nil, false
+	}
+	if flag == "severity" || flag == "milestone" {
+		if s, _ := cmd.Flags().GetString(flag); s == "" {
+			return nil, false
+		}
+	}
+	return v, true
+}
+
 // mergeUpdate returns existing with the caller-supplied flag fields from fm
 // laid over it, plus the sorted keys whose value changed. status, related
 // and every unsupplied field survive the rewrite.
 func mergeUpdate(cmd *cobra.Command, existing, fm map[string]any) (map[string]any, []string) {
 	merged := maps.Clone(existing)
 	for flag, key := range updateFlagKeys {
-		if v, ok := fm[key]; ok && cmd.Flags().Changed(flag) {
+		if v, ok := passedFlagValue(cmd, flag, key, fm); ok {
 			merged[key] = v
 		}
 	}
