@@ -5,6 +5,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 )
@@ -34,9 +36,10 @@ func unreadInbox(v *core.Vault, id string) ([]string, error) {
 }
 
 // gateMilestoneApproval refuses `transition milestone in-progress` from
-// planned while a milestone's form is incomplete or an open inbox item
-// still links it. On success it stamps the approval date; the caller saves.
-func gateMilestoneApproval(v *core.Vault, m *core.Artifact, id string) error {
+// planned while the form is incomplete, a raw inbox item links the milestone,
+// or an acceptance entry exits 127. On success it stamps the approval date;
+// the caller saves.
+func gateMilestoneApproval(cmd *cobra.Command, v *core.Vault, m *core.Artifact, id string) error {
 	if label, code, missing := core.MissingMilestoneFormPart(m); missing {
 		return errfmt.NewStructured(code).
 			Set("milestone", id).
@@ -54,6 +57,25 @@ func gateMilestoneApproval(v *core.Vault, m *core.Artifact, id string) error {
 			Set("milestone", id).
 			Set("inbox", unread).
 			Set("fix_hint", "promote or drop each routed inbox item (anvil transition inbox <id> promoted|dropped), then retry")
+	}
+	var prose []int
+	dir, derr := resolveProjectRepoFn(projectFromArtifact(m, id))
+	if derr != nil {
+		cmd.PrintErrln("warning: project repo not resolved (" + derr.Error() + "); acceptance runs in the current directory")
+	}
+	for i, r := range runAcceptance(cmd, m, dir) {
+		// Exit 127 means "not a command"; red versus green is judged at done.
+		if r.RunError == "" && !r.TimedOut && r.Exit == 127 {
+			prose = append(prose, i)
+		}
+	}
+	if len(prose) > 0 {
+		// Highest first: each --remove shifts later indexes down.
+		slices.Reverse(prose)
+		return errfmt.NewStructured("milestone_gate_acceptance_not_command").
+			Set("milestone", id).
+			Set("entries", prose).
+			Set("fix_hint", "remove the listed indexes highest first (anvil set milestone "+id+" acceptance --remove <i>), then --add each command (anvil set milestone "+id+" acceptance --add \"<command>\"), then retry; guard a not-yet-built target as: test -f x && bash x")
 	}
 	m.FrontMatter["approved"] = time.Now().UTC().Format("2006-01-02")
 	return nil
