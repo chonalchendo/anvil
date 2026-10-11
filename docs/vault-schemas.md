@@ -221,7 +221,10 @@ status: proposed | rejected | accepted | deprecated | superseded
 date: <iso-date>
 supersedes: ["[[decision...]]"]
 superseded_by: "[[decision...]]" | null
+thread: "[[thread.<topic>.<NNNN>-<slug>]]"   # optional; the thread that settled it
 ```
+
+`anvil create decision --thread <id>` sets `thread` (bare or `thread.`-prefixed id), takes `--topic` from the thread id when omitted, and refuses an unresolved thread before any write.
 
 Body absorbs: decision-makers, consulted, informed, evidence. Filenames keep the MADR `nnnn-` numeric prefix in the slug: `30-decisions/<project>.<NNNN>-<slug>.md`.
 

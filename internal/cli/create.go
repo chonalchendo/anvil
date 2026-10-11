@@ -47,6 +47,7 @@ func newCreateCmd() *cobra.Command {
 		flagGoal             string
 		flagProject          string
 		flagTopic            string
+		flagThread           string
 		flagSuggestedType    string
 		flagSuggestedProject string
 		flagSlug             string
@@ -149,7 +150,8 @@ func newCreateCmd() *cobra.Command {
 
 			// Per-type required-flag checks, two tiers — see
 			// collectPreValidationErrors.
-			preValidationErrors := collectPreValidationErrors(cmd, t, flagTopic)
+			threadLink, threadErrs := applyThreadFlag(v, t, flagThread, &flagTopic)
+			preValidationErrors := append(threadErrs, collectPreValidationErrors(cmd, t, flagTopic)...)
 
 			// Derive description from title when omitted for spine types that
 			// require it, mirroring promote's single-step stub behaviour (see
@@ -240,6 +242,9 @@ func newCreateCmd() *cobra.Command {
 			}
 			if flagSeverity != "" && t == core.TypeIssue {
 				fm["severity"] = flagSeverity
+			}
+			if threadLink != "" {
+				fm["thread"] = threadLink
 			}
 			if flagMilestone != "" && t == core.TypeIssue {
 				fm["milestone"] = normalizeMilestone(flagMilestone)
@@ -349,6 +354,7 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagGoal, "goal", "", fmt.Sprintf("terminal predicate, one sentence (max %d chars, required for issue and milestone)", maxGoalChars))
 	cmd.Flags().StringVar(&flagProject, "project", "", "project slug (overrides auto-detected; supported on: "+strings.Join(core.TypesSupportingProject(), ", ")+"; inbox aliases to --suggested-project)")
 	cmd.Flags().StringVar(&flagTopic, "topic", "", "topic slug scoping the NNNN ordinal (required for decision and thread)")
+	cmd.Flags().StringVar(&flagThread, "thread", "", "thread id that settled the decision (decision only); infers --topic from the thread id")
 	cmd.Flags().StringVar(&flagSuggestedType, "suggested-type", "", "suggested type (inbox only)")
 	cmd.Flags().StringVar(&flagSuggestedProject, "suggested-project", "", "suggested project (inbox only)")
 	cmd.Flags().StringVar(&flagSlug, "slug", "", "override the title-derived slug (must match ^[a-z0-9][a-z0-9-]*$)")

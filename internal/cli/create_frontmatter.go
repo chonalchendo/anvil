@@ -6,6 +6,7 @@ import (
 	"maps"
 	"reflect"
 	"sort"
+	"strings"
 	"text/template"
 	"time"
 
@@ -306,4 +307,31 @@ func approvedScopeRefusal(t core.Type, existing map[string]any, changed []string
 		}
 	}
 	return nil
+}
+
+// applyThreadFlag validates --thread and returns the frontmatter wikilink. A
+// thread id has the form <topic>.<NNNN>-<slug>, so an empty *topic is filled
+// from it; an explicit --topic wins. Violations ride the pre-validation block,
+// so nothing is written.
+func applyThreadFlag(v *core.Vault, t core.Type, thread string, topic *string) (string, []*errfmt.ValidationError) {
+	if thread == "" {
+		return "", nil
+	}
+	if t != core.TypeDecision {
+		return "", []*errfmt.ValidationError{
+			errfmt.NewValidationError(errfmt.CodeConstraintViolation, "", "thread", thread).
+				WithFix("--thread applies to decision only"),
+		}
+	}
+	id := strings.TrimPrefix(core.UnwrapWikilink(thread), "thread.")
+	link := "[[thread." + id + "]]"
+	if *topic == "" {
+		if topicPart, _, ok := strings.Cut(id, "."); ok {
+			*topic = topicPart
+		}
+	}
+	for _, u := range core.ResolveLinks(v, map[string]any{"thread": link}) {
+		return "", []*errfmt.ValidationError{unresolvedLinkError(v, "", u)}
+	}
+	return link, nil
 }
