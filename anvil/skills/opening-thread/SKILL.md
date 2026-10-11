@@ -32,7 +32,7 @@ Workflow for opening a research thread — the live workspace for cross-session 
 ## When not to use
 
 - The user is dumping a thought without committing → `capturing-inbox`.
-- Project-tied research with an existing issue → research happens in issue-execution context.
+- Project-tied research with an existing issue that is not a key decision → issue-execution context.
 - The thread already exists and the user is resuming → no skill needed; sessions auto-bind to active thread.
 
 ---
@@ -125,7 +125,7 @@ A thread is a workspace, not an output. Before closing one, rule on where its co
 - **Decision** — the thread settled a standing choice (a rule, a default, a rejected option). Mint it with `--thread`, which takes the topic from the thread and records the thread on the decision, then close:
 
   ```bash
-  anvil create decision --title "<the choice>" --thread <thread-id> --json
+  anvil create decision --title "<the choice>" --thread <thread-id> --description "<one line>" --tags domain/<d>,activity/<a> --json
   anvil transition thread <thread-id> closed
   ```
 

@@ -29,7 +29,6 @@ A workflow for authoring a project's product-design artifact — the top of Anvi
 - Starting a new project; need the vision artifact before milestones or code.
 - User signals defining the product (not how to build it).
 - Re-authoring an existing PD after a pivot.
-- A design change or recorded choice is a key decision: **REQUIRED SUB-SKILL:** Use opening-thread before authoring it.
 
 ## When not to use
 
@@ -42,6 +41,8 @@ A workflow for authoring a project's product-design artifact — the top of Anvi
 ## Saving
 
 Save with `anvil create product-design --project <slug> --title … --body-file <file>`; read it back with `anvil show product-design <slug> --body`. To re-author an existing PD, add `--update`: it keeps status, `related` and unsupplied fields. The design lives in the vault, never in the project's source repo. Surface this at Phase 1 so the user can flag any can't-commit-anywhere constraint up front.
+
+A design change or recorded choice is a key decision: **REQUIRED SUB-SKILL:** Use opening-thread before authoring it.
 
 ## The phases
 

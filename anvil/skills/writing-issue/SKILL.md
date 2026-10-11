@@ -58,11 +58,11 @@ Classify the user's first message before doing anything else — the classificat
 
 Decisive → skip to Phase 2. Fuzzy → continue to Phase 1. No artifact or chat output beyond the routing decision.
 
-A fuzzy entry whose shape stays unknown is a key decision: **REQUIRED SUB-SKILL:** Use opening-thread.
-
 ## Phase 1 — Convergence (fuzzy path only)
 
 Goal: a one-sentence shared understanding of what is being proposed, so Phase 3's pressure-test stress-tests the user's idea, not your interpretation. Restate it in one sentence, ask "did I get this right?", one clarifying question at a time (multiple-choice preferred), stop only on explicit confirmation ("sure, whatever" doesn't count). Output: a `Problem` sentence and a `Proposal` sentence held in chat for Phase 4.
+
+If convergence leaves the issue's shape unknown, that is a key decision: **REQUIRED SUB-SKILL:** Use opening-thread.
 
 ## Phase 2 — Milestone-fit gate (always; Iron Law)
 

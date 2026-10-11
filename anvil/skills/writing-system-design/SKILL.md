@@ -29,7 +29,6 @@ The system design is explanation plus reference (Diátaxis): Solution strategy e
 - A `product-design` exists and the project needs an architectural shape before milestones or code.
 - User says "let's system-design X", "what's the architecture", or anything that signals shape (not vision, not implementation tasks).
 - Bootstrapping the second artifact in the vault hierarchy.
-- A design change or recorded choice is a key decision: **REQUIRED SUB-SKILL:** Use opening-thread first.
 
 ## When not to use
 
@@ -44,6 +43,8 @@ The system design is explanation plus reference (Diátaxis): Solution strategy e
 Read the product design with `anvil show product-design <project> --body`. Save with `anvil create system-design --project <project> --title "<title>" --description "<one line>" --body-file <file>`. Vault-only — never committed to the project's source repo. `anvil create` validates the frontmatter and body on write.
 
 Surface the save command at Phase 1 so the user can flag any constraint up front.
+
+A design change or recorded choice is a key decision: **REQUIRED SUB-SKILL:** Use opening-thread before authoring it.
 
 ## The phases
 
