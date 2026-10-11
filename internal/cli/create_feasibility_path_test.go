@@ -10,7 +10,7 @@ import (
 func TestRunnerPutsRunDirBinFirst(t *testing.T) {
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "bin")
-	if err := os.Mkdir(bin, 0o755); err != nil {
+	if err := os.Mkdir(bin, 0o750); err != nil {
 		t.Fatal(err)
 	}
 	fake := filepath.Join(bin, "fakebuild")

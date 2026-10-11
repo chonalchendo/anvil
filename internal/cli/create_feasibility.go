@@ -125,7 +125,7 @@ func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.Validat
 					WithFix(nonGatingNegationFix))
 				continue
 			}
-			cmd.PrintErrln("anvil: running " + name + " in this environment (your privileges, cwd and environment; not sandboxed)")
+			cmd.PrintErrln("anvil: running " + name + " in this environment (your privileges, cwd and environment; not sandboxed; run dir's bin/ first on PATH)")
 			r := runFeasibilityBlock(block, "", feasibilityTimeout)
 			r.lastLine, r.redText, r.earlyRed = blockLines(block, r.redLine)
 			if r.timedOut && label == "Direct" {
@@ -249,13 +249,7 @@ func runFeasibilityBlock(block, dir string, timeout time.Duration) blockRun {
 	// happens to come first on the author's PATH.
 	c := exec.CommandContext(ctx, "/bin/bash", "-e", script.Name()) //nolint:gosec // G204: runs the issue's own Verification block verbatim by design — proving it is what the feasibility gate (anvil.0196) exists to do; author-trusted vault content, bounded by feasibilityTimeout
 	c.Dir = dir                                                     // "" keeps the process cwd
-	runDir := dir
-	if runDir == "" {
-		if runDir, err = os.Getwd(); err != nil {
-			return blockRun{runErr: err}
-		}
-	}
-	runDir, err = filepath.Abs(runDir)
+	runDir, err := filepath.Abs(dir)
 	if err != nil {
 		return blockRun{runErr: err}
 	}
