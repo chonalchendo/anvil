@@ -123,19 +123,19 @@ func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch, base string) (cr
 	startPoint := ""
 	if ferr := gitFetchOriginFn(repoDir); ferr != nil {
 		if base != "" {
-			return false, "", errfmt.NewStructured("base_branch_unknown").
+			return false, "", errfmt.NewStructured("base_fetch_failed").
 				Set("base", base).
-				Set("error", "git fetch origin failed: "+ferr.Error())
+				Set("error", "git fetch origin failed: "+ferr.Error()).
+				Set("fix_hint", "restore network access to origin, or omit --base")
 		}
 		fmt.Fprintf(errW, "warning: git fetch origin failed (%v); branching from local HEAD\n", ferr)
+	} else if base != "" && !gitOriginBranchExistsFn(repoDir, base) {
+		return false, "", errfmt.NewStructured("base_branch_unknown").
+			Set("base", base).
+			Set("fix_hint", "push origin/"+base+" first, or omit --base")
 	} else if gitOriginBranchExistsFn(repoDir, branch) {
 		startPoint, source = "origin/"+branch, "origin"
 	} else if base != "" {
-		if !gitOriginBranchExistsFn(repoDir, base) {
-			return false, "", errfmt.NewStructured("base_branch_unknown").
-				Set("base", base).
-				Set("fix_hint", "push origin/"+base+" first, or omit --base")
-		}
 		startPoint = "origin/" + base
 	} else if ref, rerr := gitResolveOriginHEADFn(repoDir); rerr != nil {
 		fmt.Fprintf(errW, "warning: resolving origin/HEAD failed (%v); branching from local HEAD\n", rerr)

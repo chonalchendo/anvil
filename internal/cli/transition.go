@@ -60,6 +60,9 @@ func newTransitionCmd() *cobra.Command {
 					Set("id", id).Wrap(ErrArtifactNotFound))
 			}
 
+			if ferr := cutWorktreeFlagRefusal(t, to, cutWorktree, worktreeOverride, branchOverride, baseOverride, landPRNum); ferr != nil {
+				return printAndReturn(cmd, ferr)
+			}
 			from, _ := a.FrontMatter["status"].(string)
 			if from == to {
 				// A re-claim of an already-in-progress issue lands here. Same
@@ -109,26 +112,6 @@ func newTransitionCmd() *cobra.Command {
 				})
 			}
 
-			if cutWorktree && (t != core.TypeIssue || to != "in-progress") {
-				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
-					Set("flag", "--cut-worktree").
-					Set("applies_to", "transition issue <id> in-progress"))
-			}
-			if branchOverride != "" && !cutWorktree {
-				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
-					Set("flag", "--branch").
-					Set("applies_to", "use only with --cut-worktree"))
-			}
-			if baseOverride != "" && !cutWorktree {
-				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
-					Set("flag", "--base").
-					Set("applies_to", "use only with --cut-worktree"))
-			}
-			if worktreeOverride != "" && !cutWorktree && landPRNum == 0 {
-				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
-					Set("flag", "--worktree").
-					Set("applies_to", "use only with --cut-worktree or --land-pr"))
-			}
 			if localValidated && landPRNum == 0 {
 				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
 					Set("flag", "--local-validated").
