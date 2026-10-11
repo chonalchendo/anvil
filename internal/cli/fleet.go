@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
@@ -77,7 +79,14 @@ func newFleetScopeAuditCmd() *cobra.Command {
 			changedEntries := splitLiteralCSV(changed)
 			if derived, base, derr := deriveChangedFn(baseBranch); derr != nil {
 				if baseBranch != "" {
-					return derr
+					var se *errfmt.Structured
+					if errors.As(derr, &se) {
+						return derr
+					}
+					return errfmt.NewStructured("scope_audit_base_derivation_failed").
+						Set("base", baseBranch).
+						Set("fix_hint", "check network and git remote, then retry; the audit refuses rather than degrade under --base").
+						Wrap(derr)
 				}
 				fmt.Fprintf(cmd.ErrOrStderr(), "warning: changed-set derivation failed (%v); auditing the --changed list alone\n", derr)
 			} else {

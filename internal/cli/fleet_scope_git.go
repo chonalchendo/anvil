@@ -32,6 +32,9 @@ func deriveChangedReal(baseName string) ([]string, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
+	if err := gitFetchOriginNoPrompt(repoDir); err != nil {
+		return nil, "", err
+	}
 	var base string
 	if baseName != "" {
 		base, err = resolveNamedBase(repoDir, baseName)
@@ -49,12 +52,9 @@ func deriveChangedReal(baseName string) ([]string, string, error) {
 	return files, base, err
 }
 
-// resolveRemoteBase fetches origin and returns the remote-tracking ref to
-// diff against: origin/HEAD, else origin/main or origin/master.
+// resolveRemoteBase returns the remote-tracking ref to diff against:
+// origin/HEAD, else origin/main or origin/master. The caller has fetched.
 func resolveRemoteBase(repoDir string) (string, error) {
-	if err := gitFetchOriginNoPrompt(repoDir); err != nil {
-		return "", err
-	}
 	if ref, err := gitResolveOriginHEADReal(repoDir); err == nil {
 		return ref, nil
 	}
@@ -66,12 +66,9 @@ func resolveRemoteBase(repoDir string) (string, error) {
 	return "", errors.New("no origin/HEAD, origin/main, or origin/master to diff against")
 }
 
-// resolveNamedBase fetches origin and returns origin/<name>, refusing when
-// it does not resolve: a silent fallback would weaken the audit.
+// resolveNamedBase returns origin/<name>, refusing when it does not resolve:
+// a silent fallback would weaken the audit. The caller has fetched.
 func resolveNamedBase(repoDir, name string) (string, error) {
-	if err := gitFetchOriginNoPrompt(repoDir); err != nil {
-		return "", err
-	}
 	ref := "origin/" + name
 	if gitRevParseVerify(repoDir, ref) != nil {
 		return "", errfmt.NewStructured("scope_audit_base_unknown").
