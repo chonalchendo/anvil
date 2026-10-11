@@ -36,6 +36,9 @@ var (
 	userHomeFn               = os.UserHomeDir
 	mergeabilityPollSleep    = time.Sleep
 	ghStackMergeFn           = ghStackMergeReal
+	ghPRChecksAllFn          = ghPRChecksAllReal
+	ghPRListAllFn            = ghPRListAllReal
+	ghDefaultBranchFn        = ghDefaultBranchReal
 )
 
 // claimConflict reports whether claiming `a` (issue → in-progress) collides with
@@ -286,7 +289,7 @@ func doLandPR(errW io.Writer, v *core.Vault, a *core.Artifact, id string, prNum 
 // validated the work locally (e.g. with `just check`) and required CI is
 // genuinely unavailable. The caller is responsible for recording an audit line.
 func landPR(errW io.Writer, num int, worktreePath string, localValidated bool, ev landEvidence, clean landClean) error {
-	alreadyMerged, err := landGates(num, localValidated)
+	alreadyMerged, err := landGates(num, localValidated, false)
 	if err != nil {
 		return err
 	}

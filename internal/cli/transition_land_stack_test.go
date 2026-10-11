@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
@@ -13,8 +16,15 @@ import (
 // master) under PR 20 (demo/0002.high, base demo/0001.low).
 type stackFake struct {
 	*sideFXStub
-	merged     bool
-	stackCalls []int
+	state        map[int]string
+	heads        map[int]string
+	stackCalls   []int
+	mergeErr     error
+	mergeHook    func()
+	stateErr     bool
+	defaultBr    string
+	allChecks    []int
+	allChecksErr error
 }
 
 func landStackSetup(t *testing.T, highRound string) (*stackFake, string) {
@@ -46,7 +56,7 @@ func landStackSetup(t *testing.T, highRound string) (*stackFake, string) {
 		execCmd(t, "transition", "issue", "demo."+slug, "in-progress", "--owner", "claude")
 	}
 
-	f := &stackFake{sideFXStub: stubSideFX(t)}
+	f := &stackFake{sideFXStub: stubSideFX(t), state: map[int]string{}, heads: map[int]string{}, defaultBr: "master"}
 	f.homeDir = t.TempDir()
 	refs := map[int]struct{ head, base string }{
 		10: {"demo/0001.low", "master"},
@@ -54,12 +64,18 @@ func landStackSetup(t *testing.T, highRound string) (*stackFake, string) {
 	}
 	ghPRViewJSONFn = func(num int, fields string) ([]byte, error) {
 		r := refs[num]
+		if f.stateErr && fields == "state" {
+			return nil, fmt.Errorf("gh down")
+		}
 		vals := map[string]string{
 			"state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
 			"headRefOid": landTestHead, "headRefName": r.head, "baseRefName": r.base,
 		}
-		if f.merged {
-			vals["state"] = "MERGED"
+		if s := f.state[num]; s != "" {
+			vals["state"] = s
+		}
+		if h := f.heads[num]; h != "" {
+			vals["headRefOid"] = h
 		}
 		var parts []string
 		for _, k := range strings.Split(fields, ",") {
@@ -67,8 +83,13 @@ func landStackSetup(t *testing.T, highRound string) (*stackFake, string) {
 		}
 		return []byte("{" + strings.Join(parts, ",") + "}"), nil
 	}
-	prevList := ghPRListFn
-	ghPRListFn = func(branch string) (string, error) {
+	prevList, prevAllChecks, prevDefault := ghPRListAllFn, ghPRChecksAllFn, ghDefaultBranchFn
+	ghPRChecksAllFn = func(num int) error {
+		f.allChecks = append(f.allChecks, num)
+		return f.allChecksErr
+	}
+	ghDefaultBranchFn = func() (string, error) { return f.defaultBr, nil }
+	ghPRListAllFn = func(branch string) (string, error) {
 		if branch == "demo/0001.low" {
 			return "https://github.com/o/r/pull/10", nil
 		}
@@ -77,10 +98,18 @@ func landStackSetup(t *testing.T, highRound string) (*stackFake, string) {
 	prevStack := ghStackMergeFn
 	ghStackMergeFn = func(num int) error {
 		f.stackCalls = append(f.stackCalls, num)
-		f.merged = true
+		if f.mergeErr != nil {
+			return f.mergeErr
+		}
+		f.state[10], f.state[20] = "MERGED", "MERGED"
+		if f.mergeHook != nil {
+			f.mergeHook()
+		}
 		return nil
 	}
-	t.Cleanup(func() { ghPRListFn, ghStackMergeFn = prevList, prevStack })
+	t.Cleanup(func() {
+		ghPRListAllFn, ghStackMergeFn, ghPRChecksAllFn, ghDefaultBranchFn = prevList, prevStack, prevAllChecks, prevDefault
+	})
 	f.listEntries["demo/0001.low"] = worktreeInfo{path: "/worktrees/low"}
 	f.listEntries["demo/0002.high"] = worktreeInfo{path: "/worktrees/high"}
 	return f, vault
@@ -130,6 +159,166 @@ func TestLandStack(t *testing.T) {
 		_, stderr, err := runCmd(t, newRootCmd(), "transition", "issue", "demo.0002.high", "resolved", "--land-stack", "20", "--land-pr", "20")
 		if err == nil || !strings.Contains(stderr+err.Error(), "land_flags_exclusive") {
 			t.Fatalf("err = %v stderr = %s", err, stderr)
+		}
+	})
+}
+
+const cleanHighRound = "## Review findings — PR 20, round 1 @ " + landTestShort + "\n\nFindings: 0\n"
+
+func landStackRefusal(t *testing.T, args ...string) string {
+	t.Helper()
+	_, stderr, err := runCmd(t, newRootCmd(), append([]string{"transition", "issue", "demo.0002.high", "resolved"}, args...)...)
+	if err == nil {
+		t.Fatalf("want a refusal, got nil; stderr = %s", stderr)
+	}
+	return stderr + err.Error()
+}
+
+func issueStatus(t *testing.T, vault, slug string) any {
+	t.Helper()
+	return loadIssueDoc(t, vault, "issue.demo."+slug).FrontMatter["status"]
+}
+
+func TestLandStackRefusals(t *testing.T) {
+	t.Run("red lower layer refuses before any merge", func(t *testing.T) {
+		f, vault := landStackSetup(t, cleanHighRound)
+		prev := landCleanRunFn
+		t.Cleanup(func() { landCleanRunFn = prev })
+		landCleanRunFn = func(_ io.Writer, c landClean, _, _ string) error {
+			if strings.HasSuffix(c.id, "0001.low") {
+				return errfmt.NewStructured("land_pr_verification_failed").Set("issue", c.id)
+			}
+			return nil
+		}
+		out := landStackRefusal(t, "--land-stack", "20")
+		if !strings.Contains(out, "land_pr_verification_failed") || !strings.Contains(out, "layer_pr") {
+			t.Errorf("refusal = %s", out)
+		}
+		if len(f.stackCalls) != 0 || issueStatus(t, vault, "0002.high") != "in-progress" {
+			t.Errorf("merge ran or status moved: calls=%v", f.stackCalls)
+		}
+	})
+
+	t.Run("walk refuses when the bottom base is not the default branch", func(t *testing.T) {
+		f, _ := landStackSetup(t, cleanHighRound)
+		f.defaultBr = "main"
+		out := landStackRefusal(t, "--land-stack", "20")
+		if !strings.Contains(out, "land_stack_walk_failed") || !strings.Contains(out, "fix_hint") {
+			t.Errorf("refusal = %s", out)
+		}
+		if len(f.stackCalls) != 0 {
+			t.Errorf("gh stack merge called: %v", f.stackCalls)
+		}
+	})
+
+	t.Run("upper layer gates on all checks; none reported refuses", func(t *testing.T) {
+		f, _ := landStackSetup(t, cleanHighRound)
+		f.allChecksErr = fmt.Errorf("no checks reported")
+		out := landStackRefusal(t, "--land-stack", "20")
+		if !strings.Contains(out, "land_pr_ci_not_green") {
+			t.Errorf("refusal = %s", out)
+		}
+		if len(f.allChecks) != 1 || f.allChecks[0] != 20 {
+			t.Errorf("all-checks calls = %v, want [20]", f.allChecks)
+		}
+		if len(f.stackCalls) != 0 {
+			t.Errorf("gh stack merge called: %v", f.stackCalls)
+		}
+	})
+
+	t.Run("head moved after the clean run refuses before the merge", func(t *testing.T) {
+		f, _ := landStackSetup(t, cleanHighRound)
+		prev := landCleanRunFn
+		t.Cleanup(func() { landCleanRunFn = prev })
+		landCleanRunFn = func(io.Writer, landClean, string, string) error {
+			f.heads[20] = "ffffffffffffffffffffffffffffffffffffffff"
+			return nil
+		}
+		out := landStackRefusal(t, "--land-stack", "20")
+		if !strings.Contains(out, "land_pr_head_moved") || !strings.Contains(out, "layer_pr") || !strings.Contains(out, "fix_hint") {
+			t.Errorf("refusal = %s", out)
+		}
+		if len(f.stackCalls) != 0 {
+			t.Errorf("gh stack merge called: %v", f.stackCalls)
+		}
+	})
+
+	t.Run("head moved during the merge is not stamped as verified", func(t *testing.T) {
+		f, vault := landStackSetup(t, cleanHighRound)
+		f.mergeHook = func() { f.heads[20] = "ffffffffffffffffffffffffffffffffffffffff" }
+		out := landStackRefusal(t, "--land-stack", "20")
+		if !strings.Contains(out, "land_stack_head_unverified") || !strings.Contains(out, "fix_hint") {
+			t.Errorf("refusal = %s", out)
+		}
+		if got := issueStatus(t, vault, "0002.high"); got != "in-progress" {
+			t.Errorf("status = %v, want in-progress", got)
+		}
+	})
+
+	t.Run("merge failure names the layer and the next step", func(t *testing.T) {
+		f, _ := landStackSetup(t, cleanHighRound)
+		f.mergeErr = fmt.Errorf("boom")
+		out := landStackRefusal(t, "--land-stack", "20")
+		if !strings.Contains(out, "land_stack_merge_failed") || !strings.Contains(out, "fix_hint") || !strings.Contains(out, "boom") {
+			t.Errorf("refusal = %s", out)
+		}
+	})
+
+	t.Run("unreadable post-merge state keeps its error", func(t *testing.T) {
+		f, _ := landStackSetup(t, cleanHighRound)
+		f.mergeHook = func() { f.stateErr = true }
+		out := landStackRefusal(t, "--land-stack", "20")
+		if !strings.Contains(out, "land_stack_state_verify_failed") || !strings.Contains(out, "gh down") {
+			t.Errorf("refusal = %s", out)
+		}
+	})
+}
+
+func TestLandStackRerun(t *testing.T) {
+	t.Run("second run is a no-op with the same end state", func(t *testing.T) {
+		f, vault := landStackSetup(t, cleanHighRound)
+		execCmd(t, "transition", "issue", "demo.0002.high", "resolved", "--land-stack", "20")
+		execCmd(t, "transition", "issue", "demo.0002.high", "resolved", "--land-stack", "20")
+		if len(f.stackCalls) != 1 {
+			t.Errorf("gh stack merge calls = %v, want one", f.stackCalls)
+		}
+		for _, slug := range []string{"0001.low", "0002.high"} {
+			if got := issueStatus(t, vault, slug); got != "resolved" {
+				t.Errorf("%s status = %v", slug, got)
+			}
+		}
+	})
+
+	t.Run("partial merge resolves both on re-run", func(t *testing.T) {
+		f, vault := landStackSetup(t, cleanHighRound)
+		f.state[10] = "MERGED"
+		execCmd(t, "transition", "issue", "demo.0002.high", "resolved", "--land-stack", "20")
+		if len(f.stackCalls) != 1 {
+			t.Errorf("gh stack merge calls = %v, want one for the open layer", f.stackCalls)
+		}
+		for _, slug := range []string{"0001.low", "0002.high"} {
+			if got := issueStatus(t, vault, slug); got != "resolved" {
+				t.Errorf("%s status = %v", slug, got)
+			}
+		}
+	})
+
+	t.Run("json is one array and local-validated is audited", func(t *testing.T) {
+		f, vault := landStackSetup(t, cleanHighRound)
+		stdout, _, err := runCmd(t, newRootCmd(), "transition", "issue", "demo.0002.high", "resolved", "--land-stack", "20", "--local-validated", "--json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var rs []transitionResult
+		if err := json.Unmarshal([]byte(stdout), &rs); err != nil || len(rs) != 2 {
+			t.Fatalf("stdout = %q, want one JSON array of 2 (err %v)", stdout, err)
+		}
+		if len(f.allChecks) != 0 {
+			t.Errorf("CI gate ran under --local-validated: %v", f.allChecks)
+		}
+		a := loadIssueDoc(t, vault, "issue.demo.0002.high")
+		if !strings.Contains(a.Body, "--local-validated: CI gate bypassed") {
+			t.Errorf("audit line lacks the local-validated note:\n%s", a.Body)
 		}
 	})
 }

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -17,121 +16,6 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-// landGates is the pre-merge PR gate --land-pr and --land-stack share: state,
-// mergeability, then required CI. It reports a PR that is already MERGED.
-func landGates(num int, localValidated bool) (alreadyMerged bool, err error) {
-	// An already-MERGED PR also reads mergeable:UNKNOWN (GitHub never
-	// recomputes it for a closed PR), so a retry of an interrupted batch line
-	// must recognise "already landed" before burning the mergeability poll.
-	// The same read settles CLOSED-without-merge: any state other than OPEN
-	// or MERGED refuses now — polling never makes a closed PR mergeable. A
-	// failed read falls through to the poll, which surfaces its own error.
-	if state, err := prState(num); err == nil {
-		switch state {
-		case "MERGED":
-			alreadyMerged = true
-		case "OPEN":
-		default:
-			return false, errfmt.NewStructured("land_pr_state_not_merged").
-				Set("pr", num).
-				Set("state", state)
-		}
-	}
-	if !alreadyMerged {
-		// UNKNOWN means GitHub is still recomputing mergeability (async after
-		// a sibling PR merges) — poll until resolved. 13/13 batch lands
-		// cleared within 4-15s; a separate 5-PR batch needed ~60s (PR #354),
-		// so the budget covers the wider window while the 5s interval keeps
-		// the common first-retry clear cheap. Only CONFLICTING (or any other
-		// non-MERGEABLE, non-UNKNOWN value) is a genuine hard abort.
-		const maxAttempts = 20
-		type mergeState struct {
-			Mergeable        string `json:"mergeable"`
-			MergeStateStatus string `json:"mergeStateStatus"`
-		}
-		var st mergeState
-		for attempt := range maxAttempts {
-			raw, err := ghPRViewJSONFn(num, "mergeable,mergeStateStatus")
-			if err != nil {
-				return false, errfmt.NewStructured("land_pr_view_failed").Set("pr", num).Set("error", err.Error())
-			}
-			if err := json.Unmarshal(raw, &st); err != nil {
-				return false, errfmt.NewStructured("land_pr_view_failed").Set("pr", num).Set("error", err.Error())
-			}
-			if st.Mergeable != "UNKNOWN" {
-				break
-			}
-			if attempt < maxAttempts-1 {
-				mergeabilityPollSleep(5 * time.Second)
-			}
-		}
-		if st.Mergeable != "MERGEABLE" {
-			return false, errfmt.NewStructured("land_pr_not_mergeable").
-				Set("pr", num).
-				Set("mergeable", st.Mergeable).
-				Set("merge_state", st.MergeStateStatus)
-		}
-		if !localValidated {
-			if err := ghPRChecksFn(num); err != nil {
-				return false, errfmt.NewStructured("land_pr_ci_not_green").Set("pr", num).Set("error", err.Error())
-			}
-		}
-	}
-	return alreadyMerged, nil
-}
-
-// resolveLandWorktree returns the explicit path when it exists, else the live
-// worktree checked out on the PR's head branch, else "".
-func resolveLandWorktree(worktreePath, headBranch string) string {
-	resolved := ""
-	if worktreePath != "" {
-		if _, ferr := os.Stat(worktreePath); ferr == nil {
-			resolved = worktreePath
-		}
-	}
-	if resolved == "" && headBranch != "" {
-		if worktrees, lerr := gitWorktreeListFn(""); lerr == nil {
-			if info, ok := worktrees[headBranch]; ok {
-				resolved = info.path
-			}
-		}
-	}
-	return resolved
-}
-
-// deleteLandBranches removes the merged PR's local then remote branch.
-func deleteLandBranches(errW io.Writer, num int, root, headBranch string) {
-	// The branch deletes are best-effort cleanup of a now-redundant ref: each
-	// failure is warned and skipped, never returned fatally, so a confirmed
-	// MERGED PR can never strand the issue in-progress (anvil.0110). The
-	// local-branch delete runs after worktree removal (git refuses to delete a
-	// branch a worktree still references); both restore the parity the old
-	// `gh pr merge --delete-branch` gave — a successful land leaves neither a
-	// local nor a remote branch behind.
-	if headBranch != "" {
-		if err := gitDeleteLocalBranchFn(root, headBranch); err != nil {
-			fmt.Fprintf(errW, "warning: land-pr %d: local branch delete failed (%s): %v\n", num, headBranch, err)
-		}
-		if err := ghDeleteBranchFn(headBranch); err != nil {
-			fmt.Fprintf(errW, "warning: land-pr %d: remote branch delete failed (%s): %v\n", num, headBranch, err)
-		}
-	} else {
-		fmt.Fprintf(errW, "warning: land-pr %d: head branch unresolved; skipping branch cleanup\n", num)
-	}
-}
-
-// ghStackMergeReal merges the whole stack topped by PR num in one call.
-func ghStackMergeReal(num int) error {
-	if _, err := exec.LookPath("gh"); err != nil {
-		return errGhUnavailable
-	}
-	out, err := exec.Command("gh", "stack", "merge", strconv.Itoa(num), "--squash", "--yes").CombinedOutput() //nolint:gosec // binary path resolved from trusted sources; not user input
-	if err != nil {
-		return fmt.Errorf("gh stack merge: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	return nil
-}
-
 type landStackOpts struct {
 	t                       core.Type
 	id, to                  string
@@ -139,14 +23,17 @@ type landStackOpts struct {
 	override, local, asJSON bool
 }
 
-// stackLayer is one PR of the stack and the issue it lands.
+// stackLayer is one PR of the stack and the issue it lands. done marks an issue
+// already resolved (skipped); merged marks a PR already MERGED before this run.
 type stackLayer struct {
-	pr   int
-	id   string
-	a    *core.Artifact
-	ev   landEvidence
-	wt   string
-	head landHead
+	pr     int
+	id     string
+	a      *core.Artifact
+	ev     landEvidence
+	wt     string
+	head   landHead
+	done   bool
+	merged bool
 }
 
 // withLayer names the failing layer's PR on a structured refusal.
@@ -158,8 +45,24 @@ func withLayer(err error, pr int) error {
 	return err
 }
 
+// headOid re-reads a PR's current head.
+func headOid(pr int) (string, error) {
+	raw, err := ghPRViewJSONFn(pr, "headRefOid")
+	if err != nil {
+		return "", err
+	}
+	var h struct {
+		HeadRefOid string `json:"headRefOid"`
+	}
+	if err := json.Unmarshal(raw, &h); err != nil {
+		return "", err
+	}
+	return h.HeadRefOid, nil
+}
+
 // runLandStack gates every layer of the stack topped by opts.stack, then lands
 // them all with one gh stack merge. Nothing merges unless every layer passes.
+// A re-run after a partial land skips resolved layers and resolves merged ones.
 func runLandStack(cmd *cobra.Command, o landStackOpts) error {
 	errW := cmd.ErrOrStderr()
 	switch {
@@ -192,39 +95,109 @@ func runLandStack(cmd *cobra.Command, o landStackOpts) error {
 	if err := os.Chdir(root); err != nil {
 		return printAndReturn(cmd, errfmt.NewStructured("land_pr_chdir_root_failed").Set("root", root).Set("error", err.Error()))
 	}
+	pending := false
 	for i := range layers {
-		if err := gateLayer(&layers[i], o.local); err != nil {
+		// Layer 0 is based on the default branch; the rest are based on a layer.
+		if err := gateLayer(&layers[i], o.local, i > 0); err != nil {
 			return printAndReturn(cmd, withLayer(err, layers[i].pr))
 		}
+		pending = pending || (!layers[i].done && !layers[i].merged)
 	}
 	for _, l := range layers {
+		if l.done || l.merged {
+			continue
+		}
 		if err := landCleanRunFn(errW, landClean{a: l.a, v: v, id: l.id}, root, l.head.oid); err != nil {
 			return printAndReturn(cmd, withLayer(err, l.pr))
 		}
 	}
-	mergeErr := ghStackMergeFn(o.stack)
+	if pending {
+		if err := mergeLayers(layers, o.stack); err != nil {
+			return printAndReturn(cmd, err)
+		}
+	}
+	var results []transitionResult
 	for _, l := range layers {
-		state, err := prState(l.pr)
-		if err == nil && state == "MERGED" {
+		if l.done {
 			continue
 		}
-		if mergeErr != nil {
-			return printAndReturn(cmd, errfmt.NewStructured("land_stack_merge_failed").
-				Set("layer_pr", l.pr).Set("error", mergeErr.Error()))
-		}
-		return printAndReturn(cmd, errfmt.NewStructured("land_stack_not_merged").
-			Set("layer_pr", l.pr).Set("state", state))
-	}
-	for _, l := range layers {
-		if err := resolveLayer(cmd, v, l, root, o.asJSON); err != nil {
+		r, err := resolveLayer(errW, v, l, root, o.local)
+		if err != nil {
 			return printAndReturn(cmd, err)
+		}
+		results = append(results, r)
+	}
+	if o.asJSON {
+		b, _ := json.Marshal(results)
+		fmt.Fprintln(cmd.OutOrStdout(), string(b))
+		return nil
+	}
+	for _, r := range results {
+		if err := emitTransitionJSON(cmd, false, r); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
-// walkStack returns the layers bottom-up. The layer below a PR is the open PR
-// whose head is that PR's base; no such PR means the base is the default branch.
+// mergeLayers runs gh stack merge, which has no head-match flag. Every pending
+// head is re-read right before it, and again after, so a push or restack since
+// the clean run never lands or stamps as verified.
+func mergeLayers(layers []stackLayer, top int) error {
+	for _, l := range layers {
+		if l.done || l.merged {
+			continue
+		}
+		now, err := headOid(l.pr)
+		if err != nil {
+			return errfmt.NewStructured("land_pr_view_failed").Set("pr", l.pr).Set("layer_pr", l.pr).Set("error", err.Error())
+		}
+		if now != l.head.oid {
+			return errfmt.NewStructured("land_pr_head_moved").
+				Set("pr", l.pr).Set("layer_pr", l.pr).
+				Set("verified", l.head.oid).Set("head", now).
+				Set("fix_hint", "a layer head moved after the clean run; re-run the same --land-stack to verify the new head")
+		}
+	}
+	mergeErr := ghStackMergeFn(top)
+	for _, l := range layers {
+		if l.done || l.merged {
+			continue
+		}
+		state, err := prState(l.pr)
+		switch {
+		case err != nil:
+			return errfmt.NewStructured("land_stack_state_verify_failed").
+				Set("layer_pr", l.pr).Set("error", err.Error()).
+				Set("fix_hint", fmt.Sprintf("read PR #%d with gh pr view, then re-run the same --land-stack", l.pr))
+		case state == "MERGED":
+		case mergeErr != nil:
+			return errfmt.NewStructured("land_stack_merge_failed").
+				Set("layer_pr", l.pr).Set("error", mergeErr.Error()).
+				Set("fix_hint", "fix the cause in the error, then re-run the same --land-stack; merged layers are skipped")
+		default:
+			return errfmt.NewStructured("land_stack_not_merged").
+				Set("layer_pr", l.pr).Set("state", state).
+				Set("fix_hint", fmt.Sprintf("PR #%d is %s after gh stack merge; check the stack with gh stack view, then re-run the same --land-stack", l.pr, state))
+		}
+	}
+	for _, l := range layers {
+		if l.done || l.merged {
+			continue
+		}
+		now, err := headOid(l.pr)
+		if err != nil || now != l.head.oid {
+			return errfmt.NewStructured("land_stack_head_unverified").
+				Set("layer_pr", l.pr).Set("verified", l.head.oid).Set("head", now).
+				Set("fix_hint", fmt.Sprintf("PR #%d merged at a head the clean run did not verify; run anvil verify %s on the merge commit, then re-run the same --land-stack to resolve it", l.pr, l.id))
+		}
+	}
+	return nil
+}
+
+// walkStack returns the layers bottom-up. The layer below a PR is the PR (any
+// state) whose head is that PR's base; with none, the base must be the default
+// branch, or gh stack merge could land layers that were never gated.
 func walkStack(v *core.Vault, topID string, top int) ([]stackLayer, error) {
 	var layers []stackLayer
 	for num, id := top, topID; ; {
@@ -254,12 +227,22 @@ func walkStack(v *core.Vault, topID string, top int) ([]stackLayer, error) {
 			return nil, errfmt.NewStructured("land_pr_path_failed").Set("error", err.Error())
 		}
 		layers = append([]stackLayer{{pr: num, id: cid, a: a, ev: newLandEvidence(a, cid, project, slug), wt: wt}}, layers...)
-		url, err := ghPRListFn(ref.BaseRefName)
+		url, err := ghPRListAllFn(ref.BaseRefName)
 		if err != nil {
-			return nil, errfmt.NewStructured("land_stack_walk_failed").Set("pr", num).Set("error", err.Error())
+			return nil, errfmt.NewStructured("land_stack_walk_failed").Set("pr", num).Set("error", err.Error()).
+				Set("fix_hint", "check gh auth and the remote, then re-run the same --land-stack")
 		}
 		m := prURLNumber.FindStringSubmatch(url)
 		if m == nil {
+			def, err := ghDefaultBranchFn()
+			if err != nil || def != ref.BaseRefName {
+				se := errfmt.NewStructured("land_stack_walk_failed").Set("pr", num).Set("base", ref.BaseRefName).
+					Set("fix_hint", fmt.Sprintf("PR #%d is based on %s, which is not the default branch and has no PR; retarget it or land the lower layers with --land-pr, then re-run --land-stack", num, ref.BaseRefName))
+				if err != nil {
+					_ = se.Set("error", err.Error())
+				}
+				return nil, se
+			}
 			return layers, nil
 		}
 		num, _ = strconv.Atoi(m[1])
@@ -268,23 +251,28 @@ func walkStack(v *core.Vault, topID string, top int) ([]stackLayer, error) {
 }
 
 // gateLayer runs the cheap pre-merge gates on one layer and records its head
-// and worktree. The clean run is separate so a red cheap gate spares it.
-func gateLayer(l *stackLayer, localValidated bool) error {
-	merged, err := landGates(l.pr, localValidated)
+// and worktree. The clean run is separate so a red cheap gate spares it. A
+// resolved issue is skipped; a MERGED PR skips the review and worktree gates,
+// as --land-pr does on a retry.
+func gateLayer(l *stackLayer, localValidated, upper bool) error {
+	status, _ := l.a.FrontMatter["status"].(string)
+	if status == "resolved" {
+		l.done = true
+		return nil
+	}
+	merged, err := landGates(l.pr, localValidated, upper)
 	if err != nil {
 		return err
 	}
-	if merged {
-		return errfmt.NewStructured("land_stack_layer_merged").Set("pr", l.pr)
-	}
-	status, _ := l.a.FrontMatter["status"].(string)
+	l.merged = merged
 	if _, err := core.LookupTransition(core.TypeIssue, status, "resolved"); err != nil {
 		return errfmt.NewIllegalTransition(string(core.TypeIssue), l.id, status, "resolved", core.LegalNext(core.TypeIssue, status))
 	}
-	if l.head, err = l.ev.check(l.pr, l.wt, false); err != nil {
+	if l.head, err = l.ev.check(l.pr, l.wt, merged); err != nil {
 		return err
 	}
-	if l.wt = resolveLandWorktree(l.wt, l.head.branch); l.wt == "" {
+	l.wt = resolveLandWorktree(l.wt, l.head.branch)
+	if l.wt == "" && !merged {
 		return errfmt.NewStructured("land_pr_worktree_missing").Set("pr", l.pr).
 			Set("fix_hint", "cut or restore the layer's worktree, then retry")
 	}
@@ -293,12 +281,17 @@ func gateLayer(l *stackLayer, localValidated bool) error {
 
 // resolveLayer does the post-merge bookkeeping for one merged layer. A worktree
 // that will not remove (uncommitted work) is a warning: the PR is already merged.
-func resolveLayer(cmd *cobra.Command, v *core.Vault, l stackLayer, root string, asJSON bool) error {
-	errW := cmd.ErrOrStderr()
+func resolveLayer(errW io.Writer, v *core.Vault, l stackLayer, root string, local bool) (transitionResult, error) {
 	a := l.a
-	a.FrontMatter["review_head"] = l.head.oid
-	if err := gitWorktreeRemoveFn(root, l.wt); err != nil {
-		fmt.Fprintf(errW, "warning: land-stack %d: worktree not removed (%s): %v\n", l.pr, l.wt, err)
+	// A layer merged by an earlier run stamps review_head only from a clean
+	// round at its head, as landPR's retry does; a fresh merge was head-checked.
+	if rr, ok := latestReviewRound(l.ev.body, l.pr); !l.merged || (ok && !rr.blocked && strings.HasPrefix(l.head.oid, rr.sha)) {
+		a.FrontMatter["review_head"] = l.head.oid
+	}
+	if l.wt != "" {
+		if err := gitWorktreeRemoveFn(root, l.wt); err != nil {
+			fmt.Fprintf(errW, "warning: land-stack %d: worktree not removed (%s): %v\n", l.pr, l.wt, err)
+		}
 	}
 	deleteLandBranches(errW, l.pr, root, l.head.branch)
 	stampLandCost(errW, a, l.id, l.pr)
@@ -311,14 +304,18 @@ func resolveLayer(cmd *cobra.Command, v *core.Vault, l stackLayer, root string, 
 	if !strings.HasSuffix(a.Body, "\n") {
 		a.Body += "\n"
 	}
-	a.Body += fmt.Sprintf("\n> resolved --land-stack %d %s: merged via gh stack merge + branch deleted\n", l.pr, now.Format("2006-01-02"))
+	extra := ""
+	if local {
+		extra = " (--local-validated: CI gate bypassed on operator attestation)"
+	}
+	a.Body += fmt.Sprintf("\n> resolved --land-stack %d %s: merged via gh stack merge + branch deleted%s\n", l.pr, now.Format("2006-01-02"), extra)
 	if err := a.Save(); err != nil {
-		return errfmt.NewStructured("land_pr_succeeded_save_failed").
+		return transitionResult{}, errfmt.NewStructured("land_pr_succeeded_save_failed").
 			Set("issue", l.id).Set("pr", l.pr).Set("error", err.Error()).
 			Set("fix_hint", fmt.Sprintf("PR #%d is merged but vault save failed; run `anvil set issue %s status resolved --force --reason \"land-stack merged, vault save failed\"` to repair", l.pr, l.id))
 	}
 	if err := indexAfterSave(v, a); err != nil {
-		return err
+		return transitionResult{}, err
 	}
-	return emitTransitionJSON(cmd, asJSON, transitionResult{ID: l.id, Path: a.Path, From: from, To: "resolved", Status: "transitioned"})
+	return transitionResult{ID: l.id, Path: a.Path, From: from, To: "resolved", Status: "transitioned"}, nil
 }

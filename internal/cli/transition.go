@@ -121,7 +121,7 @@ func newTransitionCmd() *cobra.Command {
 			if localValidated && landPRNum == 0 {
 				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
 					Set("flag", "--local-validated").
-					Set("applies_to", "use only with --land-pr"))
+					Set("applies_to", "use only with --land-pr or --land-stack"))
 			}
 			if landPRNum != 0 {
 				if t != core.TypeIssue || to != "resolved" {
@@ -417,7 +417,7 @@ func newTransitionCmd() *cobra.Command {
 	cmd.Flags().StringVar(&baseOverride, "base", "", "start the cut worktree at origin/<branch> (a stack top) instead of origin/HEAD (used with --cut-worktree)")
 	cmd.Flags().IntVar(&landPRNum, "land-pr", 0, "PR number to land: runs the issue's verification on a fresh checkout of the PR head and merges only on its pass; refuses land_pr_verification_failed, verification_changed, a foreign PR, and a missing, stale or blocked review round (land_pr_review_*); verify-mergeable + CI-green, squash-merge, verify MERGED, remove worktree, delete branch, then transition (issue → resolved only); auto-claims an unclaimed open issue atomically (--owner optional, stamped if given)")
 	cmd.Flags().IntVar(&landStackNum, "land-stack", 0, "top PR of a stack to land: gates every layer (as --land-pr does), then merges them all with one gh stack merge and resolves each layer's issue; refuses with the failing layer's PR; exclusive with --land-pr (land_flags_exclusive)")
-	cmd.Flags().BoolVar(&localValidated, "local-validated", false, "bypass the CI-green gate when used with --land-pr; for use when required CI is genuinely unavailable and the operator has validated locally (audit-logged)")
+	cmd.Flags().BoolVar(&localValidated, "local-validated", false, "bypass the CI-green gate when used with --land-pr or --land-stack; for use when required CI is genuinely unavailable and the operator has validated locally (audit-logged)")
 	return cmd
 }
 
