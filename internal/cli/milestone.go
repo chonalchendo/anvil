@@ -67,11 +67,14 @@ func newMilestoneStatusCmd() *cobra.Command {
 			}
 			fl := checkFinishLine(projectFromArtifact(m, args[0]))
 			var acceptance []acceptanceResult
+			var at *milestoneAt
 			if flagAt != "" {
-				acceptance, err = runAcceptanceAt(cmd, m, args[0], fl.Dir, flagAt)
+				var commit string
+				acceptance, commit, err = runAcceptanceAt(cmd, m, args[0], fl, flagAt)
 				if err != nil {
-					return err
+					return printAndReturn(cmd, err)
 				}
+				at = &milestoneAt{Ref: flagAt, Commit: commit}
 			} else {
 				warnBaseUnchecked(cmd, fl)
 				if fl.off() {
@@ -106,10 +109,14 @@ func newMilestoneStatusCmd() *cobra.Command {
 					Issues     []milestoneIssueRow `json:"issues"`
 					CostTotal  milestoneCostTotal  `json:"cost_total"`
 					Outcome    milestoneOutcome    `json:"outcome"`
-				}{st, done, acceptance, rows, total, outcome})
+					At         *milestoneAt        `json:"at,omitempty"`
+				}{st, done, acceptance, rows, total, outcome, at})
 			}
 			out := cmd.OutOrStdout() // data, not diagnostics: must survive 2>/dev/null
 			fmt.Fprintf(out, "%s\t%d/%d resolved\tdone=%t\n", st.Milestone, st.Resolved, st.Total, done)
+			if at != nil {
+				fmt.Fprintf(out, "at\t%s\t%s\n", at.Ref, at.Commit)
+			}
 			for i, r := range acceptance {
 				verdict := "met"
 				if !r.Met {
