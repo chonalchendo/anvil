@@ -23,7 +23,7 @@ const landClaimOwner = "anvil-land"
 func newTransitionCmd() *cobra.Command {
 	var owner, reason string
 	var asJSON, force, noLongerReproduces, cutWorktree, localValidated bool
-	var worktreeOverride, branchOverride string
+	var worktreeOverride, branchOverride, baseOverride string
 	var landPRNum int
 	cmd := &cobra.Command{
 		Use:   "transition <type> <id> <new-state>",
@@ -75,7 +75,7 @@ func newTransitionCmd() *cobra.Command {
 					}
 					// Cut before the claim transfer: a refused cut leaves the claim untouched.
 					if cutWorktree {
-						p, _, src, cerr := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride)
+						p, _, src, cerr := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride, baseOverride)
 						if cerr != nil {
 							return printAndReturn(cmd, cerr)
 						}
@@ -117,6 +117,11 @@ func newTransitionCmd() *cobra.Command {
 			if branchOverride != "" && !cutWorktree {
 				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
 					Set("flag", "--branch").
+					Set("applies_to", "use only with --cut-worktree"))
+			}
+			if baseOverride != "" && !cutWorktree {
+				return printAndReturn(cmd, errfmt.NewStructured("invalid_flag_for_transition").
+					Set("flag", "--base").
 					Set("applies_to", "use only with --cut-worktree"))
 			}
 			if worktreeOverride != "" && !cutWorktree && landPRNum == 0 {
@@ -267,7 +272,7 @@ func newTransitionCmd() *cobra.Command {
 
 			var wtPath, wtSource string
 			if cutWorktree {
-				p, _, src, err := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride)
+				p, _, src, err := doCutWorktreeSource(cmd.ErrOrStderr(), a, id, worktreeOverride, branchOverride, baseOverride)
 				if err != nil {
 					return printAndReturn(cmd, err)
 				}
@@ -420,6 +425,7 @@ func newTransitionCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&cutWorktree, "cut-worktree", false, "create the conventional worktree+branch before transitioning (issue → in-progress only); copies paths declared in .anvil-worktree-carry into the new worktree")
 	cmd.Flags().StringVar(&worktreeOverride, "worktree", "", "override the derived worktree path (used with --cut-worktree or --land-pr)")
 	cmd.Flags().StringVar(&branchOverride, "branch", "", "override the derived branch name (used with --cut-worktree)")
+	cmd.Flags().StringVar(&baseOverride, "base", "", "start the cut worktree at origin/<branch> (a stack top) instead of origin/HEAD (used with --cut-worktree)")
 	cmd.Flags().IntVar(&landPRNum, "land-pr", 0, "PR number to land: runs the issue's verification on a fresh checkout of the PR head and merges only on its pass; refuses land_pr_verification_failed, verification_changed, a foreign PR, and a missing, stale or blocked review round (land_pr_review_*); verify-mergeable + CI-green, squash-merge, verify MERGED, remove worktree, delete branch, then transition (issue → resolved only); auto-claims an unclaimed open issue atomically (--owner optional, stamped if given)")
 	cmd.Flags().BoolVar(&localValidated, "local-validated", false, "bypass the CI-green gate when used with --land-pr; for use when required CI is genuinely unavailable and the operator has validated locally (audit-logged)")
 	return cmd
