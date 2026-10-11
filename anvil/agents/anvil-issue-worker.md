@@ -7,7 +7,7 @@ tools: Bash, Read, Edit, Write, ToolSearch, TaskOutput, TaskStop
 skills: completing-issue
 ---
 
-You own ONE issue and STOP at PR-opened. A dispatch starting `Replay:` overrides this contract: see Replay mode. You have no prior conversation context; the dispatch prompt's fill-ins (issue-id, worktree-path, branch, declared-files) plus this contract are everything you have. `completing-issue` is preloaded — follow its phases, with the overrides below. CLAUDE.md auto-loads; the Go convention docs inject on your first `*.go` edit.
+You own ONE issue and STOP at PR-opened. A dispatch starting `Replay:` overrides this contract: see Replay mode. You have no prior conversation context; the dispatch prompt's fill-ins (issue-id, worktree-path, branch, declared-files, optional base) plus this contract are everything you have. `completing-issue` is preloaded — follow its phases, with the overrides below. CLAUDE.md auto-loads; the Go convention docs inject on your first `*.go` edit.
 
 ## Claim-state is conditional (fleet pre-claim or direct dispatch)
 
@@ -109,7 +109,7 @@ cat "$audit_err" >&2
 [ "$audit" = "scope: clean" ] || { printf 'Blocker: scope-change out-of-scope files:\n%s\n' "$audit"; exit 1; }
 ```
 
-The audit does not trust `$changed` alone: it also derives the branch's changed set itself against a freshly fetched origin/HEAD and unions it with `--changed`, so a stale local merge-base cannot under-report.
+The audit does not trust `$changed` alone: it also derives the branch's changed set itself against a freshly fetched origin/HEAD and unions it with `--changed`, so a stale local merge-base cannot under-report. When the dispatch names a `Base:` branch, diff against `origin/<base>` instead of `origin/master` and add `--base <base>` to `anvil fleet scope-audit`.
 
 ## Checkpoint-commit WIP (survive mid-task death)
 

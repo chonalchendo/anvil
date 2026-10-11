@@ -122,7 +122,7 @@ Diff hunks cannot show a unit's shape — read every unit the change grew, creat
 Sweep for governing artifacts nobody linked, before the PR opens. `anvil hydrate` walks **linked** edges only, so an unlinked component design or convention never reached your box.
 
 1. List both sets whole: `anvil list component-design --limit 100` and `anvil list convention --limit 100`. The default cut is 10 most recent, reported on stderr — stay above the total it names.
-2. Match each description against the files the diff touched (`git diff --name-only $(git merge-base HEAD origin/HEAD)`).
+2. Match each description against the files the diff touched (`git diff --name-only $(git merge-base HEAD origin/HEAD)`; when the dispatch names a base branch, use `origin/<base>`).
 3. Load any that plainly govern: `anvil show component-design <id> --body`, `anvil show component-design <id> --links convention --body`, `anvil show convention <id> --body`.
 4. Apply each unlinked rule to the diff now — it binds exactly as a linked one. Re-enter Phase 2 if the fix changes behaviour.
 5. Report each hit as a `swept` row in Phase 5's `## Context box`, naming the artifact id and the **missing rail edge** — the node that should have linked it. **Never wire that edge yourself.** The spine is `writing-issue`'s and the human's call; mutating it mid-completion edits the ground this change is measured against. A sweep that finds nothing says so in the same section — silence does not prove it ran.
@@ -174,6 +174,8 @@ Add one `swept` row per artifact Phase 3b pulled in from outside the box. An emp
 ```bash
 gh pr create --title "<conventional-commit summary>" --body "<filled template | one-paragraph, + for issue <full-issue-id>> + the Context box section above"
 ```
+
+When the dispatch names a `Base:` branch (a stacked layer), add `--base <branch>` to `gh pr create`. Without one, open the PR against the default branch.
 
 Immediately after the PR opens, stamp its URL onto the issue so staleness detection can map the two:
 
