@@ -64,6 +64,19 @@ func TestSetRefusesApprovedMilestoneScope(t *testing.T) {
 		t.Fatalf("description set on approved milestone: %v\n%s", err, out)
 	}
 
+	for name, args := range map[string][]string{
+		"approved value": {"approved", "2026-01-01"},
+		"approved unset": {"approved", ""},
+	} {
+		out, err := set(args...)
+		if err == nil || !strings.Contains(out, "approved_via_set") || !strings.Contains(out, "transition milestone milestone.foo.loop planned") {
+			t.Errorf("%s: want approved_via_set refusal, got err=%v %s", name, err, out)
+		}
+	}
+	if field("approved") != "2026-10-10" {
+		t.Errorf("refused set changed approved: %v", field("approved"))
+	}
+
 	setState("planned")
 	if out, err := set("goal", "demo passes twice"); err != nil {
 		t.Fatalf("goal set on planned milestone: %v\n%s", err, out)

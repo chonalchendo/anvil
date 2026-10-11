@@ -77,6 +77,9 @@ func newSetCmd() *cobra.Command {
 			if ferr := refuseForceOnOtherField(cmd, field, flagForce, flagReason); ferr != nil {
 				return ferr
 			}
+			if err := refuseApprovedSet(cmd, t, field, id); err != nil {
+				return err
+			}
 			if ve := approvedScopeRefusal(t, a.FrontMatter, []string{field}, id); ve != nil {
 				return printAndReturn(cmd, ve)
 			}
