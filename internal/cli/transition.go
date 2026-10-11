@@ -24,7 +24,7 @@ func newTransitionCmd() *cobra.Command {
 	var owner, reason string
 	var asJSON, force, noLongerReproduces, cutWorktree, localValidated bool
 	var worktreeOverride, branchOverride, baseOverride string
-	var landPRNum int
+	var landPRNum, landStackNum int
 	cmd := &cobra.Command{
 		Use:   "transition <type> <id> <new-state>",
 		Short: "Move an artifact through its state machine",
@@ -36,6 +36,10 @@ func newTransitionCmd() *cobra.Command {
 				return fmt.Errorf("type: %w", err)
 			}
 			id, to := args[1], args[2]
+			if landStackNum != 0 {
+				return runLandStack(cmd, landStackOpts{t: t, id: id, to: to, stack: landStackNum, landPR: landPRNum,
+					override: force || noLongerReproduces, local: localValidated, asJSON: asJSON})
+			}
 
 			v, err := core.ResolveVault()
 			if err != nil {
@@ -410,6 +414,7 @@ func newTransitionCmd() *cobra.Command {
 	cmd.Flags().StringVar(&branchOverride, "branch", "", "override the derived branch name (used with --cut-worktree)")
 	cmd.Flags().StringVar(&baseOverride, "base", "", "start the cut worktree at origin/<branch> (a stack top) instead of origin/HEAD (used with --cut-worktree)")
 	cmd.Flags().IntVar(&landPRNum, "land-pr", 0, "PR number to land: runs the issue's verification on a fresh checkout of the PR head and merges only on its pass; refuses land_pr_verification_failed, verification_changed, a foreign PR, and a missing, stale or blocked review round (land_pr_review_*); verify-mergeable + CI-green, squash-merge, verify MERGED, remove worktree, delete branch, then transition (issue → resolved only); auto-claims an unclaimed open issue atomically (--owner optional, stamped if given)")
+	cmd.Flags().IntVar(&landStackNum, "land-stack", 0, "top PR of a stack to land: gates every layer (as --land-pr does), then merges them all with one gh stack merge and resolves each layer's issue; refuses with the failing layer's PR; exclusive with --land-pr (land_flags_exclusive)")
 	cmd.Flags().BoolVar(&localValidated, "local-validated", false, "bypass the CI-green gate when used with --land-pr; for use when required CI is genuinely unavailable and the operator has validated locally (audit-logged)")
 	return cmd
 }
