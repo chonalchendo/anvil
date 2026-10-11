@@ -106,3 +106,40 @@ func TestLayerPatchIDReal(t *testing.T) {
 		t.Error("unreachable sha read as same")
 	}
 }
+
+// A commit dropped from the base must not hide behind the fork point: the
+// upper layer lost U1, so its patch changed and the review is stale.
+func TestLayerPatchIDDroppedBaseCommit(t *testing.T) {
+	root := t.TempDir()
+	remote := filepath.Join(root, "remote.git")
+	d := filepath.Join(root, "work")
+	gitIn(t, root, "init", "-q", "--bare", "-b", "main", remote)
+	gitIn(t, root, "clone", "-q", remote, d)
+	commitFile := func(f, s string) string {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(d, f), []byte(s), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		gitIn(t, d, "add", ".")
+		gitIn(t, d, "commit", "-q", "-m", f)
+		return gitIn(t, d, "rev-parse", "HEAD")
+	}
+	commitFile("a", "1\n")
+	gitIn(t, d, "push", "-q", "origin", "HEAD:main")
+	gitIn(t, d, "checkout", "-q", "-b", "lower")
+	lowerTip := commitFile("b", "lower\n")
+	gitIn(t, d, "push", "-q", "origin", "lower")
+	gitIn(t, d, "checkout", "-q", "-b", "upper")
+	commitFile("u1", "u1\n")
+	commitFile("u2", "u2\n")
+	reviewed := gitIn(t, d, "rev-parse", "HEAD")
+
+	// origin/lower fast-forwards to U1, then is forced back to its old tip.
+	gitIn(t, d, "push", "-q", "origin", "HEAD~1:refs/heads/lower")
+	gitIn(t, d, "push", "-q", "--force", "origin", lowerTip+":refs/heads/lower")
+	gitIn(t, d, "rebase", "-q", "--onto", lowerTip, "HEAD~1")
+	head := gitIn(t, d, "rev-parse", "HEAD")
+	if samePatch(d, "origin/lower", reviewed, head) {
+		t.Error("a dropped base commit read as the same patch")
+	}
+}

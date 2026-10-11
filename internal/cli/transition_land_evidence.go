@@ -74,7 +74,7 @@ func (e landEvidence) check(num int, worktreePath string, alreadyMerged bool) (l
 		return landHead{}, errfmt.NewStructured("land_pr_review_missing").
 			Set("issue", e.id).Set("pr", num).
 			Set("fix_hint", "fire reviewing-pr on the PR; it persists the round on the issue")
-	case !strings.HasPrefix(h.oid, rr.sha) && !e.sameLayerPatch(num, worktreePath, rr.sha, h.oid):
+	case !strings.HasPrefix(h.oid, rr.sha) && !e.sameLayerPatch(num, rr.sha, h.oid):
 		return landHead{}, errfmt.NewStructured("land_pr_review_stale").
 			Set("reviewed", rr.sha).Set("head", h.oid).
 			Set("fix_hint", "fire a fresh reviewing-pr round at the PR head")
@@ -88,7 +88,7 @@ func (e landEvidence) check(num int, worktreePath string, alreadyMerged bool) (l
 
 // sameLayerPatch is the restack escape: a head move that leaves the layer's own
 // patch unchanged does not stale a review. The base ref and a fetch happen only on a move.
-func (e landEvidence) sameLayerPatch(num int, dir, roundSha, headOid string) bool {
+func (e landEvidence) sameLayerPatch(num int, roundSha, headOid string) bool {
 	raw, err := ghPRViewJSONFn(num, "baseRefName")
 	if err != nil {
 		return false
@@ -101,6 +101,11 @@ func (e landEvidence) sameLayerPatch(num int, dir, roundSha, headOid string) boo
 	}
 	// An update-branch head made on GitHub is absent locally until a fetch. A
 	// failed fetch leaves the sha unreachable, which reads as stale.
+	// The repo root is used, not the worktree path: that path may not exist yet.
+	dir, err := gitMainRootFn()
+	if err != nil {
+		return false
+	}
 	_ = gitFetchOriginFn(dir)
 	return samePatch(dir, "origin/"+base.BaseRefName, roundSha, headOid)
 }

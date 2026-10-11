@@ -177,18 +177,22 @@ func gitMainRootReal() (string, error) {
 // the fork point of base, so a rebased lower layer is excluded from an old
 // upper commit; it falls back to the plain merge-base when no fork point exists.
 func gitLayerPatchIDReal(dir, base, commit string, fork bool) (string, error) {
-	mb := ""
-	if fork {
-		if out, err := gitOut(dir, "merge-base", "--fork-point", base, commit); err == nil {
-			mb = out
-		}
+	mb, err := gitOutput(dir, "merge-base", base, commit)
+	if err != nil {
+		return "", err
 	}
-	if mb == "" {
-		out, err := gitOut(dir, "merge-base", base, commit)
-		if err != nil {
-			return "", err
+	mb = strings.TrimSpace(mb)
+	if fork {
+		// The fork point is trusted only when every commit it hides from the
+		// plain merge-base has an equivalent in base. Otherwise a commit dropped
+		// from the base would be excluded from the diff and mask a change.
+		if out, ferr := gitOutput(dir, "merge-base", "--fork-point", base, commit); ferr == nil {
+			if fp := strings.TrimSpace(out); fp != "" {
+				if cherry, cerr := gitOutput(dir, "cherry", base, fp, mb); cerr == nil && !strings.Contains(cherry, "+") {
+					mb = fp
+				}
+			}
 		}
-		mb = out
 	}
 	diff := exec.Command("git", "diff", "--no-ext-diff", "--no-color", "--no-textconv", mb, commit) //nolint:gosec // refs come from gh and the vault, passed as separate argv entries
 	diff.Dir = dir
@@ -208,11 +212,4 @@ func gitLayerPatchIDReal(dir, base, commit string, fork bool) (string, error) {
 		return "", errors.New("empty layer diff")
 	}
 	return fields[0], nil
-}
-
-func gitOut(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...) //nolint:gosec // refs come from gh and the vault, passed as separate argv entries
-	cmd.Dir = dir
-	out, err := cmd.Output()
-	return strings.TrimSpace(string(out)), err
 }
