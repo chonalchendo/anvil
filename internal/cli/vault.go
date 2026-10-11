@@ -210,7 +210,7 @@ func ownSessionID() string {
 }
 
 func gitOutput(dir string, args ...string) (string, error) {
-	c := exec.Command("git", args...) //nolint:gosec // G204: args are package-internal literals, never user input
+	c := exec.Command("git", args...) //nolint:gosec // G204: subcommand is a literal; refs come from gh and the vault, and exec runs no shell
 	c.Dir = dir
 	out, err := c.Output()
 	return string(out), err
