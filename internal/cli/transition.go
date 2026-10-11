@@ -229,7 +229,7 @@ func newTransitionCmd() *cobra.Command {
 			}
 
 			if t == core.TypeMilestone && to == "in-progress" && from == "planned" {
-				if gerr := gateMilestoneApproval(v, a, id); gerr != nil {
+				if gerr := gateMilestoneApproval(cmd, v, a, id); gerr != nil {
 					return printAndReturn(cmd, gerr)
 				}
 			}
@@ -396,7 +396,7 @@ func newTransitionCmd() *cobra.Command {
 			}
 
 			if t == core.TypeIssue && to == "in-progress" {
-				if merr := advanceMilestoneOnClaim(v, a, cmd.ErrOrStderr()); merr != nil {
+				if merr := advanceMilestoneOnClaim(cmd, v, a); merr != nil {
 					cmd.PrintErrln("warning: milestone advance: " + merr.Error())
 				}
 			}

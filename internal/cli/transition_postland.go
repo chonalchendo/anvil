@@ -12,7 +12,8 @@ import (
 // and returns the ids of the red ones. Red only warns: the merge is
 // irreversible, so refusing to resolve would strand a landed issue. The blocks
 // run in the main checkout, which --land-pr never pulls, so they must probe
-// live state rather than the tree.
+// live state rather than the tree. A bare command resolves this
+// checkout's bin/ first; call the installed binary by absolute path.
 func runPostLandBlocks(errW io.Writer, body string) []string {
 	blocks, err := core.VerificationBlocks(body, "Indirect")
 	if err != nil {
