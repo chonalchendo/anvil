@@ -51,3 +51,16 @@ func latestReviewRound(body string, pr int) (reviewRound, bool) {
 	}
 	return best, found
 }
+
+// samePatch reports whether the layer diff is identical at the round's sha and
+// at the head. The round side starts at the fork point so a restacked lower
+// layer does not leak its old patch into an upper layer's diff. Any failure,
+// such as an unreachable sha, reads as "not the same".
+func samePatch(dir, base, roundSha, headOid string) bool {
+	a, err := gitLayerPatchIDFn(dir, base, roundSha, true)
+	if err != nil {
+		return false
+	}
+	b, err := gitLayerPatchIDFn(dir, base, headOid, false)
+	return err == nil && a == b
+}

@@ -24,6 +24,7 @@ var (
 	gitDeleteLocalBranchFn   = gitDeleteLocalBranchReal
 	gitMainRootFn            = gitMainRootReal
 	gitFetchOriginFn         = gitFetchOriginReal
+	gitLayerPatchIDFn        = gitLayerPatchIDReal
 	gitResolveOriginHEADFn   = gitResolveOriginHEADReal
 	gitOriginBranchExistsFn  = gitOriginBranchExistsReal
 	gitLocalBranchExistsFn   = gitLocalBranchExistsReal
