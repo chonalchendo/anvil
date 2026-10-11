@@ -137,7 +137,7 @@ A thread is a workspace, not an output. Before closing one, rule on where its co
   anvil transition thread <thread-id> closed
   ```
 
-`anvil transition thread <id> closed` warns when the thread carries no outbound decision or learning link. It never blocks — the third verdict is legitimate — but treat the warning as the prompt to confirm you *chose* it rather than skipped the ruling.
+`anvil transition thread <id> closed` warns when no decision or learning is linked: none in the thread's body or `related`, and no decision whose `thread` slot names it. It never blocks — the third verdict is legitimate — but treat the warning as the prompt to confirm you *chose* it rather than skipped the ruling.
 
 Project work surfaced mid-thread routes to `writing-issue` and is not a closing verdict: the thread stays open as parallel context.
 
