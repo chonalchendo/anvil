@@ -6,6 +6,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 )
@@ -18,7 +20,7 @@ import (
 // abandoned) — this is a derived-state follow, not a required edge. The
 // approval gate still applies: a refused milestone stays planned and a
 // stderr warning names the refusal code.
-func advanceMilestoneOnClaim(v *core.Vault, claimed *core.Artifact, errW io.Writer) error {
+func advanceMilestoneOnClaim(cmd *cobra.Command, v *core.Vault, claimed *core.Artifact, errW io.Writer) error {
 	ms := milestoneSlug(claimed.FrontMatter["milestone"])
 	if ms == "" {
 		return nil
@@ -34,7 +36,7 @@ func advanceMilestoneOnClaim(v *core.Vault, claimed *core.Artifact, errW io.Writ
 	if status, _ := m.FrontMatter["status"].(string); status != "planned" {
 		return nil
 	}
-	if gerr := gateMilestoneApproval(v, m, "milestone."+ms); gerr != nil {
+	if gerr := gateMilestoneApproval(cmd, v, m, "milestone."+ms); gerr != nil {
 		code := "unknown"
 		var se *errfmt.Structured
 		if errors.As(gerr, &se) {

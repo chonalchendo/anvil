@@ -149,10 +149,27 @@ func TestMilestoneGateRefusesProseAcceptance(t *testing.T) {
 	}
 	t.Run("prose entry refused by index", func(t *testing.T) {
 		vault := gateVault(t, formBody)
-		setAcceptance(t, vault, "true", "The dashboard shows each issue")
+		repo := t.TempDir()
+		prevRepo := resolveProjectRepoFn
+		t.Cleanup(func() { resolveProjectRepoFn = prevRepo })
+		resolveProjectRepoFn = func(string) (string, error) { return repo, nil }
+		setAcceptance(t, vault, "touch ran", "The dashboard shows each issue")
 		out, err := gateTransition(t, "in-progress")
 		if err == nil || !strings.Contains(out, "milestone_gate_acceptance_not_command") || !strings.Contains(out, `"entries":[1]`) {
 			t.Fatalf("want refusal naming only entry 1, err=%v out=%s", err, out)
+		}
+		if _, serr := os.Stat(filepath.Join(repo, "ran")); serr != nil {
+			t.Fatalf("acceptance command did not run in the repo dir: %v", serr)
+		}
+		a, lerr := core.LoadArtifact(filepath.Join(vault, "85-milestones", "demo.loop.md"))
+		if lerr != nil {
+			t.Fatal(lerr)
+		}
+		if got := a.FrontMatter["status"]; got != "planned" {
+			t.Fatalf("status = %v, want planned", got)
+		}
+		if _, ok := a.FrontMatter["approved"]; ok {
+			t.Fatal("approved stamped despite refusal")
 		}
 	})
 	t.Run("red command approved", func(t *testing.T) {
