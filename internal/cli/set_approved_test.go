@@ -77,6 +77,11 @@ func TestSetRefusesApprovedMilestoneScope(t *testing.T) {
 		t.Errorf("refused set changed approved: %v", field("approved"))
 	}
 
+	setState("done")
+	if out, err := set("approved", ""); err == nil || !strings.Contains(out, `planned --reason`) {
+		t.Errorf("done approved set: want --reason in hint, got err=%v %s", err, out)
+	}
+
 	setState("planned")
 	if out, err := set("goal", "demo passes twice"); err != nil {
 		t.Fatalf("goal set on planned milestone: %v\n%s", err, out)

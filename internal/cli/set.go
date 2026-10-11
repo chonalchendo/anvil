@@ -77,7 +77,7 @@ func newSetCmd() *cobra.Command {
 			if ferr := refuseForceOnOtherField(cmd, field, flagForce, flagReason); ferr != nil {
 				return ferr
 			}
-			if err := refuseApprovedSet(cmd, t, field, id); err != nil {
+			if err := refuseApprovedSet(cmd, t, field, id, a.FrontMatter); err != nil {
 				return err
 			}
 			if ve := approvedScopeRefusal(t, a.FrontMatter, []string{field}, id); ve != nil {
@@ -441,4 +441,21 @@ func arrayValue(v any) []any {
 		return out
 	}
 	return nil
+}
+
+// refuseApprovedSet keeps set from writing a milestone's approval stamp: the
+// stamp is the scope gate, so only transitions may stamp or clear it.
+func refuseApprovedSet(cmd *cobra.Command, t core.Type, field, id string, fm map[string]any) error {
+	if t != core.TypeMilestone || field != "approved" {
+		return nil
+	}
+	status, _ := fm["status"].(string)
+	amend := fmt.Sprintf("anvil transition milestone %s planned", id)
+	if tr, err := core.LookupTransition(t, status, "planned"); err == nil && tr.Reverse {
+		amend += ` --reason "<why>"`
+	}
+	return printAndReturn(cmd, errfmt.NewStructured("approved_via_set").
+		Set("id", id).
+		Set("field", field).
+		Set("fix_hint", fmt.Sprintf("%s to amend; anvil transition milestone %s in-progress to approve", amend, id)))
 }

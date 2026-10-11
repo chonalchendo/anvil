@@ -70,15 +70,3 @@ func refuseForceOnOtherField(cmd *cobra.Command, field string, force bool, reaso
 		Set("field", field).
 		Set("fix_hint", "--force and --reason apply only to the status field; drop them"))
 }
-
-// refuseApprovedSet keeps set from writing a milestone's approval stamp: the
-// stamp is the scope gate, so only transitions may stamp or clear it.
-func refuseApprovedSet(cmd *cobra.Command, t core.Type, field, id string) error {
-	if t != core.TypeMilestone || field != "approved" {
-		return nil
-	}
-	return printAndReturn(cmd, errfmt.NewStructured("approved_via_set").
-		Set("id", id).
-		Set("field", field).
-		Set("fix_hint", fmt.Sprintf("anvil transition milestone %s planned to amend; anvil transition milestone %s in-progress to approve", id, id)))
-}

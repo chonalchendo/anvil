@@ -274,10 +274,10 @@ func mergeUpdate(cmd *cobra.Command, existing, fm map[string]any) (map[string]an
 	return merged, changed
 }
 
-// approvedScopeRefusal returns the refusal when --update would change the
-// goal or acceptance of an approved milestone that has left planned. A planned
-// milestone always updates, so a done -> planned reverse move (which keeps
-// `approved`) is never trapped.
+// approvedScopeRefusal returns the refusal when create --update or set would
+// change the goal or acceptance of an approved milestone that has left planned.
+// A planned milestone always updates, so a done -> planned reverse move (which
+// keeps `approved`) is never trapped.
 func approvedScopeRefusal(t core.Type, existing map[string]any, changed []string, id string) *errfmt.Structured {
 	if t != core.TypeMilestone || existing["approved"] == nil {
 		return nil
