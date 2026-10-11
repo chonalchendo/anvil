@@ -37,8 +37,10 @@ func newTransitionCmd() *cobra.Command {
 			}
 			id, to := args[1], args[2]
 			if landStackNum != 0 {
-				return runLandStack(cmd, landStackOpts{t: t, id: id, to: to, stack: landStackNum, landPR: landPRNum,
-					override: force || noLongerReproduces, local: localValidated, asJSON: asJSON})
+				return runLandStack(cmd, landStackOpts{
+					t: t, id: id, to: to, stack: landStackNum, landPR: landPRNum,
+					override: force || noLongerReproduces, local: localValidated, asJSON: asJSON,
+				})
 			}
 
 			v, err := core.ResolveVault()

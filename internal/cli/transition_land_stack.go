@@ -153,7 +153,7 @@ type stackLayer struct {
 func withLayer(err error, pr int) error {
 	var se *errfmt.Structured
 	if errors.As(err, &se) {
-		se.Set("layer_pr", pr)
+		_ = se.Set("layer_pr", pr)
 	}
 	return err
 }
