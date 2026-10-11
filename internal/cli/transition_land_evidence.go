@@ -87,7 +87,7 @@ func (e landEvidence) check(num int, worktreePath string, alreadyMerged bool) (l
 }
 
 // sameLayerPatch is the restack escape: a head move that leaves the layer's own
-// patch unchanged does not stale a review. The base ref is read only on a move.
+// patch unchanged does not stale a review. The base ref and a fetch happen only on a move.
 func (e landEvidence) sameLayerPatch(num int, dir, roundSha, headOid string) bool {
 	raw, err := ghPRViewJSONFn(num, "baseRefName")
 	if err != nil {
@@ -99,6 +99,9 @@ func (e landEvidence) sameLayerPatch(num int, dir, roundSha, headOid string) boo
 	if json.Unmarshal(raw, &base) != nil || base.BaseRefName == "" {
 		return false
 	}
+	// An update-branch head made on GitHub is absent locally until a fetch. A
+	// failed fetch leaves the sha unreachable, which reads as stale.
+	_ = gitFetchOriginFn(dir)
 	return samePatch(dir, "origin/"+base.BaseRefName, roundSha, headOid)
 }
 

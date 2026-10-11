@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -24,9 +23,9 @@ func TestLandReviewStaleByPatch(t *testing.T) {
 			s := stubSideFX(t)
 			s.viewByField[landHeadFields] = headJSON(landTestHead, "demo/foo")
 			s.viewByField["baseRefName"] = []byte(`{"baseRefName":"master"}`)
-			old := layerPatchIDFn
-			t.Cleanup(func() { layerPatchIDFn = old })
-			layerPatchIDFn = func(_, base, commit string) (string, error) {
+			old := gitLayerPatchIDFn
+			t.Cleanup(func() { gitLayerPatchIDFn = old })
+			gitLayerPatchIDFn = func(_, base, commit string, _ bool) (string, error) {
 				if base != "origin/master" {
 					t.Errorf("base = %s", base)
 				}
@@ -51,53 +50,59 @@ func TestLandReviewStaleByPatch(t *testing.T) {
 	}
 }
 
-// A restack onto a moved base keeps the layer patch-id; an edit changes it.
 func TestLayerPatchIDReal(t *testing.T) {
-	d := t.TempDir()
-	g := func(args ...string) string {
-		t.Helper()
-		c := exec.Command("git", append([]string{"-c", "user.email=a@b", "-c", "user.name=a"}, args...)...)
-		c.Dir = d
-		out, err := c.CombinedOutput()
-		if err != nil {
-			t.Fatalf("git %v: %v %s", args, err, out)
-		}
-		return strings.TrimSpace(string(out))
-	}
+	root := t.TempDir()
+	remote := filepath.Join(root, "remote.git")
+	d := filepath.Join(root, "work")
+	gitIn(t, root, "init", "-q", "--bare", "-b", "main", remote)
+	gitIn(t, root, "clone", "-q", remote, d)
 	write := func(f, s string) {
 		t.Helper()
-		if err := os.WriteFile(filepath.Join(d, f), []byte(s), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(d, f), []byte(s), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
-	g("init", "-b", "main")
+	commit := func(msg string) string {
+		gitIn(t, d, "add", ".")
+		gitIn(t, d, "commit", "-q", "-m", msg)
+		return gitIn(t, d, "rev-parse", "HEAD")
+	}
 	write("a", "1\n")
-	g("add", ".")
-	g("commit", "-m", "base")
-	g("checkout", "-b", "layer")
-	write("b", "layer\n")
-	g("add", ".")
-	g("commit", "-m", "layer")
-	old := g("rev-parse", "HEAD")
-	g("checkout", "main")
-	write("c", "other\n")
-	g("add", ".")
-	g("commit", "-m", "moved")
-	g("checkout", "layer")
-	g("rebase", "main")
-	restacked := g("rev-parse", "HEAD")
-	if old == restacked {
+	commit("base")
+	gitIn(t, d, "push", "-q", "origin", "HEAD:main")
+
+	// Stack: main <- lower <- upper. The upper layer's base ref is origin/lower.
+	gitIn(t, d, "checkout", "-q", "-b", "lower")
+	write("b", "lower\n")
+	oldLower := commit("lower")
+	gitIn(t, d, "push", "-q", "origin", "lower")
+	gitIn(t, d, "checkout", "-q", "-b", "upper")
+	write("c", "upper\n")
+	reviewed := commit("upper")
+
+	// Main moves; lower is rebased and force-pushed; upper is rebased onto it.
+	gitIn(t, d, "checkout", "-q", "main")
+	write("m", "moved\n")
+	commit("moved")
+	gitIn(t, d, "push", "-q", "origin", "main")
+	gitIn(t, d, "checkout", "-q", "lower")
+	gitIn(t, d, "rebase", "-q", "main")
+	gitIn(t, d, "push", "-q", "--force", "origin", "lower")
+	gitIn(t, d, "checkout", "-q", "upper")
+	gitIn(t, d, "rebase", "-q", "--onto", "lower", oldLower)
+	restacked := gitIn(t, d, "rev-parse", "HEAD")
+	if reviewed == restacked {
 		t.Fatal("rebase did not move the head")
 	}
-	if !samePatch(d, "main", old, restacked) {
-		t.Error("restack changed the patch-id")
+	if !samePatch(d, "origin/lower", reviewed, restacked) {
+		t.Error("restack of a stacked layer changed the patch-id")
 	}
-	write("b", "edited\n")
-	g("commit", "-am", "edit")
-	if samePatch(d, "main", old, g("rev-parse", "HEAD")) {
+	write("c", "edited\n")
+	gitIn(t, d, "commit", "-q", "-am", "edit")
+	if samePatch(d, "origin/lower", reviewed, gitIn(t, d, "rev-parse", "HEAD")) {
 		t.Error("an edit kept the patch-id")
 	}
-	if samePatch(d, "main", "feedface", restacked) {
+	if samePatch(d, "origin/lower", "feedface", restacked) {
 		t.Error("unreachable sha read as same")
 	}
 }
