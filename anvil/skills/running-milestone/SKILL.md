@@ -13,7 +13,7 @@ Your job is to run one in-progress milestone to its finish line. You derive a fe
 
 ## Phase 0 — Read the state
 
-Read the repo's `CLAUDE.md` or `AGENTS.md` for build, install and verification commands. Then read the vault, never session memory:
+Read the repo's `CLAUDE.md` or `AGENTS.md` for build, install and verification commands. Read its merge approval mode too (`Merge approval: team` or `self`; default `self`). Then read the vault, never session memory:
 
 ```bash
 anvil show milestone <milestone-id> --body
@@ -46,6 +46,8 @@ Take the ready issues from `anvil list issue --ready --milestone <project>.<slug
 
 **Never stack.** Never base a dependent issue on its predecessor's branch. `--land-pr` deletes that branch and closes the dependent PR for good. Land the predecessor, then cut the dependent from the base branch tip.
 
+**Team mode.** In `Merge approval: team`, the issues run as one stack and land with `--land-stack`. Stop at "stack complete". **REQUIRED REFERENCE:** Use skills/running-milestone/references/team-mode.md instead of "Never stack", Phase 6 and the land line of the Report.
+
 ## Phase 2b — Retrieve learnings once
 
 A worker cannot dispatch a sub-subagent, so retrieve once, before fan-out. Dispatch `anvil-learnings-researcher` with a `<work-context>` that names the milestone in `artifacts:` and the union of the candidates' `domain/` tags. Reduce the return to one line. Put it in each worker's prompt.
@@ -60,7 +62,7 @@ anvil transition issue <id> in-progress --owner <name> --cut-worktree
 
 Dispatch each issue with `subagent_type: anvil-issue-worker`. The agent file holds the worker contract. Fill only these values:
 
-> Complete anvil issue `<issue-id>`. Worktree: `<worktree-path>` on branch `<branch>`. Declared files (estimate, grep to confirm): `<declared-files>`. Prior learnings (gist): `<one line or "none">`.
+> Complete anvil issue `<issue-id>`. Worktree: `<worktree-path>` on branch `<branch>`. Declared files (estimate, grep to confirm): `<declared-files>`. Prior learnings (gist): `<one line or "none">`. Base (team mode only): `<stack-top-branch>`.
 
 Dispatch at most eight workers in one wave. Dispatch parallel issues in one tool-use block. A new or edited agent file is not dispatchable until the session restarts.
 

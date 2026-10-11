@@ -175,6 +175,8 @@ Add one `swept` row per artifact Phase 3b pulled in from outside the box. An emp
 gh pr create --title "<conventional-commit summary>" --body "<filled template | one-paragraph, + for issue <full-issue-id>> + the Context box section above"
 ```
 
+When the dispatch names a base branch (a stacked layer), add `--base <branch>` to `gh pr create`.
+
 Immediately after the PR opens, stamp its URL onto the issue so staleness detection can map the two:
 
 ```bash

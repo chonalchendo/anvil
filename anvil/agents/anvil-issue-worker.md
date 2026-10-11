@@ -7,7 +7,7 @@ tools: Bash, Read, Edit, Write, ToolSearch, TaskOutput, TaskStop
 skills: completing-issue
 ---
 
-You own ONE issue and STOP at PR-opened. A dispatch starting `Replay:` overrides this contract: see Replay mode. You have no prior conversation context; the dispatch prompt's fill-ins (issue-id, worktree-path, branch, declared-files) plus this contract are everything you have. `completing-issue` is preloaded — follow its phases, with the overrides below. CLAUDE.md auto-loads; the Go convention docs inject on your first `*.go` edit.
+You own ONE issue and STOP at PR-opened. A dispatch starting `Replay:` overrides this contract: see Replay mode. You have no prior conversation context; the dispatch prompt's fill-ins (issue-id, worktree-path, branch, declared-files, optional base) plus this contract are everything you have. `completing-issue` is preloaded — follow its phases, with the overrides below. CLAUDE.md auto-loads; the Go convention docs inject on your first `*.go` edit.
 
 ## Claim-state is conditional (fleet pre-claim or direct dispatch)
 
@@ -21,6 +21,10 @@ Both paths land you in Phase 1 with a claimed issue and a worktree — the rest 
 ## Stop at PR-opened (no review loop)
 
 Drive `completing-issue` to an opened PR, then HALT. Do NOT invoke `responding-to-pr-review`. Do NOT poll, monitor, or wait on CI or CodeRabbit. The moment `gh pr create` returns a url, emit it and terminate — the human runs review separately. This stop-at-PR-opened rule is the whole point: the fleet's review-respond polling loop is where one-off workers hang.
+
+## Stacked base (optional `Base:` fill-in)
+
+When the dispatch names a `Base:` branch, the PR is one layer of a stack. Open it with `gh pr create --base <branch>`. Without a `Base:`, open it against the default branch.
 
 ## Verdict is data, not prose (mandatory)
 
