@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -124,7 +125,7 @@ func runFeasibilityGate(cmd *cobra.Command, path, body string) []*errfmt.Validat
 					WithFix(nonGatingNegationFix))
 				continue
 			}
-			cmd.PrintErrln("anvil: running " + name + " in this environment (your privileges, cwd and environment; not sandboxed)")
+			cmd.PrintErrln("anvil: running " + name + " in this environment " + runnerEnvNote)
 			r := runFeasibilityBlock(block, "", feasibilityTimeout)
 			r.lastLine, r.redText, r.earlyRed = blockLines(block, r.redLine)
 			if r.timedOut && label == "Direct" {
@@ -214,6 +215,9 @@ func (r blockRun) failure() (why string, failed bool) {
 	return "", false
 }
 
+// runnerEnvNote is the stderr notice every runFeasibilityBlock caller prints.
+const runnerEnvNote = "(your privileges, cwd and environment; not sandboxed; run dir's bin/ first on PATH)"
+
 // runFeasibilityBlock runs a single Verification block's lines as one bash
 // script in dir ("" = the process cwd) and reports what it observed. timeout 0
 // means no cap. It never decides pass/fail — that is classifyFeasibility's job.
@@ -248,7 +252,14 @@ func runFeasibilityBlock(block, dir string, timeout time.Duration) blockRun {
 	// happens to come first on the author's PATH.
 	c := exec.CommandContext(ctx, "/bin/bash", "-e", script.Name()) //nolint:gosec // G204: runs the issue's own Verification block verbatim by design — proving it is what the feasibility gate (anvil.0196) exists to do; author-trusted vault content, bounded by feasibilityTimeout
 	c.Dir = dir                                                     // "" keeps the process cwd
-	c.Env = append(os.Environ(), redLineEnv+"="+redFile.Name())
+	runDir, err := filepath.Abs(dir)
+	if err != nil {
+		return blockRun{runErr: err}
+	}
+	// The run's own bin/ first, even before it exists: a block may build it, and
+	// a bare command must then resolve that build, not a global binary.
+	c.Env = append(os.Environ(), redLineEnv+"="+redFile.Name(),
+		"PATH="+filepath.Join(runDir, "bin")+string(os.PathListSeparator)+os.Getenv("PATH"))
 	// Run the block in its own process group so the timeout kill reaches the
 	// whole tree. A block that backgrounds work (`nohup … &`) leaves
 	// grandchildren that survive a signal aimed at bash alone and keep running
