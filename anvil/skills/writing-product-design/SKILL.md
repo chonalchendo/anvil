@@ -29,6 +29,7 @@ A workflow for authoring a project's product-design artifact — the top of Anvi
 - Starting a new project; need the vision artifact before milestones or code.
 - User signals defining the product (not how to build it).
 - Re-authoring an existing PD after a pivot.
+- A design change or recorded choice is a key decision: **REQUIRED SUB-SKILL:** Use opening-thread before authoring it.
 
 ## When not to use
 

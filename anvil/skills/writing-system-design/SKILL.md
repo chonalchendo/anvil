@@ -29,6 +29,7 @@ The system design is explanation plus reference (Diátaxis): Solution strategy e
 - A `product-design` exists and the project needs an architectural shape before milestones or code.
 - User says "let's system-design X", "what's the architecture", or anything that signals shape (not vision, not implementation tasks).
 - Bootstrapping the second artifact in the vault hierarchy.
+- A design change or recorded choice is a key decision: **REQUIRED SUB-SKILL:** Use opening-thread first.
 
 ## When not to use
 
@@ -36,7 +37,7 @@ The system design is explanation plus reference (Diátaxis): Solution strategy e
 - Vision, users, scope → `writing-product-design`.
 - One milestone in detail → `writing-milestone`.
 - Implementation tasks → `writing-issue`.
-- Documenting a *single* architectural choice (e.g., "JWT vs sessions") → that's a decision, record it with `anvil create decision --title "<the choice>" --topic <topic> --description "<one line>" --tags domain/<d>,activity/system-design --body-file <f> --json` (`<f>` holds `## Context`, `## Decision`, `## Rationale`, `## Consequences`, `## Links`; add `--allow-new-facet <facet>` for a new tag value).
+- Documenting a *single* architectural choice (e.g., "JWT vs sessions") → that's a decision, record it with `anvil create decision --title "<the choice>" --thread <thread-id> --description "<one line>" --tags domain/<d>,activity/system-design --body-file <f> --json` (`<f>` holds `## Context`, `## Decision`, `## Rationale`, `## Consequences`, `## Links`; add `--allow-new-facet <facet>` for a new tag value).
 
 ## Output path
 

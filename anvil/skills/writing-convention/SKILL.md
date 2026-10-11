@@ -37,6 +37,8 @@ When you find yourself copying a convention's rules into a component design, a s
 
 **Author mode** — no convention exists for this tool/language yet. Decide before Phase 1; `anvil list convention` confirms.
 
+A new convention is a key decision: **REQUIRED SUB-SKILL:** Use opening-thread before Phase 1.
+
 **Update mode** — a convention exists; you are adding, sharpening, or removing a rule.
 
 ## Convention skeleton

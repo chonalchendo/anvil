@@ -81,7 +81,7 @@ Examples (from anvil itself):
 
 ### Phase 8 — Decisions
 
-Draft `## Decisions`: wikilinks to decisions that authorized the choices above (Phase 11 copies them into frontmatter `authorized_by`). Create a missing one with `anvil create decision --title "<the choice>" --topic <topic> --description "<one line>" --tags domain/<d>,activity/system-design --body-file <f> --json`. `<f>` holds `## Context`, `## Decision`, `## Rationale`, `## Consequences`, `## Links`. Add `--allow-new-facet <facet>` for a new tag value. Unresolved links are acceptable: flag them `TODO: record via anvil create decision`.
+Draft `## Decisions`: wikilinks to decisions that authorized the choices above (Phase 11 copies them into frontmatter `authorized_by`). Create a missing one with `anvil create decision --title "<the choice>" --thread <thread-id> --description "<one line>" --tags domain/<d>,activity/system-design --body-file <f> --json`. `<f>` holds `## Context`, `## Decision`, `## Rationale`, `## Consequences`, `## Links`. Add `--allow-new-facet <facet>` for a new tag value. Unresolved links are acceptable: flag them `TODO: record via anvil create decision`.
 
 **Gate:** list confirmed, or TODO list accepted.
 
