@@ -90,17 +90,18 @@ func newCreateCmd() *cobra.Command {
 				return runShowTemplate(cmd, t)
 			}
 
+			if cmd.Flags().Changed("thread") && t != core.TypeDecision {
+				return printAndReturn(cmd, errfmt.NewUnsupportedFlagForType(
+					"thread", string(t), []string{"decision"}, "omit --thread",
+				))
+			}
+
 			// Stop --project from silently no-op'ing on types whose schema rejects
 			// `project:`. Inbox is the documented exception: its schema has
 			// `suggested_project`, so we alias internally rather than error,
 			// matching the AC. Other unsupported types (session, sweep, thread)
 			// fall through to the unsupported_flag_for_type envelope — the same
 			// precedent `anvil list <type> --project` already uses.
-			if cmd.Flags().Changed("thread") && t != core.TypeDecision {
-				return printAndReturn(cmd, errfmt.NewUnsupportedFlagForType(
-					"thread", string(t), []string{"decision"}, "omit --thread",
-				))
-			}
 			if cmd.Flags().Changed("project") && !t.SupportsProject() {
 				if t == core.TypeInbox {
 					if !cmd.Flags().Changed("suggested-project") {

@@ -261,7 +261,7 @@ Filenames carry a topic-scoped ordinal, as decisions do: `60-threads/<topic>.<NN
 
 Tags: required `domain/<x>` and `activity/<x>`; `pattern/<x>` optional.
 
-**Legal transitions:** see `internal/core/transitions.go`. `closed` warns (never blocks) when the thread carries no outbound decision or learning link — see the `opening-thread` skill's closing verdict.
+**Legal transitions:** see `internal/core/transitions.go`. `closed` warns (never blocks) when no decision or learning is linked: none in the thread's body or `related`, and no decision whose `thread` slot names it — see the `opening-thread` skill's closing verdict.
 
 ### `sweep`
 
