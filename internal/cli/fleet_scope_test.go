@@ -415,3 +415,24 @@ func TestScopeAuditBase(t *testing.T) {
 		}
 	})
 }
+
+func TestScopeAudit_BaseDerivationFailureNamesCause(t *testing.T) {
+	orig := deriveChangedFn
+	deriveChangedFn = func(string) ([]string, string, error) { return nil, "", errors.New("network down") }
+	t.Cleanup(func() { deriveChangedFn = orig })
+	_, _, err := runCmd(t, newRootCmd(), "fleet", "scope-audit",
+		"--declared", "b", "--changed", "b", "--base", "feature")
+	var se *errfmt.Structured
+	if !errors.As(err, &se) || se.Code != "scope_audit_base_derivation_failed" {
+		t.Fatalf("want scope_audit_base_derivation_failed refusal, got: %v", err)
+	}
+	var got any
+	for _, kv := range se.Fields {
+		if kv.Key == "error" {
+			got = kv.Value
+		}
+	}
+	if got != "network down" {
+		t.Errorf("error field = %q, want %q", got, "network down")
+	}
+}

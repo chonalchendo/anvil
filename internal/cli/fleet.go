@@ -85,6 +85,7 @@ func newFleetScopeAuditCmd() *cobra.Command {
 					}
 					return errfmt.NewStructured("scope_audit_base_derivation_failed").
 						Set("base", baseBranch).
+						Set("error", derr.Error()).
 						Set("fix_hint", "check network and git remote, then retry; the audit refuses rather than degrade under --base").
 						Wrap(derr)
 				}
