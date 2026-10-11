@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -170,6 +171,33 @@ func TestMilestoneGateRefusesProseAcceptance(t *testing.T) {
 		}
 		if _, ok := a.FrontMatter["approved"]; ok {
 			t.Fatal("approved stamped despite refusal")
+		}
+	})
+	t.Run("several prose entries listed highest first", func(t *testing.T) {
+		vault := gateVault(t, formBody)
+		prevRepo := resolveProjectRepoFn
+		t.Cleanup(func() { resolveProjectRepoFn = prevRepo })
+		resolveProjectRepoFn = func(string) (string, error) { return t.TempDir(), nil }
+		setAcceptance(t, vault, "Alpha prose", "true", "Beta prose", "Gamma prose")
+		out, err := gateTransition(t, "in-progress")
+		if err == nil || !strings.Contains(out, `"entries":[3,2,0]`) || !strings.Contains(out, "highest first") {
+			t.Fatalf("want entries [3,2,0] and a highest-first hint, err=%v out=%s", err, out)
+		}
+	})
+	t.Run("unresolved repo warns", func(t *testing.T) {
+		vault := gateVault(t, formBody)
+		prevRepo := resolveProjectRepoFn
+		t.Cleanup(func() { resolveProjectRepoFn = prevRepo })
+		resolveProjectRepoFn = func(string) (string, error) { return "", errors.New("no repo") }
+		setAcceptance(t, vault, "true")
+		c := newRootCmd()
+		c.SetArgs([]string{"transition", "milestone", "demo.loop", "in-progress", "--json"})
+		var stderr bytes.Buffer
+		c.SetOut(&bytes.Buffer{})
+		c.SetErr(&stderr)
+		_ = c.Execute()
+		if !strings.Contains(stderr.String(), "project repo not resolved (no repo)") {
+			t.Fatalf("want unresolved-repo warning, stderr=%s", stderr.String())
 		}
 	})
 	t.Run("red command approved", func(t *testing.T) {

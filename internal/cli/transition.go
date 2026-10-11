@@ -396,7 +396,7 @@ func newTransitionCmd() *cobra.Command {
 			}
 
 			if t == core.TypeIssue && to == "in-progress" {
-				if merr := advanceMilestoneOnClaim(cmd, v, a, cmd.ErrOrStderr()); merr != nil {
+				if merr := advanceMilestoneOnClaim(cmd, v, a); merr != nil {
 					cmd.PrintErrln("warning: milestone advance: " + merr.Error())
 				}
 			}

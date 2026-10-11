@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -20,7 +19,7 @@ import (
 // abandoned) — this is a derived-state follow, not a required edge. The
 // approval gate still applies: a refused milestone stays planned and a
 // stderr warning names the refusal code.
-func advanceMilestoneOnClaim(cmd *cobra.Command, v *core.Vault, claimed *core.Artifact, errW io.Writer) error {
+func advanceMilestoneOnClaim(cmd *cobra.Command, v *core.Vault, claimed *core.Artifact) error {
 	ms := milestoneSlug(claimed.FrontMatter["milestone"])
 	if ms == "" {
 		return nil
@@ -42,7 +41,7 @@ func advanceMilestoneOnClaim(cmd *cobra.Command, v *core.Vault, claimed *core.Ar
 		if errors.As(gerr, &se) {
 			code = se.Code
 		}
-		fmt.Fprintf(errW, "warning: milestone %s stays planned: approval gate refused (%s)\n", ms, code)
+		fmt.Fprintf(cmd.ErrOrStderr(), "warning: milestone %s stays planned: approval gate refused (%s)\n", ms, code)
 		return nil
 	}
 	m.FrontMatter["status"] = "in-progress"
