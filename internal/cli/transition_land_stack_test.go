@@ -83,13 +83,17 @@ func landStackSetup(t *testing.T, highRound string) (*stackFake, string) {
 		}
 		return []byte("{" + strings.Join(parts, ",") + "}"), nil
 	}
-	prevList, prevAllChecks, prevDefault := ghPRListAllFn, ghPRChecksAllFn, ghDefaultBranchFn
-	ghPRChecksAllFn = func(num int) error {
+	prevList, prevDefault := ghPRListFn, ghDefaultBranchFn
+	// stubSideFX restores ghPRChecksFn; layer 0 gates on required checks, upper layers on all.
+	ghPRChecksFn = func(num int, required bool) error {
+		if required {
+			return nil
+		}
 		f.allChecks = append(f.allChecks, num)
 		return f.allChecksErr
 	}
 	ghDefaultBranchFn = func() (string, error) { return f.defaultBr, nil }
-	ghPRListAllFn = func(branch string) (string, error) {
+	ghPRListFn = func(branch, _ string) (string, error) {
 		if branch == "demo/0001.low" {
 			return "https://github.com/o/r/pull/10", nil
 		}
@@ -108,7 +112,7 @@ func landStackSetup(t *testing.T, highRound string) (*stackFake, string) {
 		return nil
 	}
 	t.Cleanup(func() {
-		ghPRListAllFn, ghStackMergeFn, ghPRChecksAllFn, ghDefaultBranchFn = prevList, prevStack, prevAllChecks, prevDefault
+		ghPRListFn, ghStackMergeFn, ghDefaultBranchFn = prevList, prevStack, prevDefault
 	})
 	f.listEntries["demo/0001.low"] = worktreeInfo{path: "/worktrees/low"}
 	f.listEntries["demo/0002.high"] = worktreeInfo{path: "/worktrees/high"}
@@ -243,15 +247,55 @@ func TestLandStackRefusals(t *testing.T) {
 		}
 	})
 
-	t.Run("head moved during the merge is not stamped as verified", func(t *testing.T) {
+	t.Run("head moved during the merge resolves and audits the merged head", func(t *testing.T) {
 		f, vault := landStackSetup(t, cleanHighRound)
-		f.mergeHook = func() { f.heads[20] = "ffffffffffffffffffffffffffffffffffffffff" }
-		out := landStackRefusal(t, "--land-stack", "20")
-		if !strings.Contains(out, "land_stack_head_unverified") || !strings.Contains(out, "fix_hint") {
-			t.Errorf("refusal = %s", out)
+		const moved = "ffffffffffffffffffffffffffffffffffffffff"
+		f.mergeHook = func() { f.heads[20] = moved }
+		execCmd(t, "transition", "issue", "demo.0002.high", "resolved", "--land-stack", "20")
+		a := loadIssueDoc(t, vault, "issue.demo.0002.high")
+		if got := a.FrontMatter["status"]; got != "resolved" {
+			t.Errorf("status = %v, want resolved", got)
 		}
-		if got := issueStatus(t, vault, "0002.high"); got != "in-progress" {
-			t.Errorf("status = %v, want in-progress", got)
+		if got := a.FrontMatter["review_head"]; got != landTestHead {
+			t.Errorf("review_head = %v, want the verified head %s", got, landTestHead)
+		}
+		if !strings.Contains(a.Body, "merged head "+moved+" differs from verified head") {
+			t.Errorf("audit line lacks the merged head:\n%s", a.Body)
+		}
+	})
+
+	for _, state := range []string{"OPEN", "CLOSED"} {
+		t.Run("resolved lower layer with a "+state+" PR refuses", func(t *testing.T) {
+			f, vault := landStackSetup(t, cleanHighRound)
+			execCmd(t, "transition", "issue", "demo.0001.low", "resolved", "--force", "--reason", "fixture")
+			f.state[10] = state
+			out := landStackRefusal(t, "--land-stack", "20")
+			if !strings.Contains(out, "land_stack_layer_resolved_unmerged") || !strings.Contains(out, "layer_pr") || !strings.Contains(out, "fix_hint") {
+				t.Errorf("refusal = %s", out)
+			}
+			if len(f.stackCalls) != 0 {
+				t.Errorf("gh stack merge called: %v", f.stackCalls)
+			}
+			if got := issueStatus(t, vault, "0002.high"); got != "in-progress" {
+				t.Errorf("upper status = %v, want in-progress", got)
+			}
+		})
+	}
+
+	t.Run("walk stops at the default branch before any PR list call", func(t *testing.T) {
+		f, _ := landStackSetup(t, cleanHighRound)
+		var listed []string
+		inner := ghPRListFn
+		ghPRListFn = func(branch, state string) (string, error) {
+			listed = append(listed, branch)
+			return inner(branch, state)
+		}
+		execCmd(t, "transition", "issue", "demo.0002.high", "resolved", "--land-stack", "20")
+		if len(listed) != 1 || listed[0] != "demo/0001.low" {
+			t.Errorf("pr list calls = %v, want only the lower layer's branch", listed)
+		}
+		if len(f.stackCalls) != 1 {
+			t.Errorf("stack calls = %v", f.stackCalls)
 		}
 	})
 

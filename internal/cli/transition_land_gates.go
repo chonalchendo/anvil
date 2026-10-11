@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
@@ -70,11 +67,7 @@ func landGates(num int, localValidated, allChecks bool) (alreadyMerged bool, err
 				Set("merge_state", st.MergeStateStatus)
 		}
 		if !localValidated {
-			checks := ghPRChecksFn
-			if allChecks {
-				checks = ghPRChecksAllFn
-			}
-			if err := checks(num); err != nil {
+			if err := ghPRChecksFn(num, !allChecks); err != nil {
 				return false, errfmt.NewStructured("land_pr_ci_not_green").Set("pr", num).Set("error", err.Error())
 			}
 		}
@@ -120,66 +113,4 @@ func deleteLandBranches(errW io.Writer, num int, root, headBranch string) {
 	} else {
 		fmt.Fprintf(errW, "warning: land-pr %d: head branch unresolved; skipping branch cleanup\n", num)
 	}
-}
-
-// ghStackMergeReal merges the whole stack topped by PR num in one call.
-// gh stack merge has no head-match flag, so the caller re-reads every head
-// right before this call.
-func ghStackMergeReal(num int) error {
-	if _, err := exec.LookPath("gh"); err != nil {
-		return errGhUnavailable
-	}
-	out, err := exec.Command("gh", "stack", "merge", strconv.Itoa(num), "--squash", "--yes").CombinedOutput() //nolint:gosec // binary path resolved from trusted sources; not user input
-	if err != nil {
-		return fmt.Errorf("gh stack merge: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	return nil
-}
-
-// ghPRChecksAllReal runs `gh pr checks <num>` without --required. A layer
-// based on another layer has no required checks, so zero reported checks is a
-// refusal here, not a pass.
-func ghPRChecksAllReal(num int) error {
-	if _, err := exec.LookPath("gh"); err != nil {
-		return errGhUnavailable
-	}
-	out, err := exec.Command("gh", "pr", "checks", strconv.Itoa(num)).CombinedOutput() //nolint:gosec // binary path resolved from trusted sources; not user input
-	if err != nil {
-		return fmt.Errorf("gh pr checks: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	return nil
-}
-
-// ghDefaultBranchReal names the repo's default branch.
-func ghDefaultBranchReal() (string, error) {
-	if _, err := exec.LookPath("gh"); err != nil {
-		return "", errGhUnavailable
-	}
-	out, err := exec.Command("gh", "repo", "view", "--json", "defaultBranchRef", "--jq", ".defaultBranchRef.name").Output() //nolint:gosec // binary path resolved from trusted sources; not user input
-	if err != nil {
-		return "", fmt.Errorf("gh repo view: %w", err)
-	}
-	return strings.TrimSpace(string(out)), nil
-}
-
-// ghPRListAllReal returns the url of the newest PR of any state whose head is
-// branch: a merged lower layer is still a layer of the stack.
-func ghPRListAllReal(branch string) (string, error) {
-	if _, err := exec.LookPath("gh"); err != nil {
-		return "", errGhUnavailable
-	}
-	out, err := exec.Command("gh", "pr", "list", "--head", branch, "--state", "all", "--json", "url,headRefName").Output() //nolint:gosec // binary path resolved from trusted sources; not user input
-	if err != nil {
-		return "", fmt.Errorf("gh pr list: %w", err)
-	}
-	var prs []ghPR
-	if err := json.Unmarshal(out, &prs); err != nil {
-		return "", fmt.Errorf("gh pr list: parsing json: %w", err)
-	}
-	for _, pr := range prs {
-		if pr.HeadRefName == branch && pr.URL != "" {
-			return pr.URL, nil
-		}
-	}
-	return "", nil
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -34,6 +35,8 @@ type stackLayer struct {
 	head   landHead
 	done   bool
 	merged bool
+	// mergedHead is the head read after the merge when it differs from head.oid.
+	mergedHead string
 }
 
 // withLayer names the failing layer's PR on a structured refusal.
@@ -116,7 +119,7 @@ func runLandStack(cmd *cobra.Command, o landStackOpts) error {
 			return printAndReturn(cmd, err)
 		}
 	}
-	var results []transitionResult
+	results := []transitionResult{}
 	for _, l := range layers {
 		if l.done {
 			continue
@@ -141,8 +144,8 @@ func runLandStack(cmd *cobra.Command, o landStackOpts) error {
 }
 
 // mergeLayers runs gh stack merge, which has no head-match flag. Every pending
-// head is re-read right before it, and again after, so a push or restack since
-// the clean run never lands or stamps as verified.
+// head is re-read right before it, so a push or restack since
+// the clean run never merges; the head read after it only annotates the audit line.
 func mergeLayers(layers []stackLayer, top int) error {
 	for _, l := range layers {
 		if l.done || l.merged {
@@ -160,7 +163,8 @@ func mergeLayers(layers []stackLayer, top int) error {
 		}
 	}
 	mergeErr := ghStackMergeFn(top)
-	for _, l := range layers {
+	for i := range layers {
+		l := &layers[i]
 		if l.done || l.merged {
 			continue
 		}
@@ -171,6 +175,13 @@ func mergeLayers(layers []stackLayer, top int) error {
 				Set("layer_pr", l.pr).Set("error", err.Error()).
 				Set("fix_hint", fmt.Sprintf("read PR #%d with gh pr view, then re-run the same --land-stack", l.pr))
 		case state == "MERGED":
+			// gh stack merge has no head-match flag, so a push in the window can
+			// land an unverified head. The merge is done; record the difference.
+			if now, err := headOid(l.pr); err != nil {
+				l.mergedHead = "unreadable"
+			} else if now != l.head.oid {
+				l.mergedHead = now
+			}
 		case mergeErr != nil:
 			return errfmt.NewStructured("land_stack_merge_failed").
 				Set("layer_pr", l.pr).Set("error", mergeErr.Error()).
@@ -181,24 +192,19 @@ func mergeLayers(layers []stackLayer, top int) error {
 				Set("fix_hint", fmt.Sprintf("PR #%d is %s after gh stack merge; check the stack with gh stack view, then re-run the same --land-stack", l.pr, state))
 		}
 	}
-	for _, l := range layers {
-		if l.done || l.merged {
-			continue
-		}
-		now, err := headOid(l.pr)
-		if err != nil || now != l.head.oid {
-			return errfmt.NewStructured("land_stack_head_unverified").
-				Set("layer_pr", l.pr).Set("verified", l.head.oid).Set("head", now).
-				Set("fix_hint", fmt.Sprintf("PR #%d merged at a head the clean run did not verify; run anvil verify %s on the merge commit, then re-run the same --land-stack to resolve it", l.pr, l.id))
-		}
-	}
 	return nil
 }
 
 // walkStack returns the layers bottom-up. The layer below a PR is the PR (any
-// state) whose head is that PR's base; with none, the base must be the default
-// branch, or gh stack merge could land layers that were never gated.
+// state) whose head is that PR's base; the walk ends at a base equal to the
+// default branch, and a base with no PR is refused, or gh stack merge could land
+// layers that were never gated.
 func walkStack(v *core.Vault, topID string, top int) ([]stackLayer, error) {
+	def, err := ghDefaultBranchFn()
+	if err != nil {
+		return nil, errfmt.NewStructured("land_stack_walk_failed").Set("pr", top).Set("error", err.Error()).
+			Set("fix_hint", "check gh auth and the remote, then re-run the same --land-stack")
+	}
 	var layers []stackLayer
 	for num, id := top, topID; ; {
 		raw, err := ghPRViewJSONFn(num, "baseRefName,headRefName")
@@ -227,23 +233,18 @@ func walkStack(v *core.Vault, topID string, top int) ([]stackLayer, error) {
 			return nil, errfmt.NewStructured("land_pr_path_failed").Set("error", err.Error())
 		}
 		layers = append([]stackLayer{{pr: num, id: cid, a: a, ev: newLandEvidence(a, cid, project, slug), wt: wt}}, layers...)
-		url, err := ghPRListAllFn(ref.BaseRefName)
+		if ref.BaseRefName == def {
+			return layers, nil
+		}
+		url, err := ghPRListFn(ref.BaseRefName, "all")
 		if err != nil {
 			return nil, errfmt.NewStructured("land_stack_walk_failed").Set("pr", num).Set("error", err.Error()).
 				Set("fix_hint", "check gh auth and the remote, then re-run the same --land-stack")
 		}
 		m := prURLNumber.FindStringSubmatch(url)
 		if m == nil {
-			def, err := ghDefaultBranchFn()
-			if err != nil || def != ref.BaseRefName {
-				se := errfmt.NewStructured("land_stack_walk_failed").Set("pr", num).Set("base", ref.BaseRefName).
-					Set("fix_hint", fmt.Sprintf("PR #%d is based on %s, which is not the default branch and has no PR; retarget it or land the lower layers with --land-pr, then re-run --land-stack", num, ref.BaseRefName))
-				if err != nil {
-					_ = se.Set("error", err.Error())
-				}
-				return nil, se
-			}
-			return layers, nil
+			return nil, errfmt.NewStructured("land_stack_walk_failed").Set("pr", num).Set("base", ref.BaseRefName).
+				Set("fix_hint", fmt.Sprintf("PR #%d is based on %s, which is not the default branch and has no PR; retarget it or land the lower layers with --land-pr, then re-run --land-stack", num, ref.BaseRefName))
 		}
 		num, _ = strconv.Atoi(m[1])
 		id = ""
@@ -252,11 +253,21 @@ func walkStack(v *core.Vault, topID string, top int) ([]stackLayer, error) {
 
 // gateLayer runs the cheap pre-merge gates on one layer and records its head
 // and worktree. The clean run is separate so a red cheap gate spares it. A
-// resolved issue is skipped; a MERGED PR skips the review and worktree gates,
+// resolved issue with a MERGED PR is skipped; a resolved issue whose PR is not
+// merged refuses. A MERGED PR skips the review and worktree gates,
 // as --land-pr does on a retry.
 func gateLayer(l *stackLayer, localValidated, upper bool) error {
 	status, _ := l.a.FrontMatter["status"].(string)
 	if status == "resolved" {
+		state, err := prState(l.pr)
+		switch {
+		case err != nil:
+			return errfmt.NewStructured("land_pr_view_failed").Set("pr", l.pr).Set("error", err.Error())
+		case state != "MERGED":
+			return errfmt.NewStructured("land_stack_layer_resolved_unmerged").
+				Set("issue", l.id).Set("state", state).
+				Set("fix_hint", fmt.Sprintf("issue %s is resolved but PR #%d is %s; merge or reopen the PR, or reopen the issue, then re-run --land-stack", l.id, l.pr, state))
+		}
 		l.done = true
 		return nil
 	}
@@ -308,6 +319,9 @@ func resolveLayer(errW io.Writer, v *core.Vault, l stackLayer, root string, loca
 	if local {
 		extra = " (--local-validated: CI gate bypassed on operator attestation)"
 	}
+	if l.mergedHead != "" {
+		extra += fmt.Sprintf(" (merged head %s differs from verified head %s)", l.mergedHead, l.head.oid)
+	}
 	a.Body += fmt.Sprintf("\n> resolved --land-stack %d %s: merged via gh stack merge + branch deleted%s\n", l.pr, now.Format("2006-01-02"), extra)
 	if err := a.Save(); err != nil {
 		return transitionResult{}, errfmt.NewStructured("land_pr_succeeded_save_failed").
@@ -318,4 +332,30 @@ func resolveLayer(errW io.Writer, v *core.Vault, l stackLayer, root string, loca
 		return transitionResult{}, err
 	}
 	return transitionResult{ID: l.id, Path: a.Path, From: from, To: "resolved", Status: "transitioned"}, nil
+}
+
+// ghStackMergeReal merges the whole stack topped by PR num in one call.
+// gh stack merge has no head-match flag, so the caller re-reads every head
+// right before this call.
+func ghStackMergeReal(num int) error {
+	if _, err := exec.LookPath("gh"); err != nil {
+		return errGhUnavailable
+	}
+	out, err := exec.Command("gh", "stack", "merge", strconv.Itoa(num), "--squash", "--yes").CombinedOutput() //nolint:gosec // binary path resolved from trusted sources; not user input
+	if err != nil {
+		return fmt.Errorf("gh stack merge: %w: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// ghDefaultBranchReal names the repo's default branch.
+func ghDefaultBranchReal() (string, error) {
+	if _, err := exec.LookPath("gh"); err != nil {
+		return "", errGhUnavailable
+	}
+	out, err := exec.Command("gh", "repo", "view", "--json", "defaultBranchRef", "--jq", ".defaultBranchRef.name").Output() //nolint:gosec // binary path resolved from trusted sources; not user input
+	if err != nil {
+		return "", fmt.Errorf("gh repo view: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }

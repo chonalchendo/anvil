@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 		_ = os.Setenv(k, v)
 	}
 
-	ghPRListFn = func(_ string) (string, error) { return "", nil }
+	ghPRListFn = func(_, _ string) (string, error) { return "", nil }
 	gitLocalBranchesFn = func() ([]string, error) { return nil, nil }
 
 	code := m.Run()

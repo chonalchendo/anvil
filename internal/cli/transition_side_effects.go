@@ -36,8 +36,6 @@ var (
 	userHomeFn               = os.UserHomeDir
 	mergeabilityPollSleep    = time.Sleep
 	ghStackMergeFn           = ghStackMergeReal
-	ghPRChecksAllFn          = ghPRChecksAllReal
-	ghPRListAllFn            = ghPRListAllReal
 	ghDefaultBranchFn        = ghDefaultBranchReal
 )
 
