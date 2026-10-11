@@ -274,7 +274,7 @@ func newCreateCmd() *cobra.Command {
 						// the authored body.
 						body = existing.Body
 					}
-					drift := createDrift(t, fm, existing.FrontMatter, body, existing.Body)
+					drift := createDrift(cmd, t, fm, existing.FrontMatter, body, existing.Body)
 					if drift == "" {
 						return emitCreateResult(cmd, flagJSON, id, path, statusAlreadyExists, nil, nil, nil, snapshotResult{})
 					}
