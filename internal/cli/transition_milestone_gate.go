@@ -33,6 +33,20 @@ func unreadInbox(v *core.Vault, id string) ([]string, error) {
 	return ids, nil
 }
 
+// proseAcceptance returns the 0-based indexes of acceptance entries that exit
+// 127. Only "not a command" is judged here, never red versus green.
+func proseAcceptance(m *core.Artifact, dir string) []int {
+	preds, _ := m.FrontMatter["acceptance"].([]any)
+	var bad []int
+	for i, p := range preds {
+		s, _ := p.(string)
+		if r := runFeasibilityBlock(s, dir, feasibilityTimeout); r.runErr == nil && !r.timedOut && r.exit == 127 {
+			bad = append(bad, i)
+		}
+	}
+	return bad
+}
+
 // gateMilestoneApproval refuses `transition milestone in-progress` from
 // planned while a milestone's form is incomplete or an open inbox item
 // still links it. On success it stamps the approval date; the caller saves.
@@ -54,6 +68,12 @@ func gateMilestoneApproval(v *core.Vault, m *core.Artifact, id string) error {
 			Set("milestone", id).
 			Set("inbox", unread).
 			Set("fix_hint", "promote or drop each routed inbox item (anvil transition inbox <id> promoted|dropped), then retry")
+	}
+	if prose := proseAcceptance(m, checkFinishLine(projectFromArtifact(m, id)).Dir); len(prose) > 0 {
+		return errfmt.NewStructured("milestone_gate_acceptance_not_command").
+			Set("milestone", id).
+			Set("entries", prose).
+			Set("fix_hint", "write each listed acceptance entry (0-based index) as a runnable command; exit 127 means prose, then retry")
 	}
 	m.FrontMatter["approved"] = time.Now().UTC().Format("2006-01-02")
 	return nil

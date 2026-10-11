@@ -133,3 +133,33 @@ func TestMilestoneApprovalGate(t *testing.T) {
 		}
 	})
 }
+
+func TestMilestoneGateRefusesProseAcceptance(t *testing.T) {
+	setAcceptance := func(t *testing.T, vault string, entries ...any) {
+		t.Helper()
+		path := filepath.Join(vault, "85-milestones", "demo.loop.md")
+		a, err := core.LoadArtifact(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a.FrontMatter["acceptance"] = entries
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Run("prose entry refused by index", func(t *testing.T) {
+		vault := gateVault(t, formBody)
+		setAcceptance(t, vault, "true", "The dashboard shows each issue")
+		out, err := gateTransition(t, "in-progress")
+		if err == nil || !strings.Contains(out, "milestone_gate_acceptance_not_command") || !strings.Contains(out, `"entries":[1]`) {
+			t.Fatalf("want refusal naming only entry 1, err=%v out=%s", err, out)
+		}
+	})
+	t.Run("red command approved", func(t *testing.T) {
+		vault := gateVault(t, formBody)
+		setAcceptance(t, vault, "false")
+		if out, err := gateTransition(t, "in-progress"); err != nil {
+			t.Fatalf("red command must approve: %v out=%s", err, out)
+		}
+	})
+}
