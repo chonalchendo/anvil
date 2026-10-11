@@ -3,10 +3,10 @@ package cli
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/chonalchendo/anvil/internal/cli/errfmt"
-	"github.com/chonalchendo/anvil/internal/core"
 )
 
 func TestCutWorktreeBase(t *testing.T) {
@@ -38,8 +38,9 @@ func TestCutWorktreeBase(t *testing.T) {
 	t.Run("FetchFailureRefused", func(t *testing.T) {
 		s := stubSideFX(t)
 		s.fetchErr = errors.New("offline")
-		if err := cut("demo/foo", "stack-top"); err == nil || len(s.addCalls) != 0 {
-			t.Errorf("err=%v add=%+v; want refusal and no add", err, s.addCalls)
+		wantCode(t, cut("demo/foo", "stack-top"), "base_fetch_failed")
+		if len(s.addCalls) != 0 {
+			t.Errorf("add calls = %+v, want none", s.addCalls)
 		}
 	})
 
@@ -82,11 +83,27 @@ func wantCode(t *testing.T, err error, code string) {
 	}
 }
 
-func TestCutWorktreeFlagRefusal(t *testing.T) {
-	if err := cutWorktreeFlagRefusal(core.TypeIssue, "in-progress", false, "", "", "stack-top", 0); err == nil {
-		t.Error("--base without --cut-worktree: want refusal")
+// The refusal must fire on an already-in-progress issue, where the
+// already-in-state short-circuit would otherwise swallow the stray flag.
+func TestTransitionBaseWithoutCutWorktreeRefused(t *testing.T) {
+	vault := t.TempDir()
+	t.Setenv("ANVIL_VAULT", vault)
+	execCmd(t, "init", vault)
+	createDemoIssue(t)
+	execCmd(t, "transition", "issue", "demo.foo", "in-progress", "--owner", "claude")
+
+	stubSideFX(t)
+	cmd := newRootCmd()
+	cmd.SetArgs([]string{"transition", "issue", "demo.foo", "in-progress", "--owner", "claude", "--base", "stack-top", "--json"})
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	if err := cmd.Execute(); err == nil {
+		t.Fatalf("expected non-nil error with --json; stdout: %s", stdout.String())
 	}
-	if err := cutWorktreeFlagRefusal(core.TypeIssue, "in-progress", true, "", "", "stack-top", 0); err != nil {
-		t.Errorf("--base with --cut-worktree: err = %v, want nil", err)
+	for _, want := range []string{"invalid_flag_for_transition", "--base"} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("stdout missing %q; got: %s", want, stdout.String())
+		}
 	}
 }
