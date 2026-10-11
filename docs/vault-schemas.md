@@ -104,7 +104,7 @@ product_design: "[[product-design.<project>]]"
 system_design: "[[system-design.<project>]]"
 authorized_by: ["[[decision...]]"]
 acceptance: ["criterion", ...]
-approved: <date>           # stamped by transition milestone in-progress; cleared on amend
+approved: <date>           # stamped by transition milestone in-progress; cleared on amend; `anvil set` refuses it (`approved_via_set`)
 done: <date>               # stamped by transition milestone done; cleared on reopen
 outcome_amendments: <int>  # +1 per amend (in-progress -> planned); absent until the first
 outcome_reopens: <int>     # +1 per reverse move from done; absent until the first
@@ -117,7 +117,7 @@ outcome_reopens: <int>     # +1 per reverse move from done; absent until the fir
 Body rules (`anvil validate`, `core.ValidateMilestone`; `create milestone` scaffolds the headings):
 
 - `## Objective`, `## Non-goals`, `## Links`, `## Status` must appear, in order.
-- A `## Success criteria` section is refused — `acceptance:` is the single source, refined via `anvil set milestone <id> acceptance --add/--remove`.
+- A `## Success criteria` section is refused — `acceptance:` is the single source, refined via `anvil set milestone <id> acceptance --add/--remove` while the milestone is `planned`; an approved milestone refuses it (`update_approved_milestone_scope`) until `anvil transition milestone <id> planned`.
 - Empty `acceptance` is refused: every milestone needs a finish line.
 - Milestones with `status: done` or `abandoned` skip every check above; open statuses keep them all.
 - Legacy vault milestones predating this rule go red on the vault-wide sweep (warning severity there) and on single-file `anvil validate`; `anvil list`/`reindex` run no body validator at all, so they still serve pre-existing milestones untouched.
