@@ -5,6 +5,7 @@ package cli
 // out to git; the side-effects file owns the orchestration around them.
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -169,4 +170,46 @@ func gitMainRootReal() (string, error) {
 		return "", errors.New("git rev-parse --git-common-dir: empty output")
 	}
 	return filepath.Dir(common), nil
+}
+
+// gitLayerPatchIDReal returns the stable patch-id of the layer diff: the
+// merge-base of base and commit, to commit. With fork set, the merge-base is
+// the fork point of base, so a rebased lower layer is excluded from an old
+// upper commit; it falls back to the plain merge-base when no fork point exists.
+func gitLayerPatchIDReal(dir, base, commit string, fork bool) (string, error) {
+	mb, err := gitOutput(dir, "merge-base", base, commit)
+	if err != nil {
+		return "", err
+	}
+	mb = strings.TrimSpace(mb)
+	if fork {
+		// The fork point is trusted only when every commit it hides from the
+		// plain merge-base has an equivalent in base. Otherwise a commit dropped
+		// from the base would be excluded from the diff and mask a change.
+		if out, ferr := gitOutput(dir, "merge-base", "--fork-point", base, commit); ferr == nil {
+			if fp := strings.TrimSpace(out); fp != "" {
+				if cherry, cerr := gitOutput(dir, "cherry", base, fp, mb); cerr == nil && !strings.Contains(cherry, "+") {
+					mb = fp
+				}
+			}
+		}
+	}
+	diff := exec.Command("git", "diff", "--no-ext-diff", "--no-color", "--no-textconv", mb, commit) //nolint:gosec // refs come from gh and the vault, passed as separate argv entries
+	diff.Dir = dir
+	raw, err := diff.Output()
+	if err != nil {
+		return "", err
+	}
+	pid := exec.Command("git", "patch-id", "--stable")
+	pid.Dir = dir
+	pid.Stdin = bytes.NewReader(raw)
+	out, err := pid.Output()
+	if err != nil {
+		return "", err
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) == 0 {
+		return "", errors.New("empty layer diff")
+	}
+	return fields[0], nil
 }

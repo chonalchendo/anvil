@@ -24,6 +24,7 @@ var (
 	gitDeleteLocalBranchFn   = gitDeleteLocalBranchReal
 	gitMainRootFn            = gitMainRootReal
 	gitFetchOriginFn         = gitFetchOriginReal
+	gitLayerPatchIDFn        = gitLayerPatchIDReal
 	gitResolveOriginHEADFn   = gitResolveOriginHEADReal
 	gitOriginBranchExistsFn  = gitOriginBranchExistsReal
 	gitLocalBranchExistsFn   = gitLocalBranchExistsReal
@@ -100,7 +101,10 @@ func defaultWorktreePath(project, slug string) (string, error) {
 // to local HEAD.
 //
 // An existing origin/<branch> is adopted (source "origin") rather than re-cut from origin/HEAD.
-func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string) (created bool, source string, err error) {
+// A non-empty base starts a fresh cut at origin/<base> instead; an unfetchable
+// or unknown base is refused, since silently cutting from the default tip
+// would break a stack.
+func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch, base string) (created bool, source string, err error) {
 	worktrees, err := gitWorktreeListFn(repoDir)
 	if err != nil {
 		return false, "", err
@@ -119,9 +123,21 @@ func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string) (created 
 	// Fetch origin so the new branch starts from the remote tip.
 	startPoint := ""
 	if ferr := gitFetchOriginFn(repoDir); ferr != nil {
+		if base != "" {
+			return false, "", errfmt.NewStructured("base_fetch_failed").
+				Set("base", base).
+				Set("error", "git fetch origin failed: "+ferr.Error()).
+				Set("fix_hint", "restore network access to origin, or omit --base")
+		}
 		fmt.Fprintf(errW, "warning: git fetch origin failed (%v); branching from local HEAD\n", ferr)
+	} else if base != "" && !gitOriginBranchExistsFn(repoDir, base) {
+		return false, "", errfmt.NewStructured("base_branch_unknown").
+			Set("base", base).
+			Set("fix_hint", "push origin/"+base+" first, or omit --base")
 	} else if gitOriginBranchExistsFn(repoDir, branch) {
 		startPoint, source = "origin/"+branch, "origin"
+	} else if base != "" {
+		startPoint = "origin/" + base
 	} else if ref, rerr := gitResolveOriginHEADFn(repoDir); rerr != nil {
 		fmt.Fprintf(errW, "warning: resolving origin/HEAD failed (%v); branching from local HEAD\n", rerr)
 	} else {
@@ -143,7 +159,7 @@ func cutWorktreeIfNeeded(errW io.Writer, repoDir, path, branch string) (created 
 // can emit it — the skill contract is "the claim tells you where to work" —
 // or a Structured error on failure so callers can uniformly refuse the
 // transition without writing to disk.
-func doCutWorktreeSource(errW io.Writer, a *core.Artifact, id, pathOverride, branchOverride string) (path, branch, source string, err error) {
+func doCutWorktreeSource(errW io.Writer, a *core.Artifact, id, pathOverride, branchOverride, base string) (path, branch, source string, err error) {
 	project := projectFromArtifact(a, id)
 	slug := slugFromIssueID(id)
 	if project == "" || slug == "" {
@@ -184,7 +200,7 @@ func doCutWorktreeSource(errW io.Writer, a *core.Artifact, id, pathOverride, bra
 	if err != nil {
 		return "", "", "", err
 	}
-	created, source, cerr := cutWorktreeIfNeeded(errW, repoDir, wtPath, branch)
+	created, source, cerr := cutWorktreeIfNeeded(errW, repoDir, wtPath, branch, base)
 	if cerr != nil {
 		var se *errfmt.Structured
 		if errors.As(cerr, &se) {
