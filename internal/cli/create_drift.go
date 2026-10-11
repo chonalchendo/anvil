@@ -105,6 +105,17 @@ func createDrift(t core.Type, fm, existing map[string]any, body, existingBody st
 			return f
 		}
 	}
+	// Flag-backed fields unset on this run are absent or empty in fm; they
+	// are not caller intent, so only a passed value can drift.
+	for _, f := range []string{"goal", "acceptance", "severity", "milestone", "kind"} {
+		want := fm[f]
+		if want == nil || want == "" {
+			continue
+		}
+		if fmt.Sprint(want) != fmt.Sprint(existing[f]) {
+			return f
+		}
+	}
 	if !tagsEqual(fm["tags"], existing["tags"]) {
 		return "tags"
 	}
