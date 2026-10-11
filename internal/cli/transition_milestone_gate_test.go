@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -130,6 +131,80 @@ func TestMilestoneApprovalGate(t *testing.T) {
 		out, err := gateTransition(t, "in-progress")
 		if err == nil || !strings.Contains(out, "milestone_scan_failed") {
 			t.Fatalf("want milestone_scan_failed, err=%v out=%s", err, out)
+		}
+	})
+}
+
+func TestMilestoneGateRefusesProseAcceptance(t *testing.T) {
+	setAcceptance := func(t *testing.T, vault string, entries ...any) {
+		t.Helper()
+		path := filepath.Join(vault, "85-milestones", "demo.loop.md")
+		a, err := core.LoadArtifact(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		a.FrontMatter["acceptance"] = entries
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Run("prose entry refused by index", func(t *testing.T) {
+		vault := gateVault(t, formBody)
+		repo := t.TempDir()
+		prevRepo := resolveProjectRepoFn
+		t.Cleanup(func() { resolveProjectRepoFn = prevRepo })
+		resolveProjectRepoFn = func(string) (string, error) { return repo, nil }
+		setAcceptance(t, vault, "touch ran", "The dashboard shows each issue")
+		out, err := gateTransition(t, "in-progress")
+		if err == nil || !strings.Contains(out, "milestone_gate_acceptance_not_command") || !strings.Contains(out, `"entries":[1]`) {
+			t.Fatalf("want refusal naming only entry 1, err=%v out=%s", err, out)
+		}
+		if _, serr := os.Stat(filepath.Join(repo, "ran")); serr != nil {
+			t.Fatalf("acceptance command did not run in the repo dir: %v", serr)
+		}
+		a, lerr := core.LoadArtifact(filepath.Join(vault, "85-milestones", "demo.loop.md"))
+		if lerr != nil {
+			t.Fatal(lerr)
+		}
+		if got := a.FrontMatter["status"]; got != "planned" {
+			t.Fatalf("status = %v, want planned", got)
+		}
+		if _, ok := a.FrontMatter["approved"]; ok {
+			t.Fatal("approved stamped despite refusal")
+		}
+	})
+	t.Run("several prose entries listed highest first", func(t *testing.T) {
+		vault := gateVault(t, formBody)
+		prevRepo := resolveProjectRepoFn
+		t.Cleanup(func() { resolveProjectRepoFn = prevRepo })
+		resolveProjectRepoFn = func(string) (string, error) { return t.TempDir(), nil }
+		setAcceptance(t, vault, "Alpha prose", "true", "Beta prose", "Gamma prose")
+		out, err := gateTransition(t, "in-progress")
+		if err == nil || !strings.Contains(out, `"entries":[3,2,0]`) || !strings.Contains(out, "highest first") {
+			t.Fatalf("want entries [3,2,0] and a highest-first hint, err=%v out=%s", err, out)
+		}
+	})
+	t.Run("unresolved repo warns", func(t *testing.T) {
+		vault := gateVault(t, formBody)
+		prevRepo := resolveProjectRepoFn
+		t.Cleanup(func() { resolveProjectRepoFn = prevRepo })
+		resolveProjectRepoFn = func(string) (string, error) { return "", errors.New("no repo") }
+		setAcceptance(t, vault, "true")
+		c := newRootCmd()
+		c.SetArgs([]string{"transition", "milestone", "demo.loop", "in-progress", "--json"})
+		var stderr bytes.Buffer
+		c.SetOut(&bytes.Buffer{})
+		c.SetErr(&stderr)
+		_ = c.Execute()
+		if !strings.Contains(stderr.String(), "project repo not resolved (no repo)") {
+			t.Fatalf("want unresolved-repo warning, stderr=%s", stderr.String())
+		}
+	})
+	t.Run("red command approved", func(t *testing.T) {
+		vault := gateVault(t, formBody)
+		setAcceptance(t, vault, "false")
+		if out, err := gateTransition(t, "in-progress"); err != nil {
+			t.Fatalf("red command must approve: %v out=%s", err, out)
 		}
 	})
 }

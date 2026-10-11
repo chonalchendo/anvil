@@ -975,7 +975,7 @@ func TestCreate_Issue_FeasibilityGateAnnouncesEachBlock(t *testing.T) {
 	for _, want := range []string{
 		"anvil: running verification Direct block 1 in this environment",
 		"anvil: running verification Indirect block 1 in this environment",
-		"not sandboxed)",
+		"not sandboxed; run dir's bin/ first on PATH)",
 	} {
 		if !strings.Contains(stderr, want) {
 			t.Errorf("stderr should contain %q, got: %s", want, stderr)

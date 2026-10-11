@@ -48,7 +48,7 @@ go test ./internal/transition -run TestClaimAtomic
 
 ### Indirect (live smoke)
 
-Live invocations against the built/installed/served artifact, proving the change works end-to-end. The check `completing-issue`'s Phase 4 build-and-install gate re-runs against the installed binary — direct passes here cannot mask install-path bugs. Build with `just install-local` and invoke `./bin/anvil` — a bare `anvil` resolves the globally installed binary, i.e. the base branch, so the predicate would smoke the wrong build even from the right worktree.
+Live invocations against the built/installed/served artifact, proving the change works end-to-end. The check `completing-issue`'s Phase 4 build-and-install gate re-runs against the installed binary — direct passes here cannot mask install-path bugs. Build with `just install-local` and invoke `./bin/anvil` — the runner puts the run directory's `bin/` first on PATH, so a bare `anvil` also resolves that build there. In your own shell a bare `anvil` resolves the global binary, i.e. the base branch.
 
 Each predicate must exercise behaviour and assert on observed output or side-effects. Presence-only patterns exit 0 without touching runtime behaviour and must not be used as Indirect checks:
 

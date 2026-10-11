@@ -110,7 +110,7 @@ outcome_amendments: <int>  # +1 per amend (in-progress -> planned); absent until
 outcome_reopens: <int>     # +1 per reverse move from done; absent until the first
 ```
 
-`transition milestone <id> in-progress` from `planned` is the approval gate. A milestone must carry the `**Design change**` and `**Components changed**` labels (`milestone_gate_*` codes), and no raw inbox item may link it (`inbox_unread`).
+`transition milestone <id> in-progress` from `planned` is the approval gate. A milestone must carry the `**Design change**` and `**Components changed**` labels (`milestone_gate_*` codes), every `acceptance` entry must be a runnable command (`milestone_gate_acceptance_not_command`, exit 127 means prose), and no raw inbox item may link it (`inbox_unread`).
 
 `kind` has one value, `scoped`: a finite bundle with a finish line and acceptance criteria, not a standing bucket. It is the default on `anvil create milestone`. The schema requires `kind`; both create and validate fail without it.
 
