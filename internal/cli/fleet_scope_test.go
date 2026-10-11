@@ -17,7 +17,7 @@ import (
 func disableDeriveChanged(t *testing.T) {
 	t.Helper()
 	orig := deriveChangedFn
-	deriveChangedFn = func() ([]string, string, error) { return nil, "", errors.New("stubbed: no derivation") }
+	deriveChangedFn = func(string) ([]string, string, error) { return nil, "", errors.New("stubbed: no derivation") }
 	t.Cleanup(func() { deriveChangedFn = orig })
 }
 
