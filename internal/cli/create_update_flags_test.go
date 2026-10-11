@@ -73,6 +73,19 @@ func TestCreateDriftOnlyPassedFlags(t *testing.T) {
 		}
 	}
 
+	// Empty flags are not caller intent: no drift, no rewrite, severity kept.
+	for _, extra := range [][]string{nil, {"--update"}} {
+		for _, args := range [][]string{
+			append(append([]string{}, ms("Loop", "true")...), "--goal", ""),
+			append(append([]string{}, iss...), "--severity", ""),
+		} {
+			out, _, err := runCmd(t, newRootCmd(), append(append([]string{}, args...), append([]string{"--json"}, extra...)...)...)
+			if err != nil || !strings.Contains(out, `"already_exists"`) {
+				t.Fatalf("empty-flag re-run %v: err=%v out=%s", extra, err, out)
+			}
+		}
+	}
+
 	if _, _, err := runCmd(t, newRootCmd(), ms("Split", "a b")...); err != nil {
 		t.Fatal(err)
 	}

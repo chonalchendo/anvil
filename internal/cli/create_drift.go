@@ -108,13 +108,9 @@ func createDrift(cmd *cobra.Command, t core.Type, fm, existing map[string]any, b
 	}
 	// Templates render defaults for unset flags (acceptance: [], severity:
 	// medium), so only a passed flag can drift. mergeUpdate reads the same rule.
-	for flag, key := range updateFlagKeys {
-		switch key {
-		case "goal", "acceptance", "severity", "milestone", "kind":
-		default:
-			continue
-		}
-		if cmd.Flags().Changed(flag) && !reflect.DeepEqual(fm[key], existing[key]) {
+	for _, flag := range []string{"goal", "acceptance", "severity", "milestone", "kind"} {
+		key := updateFlagKeys[flag]
+		if v, ok := passedFlagValue(cmd, flag, key, fm); ok && !reflect.DeepEqual(v, existing[key]) {
 			return key
 		}
 	}
