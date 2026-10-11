@@ -23,14 +23,19 @@ func ghPRViewJSONReal(num int, fields string) ([]byte, error) {
 	return exec.Command("gh", "pr", "view", strconv.Itoa(num), "--json", fields).Output() //nolint:gosec // binary path resolved from trusted sources; not user input
 }
 
-// ghPRChecksReal runs `gh pr checks <num> --required` so optional pending
-// checks (e.g. an unfinished CodeRabbit pass) don't gate the merge — only
-// the required-checks suite enforces refusal.
-func ghPRChecksReal(num int) error {
+// ghPRChecksReal runs `gh pr checks <num>`. With required it passes --required
+// so optional pending checks (e.g. an unfinished CodeRabbit pass) don't gate the
+// merge. Without it, every reported check gates: a stack layer based on another
+// layer has no required checks, so zero reported checks refuses there.
+func ghPRChecksReal(num int, required bool) error {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return errGhUnavailable
 	}
-	cmd := exec.Command("gh", "pr", "checks", strconv.Itoa(num), "--required") //nolint:gosec // binary path resolved from trusted sources; not user input
+	args := []string{"pr", "checks", strconv.Itoa(num)}
+	if required {
+		args = append(args, "--required")
+	}
+	cmd := exec.Command("gh", args...) //nolint:gosec // binary path resolved from trusted sources; not user input
 	out, err := cmd.CombinedOutput()
 	return classifyPRChecks(string(out), err)
 }

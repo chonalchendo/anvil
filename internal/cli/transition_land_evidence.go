@@ -146,7 +146,7 @@ func landCleanRun(errW io.Writer, c landClean, root, sha string) error {
 	}
 	return errfmt.NewStructured("land_pr_verification_failed").
 		Set("issue", c.id).Set("commit", rec.Commit).Set("failed", checks).
-		Set("fix_hint", "fix the change and push, then re-run --land-pr; the clean run is at "+rec.Commit)
+		Set("fix_hint", "fix the change and push, then re-run the same land verb; the clean run is at "+rec.Commit)
 }
 
 // ownsBranch accepts the conventional branch, or a renamed one that is checked

@@ -319,3 +319,73 @@ func TestAcceptanceRunsInProjectRepo(t *testing.T) {
 	// The test process cwd is this package, not repo, and is on another branch.
 	execCmd(t, "transition", "milestone", "demo.line", "done")
 }
+
+func TestMilestoneStatusAt(t *testing.T) {
+	finishLineVault(t, "test -f marker")
+	tmp := t.TempDir()
+	t.Setenv("TMPDIR", tmp)
+	repo := t.TempDir()
+	gitIn(t, repo, "init", "-q", "-b", "main")
+	gitIn(t, repo, "commit", "-q", "--allow-empty", "-m", "base")
+	gitIn(t, repo, "checkout", "-q", "-b", "marked")
+	if err := os.WriteFile(filepath.Join(repo, "marker"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gitIn(t, repo, "add", "marker")
+	gitIn(t, repo, "commit", "-q", "-m", "marker")
+	markedSHA := gitIn(t, repo, "rev-parse", "HEAD")
+	gitIn(t, repo, "checkout", "-q", "main")
+	stubBranches(t, "base")
+	resolveProjectRepoFn = func(string) (string, error) { return repo, nil }
+
+	status := func(args ...string) (met bool, at struct{ Ref, Commit string }) {
+		t.Helper()
+		var st struct {
+			Acceptance []acceptanceResult `json:"acceptance"`
+			At         *struct {
+				Ref    string `json:"ref"`
+				Commit string `json:"commit"`
+			} `json:"at"`
+		}
+		args = append([]string{"milestone", "status", "demo.line", "--json"}, args...)
+		if err := json.Unmarshal([]byte(execCmdJSON(t, args...)), &st); err != nil {
+			t.Fatal(err)
+		}
+		if st.At != nil {
+			at.Ref, at.Commit = st.At.Ref, st.At.Commit
+		}
+		return st.Acceptance[0].Met, at
+	}
+	noCheckout := func() {
+		t.Helper()
+		if left, _ := filepath.Glob(filepath.Join(tmp, "anvil-verify-at-*")); len(left) != 0 {
+			t.Fatalf("checkout left behind: %v", left)
+		}
+		if wts := gitIn(t, repo, "worktree", "list", "--porcelain"); strings.Contains(wts, "anvil-verify-at-") {
+			t.Fatalf("worktree left registered:\n%s", wts)
+		}
+	}
+	if met, at := status(); met || at.Ref != "" {
+		t.Fatalf("without --at the marker is absent on main and no at is reported: met=%t at=%+v", met, at)
+	}
+	met, at := status("--at", "marked")
+	if !met {
+		t.Fatal("--at marked should see the marker")
+	}
+	if at.Ref != "marked" || at.Commit != markedSHA {
+		t.Fatalf("at = %+v, want ref marked commit %s", at, markedSHA)
+	}
+	noCheckout()
+
+	out, _, err := runCmd(t, newRootCmd(), "milestone", "status", "demo.line", "--json", "--at", "nope")
+	if err == nil || !strings.Contains(out, "verify_at_unresolved") {
+		t.Fatalf("unresolved ref: want a verify_at_unresolved envelope on stdout, got err=%v out=%q", err, out)
+	}
+	noCheckout()
+
+	resolveProjectRepoFn = func(string) (string, error) { return "", errors.New("no such repo") }
+	out, _, err = runCmd(t, newRootCmd(), "milestone", "status", "demo.line", "--json", "--at", "marked")
+	if err == nil || !strings.Contains(out, "milestone_status_at_no_repo") || !strings.Contains(out, "no such repo") {
+		t.Fatalf("unresolved repo: want a milestone_status_at_no_repo envelope naming the cause, got err=%v out=%q", err, out)
+	}
+}

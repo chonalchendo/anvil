@@ -185,7 +185,7 @@ func stampVerification(v *core.Vault, path, id, arg string, rec verifyRecord, lo
 // verifyAt runs body on a fresh detached checkout of sha in root's repo and
 // returns the record stamped at the resolved commit.
 func verifyAt(errW io.Writer, id, root, sha, body string) (verifyRecord, error) {
-	dir, commit, cleanup, err := checkoutAt(errW, id, root, sha)
+	dir, commit, cleanup, err := checkoutAt(errW, root, sha, "anvil verify "+id+" --at "+sha)
 	if err != nil {
 		return verifyRecord{}, err
 	}
@@ -202,9 +202,9 @@ func verifyAt(errW io.Writer, id, root, sha, body string) (verifyRecord, error) 
 
 // checkoutAt adds a detached worktree of sha under a temp dir, provisions it
 // like a cut worktree (carry files, then the worktree hook), and returns it
-// with the resolved commit and its cleanup. A removal failure is a notice: it
+// with the resolved commit and its cleanup. rerun is the caller's command, named in fix hints. A removal failure is a notice: it
 // must not change the verdict.
-func checkoutAt(errW io.Writer, id, root, sha string) (string, string, func(), error) {
+func checkoutAt(errW io.Writer, root, sha, rerun string) (string, string, func(), error) {
 	full, err := exec.Command("git", "-C", root, "rev-parse", "--verify", "--end-of-options", sha+"^{commit}").Output() //nolint:gosec // sha is a single argv element after --end-of-options
 	if err != nil {
 		return "", "", nil, errfmt.NewStructured("verify_at_unresolved").
@@ -215,7 +215,7 @@ func checkoutAt(errW io.Writer, id, root, sha string) (string, string, func(), e
 	failed := func(msg, hint string) error {
 		return errfmt.NewStructured("verify_at_checkout_failed").
 			Set("message", msg).
-			Set("fix_hint", hint+", then re-run anvil verify "+id+" --at "+sha)
+			Set("fix_hint", hint+", then re-run "+rerun)
 	}
 	tmp, err := os.MkdirTemp("", "anvil-verify-at-*")
 	if err != nil {

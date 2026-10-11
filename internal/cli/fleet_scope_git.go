@@ -15,6 +15,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 )
 
 // Indirection point for tests; the real implementation shells out to git.
@@ -22,13 +24,23 @@ var deriveChangedFn = deriveChangedReal
 
 // deriveChangedReal returns the branch's changed-file set — HEAD against its
 // merge-base with a freshly fetched remote-tracking base — plus the base ref
-// used. On error the caller degrades to the --changed list alone.
-func deriveChangedReal() ([]string, string, error) {
+// used. A non-empty baseName (a stack layer's base branch) replaces the
+// default-branch resolution. On error the caller degrades to the --changed
+// list alone, except for a named base, which refuses.
+func deriveChangedReal(baseName string) ([]string, string, error) {
 	repoDir, err := gitToplevelReal()
 	if err != nil {
 		return nil, "", err
 	}
-	base, err := resolveRemoteBase(repoDir)
+	if err := gitFetchOriginNoPrompt(repoDir); err != nil {
+		return nil, "", err
+	}
+	var base string
+	if baseName != "" {
+		base, err = resolveNamedBase(repoDir, baseName)
+	} else {
+		base, err = resolveRemoteBase(repoDir)
+	}
 	if err != nil {
 		return nil, "", err
 	}
@@ -40,12 +52,9 @@ func deriveChangedReal() ([]string, string, error) {
 	return files, base, err
 }
 
-// resolveRemoteBase fetches origin and returns the remote-tracking ref to
-// diff against: origin/HEAD, else origin/main or origin/master.
+// resolveRemoteBase returns the remote-tracking ref to diff against:
+// origin/HEAD, else origin/main or origin/master. The caller has fetched.
 func resolveRemoteBase(repoDir string) (string, error) {
-	if err := gitFetchOriginNoPrompt(repoDir); err != nil {
-		return "", err
-	}
 	if ref, err := gitResolveOriginHEADReal(repoDir); err == nil {
 		return ref, nil
 	}
@@ -55,6 +64,18 @@ func resolveRemoteBase(repoDir string) (string, error) {
 		}
 	}
 	return "", errors.New("no origin/HEAD, origin/main, or origin/master to diff against")
+}
+
+// resolveNamedBase returns origin/<name>, refusing when it does not resolve:
+// a silent fallback would weaken the audit. The caller has fetched.
+func resolveNamedBase(repoDir, name string) (string, error) {
+	ref := "origin/" + name
+	if gitRevParseVerify(repoDir, ref) != nil {
+		return "", errfmt.NewStructured("scope_audit_base_unknown").
+			Set("base", name).
+			Set("fix_hint", "push branch "+name+" to origin, or fix --base")
+	}
+	return ref, nil
 }
 
 // gitFetchOriginNoPrompt fetches origin with a deadline and credential

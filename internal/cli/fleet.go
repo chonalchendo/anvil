@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/chonalchendo/anvil/internal/cli/errfmt"
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
@@ -64,7 +66,7 @@ func newFleetCmd() *cobra.Command {
 // the allowlist. One out-of-scope file per line; "scope: clean" when none.
 // Orchestrators can pipe through grep to detect violations.
 func newFleetScopeAuditCmd() *cobra.Command {
-	var declared, changed string
+	var declared, changed, baseBranch string
 	cmd := &cobra.Command{
 		Use:          "scope-audit",
 		Short:        "Flag changed files outside an issue's declared-files allowlist, auditing --changed unioned with the branch's git-derived changed set",
@@ -75,7 +77,18 @@ func newFleetScopeAuditCmd() *cobra.Command {
 				return err
 			}
 			changedEntries := splitLiteralCSV(changed)
-			if derived, base, derr := deriveChangedFn(); derr != nil {
+			if derived, base, derr := deriveChangedFn(baseBranch); derr != nil {
+				if baseBranch != "" {
+					var se *errfmt.Structured
+					if errors.As(derr, &se) {
+						return derr
+					}
+					return errfmt.NewStructured("scope_audit_base_derivation_failed").
+						Set("base", baseBranch).
+						Set("error", derr.Error()).
+						Set("fix_hint", "check network and git remote, then retry; the audit refuses rather than degrade under --base").
+						Wrap(derr)
+				}
 				fmt.Fprintf(cmd.ErrOrStderr(), "warning: changed-set derivation failed (%v); auditing the --changed list alone\n", derr)
 			} else {
 				fmt.Fprintf(cmd.ErrOrStderr(), "scope-audit: changed set derived against %s\n", base)
@@ -95,6 +108,7 @@ func newFleetScopeAuditCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&declared, "declared", "", "comma-separated declared-files allowlist; entries are globs — *, ?, and brace alternation {a,b} (e.g. src/{a,b}_*.sql). ** is not supported; * does not cross /; an entry naming a directory (`pkg` or `pkg/`) covers everything beneath it")
 	cmd.Flags().StringVar(&changed, "changed", "", "comma-separated changed files on the branch; entries are literal paths, not globs — unioned with the branch's git-derived changed set (merge-base against a freshly fetched origin/HEAD)")
+	cmd.Flags().StringVar(&baseBranch, "base", "", "stack layer's base branch; derive the changed set against origin/<branch> instead of the default branch, and refuse when it is unknown")
 	_ = cmd.MarkFlagRequired("declared")
 	_ = cmd.MarkFlagRequired("changed")
 	return cmd

@@ -10,8 +10,8 @@ import (
 	"github.com/chonalchendo/anvil/internal/core"
 )
 
-// ghPRListFn looks up open PRs whose head branch matches `branch`. Returns the
-// first matching PR url, or empty string if none. Package-level for tests to
+// ghPRListFn looks up PRs in `state` (open, merged, closed or all) whose head
+// branch matches `branch`. Returns the first matching PR url, or empty string if none. Package-level for tests to
 // swap; default implementation shells out to `gh pr list`.
 var ghPRListFn = ghPRListReal
 
@@ -21,18 +21,18 @@ type ghPR struct {
 	HeadRefName string `json:"headRefName"`
 }
 
-// ghPRListReal invokes `gh pr list --head <branch> --state open --json url,number,headRefName`.
-// Returns (url, nil) when an open PR exists; ("", nil) when none; ("", err)
+// ghPRListReal invokes `gh pr list --head <branch> --state <state> --json url,number,headRefName`.
+// Returns (url, nil) when a matching PR exists; ("", nil) when none; ("", err)
 // when gh is unusable in this environment (binary missing, unauthenticated,
 // no network, no remote). Callers downgrade `errGhUnavailable` to a stderr
 // warning so agents on fresh laptops or CI containers aren't blocked.
-func ghPRListReal(branch string) (string, error) {
+func ghPRListReal(branch, state string) (string, error) {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return "", errGhUnavailable
 	}
 	out, err := exec.Command("gh", "pr", "list", //nolint:gosec // binary path resolved from trusted sources; not user input
 		"--head", branch,
-		"--state", "open",
+		"--state", state,
 		"--json", "url,number,headRefName",
 	).Output()
 	if err != nil {
@@ -74,7 +74,7 @@ var errGhUnavailable = errors.New("gh: unavailable (missing, unauthenticated, or
 //     dispatcher that chose a divergent slug.
 func openPRForIssueResolve(id string) (branch, prURL string, err error) {
 	for _, b := range candidateBranchesForIssue(id) {
-		url, qerr := ghPRListFn(b)
+		url, qerr := ghPRListFn(b, "open")
 		if qerr != nil {
 			return "", "", qerr
 		}

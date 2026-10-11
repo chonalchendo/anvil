@@ -182,7 +182,7 @@ func stubSideFX(t *testing.T) *sideFXStub {
 		}
 		return []byte("{}"), nil
 	}
-	ghPRChecksFn = func(num int) error {
+	ghPRChecksFn = func(num int, _ bool) error {
 		s.checksCalls = append(s.checksCalls, num)
 		return s.checksErr
 	}
