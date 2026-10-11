@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"bytes"
+	"errors"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -50,4 +53,40 @@ func latestReviewRound(body string, pr int) (reviewRound, bool) {
 		}
 	}
 	return best, found
+}
+
+// layerPatchIDFn is a seam: it returns the stable patch-id of the layer diff
+// (merge-base of base and commit, to commit), run from dir.
+var layerPatchIDFn = layerPatchIDReal
+
+func layerPatchIDReal(dir, base, commit string) (string, error) {
+	diff := exec.Command("git", "diff", base+"..."+commit) //nolint:gosec // refs come from gh and the vault, passed as one argv entry
+	diff.Dir = dir
+	raw, err := diff.Output()
+	if err != nil {
+		return "", err
+	}
+	pid := exec.Command("git", "patch-id", "--stable")
+	pid.Dir = dir
+	pid.Stdin = bytes.NewReader(raw)
+	out, err := pid.Output()
+	if err != nil {
+		return "", err
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) == 0 {
+		return "", errors.New("empty layer diff")
+	}
+	return fields[0], nil
+}
+
+// samePatch reports whether the layer diff is identical at the round's sha and
+// at the head. Any failure, such as an unreachable sha, reads as "not the same".
+func samePatch(dir, base, roundSha, headOid string) bool {
+	a, err := layerPatchIDFn(dir, base, roundSha)
+	if err != nil {
+		return false
+	}
+	b, err := layerPatchIDFn(dir, base, headOid)
+	return err == nil && a == b
 }

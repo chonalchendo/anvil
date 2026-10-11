@@ -74,7 +74,7 @@ func (e landEvidence) check(num int, worktreePath string, alreadyMerged bool) (l
 		return landHead{}, errfmt.NewStructured("land_pr_review_missing").
 			Set("issue", e.id).Set("pr", num).
 			Set("fix_hint", "fire reviewing-pr on the PR; it persists the round on the issue")
-	case !strings.HasPrefix(h.oid, rr.sha):
+	case !strings.HasPrefix(h.oid, rr.sha) && !e.sameLayerPatch(num, worktreePath, rr.sha, h.oid):
 		return landHead{}, errfmt.NewStructured("land_pr_review_stale").
 			Set("reviewed", rr.sha).Set("head", h.oid).
 			Set("fix_hint", "fire a fresh reviewing-pr round at the PR head")
@@ -84,6 +84,22 @@ func (e landEvidence) check(num int, worktreePath string, alreadyMerged bool) (l
 			Set("fix_hint", "dispatch the responder, then a confirming reviewing-pr round")
 	}
 	return h, nil
+}
+
+// sameLayerPatch is the restack escape: a head move that leaves the layer's own
+// patch unchanged does not stale a review. The base ref is read only on a move.
+func (e landEvidence) sameLayerPatch(num int, dir, roundSha, headOid string) bool {
+	raw, err := ghPRViewJSONFn(num, "baseRefName")
+	if err != nil {
+		return false
+	}
+	var base struct {
+		BaseRefName string `json:"baseRefName"`
+	}
+	if json.Unmarshal(raw, &base) != nil || base.BaseRefName == "" {
+		return false
+	}
+	return samePatch(dir, "origin/"+base.BaseRefName, roundSha, headOid)
 }
 
 // landCleanRunFn is a seam: land tests that stop short of verification stub it.
