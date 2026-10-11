@@ -2257,7 +2257,7 @@ func TestTransitionRefusedTakeoverLeavesClaimUntouched(t *testing.T) {
 func TestCutWorktreeStaleLocalBranchRefused(t *testing.T) {
 	s := stubSideFX(t)
 	s.localBranches = map[string]bool{"demo/foo": true}
-	_, _, err := cutWorktreeIfNeeded(&bytes.Buffer{}, "/repo/demo", "/wt/foo", "demo/foo")
+	_, _, err := cutWorktreeIfNeeded(&bytes.Buffer{}, "/repo/demo", "/wt/foo", "demo/foo", "")
 	if err == nil || !strings.Contains(err.Error(), "local_branch_exists") {
 		t.Fatalf("err = %v, want local_branch_exists", err)
 	}
@@ -2278,7 +2278,7 @@ func TestCutWorktreeReclaimThroughSymlinkedPath(t *testing.T) {
 	}
 	s := stubSideFX(t)
 	s.listEntries = map[string]worktreeInfo{"demo/foo": {path: target}}
-	created, _, err := cutWorktreeIfNeeded(&bytes.Buffer{}, "/repo/demo", link, "demo/foo")
+	created, _, err := cutWorktreeIfNeeded(&bytes.Buffer{}, "/repo/demo", link, "demo/foo", "")
 	if err != nil || created {
 		t.Fatalf("created=%v err=%v; want idempotent reuse", created, err)
 	}
