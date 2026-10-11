@@ -24,6 +24,7 @@
     "date":          { "type": "string", "format": "date" },
     "supersedes":    { "type": "array", "items": { "type": "string" } },
     "superseded_by": { "type": ["string", "null"] },
+    "thread":        { "type": "string", "pattern": "^\\[\\[thread\\.[^\\]]+\\]\\]$" },
     "related":       { "type": "array", "items": { "type": "string" } },
     "external_links":{ "type": "array", "items": { "type": "string", "minLength": 1 } }
   },
