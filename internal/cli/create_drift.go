@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -87,7 +88,7 @@ func jsonWarnings(similar []string, findings []*errfmt.ValidationError) []map[st
 // fm/body and an existing artifact. Only flag-settable fields are
 // compared; fields mutated via 'anvil set' (e.g. status) are ignored
 // so retrying create after a status edit isn't drift.
-func createDrift(t core.Type, fm, existing map[string]any, body, existingBody string) string {
+func createDrift(cmd *cobra.Command, t core.Type, fm, existing map[string]any, body, existingBody string) string {
 	scalarFields := []string{"title", "description", "project"}
 	switch t {
 	case core.TypeSweep:
@@ -105,15 +106,16 @@ func createDrift(t core.Type, fm, existing map[string]any, body, existingBody st
 			return f
 		}
 	}
-	// Flag-backed fields unset on this run are absent or empty in fm; they
-	// are not caller intent, so only a passed value can drift.
-	for _, f := range []string{"goal", "acceptance", "severity", "milestone", "kind"} {
-		want := fm[f]
-		if want == nil || want == "" {
+	// Templates render defaults for unset flags (acceptance: [], severity:
+	// medium), so only a passed flag can drift. mergeUpdate reads the same rule.
+	for flag, key := range updateFlagKeys {
+		switch key {
+		case "goal", "acceptance", "severity", "milestone", "kind":
+		default:
 			continue
 		}
-		if fmt.Sprint(want) != fmt.Sprint(existing[f]) {
-			return f
+		if cmd.Flags().Changed(flag) && !reflect.DeepEqual(fm[key], existing[key]) {
+			return key
 		}
 	}
 	if !tagsEqual(fm["tags"], existing["tags"]) {

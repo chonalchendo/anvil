@@ -42,3 +42,41 @@ func TestCreateUpdateAppliesEveryFlag(t *testing.T) {
 		t.Fatalf("unchanged re-run: err=%v out=%s", err, out)
 	}
 }
+
+func TestCreateDriftOnlyPassedFlags(t *testing.T) {
+	setupVault(t)
+	repo := setupGitRepo(t, "git@github.com:acme/foo.git")
+	t.Chdir(repo)
+
+	ms := func(title string, acc ...string) []string {
+		a := []string{"create", "milestone", "--project", "foo", "--title", title, "--description", "fixture", "--goal", "g"}
+		for _, c := range acc {
+			a = append(a, "--acceptance", c)
+		}
+		return a
+	}
+	createIssueGetPath(t, ms("Loop", "true")...)
+
+	for _, extra := range [][]string{nil, {"--update"}} {
+		out, _, err := runCmd(t, newRootCmd(), append([]string{"create", "milestone", "--project", "foo", "--title", "Loop", "--description", "fixture", "--goal", "g", "--json"}, extra...)...)
+		if err != nil || !strings.Contains(out, `"already_exists"`) {
+			t.Fatalf("milestone re-run without --acceptance %v: err=%v out=%s", extra, err, out)
+		}
+	}
+
+	iss := []string{"create", "issue", "--project", "foo", "--title", "Sev", "--description", "fixture", "--goal", "g", "--tags", "domain/dev-tools", "--allow-new-facet=domain", "--acceptance", "true"}
+	createIssueGetPath(t, append(iss, "--severity", "high")...)
+	for _, extra := range [][]string{nil, {"--update"}} {
+		out, _, err := runCmd(t, newRootCmd(), append(append([]string{}, iss...), append([]string{"--json"}, extra...)...)...)
+		if err != nil || !strings.Contains(out, `"already_exists"`) {
+			t.Fatalf("issue re-run without --severity %v: err=%v out=%s", extra, err, out)
+		}
+	}
+
+	if _, _, err := runCmd(t, newRootCmd(), ms("Split", "a b")...); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := runCmd(t, newRootCmd(), ms("Split", "a", "b")...); err == nil {
+		t.Fatal(`["a b"] vs ["a","b"]: want drift error`)
+	}
+}
