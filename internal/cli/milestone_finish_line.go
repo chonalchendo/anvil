@@ -30,13 +30,15 @@ func (r acceptanceResult) detail() string {
 }
 
 // runAcceptance runs each acceptance predicate through the issue create gate's
-// block runner (create_feasibility.go), in dir,, so both gates share one execution shape.
+// block runner (create_feasibility.go), in dir, so both gates share one execution shape.
+// A bare command resolves the checkout's bin/ first on PATH; call the installed
+// binary by absolute path.
 func runAcceptance(cmd *cobra.Command, m *core.Artifact, dir string) []acceptanceResult {
 	preds, _ := m.FrontMatter["acceptance"].([]any)
 	results := make([]acceptanceResult, 0, len(preds))
 	for i, p := range preds {
 		s, _ := p.(string)
-		cmd.PrintErrln(fmt.Sprintf("anvil: running acceptance predicate %d in this environment (your privileges, cwd and environment; not sandboxed)", i+1))
+		cmd.PrintErrln(fmt.Sprintf("anvil: running acceptance predicate %d in this environment %s", i+1, runnerEnvNote))
 		r := runFeasibilityBlock(s, dir, feasibilityTimeout)
 		_, failed := r.failure()
 		res := acceptanceResult{
