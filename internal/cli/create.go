@@ -96,6 +96,11 @@ func newCreateCmd() *cobra.Command {
 			// matching the AC. Other unsupported types (session, sweep, thread)
 			// fall through to the unsupported_flag_for_type envelope — the same
 			// precedent `anvil list <type> --project` already uses.
+			if cmd.Flags().Changed("thread") && t != core.TypeDecision {
+				return printAndReturn(cmd, errfmt.NewUnsupportedFlagForType(
+					"thread", string(t), []string{"decision"}, "omit --thread",
+				))
+			}
 			if cmd.Flags().Changed("project") && !t.SupportsProject() {
 				if t == core.TypeInbox {
 					if !cmd.Flags().Changed("suggested-project") {
@@ -150,8 +155,12 @@ func newCreateCmd() *cobra.Command {
 
 			// Per-type required-flag checks, two tiers — see
 			// collectPreValidationErrors.
-			threadLink, threadErrs := applyThreadFlag(v, t, flagThread, &flagTopic)
-			preValidationErrors := append(threadErrs, collectPreValidationErrors(cmd, t, flagTopic)...)
+			threadLink, threadTopic, threadErrs := applyThreadFlag(v, flagThread)
+			if flagTopic == "" {
+				flagTopic = threadTopic
+			}
+			preValidationErrors := collectPreValidationErrors(cmd, t, flagTopic)
+			preValidationErrors = append(preValidationErrors, threadErrs...)
 
 			// Derive description from title when omitted for spine types that
 			// require it, mirroring promote's single-step stub behaviour (see

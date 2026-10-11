@@ -63,8 +63,9 @@ var outcomeLinkRe = regexp.MustCompile(`\[\[((?:decision|learning)\.[^\]]+)\]\]`
 // threadOutcomeLinked reports whether a closing thread routes its outcome to a
 // decision or learning that exists. Both the body (hand-authored resolution
 // prose) and `related` — the only link slot thread.schema.json allows, and
-// where `anvil link` writes — count, so a properly-linked thread never draws
-// the warning. Fenced blocks are stripped (an illustrative wikilink in a code
+// where `anvil link` writes — count, as does a decision whose `thread` slot
+// names this thread (`create decision --thread`), so a properly-linked thread
+// never draws the warning. Fenced blocks are stripped (an illustrative wikilink in a code
 // sample is not an outcome) and a dangling target does not count: a typo'd id
 // must not silence the gate.
 func threadOutcomeLinked(v *core.Vault, a *core.Artifact) bool {
@@ -77,7 +78,7 @@ func threadOutcomeLinked(v *core.Vault, a *core.Artifact) bool {
 			return true
 		}
 	}
-	return false
+	return decisionNamesThread(v, a.Path)
 }
 
 // outcomeLinkResolves reports whether s carries a decision or learning wikilink
