@@ -1,90 +1,182 @@
 # Anvil
 
-A craft-first methodology for AI-assisted development, packaged as auto-loading [SKILL.md](https://agentskills.io) files with a thin Go orchestrator. Stubborn on vision, flexible on implementation — built to make you a stronger engineer, not just ship faster.
+A context management and workflow tool for agentic software development. You write the design first. Every milestone and issue traces to it. The agent implements each issue in isolation, gets an independent review and brings the PR to green. You approve each merge on evidence.
 
-> **Status:** Alpha. v0.1 in active development — not yet released.
+> **Status:** alpha, unreleased. Anvil is built with anvil, and its author uses it daily. Expect breaking changes to the vault schema.
 
-## What it is
+## Why
 
-Anvil treats a project's design as the load-bearing artifact and works backwards from it: **product-design → milestones → sweeps → issues → inbox**. Every task traces up to a milestone; every milestone traces up to the product's purpose.
+AI-driven projects get messy as they grow. The agent starts every session with no memory, so the intent of the project lives in chat history. Decisions get made twice. Code drifts from the design. Agents start to build before anyone decides what to build.
 
-The methodology lives in **skills** — auto-firing markdown files (following Anthropic's open standard) the agent loads from conversational triggers, not commands you type. The **orchestrator** is a small Go CLI for the parts that genuinely need a process: vault state, scaffolding, and the gates on the issue loop. The agent harness (Claude Code first, Codex next) runs the agents.
+Anvil makes the design the first artifact and the source of all work:
 
-Two stores:
+- **You design before you build.** Product design, system design and component designs come before code.
+- **All work traces to design.** Work flows down one spine: design → milestone → issue. No task is an orphan.
+- **The agent gets the right context at the right time.** `anvil hydrate <issue>` assembles every artifact that governs one issue, at the start of that issue.
+- **Knowledge is recorded once and reused.** Decisions, research threads and learnings persist in one vault and cross project boundaries.
+- **Gates are code, not prose.** Each issue carries a runnable verification. The worker cannot change it after the claim. The merge refuses without a pass at the PR head and a clean review.
+- **The agent operates anvil.** You talk; skills load on intent and run the CLI. You remember no commands.
+- **You read what the agent reads.** `anvil ui` serves the vault as a local, read-only web view.
 
-- **Knowledge vault** at `~/anvil-vault/` — issues, milestones, learnings, decisions, skills, Bases dashboards. Git-versioned, browsable in Obsidian, indexed by a local SQLite database.
-- **Machine-local state** at `~/.anvil/` — project bindings, the bundled skills, and run state.
+Anvil is for solo developers who build real systems with agents over months and want to own the design. It is not for prototypes or one-off scripts, where design-first costs more than it returns.
 
-Your project repos stay clean: no Anvil-specific files by default.
+## How it works
 
-## Why it exists
+Anvil has four parts. The agent harness (Claude Code first) runs every agent; anvil never starts an agent process.
 
-Anvil is the successor to [mantle](https://github.com/chonalchendo/mantle). Mantle worked but accumulated complexity — 30+ slash commands, heavy compiled context, Claude-only lock-in. Anvil keeps the load-bearing parts (lifecycle skills, vault, telemetry) and trades the orchestrator-heavy approach for a skill-based one that travels with you across projects rather than being scaffolded into each repo.
+| Part | What it is |
+|---|---|
+| **Vault** | A git-versioned directory of typed, linked markdown files (default `~/anvil-vault`). It holds every project. It is the only source of truth. A SQLite index is a disposable cache of it. |
+| **CLI** | One Go binary, `anvil`. It is the only way to change the vault. Every write validates against a JSON Schema and lands whole. |
+| **Methodology bundle** | Skills, pinned-model subagents and a session guide. They tell the agent when to call the CLI and what to do with the result. |
+| **Human view** | `anvil ui`, a read-only web view of the vault on localhost. |
 
-## Getting started
+Work runs in two loops:
 
-Anvil is alpha and not yet released, so install from source. You'll need [Go](https://go.dev/dl/), [`just`](https://github.com/casey/just), and [Claude Code](https://claude.com/claude-code).
+1. **Outer loop — the human works at the milestone.** You choose a milestone, approve it and accept its result. A milestone holds an end goal, a runnable finish line and the design change. It holds no step list.
+2. **Inner loop — anvil works at the issue.** Anvil derives the issues a few at a time, against the current code. For each issue, a worker agent implements it in its own git worktree and opens a PR. A second agent reviews it. Anvil fixes findings until verification, review and CI all pass at the PR head. Then you approve the merge.
+
+Each loop has a limit. A stuck issue or an oversized milestone returns to you: amend, cut scope or abandon.
+
+Four gates read vault evidence:
+
+- **Create gate** — an issue's verification must fail before the fix, so it can tell fixed from broken.
+- **Milestone gate** — no issue is claimed before its milestone is approved.
+- **Land gate** — `--land-pr` re-runs the verification on a fresh checkout of the PR head and merges only on its pass, a clean review round and green CI.
+- **Acceptance gate** — a milestone is done only when its finish line passes on the default branch and you accept the result.
+
+## Install
+
+Anvil is unreleased, so build from source. You need [Go](https://go.dev/dl/), [`just`](https://github.com/casey/just), [`gh`](https://cli.github.com/) and [Claude Code](https://claude.com/claude-code).
 
 ```bash
-# 1. Build and install a version-stamped binary into $(go env GOPATH)/bin
 git clone https://github.com/chonalchendo/anvil.git
 cd anvil
-just install
-anvil --version          # confirm it's on your PATH (run `hash -r` if your shell cached an old one)
+just install                     # version-stamped binary into $(go env GOPATH)/bin
+anvil --version
 
-# 2. Scaffold a vault and wire Anvil into Claude Code
-anvil init               # scaffold a vault (defaults to ~/anvil-vault)
-anvil install skills     # bundled skills → Claude Code
-anvil install agents     # bundled subagents (e.g. the issue-fleet worker)
-anvil install hooks      # bind each session to the active thread + auto-snapshot the vault at session end
-anvil install cloud      # provision a Claude Code cloud session from its attached clones (inert locally)
+anvil init --install-claude      # scaffold ~/anvil-vault; install skills, agents and hooks into ~/.claude
 ```
 
-`anvil install cloud` is what a [Claude Code cloud session](https://code.claude.com/docs/en/claude-code-on-the-web) runs for itself, wired as a `SessionStart` hook in a repo's committed `.claude/settings.json`. Attach two repositories to the session — your project **and** the vault repo — so it can find the vault among the clones.
+Restart Claude Code. The available-skills list now shows anvil's skills (`writing-issue`, `completing-issue`, …).
 
-Skills and agents are discovered at session start, so **restart Claude Code** afterward. In a fresh session the available-skills list should include Anvil's skills (`writing-issue`, `completing-issue`, `capturing-inbox`, …) — bare, with no `anvil:` prefix. Pass `--uninstall` to any `install` command to remove it.
+Use `just install`, not `go install ./cmd/anvil`. The recipe stamps the version and catches a stale binary that shadows your `$PATH`. After a rebuild, run `anvil install skills` to refresh the installed bundle.
 
-**Using Codex instead?** Codex reads the same SKILL.md standard, so the skills port directly:
+To install the parts one at a time, or to remove them:
 
 ```bash
-anvil install skills --target codex   # copies the bundle into ~/.codex/skills (honoring $CODEX_HOME)
-anvil install agents --target codex   # emits each subagent as ~/.codex/agents/<name>.toml
+anvil install skills    # skills → ~/.claude/skills
+anvil install agents    # subagents → ~/.claude/agents
+anvil install hooks     # SessionStart, PreCompact and SessionEnd hooks
+anvil install skills --uninstall
 ```
 
-Restart Codex to pick them up; the lifecycle skills auto-fire by description just as in Claude Code. The default target stays `claude`. `install agents --target codex` translates each bundled subagent into Codex's TOML format (dropping the Claude-specific model/tools/skills fields). `install hooks` remains Claude-only — Codex has no `SessionStart`/`SessionEnd` hook events; that arrives with the Codex install target in v0.2.
+The hooks load the session guide at session start, turn each compaction into a handoff the next turn reloads, and commit and push the vault at session end.
 
-**Using pi?** Skills and agents port the same way:
+## Start a project
+
+In the root of your repo:
 
 ```bash
-anvil install skills --target pi   # copies the bundle into ~/.pi/agent/skills (honoring $PI_CODING_AGENT_DIR)
-anvil install agents --target pi   # emits each subagent as ~/.pi/agent/agents/<name>.md
+anvil project adopt <slug>
+anvil where                      # confirm the vault and project
 ```
 
-Restart pi to pick them up. `install agents --target pi` keeps the markdown shape but translates the model alias, tools, and skills/effort fields to pi's schema. `install hooks` remains Claude-only for pi too.
+Then talk to the agent. Each request below fires a skill:
 
-**Using OpenCode or Ante?** Agents port the same way:
+| You say | Skill |
+|---|---|
+| "Write the product design for this project." | `writing-product-design` |
+| "Write the system design." | `writing-system-design` |
+| "Design the internals of the X component." | `writing-component-design` |
+| "What's the next milestone?" | `writing-milestone` |
+| "Run the milestone." | `running-milestone` |
+| "Work issue 0042." | `completing-issue` |
+| "Open an issue for X." | `writing-issue` |
+| "Let's research X." / "Open a thread on X." | `opening-thread` |
+| "Idea: …" / "Park this." | `capturing-inbox` |
+| "Record this learning." | `distilling-learning` |
+| "Wrap up the session." / "Pick up where I left off." | `handing-off-session` / `resuming-session` |
+
+Open the human view to read what the agent wrote:
 
 ```bash
-anvil install agents --target opencode   # emits ~/.config/opencode/agents/<name>.md (honoring $OPENCODE_CONFIG_DIR)
-anvil install agents --target ante       # emits ~/.ante/agents/<name>.md (honoring $ANTE_HOME)
+anvil ui                         # http://127.0.0.1:7780
 ```
 
-`--target opencode` emits `mode: subagent`, omits `model` (subagents inherit your session model; pick tiers in your OpenCode config), and maps tools to a deny-by-default enable-map. OpenCode already scans `~/.claude/skills`, so skills need no separate install (`install skills --target opencode` is rejected). `--target ante` drops the Claude-only model/skills/effort fields; `install skills --target ante` symlinks the bundle into `~/.ante/skills`.
+## The bundle
 
-> Once released, `go install github.com/chonalchendo/anvil/cmd/anvil@latest` will be the one-line path. Build from source with `just install` (not `go install ./cmd/anvil`) — the recipe stamps the version and checks for a stale binary shadowing your `$PATH`. After `just install`, run `anvil install skills` — no verb refreshes the installed skills bundle implicitly.
+**Skills** load on intent. You do not call them by name.
 
-## Design & conventions
+| Group | Skills |
+|---|---|
+| Design | `writing-product-design`, `writing-system-design`, `writing-component-design`, `writing-convention` |
+| Plan and run | `writing-milestone`, `writing-issue`, `running-milestone`, `completing-issue` |
+| Review | `reviewing-pr`, `responding-to-pr-review` |
+| Knowledge | `opening-thread`, `capturing-inbox`, `distilling-learning`, `refreshing-learnings` |
+| Session | `handing-off-session`, `resuming-session` |
 
-- Product design: `anvil show product-design anvil --body` — vision, users, scope.
-- System design: `anvil show system-design anvil --body` — architecture, vault structure, schemas.
-- [`AGENTS.md`](AGENTS.md) — how to write code for Anvil (`CLAUDE.md` is a symlink for Claude Code).
+**Subagents** pin their own model, so cheap work runs on a cheaper model while the main thread plans:
 
-## Roadmap
+| Agent | Job |
+|---|---|
+| `anvil-issue-worker` | Completes one issue to PR-opened. |
+| `anvil-pr-reviewer` | Reviews one PR and returns structured findings. |
+| `anvil-pr-responder` | Drives one PR's findings to fixes-pushed. |
+| `anvil-issue-author` | Writes a batch of issues against one milestone. |
+| `anvil-learnings-researcher` | Surfaces prior learnings before new work. |
+| `anvil-researcher` | Runs one research topic and returns cited findings. |
 
-- **v0.1** — minimal usable Anvil: vault scaffolding, core lifecycle skills, and skill and agent install for Claude Code. JSON Schema validation in CI.
-- **v0.2** — Codex install target; brownfield onboarding.
-- **v0.3** — educational gating workflow; workspaces for cross-repo coordination.
-- **v0.4+** — iterate from real signal.
+## The vault
+
+Artifact types: `product-design`, `system-design`, `component-design`, `convention`, `milestone`, `issue`, `decision`, `thread`, `learning`, `inbox`, `session`, `sweep`.
+
+The files are plain markdown with YAML frontmatter, linked by `[[wikilinks]]`. Any editor can read them, and the vault stays readable if anvil disappears. Schemas live in [`schemas/`](schemas/); field reference in [`docs/vault-schemas.md`](docs/vault-schemas.md).
+
+## The CLI
+
+The agent runs the CLI. These verbs are also useful by hand:
+
+| Verb | Use |
+|---|---|
+| `anvil where` | Print the current vault and project. |
+| `anvil list <type>` / `anvil show <type> <id>` | Read artifacts. `list issue --ready` gives the work queue. |
+| `anvil hydrate <issue>` | Assemble every artifact that governs one issue. |
+| `anvil milestone status <id>` | Issue counts, per-issue cost and the finish line. |
+| `anvil verify <issue>` | Run an issue's verification and record the verdict. |
+| `anvil cost <issue>` | Review rounds, diff size and tokens for one issue. |
+| `anvil doctor` | Flag stale state: merged-PR issues, dead claims, orphan worktrees, design drift. |
+| `anvil validate` | Check the vault against the schemas. |
+| `anvil ui` | Serve the human view. |
+
+Run `anvil --help` for the full verb list. Most read verbs take `--json`.
+
+## Other harnesses
+
+The skills follow the open [SKILL.md](https://agentskills.io) standard, so they port to other agent CLIs. `--target` picks the harness:
+
+| Harness | Skills | Agents |
+|---|---|---|
+| Claude Code (default) | `~/.claude/skills` | `~/.claude/agents` |
+| Codex | `--target codex` | `--target codex` (TOML) |
+| pi | `--target pi` | `--target pi` |
+| Ante | `--target ante` | `--target ante` |
+| OpenCode | reads `~/.claude/skills` | `--target opencode` |
+
+Hooks are Claude Code only.
+
+**Claude Code cloud sessions.** Attach your project and your vault repo to the session. Add `anvil install cloud` as a `SessionStart` hook in the project's committed `.claude/settings.json`. It links the vault, installs the bundle and builds the index. On a local machine the same hook does nothing.
+
+## Contributing
+
+Anvil develops itself. Its own product and system designs live in the vault:
+
+```bash
+anvil show product-design anvil --body
+anvil show system-design anvil --body
+```
+
+[`AGENTS.md`](AGENTS.md) holds the rules for agents that work on this repo (`CLAUDE.md` links to it). [`docs/`](docs/) holds the Go, test, git and skill-authoring conventions.
 
 ## License
 
