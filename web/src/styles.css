@@ -1,0 +1,147 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
+
+/* Tokens: see DESIGN.md. Elevation is a luminance step plus a white-alpha
+   hairline; hue is reserved for state. */
+@theme {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+
+  --color-bg: #08090a;
+  --color-panel: #0f1011;
+  --color-raised: #16171a;
+  --color-hover: #1c1d21;
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-line-strong: rgb(255 255 255 / 0.12);
+
+  --color-fg: #f7f8f8;
+  --color-body: #d0d6e0;
+  --color-dim: #8a8f98;
+  --color-faint: #80858d;
+  --color-accent: #7c87e8;
+
+  --color-s-open: #9aa0a8;
+  --color-s-progress: #f2c94c;
+  --color-s-done: #7c87e8;
+  --color-s-pass: #4cb782;
+  --color-s-fail: #eb5757;
+  --color-s-warn: #f2994a;
+  --color-s-gone: #80858d;
+
+  --text-cap: 11px;
+  --text-cap--line-height: 16px;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 19.5px;
+  --text-base: 15px;
+  --text-base--line-height: 24px;
+  --text-lg: 18px;
+  --text-lg--line-height: 26px;
+  --text-xl: 24px;
+  --text-xl--line-height: 32px;
+
+  --font-weight-medium: 510;
+  --font-weight-semibold: 590;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html {
+    background: var(--color-bg);
+    color: var(--color-body);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 19.5px;
+    font-feature-settings: "cv01", "ss03";
+    -webkit-font-smoothing: antialiased;
+    touch-action: manipulation;
+    text-rendering: optimizeLegibility;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0s !important; animation-duration: 0s !important; }
+  }
+  ::selection {
+    background: rgb(124 135 232 / 0.35);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  h1, h2, h3 {
+    text-wrap: balance;
+    color: var(--color-fg);
+  }
+  [id] {
+    scroll-margin-top: 64px;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Status hues, one class per vault status. */
+@layer utilities {
+  .s-open, .s-active { --s: var(--color-s-open); }
+  .s-in-progress, .s-paused { --s: var(--color-s-progress); }
+  .s-resolved, .s-done, .s-accepted, .s-verified, .s-closed, .s-promoted { --s: var(--color-s-done); }
+  .s-planned, .s-proposed, .s-draft, .s-raw { --s: var(--color-s-open); }
+  .s-escalated { --s: var(--color-s-warn); }
+  .s-abandoned, .s-dropped, .s-rejected, .s-retired, .s-retracted, .s-superseded, .s-stale { --s: var(--color-s-gone); }
+  .s-pass { --s: var(--color-s-pass); }
+  .s-fail { --s: var(--color-s-fail); }
+  .s-none { --s: var(--color-dim); }
+}
+
+/* Rendered markdown. Prose holds a 68ch measure at 15/24. */
+.prose {
+  font-size: 15px;
+  line-height: 24px;
+  color: var(--color-body);
+  max-width: 68ch;
+}
+.prose > * + * { margin-top: 12px; }
+.prose h2 {
+  font-size: 18px; line-height: 26px; font-weight: 590; letter-spacing: -0.012em;
+  margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--color-line);
+}
+.prose h2:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.prose h3 { font-size: 15px; font-weight: 590; margin-top: 28px; }
+.prose h4 { font-size: 13px; font-weight: 590; color: var(--color-fg); margin-top: 20px; }
+.prose a { color: var(--color-fg); text-decoration: underline; text-decoration-color: rgb(255 255 255 / 0.25); text-underline-offset: 3px; }
+.prose a:hover { text-decoration-color: var(--color-fg); }
+.prose a.wl { text-decoration-color: color-mix(in srgb, var(--s) 70%, transparent); text-decoration-thickness: 1.5px; }
+.prose a.wl:hover { text-decoration-color: var(--s); }
+.prose .wl-missing { color: var(--color-dim); text-decoration: underline dotted; text-underline-offset: 3px; }
+.prose ul { list-style: disc; padding-left: 20px; }
+.prose ol { list-style: decimal; padding-left: 22px; }
+.prose li + li { margin-top: 4px; }
+.prose li::marker { color: var(--color-faint); }
+.prose strong { color: var(--color-fg); font-weight: 590; }
+.prose code {
+  font-family: var(--font-mono); font-size: 0.86em;
+  background: var(--color-raised); border: 1px solid var(--color-line);
+  padding: 1px 5px; border-radius: 4px; color: var(--color-fg);
+}
+.prose pre {
+  font-size: 12.5px; line-height: 20px; padding: 14px 16px; overflow-x: auto;
+  background: var(--color-panel) !important; border: 1px solid var(--color-line); border-radius: 8px;
+  max-width: 100%;
+}
+.prose pre code { background: none; border: 0; padding: 0; font-size: inherit; color: inherit; }
+.prose blockquote { border-left: 2px solid var(--color-line-strong); padding-left: 14px; color: var(--color-dim); }
+.prose table { font-size: 13px; line-height: 19px; border-collapse: collapse; display: block; overflow-x: auto; max-width: 100%; }
+.prose th { text-align: left; font-weight: 510; color: var(--color-dim); border-bottom: 1px solid var(--color-line-strong); padding: 6px 12px 6px 0; }
+.prose td { border-bottom: 1px solid var(--color-line); padding: 6px 12px 6px 0; vertical-align: top; }
+.prose hr { border: 0; border-top: 1px solid var(--color-line); margin: 24px 0; }
+.prose input[type="checkbox"] { accent-color: var(--color-accent); margin-right: 6px; }
+
+mark, .hit { background: rgb(242 201 76 / 0.18); color: var(--color-fg); border-radius: 2px; padding: 0 1px; }
