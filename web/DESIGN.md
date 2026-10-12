@@ -53,3 +53,13 @@ Space: 4px base; rows 32px (lists), 28px (sidebar), header 44px (Linear's title 
 ## Do not copy (collected)
 
 Marketing heroes and display type; brand colours; full-saturation stat tiles; arbitrary label hues; light themes; 100ch prose; text under 4.5:1; edit, share and sign-in chrome; 320px rails.
+
+## Departures from component-design.anvil.human-view
+
+The prototype breaks these rules of the shipped design. The human accepted the result on 2026-10-12; re-authoring the component design is the follow-up.
+
+- **A JS framework.** React, Vite and Hono replace server-rendered Go templates. This supersedes decision anvil-human-view.0001.
+- **"Now" at `/`.** The landing page shows in-flight work, not the knowledge page.
+- **Type lists and counts in the sidebar.** The sidebar browses by type; the design kept it to projects.
+- **No topic page.** A topic links to the decision or thread list filtered by `topic`.
+- **No routed inbox.** Inbox items show as a plain type list, with no triage view.
