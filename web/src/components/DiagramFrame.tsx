@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { cn } from "../lib/cn";
 
 // Diagrams are fixed-width HTML. The frame is sandboxed without scripts but
 // same-origin, so the parent can read the diagram's natural size and scale it
@@ -27,7 +28,7 @@ export function DiagramFrame({ name, maxHeight, interactive = true }: { name: st
       <iframe
         ref={frame} src={`/diagram-src/${name}`} sandbox="allow-same-origin" title={`Diagram ${name}`}
         loading="lazy" onLoad={measure} tabIndex={interactive ? 0 : -1}
-        className={`absolute left-0 top-0 origin-top-left border-0 ${interactive ? "" : "pointer-events-none"}`}
+        className={cn("absolute left-0 top-0 origin-top-left border-0", !interactive && "pointer-events-none")}
         style={size ? { width: size.w, height: size.h, transform: `scale(${scale})` } : { width: "100%", height: "100%" }}
       />
     </div>

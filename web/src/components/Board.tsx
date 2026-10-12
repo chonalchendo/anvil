@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import type { IssueRow } from "../lib/api";
-import { compact } from "../lib/api";
-import { Glyph, Pill } from "./ui";
+import { compact, type IssueRow } from "../lib/api";
+import { Glyph } from "./ui/Glyph";
+import { Pill } from "./ui/Pill";
 
 const columns = [
   { status: "open", label: "Open" },
@@ -24,16 +24,17 @@ export function Board({ rows }: { rows: IssueRow[] }) {
               <span className="text-sm font-medium text-fg">{col.label}</span>
               <span className="rounded-full bg-raised px-1.5 text-xs text-dim num">{cards.length}</span>
             </header>
-            <div className="flex max-h-[640px] flex-col gap-2 overflow-y-auto p-2">
+            <div className="flex max-h-[640px] flex-col gap-2 overflow-y-auto overscroll-contain p-2">
               {cards.slice(0, 40).map((r) => (
                 <Link key={r.key} to="/a/$key" params={{ key: r.key }} className="flex flex-col gap-1.5 rounded-md border border-line bg-bg p-2.5 hover:border-line-strong">
                   <span className="font-mono text-xs text-faint" translate="no">{r.project} #{r.ordinal}</span>
-                  <span className="text-sm leading-[18px] text-fg line-clamp-3">{r.title}</span>
+                  <span className="line-clamp-3 text-sm leading-[18px] text-fg">{r.title}</span>
                   <span className="flex flex-wrap gap-1">
                     {r.verdict && <Pill tone={r.verdict === "pass" ? "pass" : "fail"}>{r.verdict}</Pill>}
                     {r.prs[0] && <Pill>#{r.prs[0].n}</Pill>}
                     {r.tokens != null && <Pill>{compact(r.tokens)} tok</Pill>}
-                    {r.severity && r.severity !== "medium" && <Pill tone={r.severity === "high" || r.severity === "critical" ? "escalated" : undefined}>{r.severity}</Pill>}
+                    {(r.severity === "high" || r.severity === "critical") && <Pill tone="escalated">{r.severity}</Pill>}
+                    {r.severity === "low" && <Pill>low</Pill>}
                   </span>
                 </Link>
               ))}

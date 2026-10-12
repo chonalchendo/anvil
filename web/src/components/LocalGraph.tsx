@@ -1,8 +1,8 @@
 import { forceCenter, forceCollide, forceLink, forceManyBody, forceSimulation, type SimulationNodeDatum } from "d3-force";
 import { useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import type { Artifact } from "../lib/api";
-import { typeWord } from "../lib/api";
+import { typeWord, type Artifact } from "../lib/api";
+import { cn } from "../lib/cn";
 
 type N = SimulationNodeDatum & { key: string; title: string; type: string; status: string | null };
 const W = 280;
@@ -18,7 +18,7 @@ export function LocalGraph({ graph, center }: { graph: Artifact["graph"]; center
     const nodes: N[] = graph.nodes.map((n) => ({ ...n, ...(n.key === center ? { fx: W / 2, fy: H / 2 } : {}) }));
     const links = graph.edges.map((e) => ({ ...e }));
     forceSimulation(nodes)
-      .force("link", forceLink<N, any>(links).id((d) => d.key).distance(52))
+      .force("link", forceLink<N, { source: string | N; target: string | N }>(links).id((d) => d.key).distance(52))
       .force("charge", forceManyBody().strength(-90))
       .force("collide", forceCollide(9))
       .force("center", forceCenter(W / 2, H / 2))
@@ -28,6 +28,7 @@ export function LocalGraph({ graph, center }: { graph: Artifact["graph"]; center
       n.x = Math.max(8, Math.min(W - 8, n.x!));
       n.y = Math.max(8, Math.min(H - 8, n.y!));
     }
+    // forceLink swaps each edge's ids for the node objects in place.
     return { nodes, links: links as unknown as { source: N; target: N; relation: string }[] };
   }, [graph, center]);
 
@@ -45,7 +46,7 @@ export function LocalGraph({ graph, center }: { graph: Artifact["graph"]; center
         {nodes.map((n) => (
           <circle
             key={n.key} cx={n.x} cy={n.y} r={n.key === center ? 7 : 4.5}
-            className={`s-${n.status ?? "none"} cursor-pointer`}
+            className={cn(`s-${n.status ?? "none"}`, "cursor-pointer")}
             fill="var(--s)" stroke={n.key === center ? "var(--color-fg)" : "none"} strokeWidth={1.5}
             onMouseEnter={() => setHover(n)} onMouseLeave={() => setHover(null)}
             onClick={() => n.key !== center && navigate({ to: "/a/$key", params: { key: n.key } })}
