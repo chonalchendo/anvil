@@ -1,4 +1,4 @@
-import { DatabaseSync } from "node:sqlite";
+import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { execFileSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -15,7 +15,8 @@ export type Row = {
   updated: string | null;
 };
 
-export type Doc = { fm: Record<string, any>; body: string };
+export type FrontMatter = Record<string, unknown>;
+export type Doc = { fm: FrontMatter; body: string };
 
 // The vault root comes from the CLI so this server and `anvil` never disagree.
 function vaultRoot(): string {
@@ -43,17 +44,20 @@ export function freshen() {
   }
 }
 
-const q = (sql: string) => db.prepare(sql);
-const byType = q("select * from artifacts where type = ? order by updated desc, id desc");
-const byId = q("select * from artifacts where id = ?");
-const linksFrom = q("select target, relation from links where source = ?");
-const linksTo = q("select source, relation from links where target = ?");
+const byType = db.prepare("select * from artifacts where type = ? order by updated desc, id desc");
+const byId = db.prepare("select * from artifacts where id = ?");
+const linksFrom = db.prepare("select target, relation from links where source = ?");
+const linksTo = db.prepare("select source, relation from links where target = ?");
+
+export type Edge = { other: string; relation: string };
 
 export const rowsOf = (type: string) => byType.all(type) as Row[];
 export const row = (id: string) => byId.get(id) as Row | undefined;
-export const outgoing = (id: string) => linksFrom.all(id) as { target: string; relation: string }[];
-export const incoming = (id: string) => linksTo.all(id) as { source: string; relation: string }[];
-export const all = (sql: string, ...args: any[]) => q(sql).all(...args) as any[];
+export const outgoing = (id: string): Edge[] =>
+  (linksFrom.all(id) as { target: string; relation: string }[]).map((l) => ({ other: l.target, relation: l.relation }));
+export const incoming = (id: string): Edge[] =>
+  (linksTo.all(id) as { source: string; relation: string }[]).map((l) => ({ other: l.source, relation: l.relation }));
+export const query = <T>(sql: string, ...args: SQLInputValue[]) => db.prepare(sql).all(...args) as T[];
 
 const cache = new Map<string, { mtime: number; doc: Doc }>();
 export function doc(r: Row): Doc {
@@ -61,16 +65,20 @@ export function doc(r: Row): Doc {
   const hit = cache.get(r.path);
   if (hit && hit.mtime === mtime) return hit.doc;
   const parsed = matter(readFileSync(r.path, "utf8"));
-  const d = { fm: parsed.data, body: parsed.content };
+  const d = { fm: parsed.data as FrontMatter, body: parsed.content };
   cache.set(r.path, { mtime, doc: d });
   return d;
 }
 
+export const str = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : v instanceof Date ? v.toISOString().slice(0, 10) : typeof v === "number" ? String(v) : null);
+export const num = (v: unknown): number | null => {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : null;
+};
+export const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : v == null ? [] : [v]);
+
 // A frontmatter wikilink is `[[key]]` or `[[key|label]]`; return the key.
-export function slot(v: unknown): string {
-  const s = typeof v === "string" ? v : "";
-  return s.replace(/^\[\[|\]\]$/g, "").split("|")[0].trim();
-}
+export const slot = (v: unknown) => (str(v) ?? "").replace(/^\[\[|\]\]$/g, "").split("|")[0].trim();
 
 // A bare `milestone.<slug>` slot means the issue's own project.
 export function milestoneKey(project: string, s: string): string {

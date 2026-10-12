@@ -1,24 +1,26 @@
 import { Hono } from "hono";
+import { validator } from "hono/validator";
 import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import { basename, join } from "node:path";
 import {
-  all, doc, freshen, incoming, milestoneKey, outgoing, root, row, rowsOf, slot, topicOf, type Row,
+  doc, freshen, incoming, list, milestoneKey, num, outgoing, query, root, row, rowsOf, slot, str, topicOf,
+  type FrontMatter, type Row,
 } from "./vault.ts";
 import { render, resolve } from "./markdown.ts";
 
 const NOT_SHOWN = new Set(["session"]);
 const ordinal = (id: string) => id.match(/^issue\.[^.]+\.(\d{4})\./)?.[1] ?? "";
+const newest = (a: { updated: string | null }, b: { updated: string | null }) => (b.updated ?? "").localeCompare(a.updated ?? "");
+const done = (s: string | null) => s === "resolved" || s === "abandoned";
 
 const item = (r: Row) => ({
   key: r.id, type: r.type, status: r.status, project: r.project, title: r.title ?? r.id,
   created: r.created, updated: r.updated,
 });
-type Item = ReturnType<typeof item>;
 
-const num = (v: unknown) => (typeof v === "number" ? v : Number.isFinite(Number(v)) && v !== "" && v != null ? Number(v) : null);
-const prs = (fm: Record<string, any>) =>
-  ((fm.external_links ?? []) as unknown[]).flatMap((u) => {
+const prs = (fm: FrontMatter) =>
+  list(fm.external_links).flatMap((u) => {
     const m = String(u).match(/\/pull\/(\d+)/);
     return m ? [{ n: Number(m[1]), url: String(u) }] : [];
   });
@@ -28,18 +30,14 @@ function issueRow(r: Row) {
   return {
     ...item(r),
     ordinal: ordinal(r.id),
-    owner: fm.owner ?? null,
-    severity: fm.severity ?? null,
-    verdict: (fm.verified_verdict ?? null) as string | null,
+    owner: str(fm.owner),
+    severity: str(fm.severity),
+    verdict: str(fm.verified_verdict),
     prs: prs(fm),
     rounds: num(fm.cost_rounds),
     tokens: num(fm.cost_tokens),
-    diff: num(fm.cost_diff),
-    files: num(fm.cost_files),
-    goal: fm.goal ?? fm.description ?? null,
   };
 }
-export type IssueRow = ReturnType<typeof issueRow>;
 
 // The `## Status` section's last `Measured:` line is a milestone's acceptance verdict.
 function lastMeasured(body: string): string | null {
@@ -54,24 +52,18 @@ function lastMeasured(body: string): string | null {
   return got;
 }
 
-function milestoneOfIssue(): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const l of all("select source, target from links where relation = 'milestone'")) out.set(l.source, l.target);
-  return out;
-}
-
-function membership(project: string | null) {
-  const of = milestoneOfIssue();
-  const byMs = new Map<string, Row[]>();
-  for (const i of rowsOf("issue")) {
-    if (project && i.project !== project) continue;
-    const t = of.get(i.id);
-    if (!t) continue;
-    const k = row(t) ? t : milestoneKey(i.project ?? "", t);
-    if (!byMs.has(k)) byMs.set(k, []);
-    byMs.get(k)!.push(i);
+// An issue names its milestone by full key or by the bare `milestone.<slug>`
+// form, which means the issue's own project; both index as `milestone` links.
+function members(m: Row): Row[] {
+  const bare = `milestone.${m.id.replace(`milestone.${m.project}.`, "")}`;
+  const seen = new Map<string, Row>();
+  for (const [target, sameProject] of [[m.id, false], [bare, true]] as const) {
+    for (const l of incoming(target)) {
+      const r = l.relation === "milestone" ? row(l.other) : undefined;
+      if (r?.type === "issue" && (!sameProject || r.project === m.project)) seen.set(r.id, r);
+    }
   }
-  return byMs;
+  return [...seen.values()];
 }
 
 const tally = (rows: { status: string | null }[]) => {
@@ -80,39 +72,38 @@ const tally = (rows: { status: string | null }[]) => {
   return c;
 };
 
-function milestoneSummary(m: Row, issues: Row[]) {
+function milestoneSummary(m: Row, keep: (i: Row) => boolean = () => true) {
   const { fm, body } = doc(m);
+  const issues = members(m);
   const counted = issues.filter((i) => i.status !== "abandoned");
-  const rows = issues.map(issueRow).sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? ""));
   return {
     ...item(m),
-    goal: fm.goal ?? fm.description ?? null,
-    approved: fm.approved ?? null,
-    done: fm.done ?? null,
+    approved: str(fm.approved),
+    done: str(fm.done),
     measured: lastMeasured(body),
     resolved: counted.filter((i) => i.status === "resolved").length,
     total: counted.length,
     counts: tally(issues),
     live: issues.some((i) => i.status === "in-progress"),
-    issues: rows,
+    issues: issues.filter(keep).map(issueRow).sort(newest),
   };
 }
+
+const described = (r: Row) => {
+  const { fm } = doc(r);
+  return { ...item(r), description: str(fm.description), confidence: str(fm.confidence), topic: topicOf(r.id) || null };
+};
 
 function designs(project: string) {
   return ["product-design", "system-design", "component-design"].flatMap((t) =>
     rowsOf(t)
       .filter((r) => r.project === project && r.status !== "retired")
-      .map((r) => ({ ...item(r), description: doc(r).fm.description ?? null, diagrams: (doc(r).fm.diagrams ?? []) as string[] })),
+      .map((r) => ({ ...item(r), diagrams: list(doc(r).fm.diagrams).map(String) })),
   );
 }
 
-const withDesc = (r: Row) => {
-  const { fm } = doc(r);
-  return { ...item(r), description: fm.description ?? null, confidence: fm.confidence ?? null };
-};
-
 function projects() {
-  const names = new Set(rowsOf("product-design").map((r) => r.project).filter(Boolean) as string[]);
+  const names = new Set(rowsOf("product-design").map((r) => r.project).filter((p): p is string => !!p));
   const issues = rowsOf("issue");
   const ms = rowsOf("milestone");
   return [...names].sort().map((p) => {
@@ -120,7 +111,7 @@ function projects() {
     const mine = issues.filter((i) => i.project === p);
     return {
       slug: p,
-      description: pd ? doc(pd).fm.description ?? null : null,
+      description: pd ? str(doc(pd).fm.description) : null,
       inProgress: mine.filter((i) => i.status === "in-progress").length,
       open: mine.filter((i) => i.status === "open").length,
       milestonesInFlight: ms.filter((m) => m.project === p && m.status === "in-progress").length,
@@ -130,31 +121,16 @@ function projects() {
   });
 }
 
-function backlinks(key: string) {
-  const seen = new Set<string>();
-  const out: (Item & { relation: string })[] = [];
-  for (const l of incoming(key)) {
-    const r = row(l.source);
-    if (!r || NOT_SHOWN.has(r.type) || seen.has(r.id)) continue;
-    seen.add(r.id);
-    out.push({ ...item(r), relation: l.relation });
+function linked(edges: { other: string; relation: string }[]) {
+  const seen = new Map<string, ReturnType<typeof item> & { relation: string }>();
+  for (const e of edges) {
+    const r = row(e.other);
+    if (r && !NOT_SHOWN.has(r.type) && !seen.has(r.id)) seen.set(r.id, { ...item(r), relation: e.relation });
   }
-  return out.sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? ""));
+  return [...seen.values()];
 }
 
-function forward(key: string) {
-  const seen = new Set<string>();
-  const out: (Item & { relation: string })[] = [];
-  for (const l of outgoing(key)) {
-    const r = row(l.target);
-    if (!r || NOT_SHOWN.has(r.type) || seen.has(r.id)) continue;
-    seen.add(r.id);
-    out.push({ ...item(r), relation: l.relation });
-  }
-  return out;
-}
-
-function crumbs(r: Row, fm: Record<string, any>) {
+function crumbs(r: Row, fm: FrontMatter) {
   const out: { label: string; href: string }[] = [];
   if (r.project) out.push({ label: r.project, href: `/p/${r.project}` });
   if (r.type === "issue" && fm.milestone) {
@@ -167,267 +143,280 @@ function crumbs(r: Row, fm: Record<string, any>) {
   return out;
 }
 
-function judge(r: Row, fm: Record<string, any>, body: string) {
-  const out: { label: string; value: string; tone?: string; href?: string; mono?: boolean; title?: string }[] = [];
+// One list per type owns which keys the judge strip shows, so the strip and
+// the All properties skip cannot drift apart.
+const judgeKeys: Record<string, string[]> = {
+  issue: ["verified_verdict", "verified_commit", "verified_at", "cost_rounds", "cost_tokens", "cost_diff", "cost_files", "owner", "severity"],
+  learning: ["confidence"],
+  decision: ["supersedes", "superseded_by"],
+  milestone: ["approved", "done"],
+};
+
+type Judged = { label: string; value: string; count?: number; tone?: "pass" | "fail" | "dim"; href?: string; mono?: boolean; title?: string };
+
+function judge(r: Row, fm: FrontMatter, body: string): Judged[] {
+  const out: Judged[] = [];
   if (r.type === "issue") {
-    if (fm.verified_verdict)
-      out.push({ label: "Verdict", value: String(fm.verified_verdict), tone: fm.verified_verdict === "pass" ? "pass" : "fail" });
-    if (fm.verified_commit) out.push({ label: "Verified at", value: String(fm.verified_commit).slice(0, 7), mono: true, title: String(fm.verified_at ?? "") });
+    const verdict = str(fm.verified_verdict);
+    if (verdict) out.push({ label: "Verdict", value: verdict, tone: verdict === "pass" ? "pass" : "fail" });
+    const commit = str(fm.verified_commit);
+    if (commit) out.push({ label: "Verified at", value: commit.slice(0, 7), mono: true, title: str(fm.verified_at) ?? undefined });
     for (const p of prs(fm)) out.push({ label: "PR", value: `#${p.n}`, href: p.url });
-    if (num(fm.cost_rounds) != null) out.push({ label: "Review rounds", value: String(fm.cost_rounds) });
-    if (num(fm.cost_tokens) != null) out.push({ label: "Tokens", value: compact(num(fm.cost_tokens)!), title: Number(fm.cost_tokens).toLocaleString("en") });
-    if (num(fm.cost_diff) != null) out.push({ label: "Change", value: `${fm.cost_diff} lines${fm.cost_files ? ` · ${fm.cost_files} files` : ""}` });
-    if (fm.owner) out.push({ label: "Owner", value: String(fm.owner) });
-    if (fm.severity) out.push({ label: "Severity", value: String(fm.severity) });
+    const rounds = num(fm.cost_rounds);
+    if (rounds != null) out.push({ label: "Review rounds", value: String(rounds) });
+    const tokens = num(fm.cost_tokens);
+    if (tokens != null) out.push({ label: "Tokens", value: String(tokens), count: tokens, title: `${tokens} tokens` });
+    const diff = num(fm.cost_diff);
+    const files = num(fm.cost_files);
+    if (diff != null) out.push({ label: "Change", value: `${diff} lines${files ? ` · ${files} files` : ""}` });
+    for (const [k, label] of [["owner", "Owner"], ["severity", "Severity"]] as const) {
+      const v = str(fm[k]);
+      if (v) out.push({ label, value: v });
+    }
   }
-  if (r.type === "learning" && fm.confidence) out.push({ label: "Confidence", value: String(fm.confidence) });
+  const confidence = str(fm.confidence);
+  if (r.type === "learning" && confidence) out.push({ label: "Confidence", value: confidence });
   if (r.type === "decision") {
     for (const k of ["supersedes", "superseded_by"] as const)
-      for (const v of [fm[k]].flat().filter(Boolean)) {
+      for (const v of list(fm[k])) {
         const ref = resolve(slot(v));
         out.push({ label: k === "supersedes" ? "Supersedes" : "Superseded by", value: ref.label, href: ref.resolved ? `/a/${ref.key}` : undefined });
       }
   }
   if (r.type === "milestone") {
-    if (fm.approved) out.push({ label: "Approved", value: String(fm.approved) });
-    if (fm.done) out.push({ label: "Done", value: String(fm.done) });
+    for (const [k, label] of [["approved", "Approved"], ["done", "Done"]] as const) {
+      const v = str(fm[k]);
+      if (v) out.push({ label, value: v });
+    }
     const m = lastMeasured(body);
-    out.push({ label: "Measured", value: m ?? "not measured", tone: m ? undefined : "dim", mono: !!m });
+    out.push(m ? { label: "Measured", value: m } : { label: "Measured", value: "not measured", tone: "dim" });
   }
   return out;
 }
 
-export function compact(n: number) {
-  if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
-  if (n >= 1e3) return `${(n / 1e3).toFixed(n >= 1e4 ? 0 : 1)}k`;
-  return String(n);
+function props(type: string, fm: FrontMatter) {
+  const skip = new Set(["title", "description", "type", "status", "project", "tags", "related", "diagrams", ...(judgeKeys[type] ?? [])]);
+  return Object.entries(fm).flatMap(([k, v]) => {
+    if (skip.has(k)) return [];
+    // PR links show in the judge strip; every other external link stays here.
+    const vals = list(type === "issue" && k === "external_links" ? list(v).filter((u) => !/\/pull\/\d+/.test(String(u))) : v)
+      .map((x) => (x instanceof Date ? x.toISOString().slice(0, 10) : typeof x === "object" && x ? JSON.stringify(x) : String(x)))
+      .filter((x) => x !== "");
+    return vals.length ? [{ k, v: vals }] : [];
+  });
 }
 
-// Depth-1 neighbourhood plus the links among the neighbours, sessions dropped.
+// Depth-1 neighbourhood of key, sessions dropped, capped at 60 nodes.
 function graph(key: string) {
-  const nodes = new Map<string, Item>();
-  const center = row(key)!;
-  nodes.set(key, item(center));
+  const out = linked(outgoing(key)).map((n) => ({ n, edge: { source: key, target: n.key, relation: n.relation } }));
+  const inn = linked(incoming(key)).map((n) => ({ n, edge: { source: n.key, target: key, relation: n.relation } }));
+  const nodes = new Map([[key, item(row(key)!)]]);
   const edges: { source: string; target: string; relation: string }[] = [];
-  for (const l of outgoing(key)) {
-    const r = row(l.target);
-    if (r && !NOT_SHOWN.has(r.type)) { nodes.set(r.id, item(r)); edges.push({ source: key, target: r.id, relation: l.relation }); }
+  for (const { n, edge } of [...out, ...inn]) {
+    if (nodes.size >= 60 && !nodes.has(n.key)) continue;
+    nodes.set(n.key, item(row(n.key)!));
+    edges.push(edge);
   }
-  for (const l of incoming(key)) {
-    const r = row(l.source);
-    if (r && !NOT_SHOWN.has(r.type)) { nodes.set(r.id, item(r)); edges.push({ source: r.id, target: key, relation: l.relation }); }
-  }
-  const capped = [...nodes.values()].slice(0, 60);
-  const keep = new Set(capped.map((n) => n.key));
-  return { nodes: capped, edges: edges.filter((e) => keep.has(e.source) && keep.has(e.target)) };
+  return { nodes: [...nodes.values()], edges };
 }
 
-function props(fm: Record<string, any>) {
-  const skip = new Set(["title", "description", "type", "status", "project", "tags", "related", "diagrams", "external_links"]);
-  return Object.entries(fm)
-    .filter(([k, v]) => !skip.has(k) && v != null && v !== "" && !(Array.isArray(v) && !v.length))
-    .map(([k, v]) => ({ k, v: Array.isArray(v) ? v.map(String) : typeof v === "object" ? JSON.stringify(v) : String(v) }));
-}
-
-function manifest(issueKey: string) {
-  const out = execFileSync("anvil", ["hydrate", issueKey.replace(/^issue\./, ""), "--tldr"], { encoding: "utf8", maxBuffer: 64 << 20 });
+// `anvil hydrate` exits non-zero when the walk meets a broken edge but still
+// prints the manifest; stdout holds the layers, stderr the broken edges.
+function hydrate(issueKey: string) {
+  let out: string;
+  let err = "";
+  try {
+    out = execFileSync("anvil", ["hydrate", issueKey, "--tldr"], { encoding: "utf8", maxBuffer: 64 << 20, stdio: ["ignore", "pipe", "pipe"] });
+  } catch (e) {
+    const x = e as { stdout?: string; stderr?: string };
+    if (!x.stdout?.includes("=== end manifest ===")) throw e;
+    out = x.stdout;
+    err = x.stderr ?? "";
+  }
   const block = out.split("=== end manifest ===")[0];
-  return [...block.matchAll(/^\s{2}(\S+)\s+(\S+)\s+\(([^)]*)\)\s*$/gm)].map(([, type, id]) =>
+  const keys = [...block.matchAll(/^\s{2}(\S+)\s+(\S+)\s+\(([^)]*)\)\s*$/gm)].map(([, type, id]) =>
     id.startsWith(`${type}.`) ? id : `${type}.${id}`,
   );
+  const broken = err.split("\n").filter((l) => /^\s{2}\S/.test(l)).map((l) => l.trim());
+  return { keys, broken };
 }
 
 const typeWeight = ["project", "milestone", "issue", "product-design", "system-design", "component-design", "topic", "decision", "thread", "learning", "convention", "inbox"];
+const weight = (t: string) => { const i = typeWeight.indexOf(t); return i < 0 ? 99 : i; };
 
-export const api = new Hono();
 void render("```ts\nconst warm = 1;\n```");
 
-api.use("*", async (_c, next) => { freshen(); await next(); });
+export const api = new Hono()
+  .use("*", async (_c, next) => { freshen(); await next(); })
 
-api.get("/nav", (c) => c.json({ projects: projects() }));
+  .get("/nav", (c) => c.json({ projects: projects() }))
 
-api.get("/home", (c) => {
-  const byMs = membership(null);
-  const live = rowsOf("milestone")
-    .filter((m) => m.status === "in-progress")
-    .map((m) => {
-      const s = milestoneSummary(m, byMs.get(m.id) ?? []);
-      return { ...s, issues: s.issues.filter((i) => i.status === "in-progress" || i.status === "escalated") };
-    })
-    .sort((a, b) => Number(b.live) - Number(a.live) || (b.updated ?? "").localeCompare(a.updated ?? ""));
-  const inMs = new Set(live.flatMap((m) => m.issues.map((i) => i.key)));
-  const loose = rowsOf("issue").filter((i) => i.status === "in-progress" && !inMs.has(i.id)).map(issueRow);
-  const recent = [...rowsOf("decision"), ...rowsOf("learning")]
-    .sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? ""))
-    .slice(0, 8)
-    .map(withDesc);
-  return c.json({ projects: projects(), milestones: live, loose, recent });
-});
+  .get("/home", (c) => {
+    const live = rowsOf("milestone")
+      .filter((m) => m.status === "in-progress")
+      .map((m) => milestoneSummary(m, (i) => i.status === "in-progress" || i.status === "escalated"))
+      .sort((a, b) => Number(b.live) - Number(a.live) || newest(a, b));
+    const shown = new Set(live.flatMap((m) => m.issues.map((i) => i.key)));
+    const loose = rowsOf("issue").filter((i) => (i.status === "in-progress" || i.status === "escalated") && !shown.has(i.id)).map(issueRow);
+    const recent = [...rowsOf("decision"), ...rowsOf("learning")].sort(newest).slice(0, 8).map(described);
+    return c.json({ projects: projects(), milestones: live, loose, recent });
+  })
 
-api.get("/project/:slug", (c) => {
-  const p = c.req.param("slug");
-  if (!rowsOf("issue").some((r) => r.project === p) && !row(`product-design.${p}`)) return c.json({ error: "not found" }, 404);
-  const byMs = membership(p);
-  const ms = rowsOf("milestone").filter((m) => m.project === p);
-  const order = { "in-progress": 0, planned: 1 } as Record<string, number>;
-  const open = ms
-    .filter((m) => m.status === "in-progress" || m.status === "planned")
-    .map((m) => milestoneSummary(m, byMs.get(m.id) ?? []))
-    .sort((a, b) => Number(b.live) - Number(a.live) || order[a.status!] - order[b.status!] || (b.updated ?? "").localeCompare(a.updated ?? ""));
-  const openKeys = new Set(open.map((m) => m.key));
-  const homed = new Set([...byMs.entries()].filter(([k]) => openKeys.has(k)).flatMap(([, v]) => v.map((i) => i.id)));
-  const loose = rowsOf("issue")
-    .filter((i) => i.project === p && (i.status === "open" || i.status === "in-progress") && !homed.has(i.id))
-    .map(issueRow);
-  const done = ms
-    .filter((m) => m.status === "done")
-    .sort((a, b) => String(doc(b).fm.done ?? b.updated).localeCompare(String(doc(a).fm.done ?? a.updated)))
-    .slice(0, 6)
-    .map((m) => { const s = milestoneSummary(m, byMs.get(m.id) ?? []); return { ...s, issues: [] }; });
-  const pd = row(`product-design.${p}`);
-  const issues = rowsOf("issue").filter((i) => i.project === p);
-  return c.json({
-    slug: p,
-    description: pd ? doc(pd).fm.description ?? null : null,
-    counts: {
-      issues: tally(issues),
-      milestones: tally(ms),
-      decisions: rowsOf("decision").filter((d) => d.project === p).length,
-      learnings: rowsOf("learning").filter((d) => d.project === p).length,
-    },
-    milestones: open,
-    loose,
-    done,
-    designs: designs(p),
-    decisions: rowsOf("decision").filter((d) => d.project === p).slice(0, 6).map(withDesc),
-    learnings: rowsOf("learning").filter((d) => d.project === p).slice(0, 6).map(withDesc),
+  .get("/project/:slug", (c) => {
+    const p = c.req.param("slug");
+    const issues = rowsOf("issue").filter((i) => i.project === p);
+    if (!issues.length && !row(`product-design.${p}`)) return c.json({ error: "not found" }, 404);
+    const ms = rowsOf("milestone").filter((m) => m.project === p);
+    const order: Record<string, number> = { "in-progress": 0, planned: 1 };
+    const open = ms
+      .filter((m) => m.status === "in-progress" || m.status === "planned")
+      .map((m) => milestoneSummary(m))
+      .sort((a, b) => Number(b.live) - Number(a.live) || order[a.status!] - order[b.status!] || newest(a, b));
+    const homed = new Set(open.flatMap((m) => m.issues.map((i) => i.key)));
+    const loose = issues.filter((i) => !done(i.status) && !homed.has(i.id)).map(issueRow);
+    const finished = ms
+      .filter((m) => m.status === "done")
+      .sort((a, b) => (str(doc(b).fm.done) ?? b.updated ?? "").localeCompare(str(doc(a).fm.done) ?? a.updated ?? ""))
+      .slice(0, 6)
+      .map((m) => milestoneSummary(m, () => false));
+    const pd = row(`product-design.${p}`);
+    const mine = (t: string) => rowsOf(t).filter((d) => d.project === p);
+    return c.json({
+      slug: p,
+      description: pd ? str(doc(pd).fm.description) : null,
+      counts: { issues: tally(issues), milestones: tally(ms), decisions: mine("decision").length, learnings: mine("learning").length },
+      milestones: open,
+      loose,
+      done: finished,
+      designs: designs(p),
+      decisions: mine("decision").slice(0, 6).map(described),
+      learnings: mine("learning").slice(0, 6).map(described),
+    });
+  })
+
+  .get("/artifact/:key", async (c) => {
+    const r = row(c.req.param("key"));
+    if (!r || NOT_SHOWN.has(r.type)) return c.json({ error: "not found" }, 404);
+    const { fm, body } = doc(r);
+    const { html, toc } = await render(body);
+    return c.json({
+      ...item(r),
+      description: str(fm.description),
+      tags: list(fm.tags).map(String),
+      html,
+      toc,
+      crumbs: crumbs(r, fm),
+      judge: judge(r, fm, body),
+      props: props(r.type, fm),
+      diagrams: list(fm.diagrams).map(String),
+      backlinks: linked(incoming(r.id)).sort(newest),
+      forward: linked(outgoing(r.id)),
+      graph: graph(r.id),
+      issues: r.type === "milestone" ? members(r).map(issueRow).sort(newest) : null,
+    });
+  })
+
+  .get("/stack/:key", async (c) => {
+    const key = c.req.param("key");
+    const issue = row(key);
+    if (!issue || issue.type !== "issue") return c.json({ error: "not found" }, 404);
+    const { keys, broken } = hydrate(key);
+    const layers = [];
+    for (const k of keys) {
+      const r = row(k);
+      // The view drops nothing: a node hydrate walked but the index lacks is a stub.
+      if (!r) { layers.push({ key: k, type: k.split(".")[0], status: null, project: null, title: k, created: null, updated: null, bytes: 0, html: "", indexed: false }); continue; }
+      const { body } = doc(r);
+      layers.push({ ...item(r), bytes: Buffer.byteLength(body), html: (await render(body)).html, indexed: true });
+    }
+    return c.json({ key, title: issue.title ?? key, layers, broken });
+  })
+
+  .get("/list/:type", validator("query", (q) => ({
+    project: typeof q.project === "string" ? q.project : undefined,
+    status: typeof q.status === "string" ? q.status : undefined,
+    topic: typeof q.topic === "string" ? q.topic : undefined,
+  })), (c) => {
+    const type = c.req.param("type");
+    let rows = NOT_SHOWN.has(type) ? [] : rowsOf(type);
+    if (!rows.length) return c.json({ error: "not found" }, 404);
+    const { project, status, topic } = c.req.valid("query");
+    if (project) rows = rows.filter((r) => r.project === project);
+    if (topic) rows = rows.filter((r) => topicOf(r.id) === topic);
+    const counts = tally(rows);
+    if (status) rows = rows.filter((r) => r.status === status);
+    const shown = rows.slice(0, 400);
+    return c.json({
+      type,
+      counts,
+      projects: [...new Set(rowsOf(type).map((r) => r.project).filter((p): p is string => !!p))].sort(),
+      rows: shown.map(item),
+      issues: type === "issue" ? shown.map(issueRow) : [],
+      total: rows.length,
+    });
+  })
+
+  .get("/search", (c) => {
+    // NUL ends an FTS string early; every other character is quoted literal text.
+    const q = (c.req.query("q") ?? "").replaceAll("\0", " ").trim();
+    if (!q) return c.json({ q, hits: [] });
+    const match = q.split(/\s+/).map((t) => `"${t.replaceAll('"', '""')}"`).join(" ");
+    const hits = query<{ id: string; snip: string }>(
+      `select id, snippet(artifact_fts, 3, char(1), char(2), '…', 14) as snip
+         from artifact_fts where artifact_fts match ? and type != 'session' order by rank limit 60`,
+      match,
+    ).flatMap((h) => {
+      const r = row(h.id);
+      return r ? [{ ...item(r), snippet: h.snip }] : [];
+    });
+    return c.json({ q, hits });
+  })
+
+  .get("/palette", (c) => {
+    const entries = projects().map((p) => ({ key: p.slug, type: "project", title: p.slug, status: null as string | null, href: `/p/${p.slug}`, project: p.slug as string | null, updated: p.updated as string | null }));
+    for (const r of query<Row>("select * from artifacts where type != 'session' order by updated desc"))
+      entries.push({ key: r.id, type: r.type, title: r.title ?? r.id, status: r.status, href: `/a/${r.id}`, project: r.project, updated: r.updated });
+    entries.sort((a, b) => weight(a.type) - weight(b.type) || newest(a, b));
+    return c.json(entries);
+  })
+
+  .get("/knowledge", (c) => {
+    const type = c.req.query("type");
+    if (type && !["decision", "learning", "thread"].includes(type)) return c.json({ error: "not found" }, 404);
+    const rows = (type ? [type] : ["decision", "learning", "thread"]).flatMap(rowsOf)
+      .filter((r) => r.status !== "retracted")
+      .sort(newest)
+      .slice(0, 150)
+      .map(described);
+    const topics = new Map<string, { slug: string; decisions: number; threads: number; open: number; moved: string }>();
+    for (const r of [...rowsOf("decision"), ...rowsOf("thread")]) {
+      const t = topicOf(r.id);
+      if (!t) continue;
+      const e = topics.get(t) ?? { slug: t, decisions: 0, threads: 0, open: 0, moved: "" };
+      if (r.type === "decision") e.decisions++; else e.threads++;
+      if (r.type === "thread" && r.status === "open") e.open++;
+      if ((r.updated ?? "") > e.moved) e.moved = r.updated ?? "";
+      topics.set(t, e);
+    }
+    return c.json({
+      rows,
+      topics: [...topics.values()].filter((t) => t.threads || t.decisions > 1).sort((a, b) => b.moved.localeCompare(a.moved)),
+      counts: { decision: tally(rowsOf("decision")), learning: tally(rowsOf("learning")), thread: tally(rowsOf("thread")) },
+    });
   });
-});
 
-api.get("/artifact/:key", async (c) => {
-  const key = c.req.param("key");
-  const r = row(key);
-  if (!r || NOT_SHOWN.has(r.type)) return c.json({ error: "not found" }, 404);
-  const { fm, body } = doc(r);
-  const { html, toc } = await render(body);
-  let issues: IssueRow[] | undefined;
-  if (r.type === "milestone") {
-    const mine = membership(r.project).get(r.id) ?? [];
-    issues = mine.map(issueRow).sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? ""));
-  }
-  return c.json({
-    ...item(r),
-    description: fm.description ?? null,
-    goal: fm.goal ?? null,
-    tags: fm.tags ?? [],
-    html,
-    toc,
-    crumbs: crumbs(r, fm),
-    judge: judge(r, fm, body),
-    props: props(fm),
-    diagrams: (fm.diagrams ?? []) as string[],
-    backlinks: backlinks(r.id),
-    forward: forward(r.id),
-    graph: graph(r.id),
-    issues,
-  });
-});
+export type Api = typeof api;
 
-api.get("/stack/:key", async (c) => {
-  const key = c.req.param("key");
-  if (!row(key) || !key.startsWith("issue.")) return c.json({ error: "not found" }, 404);
-  const layers = [];
-  for (const k of manifest(key)) {
-    const r = row(k);
-    if (!r) continue;
-    const { body } = doc(r);
-    layers.push({ ...item(r), bytes: Buffer.byteLength(body), html: (await render(body)).html });
-  }
-  return c.json({ key, title: row(key)!.title, layers });
-});
+// Same policy as internal/ui's diagramCSP: inline styles, own-origin fonts and
+// data images only. It is the second wall behind the no-<script> refusal.
+const diagramCSP = "default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; img-src data:";
 
-api.get("/list/:type", (c) => {
-  const type = c.req.param("type");
-  if (NOT_SHOWN.has(type)) return c.json({ error: "not found" }, 404);
-  const { project, status, topic } = c.req.query();
-  let rows = rowsOf(type);
-  if (!rows.length) return c.json({ error: "not found" }, 404);
-  if (project) rows = rows.filter((r) => r.project === project);
-  if (topic) rows = rows.filter((r) => topicOf(r.id) === topic);
-  const counts = tally(rows);
-  if (status) rows = rows.filter((r) => r.status === status);
-  const projectsSeen = [...new Set(rowsOf(type).map((r) => r.project).filter(Boolean))].sort();
-  return c.json({
-    type, counts, projects: projectsSeen,
-    rows: type === "issue" ? rows.slice(0, 400).map(issueRow) : rows.slice(0, 400).map(item),
-    total: rows.length,
-  });
-});
-
-api.get("/search", (c) => {
-  const q = (c.req.query("q") ?? "").trim();
-  if (!q) return c.json({ q, hits: [] });
-  // Quote every term so FTS operators in user input are literal text.
-  const match = q.split(/\s+/).map((t) => `"${t.replaceAll('"', '""')}"`).join(" ");
-  const hits = all(
-    `select id, type, snippet(artifact_fts, 3, '\u0001', '\u0002', '…', 14) as snip
-       from artifact_fts where artifact_fts match ? and type != 'session' order by rank limit 60`,
-    match,
-  ).map((h) => {
-    const r = row(h.id);
-    return r && { ...item(r), snippet: String(h.snip) };
-  }).filter(Boolean);
-  return c.json({ q, hits });
-});
-
-api.get("/palette", (c) => {
-  const entries: { key: string; type: string; title: string; status: string | null; href: string; project: string | null; updated: string | null }[] = [];
-  for (const p of projects()) entries.push({ key: p.slug, type: "project", title: p.slug, status: null, href: `/p/${p.slug}`, project: p.slug, updated: p.updated });
-  const rows = all("select * from artifacts where type not in ('session') order by updated desc") as Row[];
-  for (const r of rows) entries.push({ key: r.id, type: r.type, title: r.title ?? r.id, status: r.status, href: `/a/${r.id}`, project: r.project, updated: r.updated });
-  const w = (t: string) => { const i = typeWeight.indexOf(t); return i < 0 ? 99 : i; };
-  entries.sort((a, b) => w(a.type) - w(b.type) || (b.updated ?? "").localeCompare(a.updated ?? ""));
-  return c.json(entries);
-});
-
-api.get("/knowledge", (c) => {
-  const type = c.req.query("type");
-  const types = type ? [type] : ["decision", "learning", "thread"];
-  const rows = types.flatMap(rowsOf)
-    .filter((r) => r.status !== "retracted")
-    .sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? ""))
-    .slice(0, 150)
-    .map((r) => ({ ...withDesc(r), topic: topicOf(r.id) || null }));
-  const topics = new Map<string, { slug: string; decisions: number; threads: number; open: number; moved: string }>();
-  for (const r of [...rowsOf("decision"), ...rowsOf("thread")]) {
-    const t = topicOf(r.id);
-    if (!t) continue;
-    const e = topics.get(t) ?? { slug: t, decisions: 0, threads: 0, open: 0, moved: "" };
-    if (r.type === "decision") e.decisions++; else e.threads++;
-    if (r.type === "thread" && r.status === "open") e.open++;
-    if ((r.updated ?? "") > e.moved) e.moved = r.updated ?? "";
-    topics.set(t, e);
-  }
-  return c.json({
-    rows,
-    topics: [...topics.values()].filter((t) => t.threads || t.decisions > 1).sort((a, b) => b.moved.localeCompare(a.moved)),
-    counts: {
-      decision: tally(rowsOf("decision")),
-      learning: tally(rowsOf("learning")),
-      thread: tally(rowsOf("thread")),
-    },
-  });
-});
-
-export const diagrams = new Hono();
-// Diagrams are self-contained HTML. They render in a sandboxed frame with no
-// script; a file that holds a script tag is refused outright.
-diagrams.get("/:name", (c) => {
+export const diagrams = new Hono().get("/:name", (c) => {
   const name = basename(c.req.param("name")).replace(/\.html$/, "");
   const path = join(root, "_meta", "diagrams", `${name}.html`);
   if (!existsSync(path)) return c.text("not found", 404);
   const html = readFileSync(path, "utf8");
   if (/<script/i.test(html)) return c.text("diagram holds a script", 415);
-  c.header("Content-Security-Policy", "script-src 'none'; default-src 'self' 'unsafe-inline' data:");
+  c.header("Content-Security-Policy", diagramCSP);
   return c.html(html);
 });
