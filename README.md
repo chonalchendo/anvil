@@ -40,10 +40,10 @@ Each loop has a limit. A stuck issue or an oversized milestone returns to you: a
 
 Four gates read vault evidence:
 
-- **Create gate** — an issue's verification must fail before the fix, so it can tell fixed from broken.
+- **Create gate** — an issue's Indirect verification must fail before the fix, so it can tell fixed from broken.
 - **Milestone gate** — no issue is claimed before its milestone is approved.
 - **Land gate** — `--land-pr` re-runs the verification on a fresh checkout of the PR head and merges only on its pass, a clean review round and green CI.
-- **Acceptance gate** — a milestone is done only when its finish line passes on the default branch and you accept the result.
+- **Acceptance gate** — a milestone is done only when its issues are closed, its finish line passes on the default branch and you accept the result.
 
 ## Install
 
@@ -55,23 +55,22 @@ cd anvil
 just install                     # version-stamped binary into $(go env GOPATH)/bin
 anvil --version
 
-anvil init --install-claude      # scaffold ~/anvil-vault; install skills, agents and hooks into ~/.claude
+anvil init                       # scaffold ~/anvil-vault
+anvil install skills             # skills → ~/.claude/skills
+anvil install agents             # subagents → ~/.claude/agents
+anvil install hooks              # SessionStart, PreCompact and SessionEnd hooks
 ```
 
 Restart Claude Code. The available-skills list now shows anvil's skills (`writing-issue`, `completing-issue`, …).
 
-Use `just install`, not `go install ./cmd/anvil`. The recipe stamps the version and catches a stale binary that shadows your `$PATH`. After a rebuild, run `anvil install skills` to refresh the installed bundle.
+Use `just install`, not `go install ./cmd/anvil`. The recipe stamps the version and catches a stale binary that shadows your `$PATH`. After a rebuild, run `anvil install skills` and `anvil install agents --force` to refresh the installed bundle. Pass `--uninstall` to any `install` verb to remove it.
 
-To install the parts one at a time, or to remove them:
+The hooks load the session guide at session start, turn each compaction into a handoff the next turn reloads, and commit and push the vault at session end. The push needs the vault to be a git repo with a remote:
 
 ```bash
-anvil install skills    # skills → ~/.claude/skills
-anvil install agents    # subagents → ~/.claude/agents
-anvil install hooks     # SessionStart, PreCompact and SessionEnd hooks
-anvil install skills --uninstall
+git -C ~/anvil-vault init
+git -C ~/anvil-vault remote add origin <your-vault-repo>
 ```
-
-The hooks load the session guide at session start, turn each compaction into a handoff the next turn reloads, and commit and push the vault at session end.
 
 ## Start a project
 
@@ -116,7 +115,7 @@ anvil ui                         # http://127.0.0.1:7780
 | Knowledge | `opening-thread`, `capturing-inbox`, `distilling-learning`, `refreshing-learnings` |
 | Session | `handing-off-session`, `resuming-session` |
 
-**Subagents** pin their own model, so cheap work runs on a cheaper model while the main thread plans:
+**Subagents** pin their own model. Implementation runs on a cheaper model; review runs on the strongest.
 
 | Agent | Job |
 |---|---|
@@ -165,7 +164,7 @@ The skills follow the open [SKILL.md](https://agentskills.io) standard, so they 
 
 Hooks are Claude Code only.
 
-**Claude Code cloud sessions.** Attach your project and your vault repo to the session. Add `anvil install cloud` as a `SessionStart` hook in the project's committed `.claude/settings.json`. It links the vault, installs the bundle and builds the index. On a local machine the same hook does nothing.
+**Claude Code cloud sessions.** Attach your project and your vault repo to the session. Add a `SessionStart` hook to the project's committed `.claude/settings.json` that runs `go install github.com/chonalchendo/anvil/cmd/anvil@latest`, then `anvil install cloud`. This repo's [`.claude/settings.json`](.claude/settings.json) is a working example. `install cloud` links the vault, installs the bundle and builds the index. On a local machine the same hook does nothing.
 
 ## Contributing
 
