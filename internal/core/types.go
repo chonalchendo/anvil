@@ -62,6 +62,11 @@ func (t Type) Dir() string {
 	panic(fmt.Sprintf("unknown type %q", t))
 }
 
+// IsBareIDDesign reports whether the type is a design addressed by project slug alone.
+func (t Type) IsBareIDDesign() bool {
+	return t == TypeProductDesign || t == TypeSystemDesign || t == TypeDataModel
+}
+
 // SupportsProject reports whether the type's schema accepts a `project:`
 // frontmatter field. Types that return false (inbox, session, sweep, thread)
 // are deliberately cross-project — inbox predates project assignment, sessions

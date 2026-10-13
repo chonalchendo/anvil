@@ -121,7 +121,7 @@ func newCreateCmd() *cobra.Command {
 			// overage). preResolutionRefusal reports every violation in one
 			// rejection, as text or as the --json envelope. Session and design types
 			// do not derive their ID from the title, so --title is optional for them.
-			noTitleRequired := t == core.TypeSession || isBareIDDesign(t)
+			noTitleRequired := t == core.TypeSession || t.IsBareIDDesign()
 			missingTitle := !noTitleRequired && flagTitle == ""
 			capViolations := checkFieldCaps(t, flagDescription, flagGoal)
 			if missingTitle || len(capViolations) > 0 {
@@ -199,10 +199,10 @@ func newCreateCmd() *cobra.Command {
 			// Design types don't require --title; fall back to the id so the
 			// schema's minLength constraint is satisfied without a user-supplied
 			// title. The author refines via anvil set.
-			if isBareIDDesign(t) && flagTitle == "" {
+			if t.IsBareIDDesign() && flagTitle == "" {
 				flagTitle = id
 			}
-			if flagDescription == "" && isBareIDDesign(t) {
+			if flagDescription == "" && t.IsBareIDDesign() {
 				flagDescription = id
 			}
 
@@ -222,7 +222,7 @@ func newCreateCmd() *cobra.Command {
 				body = core.ScaffoldSections(sectionsForType(t))
 				if t == core.TypeDataModel {
 					// A level not yet reached reads as such, per docs/vault-schemas.md.
-					for _, h := range []string{"## Conceptual", "## Logical", "## Physical"} {
+					for _, h := range core.DataModelLevels {
 						body = strings.Replace(body, h+"\n", h+"\n\nNot started.\n", 1)
 					}
 				}
