@@ -1,6 +1,18 @@
 # Diagram conventions
 
-Draw with the `diagram-design` plugin. Pick the format by level: `ER / data model` for conceptual and logical, `medallion` for the physical layer map, `database-schema` for physical tables. Keep a mermaid `erDiagram` as the text source for ER views.
+Draw with the `diagram-design` plugin. Pick the format by level: `ER / data model` for conceptual and logical, `medallion` for the physical layer map, `database-schema` for physical tables. The table below lists every type.
+
+## Level, home and diagram type
+
+Level decides when a diagram is drawn. Scope (system, subsystem, component) decides where it lives: the design whose `diagrams` slot names it, even when drawn at the physical level. Each view is one file under `_meta/diagrams/`; the design's `diagrams` slot and the data model's `diagrams` slot both name it.
+
+| Level and home | Diagram types |
+|---|---|
+| Conceptual (product design) | ER nouns and verbs only; Loop (core process cycle); Swimlane (handoffs between human, agents and system across the approval chain) |
+| Logical (system design) | ER with fields (`#` key, `→` reference, `#→` key part that is a reference, muted `time:` line, at most 8 entities per view); Architecture (subsystems and connections); DP integration (sources → core → consumers); Data flow (pipeline steps and who does each); State machine (each entity's valid state changes); Timeline (every time role on one walked row); Sequence (point-in-time read and decision path) |
+| Physical, system scope (system design) | Medallion (layers, roles, read rules); High-level (a subsystem's data stack); Deployment (where each subsystem runs); DP security matrix (what each principal may do on each component); Dependency graph (package and asset dependencies) |
+| Physical, component scope (component design) | Database schema (the component's tables per layer, audit-labelled references where the engine enforces no constraint); State machine when one component owns the lifecycle |
+| Below the designs (milestones) | Story map (releases and the cut line) |
 
 ## The box (ER / data model)
 

@@ -105,7 +105,7 @@ diagrams: [<name>]   # optional; each `<vault>/_meta/diagrams/<name>.html` must 
 
 One per project. The id is the bare `<project>`; the file sits flat in `07-data-models/` and the wikilink target is `data-model.<project>`.
 
-Body headings, in order (`validate` enforces; `create data-model --show-template` prints them): `## Domains`, `## Conceptual`, `## Logical`, `## Physical`, `## Open questions`. A level not yet reached holds a one-line `Not started.` `validate` and `set` refuse a `diagrams` name with no file.
+Body headings, in order (`validate` enforces; `create data-model --show-template` prints them): `## Domains`, `## Conceptual`, `## Logical`, `## Physical`, `## Design deltas`, `## Open questions`. `## Design deltas` is a ledger (target design, change, cause) of findings that change a design. A level not yet reached holds a one-line `Not started.` `validate` and `set` refuse a `diagrams` name with no file.
 
 ### `milestone`
 
