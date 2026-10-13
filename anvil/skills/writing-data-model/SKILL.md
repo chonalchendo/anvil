@@ -59,7 +59,7 @@ Wait for the user's response.
 
 **REQUIRED REFERENCE:** Use skills/writing-data-model/references/levels.md
 
-**REQUIRED REFERENCE:** Use skills/writing-data-model/references/diagrams.md
+**REQUIRED REFERENCE:** Use skills/writing-data-model/references/diagrams.md (type per level and home)
 
 For each domain, reference domains first (everything joins to them):
 
@@ -71,7 +71,7 @@ For each domain, reference domains first (everything joins to them):
 6. **Diagram.** Entities and relationships only, no attributes, with cardinality at each end. Keep a mermaid `erDiagram` as the text source. Render every reviewed view with the `diagram-design` ER / data model type: the same two-section box as the logical level, with the noun in the header and a one- or two-line gloss (not attributes) in the body. Keep at most 8 entities per view, so split a large domain into views (for example identity, place and time, grouping). Draw another domain's noun dashed with its domain tag; tag a noun drawn in full in another view of the same domain "VIEW n".
 7. **Validate against reference models.** Start a researcher when the domain starts, in parallel with the draft. It compares the draft with the established models for the domain (standards, vendor data models, literature) and reports missing nouns, wrong cardinalities and contested merges or splits, with citations. Fold surviving findings in before the gate. Standards are evidence, not authority: a finding changes the model only if it serves the project.
 
-**Gate:** the user confirms the domain diagram reads as the domain, with the validation findings folded in. Then the next domain.
+**Gate:** the user confirms the domain diagram reads as the domain, with the validation findings folded in. Then the next domain. Update the product design with each finding that changes it, and add each to `## Design deltas` (target design, change, cause).
 
 **Overview.** After the last domain, draw one diagram at domain grain:
 - one box per domain, with its noun count and two or three key nouns;
@@ -91,13 +91,13 @@ Before you draw, check that every borrowed noun has exactly one owner. Count nou
 5. **Validate time and attributes.** A narrower researcher pass checks how reference systems hold the same entities over time (point-in-time history, revisions, restatements). Fold surviving findings in before the gate.
 6. **Draw the logical ERD** with diagram-design's ER / data model type, the same type as the conceptual level (not the database-schema type, which is physical). Name entities in PascalCase; attributes stay snake_case. Use two-section boxes: the class tag and name, then fields with `#` for a key, `→` for a reference, and one muted time line naming the axes. Keep at most 8 entities per view, and show every entity in its home view. Draw a polymorphic reference as one dashed box listing its targets. Leave a redundant reference (one an audit derives) as a field only, with no line.
 
-**Gate:** per domain, the user confirms the entity table, the rows and the ERD.
+**Gate:** per domain, the user confirms the entity table, the rows and the ERD. Update the system design with each finding that changes it, and add each to `## Design deltas`.
 
 ## Phase 3: Physical
 
 Physical is where techniques mix (Reis, *Mixed Model Arts*: "same meaning, different physics"; each layer needs its own approach). One logical entity can be built once per layer.
 
-0. **Layers first.** State the layer list, each layer's role, what it may hold and what it may read. Draw it with the `diagram-design` medallion type: one tier per layer, with its writer, tool, format and an example table. Then place every logical entity: which layer or layers implement it, and as which tables.
+0. **Layers first.** State the layer list, each layer's role, what it may hold and what it may read. Draw it with the `diagram-design` medallion type: one tier per layer, with its writer, tool, format and an example table. Update the system design with the layer list too, not only the component designs. Then place every logical entity: which layer or layers implement it, and as which tables.
 1. **Home.** Choose each entity's store from the system design: an analytical table (with its layer), an operational database, an object store, a code declaration, or an external system. A code declaration a run must cite also gets a recorded version row.
 2. **Technique per layer.** Choose the modelling style per layer and camp with a reason: dimensional for analytics, point-in-time tables for ML, append-only event logs with current-state views for application records, catalog metadata for knowledge.
 3. **Naming.** Use the project's table-name convention. Define one prefix per class if the project uses prefixes.
@@ -106,14 +106,15 @@ Physical is where techniques mix (Reis, *Mixed Model Arts*: "same meaning, diffe
 6. **Metadata.** Every table and column carries technical, business and semantic metadata.
 7. **Schema diagrams.** Draw each layer's tables per domain with the `diagram-design` database-schema type: real types, constraint chips and column-to-column references, grouped in a container per layer. Keep to its budget of 5 tables per view. Where the engine enforces no constraint, label each reference edge with the audit that enforces it, not a referential action.
 
-**Gate:** the user confirms the layer map once; then, per domain, the table list, its settings and the schema diagrams.
+**Gate:** the user confirms the layer map once; then, per domain, the table list, its settings and the schema diagrams. Update the component designs with each finding that changes them, and add each to `## Design deltas`.
 
 ## Phase 4: Integrate
 
 1. Record each standing rule as a decision; link it.
 2. Link each component design to the entities it owns.
 3. Update the system design where the data model changed a boundary.
-4. Run `anvil validate`. List every conflict still open as an open question.
+4. Check `## Design deltas`: every row names a target design and its cause, and each design is updated.
+5. Run `anvil validate`. List every conflict still open as an open question.
 
 **Completion summary:** what was modelled, why this shape, what to watch.
 

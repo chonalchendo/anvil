@@ -30,7 +30,7 @@ var RequiredSystemDesignSections = []string{
 }
 
 // RequiredDataModelSections owns the data-model section order; writing-data-model points here via --show-template. Validate enforces it.
-var RequiredDataModelSections = append(append([]string{"## Domains"}, DataModelLevels...), "## Open questions")
+var RequiredDataModelSections = append(append([]string{"## Domains"}, DataModelLevels...), "## Design deltas", "## Open questions")
 
 // DataModelLevels are the data-model abstraction levels, in order.
 var DataModelLevels = []string{"## Conceptual", "## Logical", "## Physical"}
