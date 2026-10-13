@@ -16,7 +16,8 @@ func TestValidateDataModel_DesignDeltasRequiredBeforeOpenQuestions(t *testing.T)
 		t.Fatalf("complete body: %v", errs)
 	}
 	without := []string{"## Domains", "## Conceptual", "## Logical", "## Physical", "## Open questions"}
-	if errs := ValidateDataModel(build(without)); len(errs) == 0 {
-		t.Error("body without ## Design deltas passed")
+	errs := ValidateDataModel(build(without))
+	if len(errs) != 1 || !strings.Contains(errs[0].Error(), `"## Design deltas"`) {
+		t.Fatalf("want one error naming \"## Design deltas\", got %v", errs)
 	}
 }

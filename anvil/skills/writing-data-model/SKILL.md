@@ -112,9 +112,8 @@ Physical is where techniques mix (Reis, *Mixed Model Arts*: "same meaning, diffe
 
 1. Record each standing rule as a decision; link it.
 2. Link each component design to the entities it owns.
-3. Update the system design where the data model changed a boundary.
-4. Check `## Design deltas`: every row names a target design and its cause, and each design is updated.
-5. Run `anvil validate`. List every conflict still open as an open question.
+3. Check `## Design deltas`: every row names a target design and its cause, and each design is updated.
+4. Run `anvil validate`. List every conflict still open as an open question.
 
 **Completion summary:** what was modelled, why this shape, what to watch.
 

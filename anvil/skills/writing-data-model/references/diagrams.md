@@ -1,6 +1,6 @@
 # Diagram conventions
 
-Draw with the `diagram-design` plugin. Pick the format by level: `ER / data model` for conceptual and logical, `medallion` for the physical layer map, `database-schema` for physical tables. Keep a mermaid `erDiagram` as the text source for ER views.
+Draw with the `diagram-design` plugin. Pick the format by level: `ER / data model` for conceptual and logical, `medallion` for the physical layer map, `database-schema` for physical tables. The table below lists every type.
 
 ## Level, home and diagram type
 
