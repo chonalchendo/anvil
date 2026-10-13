@@ -426,3 +426,31 @@ func TestDoctorDesignDriftRootFollowsBinding(t *testing.T) {
 		}
 	})
 }
+
+func TestDoctorSystemDesignParentMissing(t *testing.T) {
+	vault := setupVault(t)
+	for _, id := range []string{"demo", "demo.sub", "demo.orphan.leaf"} {
+		a := &core.Artifact{
+			Path: filepath.Join(vault, "06-system-designs", id+".md"),
+			FrontMatter: map[string]any{
+				"type": "system-design", "title": id, "description": "d",
+				"created": "2026-01-01", "updated": "2026-01-01", "project": "demo",
+			},
+		}
+		if err := a.Save(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := checkSystemDesignParentMissing(&core.Vault{Root: vault}, "demo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("findings = %+v, want 1", got)
+	}
+	f := got[0]
+	if f.Kind != "system-design-parent-missing" || f.ID != "system-design.demo.orphan.leaf" ||
+		!strings.Contains(f.Evidence, "system-design.demo.orphan") {
+		t.Errorf("finding = %+v", f)
+	}
+}

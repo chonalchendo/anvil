@@ -167,13 +167,43 @@ func (h *Hydration) walk(v *core.Vault, sourceDesc string, linkType core.Type, t
 	return a, nil
 }
 
-// walkDesign walks one design target, then its convention links.
+// walkDesign walks one design target, then its convention links. A system
+// design also walks each existing ancestor its dotted id names.
 func (h *Hydration) walkDesign(v *core.Vault, src string, t core.Type, target string) error {
+	if err := h.walkOneDesign(v, src, t, target); err != nil {
+		return err
+	}
+	if t != core.TypeSystemDesign {
+		return nil
+	}
+	for p := SystemDesignParent(core.BareID(t, target)); p != ""; p = SystemDesignParent(p) {
+		// A missing ancestor is skipped, not a broken edge: nothing links it.
+		if !core.WikilinkTargetExists(v, core.WikilinkTarget(t, p)) {
+			continue
+		}
+		if err := h.walkOneDesign(v, src, t, p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *Hydration) walkOneDesign(v *core.Vault, src string, t core.Type, target string) error {
 	d, err := h.walk(v, src, t, target)
 	if err != nil || d == nil {
 		return err
 	}
 	return h.descendConventions(v, string(t)+" "+target, d)
+}
+
+// SystemDesignParent returns a bare system-design id minus its last dotted
+// segment, or "" for a one-segment id.
+func SystemDesignParent(id string) string {
+	i := strings.LastIndex(id, ".")
+	if i < 0 {
+		return ""
+	}
+	return id[:i]
 }
 
 // descendConventions walks an artifact's convention links — the shared last hop of

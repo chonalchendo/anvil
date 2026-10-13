@@ -223,3 +223,22 @@ func TestAssemble(t *testing.T) {
 			"issue foo.i1", "component-design component-design.foo.boundaries", "convention convention.go-style")
 	})
 }
+
+func TestHydrateSystemDesignAncestors(t *testing.T) {
+	v := &core.Vault{Root: t.TempDir()}
+	writeArtifact(t, v, core.TypeIssue, "foo.i1", map[string]any{"milestone": "[[milestone.foo.m1]]"}, "b\n")
+	writeArtifact(t, v, core.TypeMilestone, "foo.m1", map[string]any{"system_design": "[[system-design.foo.a.b]]"}, "m\n")
+	for _, id := range []string{"foo.a.b", "foo.a", "foo"} {
+		writeArtifact(t, v, core.TypeSystemDesign, id, map[string]any{}, "sys\n")
+	}
+	wantNodes(t, assemble(t, v, "foo.i1"),
+		"issue foo.i1", "milestone milestone.foo.m1", "system-design foo.a.b", "system-design foo.a", "system-design foo")
+
+	// A missing middle ancestor is skipped; the walk still reaches the root.
+	if err := os.Remove(filepath.Join(v.Root, core.TypeSystemDesign.Dir(), "foo.a.md")); err != nil {
+		t.Fatal(err)
+	}
+	h := assemble(t, v, "foo.i1")
+	wantNodes(t, h, "issue foo.i1", "milestone milestone.foo.m1", "system-design foo.a.b", "system-design foo")
+	wantBroken(t, h)
+}
