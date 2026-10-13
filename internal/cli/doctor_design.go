@@ -36,7 +36,12 @@ func checkDesignDrift(v *core.Vault, projectSlug string) ([]doctorFinding, error
 	if err != nil {
 		return nil, err
 	}
-	return append(findings, refs...), nil
+	findings = append(findings, refs...)
+	parents, err := checkSystemDesignParentMissing(v, projectSlug)
+	if err != nil {
+		return nil, err
+	}
+	return append(findings, parents...), nil
 }
 
 type milestoneRef struct {

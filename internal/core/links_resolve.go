@@ -263,6 +263,16 @@ func BareID(t Type, id string) string {
 	return strings.TrimPrefix(CanonicalID(t, id), string(t)+".")
 }
 
+// SystemDesignParent returns a bare system-design id minus its last dotted
+// segment, or "" for a one-segment id.
+func SystemDesignParent(id string) string {
+	i := strings.LastIndex(id, ".")
+	if i < 0 {
+		return ""
+	}
+	return id[:i]
+}
+
 // WikilinkTarget renders an artifact as its `<type>.<id>` wikilink-target
 // form, regardless of whether the type keeps the prefix in its canonical id.
 func WikilinkTarget(t Type, id string) string {
