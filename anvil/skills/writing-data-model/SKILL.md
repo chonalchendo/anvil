@@ -1,6 +1,6 @@
 ---
 name: writing-data-model
-description: "Use when designing a project's data model. Triggers: 'design the data model', 'what tables do we need', 'ERD', 'bitemporal'. Requires a system design. Not for one interface (writing-component-design), modelling style (writing-convention) or one table (completing-issue)."
+description: "Use when designing a project's data model. Triggers: 'design the data model', 'what tables do we need', 'ERD', 'bitemporal'. Not for one interface (writing-component-design), modelling style (writing-convention) or one table (completing-issue)."
 license: MIT
 allowed-tools: [Bash, Read, Edit, Write, Agent]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
