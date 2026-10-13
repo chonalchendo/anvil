@@ -4,7 +4,7 @@ Draw with the `diagram-design` plugin. Pick the format by level: `ER / data mode
 
 ## Level, home and diagram type
 
-Level decides when a diagram is drawn. Scope (system, subsystem, component) decides where it lives: the design whose `diagrams` slot names it, even when drawn at the physical level. The data model's own `diagrams` slot also names the views it draws: one file under `_meta/diagrams/`, named from both slots.
+Level decides when a diagram is drawn. Scope (system, subsystem, component) decides where it lives: the design whose `diagrams` slot names it, even when drawn at the physical level. Each view is one file under `_meta/diagrams/`; the design's `diagrams` slot and the data model's `diagrams` slot both name it.
 
 | Level and home | Diagram types |
 |---|---|
