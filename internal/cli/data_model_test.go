@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -48,10 +50,16 @@ func TestShow_DataModel_ResolvesByProject(t *testing.T) {
 // Warrant: a create that skips the section check writes a data model with no
 // logical or physical layer that only validate later flags.
 func TestCreate_DataModel_RefusesMissingSections(t *testing.T) {
-	setupVault(t)
-	_, _, err := runCmd(t, newRootCmd(), "create", "data-model", "--project", "foo", "--title", "Foo DM", "--description", "d", "--body", "## Nope")
-	if err == nil {
-		t.Fatal("create with a sectionless body succeeded; want refusal")
+	vault := setupVault(t)
+	stdout, stderr, err := runCmd(t, newRootCmd(), "create", "data-model", "--project", "foo", "--title", "Foo DM", "--description", "d", "--body", "## Nope")
+	if !errors.Is(err, ErrSchemaInvalid) {
+		t.Fatalf("err = %v, want ErrSchemaInvalid", err)
+	}
+	if got := stdout + stderr + err.Error(); !strings.Contains(got, `missing required heading "## Domains"`) {
+		t.Errorf("output lacks the missing-heading message:\n%s", got)
+	}
+	if _, statErr := os.Stat(filepath.Join(vault, "07-data-models", "foo.md")); !os.IsNotExist(statErr) {
+		t.Errorf("refused create left a file behind: stat err = %v", statErr)
 	}
 }
 

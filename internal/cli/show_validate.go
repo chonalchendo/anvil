@@ -13,8 +13,8 @@ import (
 )
 
 // runShowValidate handles `anvil show <type> <id> --validate` for any
-// type. Schema and link-resolution errors aggregate: both are reported, and the returned
-// error is non-nil if either fails.
+// type. Schema, data-model body and link errors aggregate; the returned error
+// is non-nil if any fails.
 func runShowValidate(cmd *cobra.Command, v *core.Vault, t core.Type, id string, asJSON bool) error {
 	path := filepath.Join(v.Root, t.Dir(), id+".md")
 	a, err := core.LoadArtifact(path)

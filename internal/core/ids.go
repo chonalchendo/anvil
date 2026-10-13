@@ -98,7 +98,7 @@ type IDInputs struct {
 // prefix, so the id, the on-disk basename and the `[[type.id]]` wikilink are
 // one string. Design types (product-design, system-design, data-model) key on a bare
 // project slug instead — the index (core.IndexKey) disambiguates a bare id
-// shared across the two design types, so the prefix is no longer needed for
+// shared across the design types, so the prefix is no longer needed for
 // uniqueness. Design types are handled before the slug validation because
 // they don't require a title.
 func DeterministicID(t Type, in IDInputs) (string, error) {
