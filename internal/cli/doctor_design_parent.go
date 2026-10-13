@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/chonalchendo/anvil/internal/core"
-	"github.com/chonalchendo/anvil/internal/hydrate"
 )
 
 // checkSystemDesignParentMissing flags a dotted system-design id whose parent
@@ -27,8 +26,9 @@ func checkSystemDesignParentMissing(v *core.Vault, projectSlug string) ([]doctor
 		if proj, _ := a.FrontMatter["project"].(string); proj != projectSlug {
 			continue
 		}
-		id := core.WikilinkTarget(core.TypeSystemDesign, listIDFor(core.TypeSystemDesign, p))
-		parent := hydrate.SystemDesignParent(core.BareID(core.TypeSystemDesign, id))
+		bare := core.BareID(core.TypeSystemDesign, listIDFor(core.TypeSystemDesign, p))
+		id := core.WikilinkTarget(core.TypeSystemDesign, bare)
+		parent := core.SystemDesignParent(bare)
 		if parent == "" {
 			continue
 		}

@@ -498,3 +498,11 @@ func TestCanonicalID_UnwrapsWikilink(t *testing.T) {
 		}
 	}
 }
+
+func TestSystemDesignParent(t *testing.T) {
+	for id, want := range map[string]string{"foo": "", "foo.a": "foo", "foo.a.b": "foo.a", "": ""} {
+		if got := SystemDesignParent(id); got != want {
+			t.Errorf("SystemDesignParent(%q) = %q, want %q", id, got, want)
+		}
+	}
+}

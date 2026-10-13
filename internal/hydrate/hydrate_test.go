@@ -228,11 +228,12 @@ func TestHydrateSystemDesignAncestors(t *testing.T) {
 	v := &core.Vault{Root: t.TempDir()}
 	writeArtifact(t, v, core.TypeIssue, "foo.i1", map[string]any{"milestone": "[[milestone.foo.m1]]"}, "b\n")
 	writeArtifact(t, v, core.TypeMilestone, "foo.m1", map[string]any{"system_design": "[[system-design.foo.a.b]]"}, "m\n")
-	for _, id := range []string{"foo.a.b", "foo.a", "foo"} {
-		writeArtifact(t, v, core.TypeSystemDesign, id, map[string]any{}, "sys\n")
-	}
+	writeArtifact(t, v, core.TypeSystemDesign, "foo.a.b", map[string]any{}, "sys\n")
+	writeArtifact(t, v, core.TypeSystemDesign, "foo.a", map[string]any{}, linksBody+"- [[convention.go-style]]\n")
+	writeArtifact(t, v, core.TypeSystemDesign, "system-design.foo", map[string]any{}, "sys\n")
+	writeArtifact(t, v, core.TypeConvention, "convention.go-style", map[string]any{}, "rules\n")
 	wantNodes(t, assemble(t, v, "foo.i1"),
-		"issue foo.i1", "milestone milestone.foo.m1", "system-design foo.a.b", "system-design foo.a", "system-design foo")
+		"issue foo.i1", "milestone milestone.foo.m1", "system-design foo.a.b", "system-design foo.a", "convention convention.go-style", "system-design foo")
 
 	// A missing middle ancestor is skipped; the walk still reaches the root.
 	if err := os.Remove(filepath.Join(v.Root, core.TypeSystemDesign.Dir(), "foo.a.md")); err != nil {
@@ -241,4 +242,12 @@ func TestHydrateSystemDesignAncestors(t *testing.T) {
 	h := assemble(t, v, "foo.i1")
 	wantNodes(t, h, "issue foo.i1", "milestone milestone.foo.m1", "system-design foo.a.b", "system-design foo")
 	wantBroken(t, h)
+
+	// A component design under the leaf still rails to the system design.
+	writeArtifact(t, v, core.TypeIssue, "foo.i2", map[string]any{"related": []any{"[[component-design.foo.boundaries]]"}}, "b\n")
+	cdesign(t, v, "foo.boundaries", "convention.go-style", map[string]any{"system_design": "[[system-design.foo.a.b]]"})
+	h = assemble(t, v, "foo.i2")
+	if !slices.Contains(nodeIDs(h), "system-design foo") {
+		t.Errorf("component design rail missed the root ancestor: %v", nodeIDs(h))
+	}
 }

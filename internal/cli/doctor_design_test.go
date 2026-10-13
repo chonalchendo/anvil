@@ -431,7 +431,7 @@ func TestDoctorSystemDesignParentMissing(t *testing.T) {
 	vault := setupVault(t)
 	for _, id := range []string{"demo", "demo.sub", "demo.orphan.leaf"} {
 		a := &core.Artifact{
-			Path: filepath.Join(vault, "06-system-designs", id+".md"),
+			Path: filepath.Join(vault, "06-system-designs", "system-design."+id+".md"),
 			FrontMatter: map[string]any{
 				"type": "system-design", "title": id, "description": "d",
 				"created": "2026-01-01", "updated": "2026-01-01", "project": "demo",
