@@ -29,6 +29,7 @@ Anvil's methodology mapped (`ls anvil/skills/` or `anvil show skill <name>` for 
 | `writing-system-design` | design | workflow |
 | `writing-milestone` | design | workflow |
 | `writing-component-design` | design | workflow |
+| `writing-data-model` | design | workflow |
 | `writing-convention` | design | workflow |
 | `capturing-inbox` | execution | workflow |
 | `writing-issue` | execution | workflow |
