@@ -1,6 +1,6 @@
 ---
 name: writing-data-model
-description: "Use when designing a project's data model: entities, relationships, keys, grain, time axes and tables, conceptual to logical to physical. Requires a system design. Not for interfaces (writing-component-design) or one table's code (completing-issue)."
+description: "Use when designing a project's data model. Triggers: 'design the data model', 'what tables do we need', 'ERD', 'bitemporal'. Requires a system design. Not for one interface (writing-component-design), modelling style (writing-convention) or one table (completing-issue)."
 license: MIT
 allowed-tools: [Bash, Read, Edit, Write, Agent]
 compatibility: "Works with Claude Code 2.0+ and Codex 0.121+ via SKILL.md standard"
@@ -38,12 +38,13 @@ The data model sits between the system design and the component designs. Compone
 
 - No system design yet → `writing-system-design` first.
 - One component's interface → `writing-component-design`.
+- A cross-project modelling style → `writing-convention`.
 - One table's code or migration → `completing-issue`.
 - One standing modelling choice → a decision (`anvil create decision`).
 
 ## Phase 0: Frame
 
-1. Read the system design and every active component design: `anvil show system-design <project> --body`, `anvil list component-design --project <project>`.
+1. Read the system design and every active component design: `anvil show system-design <project> --body`, `anvil list component-design --project <project> --status active --limit 200`. Check stderr for a `showing N of M` cut and raise the limit if it appears.
 2. Build an entity inventory from the designs, not from code. Dispatch a subagent to list, per stored or passed thing: owner, readers, grain, keys, time axes, mutability, citation. It also lists cross-boundary identifiers and conflicts (one concept two names, one name two meanings, no owner, never minted).
 3. Load the modelling checklist. **REQUIRED REFERENCE:** Use skills/writing-data-model/references/checklist.md
 4. Cut the landscape into domains: boundaries of meaning, each with one owner subsystem.
@@ -58,12 +59,12 @@ Wait for the user's response.
 
 **REQUIRED REFERENCE:** Use skills/writing-data-model/references/levels.md
 
-Diagram boxes and marks: skills/writing-data-model/references/diagrams.md.
+**REQUIRED REFERENCE:** Use skills/writing-data-model/references/diagrams.md
 
 For each domain, reference domains first (everything joins to them):
 
 1. **Nouns.** Define each entity in one sentence. Merge duplicates, split homonyms, cut phantoms.
-2. **Verbs.** State each relationship with cardinality and optionality ("a listing has one security; a security has one or more listings").
+2. **Verbs.** State each relationship with cardinality and optionality ("an order has one customer; a customer has zero or more orders").
 3. **Processes.** Walk each business process that touches the domain: trigger, ordered steps, change, result.
 4. **Instances.** Walk two or three real-world cases with real values through the nouns and verbs. A case that does not fit exposes a missing noun or verb.
 5. **Anti-patterns.** Check for a god entity, a phantom entity, a split entity and temporal confusion.

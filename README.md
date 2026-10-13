@@ -109,7 +109,7 @@ anvil ui                         # http://127.0.0.1:7780
 
 | Group | Skills |
 |---|---|
-| Design | `writing-product-design`, `writing-system-design`, `writing-component-design`, `writing-convention` |
+| Design | `writing-product-design`, `writing-system-design`, `writing-component-design`, `writing-data-model`, `writing-convention` |
 | Plan and run | `writing-milestone`, `writing-issue`, `running-milestone`, `completing-issue` |
 | Review | `reviewing-pr`, `responding-to-pr-review` |
 | Knowledge | `opening-thread`, `capturing-inbox`, `distilling-learning`, `refreshing-learnings` |
