@@ -242,6 +242,10 @@ func runLinkQuery(cmd *cobra.Command, fromID, toID string, unresolved, asJSON bo
 		path, source := "", r.Source
 		if a, err := db.GetArtifact(r.Source); err == nil {
 			path, source = a.Path, displayID(a.Type, r.Source)
+			if t, perr := core.ParseType(a.Type); perr == nil && t.IsBareIDDesign() {
+				// Designs keep the type-qualified index key so a data-model and system-design sharing a slug stay distinct.
+				source = r.Source
+			}
 		}
 		out = append(out, linkRowOut{
 			Source: source, Target: r.Target, Relation: r.Relation,

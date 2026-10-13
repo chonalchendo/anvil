@@ -34,6 +34,7 @@ Structural edges, child → parent, typed scalars unless noted:
 | Child | Slot | Parent | Cardinality |
 |---|---|---|---|
 | `system-design` | `product_design` | product-design | 1:1 |
+| `data-model` | `system_design` | system-design | 1:1 |
 | `milestone` | `product_design` | product-design | 1:1 |
 | `milestone` | `system_design` | system-design | 1:1 |
 | `issue` | `milestone` | milestone | 1:1 |
@@ -91,6 +92,20 @@ diagrams: [<name>]   # optional; each `<vault>/_meta/diagrams/<name>.html` must 
 Addressable as `<project>` (per-project) or `<project>.<shard>` (per subsystem); files sit flat in `06-system-designs/` under the bare id (e.g. `burgh.md`) and resolve in show/list/wikilinks. The index DB still keys on the type-qualified form (`system-design.burgh`), which is also the wikilink target shape.
 
 Body absorbs: constraints and quality goals, system invariants, open questions. No Tech stack section. Diagrams are HTML files named in `diagrams`; `validate` and `set` refuse a name with no file.
+
+### `data-model`
+
+```yaml
+type: data-model
+project: <slug>
+status: draft | active | superseded | retired
+system_design: "[[system-design.<project>]]"
+diagrams: [<name>]   # optional; each `<vault>/_meta/diagrams/<name>.html` must exist
+```
+
+One per project. The id is the bare `<project>`; the file sits flat in `07-data-models/` and the wikilink target is `data-model.<project>`.
+
+Body headings, in order (`validate` enforces; `create data-model --show-template` prints them): `## Domains`, `## Conceptual`, `## Logical`, `## Physical`, `## Open questions`. A level not yet reached holds a one-line `Not started.` `validate` and `set` refuse a `diagrams` name with no file.
 
 ### `milestone`
 
@@ -325,7 +340,7 @@ User-authored. Anthropic spec at top level + Anvil `metadata:` block. Out of CLI
 
 ## IDs and naming
 
-Slug-based across most artifacts. **Every type but the date/ordinal-keyed ones and design docs keeps the type prefix in the id** — issue, milestone, component design, and conventions — so the id, the on-disk basename, and the `[[wikilink]]` target are one string: Obsidian matches literal basenames (the index type-qualifies every key, so ids need only be unique within a type). Project-scoped shapes: id and filename `<type>.<project>.<slug>[.md]`. **Issues** additionally carry a per-project ordinal: id `issue.<project>.NNNN.<slug>` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Bare back-catalogue filenames (no type prefix) and legacy long-slug issue files (no ordinal) still resolve until the attended rename (anvil.0201) lands. **Design docs** (`product-design`, `system-design`) key on a bare id — `<project>` for the singleton, `<project>.<shard>` for a named shard — with no type prefix (e.g. `05-product-designs/anvil.md`, `06-system-designs/anvil.build.md`). **Conventions** are project-agnostic: id `convention.<slug>`, filename `convention.<slug>.md` (e.g. `35-conventions/convention.python.md`).
+Slug-based across most artifacts. **Every type but the date/ordinal-keyed ones and design docs keeps the type prefix in the id** — issue, milestone, component design, and conventions — so the id, the on-disk basename, and the `[[wikilink]]` target are one string: Obsidian matches literal basenames (the index type-qualifies every key, so ids need only be unique within a type). Project-scoped shapes: id and filename `<type>.<project>.<slug>[.md]`. **Issues** additionally carry a per-project ordinal: id `issue.<project>.NNNN.<slug>` — the ordinal is the short conversational handle (`anvil show issue 42`, leading zeros optional); the slug stays the idempotency key. Bare back-catalogue filenames (no type prefix) and legacy long-slug issue files (no ordinal) still resolve until the attended rename (anvil.0201) lands. **Design docs** (`product-design`, `system-design`, `data-model`) key on a bare id — `<project>` for the singleton, `<project>.<shard>` for a named shard — with no type prefix (e.g. `05-product-designs/anvil.md`, `06-system-designs/anvil.build.md`; a `data-model` is `<project>` only, e.g. `07-data-models/anvil.md`). **Conventions** are project-agnostic: id `convention.<slug>`, filename `convention.<slug>.md` (e.g. `35-conventions/convention.python.md`).
 
 Examples:
 
@@ -351,6 +366,7 @@ Wikilinks are vault-global, not project-scoped. Because the project name is part
 ├── 00-inbox/
 ├── 05-product-designs/           # flat: <project>.md (index keys on product-design.<project>)
 ├── 06-system-designs/            # flat: <project>[.<shard>].md (index keys on system-design.<project>[.<shard>])
+├── 07-data-models/               # flat: <project>.md (index keys on data-model.<project>)
 ├── 10-sessions/{raw,distilled}/
 ├── 20-learnings/
 ├── 30-decisions/

@@ -17,6 +17,7 @@ var VaultDirs = []string{
 	"00-inbox",
 	"05-product-designs",
 	"06-system-designs",
+	"07-data-models",
 	"10-sessions/raw",
 	"10-sessions/distilled",
 	"20-learnings",

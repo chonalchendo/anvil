@@ -20,12 +20,13 @@ const (
 	TypeSession         Type = "session"
 	TypeProductDesign   Type = "product-design"
 	TypeSystemDesign    Type = "system-design"
+	TypeDataModel       Type = "data-model"
 	TypeComponentDesign Type = "component-design"
 	TypeConvention      Type = "convention"
 )
 
 // AllTypes lists every Type accepted by the v0.1 CLI.
-var AllTypes = []Type{TypeInbox, TypeIssue, TypeMilestone, TypeDecision, TypeLearning, TypeThread, TypeSweep, TypeSession, TypeProductDesign, TypeSystemDesign, TypeComponentDesign, TypeConvention}
+var AllTypes = []Type{TypeInbox, TypeIssue, TypeMilestone, TypeDecision, TypeLearning, TypeThread, TypeSweep, TypeSession, TypeProductDesign, TypeSystemDesign, TypeDataModel, TypeComponentDesign, TypeConvention}
 
 // Dir returns the vault subdirectory that holds artifacts of type t.
 // Panics on an unknown Type — callers must validate via ParseType first.
@@ -51,6 +52,8 @@ func (t Type) Dir() string {
 		return "05-product-designs"
 	case TypeSystemDesign:
 		return "06-system-designs"
+	case TypeDataModel:
+		return "07-data-models"
 	case TypeComponentDesign:
 		return "75-component-designs"
 	case TypeConvention:
@@ -59,13 +62,18 @@ func (t Type) Dir() string {
 	panic(fmt.Sprintf("unknown type %q", t))
 }
 
+// IsBareIDDesign reports whether the type is a design addressed by project slug alone.
+func (t Type) IsBareIDDesign() bool {
+	return t == TypeProductDesign || t == TypeSystemDesign || t == TypeDataModel
+}
+
 // SupportsProject reports whether the type's schema accepts a `project:`
 // frontmatter field. Types that return false (inbox, session, sweep, thread)
 // are deliberately cross-project — inbox predates project assignment, sessions
 // cross repos, and sweep/thread are spans by construction.
 func (t Type) SupportsProject() bool {
 	switch t {
-	case TypeIssue, TypeMilestone, TypeProductDesign, TypeSystemDesign, TypeLearning, TypeDecision, TypeComponentDesign:
+	case TypeIssue, TypeMilestone, TypeProductDesign, TypeSystemDesign, TypeDataModel, TypeLearning, TypeDecision, TypeComponentDesign:
 		return true
 	}
 	return false

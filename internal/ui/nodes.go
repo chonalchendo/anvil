@@ -44,7 +44,7 @@ var glyphs = map[string]string{
 // typeIcons maps every artifact type to its distinct icon; the node header, search groups and type list read it.
 var typeIcons = map[string]string{
 	"inbox": "✉", "issue": "◎", "milestone": "⚑", "decision": "⚖", "learning": "✦", "thread": "≋",
-	"sweep": "⌁", "session": "◷", "product-design": "◈", "system-design": "▦", "component-design": "▣", "convention": "¶",
+	"sweep": "⌁", "session": "◷", "product-design": "◈", "system-design": "▦", "data-model": "▤", "component-design": "▣", "convention": "¶",
 }
 
 func leaf(r index.ArtifactRow) node {

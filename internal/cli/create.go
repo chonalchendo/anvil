@@ -121,7 +121,7 @@ func newCreateCmd() *cobra.Command {
 			// overage). preResolutionRefusal reports every violation in one
 			// rejection, as text or as the --json envelope. Session and design types
 			// do not derive their ID from the title, so --title is optional for them.
-			noTitleRequired := t == core.TypeSession || t == core.TypeProductDesign || t == core.TypeSystemDesign
+			noTitleRequired := t == core.TypeSession || t.IsBareIDDesign()
 			missingTitle := !noTitleRequired && flagTitle == ""
 			capViolations := checkFieldCaps(t, flagDescription, flagGoal)
 			if missingTitle || len(capViolations) > 0 {
@@ -199,10 +199,10 @@ func newCreateCmd() *cobra.Command {
 			// Design types don't require --title; fall back to the id so the
 			// schema's minLength constraint is satisfied without a user-supplied
 			// title. The author refines via anvil set.
-			if (t == core.TypeProductDesign || t == core.TypeSystemDesign) && flagTitle == "" {
+			if t.IsBareIDDesign() && flagTitle == "" {
 				flagTitle = id
 			}
-			if flagDescription == "" && (t == core.TypeProductDesign || t == core.TypeSystemDesign) {
+			if flagDescription == "" && t.IsBareIDDesign() {
 				flagDescription = id
 			}
 
@@ -220,6 +220,12 @@ func newCreateCmd() *cobra.Command {
 			userAuthoredBody = cmd.Flags().Changed("body") || cmd.Flags().Changed("body-file") || body != ""
 			if body == "" && !cmd.Flags().Changed("body") && !cmd.Flags().Changed("body-file") {
 				body = core.ScaffoldSections(sectionsForType(t))
+				if t == core.TypeDataModel {
+					// A level not yet reached reads as such, per docs/vault-schemas.md.
+					for _, h := range core.DataModelLevels {
+						body = strings.Replace(body, h+"\n", h+"\n\nNot started.\n", 1)
+					}
+				}
 			}
 
 			created := time.Now().UTC().Format("2006-01-02")
@@ -385,7 +391,7 @@ func newCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagMilestone, "milestone", "", "milestone slug or wikilink to assign (issue only)")
 	cmd.Flags().StringArrayVar(&flagAcceptance, "acceptance", nil, "acceptance criterion to add (repeatable; issue, milestone)")
 	cmd.Flags().StringVar(&flagKind, "kind", "", "component design kind (registered label, required — register via `anvil component-design kinds add`) or milestone kind (scoped, the default)")
-	cmd.Flags().BoolVar(&flagShowTemplate, "show-template", false, "print the required body skeleton + tag rules for <type> and exit (learning, issue, milestone, component-design, product-design, system-design)")
+	cmd.Flags().BoolVar(&flagShowTemplate, "show-template", false, "print the required body skeleton + tag rules for <type> and exit (learning, issue, milestone, component-design, product-design, system-design, data-model)")
 	cmd.Flags().BoolVar(&flagSkipVerifyPredicates, "skip-verify-predicates", false, skipVerifyPredicatesFlagUsage)
 
 	return cmd

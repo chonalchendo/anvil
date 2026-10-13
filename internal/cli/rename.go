@@ -232,7 +232,7 @@ func replaceSlug(t core.Type, oldID, newSlug string, explicitSlug bool) (string,
 			return oldID + "." + newSlug, nil
 		}
 		return oldID, nil
-	case core.TypeProductDesign:
+	case core.TypeProductDesign, core.TypeDataModel:
 		// id is always <project> — no slug component, ever.
 		if explicitSlug {
 			return "", fmt.Errorf("--slug is not supported for %s: id is always the project (%s)", t, oldID)

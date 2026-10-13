@@ -122,6 +122,8 @@ func sectionsForType(t core.Type) []string {
 		return core.RequiredMilestoneSections
 	case core.TypeComponentDesign:
 		return core.RequiredComponentDesignSections
+	case core.TypeDataModel:
+		return core.RequiredDataModelSections
 	default:
 		return nil
 	}
@@ -130,11 +132,11 @@ func sectionsForType(t core.Type) []string {
 // runShowTemplate prints the required body skeleton and tag rules an author
 // needs before composing, then exits — moving create's section/facet checks
 // from a post-hoc rollback to an up-front affordance. Only learning, issue, milestone,
-// component-design, product-design and system-design carry a template.
+// component-design, product-design, system-design and data-model carry a template.
 func runShowTemplate(cmd *cobra.Command, t core.Type) error {
-	// The design types stay out of sectionsForType: the no-body create path
-	// must keep writing an empty design body (existing artifacts and drift
-	// checks rely on it).
+	// Product and system designs stay out of sectionsForType: the no-body
+	// create path must keep writing an empty body for them (existing
+	// artifacts and drift checks rely on it).
 	var sections []string
 	switch t {
 	case core.TypeProductDesign:
@@ -145,7 +147,7 @@ func runShowTemplate(cmd *cobra.Command, t core.Type) error {
 		sections = sectionsForType(t)
 	}
 	if sections == nil {
-		return fmt.Errorf("--show-template: no required body template for %s (learning, issue, milestone, component-design, product-design, system-design)", t)
+		return fmt.Errorf("--show-template: no required body template for %s (learning, issue, milestone, component-design, product-design, system-design, data-model)", t)
 	}
 	w := cmd.OutOrStdout()
 	fmt.Fprintln(w, core.ScaffoldSections(sections))
