@@ -45,16 +45,13 @@ func TestShow_DataModel_ResolvesByProject(t *testing.T) {
 	}
 }
 
-func TestCreate_DataModel_ShowTemplateListsSections(t *testing.T) {
+// Warrant: a create that skips the section check writes a data model with no
+// logical or physical layer that only validate later flags.
+func TestCreate_DataModel_RefusesMissingSections(t *testing.T) {
 	setupVault(t)
-	out, _, err := runCmd(t, newRootCmd(), "create", "data-model", "--show-template")
-	if err != nil {
-		t.Fatalf("show-template: %v", err)
-	}
-	for _, h := range core.RequiredDataModelSections {
-		if !strings.Contains(out, h) {
-			t.Errorf("template missing %q:\n%s", h, out)
-		}
+	_, _, err := runCmd(t, newRootCmd(), "create", "data-model", "--project", "foo", "--title", "Foo DM", "--description", "d", "--body", "## Nope")
+	if err == nil {
+		t.Fatal("create with a sectionless body succeeded; want refusal")
 	}
 }
 

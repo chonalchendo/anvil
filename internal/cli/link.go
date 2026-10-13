@@ -242,6 +242,11 @@ func runLinkQuery(cmd *cobra.Command, fromID, toID string, unresolved, asJSON bo
 		path, source := "", r.Source
 		if a, err := db.GetArtifact(r.Source); err == nil {
 			path, source = a.Path, displayID(a.Type, r.Source)
+			// Designs print a bare slug; qualify them so a data-model and a
+			// system-design sharing a slug stay distinguishable.
+			if t, perr := core.ParseType(a.Type); perr == nil && isBareIDDesign(t) {
+				source = core.WikilinkTarget(t, r.Source)
+			}
 		}
 		out = append(out, linkRowOut{
 			Source: source, Target: r.Target, Relation: r.Relation,
@@ -257,4 +262,8 @@ func runLinkQuery(cmd *cobra.Command, fromID, toID string, unresolved, asJSON bo
 		fmt.Fprintf(cmd.OutOrStdout(), "%s %s -> %s\n", r.Relation, r.Source, r.Target)
 	}
 	return nil
+}
+
+func isBareIDDesign(t core.Type) bool {
+	return t == core.TypeProductDesign || t == core.TypeSystemDesign || t == core.TypeDataModel
 }

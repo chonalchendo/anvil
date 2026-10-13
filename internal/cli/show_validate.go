@@ -27,11 +27,24 @@ func runShowValidate(cmd *cobra.Command, v *core.Vault, t core.Type, id string, 
 
 	schemaErr := schema.Validate(string(t), a.FrontMatter)
 	links := core.ResolveLinks(v, a.FrontMatter)
+	// Scoped to data-model: validateOne's other body checks would newly fail
+	// the existing back catalogue of other types under show --validate.
+	var bodyErrs []error
+	if t == core.TypeDataModel {
+		bodyErrs = core.ValidateDataModel(a)
+	}
 
 	if asJSON {
 		out := map[string]any{
 			"schema_ok":        schemaErr == nil,
 			"unresolved_links": links,
+		}
+		if len(bodyErrs) > 0 {
+			msgs := make([]string, len(bodyErrs))
+			for i, e := range bodyErrs {
+				msgs[i] = e.Error()
+			}
+			out["body_errors"] = msgs
 		}
 		if schemaErr != nil {
 			out["schema_errors"] = []string{schemaErr.Error()}
@@ -44,6 +57,9 @@ func runShowValidate(cmd *cobra.Command, v *core.Vault, t core.Type, id string, 
 			cmd.PrintErrln("schema: fail:", schemaErr)
 		} else {
 			cmd.PrintErrln("schema: ok")
+		}
+		for _, e := range bodyErrs {
+			cmd.PrintErrln("body: fail:", e)
 		}
 		if len(links) > 0 {
 			cmd.PrintErrln("links:")
@@ -58,6 +74,8 @@ func runShowValidate(cmd *cobra.Command, v *core.Vault, t core.Type, id string, 
 	switch {
 	case schemaErr != nil:
 		return fmt.Errorf("%w: %w", ErrSchemaInvalid, schemaErr)
+	case len(bodyErrs) > 0:
+		return fmt.Errorf("%w: %w", ErrSchemaInvalid, bodyErrs[0])
 	case len(links) > 0:
 		return fmt.Errorf("%w: %d unresolved", ErrUnresolvedLinks, len(links))
 	}

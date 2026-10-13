@@ -96,7 +96,7 @@ type IDInputs struct {
 //
 // Issue, milestone, component design and convention ids keep their `<type>.`
 // prefix, so the id, the on-disk basename and the `[[type.id]]` wikilink are
-// one string. Design types (product-design, system-design) key on a bare
+// one string. Design types (product-design, system-design, data-model) key on a bare
 // project slug instead — the index (core.IndexKey) disambiguates a bare id
 // shared across the two design types, so the prefix is no longer needed for
 // uniqueness. Design types are handled before the slug validation because

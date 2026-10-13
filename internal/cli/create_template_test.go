@@ -13,6 +13,7 @@ func TestShowTemplateDesigns(t *testing.T) {
 	cases := map[string][]string{
 		"product-design": core.RequiredProductDesignSections,
 		"system-design":  core.RequiredSystemDesignSections,
+		"data-model":     core.RequiredDataModelSections,
 	}
 	for typ, headings := range cases {
 		t.Run(typ, func(t *testing.T) {

@@ -230,7 +230,7 @@ func linkedDesigns(fm map[string]any) []designLink {
 	for _, r := range rel {
 		s, _ := r.(string)
 		s = core.UnwrapWikilink(s)
-		for _, t := range []core.Type{core.TypeComponentDesign, core.TypeSystemDesign, core.TypeProductDesign} {
+		for _, t := range []core.Type{core.TypeComponentDesign, core.TypeSystemDesign, core.TypeProductDesign, core.TypeDataModel} {
 			if strings.HasPrefix(s, string(t)+".") {
 				target := core.BareID(t, s)
 				if key := string(t) + "." + target; target != "" && !seen[key] {
@@ -255,7 +255,7 @@ func checkDesignCodeRefMissing(v *core.Vault, projectSlug, repoRoot string) ([]d
 		return nil, nil
 	}
 	var findings []doctorFinding
-	for _, t := range []core.Type{core.TypeComponentDesign, core.TypeSystemDesign, core.TypeProductDesign} {
+	for _, t := range []core.Type{core.TypeComponentDesign, core.TypeSystemDesign, core.TypeProductDesign, core.TypeDataModel} {
 		paths, err := collectArtifactPaths(v.Root, t)
 		if err != nil {
 			return nil, fmt.Errorf("reading %s: %w", t, err)

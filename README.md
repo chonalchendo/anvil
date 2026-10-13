@@ -128,7 +128,7 @@ anvil ui                         # http://127.0.0.1:7780
 
 ## The vault
 
-Artifact types: `product-design`, `system-design`, `component-design`, `convention`, `milestone`, `issue`, `decision`, `thread`, `learning`, `inbox`, `session`, `sweep`.
+Artifact types: `product-design`, `system-design`, `data-model`, `component-design`, `convention`, `milestone`, `issue`, `decision`, `thread`, `learning`, `inbox`, `session`, `sweep`.
 
 The files are plain markdown with YAML frontmatter, linked by `[[wikilinks]]`. Any editor can read them, and the vault stays readable if anvil disappears. Schemas live in [`schemas/`](schemas/); field reference in [`docs/vault-schemas.md`](docs/vault-schemas.md).
 
