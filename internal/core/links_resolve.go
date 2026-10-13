@@ -129,6 +129,7 @@ var governingBodyLinkTypes = map[Type]struct{}{
 	TypeConvention:      {},
 	TypeProductDesign:   {},
 	TypeSystemDesign:    {},
+	TypeDataModel:       {},
 	TypeLearning:        {},
 	TypeMilestone:       {},
 	TypeDecision:        {},

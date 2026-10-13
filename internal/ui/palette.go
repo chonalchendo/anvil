@@ -24,7 +24,7 @@ type paletteEntry struct {
 
 // paletteWeight ranks entry types, highest first; sessions are absent so the palette drops them.
 var paletteWeight = []string{
-	"project", "milestone", "issue", "product-design", "system-design", "component-design",
+	"project", "milestone", "issue", "product-design", "system-design", "data-model", "component-design",
 	"topic", "decision", "thread", "learning", "convention", "inbox", "sweep",
 }
 

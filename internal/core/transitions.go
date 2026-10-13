@@ -84,6 +84,7 @@ var transitions = map[Type][]Transition{
 	},
 	TypeProductDesign: designTable,
 	TypeSystemDesign:  designTable,
+	TypeDataModel:     designTable,
 	TypeSession: {
 		{From: "raw", To: "triaged"},
 		{From: "triaged", To: "distilled"},
@@ -92,7 +93,7 @@ var transitions = map[Type][]Transition{
 	},
 }
 
-// designTable is shared: product-design and system-design have one lifecycle.
+// designTable is shared: product-design, system-design and data-model have one lifecycle.
 var designTable = []Transition{
 	{From: "draft", To: "active"},
 	{From: "active", To: "superseded"},

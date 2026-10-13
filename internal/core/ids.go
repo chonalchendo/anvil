@@ -103,7 +103,7 @@ type IDInputs struct {
 // they don't require a title.
 func DeterministicID(t Type, in IDInputs) (string, error) {
 	switch t {
-	case TypeProductDesign:
+	case TypeProductDesign, TypeDataModel:
 		// ID is always <project> — no slug component.
 		if in.Project == "" {
 			return "", fmt.Errorf("project required for %s", t)

@@ -275,6 +275,12 @@ func validateOne(t core.Type, path string, knownTags map[string]struct{}, verbs 
 		}
 	}
 
+	if t == core.TypeDataModel {
+		for _, vErr := range core.ValidateDataModel(a) {
+			out = append(out, errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error()).WithFix(fmt.Sprintf("run `anvil create %s --show-template` to print the required body skeleton + tag rules", t)))
+		}
+	}
+
 	if t == core.TypeMilestone {
 		for _, vErr := range core.ValidateMilestone(a) {
 			e := errfmt.NewValidationError(errfmt.CodeConstraintViolation, path, "", vErr.Error())
